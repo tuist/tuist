@@ -4,7 +4,9 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias Tuist.Application.CertificateTrust
   alias Tuist.Application.EndpointDrainer
+  alias Tuist.Application.FinchPools
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -48,6 +50,7 @@ defmodule Tuist.Application do
 
   @impl true
   def start(_type, _args) do
+    CertificateTrust.configure!(Environment.mode(), :os.type())
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
@@ -67,6 +70,7 @@ defmodule Tuist.Application do
 
   @impl true
   def prep_stop(state) do
+    TuistWeb.Draining.start()
     EndpointDrainer.drain(TuistWeb.Endpoint)
     state
   end
@@ -76,6 +80,7 @@ defmodule Tuist.Application do
   end
 
   defp start_telemetry do
+    Tuist.Observability.attach_oban()
     Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
     TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
@@ -229,9 +234,19 @@ defmodule Tuist.Application do
         :span_id,
         :request_id,
         :request_kind,
+        :auth_user_id,
+        :auth_project_id,
+        :auth_account_id,
         :auth_account_handle,
+        :selected_account_id,
         :selected_account_handle,
+        :selected_project_id,
         :selected_project_handle,
+        :feature_flags,
+        :feature_flag,
+        :feature_flag_enabled,
+        :feature_flag_actor_type,
+        :feature_flag_actor_id,
         :operator_grant_jti,
         :operator_grant_sub,
         :atlas_operator_email,
@@ -358,17 +373,20 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Supervisor.child_spec({Cachex, [:license, []]}, id: :license),
           Supervisor.child_spec({Cachex, [:display, []]}, id: :display),
+          Tuist.OIDC.JWKSCache,
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,
           Tuist.OpenGraphImages,
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
+          Tuist.Sandboxes.NodePresence,
           Tuist.KeyValueStore.Invalidator,
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
           Tuist.Kura.Origins,
+          {Tuist.Kura.Usage, []},
           TuistCommon.GitHub.RateLimit,
           TuistWeb.Telemetry
         ] ++
@@ -377,7 +395,7 @@ defmodule Tuist.Application do
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
         redis_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        [TuistWeb.Draining, TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
         once_events_grpc_children() ++
         RuntimeChildren.readiness_server(Environment.mode())
 
@@ -409,6 +427,7 @@ defmodule Tuist.Application do
       end
     )
     |> Kernel.++(kura_children())
+    |> Kernel.++(sandboxes_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
     # mode — see `RuntimeChildren.marketing_stats/1`.
@@ -513,6 +532,17 @@ defmodule Tuist.Application do
     end
   end
 
+  # Every web pod runs the manager; the pollers it starts are cluster
+  # singletons (`:global`), so the fleet polls each environment once.
+  # Tests drive the poller and manager directly.
+  defp sandboxes_children do
+    if Environment.web?() and not Environment.test?() do
+      [Tuist.Sandboxes.Anthropic.Supervisor]
+    else
+      []
+    end
+  end
+
   defp finch_pools do
     if Environment.test?() do
       %{:default => [size: 10]}
@@ -533,8 +563,8 @@ defmodule Tuist.Application do
           # pool, so the fallback pool must handle primary-storage-level load.
           :default => [
             size:
-              max(
-                TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+              FinchPools.default_pool_size(
+                Application.fetch_env!(:tuist, Oban)[:queues],
                 Environment.s3_pool_size()
               ),
             count: Environment.s3_pool_count(),
@@ -581,21 +611,6 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
-    end
-  end
-
-  defp active_download_queue_concurrencies do
-    :tuist
-    |> Application.fetch_env!(Oban)
-    |> Keyword.get(:queues, [])
-    |> case do
-      queues when is_list(queues) ->
-        queues
-        |> Keyword.take([:process_build, :process_xcresult])
-        |> Keyword.values()
-
-      _ ->
-        []
     end
   end
 

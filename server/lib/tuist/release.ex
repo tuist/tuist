@@ -7,6 +7,7 @@ defmodule Tuist.Release do
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Tests.Coverage
 
   require Logger
@@ -34,25 +35,28 @@ defmodule Tuist.Release do
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
   @grafana_query_log_view "grafana_query_log"
 
-  # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
+  # Exact column allowlist for the Grafana role behind the "Tuist Product Usage"
+  # dashboard and the "Runner cache volume warm rate low" alert rule.
   # Column-level rather than table-level because every table below sits next to a
   # secret in the same row: table-level SELECT would hand the dashboard's
   # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
   # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
   # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
-  # the dashboard needs only the signup timestamp.
+  # the dashboard needs only the signup timestamp. The runner cache volume
+  # columns leave out the account, repository and pod the rows belong to.
   #
-  # Adding a column to a panel is a deliberate change here, not something a
-  # dashboard edit widens silently. Keep in sync with
+  # Adding a column to a panel or rule is a deliberate change here, not something
+  # a Grafana edit widens silently. Keep in sync with
   # infra/cnpg/tuist-grafana-ro-grants.sql (a test asserts this).
   @grafana_read_columns [
-    {"accounts",
-     ~w(id name billing_email organization_id current_month_remote_cache_hits_count current_month_remote_cache_hits_count_updated_at)},
+    {"accounts", ~w(id name billing_email organization_id)},
     {"bundles", ~w(project_id inserted_at git_ref)},
     {"organizations", ~w(id created_at)},
     {"previews", ~w(project_id inserted_at)},
     {"projects", ~w(id name account_id created_at build_system)},
     {"roles", ~w(id resource_id resource_type)},
+    {"runner_cache_volume_uses", ~w(volume_id base_generation warm attached_at)},
+    {"runner_cache_volumes", ~w(id key platform)},
     {"subscriptions", ~w(account_id status)},
     {"users", ~w(created_at)},
     {"users_roles", ~w(user_id role_id)}
@@ -165,6 +169,58 @@ defmodule Tuist.Release do
       Logger.info("Coverage sources of project #{project_id} recorded")
     else
       Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
+    end
+  end
+
+  @doc """
+  Clears an account's runner cache volume, the same clear as
+  **Runners → Volumes**:
+
+      bin/tuist eval 'Tuist.Release.clear_runner_cache_volume(<account id>, "<volume id>")'
+
+  Clearing schedules the deletion of the volume's saved master as an Oban job,
+  and an `eval` node runs no Oban, so this starts an instance that only inserts
+  jobs; the server's nodes run them. Raises when the account has no such volume.
+  """
+  def clear_runner_cache_volume(account_id, volume_id) do
+    Application.load(@app)
+
+    {:ok, result, _apps} =
+      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+        with_insert_only_oban(fn -> CacheVolumes.delete(account_id, volume_id) end)
+      end)
+
+    case result do
+      {:ok, volume} ->
+        Logger.info(
+          "Cleared runner cache volume #{volume.id} (#{volume.key}) of account #{account_id}, now at generation #{volume.generation}"
+        )
+
+        {:ok, volume}
+
+      {:error, :not_found} ->
+        raise "Account #{account_id} has no runner cache volume #{inspect(volume_id)}"
+    end
+  end
+
+  defp with_insert_only_oban(fun) do
+    {:ok, _} = Application.ensure_all_started(:oban)
+
+    if Oban.whereis(Oban) do
+      fun.()
+    else
+      config =
+        @app
+        |> Application.fetch_env!(Oban)
+        |> Keyword.merge(queues: false, plugins: false, peer: false)
+
+      {:ok, pid} = Oban.start_link(config)
+
+      try do
+        fun.()
+      after
+        Supervisor.stop(pid)
+      end
     end
   end
 

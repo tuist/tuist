@@ -138,7 +138,7 @@ async fn observe(host: &'static str) {
                 &target,
                 budget,
                 OVERALL_TIMEOUT,
-                |name| resolver.lookup(name),
+                |name| resolver.lookup(name, target.port),
                 TcpStream::connect,
             )
             .await;
@@ -148,12 +148,41 @@ async fn observe(host: &'static str) {
     }
 }
 
-fn profile_samples(host: &str) -> [(String, Duration); 4] {
+#[derive(Clone)]
+struct Target {
+    host: String,
+    port: u16,
+    path: &'static str,
+}
+
+fn profile_samples(host: &str) -> [(Target, Duration); 6] {
+    let server = Target {
+        host: host.to_owned(),
+        port: 80,
+        path: "/ready",
+    };
+    let absolute_server = Target {
+        host: format!("{host}."),
+        ..server.clone()
+    };
+    let alloy = Target {
+        host: "k8s-monitoring-alloy-receiver.observability.svc.cluster.local".into(),
+        port: 4318,
+        path: "/v1/traces",
+    };
     [
-        (host.to_owned(), Duration::from_secs(1)),
-        (host.to_owned(), Duration::from_secs(3)),
-        (format!("{host}."), Duration::from_secs(1)),
-        (format!("{host}."), Duration::from_secs(3)),
+        (server.clone(), Duration::from_secs(1)),
+        (server, Duration::from_secs(3)),
+        (absolute_server.clone(), Duration::from_secs(1)),
+        (absolute_server, Duration::from_secs(3)),
+        (alloy.clone(), Duration::from_secs(3)),
+        (
+            Target {
+                host: format!("{}.", alloy.host),
+                ..alloy
+            },
+            Duration::from_secs(3),
+        ),
     ]
 }
 
@@ -170,9 +199,9 @@ impl Default for Resolver {
 }
 
 impl Resolver {
-    async fn lookup(&self, host: String) -> Result<Vec<SocketAddr>, ()> {
-        self.lookup_using(host, |host| {
-            (host.as_str(), 80)
+    async fn lookup(&self, host: String, port: u16) -> Result<Vec<SocketAddr>, ()> {
+        self.lookup_using(host, move |host| {
+            (host.as_str(), port)
                 .to_socket_addrs()
                 .map(|addresses| addresses.take(17).collect())
                 .map_err(|_| ())
@@ -200,6 +229,8 @@ struct Sample {
     #[serde(rename = "event.name")]
     event: &'static str,
     target: String,
+    port: u16,
+    path: &'static str,
     started_at_unix_ms: u128,
     connect_budget_ms: u128,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -220,8 +251,8 @@ fn elapsed(start: Instant) -> f64 {
     start.elapsed().as_secs_f64() * 1000.0
 }
 
-fn allowed_address(address: &SocketAddr) -> bool {
-    if address.port() != 80 {
+fn allowed_address(address: &SocketAddr, port: u16) -> bool {
+    if address.port() != port {
         return false;
     }
     if let SocketAddr::V6(address) = address
@@ -238,7 +269,7 @@ fn allowed_address(address: &SocketAddr) -> bool {
 }
 
 async fn measure<L, LF, D, DF>(
-    host: &str,
+    target: &Target,
     budget: Duration,
     overall: Duration,
     lookup: L,
@@ -250,10 +281,13 @@ where
     D: FnOnce(SocketAddr) -> DF,
     DF: Future<Output = std::io::Result<TcpStream>>,
 {
+    let host = target.host.as_str();
     let start = Instant::now();
     let mut sample = Sample {
         event: "kura.connectivity.sample",
         target: host.into(),
+        port: target.port,
+        path: target.path,
         started_at_unix_ms: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -276,8 +310,14 @@ where
         {
             return Err(());
         }
+        let authority = if target.port == 80 {
+            host.to_owned()
+        } else {
+            format!("{host}:{}", target.port)
+        };
         let request = format!(
-            "GET /ready HTTP/1.1\r\nHost: {host}\r\nUser-Agent: tuist-connectivity-probe/2\r\nConnection: close\r\n\r\n"
+            "GET {} HTTP/1.1\r\nHost: {authority}\r\nUser-Agent: tuist-connectivity-probe/2\r\nConnection: close\r\n\r\n",
+            target.path
         );
         sample.outcome = "dns_error";
         let connect = async {
@@ -286,7 +326,9 @@ where
             sample.outcome = "address_error";
             if addresses.is_empty()
                 || addresses.len() > 16
-                || !addresses.iter().all(allowed_address)
+                || !addresses
+                    .iter()
+                    .all(|address| allowed_address(address, target.port))
             {
                 return Err(());
             }
@@ -300,9 +342,8 @@ where
             .map_err(|_| ())??;
         sample.outcome = "http_error";
         stream.write_all(request.as_bytes()).await.map_err(|_| ())?;
-        // Read only a single bounded response header block. /ready returns an
-        // empty response. Never follow redirects, drain a body, or loop over
-        // informational responses from an unexpected endpoint.
+        // Read only a single bounded response header block. Never follow
+        // redirects, drain a body, or loop over informational responses.
         let mut buffer = [0u8; HEADER_LIMIT];
         let mut used = 0;
         loop {

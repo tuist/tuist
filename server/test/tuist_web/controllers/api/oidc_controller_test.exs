@@ -19,7 +19,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
 
       {:ok, account} = Accounts.update_account(project.account, %{cache_write_policy: :tokens_only})
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/tuist"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/tuist"}} end)
 
       conn =
         conn
@@ -62,7 +62,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account, :vcs_connection]
         )
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/monorepo"}} end)
+      unrelated = ProjectsFixtures.project_fixture(account: project1.account)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/monorepo", all_projects: true}} end)
 
       conn =
         conn
@@ -75,6 +76,10 @@ defmodule TuistWeb.API.OIDCControllerTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
       assert project1.id in claims["project_ids"]
       assert project2.id in claims["project_ids"]
+      refute claims["all_projects"]
+      refute unrelated.id in claims["project_ids"]
+      future = ProjectsFixtures.project_fixture(account: project1.account)
+      refute future.id in claims["project_ids"]
     end
 
     test "returns 403 naming the accounts when the repository is linked from multiple accounts", %{conn: conn} do
@@ -90,7 +95,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account]
         )
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/shared"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/shared"}} end)
 
       conn =
         conn
@@ -112,7 +117,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account]
         )
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/renamed"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/renamed"}} end)
 
       conn =
         conn
@@ -129,7 +134,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "Tuist/Cased"])
       ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/cased"])
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/cased"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/cased"}} end)
 
       conn =
         conn
@@ -140,7 +145,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 403 when no project is linked to the repository", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "nonexistent/repo"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "nonexistent/repo"}} end)
 
       conn =
         conn
@@ -152,7 +157,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token is invalid", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :invalid_token} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :invalid_token} end)
 
       conn =
         conn
@@ -164,7 +169,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 400 when OIDC token is from unsupported CI provider", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :unsupported_provider, "https://gitlab.com"} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :unsupported_provider, "https://gitlab.com"} end)
 
       conn =
         conn
@@ -178,7 +183,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token is expired", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :token_expired} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :token_expired} end)
 
       conn =
         conn
@@ -190,7 +195,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token audience is invalid", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :invalid_audience} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :invalid_audience} end)
 
       conn =
         conn

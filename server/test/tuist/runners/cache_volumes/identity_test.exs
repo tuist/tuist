@@ -308,6 +308,111 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     end
   end
 
+  test "GitLab merge request numbers come only from the GitLab-set merge request ref" do
+    {_job, _payload, remote} = gitlab()
+    merge_request = put_in(remote, ["pipeline", "source"], "merge_request_event")
+
+    for {ref, iid} <- [
+          {"refs/merge-requests/7/head", 7},
+          {"refs/merge-requests/4846/merge", 4846},
+          {"refs/merge-requests/12/train", 12}
+        ] do
+      assert {:ok, ^iid} = Identity.gitlab_merge_request_iid(%{merge_request | "ref" => ref})
+    end
+
+    for ref <- [
+          "main",
+          "refs/merge-requests/0/merge",
+          "refs/merge-requests/abc/merge",
+          "refs/merge-requests/7/merge/extra",
+          "refs/merge-requests/7/other",
+          "xrefs/merge-requests/7/merge"
+        ] do
+      assert :error = Identity.gitlab_merge_request_iid(%{merge_request | "ref" => ref})
+    end
+
+    with_ref = %{merge_request | "ref" => "refs/merge-requests/7/merge"}
+
+    for denied <- [
+          put_in(with_ref, ["pipeline", "source"], "push"),
+          %{with_ref | "tag" => true},
+          Map.delete(with_ref, "tag")
+        ] do
+      assert :error = Identity.gitlab_merge_request_iid(denied)
+    end
+  end
+
+  test "GitLab merge requests save only when the project is both their target and source" do
+    merge_request = %{"iid" => 7, "project_id" => 123, "source_project_id" => 123, "source_branch" => "feature"}
+    assert Identity.gitlab_merge_request_source_branch(merge_request, 123, 7) == "feature"
+
+    for denied <- [
+          %{merge_request | "source_project_id" => 999},
+          %{merge_request | "project_id" => 999, "source_project_id" => 999},
+          %{merge_request | "iid" => 8},
+          %{merge_request | "source_branch" => ""},
+          Map.delete(merge_request, "source_project_id"),
+          nil
+        ] do
+      assert is_nil(Identity.gitlab_merge_request_source_branch(denied, 123, 7))
+    end
+  end
+
+  test "GitLab merge request pipelines write under the source branch only with the connection's API token" do
+    {assigned, payload, remote} = gitlab()
+    job = %{provider: "gitlab", account_id: 7, workflow_job_id: 10}
+
+    assigned = %{
+      assigned
+      | account_id: 7,
+        connection_id: 3,
+        payload: JSON.encode!(Map.put(payload, "token", "assigned-token"))
+    }
+
+    remote = %{put_in(remote, ["pipeline", "source"], "merge_request_event") | "ref" => "refs/merge-requests/4846/merge"}
+    connection = %GitLab.Connection{id: 3, account_id: 7, url: "https://gitlab.com", api_token: "glpat-secret"}
+    stub(GitLab, :get_job, fn 10 -> assigned end)
+    stub(GitLab.Client, :get_running_job, fn _, _ -> {:ok, remote} end)
+    stub(GitLab.Client, :cache_branches, fn _, _, 123, _ -> {:ok, []} end)
+
+    expect(GitLab, :get_connection, fn 3 -> connection end)
+
+    expect(GitLab.Client, :get_merge_request, fn "https://gitlab.com", "glpat-secret", 123, 4846 ->
+      {:ok, %{"iid" => 4846, "project_id" => 123, "source_project_id" => 123, "source_branch" => "feature/x"}}
+    end)
+
+    assert {:ok, %{trusted: false, writer_branch: "feature/x"}} = Identity.resolve(job)
+
+    expect(GitLab, :get_connection, fn 3 -> connection end)
+
+    expect(GitLab.Client, :get_merge_request, fn _, _, _, _ ->
+      {:ok, %{"iid" => 4846, "project_id" => 123, "source_project_id" => 999, "source_branch" => "feature/x"}}
+    end)
+
+    assert {:ok, %{writer_branch: nil}} = Identity.resolve(job)
+
+    expect(GitLab, :get_connection, fn 3 -> connection end)
+    expect(GitLab.Client, :get_merge_request, fn _, _, _, _ -> {:error, :unauthorized} end)
+    assert {:ok, %{writer_branch: nil}} = Identity.resolve(job)
+
+    reject(GitLab.Client, :get_merge_request, 4)
+
+    for other <- [
+          %{connection | api_token: nil},
+          %{connection | api_token: ""},
+          %{connection | account_id: 8},
+          %{connection | url: "https://gitlab.example.com"},
+          nil
+        ] do
+      expect(GitLab, :get_connection, fn 3 -> other end)
+      assert {:ok, %{writer_branch: nil}} = Identity.resolve(job)
+    end
+
+    stub(GitLab, :get_job, fn 10 -> %{assigned | connection_id: nil} end)
+    reject(GitLab, :get_connection, 1)
+    assert {:ok, %{writer_branch: nil}} = Identity.resolve(job)
+  end
+
   test "GitLab resolves the writer branch of a nondefault branch pipeline" do
     {assigned, payload, remote} = gitlab()
     job = %{provider: "gitlab", account_id: 7, workflow_job_id: 10}

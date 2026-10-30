@@ -46,7 +46,7 @@ const insufficientCPUPredicate = "Insufficient cpu"
 const cpuUnobservedWindow int32 = -1
 
 // Requests land on a band so load drifting within one does not re-template
-// the StatefulSet and roll its pods. The ends bound the reservation, not the
+// the StatefulSet and resize its pods. The ends bound the reservation, not the
 // usage: the smallest keeps an idle pod at a real share under contention, and
 // the largest stops one instance reserving a whole box. What an instance may
 // actually use is spec.cpuCeilingMilli, which the plan grants and the kernel
@@ -334,7 +334,10 @@ func seedCPURequest(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) {
 // and leaves the replacement Pending, and a Pending pod reports no metrics,
 // so the observation that asked for the raise would otherwise hold it
 // forever. The cap is remembered, or the next pass would raise the request
-// again and roll the pod straight back into Pending.
+// again and roll the pod straight back into Pending. A raise applied in place
+// that the kubelet will not admit on the pod's node is bounded the same way;
+// the pod keeps serving at its old request meanwhile, but the hold that
+// carries the resize waits on it.
 func applyScheduleCap(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, now time.Time) {
 	state := instance.Status.CPUAutosize
 	if state == nil {
@@ -351,7 +354,7 @@ func applyScheduleCap(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, no
 	var stuck, admitted int32
 	for i := range pods {
 		milli := podCPURequestMilli(&pods[i])
-		if podUnschedulableForCPU(&pods[i]) {
+		if podUnschedulableForCPU(&pods[i]) || podResizeStuckOnCPU(&pods[i], now) {
 			if stuck == 0 || milli < stuck {
 				stuck = milli
 			}

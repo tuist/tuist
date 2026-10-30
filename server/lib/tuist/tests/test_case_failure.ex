@@ -38,6 +38,8 @@ defmodule Tuist.Tests.TestCaseFailure do
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
+  def query, do: Ecto.Queryable.to_query({"reported_test_case_failures", __MODULE__})
+
   def create_changeset(test_case_failure, attrs) do
     test_case_failure
     |> cast(

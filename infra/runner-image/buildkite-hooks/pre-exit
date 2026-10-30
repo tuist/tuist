@@ -82,7 +82,7 @@ if [ "${BUILDKITE_JOB_CANCELLED:-}" = "true" ]; then
 fi
 
 # The macOS teardown reads this, together with the agent's final exit
-# status, to decide whether the job's cache volume may be promoted. This is
+# status, to decide whether the job's cache volumes may be saved. This is
 # its only record of a cancel and its proof that the job ran; the exit status
 # covers the failures above that this hook cannot see. Written ahead of the
 # credential check, since a job that cannot report its outcome to Tuist still

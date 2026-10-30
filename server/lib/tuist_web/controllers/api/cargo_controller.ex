@@ -33,6 +33,17 @@ defmodule TuistWeb.API.CargoController do
                   status: %Schema{type: :string, enum: ["success", "failure"]},
                   is_ci: %Schema{type: :boolean},
                   started_at: %Schema{type: :string, format: :"date-time"},
+                  custom_metadata: %Schema{
+                    type: :object,
+                    properties: %{
+                      tags: %Schema{type: :array, maxItems: 50, items: %Schema{type: :string, maxLength: 50}},
+                      values: %Schema{
+                        type: :object,
+                        maxProperties: 64,
+                        additionalProperties: %Schema{type: :string, maxLength: 500}
+                      }
+                    }
+                  },
                   cache: %Schema{
                     type: :object,
                     additionalProperties: false,
@@ -105,6 +116,7 @@ defmodule TuistWeb.API.CargoController do
       body
       |> RemoteURL.strip_credentials_from_params()
       |> Map.merge(%{project_id: project.id, account_id: Authentication.authenticated_subject_account(conn).id})
+      |> Map.put(:tuist_version, TuistWeb.Headers.get_build_integration_version(conn, :cargo))
 
     case Cargo.create_build(attrs) do
       {:ok, id} ->
@@ -118,7 +130,7 @@ defmodule TuistWeb.API.CargoController do
 
   operation :list_builds,
     summary: "List Cargo builds for a project, newest first.",
-    description: "Cargo test runs reported as nextest are listed with test runs, not builds.",
+    description: "Cargo test execution results are listed with test runs, not builds.",
     operation_id: "listCargoBuilds",
     parameters: [
       account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],

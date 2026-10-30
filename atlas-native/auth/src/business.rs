@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Resource {
     Tasks,
@@ -66,6 +66,14 @@ impl Resource {
         self.editable().contains(&field)
             || matches!(self, Self::Tasks)
                 && ["status", "assignee_name", "account_name", "reminder_group"].contains(&field)
+            || matches!(self, Self::Accounts)
+                && [
+                    "contract_value",
+                    "contract_currency",
+                    "contacts_count",
+                    "poc_end_date",
+                ]
+                .contains(&field)
     }
 
     fn valid_filter(self, key: &str, value: &str) -> bool {
@@ -121,6 +129,9 @@ pub(crate) enum Action {
     Complete {
         id: String,
     },
+    UpdateProfile {
+        description: String,
+    },
 }
 
 fn first_page() -> u32 {
@@ -133,6 +144,163 @@ struct Record {
     fields: BTreeMap<String, String>,
     can_edit: bool,
     can_delete: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    details: Option<AccountDetails>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct RelatedRecord {
+    id: String,
+    fields: BTreeMap<String, String>,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+#[serde(default)]
+struct AccountDetails {
+    fields: BTreeMap<String, String>,
+    address: BTreeMap<String, String>,
+    billing: BTreeMap<String, String>,
+    signatory: BTreeMap<String, String>,
+    children: Vec<RelatedRecord>,
+    contacts: Vec<RelatedRecord>,
+    terms: Vec<RelatedRecord>,
+    invoices: Vec<RelatedRecord>,
+    documents: Vec<RelatedRecord>,
+    events: Vec<RelatedRecord>,
+    outcomes: Vec<RelatedRecord>,
+    service_levels: Vec<RelatedRecord>,
+}
+
+impl AccountDetails {
+    fn filter(&mut self) {
+        self.fields.retain(|key, _| {
+            [
+                "overview_summary",
+                "overview_summary_generated_at",
+                "contract_id",
+                "poc_end_date",
+                "churned_date",
+                "churn_reason",
+                "stripe_customer_id",
+                "latest_activity_at",
+                "parent_account_name",
+                "handles",
+                "contract_value",
+                "contract_currency",
+            ]
+            .contains(&key.as_str())
+        });
+        self.address
+            .retain(|key, _| ["street", "city", "zip", "country"].contains(&key.as_str()));
+        self.billing.retain(|key, _| {
+            ["tax_id", "vat_id", "sold_to", "bill_to", "email", "phone"].contains(&key.as_str())
+        });
+        self.signatory
+            .retain(|key, _| ["name", "title"].contains(&key.as_str()));
+        for (records, fields) in [
+            (&mut self.children, &["name", "primary_domain"][..]),
+            (
+                &mut self.contacts,
+                &[
+                    "full_name",
+                    "email",
+                    "title",
+                    "notes",
+                    "linkedin_url",
+                    "is_primary",
+                    "is_decision_maker",
+                ][..],
+            ),
+            (
+                &mut self.terms,
+                &[
+                    "payment",
+                    "start_date",
+                    "end_date",
+                    "price_per_seat",
+                    "seats",
+                    "discount",
+                    "total",
+                    "currency",
+                    "on_premise",
+                    "renewal_notice_weeks",
+                    "po_number",
+                ][..],
+            ),
+            (
+                &mut self.invoices,
+                &[
+                    "number",
+                    "due_date",
+                    "amount_value",
+                    "amount_currency",
+                    "status",
+                ][..],
+            ),
+            (
+                &mut self.documents,
+                &["title", "document_date", "summary", "status"][..],
+            ),
+            (
+                &mut self.events,
+                &["title", "body", "kind", "occurred_at", "author_name"][..],
+            ),
+            (
+                &mut self.outcomes,
+                &[
+                    "title",
+                    "description",
+                    "status",
+                    "health",
+                    "motion",
+                    "success_measure",
+                    "baseline",
+                    "target",
+                    "target_date",
+                    "owner_name",
+                ][..],
+            ),
+            (
+                &mut self.service_levels,
+                &[
+                    "name",
+                    "category",
+                    "target",
+                    "measurement_window",
+                    "applies_from",
+                    "applies_until",
+                    "service_credit",
+                    "exclusions",
+                ][..],
+            ),
+        ] {
+            for record in records {
+                record
+                    .fields
+                    .retain(|key, _| fields.contains(&key.as_str()));
+            }
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct FinanceMonth {
+    month: String,
+    income: String,
+    expense: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct FinanceOverview {
+    currency: String,
+    as_of: String,
+    account_count: u32,
+    available_cash: Option<String>,
+    monthly_burn: Option<String>,
+    runway_months: Option<String>,
+    fx_published_on: Option<String>,
+    excluded_currencies: Vec<String>,
+    months: Vec<FinanceMonth>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -169,6 +337,8 @@ struct Page {
     options: Options,
     #[serde(default)]
     summary: Vec<Month>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    finance_overview: Option<FinanceOverview>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -185,17 +355,36 @@ struct Deleted {
 struct ProfileUser {
     name: String,
     email: String,
+    #[serde(default)]
+    description: String,
 }
 
 #[derive(Deserialize, Serialize)]
 struct Profile {
     server_version: String,
     user: ProfileUser,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    push_notifications: Option<PushCapabilities>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct PushCapabilities {
+    ios: bool,
+    android: bool,
+    #[serde(default)]
+    macos: bool,
 }
 
 impl Record {
     fn filter(&mut self, resource: Resource) {
         self.fields.retain(|key, _| resource.visible(key));
+        if matches!(resource, Resource::Accounts) {
+            if let Some(details) = &mut self.details {
+                details.filter();
+            }
+        } else {
+            self.details = None;
+        }
     }
 }
 
@@ -228,18 +417,29 @@ fn execute_using(
         return Err(invalid());
     }
     if matches!(resource, Resource::Profile) {
-        if !matches!(action, Action::List { .. }) {
-            return Err(invalid());
-        }
+        let (method, payload) = match &action {
+            Action::List {
+                page: 1,
+                query,
+                filters,
+            } if query.is_empty() && filters.is_empty() => (Method::GET, None),
+            Action::UpdateProfile { description } if valid_description(description) => {
+                (Method::PATCH, Some(json!({"description": description})))
+            }
+            _ => return Err(invalid()),
+        };
         let response: Profile = network.request(
             &url,
             Body::Api {
-                method: Method::GET,
+                method,
                 token: &session.access_token,
-                payload: None,
+                payload,
                 failure: response_failure,
             },
         )?;
+        if !valid_description(&response.user.description) {
+            return Err(invalid());
+        }
         return serde_json::to_value(response).map_err(|_| invalid());
     }
     let (method, payload) = match &action {
@@ -257,6 +457,7 @@ fn execute_using(
             (Method::GET, None)
         }
         Action::Create { fields } => (Method::POST, Some(payload(resource, fields)?)),
+        Action::UpdateProfile { .. } => return Err(invalid()),
         Action::Show { id }
         | Action::Delete { id }
         | Action::Update { id, .. }
@@ -291,6 +492,9 @@ fn execute_using(
             for item in &mut page.items {
                 item.filter(resource);
             }
+            if !matches!(resource, Resource::Invoices) {
+                page.finance_overview = None;
+            }
             serde_json::to_value(page)
         }
         Action::Delete { .. } => serde_json::to_value(network.request::<Deleted>(&url, body)?),
@@ -301,6 +505,12 @@ fn execute_using(
         }
     }
     .map_err(|_| invalid())
+}
+
+fn valid_description(description: &str) -> bool {
+    description.len() <= 16_000
+        && description.chars().count() <= 4000
+        && !description.contains('\0')
 }
 
 fn payload(resource: Resource, fields: &BTreeMap<String, Option<String>>) -> Result<Value> {

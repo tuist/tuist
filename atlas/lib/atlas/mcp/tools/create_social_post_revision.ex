@@ -40,7 +40,7 @@ defmodule Atlas.MCP.Tools.CreateSocialPostRevision do
         attrs =
           args
           |> Map.take(["body", "notes", "status"])
-          |> Map.put("created_by_agent", "mcp")
+          |> Map.put("created_by_agent", Tool.agent_source(conn))
 
         case GTM.create_social_post_revision(idea, attrs, Tool.current_user(conn), actor: Tool.current_user(conn)) do
           {:ok, revision} ->

@@ -34,6 +34,34 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
+  test "excluded_tags/1 names the tags the run's own --exclude options filter on" do
+    assert Coverage.excluded_tags(["--exclude", "slow", "--exclude=test:test a b", "--seed", "0"]) ==
+             ["slow", "test"]
+
+    assert Coverage.excluded_tags(["--only", "slow", "--cover"]) == []
+  end
+
+  test "narrowed?/1 is true only for arguments that pick the tests to run" do
+    for args <- [
+          ["--only", "integration"],
+          ["--failed"],
+          ["--stale"],
+          ["--name-pattern=foo"],
+          ["test/a_test.exs:12"]
+        ] do
+      assert Coverage.narrowed?(args), "expected #{inspect(args)} to be narrowed"
+    end
+
+    for args <- [
+          [],
+          ["--exclude", "slow"],
+          ["--max-failures", "1"],
+          ["--include", "slow", "--cover"]
+        ] do
+      refute Coverage.narrowed?(args), "expected #{inspect(args)} not to be narrowed"
+    end
+  end
+
   describe "report/4" do
     test "keeps the repository's files, relative to its root, with their blobs and lines" do
       snapshot = [

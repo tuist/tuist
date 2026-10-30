@@ -261,7 +261,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
-                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -345,7 +344,7 @@ public enum Module: String, CaseIterable {
                 target(
                     name: unitTestsTargetName,
                     product: .unitTests,
-                    dependencies: unitTestDependencies + [.external(name: "TestCoverageAttribution")],
+                    dependencies: unitTestDependencies,
                     isTestingTarget: false
                 )
             )
@@ -1220,11 +1219,13 @@ public enum Module: String, CaseIterable {
                 ]
             case .oidc:
                 [
+                    .target(name: Module.http.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
                 ]
             case .http:
                 [
+                    .external(name: "Crypto"),
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.environment.targetName),
@@ -1268,6 +1269,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cargoCommand:
                 [
+                    .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.reapi.targetName),
@@ -1373,6 +1375,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "ArgumentParser"),
                 ]
             case .accountCommand:
                 [
@@ -1685,6 +1688,15 @@ public enum Module: String, CaseIterable {
                 []
             case .reapi:
                 [
+                    .target(name: Module.testSupport.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.environment.targetName),
+                    .external(name: "NIOSSL"),
+                    .external(name: "NIOCore"),
+                    .external(name: "NIOPosix"),
+                    .external(name: "NIOTLS"),
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
@@ -1796,6 +1808,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "ArgumentParser"),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                 ]
             case .bazelCommand:
                 [
@@ -2077,17 +2091,21 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.android.targetName),
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
+                    .target(name: "XCResultParser", condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
@@ -2231,6 +2249,10 @@ public enum Module: String, CaseIterable {
                 ]
             case .http:
                 [
+                    .target(name: Module.testSupport.targetName),
+                    .external(name: "NIOCore"),
+                    .external(name: "NIOPosix"),
+                    .external(name: "NIOSSL"),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
@@ -2238,6 +2260,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             }
         dependencies =
@@ -2364,6 +2387,7 @@ public enum Module: String, CaseIterable {
                 "swifterpm/Tests/swifterpmTests/RestoreTests.swift",
                 "swifterpm/Tests/swifterpmTests/ResolveTests.swift",
                 "swifterpm/Tests/swifterpmTests/FileSystemSupportTests.swift",
+                "swifterpm/Tests/swifterpmTests/CertificateTrustTests.swift",
                 "swifterpm/Tests/swifterpmTests/HTTPClientTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitHubTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitLabTests.swift",

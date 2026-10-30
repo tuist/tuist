@@ -92,6 +92,10 @@ type RunnerPoolReconciler struct {
 	APIReader client.Reader
 	Scheme    *runtime.Scheme
 
+	// SandboxesNamespace holds the daemon allocations that cannot be freed by
+	// draining runner Pods. Empty disables sandbox accounting.
+	SandboxesNamespace string
+
 	// SessionsClient closes a Pod's billing session immediately before
 	// the reap deletes it — see reapRunner for why the ordering matters.
 	// nil disables reporting; the reap itself still runs.
@@ -214,7 +218,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Setting on first reconcile (when `ObservedImage` is empty) is
 	// fine — there are no stale Pods yet, and the timestamp just
 	// establishes the t=0 baseline for any future roll.
+	//
+	// The image being replaced goes to `status.previousImage`, which
+	// tart-kubelet reads to pull the new image on hosts holding the old one
+	// before its GC reaps the old one.
 	if pool.Status.ObservedImage != pool.Spec.Image {
+		if pool.Status.ObservedImage != "" {
+			pool.Status.PreviousImage = pool.Status.ObservedImage
+		}
 		pool.Status.ObservedImage = pool.Spec.Image
 		pool.Status.ImageRolledAt = metav1.Now()
 	}
@@ -576,9 +587,12 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
+	// Idle Pods take the oldest queued jobs first, so a new Pod's cache
+	// volume preference is the one for the job after them.
+	queuePosition := len(idleAlive)
 	created := 0
 	for i := 0; i < createLimit; i++ {
-		name, err := r.createRunner(ctx, pool)
+		name, err := r.createRunner(ctx, pool, queuePosition+i)
 		if err != nil {
 			logger.Error(err, "create runner; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -612,7 +626,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	for i := 0; i < overflow && i < len(idleAlive); i++ {
 		p := idleAlive[i]
 		preemptedFor, preempted := preemptionMark(p, now)
-		if preempted {
+		switch {
+		case preempted && preemptedFor == preemptedForSandboxes:
+			logger.Info("retire idle runner pod for a sandbox carve-out's growth",
+				"pod", p.Name, "node", p.Spec.NodeName)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeNormal, "RunnerPodPreemptedForSandboxes",
+					"A sandbox carve-out on node %s is waiting for memory; retiring this idle runner ahead of the scale-down cooldown. "+
+						"Runners executing a job are left to complete.",
+					p.Spec.NodeName)
+			}
+		case preempted:
 			logger.Info("retire idle runner pod for starved sibling pools",
 				"pod", p.Name, "node", p.Spec.NodeName, "for", preemptedFor)
 			if r.Recorder != nil {
@@ -716,8 +740,10 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 // createRunner provisions one Pod + per-Pod ServiceAccount pair,
 // both owned by the RunnerPool. Pod and SA share the same name so
 // the dispatch endpoint can look up "which Pod is this SA mounted
-// on" from the validated SA name alone.
-func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool) (string, error) {
+// on" from the validated SA name alone. `queuePosition` is the queued
+// job the Pod is expected to take, counted from the oldest, which picks
+// its cache volume placement preference.
+func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool, queuePosition int) (string, error) {
 	suffix, err := randHex(4)
 	if err != nil {
 		return "", fmt.Errorf("generate suffix: %w", err)
@@ -736,7 +762,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 	if err != nil {
 		return "", fmt.Errorf("build pod: %w", err)
 	}
-	r.preferCacheVolumeNodes(ctx, pool, pod)
+	r.preferCacheVolumeNode(ctx, pool, pod, queuePosition)
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
 		return "", fmt.Errorf("pod owner ref: %w", err)
 	}
@@ -747,11 +773,15 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 	return name, nil
 }
 
-// preferCacheVolumeNodes steers a macOS Pod toward the hosts holding the custom
-// cache volumes the pool's queued jobs are predicted to attach. A macOS Pod is
-// placed before any job is assigned to it, and a host with no copy of a volume
-// starts it empty. Without signals the Pod keeps only the golden preference.
-func (r *RunnerPoolReconciler) preferCacheVolumeNodes(ctx context.Context, pool *tuistv1.RunnerPool, pod *corev1.Pod) {
+// preferCacheVolumeNode steers a macOS Pod toward a host holding the custom
+// cache volumes of the queued job it is created for. A macOS Pod is placed
+// before any job is assigned to it, and a host with no copy of a volume starts
+// it empty. The server lists one host per queued job, repeating a host once per
+// job its cache disk can fit, so the Pod for the i-th queued job takes the
+// i-th host and concurrent Pods never stack on a host that cannot hold all of
+// their volumes. Pods beyond the list, and Pods created without signals, keep
+// only the golden preference.
+func (r *RunnerPoolReconciler) preferCacheVolumeNode(ctx context.Context, pool *tuistv1.RunnerPool, pod *corev1.Pod, queuePosition int) {
 	if r.SignalsClient == nil || pool.Spec.OS == "linux" {
 		return
 	}
@@ -760,7 +790,9 @@ func (r *RunnerPoolReconciler) preferCacheVolumeNodes(ctx context.Context, pool 
 		log.FromContext(ctx).V(1).Info("no scaling signals for cache volume placement", "pool", pool.Name, "error", err.Error())
 		return
 	}
-	podtemplate.PreferCacheVolumeNodes(pod, signals.PreferredNodeLabels)
+	if queuePosition < len(signals.PreferredNodes) {
+		podtemplate.PreferCacheVolumeNode(pod, signals.PreferredNodes[queuePosition])
+	}
 }
 
 // reapRunner deletes a Pod and its same-named ServiceAccount.

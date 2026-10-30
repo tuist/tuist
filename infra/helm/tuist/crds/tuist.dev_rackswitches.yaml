@@ -224,6 +224,14 @@ spec:
                   The 1Password item holding the local admin login. Named, not inlined:
                   the credential never belongs in an object or in git.
                 type: string
+              driver:
+                default: omada
+                description: How the controller changes the switch when it manages
+                  it.
+                enum:
+                - omada
+                - picos
+                type: string
               mac:
                 description: |-
                   The switch's MAC address, lower case and colon separated. It is how
@@ -364,6 +372,13 @@ spec:
                 - unknown
                 - none
                 - drifted
+                type: string
+              hostKey:
+                description: |-
+                  The SHA-256 fingerprint of a PicOS switch's RSA host key, pinned at
+                  the first connection. A switch presenting another key is not written
+                  to; clearing this pins the next one, as after a factory reset or a
+                  replacement unit.
                 type: string
               lastVerified:
                 format: date-time

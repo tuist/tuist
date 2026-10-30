@@ -1,9 +1,10 @@
 defmodule TuistWeb.Plugs.RequireCoveragePlug do
   @moduledoc """
-  Keeps the coverage and test selection API behind the account's early access
-  flag (`Tuist.FeatureFlags.xcode_coverage_enabled?/1`). Runs after
-  `TuistWeb.Plugs.LoaderPlug`, which assigns the account. While the flag is
-  off the endpoints answer 404, as if they did not exist.
+  Keeps the coverage and test selection API behind
+  `Tuist.FeatureFlags.coverage_enabled?/3`: open to Mix projects, behind the
+  account's early access flag for the others. Runs after
+  `TuistWeb.Plugs.LoaderPlug`, which assigns the account and the project.
+  While coverage is off the endpoints answer 404, as if they did not exist.
   """
 
   @behaviour Plug
@@ -16,8 +17,8 @@ defmodule TuistWeb.Plugs.RequireCoveragePlug do
   def init(opts), do: opts
 
   @impl true
-  def call(%{assigns: %{selected_account: account}} = conn, _opts) do
-    if FeatureFlags.xcode_coverage_enabled?(account), do: conn, else: not_enabled(conn)
+  def call(%{assigns: %{selected_account: account, selected_project: project}} = conn, _opts) do
+    if FeatureFlags.coverage_enabled?(account, project), do: conn, else: not_enabled(conn)
   end
 
   def call(conn, _opts), do: not_enabled(conn)

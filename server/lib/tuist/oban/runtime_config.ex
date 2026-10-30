@@ -38,12 +38,16 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
+    {"* * * * *", Tuist.Sandboxes.AmpReconciler},
+    {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
+    {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
     {"@daily", PruneExpiredSubscriptionsWorker},
-    {"@hourly", PruneJobKeysWorker}
+    {"@hourly", PruneJobKeysWorker},
+    {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
@@ -58,7 +62,6 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-    {"30 3 * * *", Tuist.Billing.Workers.SwitchUsageBasedPricingWorker},
     {"10 4 * * *", DeleteExpiredImagesWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},

@@ -6,6 +6,7 @@
     import Path
     import Synchronization
     import Testing
+    import TuistAlert
     import TuistAutomation
     import TuistCache
     import TuistConfig
@@ -14,6 +15,7 @@
     import TuistEnvironment
     import TuistGit
     import TuistHasher
+    import TuistProcess
     import TuistRootDirectoryLocator
     import TuistServer
     import TuistSupport
@@ -42,6 +44,7 @@
         private let gitController = MockGitControlling()
         private let rootDirectoryLocator = MockRootDirectoryLocating()
         private let fileSystem = FileSystem()
+        private let commandRunner = MockCommandRunning()
 
         @Test(.inTemporaryDirectory) func run_usesLocalCacheStorage_whenNoUpload() async throws {
             try await run(noUpload: true)
@@ -74,7 +77,8 @@
                     targetHashes: .value([
                         TargetReference(projectPath: temporaryDirectory, name: "Fixtures"): targetHash,
                     ]),
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .value(.all)
                 )
                 .called(1)
             verify(cacheStorage)
@@ -144,7 +148,8 @@
                     configuration: .any,
                     cacheStorage: .any,
                     targetHashes: .any,
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .any
                 )
                 .willReturn(generator)
             given(generator)
@@ -172,7 +177,8 @@
                     configuration: .any,
                     cacheStorage: .any,
                     targetHashes: .value([:]),
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .value(.all)
                 )
                 .called(1)
         }
@@ -344,7 +350,8 @@
                     configuration: .any,
                     cacheStorage: .any,
                     targetHashes: .any,
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .any
                 )
                 .called(0)
         }
@@ -478,9 +485,7 @@
         ) func run_buildsRepositoryTargetsWithCoverage_whenTheEnvironmentTurnsCoverageOn() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -499,7 +504,7 @@
             verify(generatorFactory)
                 .binaryCacheWarming(
                     config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
-                    coverage: .value(.on)
+                    coverage: .value(.on), sdkSelection: .value(.all)
                 )
                 .called(1)
             verify(xcodeBuildController)
@@ -526,9 +531,7 @@
 
         @Test(.inTemporaryDirectory) func run_buildsPlainBinaries_whenWarmingWithoutCoverage() async throws {
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -556,9 +559,7 @@
         @Test(.inTemporaryDirectory, .withMockedEnvironment())
         func run_buildsRepositoryTargetsWithCoverage_whenTheConfigTurnsCoverageOn() async throws {
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -580,7 +581,7 @@
             verify(generatorFactory)
                 .binaryCacheWarming(
                     config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
-                    coverage: .value(.on)
+                    coverage: .value(.on), sdkSelection: .value(.all)
                 )
                 .called(1)
         }
@@ -588,9 +589,7 @@
         @Test(.inTemporaryDirectory, .withMockedEnvironment())
         func run_warmsPlainBinaries_whenTheConfigTurnsCoverageOnForAReleaseConfiguration() async throws {
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -610,7 +609,7 @@
             verify(generatorFactory)
                 .binaryCacheWarming(
                     config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
-                    coverage: .value(.off)
+                    coverage: .value(.off), sdkSelection: .value(.all)
                 )
                 .called(1)
             verify(xcodeBuildController)
@@ -626,9 +625,7 @@
 
         @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingAReleaseConfiguration() async throws {
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -661,11 +658,9 @@
                 .called(1)
         }
 
-        @Test(.inTemporaryDirectory) func run_doesNotBundleDSYMsIntoXCFrameworks_whenWarmingADebugConfiguration() async throws {
+        @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingADebugConfiguration() async throws {
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -682,7 +677,7 @@
                     rosetta: .any,
                     derivedDataPath: .any,
                     clean: .any,
-                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf")) },
+                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")) },
                     passthroughXcodeBuildArguments: .any
                 )
                 .called(2)
@@ -690,11 +685,223 @@
                 .createXCFramework(
                     arguments: .matching { arguments in
                         let slices = Self.xcframeworkSlices(arguments)
-                        return slices.count == 2 && slices.allSatisfy { $0.debugSymbols == nil }
+                        return slices.count == 2 && slices.allSatisfy { $0.debugSymbols == "\($0.framework).dSYM" }
                     },
                     output: .any
                 )
                 .called(1)
+        }
+
+        @Test(.inTemporaryDirectory, .withScopedAlertController())
+        func run_warnsOnceAboutBuiltTargetsItDidNotStore() async throws {
+            stubFrameworkBuilds()
+            stubXCFrameworkCreation()
+            let source = try #require(FileSystem.temporaryTestDirectory).appending(components: "Sources", "Fixtures.swift")
+            try await fileSystem.makeDirectory(at: source.parentDirectory)
+            try await fileSystem.writeText("public let value = 42", at: source)
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { _, _, _ in
+                AsyncThrowingStream { $0.finish() }
+            }
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                targetSources: [SourceFile(path: source)]
+            )
+
+            let warnings = AlertController.current.warnings().map(\.message).map { $0.plain() }
+            #expect(warnings.contains("1 of 1 built targets were not stored and keep building from source: Fixtures"))
+        }
+
+        @Test(.inTemporaryDirectory)
+        func metadataUsesTheCustomXcodeProjectNameAndIsolatesUnsupportedTargets() async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let unsupported = try await debuggingInput(at: root.appending(component: "Unsupported"))
+            let healthy = try await debuggingInput(at: root.appending(component: "Healthy"))
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { arguments, _, _ in
+                AsyncThrowingStream { continuation in
+                    if arguments.last?.contains("Healthy") == true {
+                        continuation.yield(.standardOutput(Array("/^root/Sources/Feature.swift\n".utf8)))
+                    }
+                    continuation.finish()
+                }
+            }
+            #expect(try await !subject.writeDebuggingMetadata(
+                unsupported.metadata, target: unsupported.target, artifact: unsupported.artifact,
+                productsDirectories: [unsupported.products]
+            ))
+            #expect(try await subject.writeDebuggingMetadata(
+                healthy.metadata, target: healthy.target, artifact: healthy.artifact,
+                productsDirectories: [healthy.products]
+            ))
+            let relative = "Sources/Feature.swift"
+            let path = healthy.artifact.appending(components: "macos-arm64", CachedModuleDebuggingMetadata.fileName)
+            let recorded = try JSONDecoder().decode(CachedModuleDebuggingMetadata.self, from: await fileSystem.readFile(at: path))
+            #expect(recorded.debugPaths[relative] == ["/^root/Sources/Feature.swift"])
+            #expect(try await !fileSystem.exists(unsupported.artifact.appending(
+                components: "macos-arm64", CachedModuleDebuggingMetadata.fileName
+            )))
+        }
+
+        @Test(.inTemporaryDirectory)
+        func linkedSymbolsWithoutTheModulesCodePublishNothingToRelocate() async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let fixture = try await debuggingInput(at: root)
+            let dwarf = fixture.artifact.appending(
+                components: "macos-arm64", "dSYMs", "Feature.framework.dSYM", "Contents", "Resources", "DWARF", "Feature"
+            )
+            try await fileSystem.makeDirectory(at: dwarf.parentDirectory)
+            try await fileSystem.touch(dwarf)
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { _, _, _ in
+                AsyncThrowingStream { $0.finish() }
+            }
+            #expect(try await subject.writeDebuggingMetadata(
+                fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products]
+            ))
+            let path = fixture.artifact.appending(components: "macos-arm64", CachedModuleDebuggingMetadata.fileName)
+            let recorded = try JSONDecoder().decode(CachedModuleDebuggingMetadata.self, from: await fileSystem.readFile(at: path))
+            #expect(recorded.debugPaths.isEmpty)
+            #expect(recorded.sources == fixture.metadata.sources)
+        }
+
+        @Test(.inTemporaryDirectory, arguments: ["prefix-map", "info-plist", "empty-slices"])
+        func malformedDebuggingInputsSkipPublicationRatherThanAbortTheWarm(kind: String) async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let fixture = try await debuggingInput(at: root)
+            if kind == "prefix-map" {
+                let map = fixture.products.appending(
+                    components: "tuist-prefix-maps", "CustomProject.build", "Feature.build.json"
+                )
+                try await fileSystem.writeText("[]", at: map)
+            } else if kind == "info-plist" {
+                try await fileSystem.writeText("invalid property list", at: fixture.artifact.appending(component: "Info.plist"))
+            } else {
+                let info: [String: Any] = [
+                    "AvailableLibraries": [[String: String]](), "CFBundlePackageType": "XFWK", "XCFrameworkFormatVersion": "1.0",
+                ]
+                try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                    .write(to: fixture.artifact.appending(component: "Info.plist").url)
+            }
+            #expect(try await !subject.writeDebuggingMetadata(
+                fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products]
+            ))
+        }
+
+        @Test(.inTemporaryDirectory)
+        func scriptGeneratedPlaceholdersSkipOnlyTheirTargetWithoutClaimingMutation() async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let fixture = try await debuggingInput(at: root)
+            let output = root.appending(component: "Generated.swift")
+            var source = SourceFile(path: output, contentHash: try ContentHasher().hash("generated-file-Generated.swift"))
+            source.contentHashIsPlaceholder = true
+            var target = fixture.target.target
+            target.sources.append(source)
+            let graphTarget = GraphTarget(path: root, target: target, project: fixture.target.project)
+            let before = try await CachedModuleDebuggingMetadata.capture(target: graphTarget)
+            try await fileSystem.writeText("arbitrary script output", at: output)
+            #expect(try await !subject.writeDebuggingMetadata(
+                before, target: graphTarget, artifact: fixture.artifact, productsDirectories: [fixture.products]
+            ))
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { _, _, _ in
+                AsyncThrowingStream { continuation in
+                    continuation.yield(.standardOutput(Array("/^root/Sources/Feature.swift\n".utf8)))
+                    continuation.finish()
+                }
+            }
+            #expect(try await subject.writeDebuggingMetadata(
+                fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products]
+            ))
+            let declared = try #require(fixture.target.target.sources.first?.path)
+            try await fileSystem.writeText("mutated declared source", at: declared)
+            do {
+                _ = try await subject.writeDebuggingMetadata(
+                    before, target: graphTarget, artifact: fixture.artifact, productsDirectories: [fixture.products]
+                )
+                Issue.record("An unsupported generated output must not hide mutation of a declared source")
+            } catch let CacheWarmCommandServiceError.sourcesChangedDuringBuild(target) {
+                #expect(target == "Feature")
+            }
+        }
+
+        @Test(.inTemporaryDirectory)
+        func metadataPublicationPropagatesSourceMutationAndCancellation() async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let fixture = try await debuggingInput(at: root)
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { _, _, _ in
+                AsyncThrowingStream { $0.finish(throwing: CancellationError()) }
+            }
+            await #expect(throws: CancellationError.self) {
+                try await subject.writeDebuggingMetadata(
+                    fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products]
+                )
+            }
+            try await fileSystem.writeText("mutated", at: #require(fixture.target.target.sources.first?.path))
+            do {
+                _ = try await subject.writeDebuggingMetadata(
+                    fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products]
+                )
+                Issue.record("Source mutation must abort publication")
+            } catch let CacheWarmCommandServiceError.sourcesChangedDuringBuild(target) {
+                #expect(target == "Feature")
+            }
+        }
+
+        private func debuggingInput(at root: AbsolutePath) async throws -> (
+            target: GraphTarget, metadata: CachedModuleDebuggingMetadata, artifact: AbsolutePath, products: AbsolutePath
+        ) {
+            let source = root.appending(components: "Sources", "Feature.swift")
+            try await fileSystem.makeDirectory(at: source.parentDirectory)
+            try await fileSystem.writeText("public let value = 42", at: source)
+            let target = Target.test(name: "Feature", product: .framework, sources: [SourceFile(path: source)])
+            let project = Project.test(
+                path: root, sourceRootPath: root, xcodeProjPath: root.appending(component: "CustomProject.xcodeproj"),
+                name: "DisplayName", targets: [target]
+            )
+            let graphTarget = GraphTarget(path: root, target: target, project: project)
+            let artifact = root.appending(component: "Feature.xcframework")
+            try await fileSystem.makeDirectory(at: artifact.appending(component: "macos-arm64"))
+            let library: [String: Any] = [
+                "LibraryIdentifier": "macos-arm64", "LibraryPath": "Feature.framework",
+                "SupportedPlatform": "macos", "SupportedArchitectures": ["arm64"],
+            ]
+            let info: [String: Any] = [
+                "AvailableLibraries": [library], "CFBundlePackageType": "XFWK", "XCFrameworkFormatVersion": "1.0",
+            ]
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                .write(to: artifact.appending(component: "Info.plist").url)
+            let products = root.appending(component: "products")
+            let prefixMap = products.appending(components: "tuist-prefix-maps", "CustomProject.build", "Feature.build.json")
+            try await fileSystem.makeDirectory(at: prefixMap.parentDirectory)
+            try await fileSystem.writeAsJSON(["/^root": root.pathString], at: prefixMap)
+            return (graphTarget, try await CachedModuleDebuggingMetadata.capture(target: graphTarget), artifact, products)
+        }
+
+        private func stubXCFrameworkCreation() {
+            given(xcodeBuildController).createXCFramework(arguments: .any, output: .any).willProduce { arguments, output in
+                let libraries: [[String: Any]] = try Self.xcframeworkSlices(arguments).map { slice in
+                    let simulator = slice.framework.contains("iphonesimulator")
+                    let identifier = simulator ? "ios-arm64-simulator" : "ios-arm64"
+                    try FileManager.default.createDirectory(
+                        at: output.appending(component: identifier).url,
+                        withIntermediateDirectories: true
+                    )
+                    var library: [String: Any] = [
+                        "LibraryIdentifier": identifier, "LibraryPath": "Fixtures.framework",
+                        "SupportedPlatform": "ios", "SupportedArchitectures": ["arm64"],
+                    ]
+                    if simulator { library["SupportedPlatformVariant"] = "simulator" }
+                    return library
+                }
+                let info: [String: Any] = [
+                    "AvailableLibraries": libraries,
+                    "CFBundlePackageType": "XFWK",
+                    "XCFrameworkFormatVersion": "1.0",
+                ]
+                try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                    .write(to: output.appending(component: "Info.plist").url)
+            }
         }
 
         /// Stubs builds to lay out a `Fixtures.framework` in the products directory, plus its dSYM when the build asks
@@ -788,7 +995,8 @@
             cachedTarget: Bool = false,
             republishError: Error? = nil,
             coverageVariable: String? = nil,
-            coverageOption: Bool = false
+            coverageOption: Bool = false,
+            targetSources: [SourceFile] = []
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let config = coverageOption
@@ -801,7 +1009,7 @@
                 given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
             }
             let resolvedConfiguration = configuration ?? "Debug"
-            let target = Target.test(name: "Fixtures", product: targetProduct, foreignBuild: foreignBuild)
+            let target = Target.test(name: "Fixtures", product: targetProduct, sources: targetSources, foreignBuild: foreignBuild)
             let cached = Target.test(name: "Cached", product: .bundle)
             let project = Project.test(
                 path: temporaryDirectory,
@@ -862,6 +1070,9 @@
             given(cacheStorage)
                 .fetch(.any, cacheCategory: .value(.binaries))
                 .willReturn(fetched)
+            given(cacheStorage)
+                .fetch(.any, cacheCategory: .value(.binaries), preserving: .any)
+                .willReturn([:])
             if let republishError {
                 given(cacheStorage)
                     .republishIfNeeded(.any, cacheCategory: .value(.binaries))
@@ -878,7 +1089,8 @@
                     configuration: .value(resolvedConfiguration),
                     cacheStorage: .any,
                     targetHashes: .any,
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .any
                 )
                 .willReturn(generator)
             given(generator)
@@ -925,6 +1137,7 @@
                 cacheGraphContentHasher: cacheGraphContentHasher,
                 cacheStorageFactory: cacheStorageFactory,
                 configLoader: configLoader,
+                commandRunner: commandRunner,
                 coverageBuildSourcesService: CoverageBuildSourcesService(
                     gitController: gitController,
                     rootDirectoryLocator: rootDirectoryLocator

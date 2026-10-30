@@ -167,27 +167,3 @@ func Probe(ctx context.Context, cfg Config) (string, error) {
 	defer client.Close()
 	return hk.Observed(), claimRuntime(ctx, client, cfg.RuntimeOwner)
 }
-
-// dropPreviousOwnerState clears, on a takeover, what tart-kubelet queued for
-// the previous owner's server: cache-volume usage reports for runner sessions
-// the new owner's server never knew, which it answers 425 for, so they would
-// be retried every 15 seconds for good.
-func dropPreviousOwnerState(ctx context.Context, client *ssh.Client, cfg Config) error {
-	if !cfg.TakeOver {
-		return nil
-	}
-	if err := RunCommand(ctx, client, renderDropPreviousOwnerStateScript(runnerCacheMountPoint)); err != nil {
-		return fmt.Errorf("drop the previous owner's usage reports: %w", err)
-	}
-	return nil
-}
-
-// renderDropPreviousOwnerStateScript removes the queued reports and leaves a
-// report being written (`.pending-*`) and everything else on the volume alone.
-func renderDropPreviousOwnerStateScript(cacheRoot string) string {
-	return fmt.Sprintf(`set -eu
-if sudo test -d %[1]s; then
-  sudo find %[1]s -maxdepth 1 -type f -name '*.json' -delete
-fi
-`, shellQuote(cacheRoot+"/usage-reports"))
-}

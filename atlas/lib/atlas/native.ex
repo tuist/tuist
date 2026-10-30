@@ -3,9 +3,12 @@ defmodule Atlas.Native do
 
   import Ecto.Query
 
+  alias Atlas.Accounts
   alias Atlas.Accounts.Account
   alias Atlas.Finance.Invoice
   alias Atlas.Finance.Invoices
+  alias Atlas.Native.AccountDetails
+  alias Atlas.Native.FinanceOverview
   alias Atlas.Repo
   alias Atlas.Tasks.Task
   alias Atlas.Users
@@ -45,7 +48,8 @@ defmodule Atlas.Native do
          total_count: meta.total_count,
          can_write: can_write?(resource, user),
          options: options(resource),
-         summary: if(resource == "invoices", do: Invoices.monthly_invoice_totals(), else: [])
+         summary: if(resource == "invoices", do: Invoices.monthly_invoice_totals(), else: []),
+         finance_overview: if(resource == "invoices" and flop.page == 1, do: FinanceOverview.get())
        }}
     else
       _error -> {:error, :invalid_params}
@@ -59,6 +63,11 @@ defmodule Atlas.Native do
     else
       _missing -> {:error, :not_found}
     end
+  end
+
+  def detail(resource, item, user) do
+    record = record(resource, item, user)
+    if resource == "accounts", do: Map.put(record, :details, AccountDetails.get(item, user)), else: record
   end
 
   def record(resource, item, user, now \\ DateTime.utc_now())
@@ -76,8 +85,18 @@ defmodule Atlas.Native do
     item(task.id, values, can_write?("tasks", user))
   end
 
-  def record("accounts", account, user, _now),
-    do: item(account.id, values(account, @account_fields), can_write?("accounts", user))
+  def record("accounts", account, user, _now) do
+    account = Repo.preload(account, :terms)
+    {value, currency} = Accounts.contract_value(account)
+
+    fields =
+      account
+      |> values(@account_fields ++ [:contacts_count, :poc_end_date])
+      |> Map.put(:contract_value, string(value))
+      |> Map.put(:contract_currency, string(currency))
+
+    item(account.id, fields, can_write?("accounts", user))
+  end
 
   def record("invoices", invoice, user, _now) do
     item(
@@ -94,7 +113,11 @@ defmodule Atlas.Native do
 
   defp query("accounts"),
     do:
-      from(account in Account, where: is_nil(account.not_an_account_at), order_by: [asc: account.name, asc: account.id])
+      from(account in Account,
+        where: is_nil(account.not_an_account_at),
+        order_by: [asc: account.name, asc: account.id],
+        preload: [:terms]
+      )
 
   defp query("invoices"),
     do: from(invoice in Invoice, order_by: [desc_nulls_last: invoice.invoice_date, desc: invoice.id])

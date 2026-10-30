@@ -533,6 +533,97 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute html =~ ":lib:test"
   end
 
+  test "lists requested tasks individually in invocation order", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    requested_tasks = [":feature:assembleDebug", "clean", ":app:testDebugUnitTest", "clean"]
+    id = GradleFixtures.build_fixture(project_id: project.id, requested_tasks: requested_tasks)
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    entries =
+      view
+      |> element("#requested-tasks[aria-labelledby=requested-tasks-label][role=list]")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("li code")
+      |> Enum.map(&Floki.text/1)
+
+    assert entries == requested_tasks
+    assert has_element?(view, "#requested-tasks-label", "Requested tasks")
+  end
+
+  test "escapes requested task names", %{conn: conn, project: project, organization: organization} do
+    task = ":app:<script>alert('task')</script>"
+    id = GradleFixtures.build_fixture(project_id: project.id, requested_tasks: [task])
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#requested-tasks li code", task)
+    refute has_element?(view, "#requested-tasks script")
+  end
+
+  test "omits the requested tasks list when no tasks were requested", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id = GradleFixtures.build_fixture(project_id: project.id, requested_tasks: [])
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    refute has_element?(view, "[data-field=requested-tasks]")
+    refute has_element?(view, "#requested-tasks")
+  end
+
+  @tag :build_environment
+  test "build environment is collapsed below Build Details while custom metadata stays inside", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        tuist_version: "0.13.0-canary.2",
+        custom_values: %{"tuist.cpu.available_processors" => "28", "team" => "mobile"}
+      )
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#gradle-build > #build-environment", "Build environment")
+    assert has_element?(view, "#build-environment-content[hidden]", "Gradle Version")
+    assert has_element?(view, "#build-environment-content[hidden]", "Java Version")
+    assert has_element?(view, "#build-environment-content[hidden]", "Tuist Gradle plugin version")
+    assert has_element?(view, "#build-environment-content", "0.13.0-canary.2")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
+    refute has_element?(view, "[data-part=build-details]", "Java Version")
+    assert has_element?(view, "#build-environment button[aria-expanded=false]")
+    assert has_element?(view, "#build-environment-content[hidden]", "Available logical processors")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+    refute has_element?(view, "#build-environment #custom-metadata-table")
+  end
+
+  @tag :build_environment
+  test "legacy toolchain versions show the environment without new observations", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id = GradleFixtures.build_fixture(project_id: project.id, custom_values: %{"team" => "mobile"})
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#build-environment-content[hidden]", "8.5")
+    assert has_element?(view, "#build-environment-content[hidden]", "17.0.1")
+    refute has_element?(view, "#build-environment-content", "Tuist Gradle plugin version")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+  end
+
   test "build details distinguish absent, zero and recorded cache savings", %{
     conn: conn,
     project: project,

@@ -28,7 +28,7 @@ func checkoutGrantJSON(base int64) map[string]any {
 	grant := map[string]any{
 		"id": checkoutUse, "account_id": 1, "scope": checkoutScope, "uid": 1000, "generation": 1, "can_publish": true,
 		"clone_url": "https://github.com/org/repo", "default_branch": "main", "commit": checkoutCommit, "default_branch_job": true,
-		"volume_key": strings.Repeat("d", 64),
+		"may_start_master": true, "volume_key": strings.Repeat("d", 64),
 	}
 	if base > 0 {
 		grant["base_generation"], grant["parent_id"] = base, "22222222-2222-4222-8222-222222222222"
@@ -190,7 +190,7 @@ func TestCheckoutExportIsTakenOnceFromTheGrantedPod(t *testing.T) {
 		t.Fatalf("the granted export got %d", code)
 	}
 	task, ok := a.checkouts.Pending(checkoutScope)
-	if !ok || task.Export != a.checkouts.Incoming("uid") || task.Use != checkoutUse || task.Commit != checkoutCommit {
+	if !ok || task.Export != a.checkouts.Incoming("uid") || task.Use != checkoutUse || task.Commit != checkoutCommit || !task.MayStartMaster {
 		t.Fatalf("queued %+v", task)
 	}
 	if data, err := os.ReadFile(filepath.Join(task.Export, "head")); err != nil || strings.TrimSpace(string(data)) != checkoutCommit {

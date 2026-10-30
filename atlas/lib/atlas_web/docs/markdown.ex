@@ -5,6 +5,7 @@ defmodule AtlasWeb.Docs.Markdown do
 
   import Phoenix.HTML
 
+  alias AtlasWeb.CodeBlock
   alias Phoenix.HTML.Safe
 
   @options [
@@ -126,6 +127,8 @@ defmodule AtlasWeb.Docs.Markdown do
   attr :language, :string, required: true
 
   defp code_snippet(assigns) do
+    assigns = assign(assigns, :highlighted, CodeBlock.highlight(assigns.source, assigns.language))
+
     ~H"""
     <div data-part="code-window">
       <div data-part="bar">
@@ -136,7 +139,13 @@ defmodule AtlasWeb.Docs.Markdown do
         </.neutral_button>
       </div>
       <template data-part="copy-source">{@source}</template>
-      <div data-part="code"><pre><code>{@source}</code></pre></div>
+      <div data-part="code">
+        <%= if @highlighted do %>
+          {raw(@highlighted)}
+        <% else %>
+          <pre><code>{@source}</code></pre>
+        <% end %>
+      </div>
     </div>
     """
   end

@@ -12,7 +12,7 @@ defmodule Atlas.Inference.Token do
   alias Plug.Crypto.KeyGenerator
   alias Plug.Crypto.MessageEncryptor
 
-  @atlas_roles ~w(inference coding embedding)
+  @atlas_roles ~w(inference coding embedding orbit)
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 

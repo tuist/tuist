@@ -339,6 +339,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
     ) throws {
+        guard headers?.sourceLayout == nil else { return }
         let headersBuildPhase = PBXHeadersBuildPhase()
         pbxproj.add(object: headersBuildPhase)
         pbxTarget.buildPhases.append(headersBuildPhase)

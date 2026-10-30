@@ -2,6 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSSupportsLiveActivities</key><true/>
     <key>CFBundleIdentifier</key><string>dev.tuist.atlas.settings-preview</string>
     <key>CFBundleExecutable</key><string>AtlasSettingsPreview</string>
     <key>CFBundleName</key><string>AtlasSettingsPreview</string>
@@ -16,6 +17,8 @@
     <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
+    <key>NSMicrophoneUsageDescription</key><string>Test on-device voice message transcription.</string>
+    <key>NSSpeechRecognitionUsageDescription</key><string>Test local transcription before editing and sending a message.</string>
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key><array>
         <string>UIInterfaceOrientationPortrait</string>

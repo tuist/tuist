@@ -5,7 +5,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Atlas.Email
-  alias Tuist.FeatureFlags
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Content
@@ -22,7 +21,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
   plug :put_resp_header_cache_control
-  plug :put_resp_header_server
 
   @newsletter_verification_salt "newsletter_subscription"
   @newsletter_verification_max_age 2 * 24 * 60 * 60
@@ -954,8 +952,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def pricing(conn, _params) do
-    usage_based_pricing = FeatureFlags.usage_based_pricing_page_enabled?(TuistWeb.Authentication.current_user(conn))
-
     faqs = [
       {dgettext("marketing", "Do you support a seat-based pricing model?"),
        dgettext(
@@ -994,34 +990,24 @@ defmodule TuistWeb.Marketing.MarketingController do
          "We have a generous free tier on every paid plan so you can try out the features before paying any money."
        )},
       {dgettext("marketing", "Do you offer discounts for non-profits and open-source?"),
-       dgettext("marketing", "Yes, we do. Please reach out to contact@tuist.dev for more information.")}
+       dgettext("marketing", "Yes, we do. Please reach out to contact@tuist.dev for more information.")},
+      {dgettext("marketing", "What counts as cache egress and requests?"),
+       dgettext(
+         "marketing",
+         "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
+       )},
+      {dgettext("marketing", "Is usage on Tuist Runners billed differently?"),
+       dgettext(
+         "marketing",
+         "Yes. Cache egress and requests from Tuist Runners count at half, and test cases run on Tuist Runners are free."
+       )}
     ]
-
-    faqs =
-      if usage_based_pricing do
-        faqs ++
-          [
-            {dgettext("marketing", "What counts as cache egress and requests?"),
-             dgettext(
-               "marketing",
-               "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
-             )},
-            {dgettext("marketing", "Is usage on Tuist Runners billed differently?"),
-             dgettext(
-               "marketing",
-               "Yes. Cache egress and requests from Tuist Runners count at half, and test cases run on Tuist Runners are free."
-             )}
-          ]
-      else
-        faqs
-      end
 
     plans = Tuist.Billing.get_plans()
 
     conn =
       conn
       |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
-      |> assign(:usage_based_pricing, usage_based_pricing)
       |> assign(:faqs, faqs)
       |> assign(:plans, plans)
       |> assign(
@@ -1193,10 +1179,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     else
       put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
     end
-  end
-
-  defp put_resp_header_server(conn, _opts) do
-    put_resp_header(conn, "server", "Bandit")
   end
 
   defp post_sitemap_entries do

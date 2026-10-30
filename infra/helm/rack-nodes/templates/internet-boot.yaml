@@ -1,0 +1,146 @@
+{{- if and .Values.capi.enabled .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.boot.enabled .Values.rackLinuxFleet.boot.internet.enabled }}
+{{- $fleetName := include "rackNodes.fleetName" . }}
+{{- $internet := .Values.rackLinuxFleet.boot.internet }}
+{{- $host := required "rackLinuxFleet.boot.internet.host is the internet boot server's name" $internet.host }}
+{{- $bootName := printf "%s-boot" $fleetName }}
+{{- $name := printf "%s-internet-boot" $fleetName }}
+---
+# The boot server a preinstalled box reaches over the internet before its
+# site has one (cmd/rack-boot --internet): seeds, sealed to a host's pinned
+# TPM, and announcements from hosts declared with their TPM's check code.
+# Nothing to netboot. It runs as the boot servers' ServiceAccount, whose Role
+# (boot.yaml) grants what it reads and writes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rackNodes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-internet-boot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: rack-internet-boot
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: rack-internet-boot
+    spec:
+      serviceAccountName: {{ $bootName }}
+      enableServiceLinks: false
+      {{- with $internet.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # On the cloud: a rack node reaches no Service, and the first edge of a
+      # site comes up through this server while the rack is still dark.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/instance-type
+                    operator: NotIn
+                    values: [rack]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: boot
+          image: {{ include "rackNodes.image" . | quote }}
+          imagePullPolicy: {{ .Values.macosFleet.image.pullPolicy }}
+          command: [/usr/local/bin/rack-boot]
+          args:
+            - --internet
+            - --listen=:8480
+            - --secret={{ $bootName }}
+            - --kubernetes-api-file=/nonexistent
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: http
+              containerPort: 8480
+          readinessProbe:
+            tcpSocket:
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml $internet.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rackNodes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-internet-boot
+spec:
+  selector:
+    app.kubernetes.io/component: rack-internet-boot
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rackNodes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-internet-boot
+  {{- with $internet.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $internet.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if $internet.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ $internet.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          # Only what a preinstalled box asks for.
+          - path: /hosts/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+          - path: /cgi-bin/announce
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+          - path: /tools/rack-node
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+{{- end }}

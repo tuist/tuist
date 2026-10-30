@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,33 +15,49 @@ import (
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
-func (a *agent) authorize(ctx context.Context, body []byte) (cachevolumes.Identity, error) {
+// errNotFound is the server's answer that it has nothing to allocate yet.
+var errNotFound = errors.New("nothing to allocate")
+
+func (a *agent) authorize(ctx context.Context, podUID string, asked time.Time, body []byte) (cachevolumes.Identity, error) {
 	var identity cachevolumes.Identity
-	err := a.allocate(ctx, a.authorizeURL, body, &identity)
+	err := a.allocate(ctx, a.authorizeURL, podUID, asked, body, &identity)
 	return identity, err
 }
 
-// allocate asks the server for a use and decodes it into result.
-func (a *agent) allocate(ctx context.Context, url string, body []byte, result any) error {
+// allocate asks the server for a use and decodes it into result. A request made
+// after the Pod's wait for GitHub's job report ended still asks once, so a report
+// that arrived meanwhile authorizes it.
+func (a *agent) allocate(ctx context.Context, url, podUID string, asked time.Time, body []byte, result any) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	pending := false
+	waiting := ctx
 	for {
-		status, err := a.allocateOnce(ctx, url, body, result)
-		if pending && ctx.Err() != nil && status != http.StatusOK {
+		status, err := a.allocateOnce(waiting, url, body, result)
+		if waiting != ctx && waiting.Err() != nil && status != http.StatusOK {
 			return cachevolumes.ErrExecutionPending
 		}
 		if err != nil || status == http.StatusOK {
 			return err
+		}
+		if status == http.StatusNotFound {
+			return errNotFound
+		}
+		// The volume is larger than this host's maximum. Retrying cannot help.
+		if status == http.StatusInsufficientStorage {
+			return cachevolumes.ErrCapacity
 		}
 		if status != http.StatusTooEarly {
 			return fmt.Errorf("authorization rejected: %d", status)
 		}
 		// GitHub may deliver its verified execution binding after the action starts.
 		// Retry only that explicit pending state, never denied provider identity.
-		pending = true
+		if waiting == ctx {
+			var stop context.CancelFunc
+			waiting, stop = context.WithDeadline(ctx, a.executionWaits.Deadline(podUID, asked))
+			defer stop()
+		}
 		select {
-		case <-ctx.Done():
+		case <-waiting.Done():
 			return cachevolumes.ErrExecutionPending
 		case <-time.After(time.Second):
 		}
@@ -58,7 +75,7 @@ func (a *agent) allocateOnce(ctx context.Context, url string, body []byte, resul
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	response, err := a.http.Do(req)
+	response, err := cachevolumes.DoServer(a.http, req, a.log)
 	if err != nil {
 		return 0, err
 	}

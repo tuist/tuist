@@ -157,6 +157,77 @@ spec:
         - name: config
           mountPath: /etc/rack-edge
           readOnly: true
+    {{- if $root.Files.Get (printf "sites/%s/ztp.sh" $site) }}
+    # A PicOS ToR's zero-touch provisioning, on this edge's link to its
+    # management port: DHCP and the bootstrap over TFTP (see lib/edge.sh).
+    - name: ztp
+      image: {{ $image | quote }}
+      imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+      command: [sh, /etc/rack-edge/ztp.sh]
+      env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+          # Ports 67 and 69, and the link's address and forwarding.
+          add: [NET_BIND_SERVICE, NET_ADMIN, NET_RAW]
+      resources:
+        {{- toYaml $root.Values.resources | nindent 8 }}
+      volumeMounts:
+        - name: config
+          mountPath: /etc/rack-edge
+          readOnly: true
+        - name: leases
+          mountPath: /var/lib/misc
+    # Reboots the ToR over its serial console when ZTP missed it, which only a
+    # switch still on its factory login can be (rack-tor-console). Privileged
+    # for the USB serial device.
+    - name: tor-console
+      image: {{ $image | quote }}
+      imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+      command: [sh, /etc/rack-edge/ztp.sh, console]
+      env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      securityContext:
+        privileged: true
+      resources:
+        {{- toYaml $root.Values.resources | nindent 8 }}
+      volumeMounts:
+        - name: config
+          mountPath: /etc/rack-edge
+          readOnly: true
+    {{- end }}
+    {{- if $root.Files.Get (printf "sites/%s/bird.conf" $site) }}
+    # The site's own prefixes, announced to the WAN's upstream over BGP. Both
+    # edges run it, and only the one holding the WAN address has a session
+    # (see fleet_edge_bgp in lib/edge.sh). It installs no routes into the
+    # node: the default route through the WAN is keepalived's.
+    - name: bgp
+      image: {{ $image | quote }}
+      imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+      command: [bird, -f, -c, /etc/rack-edge/bird.conf, -s, /run/bird/bird.ctl]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+          # Port 179.
+          add: [NET_BIND_SERVICE]
+      resources:
+        {{- toYaml $root.Values.resources | nindent 8 }}
+      volumeMounts:
+        - name: config
+          mountPath: /etc/rack-edge
+          readOnly: true
+        - name: bird
+          mountPath: /run/bird
+    {{- end }}
     # The machines' addresses, advertised to the tailnet by both edges
     # through the node's own tailscaled, so the tailnet fails over between
     # them. tailscaled trusts its socket's caller by uid, and this runs as
@@ -200,4 +271,9 @@ spec:
       hostPath:
         path: /run/tailscale
         type: Directory
+    {{- if $root.Files.Get (printf "sites/%s/bird.conf" $site) }}
+    # birdc's control socket, for looking at the sessions from the node.
+    - name: bird
+      emptyDir: {}
+    {{- end }}
 {{- end }}

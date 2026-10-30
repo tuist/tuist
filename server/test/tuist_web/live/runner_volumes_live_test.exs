@@ -13,7 +13,14 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   alias TuistWeb.RunnerVolumesLive
 
   defp assigns(can_manage) do
-    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle", repository: "org/repo", architecture: "amd64", uid: 1001}
+    volume = %Volume{
+      id: Ecto.UUID.generate(),
+      head_id: Ecto.UUID.generate(),
+      key: "gradle",
+      repository: "org/repo",
+      architecture: "amd64",
+      uid: 1001
+    }
 
     data = %{
       volumes: [volume],
@@ -23,6 +30,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
           hits: 3,
           active: 0,
           retained_bytes: 1024,
+          saved_bytes: 512,
           attach_ms: Decimal.new(12),
           retained_copies: 1
         }
@@ -40,7 +48,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       previous_activity: %{hit_rate: 50.0},
       activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
       analytics: %{
-        storage: [%{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}],
+        saved_size_history: [%{at: ~U[2026-09-22 10:00:00Z], used_bytes: 512}],
         activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
         previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
@@ -52,7 +60,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       selected: volume,
       selected_tab: "overview",
       storage_metric: "used_bytes",
-      detail_metric: "used_bytes",
+      detail_metric: "hit_rate",
+      initialize_percentile: "avg",
       analytics_preset: "last-7-days",
       analytics_period: {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]},
       params: %{},
@@ -89,40 +98,9 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute html =~ "Size history"
     refute html =~ "Last reported"
     refute html =~ "Average attach · 30 days"
-    assert html =~ "not unique physical bytes"
+    assert html =~ "Size of the current saved cache"
+    refute html =~ "not unique physical bytes"
     assert html =~ "request_delete"
-  end
-
-  test "built-in volumes are named after the caches they hold" do
-    assigns = assigns(true)
-
-    volume = %{
-      assigns.selected
-      | builtin_name: "tuist-cache",
-        key: "tuist-cache",
-        platform: "macos",
-        architecture: "arm64"
-    }
-
-    data = assigns.data.result
-    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
-    data = %{data | volumes: [volume], stats: stats}
-    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
-    detail = render_component(&RunnerVolumesLive.render/1, assigns)
-    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Xcode and module caches"
-    assert detail =~ "macOS"
-    assert detail =~ "20.0 GB"
-    refute detail =~ "Automatic"
-    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
-    assert badges =~ "macOS"
-    refute badges =~ "Custom"
-    refute detail =~ "phx-click=\"request_delete\""
-    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
-    cell = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
-    assert Floki.text(cell) =~ "Xcode and module caches"
-    refute inventory =~ "tuist-cache"
-    assert inventory =~ "20.0 GB"
-    assert inventory =~ "/runners/volumes/#{volume.id}"
   end
 
   test "the managed Gradle cache is named after its tool, and other keys stay as they are" do
@@ -362,10 +340,9 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute elem(updated.redirected, 2).to =~ "analytics-start-date"
   end
 
-  test "detail charts switch between byte, percentage and mount count series" do
+  test "detail charts switch between percentage and mount count series" do
     analytics = assigns(true).data.result.analytics
     period = assigns(true).analytics_period
-    assert [%{type: "line", data: [[_, 1024]]}] = RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
     assert [%{type: "line", data: [[_, 75.0]]}] = RunnerVolumesLive.detail_chart_series(analytics, "hit_rate")
     assert [%{type: "bar", data: [[_, 4]]}] = RunnerVolumesLive.detail_chart_series(analytics, "uses")
     assert RunnerVolumesLive.detail_chart_options("hit_rate", period).yAxis.max == 100
@@ -374,12 +351,38 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     empty = %{analytics | activity: %{analytics.activity | hit_rate: nil}}
     refute RunnerVolumesLive.detail_chart_data?(empty, "hit_rate")
 
-    socket = %Socket{assigns: %{__changed__: %{}, detail_metric: "used_bytes"}}
+    socket = %Socket{assigns: %{__changed__: %{}, detail_metric: "hit_rate"}}
 
     for metric <- ["used_bytes", "hit_rate", "uses"] do
       assert {:noreply, updated} = RunnerVolumesLive.handle_event("select_detail_metric", %{"widget" => metric}, socket)
       assert updated.assigns.detail_metric == metric
     end
+  end
+
+  test "saved size is selectable with a stepped byte chart and unknown gaps" do
+    assigns = %{assigns(true) | detail_metric: "used_bytes"}
+    html = render_component(&RunnerVolumesLive.render/1, assigns)
+    assert html |> Floki.parse_document!() |> Floki.find("[phx-value-widget=used_bytes][data-selected]") != []
+    assert html =~ "volume-analytics-chart"
+
+    analytics = %{
+      assigns.data.result.analytics
+      | saved_size_history: [
+          %{at: ~U[2026-09-22 08:00:00Z], used_bytes: 512},
+          %{at: ~U[2026-09-22 09:00:00Z], used_bytes: nil},
+          %{at: ~U[2026-09-22 10:00:00Z], used_bytes: 0}
+        ]
+    }
+
+    assert [%{step: "end", connectNulls: false, data: [[_, 512], [_, nil], [_, 0]]}] =
+             RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
+
+    assert RunnerVolumesLive.detail_chart_options("used_bytes", assigns.analytics_period).tooltip.valueFormat ==
+             "fn:formatBytes"
+
+    refute RunnerVolumesLive.detail_chart_data?(%{analytics | saved_size_history: []}, "used_bytes")
+    refute RunnerVolumesLive.detail_chart_data?(%{analytics | saved_size_history: [%{used_bytes: nil}]}, "used_bytes")
+    assert RunnerVolumesLive.detail_chart_data?(%{analytics | saved_size_history: [%{used_bytes: 0}]}, "used_bytes")
   end
 
   test "detail range changes stay on the volume and tab navigation preserves the range" do
@@ -445,8 +448,30 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute jobs =~ ~s(id="volume-size-history")
     assert jobs =~ "Volume details"
     assert :binary.match(jobs, "Volume details") < :binary.match(jobs, "noora-tab-menu-horizontal")
-    assert RunnerVolumesLive.selected_tab("size-history") == "overview"
-    assert RunnerVolumesLive.selected_tab("invalid") == "overview"
+    assert RunnerVolumesLive.selected_tab("size-history", nil) == "overview"
+    assert RunnerVolumesLive.selected_tab("invalid", nil) == "overview"
+  end
+
+  test "detail used space shows only the current saved cache, including after clearing" do
+    assigns = assigns(true)
+    data = assigns.data.result
+    volume = assigns.selected
+
+    for {head_id, saved_bytes, expected} <- [
+          {volume.head_id, 23_300_000_000, "23.3 GB"},
+          {volume.head_id, nil, "—"},
+          {nil, 23_300_000_000, "0 B"}
+        ] do
+      metrics = Map.merge(data.stats[volume.id], %{saved_bytes: saved_bytes, retained_bytes: 465_800_000_000})
+      refreshed = %{data | volumes: [%{volume | head_id: head_id}], stats: %{volume.id => metrics}}
+      html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(refreshed)})
+      document = Floki.parse_document!(html)
+
+      assert document |> Floki.find("#volume-used [data-part=value]") |> Floki.text() == expected
+      assert Floki.find(document, "#volume-used [data-part=trend]") == []
+      assert Floki.find(document, "[phx-click=select_detail_metric][phx-value-widget=used_bytes]") != []
+      assert Floki.find(document, "[phx-value-widget=hit_rate][data-selected]") != []
+    end
   end
 
   test "detail widgets compare with the previous period" do
@@ -454,13 +479,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     data = assigns.data.result
 
     analytics =
-      Map.merge(data.analytics, %{
-        storage: [
-          %{at: ~U[2026-09-15 10:00:00Z], used_bytes: 512, capacity_bytes: 4096},
-          %{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}
-        ],
-        previous_activity: %{uses: 2, hit_rate: 50.0, points: []}
-      })
+      Map.put(data.analytics, :previous_activity, %{uses: 2, hit_rate: 50.0, points: []})
 
     html =
       render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | analytics: analytics})})
@@ -468,8 +487,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     document = Floki.parse_document!(html)
     widget = &(document |> Floki.find("##{&1}") |> Floki.text())
 
-    assert widget.("volume-used") =~ "+100.0%"
-    assert widget.("volume-used") =~ "since last period"
+    assert widget.("volume-used") =~ "512 B"
+    refute widget.("volume-used") =~ "since last period"
     assert widget.("volume-hit-rate") =~ "+50.0%"
     assert widget.("volume-uses") =~ "+100.0%"
   end
@@ -490,7 +509,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert legend.(inventory, "storage-hit-rate") == ["tertiary"]
 
     analytics = assigns(true).data.result.analytics
-    assert [%{color: "var:noora-chart-secondary"}] = RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
     assert [%{color: "var:noora-chart-tertiary"}] = RunnerVolumesLive.detail_chart_series(analytics, "hit_rate")
     assert [%{color: "var:noora-chart-p50"}] = RunnerVolumesLive.detail_chart_series(analytics, "uses")
     point = %{at: ~U[2026-09-22 10:00:00Z], volumes: 1, used_bytes: 1024, capacity_bytes: 4096}
@@ -505,18 +523,79 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
   end
 
-  test "detail warns when the saved snapshot is too full to reuse" do
+  test "detail warns when the saved snapshot is too full for the capacity the next job gets" do
     assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate()}
     data = assigns.data.result
-    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+    saved = %{saved_bytes: 17_000_000_000, saved_capacity_bytes: 20_000_000_000, head_volume_bytes: 20_000_000_000}
+    full = Map.update!(data.stats, volume.id, &Map.merge(&1, saved))
+    full_data = %{data | stats: full, volumes: [volume]}
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: volume, data: AsyncResult.ok(full_data)})
 
     assert html =~ ~s(id="volume-full-alert")
     assert html =~ "This volume is almost full"
+    assert html =~ "17.0 GB of 20.0 GB"
 
-    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    grown = %{volume | requested_volume_bytes: 50_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: grown,
+          data: AsyncResult.ok(%{full_data | volumes: [grown]})
+      })
+
     refute html =~ ~s(id="volume-full-alert")
+
+    roomy = Map.update!(data.stats, volume.id, &Map.merge(&1, %{saved | saved_bytes: 10_000_000_000}))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: roomy, volumes: [volume]})
+      })
+
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
+  test "detail shows the volume's capacity and a smaller size pending until the next clear" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate(), requested_volume_bytes: 5_000_000_000}
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :head_volume_bytes, 50_000_000_000))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    capacity = html |> Floki.parse_document!() |> Floki.find("#volume-capacity") |> Floki.text()
+    assert capacity =~ "50.0 GB"
+    assert html =~ ~s(id="volume-pending-size-alert")
+    assert html =~ "Saved at 50.0 GB. New contents will use 5.0 GB after the next clear."
+
+    larger = %{volume | requested_volume_bytes: 100_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: larger,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [larger]})
+      })
+
+    refute html =~ ~s(id="volume-pending-size-alert")
+
+    inventory =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: nil,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    assert inventory =~ "50.0 GB"
   end
 
   test "reader sees metrics but no mutation controls" do
@@ -560,5 +639,68 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.display_name(%Volume{key: "tuist-module"}) == "Module cache"
     assert RunnerVolumesLive.display_name(%Volume{key: "tuist-gradle"}) == "Gradle cache"
     assert RunnerVolumesLive.display_name(%Volume{key: "npm"}) == "npm"
+  end
+
+  test "an image cache volume shows how its jobs started containers and the images it keeps" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | key: "docker"}
+
+    steps = %{
+      reused: %{avg: 3_200, p50: 3_100, p90: 4_400, p99: 6_100},
+      cold: %{avg: 47_000, p50: 46_000, p90: 52_000, p99: 58_000},
+      points: []
+    }
+
+    data = %{assigns.data.result | volumes: [volume]}
+    analytics = Map.merge(data.analytics, %{steps: steps, previous_steps: steps})
+
+    overview =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | analytics: analytics})
+      })
+
+    assert overview =~ "Avg. Initialize containers"
+    assert overview =~ "tab=images"
+
+    images =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          selected_tab: "images",
+          data:
+            AsyncResult.ok(Map.put(data, :images, [%{name: "postgres:16", size_bytes: 451_000_000, last_used_at: nil}]))
+      })
+
+    assert images =~ "postgres:16"
+  end
+
+  test "other volumes have no images tab or container start widget" do
+    html = render_component(&RunnerVolumesLive.render/1, assigns(true))
+
+    refute html =~ "tab=images"
+    refute html =~ "Initialize containers"
+    assert RunnerVolumesLive.selected_tab("images", %{key: "gradle"}) == "overview"
+  end
+
+  test "a job whose saved image cache could not be mounted is a miss" do
+    assigns = assigns(true)
+
+    usage = %Usage{
+      id: Ecto.UUID.generate(),
+      workflow_job_id: 1024,
+      workflow_run_id: 1000,
+      job_name: "Build and test",
+      status: "published",
+      warm: true,
+      docker_images: %{"images" => [], "build_cache_bytes" => 0, "reset" => true}
+    }
+
+    data = %{assigns.data.result | history: [usage]}
+    jobs = render_component(&RunnerVolumesLive.render/1, %{assigns | selected_tab: "jobs", data: AsyncResult.ok(data)})
+
+    assert jobs =~ "Miss"
+    refute jobs =~ "Hit"
   end
 end

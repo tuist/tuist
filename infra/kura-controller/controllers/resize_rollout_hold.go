@@ -60,7 +60,10 @@ func (r *KuraInstanceReconciler) holdRolloutForResize(ctx context.Context, insta
 	if sts.DeletionTimestamp != nil {
 		return false, nil
 	}
-	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
+	// An in-place CPU resize's hold becomes the resize's, so it is released
+	// with the resize rather than abandoned while the rebuild replaces pods.
+	_, cpuHeld := sts.Annotations[cpuResizeHoldAnnotation]
+	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType && !cpuHeld {
 		return true, nil
 	}
 	if rollingPartitioned(sts) {
@@ -72,6 +75,7 @@ func (r *KuraInstanceReconciler) holdRolloutForResize(ctx context.Context, insta
 	if sts.Annotations == nil {
 		sts.Annotations = map[string]string{}
 	}
+	delete(sts.Annotations, cpuResizeHoldAnnotation)
 	sts.Annotations[resizeRolloutHoldAnnotation] = "true"
 	if err := r.Patch(ctx, sts, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
 		return false, err
@@ -176,12 +180,13 @@ func rollingPartitioned(sts *appsv1.StatefulSet) bool {
 }
 
 // rolloutPausedByOperator reports an update strategy an operator chose to
-// stop rollouts with. The resize's own hold is not one: the controller placed
-// it and replaces pods under it itself.
+// stop rollouts with. The resize's and the CPU resize's holds are not one: the
+// controller placed them and replaces pods under them itself.
 func rolloutPausedByOperator(sts *appsv1.StatefulSet) bool {
 	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
-		_, held := sts.Annotations[resizeRolloutHoldAnnotation]
-		return !held
+		_, resizeHeld := sts.Annotations[resizeRolloutHoldAnnotation]
+		_, cpuHeld := sts.Annotations[cpuResizeHoldAnnotation]
+		return !resizeHeld && !cpuHeld
 	}
 	return rollingPartitioned(sts)
 }

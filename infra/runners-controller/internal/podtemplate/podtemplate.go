@@ -37,6 +37,13 @@ import (
 )
 
 const (
+	// RackSiteNodeLabel carries a rack host's site on its Node. A pool with
+	// `spec.site` selects it within its fleet.
+	//
+	// CONTRACT: must match cluster-api-provider-tuist's
+	// `v1alpha1.RackSiteNodeLabel`.
+	RackSiteNodeLabel = "node.cluster.x-k8s.io/rack-site"
+
 	// RuntimeClassRevisionAnnotation is the deterministic revision Helm
 	// derives from the Linux RuntimeClass name and fixed overhead. The
 	// RunnerPool carries the desired revision and each Pod records the
@@ -62,6 +69,31 @@ const (
 	// own Pod the moment it landed and was still warm-polling — the
 	// reservation would eat its own result.
 	ReservationTaintKey = "tuist.dev/reserved-for"
+
+	// KVMNodeLabel marks a Kata host the CAPI provider has proven can run
+	// nested guests: the KVM-enabled guest kernel is installed, the Kata
+	// configuration accepts it per Pod, and host KVM runs with nesting on.
+	//
+	// CONTRACT: the provider (`kataKVMNodeLabel` in
+	// infra/cluster-api-provider-tuist/controllers/linux) writes this label
+	// and the kvm-device-plugin DaemonSet selects on it; the three live in
+	// separate modules, so they are coupled by this convention.
+	KVMNodeLabel = "tuist.dev/kata-kvm"
+
+	// KVMResourceName is the extended resource kvm-device-plugin
+	// advertises. Allocating it is what puts /dev/kvm into the runner
+	// container's OCI spec; the Kata agent then creates the node inside
+	// the guest, where it resolves to the guest kernel's own KVM device.
+	KVMResourceName corev1.ResourceName = "devices.tuist.dev/kvm"
+
+	// KVMGuestKernelPath is the stable path the CAPI provider points at the
+	// installed KVM-enabled guest kernel (`kataKVMKernelLink` there).
+	KVMGuestKernelPath = "/opt/kata/share/kata-containers/vmlinux-tuist-kvm.container"
+
+	// kataKernelAnnotation selects the guest kernel per Pod. Honoured only
+	// because the provider's Kata drop-in adds `kernel` to the hypervisor's
+	// enable_annotations.
+	kataKernelAnnotation = "io.katacontainers.config.hypervisor.kernel"
 
 	// jitMountPath is where the JIT-handoff emptyDir is mounted in
 	// both the poller (rw) and runner (ro) containers. Deliberately
@@ -99,6 +131,14 @@ const (
 	// shared externals volume. Deliberately not externalsPath, which
 	// would shadow the source being copied.
 	externalsStagePath = "/mnt/dind-externals"
+	// externalsStagedMarker is written into the shared externals volume
+	// once the whole copy is in place. The poller waits for it before its
+	// first claim, so a job never starts against a partial copy.
+	externalsStagedMarker = ".tuist-externals-staged"
+	// externalsStageTimeoutTicks bounds that wait in 0.1 s ticks (120 s).
+	// Past it the poller exits non-zero and the Pod fails, as it did
+	// when the copy was a blocking init container.
+	externalsStageTimeoutTicks = 1200
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -137,6 +177,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	if pool.Spec.OS == "linux" && dindImage != "" && pool.Spec.RuntimeClass != "kata-qemu" {
 		return nil, fmt.Errorf("refusing to build Linux runner Pod with privileged dind sidecar: pool %q has runtimeClass %q, want kata-qemu", pool.Name, pool.Spec.RuntimeClass)
 	}
+	// Under runc, /dev/kvm would be the host's own device rather than the
+	// guest's, so nested virtualization is only offered inside the microVM.
+	if pool.Spec.NestedVirtualization && (pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu") {
+		return nil, fmt.Errorf("refusing to build runner Pod with nested virtualization: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
+	}
 
 	nodeSelector, tolerations := schedulingFor(pool)
 
@@ -147,6 +192,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 
 	linuxPod := pool.Spec.OS == "linux"
 	cacheVolumes := pool.Spec.CacheVolumeRoot != ""
+	if pool.Spec.DockerCache && !cacheVolumes {
+		return nil, fmt.Errorf("pool %q enables the Docker cache without cache volumes", pool.Name)
+	}
 	if cacheVolumes && (!linuxPod || pool.Spec.RuntimeClass != "kata-qemu" || !filepath.IsAbs(pool.Spec.CacheVolumeRoot) || filepath.Clean(pool.Spec.CacheVolumeRoot) == "/" || pool.Spec.CacheVolumeURL == "" || dindImage == "") {
 		return nil, fmt.Errorf("cache volumes require a Linux Kata pool, dind, an absolute dedicated root and an agent URL")
 	}
@@ -198,6 +246,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.ResourceCPU:    *cpu,
 			corev1.ResourceMemory: *mem,
 		},
+	}
+	if pool.Spec.NestedVirtualization {
+		resources.Requests[KVMResourceName] = resource.MustParse("1")
+		resources.Limits[KVMResourceName] = resource.MustParse("1")
 	}
 
 	// Defaults are the macOS shape: a single runner container running
@@ -310,13 +362,32 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				mirrorHost := strings.TrimPrefix(strings.TrimPrefix(registryMirror, "https://"), "http://")
 				dockerdMirrorFlags = " --registry-mirror=" + registryMirror + " --insecure-registry=" + mirrorHost
 			}
-			mountHelper := ""
+			dockerd := "dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576" + dockerdMirrorFlags
+			start := "exec " + dockerd
 			probeCommand := []string{"docker", "info"}
 			if cacheVolumes {
 				// The existing privileged sidecar brokers descriptor-based mounts inside
 				// this Kata guest; workflows retain their unprivileged container shape.
 				probeCommand = []string{"sh", "-c", "test -S " + workPath + "/.tuist-cache-mount.sock && docker info"}
-				mountHelper = "rm -f " + workPath + "/.tuist-cache-mount.sock && (/home/runner/actions-runner/externals/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); "
+				start = "rm -f " + workPath + "/.tuist-cache-mount.sock && (" + externalsPath + "/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); " + start
+				if pool.Spec.DockerCache {
+					// The supervisor owns dockerd and the mount socket, so the job-start
+					// hook can move dockerd onto the repository's Docker cache volume and
+					// the teardown can clean and unmount it. More concurrent layer
+					// downloads shorten the pulls of jobs that start without one.
+					start = "exec " + externalsPath + "/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- " + dockerd + " --max-concurrent-downloads=8"
+				}
+				// The externals sidecar stages this binary ahead of the rest of
+				// the copy, which still runs while dockerd starts.
+				start = "until [ -x " + externalsPath + "/tuist-cache-volume ]; do sleep 0.1; done && " + start
+			}
+			if pool.Spec.NestedVirtualization {
+				// CDI supplies /dev/kvm to the runner, not this sidecar's /dev.
+				// Both containers use the same Kata guest kernel, so create its
+				// KVM device here before dockerd resolves --device /dev/kvm.
+				// Keep one allocation per Pod: a second sidecar allocation would
+				// halve the fleet's effective KVM capacity. Build requires Kata.
+				start = "(test -c /dev/kvm || mknod /dev/kvm c 10 232) && chmod 0666 /dev/kvm && { " + start + "; }"
 			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
@@ -366,22 +437,40 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// which the `work` volume shares with the sidecar at
 			// workPath. externals ships in the runner image alone, so
 			// stage it into a volume both sides mount, the way ARC's
-			// dind mode does (init-dind-externals). Runs before the
-			// sidecar so the copy is in place by the time dockerd can
-			// serve a container, and fails the Pod early if the image
-			// ever stops shipping externals.
+			// dind mode does (init-dind-externals).
+			//
+			// A native sidecar rather than a blocking init container:
+			// the copy takes 3-6 s on a booting host, and the containers
+			// after it start while it runs. tuist-cache-volume goes
+			// first, renamed into place, because the dind sidecar
+			// executes it; the rest follows, then the marker the
+			// poller waits for. A restart keeps a finished copy.
+			stage := "if [ ! -e " + externalsStagePath + "/" + externalsStagedMarker + " ]; then " +
+				"test -d " + externalsPath + "; " +
+				"if [ -e " + externalsPath + "/tuist-cache-volume ]; then " +
+				"cp -a " + externalsPath + "/tuist-cache-volume " + externalsStagePath + "/.tuist-cache-volume.partial; " +
+				"mv " + externalsStagePath + "/.tuist-cache-volume.partial " + externalsStagePath + "/tuist-cache-volume; fi; " +
+				"for f in " + externalsPath + "/* " + externalsPath + "/.[!.]*; do " +
+				"[ -e \"$f\" ] || continue; [ \"${f##*/}\" != tuist-cache-volume ] || continue; " +
+				"cp -a \"$f\" " + externalsStagePath + "/; done; " +
+				"touch " + externalsStagePath + "/" + externalsStagedMarker + "; fi"
 			initContainers = append(initContainers, corev1.Container{
 				Name:    "dind-externals",
 				Image:   pool.Spec.Image,
 				Command: []string{"sh", "-c"},
-				Args:    []string{"set -e && cp -a " + externalsPath + "/. " + externalsStagePath + "/"},
+				Args:    []string{"set -e; " + stage + "; trap 'exit 0' TERM; sleep infinity & wait"},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-externals", MountPath: externalsStagePath},
 				},
+				RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
 				// Root only to write the root-owned emptyDir; it runs
 				// our copy, never customer code.
 				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
 			})
+			dindPackages := "e2fsprogs"
+			if pool.Spec.DockerCache {
+				dindPackages += " coreutils"
+			}
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",
 				Image: dindImage,
@@ -415,27 +504,27 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				Args: []string{
 					"set -e && " +
 						"ulimit -n 1048576 && " +
-						"apk add --no-cache e2fsprogs >/dev/null && " +
+						"apk add --no-cache " + dindPackages + " >/dev/null && " +
 						"mkdir -p /mnt/dind-disk && " +
 						"truncate -s 100G /mnt/dind-disk/disk.img && " +
 						"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
 						"mkdir -p /var/lib/docker && " +
 						"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
-						mountHelper + "exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
-						"--default-ulimit nofile=1048576:1048576" + dockerdMirrorFlags,
+						start,
 				},
 				SecurityContext: &corev1.SecurityContext{
 					Privileged: ptr(true),
 				},
 				RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
 				StartupProbe: &corev1.Probe{
-					ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: probeCommand}},
-					PeriodSeconds: 2,
-					// Was 30. apk add + truncate + mkfs.ext4 +
-					// loop mount add ~8 s of pre-dockerd setup;
-					// bump the probe ceiling so a slow apt mirror
-					// doesn't trip the restart.
-					FailureThreshold: 60,
+					ProbeHandler: corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: probeCommand}},
+					// dockerd is up about a second after the container
+					// starts, and every container after this one waits
+					// for the probe to see it, so probe every second.
+					PeriodSeconds: 1,
+					// A 120 s ceiling, so a slow package mirror during
+					// apk add doesn't trip the restart.
+					FailureThreshold: 120,
 				},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-sock", MountPath: "/var/run"},
@@ -510,16 +599,27 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 
 		// poller runs after the dind sidecar (when present) so it
 		// waits on the dind startupProbe exactly as the single runner
-		// container did before the split.
+		// container did before the split. With dind it also waits for
+		// the externals copy before its first claim.
+		pollerCommand := []string{"/usr/local/bin/dispatch-poll.sh"}
+		pollerMounts := []corev1.VolumeMount{
+			{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+			{Name: "tuist-runner-jit", MountPath: jitMountPath},
+		}
+		if dindImage != "" {
+			pollerCommand = []string{"sh", "-c",
+				"i=0; until [ -e " + externalsStagePath + "/" + externalsStagedMarker + " ]; do " +
+					"i=$((i + 1)); if [ \"$i\" -ge " + strconv.Itoa(externalsStageTimeoutTicks) + " ]; then " +
+					"echo \"$(date -u +%FT%TZ) poller: runner externals were not staged; exiting\"; exit 1; fi; " +
+					"sleep 0.1; done; exec /usr/local/bin/dispatch-poll.sh"}
+			pollerMounts = append(pollerMounts, corev1.VolumeMount{Name: "dind-externals", MountPath: externalsStagePath, ReadOnly: true})
+		}
 		initContainers = append(initContainers, corev1.Container{
-			Name:    "poller",
-			Image:   pool.Spec.Image,
-			Command: []string{"/usr/local/bin/dispatch-poll.sh"},
-			Env:     pollerEnv,
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
-				{Name: "tuist-runner-jit", MountPath: jitMountPath},
-			},
+			Name:         "poller",
+			Image:        pool.Spec.Image,
+			Command:      pollerCommand,
+			Env:          pollerEnv,
+			VolumeMounts: pollerMounts,
 			// Runs as root only so it can write the JIT into the
 			// root-owned emptyDir; it executes our trusted poll
 			// script, never customer code. The runner container that
@@ -545,6 +645,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		uidEnv := corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}}
 		runnerMounts = append(runnerMounts, mount)
 		runnerEnv = append(runnerEnv, uidEnv, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_URL", Value: pool.Spec.CacheVolumeURL}, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_POD", Value: podName})
+		if pool.Spec.DockerCache {
+			// Tells the job-start hook the sidecar can move dockerd onto a volume.
+			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_DOCKER_CACHE", Value: "1"})
+		}
 		for i := range initContainers {
 			if initContainers[i].Name == "dind" {
 				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts, mount)
@@ -565,6 +669,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// because the containerd kata runtime whitelists
 		// `io.katacontainers.*` pod annotations.
 		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
+		if pool.Spec.NestedVirtualization {
+			annotations[kataKernelAnnotation] = KVMGuestKernelPath
+		}
 	}
 	if linuxPod && pool.Spec.RuntimeClass != "" {
 		if revision := pool.Annotations[RuntimeClassRevisionAnnotation]; revision != "" {
@@ -580,6 +687,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// its _diag log is the only record, and it dies with the reaped Pod.
 	// Streaming _diag makes that exit reason durable.
 	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_RUNNER_IMAGE", Value: pool.Spec.Image})
 
 	// Idle-runner reaping: the runner image's idle watchdog terminates a
 	// runner that registered but never had a job assigned once this many
@@ -747,40 +855,17 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 	}
 }
 
-// cacheVolumeNodeLabel is the Node label a host carries for each custom cache
-// volume lineage it holds a master of (runner-cache's MasterNodeLabelPrefix
-// and 48 hex characters of the lineage's scope).
-var cacheVolumeNodeLabel = regexp.MustCompile(`\Atuist\.dev/cache-volume-[0-9a-f]{48}\z`)
+// cacheVolumePreferenceWeight keeps the volume preference below the golden
+// one: a host without the image pulls it for minutes, while a host without a
+// volume only starts that volume cold.
+const cacheVolumePreferenceWeight = 20
 
-const (
-	maxCacheVolumePreferences = 4
-	// cacheVolumePreferenceWeight keeps every volume preference together below
-	// the golden one: a host without the image pulls it for minutes, while a
-	// host without a volume only starts that volume cold.
-	cacheVolumePreferenceWeight = 20
-)
-
-// PreferCacheVolumeNodes adds a soft preference for Nodes holding each of the
-// custom cache volumes `labels` advertise, so a Pod created for queued jobs
-// lands where their volumes already are. Labels that are not cache volume
-// labels are ignored.
-func PreferCacheVolumeNodes(pod *corev1.Pod, labels []string) {
-	var terms []corev1.PreferredSchedulingTerm
-	for _, label := range labels {
-		if len(terms) == maxCacheVolumePreferences {
-			break
-		}
-		if !cacheVolumeNodeLabel.MatchString(label) {
-			continue
-		}
-		terms = append(terms, corev1.PreferredSchedulingTerm{
-			Weight: cacheVolumePreferenceWeight,
-			Preference: corev1.NodeSelectorTerm{MatchExpressions: []corev1.NodeSelectorRequirement{{
-				Key: label, Operator: corev1.NodeSelectorOpExists,
-			}}},
-		})
-	}
-	if len(terms) == 0 {
+// PreferCacheVolumeNode adds a soft preference for `nodeName`, a host the
+// server picked because it holds the custom cache volumes of the queued job
+// this Pod is created for and has cache disk room for them. An empty name
+// leaves the Pod alone.
+func PreferCacheVolumeNode(pod *corev1.Pod, nodeName string) {
+	if nodeName == "" {
 		return
 	}
 	if pod.Spec.Affinity == nil {
@@ -790,7 +875,12 @@ func PreferCacheVolumeNodes(pod *corev1.Pod, labels []string) {
 		pod.Spec.Affinity.NodeAffinity = &corev1.NodeAffinity{}
 	}
 	node := pod.Spec.Affinity.NodeAffinity
-	node.PreferredDuringSchedulingIgnoredDuringExecution = append(node.PreferredDuringSchedulingIgnoredDuringExecution, terms...)
+	node.PreferredDuringSchedulingIgnoredDuringExecution = append(node.PreferredDuringSchedulingIgnoredDuringExecution, corev1.PreferredSchedulingTerm{
+		Weight: cacheVolumePreferenceWeight,
+		Preference: corev1.NodeSelectorTerm{MatchFields: []corev1.NodeSelectorRequirement{{
+			Key: "metadata.name", Operator: corev1.NodeSelectorOpIn, Values: []string{nodeName},
+		}}},
+	})
 }
 
 // schedulingFor returns the nodeSelector + tolerations for a pool's
@@ -814,32 +904,40 @@ func PreferCacheVolumeNodes(pod *corev1.Pod, labels []string) {
 func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Toleration) {
 	switch pool.Spec.OS {
 	case "linux":
-		return map[string]string{
-				"kubernetes.io/os":           "linux",
-				"kubernetes.io/arch":         "amd64",
-				"node.cluster.x-k8s.io/pool": pool.Spec.FleetSelector,
-			}, []corev1.Toleration{
-				{
-					Key:      "tuist.dev/runner-tier",
-					Operator: corev1.TolerationOpEqual,
-					Value:    "bare-metal",
-					Effect:   corev1.TaintEffectNoSchedule,
-				},
-				reservationToleration(pool),
-			}
+		selector := map[string]string{
+			"kubernetes.io/os":           "linux",
+			"kubernetes.io/arch":         "amd64",
+			"node.cluster.x-k8s.io/pool": pool.Spec.FleetSelector,
+		}
+		if pool.Spec.NestedVirtualization {
+			selector[KVMNodeLabel] = "true"
+		}
+		return selector, []corev1.Toleration{
+			{
+				Key:      "tuist.dev/runner-tier",
+				Operator: corev1.TolerationOpEqual,
+				Value:    "bare-metal",
+				Effect:   corev1.TaintEffectNoSchedule,
+			},
+			reservationToleration(pool),
+		}
 	default:
-		return map[string]string{
-				"kubernetes.io/os":  "darwin",
-				"tuist.dev/runtime": "tart",
-				"tuist.dev/fleet":   pool.Spec.FleetSelector,
-			}, []corev1.Toleration{
-				{
-					Key:      "tuist.dev/macos",
-					Operator: corev1.TolerationOpExists,
-					Effect:   corev1.TaintEffectNoSchedule,
-				},
-				reservationToleration(pool),
-			}
+		selector := map[string]string{
+			"kubernetes.io/os":  "darwin",
+			"tuist.dev/runtime": "tart",
+			"tuist.dev/fleet":   pool.Spec.FleetSelector,
+		}
+		if pool.Spec.Site != "" {
+			selector[RackSiteNodeLabel] = pool.Spec.Site
+		}
+		return selector, []corev1.Toleration{
+			{
+				Key:      "tuist.dev/macos",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			},
+			reservationToleration(pool),
+		}
 	}
 }
 

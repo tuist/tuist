@@ -81,7 +81,7 @@
         max-width: 100%;
       }
 
-      & > :is([data-part="connection-card-section"], [data-part="installation-card-section"]) {
+      & > [data-part="connection-card-section"] {
         display: flex;
         flex-grow: 1;
         flex-direction: column;
@@ -151,11 +151,11 @@
 
   /* Title and subtitle on the left, the actions on the same line to the
      right; when connected, the fields run the full width underneath. */
-  & > :is([data-part="buildkite-card-section"], [data-part="gitlab-card-section"]) {
+  & > :is([data-part="buildkite-card-section"], [data-part="gitlab-card-section"], [data-part="amp-card-section"]) {
     display: flex;
     flex-direction: column;
 
-    & > :is(#buildkite-form, [id^="gitlab-connection-"]) {
+    & > :is(#buildkite-form, [id^="gitlab-connection-"], [id^="amp-settings-form-"]) {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -357,5 +357,38 @@
         }
       }
     }
+  }
+}
+
+#integrations > [data-part="amp-card-section"][hidden] {
+  display: none;
+}
+
+:is(#connect-amp-modal, #disconnect-amp-modal) > [data-part="positioner"] > [data-part="content"] {
+  width: min(560px, 90vw);
+}
+
+:is(#connect-amp-modal, #disconnect-amp-modal) [data-part="amp-form"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  ol {
+    margin: 0;
+    padding-left: var(--noora-spacing-7);
+  }
+  li + li {
+    margin-top: var(--noora-spacing-3);
+  }
+  p {
+    margin: 0;
+  }
+  [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-4);
   }
 }

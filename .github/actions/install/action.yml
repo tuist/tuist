@@ -9,6 +9,9 @@ inputs:
     default: .
   cache-key:
     description: Override the generated cache namespace, for example to share a compatible workspace between jobs.
+  size:
+    description: Volume capacity on Tuist runners, a whole number of GB from 1gb to 100gb, such as 30gb. New volumes start at 20gb when omitted. Ignored for GitHub caching.
+    default: ""
 outputs:
   cache-hit:
     description: Whether a volume snapshot or exact GitHub archive key was restored. Installation always runs.
@@ -35,6 +38,7 @@ runs:
       with:
         key: ${{ steps.prepare.outputs.key }}
         path: ${{ steps.prepare.outputs.scratch-path }}
+        size: ${{ inputs.size }}
     - id: archive
       if: steps.prepare.outputs.backend == 'github'
       uses: actions/cache@v4

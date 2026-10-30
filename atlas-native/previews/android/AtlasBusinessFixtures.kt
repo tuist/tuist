@@ -68,10 +68,14 @@ internal class AtlasBusinessFixtures {
                 ),
         )
     private var nextId = 10
+    private var profileDescription = ""
 
     fun execute(action: JSONObject): JSONObject {
         if (action.getString("resource") == "profile") {
-            return JSONObject("""{"server_version":"1.2.3-demo","user":{"name":"Alex Example","email":"alex@example.org"}}""")
+            if (action.optString("action") == "update_profile") profileDescription = action.getString("description").trim()
+            return JSONObject("""{"server_version":"1.2.3-demo","user":{"name":"Alex Example","email":"alex@example.org"}}""").apply {
+                getJSONObject("user").put("description", profileDescription)
+            }
         }
         val resource = action.getString("resource")
         val rows = records.getValue(resource)

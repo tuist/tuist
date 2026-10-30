@@ -64,7 +64,7 @@ defmodule Tuist.MCP.AuthorizationTest do
        }}
     end)
 
-    stub(Analytics, :get_test_run_metrics, fn "run-1" ->
+    stub(Analytics, :get_test_run_metrics, fn %{id: "run-1"} ->
       %{total_count: 1, failed_count: 0, flaky_count: 0, avg_duration: 1}
     end)
 

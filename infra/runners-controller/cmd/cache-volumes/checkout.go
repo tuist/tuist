@@ -24,6 +24,7 @@ type checkoutGrant struct {
 	DefaultBranch    string `json:"default_branch"`
 	Commit           string `json:"commit"`
 	DefaultBranchJob bool   `json:"default_branch_job"`
+	MayStartMaster   bool   `json:"may_start_master"`
 	VolumeKey        string `json:"volume_key"`
 }
 
@@ -81,12 +82,13 @@ func (g *checkoutGrants) forget(live map[string]bool) {
 // server decides the repository from the executed job; the runner only asks.
 // Every answer but a mounted volume leaves the workspace to actions/checkout.
 func (a *agent) serveCheckout(w http.ResponseWriter, r *http.Request) {
+	asked := time.Now()
 	var input checkoutRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), checkoutAcquireBudget)
+	ctx, cancel := context.WithDeadline(r.Context(), asked.Add(checkoutAcquireBudget))
 	defer cancel()
 	if !a.runnerPod(ctx, r, input.PodName, input.PodUID) {
 		http.Error(w, "unavailable", http.StatusForbidden)
@@ -104,8 +106,8 @@ func (a *agent) serveCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	done := a.observe.Start("checkout_acquire", "none")
-	response, err := a.checkout(ctx, input)
+	done := a.observe.With(cachevolumes.Subject{Pod: input.PodName}).Start("checkout_acquire", "none")
+	response, err := a.checkout(ctx, input, asked)
 	done(err)
 	_ = json.NewEncoder(w).Encode(response)
 }
@@ -114,14 +116,14 @@ func checkoutUnavailable(reason string) map[string]any {
 	return map[string]any{"error": "unavailable", "reason": reason}
 }
 
-func (a *agent) checkout(ctx context.Context, input checkoutRequest) (map[string]any, error) {
+func (a *agent) checkout(ctx context.Context, input checkoutRequest, asked time.Time) (map[string]any, error) {
 	// Without working git the host builds nothing, so the runner should not export.
 	if !a.checkouts.Ready() {
 		return checkoutUnavailable("denied"), errors.New("cached checkouts unavailable on this host")
 	}
 	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "architecture": "amd64", "uid": input.UID})
 	var grant checkoutGrant
-	err := a.allocate(ctx, strings.TrimSuffix(a.authorizeURL, "/authorize")+"/checkout", body, &grant)
+	err := a.allocate(ctx, strings.TrimSuffix(a.authorizeURL, "/authorize")+"/checkout", input.PodUID, asked, body, &grant)
 	switch {
 	case errors.Is(err, cachevolumes.ErrExecutionPending) || errors.Is(err, context.DeadlineExceeded):
 		return checkoutUnavailable("timeout"), err
@@ -130,7 +132,7 @@ func (a *agent) checkout(ctx context.Context, input checkoutRequest) (map[string
 	}
 	task := cachevolumes.CheckoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, MayStartMaster: grant.MayStartMaster, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
 		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
 	}
 	// The job's branch is a clone of this host's master; the HEAD only restores it.
@@ -192,7 +194,7 @@ func (a *agent) serveCheckoutExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(5 * time.Minute))
-	done := a.observe.Start("checkout_export", "local")
+	done := a.observe.With(task.Subject()).Start("checkout_export", "local")
 	dst := a.checkouts.Incoming(uid)
 	var admit func(int64) (func(), error)
 	if a.space != nil {

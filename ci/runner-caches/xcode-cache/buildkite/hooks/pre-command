@@ -3,8 +3,22 @@
 # exit or enable errexit here: either discards the exports, and a cache problem
 # must never fail the job.
 if command -v tuist-runner-cache >/dev/null 2>&1; then
+  tuist_runner_cache_size=${BUILDKITE_PLUGIN_XCODE_CACHE_SIZE:-}
+  if [ -n "$tuist_runner_cache_size" ]; then
+    case "$(tuist-runner-cache -h 2>&1 || true)" in
+      *--size*) ;;
+      *)
+        echo "Warning: this runner image does not support size yet; the cache keeps its current size." >&2
+        tuist_runner_cache_size=
+        ;;
+    esac
+  fi
   tuist_runner_cache_status=0
-  tuist_runner_cache_env=$(tuist-runner-cache activate xcode) || tuist_runner_cache_status=$?
+  if [ -n "$tuist_runner_cache_size" ]; then
+    tuist_runner_cache_env=$(tuist-runner-cache activate xcode --size "$tuist_runner_cache_size") || tuist_runner_cache_status=$?
+  else
+    tuist_runner_cache_env=$(tuist-runner-cache activate xcode) || tuist_runner_cache_status=$?
+  fi
   case "$tuist_runner_cache_status" in
     0)
       while IFS= read -r tuist_runner_cache_line; do
@@ -16,7 +30,7 @@ if command -v tuist-runner-cache >/dev/null 2>&1; then
     3) echo "Warning: the Tuist runner could not mount this cache; the job runs with an empty one." >&2 ;;
     *) echo "Warning: could not set up the Tuist runner cache (tuist-runner-cache exited $tuist_runner_cache_status)." >&2 ;;
   esac
-  unset tuist_runner_cache_status tuist_runner_cache_env tuist_runner_cache_line
+  unset tuist_runner_cache_size tuist_runner_cache_status tuist_runner_cache_env tuist_runner_cache_line
 else
   echo "This agent does not provide Tuist runner caches; nothing to set up."
 fi

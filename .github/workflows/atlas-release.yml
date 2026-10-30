@@ -8,6 +8,8 @@ on:
       - main
     paths:
       - atlas/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - mise/tasks/release/components.json

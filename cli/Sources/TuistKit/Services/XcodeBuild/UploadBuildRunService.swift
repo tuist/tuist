@@ -42,6 +42,7 @@ public protocol UploadBuildRunServicing {
 
 public struct UploadBuildRunService: UploadBuildRunServicing {
     private let fileSystem: FileSysteming
+    private let buildMetadataObservations: [String: String]
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let xcodeBuildController: XcodeBuildControlling
     private let createBuildService: CreateBuildServicing
@@ -66,8 +67,10 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
         xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
-        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
+        buildMetadataObservations: [String: String] = [:]
     ) {
+        self.buildMetadataObservations = buildMetadataObservations
         self.fileSystem = fileSystem
         self.machineEnvironment = machineEnvironment
         self.xcodeBuildController = xcodeBuildController
@@ -127,7 +130,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
 
             let gitInfo = try await gitController.gitInfo(workingDirectory: projectPath)
             let ciInfo = ciController.ciInfo()
-            let customMetadata = readCustomMetadata()
+            let customMetadata = await readCustomMetadata(serverURL: serverURL)
             return try await createBuildService.createBuild(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
@@ -183,7 +186,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
             generationId: nil,
             category: log.category,
             configuration: configuration ?? Environment.current.variables["CONFIGURATION"],
-            customMetadata: readCustomMetadata(),
+            customMetadata: await readCustomMetadata(serverURL: serverURL),
             duration: Int(duration * 1000),
             files: log.files,
             gitBranch: gitInfo.branch,
@@ -281,7 +284,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         try tail.write(to: destination.url)
     }
 
-    private func readCustomMetadata() -> BuildCustomMetadata {
+    private func readCustomMetadata(serverURL: URL) async -> BuildCustomMetadata {
         let env = Environment.current.variables
         var tags: [String] = []
         var values: [String: String] = [:]
@@ -297,6 +300,11 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
             values[valueKey] = value
         }
 
+        if !buildMetadataObservations.isEmpty {
+            values = await BuildMetadata.values(
+                explicit: values, observations: buildMetadataObservations, serverURL: serverURL
+            )
+        }
         return BuildCustomMetadata(
             tags: tags,
             values: BuildCustomMetadata.valuesPayload(additionalProperties: values)

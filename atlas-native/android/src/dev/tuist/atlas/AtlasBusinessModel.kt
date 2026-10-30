@@ -72,6 +72,14 @@ class AtlasBusinessModel(
         private set
     var notice: String? = null
         private set
+
+    // True while `selected` is only the ID from a navigation link, before Atlas returned the record.
+    var placeholder = false
+        private set
+
+    // The failure kind ("unavailable", "forbidden", ...) of a record opened by ID.
+    var recordFailure: String? = null
+        private set
     private var generation = 0
     private var cleared = false
     private var loadingList = false
@@ -195,14 +203,79 @@ class AtlasBusinessModel(
     fun show(value: Record) {
         if ((busy && !loadingList) || cleared) return
         selected = value
+        placeholder = false
+        recordFailure = null
         notice = null
         send(JSONObject().put("action", "show").put("id", value.id)) { response ->
             selected = record(response.getJSONObject("item"))
         }
     }
 
+    // Opens a record directly by ID without searching or paging the list. The list stays behind it for Back.
+    fun open(id: String) {
+        if (cleared || saving || draft != null) return
+        selected = Record(id, emptyMap(), canEdit = false, canDelete = false)
+        placeholder = true
+        recordFailure = null
+        notice = null
+        error = null
+        busy = true
+        loadingList = false
+        loadingMore = false
+        val identity = ++generation
+        listener?.invoke()
+        request(JSONObject().put("action", "show").put("id", id).put("resource", resource)) { result ->
+            if (cleared || identity != generation) return@request
+            busy = false
+            val value =
+                result.getOrNull()?.let { response ->
+                    runCatching { record(response.getJSONObject("item")) }.getOrNull()?.takeIf { it.id == id }
+                }
+            if (value != null) {
+                selected = value
+                placeholder = false
+                items = items.map { if (it.id == value.id) value else it }
+                // Editing needs the server's options and write permission from the first list page.
+                if (!loaded) {
+                    listener?.invoke()
+                    fetch(1)
+                    return@request
+                }
+            } else {
+                val failure = result.exceptionOrNull()
+                val kind = (failure as? AuthFailure)?.kind
+                if (kind == "forbidden") revokeRead()
+                selected = Record(id, emptyMap(), canEdit = false, canDelete = false)
+                recordFailure = kind ?: if (failure == null) "invalid" else "failed"
+                error = failure?.message ?: "Atlas returned an invalid response. Try again."
+            }
+            listener?.invoke()
+        }
+    }
+
+    // Shows the list for a navigation link, keeping the current search and filters.
+    fun showList() {
+        if (cleared || saving || draft != null) return
+        if (selected != null) {
+            closeRecord()
+            error = null
+            notice = null
+        }
+        if (loaded || (busy && loadingList)) listener?.invoke() else fetch(1)
+    }
+
+    private fun closeRecord() {
+        selected = null
+        placeholder = false
+        recordFailure = null
+        generation += 1
+        busy = false
+        loadingList = false
+        loadingMore = false
+    }
+
     fun edit(value: Record? = null) {
-        if (busy || cleared || (value == null && !canWrite) || value?.canEdit == false) return
+        if (busy || cleared || !loaded || (value == null && !canWrite) || value?.canEdit == false) return
         draft = Draft(value?.id, value?.fields?.toMutableMap() ?: mutableMapOf())
         error = null
         notice = null
@@ -221,11 +294,14 @@ class AtlasBusinessModel(
         if (draft != null) {
             draft = null
         } else if (selected != null) {
-            selected = null
-            generation += 1
-            busy = false
-            loadingList = false
-            loadingMore = false
+            closeRecord()
+            // A record opened by link may precede any list read.
+            if (!loaded && !cleared) {
+                error = null
+                notice = null
+                fetch(1)
+                return true
+            }
         } else if (query.isNotEmpty()) {
             load(search = "")
             return true
@@ -306,6 +382,8 @@ class AtlasBusinessModel(
         listener = null
         items = emptyList()
         selected = null
+        placeholder = false
+        recordFailure = null
         draft = null
         options = emptyMap()
         summary = emptyList()

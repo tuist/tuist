@@ -367,3 +367,37 @@ func TestAllocateFleetShapeCapLeavesOtherShapesAlone(t *testing.T) {
 		t.Fatalf("a pool with no ShapeKey must be untouched, got %d", got["unkeyed"])
 	}
 }
+
+func TestAllocateFleet_OneShortFloorTierKeepsTheFloorsThatFit(t *testing.T) {
+	// A 14-slot rack with one warm floor per Xcode image. 27.0 is running
+	// seven jobs, so the eight other images' floors want eight slots where
+	// seven are left. Only one floor yields, and it is an idle image's,
+	// not the one used in the last hour.
+	slot := 24 * gib
+	pools := []PoolDemand{
+		{Name: "27-0", PerPodCost: slot, Floor: 1, Load: 7, Target: 8},
+		{Name: "26-3", PerPodCost: slot, Floor: 1, Load: 0, Target: 2},
+	}
+	for _, name := range []string{"26-0-1", "26-1-1", "26-4-1", "26-5", "26-6", "27-1", "27-2-beta"} {
+		pools = append(pools, PoolDemand{Name: name, PerPodCost: slot, Floor: 1, Load: 0, Target: 1})
+	}
+
+	got := AllocateFleet(pools, 14*slot, nil)
+
+	if got["27-0"] != 7 {
+		t.Errorf("27-0 = %d, want 7 (its load)", got["27-0"])
+	}
+	if got["26-3"] != 1 {
+		t.Errorf("26-3 = %d, want 1 (used in the last hour, keeps its floor)", got["26-3"])
+	}
+	if got["27-2-beta"] != 0 {
+		t.Errorf("27-2-beta = %d, want 0 (last by name among idle images, yields)", got["27-2-beta"])
+	}
+	var total int32
+	for _, n := range got {
+		total += n
+	}
+	if total != 14 {
+		t.Errorf("granted %d slots, want all 14 (%v)", total, got)
+	}
+}

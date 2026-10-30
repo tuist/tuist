@@ -1,36 +1,95 @@
-import Charts
 import SwiftUI
 
 struct AtlasBusinessView: View {
     @StateObject private var model: AtlasBusiness
     @State private var query = ""
     @State private var creating = false
+    @State private var listRevision = 0
+    private let loadList: Bool
+    @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
 
-    init(resource: AtlasBusinessResource, request: @escaping ([String: Any]) async throws -> Data) {
+    init(resource: AtlasBusinessResource, loadList: Bool = true, request: @escaping ([String: Any]) async throws -> Data) {
+        self.loadList = loadList
         _model = StateObject(wrappedValue: AtlasBusiness(resource: resource, request: request))
     }
 
+    init(model: AtlasBusiness, loadList: Bool) {
+        self.loadList = loadList
+        _model = StateObject(wrappedValue: model)
+    }
+
     var body: some View {
-        ScrollViewReader { proxy in
-            list.onChange(of: model.page?.page) { _, page in
-                if page == 1 { proxy.scrollTo("business-start", anchor: .top) }
-            }
-            .onChange(of: model.filters) { _, _ in
-                if model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
-            }
-            .onChange(of: model.query) { _, _ in
-                if model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
-            }
+        list.onChange(of: model.page?.page) { previous, page in
+            if let previous, previous != 1, page == 1 { listRevision += 1 }
         }
     }
 
     private var list: some View {
+        Group {
+            #if os(macOS)
+            AtlasDesktopBusinessTable(model: model, activeFilters: activeFilters)
+            #else
+            mobileList
+            #endif
+        }
+        .modifier(AtlasThemedContent())
+        .overlay {
+            if model.loading, model.page == nil {
+                ProgressView("Loading \(model.resource.title.lowercased())")
+            }
+        }
+        .navigationTitle(model.resource.title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.large)
+        #endif
+        .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
+        .onSubmit(of: .search) { Task { await model.load(query: query) } }
+        .onChange(of: query) { _, value in
+            if value.isEmpty, !model.query.isEmpty { Task { await model.load(query: "") } }
+        }
+        .refreshable { await model.load(query: query) }
+        .task(id: loadList) {
+            model.cachedRequest = AtlasReadCache.scoped(cachedRead, operation: "business")
+            if loadList, model.page == nil { await model.load() }
+        }
+        .navigationDestination(for: AtlasRecordRoute.self) { route in
+            AtlasLinkedBusinessDetail(model: model, id: route.id).id(route.identity)
+        }
+        .onAppear { presence?.show(resource: model.resource.rawValue) }
+        .toolbar {
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: model.resource.rawValue) }
+            #if os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.load(query: query) } }
+                    .keyboardShortcut("r").disabled(model.busy)
+            }
+            #endif
+            ToolbarItem(placement: .primaryAction) {
+                filterMenu.disabled(model.busy && !model.loading)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                if model.page?.canWrite == true {
+                    Button("New \(model.resource.singular)", systemImage: "plus") { creating = true }
+                        .disabled(model.busy).accessibilityIdentifier("business-create")
+                        #if os(macOS)
+                        .keyboardShortcut("n")
+                        #endif
+                }
+            }
+        }
+        .sheet(isPresented: $creating) { AtlasBusinessEditor(model: model, editing: nil) }
+    }
+
+    #if os(iOS)
+    private var mobileList: some View {
         List {
             if model.forbidden {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
             } else if let page = model.page {
                 if model.resource == .invoices {
-                    AtlasInvoiceChart(months: page.summary).id("business-start")
+                    AtlasFinanceOverviewView(overview: page.financeOverview)
                     Section {
                         Text("Manage manual invoices here. Imported invoices are read-only. No payments are made from this screen.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -53,7 +112,6 @@ struct AtlasBusinessView: View {
                 } header: {
                     Text(model.query.isEmpty ? "\(page.totalCount) items" : "Results for “\(model.query)” · \(page.totalCount) items")
                 }
-                .id(model.resource == .invoices ? "business-records" : "business-start")
                 if model.filters["group_by"] == "reminder" {
                     ForEach(AtlasTaskReminderGroup.allCases) { group in
                         let items = page.items.filter { (model.records[$0.id] ?? $0)["reminder_group"] == group.rawValue }
@@ -67,9 +125,12 @@ struct AtlasBusinessView: View {
                     }
                 }
             }
+            if model.busy, !model.loading {
+                ProgressView().frame(maxWidth: .infinity).accessibilityLabel("Loading")
+            }
             if let error = model.errorMessage {
                 Section {
-                    Text(error).foregroundStyle(.red)
+                    Text(model.page?.cached == true ? "Couldn’t refresh" : error).foregroundStyle(.secondary)
                     Button(model.nextPageFailed ? "Retry loading more" : "Retry") {
                         Task {
                             if model.nextPageFailed { await model.loadMore(retry: true) } else { await model.load(query: query) }
@@ -78,31 +139,14 @@ struct AtlasBusinessView: View {
                         .disabled(model.busy)
                 }
             }
-            if model.busy, !model.loading || model.page == nil {
-                ProgressView().frame(maxWidth: .infinity).accessibilityLabel("Loading")
-            }
         }
-        .navigationTitle(model.resource.title)
-        .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
-        .onSubmit(of: .search) { Task { await model.load(query: query) } }
-        .onChange(of: query) { _, value in
-            if value.isEmpty, !model.query.isEmpty { Task { await model.load(query: "") } }
-        }
-        .refreshable { await model.load(query: query) }
-        .task { if model.page == nil { await model.load() } }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                filterMenu.disabled(model.busy && !model.loading)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                if model.page?.canWrite == true {
-                    Button("New \(model.resource.singular)", systemImage: "plus") { creating = true }
-                        .disabled(model.busy).accessibilityIdentifier("business-create")
-                }
-            }
-        }
-        .sheet(isPresented: $creating) { AtlasBusinessEditor(model: model, editing: nil) }
+        // Reset only the list for new criteria; scrolling headers can clip them under native navigation.
+        .id(model.query)
+        .id(model.filters)
+        .id(listRevision)
+        .defaultScrollAnchor(.top)
     }
+    #endif
 
     private func rows(_ items: [AtlasBusinessRecord]) -> some View {
         ForEach(items) { original in
@@ -206,6 +250,10 @@ private struct AtlasBusinessRow: View {
                           item["primary_domain"]]
                         .filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.subheadline).foregroundStyle(.secondary)
+                    if !item["contract_value"].isEmpty {
+                        Text(AtlasBusinessFormatting.money(item["contract_value"], currency: item["contract_currency"]))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 case .invoices:
                     Text(AtlasBusinessFormatting.money(item["total_amount_value"], currency: item["total_amount_currency"]))
                         .font(.subheadline).monospacedDigit()
@@ -218,51 +266,42 @@ private struct AtlasBusinessRow: View {
     }
 }
 
-private struct AtlasAccountLogo: View {
-    let item: AtlasBusinessRecord
-
-    private var url: URL? {
-        guard !item["primary_domain"].isEmpty else { return nil }
-        var components = URLComponents(string: "https://www.google.com/s2/favicons")!
-        components.queryItems = [URLQueryItem(name: "domain", value: item["primary_domain"]), URLQueryItem(name: "sz", value: "128")]
-        return components.url
-    }
-
-    var body: some View {
-        AsyncImage(url: url) { image in
-            image.resizable().scaledToFit()
-        } placeholder: {
-            Text(String(item["name"].prefix(1)).uppercased()).font(.headline).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary)
-        }
-        .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 8))
-        .accessibilityHidden(true)
-    }
-}
-
 struct AtlasBusinessDetail: View {
     @ObservedObject var model: AtlasBusiness
     let original: AtlasBusinessRecord
+    var reloadOnAppear = true
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
     @State private var deleting = false
+    @Environment(\.atlasPresence) private var presence
     private var item: AtlasBusinessRecord { model.records[original.id] ?? original }
 
     var body: some View {
         List {
-            Section {
-                if model.resource == .accounts { AtlasAccountLogo(item: item) }
-                Text(item.title(for: model.resource)).font(.title2.bold()).textSelection(.enabled)
-                ForEach(detailFields, id: \.0) { field, label in
-                    if !item[field].isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(label).font(.caption).foregroundStyle(.secondary)
-                            Text(formatted(field)).textSelection(.enabled)
-                        }.padding(.vertical, 2)
+            if model.resource == .accounts {
+                AtlasAccountDetailSections(item: item)
+            } else {
+                Section {
+                    Text(item.title(for: model.resource)).font(.title2.bold()).textSelection(.enabled)
+                        .accessibilityIdentifier("destination-\(model.resource.rawValue)-\(item.id)")
+                    ForEach(detailFields, id: \.0) { field, label in
+                        if !item[field].isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(label).font(.caption).foregroundStyle(.secondary)
+                                Text(formatted(field)).textSelection(.enabled)
+                            }.padding(.vertical, 2)
+                        }
                     }
                 }
             }
-            if let message = model.errorMessage { Section { Text(message).foregroundStyle(.red) } }
+            if let message = model.errorMessage {
+                Section {
+                    Text(message).foregroundStyle(.red)
+                    if model.page == nil {
+                        Button("Retry loading options") { Task { await model.load() } }.disabled(model.busy)
+                    }
+                }
+            }
             if model.resource == .tasks, item["status"] == "open", item.canEdit {
                 Section {
                     Button("Mark complete", systemImage: "checkmark.circle") { Task { _ = await model.complete(item) } }
@@ -279,17 +318,33 @@ struct AtlasBusinessDetail: View {
             }
             if model.busy { ProgressView() }
         }
-        .navigationTitle(model.resource.singular).navigationBarTitleDisplayMode(.inline)
+        .modifier(AtlasThemedContent())
+        .navigationTitle(model.resource.singular)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #else
+        .formStyle(.grouped)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy) }
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: model.resource.rawValue, recordID: item.id) }
+            ToolbarItem(placement: .primaryAction) {
+                if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy || model.page == nil) }
             }
         }
-        .sheet(isPresented: $editing) { AtlasBusinessEditor(model: model, editing: item) }
+        .protectsAtlasNavigation(model.mutating && !editing)
+        #if os(iOS)
+        .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)
+        #endif
+        .sheet(isPresented: $editing, onDismiss: { Task { await model.show(original) } }, content: {
+            AtlasBusinessEditor(model: model, editing: item)
+        })
         .confirmationDialog("Delete this \(model.resource.singular.lowercased())?", isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { if await model.delete(item) { dismiss() } } }
         } message: { Text("This cannot be undone.") }
-        .task { await model.show(original) }
+        .task { if reloadOnAppear { await model.show(original) } }
+        .refreshable { await model.show(original) }
+        .onAppear { presence?.show(resource: model.resource.rawValue, id: original.id) }
         .onChange(of: model.forbidden) { _, denied in
             if denied { editing = false; dismiss() }
         }
@@ -301,9 +356,7 @@ struct AtlasBusinessDetail: View {
             [("description", "Notes"), ("status", "Status"), ("assignee_name", "Assigned to"),
              ("account_name", "Account"), ("due_on", "Due date"), ("remind_at", "Reminder")]
         case .accounts:
-            [("description", "Notes"), ("primary_domain", "Domain"), ("segment", "Lifecycle"), ("status", "Status"),
-             ("deal_stage", "Deal stage"), ("current_value", "Value"), ("next_renewal_date", "Next renewal"),
-             ("legal_name", "Legal name"), ("url", "Website"), ("hosting", "Hosting"), ("plan_tier", "Plan")]
+            []
         case .invoices:
             [("invoice_number", "Invoice number"), ("invoice_date", "Invoice date"), ("due_date", "Due date"),
              ("total_amount_value", "Total"), ("status", "Review status")]
@@ -318,42 +371,5 @@ struct AtlasBusinessDetail: View {
         if field == "remind_at" { return AtlasBusinessFormatting.dateTime(item[field]) }
         if field.hasSuffix("_date") || field == "due_on" { return AtlasBusinessFormatting.date(item[field]) }
         return item[field]
-    }
-}
-
-private struct AtlasInvoiceChart: View {
-    let months: [AtlasInvoiceMonth]
-    @State private var currency = ""
-    private var currencies: [String] { Array(Set(months.map(\.currency))).sorted() }
-    private var selected: String { currencies.contains(currency) ? currency : currencies.first ?? "" }
-    private var values: [AtlasInvoiceMonth] { months.filter { $0.currency == selected }.sorted { $0.month < $1.month } }
-
-    var body: some View {
-        Section {
-            if months.isEmpty {
-                Text("No dated invoice totals yet.").foregroundStyle(.secondary)
-            } else {
-                if currencies.count > 1 {
-                    Picker("Currency", selection: Binding(get: { selected }, set: { currency = $0 })) {
-                        ForEach(currencies, id: \.self) { Text($0).tag($0) }
-                    }
-                }
-                Chart(values) { month in
-                    BarMark(x: .value("Month", month.month), y: .value("Invoice total", Double(month.amount) ?? 0))
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityLabel(month.month)
-                        .accessibilityValue(AtlasBusinessFormatting.money(month.amount, currency: selected))
-                }
-                .chartYAxisLabel(selected)
-                .frame(height: 190)
-                DisclosureGroup("Monthly values") {
-                    ForEach(values) { month in
-                        LabeledContent(month.month, value: AtlasBusinessFormatting.money(month.amount, currency: selected))
-                    }
-                }
-            }
-        } header: { Text("Monthly invoice totals") } footer: {
-            Text("All invoices, grouped by invoice date. Currencies are shown separately. These are not bank balances or cash flow.")
-        }
     }
 }

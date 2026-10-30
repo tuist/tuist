@@ -17,9 +17,15 @@ type Signals struct {
 	Queued                int32  `json:"queued"`
 	Withheld              int32  `json:"withheld"`
 	P95ConcurrentLastHour int32  `json:"p95_concurrent_last_hour"`
-	// PreferredNodeLabels are the Node labels advertising the custom cache
-	// volumes the pool's oldest queued jobs are predicted to attach.
-	PreferredNodeLabels []string `json:"preferred_node_labels,omitempty"`
+	// LearnedWarmFloor is the burst the pool's jobs arrive in (the 90th
+	// percentile of jobs enqueued within 30 s of each other over two
+	// weeks), or 0 when the pool had no job in the last day. An older
+	// server omits it and it decodes as 0.
+	LearnedWarmFloor int32 `json:"learned_warm_floor"`
+	// PreferredNodes holds one Node per oldest queued job, in queue order: a
+	// host that holds the custom cache volumes the job is predicted to attach
+	// and has cache disk room for them. A Node repeats once per job it fits.
+	PreferredNodes []string `json:"preferred_nodes,omitempty"`
 }
 
 // CurrentOccupancy returns the server's complete capacity-held signal.
@@ -71,17 +77,44 @@ func (s Signals) Load() int32 {
 // PolicyKnobs are the per-pool autoscaling parameters from the
 // RunnerPool CRD's `spec.autoscaling` block.
 type PolicyKnobs struct {
-	MinWarmPoolFloor int32
-	MaxReplicas      int32
+	MinWarmPoolFloor        int32
+	MaxLearnedWarmPoolFloor int32
+	MaxReplicas             int32
 	// IgnoreRecentPeak is `!autoscaling.holdRecentPeak`, inverted so the
 	// zero value keeps the default.
 	IgnoreRecentPeak bool
 }
 
+// LearnedSpare is the idle runners the pool keeps above its load for the
+// next burst: the server's learned floor, capped by the pool's
+// `maxLearnedWarmPoolFloor`.
+func LearnedSpare(s Signals, k PolicyKnobs) int32 {
+	spare := s.LearnedWarmFloor
+	if spare > k.MaxLearnedWarmPoolFloor {
+		spare = k.MaxLearnedWarmPoolFloor
+	}
+	if spare < 0 {
+		return 0
+	}
+	return spare
+}
+
+// WarmFloor is the pool's floor tier for the fleet allocator: the
+// replicas it keeps before any p95 headroom. That is `minWarmPoolFloor`,
+// or load plus the learned spare when that is higher.
+func WarmFloor(s Signals, k PolicyKnobs) int32 {
+	floor := k.MinWarmPoolFloor
+	if spare := LearnedSpare(s, k); spare > 0 && s.Load()+spare > floor {
+		floor = s.Load() + spare
+	}
+	return floor
+}
+
 // DesiredReplicas computes the autoscaler's target replica count
 // from server signals and CRD knobs:
 //
-//	desired  = max(Load, P95ConcurrentLastHour) + MinWarmPoolFloor
+//	desired  = max(max(Load, P95ConcurrentLastHour) + MinWarmPoolFloor,
+//	               Load + LearnedSpare)
 //	clamped  = min(MaxReplicas, max(0, desired))
 //
 // Intuition:
@@ -100,6 +133,9 @@ type PolicyKnobs struct {
 //     `desired >= MinWarmPoolFloor` already holds, so clamping the
 //     floor as a lower bound as well would double-count it and size
 //     an idle pool to twice its configured floor.
+//   - `Load + LearnedSpare` keeps one burst of the pool's own jobs
+//     idle above what is running now. It is not added to the p95,
+//     which already holds runners above load after a busy hour.
 //   - `MaxReplicas == 0` returns 0, which the caller treats as
 //     "autoscaling disabled" — the static spec.Replicas is left
 //     alone. This matches the CRD default; a pool that didn't
@@ -122,6 +158,9 @@ func DesiredReplicas(s Signals, k PolicyKnobs) int32 {
 	}
 
 	desired := target + k.MinWarmPoolFloor
+	if learned := load + LearnedSpare(s, k); learned > desired {
+		desired = learned
+	}
 
 	if desired > k.MaxReplicas {
 		desired = k.MaxReplicas

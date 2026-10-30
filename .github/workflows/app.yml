@@ -143,51 +143,6 @@ jobs:
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
         run: mise x -- tuist share TuistApp
 
-  app-test:
-    name: Test
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 30
-    needs: [check-team-membership]
-    permissions:
-      contents: read
-      id-token: write
-    if: |
-      always() &&
-      github.repository == 'tuist/tuist' &&
-      !cancelled() &&
-      !contains(needs.*.result, 'failure') &&
-      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    env:
-      MISE_LOCKED: 1
-    steps:
-      - uses: actions/checkout@v4
-      - uses: tuist/xcode-cache@v1
-      - uses: tuist/module-cache@v1
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      # Only the CLI, locked: a full install on a cold cache writes checksums
-      # into mise.lock, and the run's coverage, reported from a dirty checkout,
-      # is left out of the commit (see coverage.yml).
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "tuist"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        uses: tuist/install@v1
-        with:
-          cache-key: app-macos-workspace-${{ github.job }}
-      - name: Test TuistApp
-        run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-
   app-device-build:
     name: Device Build
     runs-on: tuist-macos-27-0

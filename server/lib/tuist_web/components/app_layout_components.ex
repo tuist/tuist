@@ -136,7 +136,7 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           :if={
             (Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)) and
-              Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)
+              Tuist.FeatureFlags.coverage_enabled?(@selected_account, @selected_project)
           }
           label={dgettext("dashboard", "Code Coverage")}
           icon="umbrella"
@@ -173,7 +173,7 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           :if={
             Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project) or
-              Project.cargo_project?(@selected_project)
+              Project.cargo_project?(@selected_project) or Project.once_project?(@selected_project)
           }
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"
@@ -598,10 +598,7 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={integrations_path}
       />
       <.tab_menu_horizontal_item
-        :if={
-          Accounts.organization?(@selected_account) and
-            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
-        }
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}

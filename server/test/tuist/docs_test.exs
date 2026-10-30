@@ -5,6 +5,7 @@ defmodule Tuist.DocsTest do
   alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Loader
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Docs.Page
 
@@ -15,6 +16,89 @@ defmodule Tuist.DocsTest do
       assert page.slug == "/en/guides/install-tuist"
       assert page.title == "Install Tuist"
       assert page.body =~ "Install Tuist"
+    end
+
+    @tag :tmp_dir
+    test "localized headings retain explicit IDs with or without a separating space", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "localized-headings.md")
+
+      File.write!(source_path, """
+      # 本地化标题{#localized-title}
+
+      ## 拉取/合并请求注释{#pullmerge-request-comments}
+
+      ## 测试覆盖率 {#test-coverage}
+
+      ## 普通标题
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+      document = Floki.parse_fragment!(page.body)
+
+      assert page.title == "本地化标题"
+
+      assert page.headings == [
+               %{level: 2, text: "拉取/合并请求注释", id: "pullmerge-request-comments"},
+               %{level: 2, text: "测试覆盖率", id: "test-coverage"},
+               %{level: 2, text: "普通标题", id: "普通标题"}
+             ]
+
+      assert Floki.text(Floki.find(document, "h1")) == "本地化标题"
+
+      for heading <- Enum.take(page.headings, 2) do
+        anchor = Floki.find(document, ~s(h2 a[id="#{heading.id}"][href="##{heading.id}"]))
+        assert anchor |> Floki.find("[data-part=heading-text]") |> Floki.text() == heading.text
+      end
+
+      refute page.body =~ "{#"
+    end
+
+    @tag :tmp_dir
+    test "heading examples remain literal code and do not enter page metadata", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "heading-examples.md")
+
+      File.write!(source_path, """
+      ```markdown
+      # 示例标题{#example-title}
+      ## 示例章节{#example-section}
+      ```
+
+      # 真实标题{#real-title}
+
+      ~~~~markdown
+      ## 围栏示例 {#fenced-example}
+      ~~~
+      ~~~~
+
+      ## 真实章节{#real-section}
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+
+      assert page.headings == [%{level: 2, text: "真实章节", id: "real-section"}]
+      assert page.title == "真实标题"
+
+      document = Floki.parse_fragment!(page.body)
+
+      assert Enum.map(Floki.find(document, "[data-part=code] code"), &Floki.text/1) == [
+               "# 示例标题{#example-title}\n## 示例章节{#example-section}\n",
+               "## 围栏示例 {#fenced-example}\n~~~\n"
+             ]
+
+      assert Floki.find(document, "h2 a[id=real-section]") != []
+    end
+
+    test "workload authentication documents account-wide access and shared-provider trust boundaries" do
+      guide = Docs.get_page("/en/guides/server/authentication").markdown
+      assert guide =~ "only the `ci` scope group and covers all current and future projects"
+      assert guide =~ "without granting project creation, project administration, runner administration"
+      assert guide =~ "bind the policy to your organization or tenant"
+      assert guide =~ "not only `ref`"
+      assert guide =~ "cache poisoning"
+      assert guide =~ "upgrade every serving Tuist server replica before configuring workload identities"
+      assert guide =~ "Deleting a policy does not immediately revoke those tokens"
+      assert guide =~ "access tokens that were already issued remain valid until they expire"
+      refute guide =~ "projects explicitly selected"
     end
 
     test "cache documentation exposes Rust with its experimental qualification" do
@@ -77,8 +161,10 @@ defmodule Tuist.DocsTest do
       refute getting_started =~ "## Coverage and selective testing"
       refute getting_started =~ "compiler-invocation timings"
       sharding = Docs.get_page("/en/guides/features/test-sharding/rust").markdown
-      assert sharding =~ "does not shard plain `cargo test` runs"
-      assert sharding =~ "tuist cargo test --workspace"
+      assert sharding =~ "tuist cargo test -p store --no-run --shard-max 4"
+      assert sharding =~ "TUIST_SHARD_PLAN_ID=<plan-id> TUIST_SHARD_INDEX=0 tuist cargo test -p store"
+      assert sharding =~ "Multi-package sharding is not supported"
+      assert sharding =~ "target-level sharding, not build-once distribution"
       refute sharding =~ "test-build"
       assert Docs.get_page("/en/guides/features/test-sharding").markdown =~ "test-sharding/rust"
       tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
@@ -99,7 +185,10 @@ defmodule Tuist.DocsTest do
 
       assert flaky =~ "Cargo does not automatically retry failed tests"
       assert flaky =~ "CI runs on the same commit"
-      assert flaky =~ "does not apply quarantine yet"
+      assert flaky =~ "**Muted** tests still run and report their actual results"
+      assert flaky =~ "**Skipped** tests are excluded from execution and reported as quarantined skips"
+      assert flaky =~ "Skip quarantine requires one selected package"
+      assert flaky =~ "TUIST_TEST_SKIP_QUARANTINE=1 tuist cargo test --workspace"
       refute flaky =~ "Quarantine boundaries"
     end
 
@@ -120,6 +209,15 @@ defmodule Tuist.DocsTest do
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
       assert selective_testing_page.source_path == "en/guides/features/selective-testing/index.md"
+    end
+
+    @tag :locale
+    test "current translations take precedence over obsolete pages at the same URL" do
+      for locale <- ~w(es ja ko ru yue_Hant zh_Hans zh_Hant) do
+        page = Docs.get_page("/#{locale}/guides/features/selective-testing")
+
+        assert page.source_path == "#{locale}/guides/features/selective-testing/index.md"
+      end
     end
 
     test "loads static CLI documentation pages" do
@@ -165,19 +263,26 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
 
-    test "self-hosting documents the instance-wide reporting configuration and separate client opt-in" do
+    test "self-hosting documents independent insights and cache access with shared setup" do
       page = Docs.get_page("/en/guides/server/self-host/server")
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true"
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
-      assert page.markdown =~ "all existing and newly created"
-      assert page.markdown =~ "across every account on the instance"
-      assert page.markdown =~ "reads the variable at startup"
-      assert page.markdown =~ "no project allowlist or dashboard toggle"
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false"
-      assert page.markdown =~ "every relevant server replica"
-      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING"
-      refute page.markdown =~ "enable **Network-trusted report publishing** in each"
-      assert Enum.any?(page.headings, &(&1.id == "network-trusted-report-publishing"))
+
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true"
+      assert page.markdown =~ "no client opt-in is needed"
+      assert page.markdown =~ "does not follow redirects"
+      assert page.markdown =~ "Upgrade every server and Kura replica before upgrading clients"
+      assert page.markdown =~ "Older tools can delete credentials"
+      assert page.markdown =~ "omit Git origins from unsigned reports"
+      assert page.markdown =~ "Keep Kura authentication enabled"
+      assert page.markdown =~ "across all accounts and projects, including private projects"
+      assert page.markdown =~ "restart **every relevant server replica**"
+      assert page.markdown =~ "within 60 seconds"
+      assert page.markdown =~ "dashboard and administration still require authentication"
+      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
+
+      assert Enum.any?(page.headings, &(&1.id == "network-trusted-access"))
+      assert page.body =~ ~s(id="network-trusted-report-publishing")
+      assert page.body =~ ~s(id="network-trusted-cache-access")
     end
 
     test "wraps Markdown tables in a scroll container" do

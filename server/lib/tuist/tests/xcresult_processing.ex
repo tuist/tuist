@@ -39,6 +39,7 @@ defmodule Tuist.Tests.XcresultProcessing do
     Map.merge(
       %{
         id: args["test_run_id"],
+        source_test_run_id: Map.get(args, "source_test_run_id", args["test_run_id"]),
         project_id: args["project_id"],
         account_id: args["account_id"],
         is_ci: Map.get(args, "is_ci", false),
@@ -56,6 +57,8 @@ defmodule Tuist.Tests.XcresultProcessing do
         build_run_id: Map.get(args, "build_run_id"),
         shard_plan_id: Map.get(args, "shard_plan_id"),
         shard_index: Map.get(args, "shard_index"),
+        shard_attempt: Map.get(args, "shard_attempt"),
+        shard_report_revision: Map.get(args, "shard_report_revision"),
         ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
       },
       carried_attrs(args)

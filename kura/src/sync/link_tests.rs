@@ -615,3 +615,80 @@ async fn a_flapping_sibling_keeps_its_bootstrap_budget_across_respawns() {
     a.state().sync.evaluate(a.state());
     assert_eq!(failures_reach(&a, &ghost.url, 2).await, 2);
 }
+
+async fn age_into_old_segment(node: &Node, artifact_id: &str) -> String {
+    let segment = node
+        .state()
+        .store
+        .manifest(artifact_id)
+        .expect("manifest read")
+        .expect("artifact present")
+        .segment_id
+        .expect("segment-backed artifact");
+    node.state()
+        .store
+        .install_segment_state_for_testing(crate::segment::state::SegmentState {
+            old: vec![crate::segment::reference::SegmentReference::new(
+                segment.clone(),
+                1,
+            )],
+            current: Vec::new(),
+            new: vec![crate::segment::reference::SegmentReference::new(
+                "fresh-segment".into(),
+                2,
+            )],
+        })
+        .await
+        .expect("ring state should install");
+    segment
+}
+
+// A client read that keeps an aging record alive on one replica tells its
+// sibling, which keeps its own copy alive instead of evicting it first.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_promotion_on_one_sibling_keeps_the_other_copy_alive() {
+    let a = node("local", |_| {}).await;
+    let b = node("local", |_| {}).await;
+    a.see(&[&b]);
+    b.see(&[&a]);
+    a.state()
+        .store
+        .persist_artifact_from_bytes(
+            ArtifactProducer::Xcode,
+            "ios",
+            "hot",
+            "application/octet-stream",
+            &vec![7; 64 * 1024],
+        )
+        .await
+        .expect("write should persist");
+    let hot = artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "hot");
+    b.wait_for(&hot).await;
+    age_into_old_segment(&a, &hot).await;
+    let b_segment = age_into_old_segment(&b, &hot).await;
+
+    a.state()
+        .store
+        .fetch_artifact(ArtifactProducer::Xcode, "ios", "hot")
+        .await
+        .expect("serving read")
+        .expect("artifact present");
+
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while b.state().store.pending_promotion(&hot) != Some(crate::store::RefreshTrigger::Sibling)
+        {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("b queues its own copy from a's hint");
+    assert_eq!(
+        b.state()
+            .store
+            .manifest(&hot)
+            .expect("manifest read")
+            .and_then(|manifest| manifest.segment_id),
+        Some(b_segment),
+        "the hint carries no body; b promotes from its own segment"
+    );
+}

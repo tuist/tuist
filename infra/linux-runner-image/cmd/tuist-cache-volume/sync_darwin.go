@@ -14,5 +14,7 @@ func fullSync(f *os.File) error {
 	if _, err := unix.FcntlInt(f.Fd(), unix.F_FULLFSYNC, 0); err == nil {
 		return nil
 	}
-	return f.Sync()
+	// The share rejects F_FULLFSYNC with ENOTTY, and os.File.Sync issues the same
+	// call on Darwin (falling back only on ENOTSUP), so fall back to fsync itself.
+	return unix.Fsync(int(f.Fd()))
 }

@@ -24,7 +24,7 @@ func mountedVolume(t *testing.T, seed map[string]string) (share, mount, base str
 	for name, contents := range seed {
 		writeVolumeFile(t, base, name, contents)
 	}
-	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error { return nil }); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, func(string, string) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	// A job's writes come after the mount; make sure the test's do too. File
@@ -138,5 +138,30 @@ func TestMacDetachRemovesTheBaseline(t *testing.T) {
 
 	if _, err := os.Stat(baselinePath(mount, digest("volume"))); !os.IsNotExist(err) {
 		t.Fatal("left the baseline behind:", err)
+	}
+}
+
+func TestMacReportsAnUnchangedPathManifestAsUnchanged(t *testing.T) {
+	share, mount, base := mountedVolume(t, map[string]string{
+		"data/dependency.jar": "saved",
+		manifestName:          `{"version":1,"paths":{".gradle":"data"}}` + "\n",
+	})
+	if got := attachLayout(t, base, ".gradle"); got[".gradle"] != "data" {
+		t.Fatal(got)
+	}
+
+	if reportedChange(t, share, mount) {
+		t.Fatal("attaching the recorded layout was reported as a change")
+	}
+}
+
+func TestMacReportsANewPathManifestAsChanged(t *testing.T) {
+	share, mount, base := mountedVolume(t, map[string]string{"data/dependency.jar": "saved"})
+	if got := attachLayout(t, base, ".gradle"); got[".gradle"] != "data" {
+		t.Fatal(got)
+	}
+
+	if !reportedChange(t, share, mount) {
+		t.Fatal("recording the path layout was not reported as a change")
 	}
 }

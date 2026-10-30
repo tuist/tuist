@@ -613,11 +613,46 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
                "scw-fr-par-runners",
                "ber1-runners",
+               "larch-runners",
                "hetzner-staging-runners"
              ]
 
       assert Regions.retired?(Regions.get("hetzner-staging-runners"))
       refute Regions.retired?(Regions.get("scw-fr-par-runners"))
+    end
+  end
+
+  describe "rack site regions" do
+    test "each site has its own runner-cache region on its own storage pool" do
+      ber1 = Regions.get("ber1-runners")
+      larch = Regions.get("larch-runners")
+
+      assert Regions.site(ber1) == "ber1"
+      assert Regions.site(larch) == "larch"
+
+      assert ber1.display_name == "BER1 rack (runner cache)"
+      assert larch.display_name == "Larch rack (runner cache)"
+
+      assert %{
+               cluster_id: "larch",
+               ingress_class_name: "kura-larch-runners",
+               node_selector: %{"node.cluster.x-k8s.io/pool" => "rack-storage-larch"},
+               client_cidrs: ["10.20.0.0/24"],
+               replicas: 1,
+               data_plane: :private_gateway
+             } = larch.provisioner_config
+
+      assert %{
+               cluster_id: "ber1",
+               ingress_class_name: "kura-ber1-runners",
+               node_selector: %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"},
+               client_cidrs: ["10.10.0.0/24"]
+             } = ber1.provisioner_config
+
+      # Apart from what the site names, the two are the same region.
+      site_fields = [:cluster_id, :ingress_class_name, :node_selector, :client_cidrs]
+
+      assert Map.drop(ber1.provisioner_config, site_fields) == Map.drop(larch.provisioner_config, site_fields)
     end
   end
 
@@ -634,6 +669,7 @@ defmodule Tuist.Kura.RegionsTest do
     test "is true only for a private region's hostname" do
       assert Regions.private_endpoint?("https://acme-scw-fr-par-runners.kura.tuist.dev")
       assert Regions.private_endpoint?("https://acme-ber1-runners.kura.tuist.dev/")
+      assert Regions.private_endpoint?("https://acme-larch-runners.kura.tuist.dev/")
       refute Regions.private_endpoint?("https://acme-eu-west-1.kura.tuist.dev")
       refute Regions.private_endpoint?("https://acme.cache.tuist.dev")
       refute Regions.private_endpoint?("")

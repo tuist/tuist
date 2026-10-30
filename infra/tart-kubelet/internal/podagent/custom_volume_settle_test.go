@@ -39,7 +39,7 @@ func TestCustomPublishesAFinishedPodWithoutWaitingForTheReportTick(t *testing.T)
 		_, _ = w.Write([]byte(`{"action":"seal"}`))
 	}))
 	defer server.Close()
-	c := &CustomVolumes{Root: root, Store: store, Kube: kube, Node: "host", Namespace: "runners", Builtins: m, URL: server.URL, HTTP: server.Client(), tokenValue: "token", tokenUntil: time.Now().Add(time.Hour), Running: func(context.Context, string) (bool, error) { return false, nil }}
+	c := &CustomVolumes{Root: root, Store: store, Kube: kube, Node: "host", Namespace: "runners", Space: m, URL: server.URL, HTTP: server.Client(), tokenValue: "token", tokenUntil: time.Now().Add(time.Hour), Running: func(context.Context, string) (bool, error) { return false, nil }}
 	requests, reports := make(chan time.Time), make(chan time.Time)
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := make(chan struct{})

@@ -72,12 +72,63 @@ source "tart-cli" "xcresult_processor" {
   # tight values held for years on the original Mac mini but timed out
   # on newly-onboarded hosts. 15m gives headroom for the cold path on a
   # cirruslabs Tahoe base; the warm path returns long before then.
-  ssh_timeout  = "15m"
-  headless     = true
+  ssh_timeout = "15m"
+  headless    = true
 }
 
 build {
   sources = ["source.tart-cli.xcresult_processor"]
+
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/pem-store.sh"
+    destination = "/tmp/tuist-pem-store.sh"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/policy.json"
+    destination = "/tmp/policy.json"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/aaa-cross-signed-intermediate.pem"
+    destination = "/tmp/tuist-negative-intermediate.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/issuer-roots.pem"
+    destination = "/tmp/tuist-issuer-roots.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/positive-isrg-root-x1.pem"
+    destination = "/tmp/tuist-positive-root.pem"
+  }
+
+  # Native clients use deny settings. OTP ignores those settings; qualify the
+  # xcresult release's effective root store independently before image rollout.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/tuist-system-roots.pem",
+      "bash /tmp/tuist-pem-store.sh extract-blocked /tmp/tuist-system-roots.pem /tmp/tuist-blocked-cas",
+      "openssl verify -CAfile /tmp/tuist-issuer-roots.pem /tmp/tuist-negative-intermediate.pem",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native negative-chain baseline: trusted before containment'; else echo 'Native negative-chain baseline: already rejected; no differential containment claim'; fi",
+      "echo 'admin' | sudo -S true",
+      # SIP protects this authorization rule on current macOS. Authenticate
+      # the disposable guest's admin instead of rewriting the rule to allow.
+      "echo 'admin' | security authorize -C admin com.apple.trust-settings.admin",
+      "for cert in /tmp/tuist-blocked-cas/*.pem; do [ -e \"$cert\" ] || continue; sudo security add-trusted-cert -d -r deny -k /Library/Keychains/System.keychain \"$cert\"; if security verify-cert -c \"$cert\" -p basic >/dev/null 2>&1; then echo 'Native verifier accepted a denied root' >&2; exit 1; fi; done",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native verifier accepted a compromised intermediate chain' >&2; exit 1; fi",
+      "security verify-cert -c /tmp/tuist-positive-root.pem -p basic -R offline",
+      "bash /tmp/tuist-pem-store.sh filter /etc/ssl/cert.pem /tmp/tuist-cacerts.pem",
+      "bash /tmp/tuist-pem-store.sh check /tmp/tuist-cacerts.pem",
+      "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
+      "rm /tmp/tuist-cacerts.pem",
+      "/opt/homebrew/bin/brew update",
+      "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 /opt/homebrew/bin/brew upgrade ca-certificates",
+      "bash /tmp/tuist-pem-store.sh filter /opt/homebrew/etc/ca-certificates/cert.pem /tmp/tuist-homebrew-roots.pem",
+      "sudo install -m 0644 /tmp/tuist-homebrew-roots.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "bash /tmp/tuist-pem-store.sh check /etc/ssl/cert.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "rm -f /tmp/tuist-negative-intermediate.pem /tmp/tuist-issuer-roots.pem /tmp/tuist-positive-root.pem /tmp/tuist-system-roots.pem /tmp/tuist-homebrew-roots.pem",
+      "rm -rf /tmp/tuist-blocked-cas"
+    ]
+  }
 
   provisioner "shell" {
     inline = [
@@ -186,6 +237,27 @@ build {
       # the image.
       "echo 'admin' | sudo -S mkdir -p /var/log/xcresult-processor",
       "echo 'admin' | sudo -S chown admin:staff /var/log/xcresult-processor"
+    ]
+  }
+
+  # Turn off password logins to macOS sshd, which otherwise ships accepting
+  # the base image's well-known admin/admin from the host's VM network, and
+  # from the tailnet if tailscale-up.sh ever stops passing --ssh. Remote
+  # Login stays on: nothing logs in through sshd (tart-kubelet uses the Tart
+  # guest agent, admins use Tailscale SSH), and launchd spawns sshd per
+  # connection, so Packer's open session survives this and the shutdown that
+  # follows. sshd keeps the first value it reads for a keyword, so the file
+  # sorts ahead of macOS's own 100-macos.conf. This must stay the last
+  # provisioner: later ones would need a fresh password login.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "printf 'PasswordAuthentication no\\nKbdInteractiveAuthentication no\\n' > /tmp/000-tuist-no-password.conf",
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/000-tuist-no-password.conf /etc/ssh/sshd_config.d/000-tuist-no-password.conf",
+      "rm -f /tmp/000-tuist-no-password.conf",
+      "effective=\"$(echo 'admin' | sudo -S /usr/sbin/sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication) ')\"",
+      "echo \"$effective\"",
+      "[ \"$(echo \"$effective\" | grep -c ' no$')\" = 2 ] || (echo 'sshd still accepts passwords' >&2 && exit 1)"
     ]
   }
 }

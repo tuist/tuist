@@ -25,7 +25,7 @@ func answer(response macResponse) func(context.Context) (macResponse, error) {
 
 func TestLinuxCheckoutStateIsRecordedOnlyWithAGrant(t *testing.T) {
 	never := func(string, string, string, string) error { t.Fatal("mounted without a checkout"); return nil }
-	for reason, recorded := range map[string]bool{"cold": true, "capacity": true, "timeout": true, "denied": false, "error": false} {
+	for reason, recorded := range map[string]bool{"cold": true, "capacity": true, "timeout": false, "busy": false, "denied": false, "error": false} {
 		root, workspace := linuxCheckoutFixture(t)
 		state := filepath.Join(t.TempDir(), "state.json")
 		result := checkoutLinuxAt(context.Background(), workspace, root, state, answer(macResponse{Error: "unavailable", Reason: reason}), never)
@@ -34,6 +34,25 @@ func TestLinuxCheckoutStateIsRecordedOnlyWithAGrant(t *testing.T) {
 		}
 		if _, err := os.Stat(state); (err == nil) != recorded {
 			t.Errorf("reason %q: state recorded %v, want %v", reason, err == nil, recorded)
+		}
+	}
+}
+
+// The agent refuses an export from a pod it granted nothing, as when GitHub had
+// not yet reported the job and the server answered 425.
+func TestLinuxCheckoutExportSkipsTheUploadWithoutAGrant(t *testing.T) {
+	never := func(string, string, string, string) error { t.Fatal("mounted without a checkout"); return nil }
+	git := func(context.Context, string, io.Reader, io.Writer, ...string) error {
+		t.Fatal("ran git without a checkout")
+		return nil
+	}
+	upload := func(context.Context, io.Reader) error { t.Fatal("uploaded without a checkout"); return nil }
+	for _, reason := range []string{"timeout", "busy", "denied", "error"} {
+		root, workspace := linuxCheckoutFixture(t)
+		state := filepath.Join(t.TempDir(), "state.json")
+		checkoutLinuxAt(context.Background(), workspace, root, state, answer(macResponse{Error: "unavailable", Reason: reason}), never)
+		if result := exportCheckoutLinuxAt(context.Background(), state, t.TempDir(), git, upload); result != "skipped (no cached checkout)" {
+			t.Errorf("reason %q: %s", reason, result)
 		}
 	}
 }

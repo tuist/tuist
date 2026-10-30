@@ -105,6 +105,42 @@ func TestPrivateNetworkDoesNotEnrollRunnerOrOtherNamespaces(t *testing.T) {
 	}
 }
 
+func TestPrivateNetworkRunnerRequiresExplicitEnrollment(t *testing.T) {
+	cache := infrav1.OVHDedicatedMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "cache", Namespace: "staging"},
+		Spec:       infrav1.OVHDedicatedMachineSpec{NodeTaints: []corev1.Taint{{Key: "tuist.dev/kura-cache", Effect: corev1.TaintEffectNoSchedule}}},
+		Status:     infrav1.OVHDedicatedMachineStatus{ServiceName: "cache", Addresses: []clusterv1.MachineAddress{{Type: clusterv1.MachineExternalIP, Address: "192.0.2.1"}}},
+	}
+	runner := cache.DeepCopy()
+	runner.Name, runner.Status.ServiceName = "runner", "runner"
+	runner.Spec = infrav1.OVHDedicatedMachineSpec{KataRuntime: true, VRackID: "pn-test"}
+	runner.Status.Addresses[0].Address = "192.0.2.2"
+	legacy := runner.DeepCopy()
+	legacy.Name, legacy.Status.ServiceName, legacy.Spec.VRackID = "legacy", "legacy", ""
+	legacy.Status.Addresses[0].Address = "192.0.2.3"
+	c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(&cache, runner, legacy).Build()
+	r := &OVHDedicatedMachineReconciler{Client: c, PrivateNetworkConfigName: "private-network"}
+	reservations, machines, err := r.reservePrivateNetwork(context.Background(), &cache, "pn-test", "172.30.241.0/24")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reservations.Addresses) != 2 || reservations.Addresses["runner"] == "" || reservations.Addresses["legacy"] != "" {
+		t.Fatalf("unexpected reservations: %+v", reservations)
+	}
+	peers, members, _ := ovhPrivateParticipants("cache", machines, reservations)
+	if len(peers) != 1 || peers[0].Public != "192.0.2.2" || len(members) != 2 {
+		t.Fatalf("runner must participate in reciprocal routes, legacy host must not: %+v, %+v", peers, members)
+	}
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "private-network", Namespace: "staging"}, Data: map[string]string{"vrackID": "pn-other", "cidr": "172.30.241.0/24"}}
+	if err := c.Create(context.Background(), cm); err != nil {
+		t.Fatal(err)
+	}
+	r.PrivateNetworkNamespace = "staging"
+	if err := r.reconcilePrivateNetwork(context.Background(), runner, &corev1.Node{}); err == nil || !strings.Contains(err.Error(), "different vRack") {
+		t.Fatalf("must reject mismatched runner network before provider calls: %v", err)
+	}
+}
+
 func TestPrivateNetworkScriptSyntax(t *testing.T) {
 	for _, render := range []func(string, string, int, string, []privateNetworkPeer, ...privateNetworkOwners) string{renderPrivateNetworkScript, renderVultrPrivateNetworkScript} {
 		script := render("00:11:22:33:44:55", "172.30.241.2", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.241.3"}})

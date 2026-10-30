@@ -51,6 +51,8 @@ public struct GraphLoader: GraphLoading {
             )
         }
 
+        cache.resolveXCFrameworkSignatures()
+
         let updatedWorkspace = workspace.replacing(projects: cache.loadedProjects.keys.sorted())
         let graph = Graph(
             name: updatedWorkspace.name,
@@ -265,6 +267,16 @@ public struct GraphLoader: GraphLoading {
         cache: Cache,
         status: LinkingStatus
     ) async throws -> GraphDependency {
+        if let expectedSignature {
+            if let previous = cache.xcframeworkSignatures[path], previous != expectedSignature {
+                throw GraphLoadingError.conflictingXCFrameworkSignatures(path, [
+                    previous.signatureString() ?? "unsigned",
+                    expectedSignature.signatureString() ?? "unsigned",
+                ])
+            }
+            cache.xcframeworkSignatures[path] = expectedSignature
+        }
+
         if case var .xcframework(xcframework) = cache.xcframeworks[path] {
             xcframework.status = status
             xcframework.expectedSignature = expectedSignature?.signatureString()
@@ -344,6 +356,7 @@ public struct GraphLoader: GraphLoading {
         var frameworks: [AbsolutePath: GraphDependency] = [:]
         var libraries: [AbsolutePath: GraphDependency] = [:]
         var xcframeworks: [AbsolutePath: GraphDependency] = [:]
+        var xcframeworkSignatures: [AbsolutePath: XCFrameworkSignature] = [:]
         var packages: [AbsolutePath: [String: Package]] = [:]
 
         init(projects: [Project]) {
@@ -374,6 +387,34 @@ public struct GraphLoader: GraphLoading {
 
         func add(library: GraphDependency, at path: AbsolutePath) {
             libraries[path] = library
+        }
+
+        func resolveXCFrameworkSignatures() {
+            guard !xcframeworkSignatures.isEmpty else { return }
+
+            var resolvedDependencies: [GraphDependency: Set<GraphDependency>] = [:]
+            var resolvedConditions: [GraphEdge: PlatformCondition] = [:]
+            for (target, targetDependencies) in dependencies {
+                for dependency in targetDependencies {
+                    var resolved = dependency
+                    if case var .xcframework(framework) = dependency {
+                        framework.expectedSignature = xcframeworkSignatures[framework.path]?.signatureString()
+                        resolved = .xcframework(framework)
+                    }
+
+                    let condition = dependencyConditions[GraphEdge(from: target, to: dependency)]
+                    let edge = GraphEdge(from: target, to: resolved)
+                    if resolvedDependencies[target, default: []].insert(resolved).inserted {
+                        resolvedConditions[edge] = condition
+                    } else if let existing = resolvedConditions[edge],
+                              case let .condition(combined) = existing.union(condition)
+                    {
+                        resolvedConditions[edge] = combined
+                    }
+                }
+            }
+            dependencies = resolvedDependencies
+            dependencyConditions = resolvedConditions
         }
 
         func targetLoaded(path: AbsolutePath, name: String) -> Bool {

@@ -31,24 +31,9 @@ func TestCheckoutMasterEndToEnd(t *testing.T) {
 	if err := c.Prepare(ctx); err != nil {
 		t.Fatal(err)
 	}
-	url := "https://github.com/jimthoburn/github-lfs-example"
-	// A guest has git-lfs configured but none of the host's hook isolation.
-	env := append(c.gitEnv(), "GIT_LFS_SKIP_SMUDGE=0")
-	for i, variable := range env {
-		if variable == "GIT_CONFIG_VALUE_0=/dev/null" {
-			env[i] = "GIT_CONFIG_VALUE_0="
-		}
-	}
-	gitIn := func(dir string, args ...string) string {
-		t.Helper()
-		command := exec.Command("git", args...)
-		command.Dir, command.Env = dir, env
-		out, err := command.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %v %s", args, err, out)
-		}
-		return string(out)
-	}
+	url := e2eRepository
+	env := e2eGuestEnv(c)
+	gitIn := e2eGit(t, env)
 
 	// What a guest's actions/checkout leaves on its own disk, and what it exports.
 	guest := filepath.Join(t.TempDir(), "guest")
@@ -141,6 +126,171 @@ func TestCheckoutMasterEndToEnd(t *testing.T) {
 	}
 	if tip := strings.TrimSpace(gitIn(workspace, "rev-parse", "HEAD")); tip != head {
 		t.Fatalf("a branch job moved the tip to %s", tip)
+	}
+}
+
+// Starts a real checkout master from a branch job's export while the lineage has
+// no HEAD, then moves its tip with the first default-branch job's export.
+func TestCheckoutBranchMasterEndToEnd(t *testing.T) {
+	if os.Getenv("TUIST_CHECKOUT_E2E") == "" {
+		t.Skip("set TUIST_CHECKOUT_E2E=1 to build a real checkout master")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	c := e2eCheckouts(t)
+	if err := c.Prepare(ctx); err != nil {
+		t.Fatal(err)
+	}
+	env := e2eGuestEnv(c)
+	gitIn := e2eGit(t, env)
+	guest := filepath.Join(t.TempDir(), "guest")
+	gitIn(filepath.Dir(guest), "clone", "-q", "--depth", "1", e2eRepository, guest)
+	gitIn(guest, "lfs", "fetch", "origin", "HEAD")
+	head := strings.TrimSpace(gitIn(guest, "rev-parse", "HEAD"))
+	branch := checkoutTestTask()
+	branch.CloneURL, branch.Commit, branch.Export, branch.UID = e2eRepository, head, c.Incoming("branch"), e2eUID
+	branch.DefaultBranchJob, branch.MayStartMaster = false, true
+	exportFromGuest(t, guest, branch.Export, env, "")
+
+	if err := c.build(ctx, branch, true, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	workspace := mountBranch(t, c)
+	git := func(args ...string) string { return gitIn(workspace, args...) }
+	if tip := strings.TrimSpace(git("rev-parse", "HEAD")); tip != head {
+		t.Fatalf("tip %s, want the branch job's commit %s", tip, head)
+	}
+	if status := git("status", "--porcelain"); status != "" {
+		t.Fatalf("the mounted checkout is not clean:\n%s", status)
+	}
+	image, err := os.ReadFile(filepath.Join(workspace, "public", "chia-seeds.jpg"))
+	if err != nil || len(image) < 1024 || strings.HasPrefix(string(image), "version https://git-lfs") {
+		t.Fatal("LFS content was not smudged into the working tree")
+	}
+	if refs := git("for-each-ref", "--format=%(refname)", "refs/remotes/"); refs != "" {
+		t.Fatalf("a branch job set remote-tracking refs %q", refs)
+	}
+
+	writeTestFile(t, filepath.Join(workspace, "main.txt"), "on the default branch")
+	git("add", "main.txt")
+	command := exec.Command("git", "commit", "-q", "-m", "main")
+	command.Dir, command.Env = workspace, append(env, "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	commit := strings.TrimSpace(git("rev-parse", "HEAD"))
+	main := checkoutTestTask()
+	main.CloneURL, main.Commit, main.Export, main.UID = e2eRepository, commit, c.Incoming("main"), e2eUID
+	main.BaseGeneration, main.ImageDigest, main.ContentDigest = 1, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	exportFromGuest(t, workspace, main.Export, env, head)
+	unmountBranch(workspace)
+	meta, err := c.readMeta(checkoutTestScope, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.build(ctx, main, false, meta, 0); err != nil {
+		t.Fatal(err)
+	}
+	workspace = mountBranch(t, c)
+	if tip := strings.TrimSpace(gitIn(workspace, "rev-parse", "HEAD")); tip != commit {
+		t.Fatalf("a default-branch job left the tip at %s", tip)
+	}
+	if ref := strings.TrimSpace(gitIn(workspace, "rev-parse", "refs/remotes/origin/main")); ref != commit {
+		t.Fatalf("origin/main %s", ref)
+	}
+	if status := gitIn(workspace, "status", "--porcelain"); status != "" {
+		t.Fatalf("the moved checkout is not clean:\n%s", status)
+	}
+}
+
+// Starts a real checkout master from a pull request job's export: actions/checkout
+// fetches GitHub's test merge of the pull request at depth 1, so the exported
+// commit is a merge whose parents, the job's commit among them, are not exported.
+func TestCheckoutPullRequestMergeMasterEndToEnd(t *testing.T) {
+	if os.Getenv("TUIST_CHECKOUT_E2E") == "" {
+		t.Skip("set TUIST_CHECKOUT_E2E=1 to build a real checkout master")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	c := e2eCheckouts(t)
+	if err := c.Prepare(ctx); err != nil {
+		t.Fatal(err)
+	}
+	env := e2eGuestEnv(c)
+	gitIn := e2eGit(t, env)
+	commitAs := e2eGit(t, append(append([]string(nil), env...), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t"))
+
+	// The repository, a pull request's commit on it, and GitHub's test merge of it.
+	origin := filepath.Join(t.TempDir(), "origin")
+	gitIn(filepath.Dir(origin), "clone", "-q", "--depth", "1", e2eRepository, origin)
+	gitIn(origin, "lfs", "fetch", "origin", "HEAD")
+	base := strings.TrimSpace(gitIn(origin, "rev-parse", "HEAD"))
+	writeTestFile(t, filepath.Join(origin, "pull-request.txt"), "added by a pull request")
+	gitIn(origin, "add", "pull-request.txt")
+	commitAs(origin, "commit", "-q", "-m", "pull request")
+	head := strings.TrimSpace(gitIn(origin, "rev-parse", "HEAD"))
+	tree := strings.TrimSpace(gitIn(origin, "rev-parse", "HEAD^{tree}"))
+	merge := strings.TrimSpace(commitAs(origin, "commit-tree", tree, "-p", base, "-p", head, "-m", "Merge "+head+" into "+base))
+	gitIn(origin, "update-ref", "refs/pull/1/merge", merge)
+
+	// What actions/checkout runs for a pull_request event, LFS objects included.
+	guest := filepath.Join(t.TempDir(), "guest")
+	gitIn(filepath.Dir(guest), "init", "-q", guest)
+	gitIn(guest, "fetch", "-q", "--no-tags", "--depth=1", "file://"+origin, "+refs/pull/1/merge:refs/remotes/pull/1/merge")
+	if out, err := exec.Command("cp", "-R", filepath.Join(origin, ".git", "lfs"), filepath.Join(guest, ".git", "lfs")).CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	gitIn(guest, "checkout", "-q", "--detach", merge)
+	if shallow, _ := os.ReadFile(filepath.Join(guest, ".git", "shallow")); strings.TrimSpace(string(shallow)) != merge {
+		t.Fatalf("the guest's checkout is not a depth-1 fetch of the merge: %q", shallow)
+	}
+	task := checkoutTestTask()
+	task.CloneURL, task.Commit, task.Export, task.UID = e2eRepository, head, c.Incoming("pull-request"), e2eUID
+	task.DefaultBranchJob, task.MayStartMaster = false, true
+	exportFromGuest(t, guest, task.Export, env, "")
+
+	if err := c.build(ctx, task, true, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	workspace := mountBranch(t, c)
+	if tip := strings.TrimSpace(gitIn(workspace, "rev-parse", "HEAD")); tip != merge {
+		t.Fatalf("tip %s, want the job's test merge %s", tip, merge)
+	}
+	if status := gitIn(workspace, "status", "--porcelain"); status != "" {
+		t.Fatalf("the mounted checkout is not clean:\n%s", status)
+	}
+	if data, err := os.ReadFile(filepath.Join(workspace, "pull-request.txt")); err != nil || string(data) != "added by a pull request" {
+		t.Fatal("the merge's tree is not checked out")
+	}
+	image, err := os.ReadFile(filepath.Join(workspace, "public", "chia-seeds.jpg"))
+	if err != nil || len(image) < 1024 || strings.HasPrefix(string(image), "version https://git-lfs") {
+		t.Fatal("LFS content was not smudged into the working tree")
+	}
+}
+
+const e2eRepository = "https://github.com/jimthoburn/github-lfs-example"
+
+// e2eGuestEnv is a guest's git: git-lfs configured, but none of the host's hook isolation.
+func e2eGuestEnv(c *Checkouts) []string {
+	env := append(c.gitEnv(), "GIT_LFS_SKIP_SMUDGE=0")
+	for i, variable := range env {
+		if variable == "GIT_CONFIG_VALUE_0=/dev/null" {
+			env[i] = "GIT_CONFIG_VALUE_0="
+		}
+	}
+	return env
+}
+
+func e2eGit(t *testing.T, env []string) func(dir string, args ...string) string {
+	return func(dir string, args ...string) string {
+		t.Helper()
+		command := exec.Command("git", args...)
+		command.Dir, command.Env = dir, env
+		out, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return string(out)
 	}
 }
 

@@ -131,7 +131,9 @@ struct SchemeLinter: SchemeLinting {
         var issues: [LintingIssue] = []
 
         for scheme in schemes {
-            for target in scheme.testAction?.codeCoverageTargets ?? []
+            let codeCoverageTargets = (scheme.testAction?.codeCoverageTargets ?? [])
+                + (scheme.testAction?.testPlans?.flatMap(\.codeCoverageTargets) ?? [])
+            for target in codeCoverageTargets
                 where target.projectPath == project.path && !targetNames.contains(target.name)
             {
                 issues.append(missingCodeCoverageTargetIssue(missingTargetName: target.name, schemaName: scheme.name))

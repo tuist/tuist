@@ -1,0 +1,16 @@
+# The Kubernetes API endpoint every control-plane node uses for its
+# kubeconfigs and for joining: the tuist-mgmt-api load balancer
+# (infra/k8s/mgmt/talos/hetzner.yaml), already in the API server's certSANs
+# (30-api-endpoint-sans.yaml). Applies without a reboot but restarts
+# kube-apiserver once. The kubelet and the in-cluster components reach the API
+# through KubePrism on 127.0.0.1:7445, so they do not use this address.
+#
+# Talos also uses this address as the API server's --service-account-issuer
+# and --api-audiences. Changing it invalidates every ServiceAccount token
+# issued before the change: every Pod that talks to the API fails with
+# Unauthorized until it is recreated and gets a new token (kube-proxy first,
+# since it routes the `kubernetes` Service). Legacy Secret-based tokens and
+# client certificates are not affected.
+cluster:
+  controlPlane:
+    endpoint: https://49.12.66.91:6443

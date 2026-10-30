@@ -211,3 +211,57 @@ func TestCheckoutExportFromAFullHistoryCheckoutIndexesOnAShallowHost(t *testing.
 	gitIn(host, bytes.NewReader(exported), "index-pack", "--strict", "--stdin")
 	gitIn(host, nil, "rev-list", "--quiet", "--objects", head)
 }
+
+func TestCachePathsTheCachedCheckoutProvidesAreLeftOut(t *testing.T) {
+	workspace := t.TempDir()
+	writeFile(t, filepath.Join(workspace, ".git", "lfs", "objects", "aa", "bb", strings.Repeat("a", 64)), "object")
+	writeFile(t, filepath.Join(workspace, "Sources", "App.swift"), "app")
+	if err := os.MkdirAll(filepath.Join(workspace, ".git", "empty"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	targets := []string{filepath.Join(workspace, ".git", "lfs"), filepath.Join(workspace, ".git", "empty"), filepath.Join(workspace, "Sources"), filepath.Join(workspace, "DerivedData")}
+	state := filepath.Join(t.TempDir(), "state.json")
+	if err := recordCheckout(state, workspace, true); err != nil {
+		t.Fatal(err)
+	}
+	kept := withoutCheckoutPaths(targets, state)
+	if strings.Join(kept, ",") != strings.Join(targets[1:], ",") {
+		t.Fatalf("kept %v", kept)
+	}
+	// Without a mounted checkout the job's own .git is no exception.
+	if err := recordCheckout(state, workspace, false); err != nil {
+		t.Fatal(err)
+	}
+	if kept := withoutCheckoutPaths(targets, state); len(kept) != len(targets) {
+		t.Fatalf("kept %v", kept)
+	}
+	if kept := withoutCheckoutPaths(targets, filepath.Join(t.TempDir(), "missing.json")); len(kept) != len(targets) {
+		t.Fatalf("kept %v", kept)
+	}
+}
+
+// A container job's actions/checkout runs as the container's root, so the
+// workspace's .git belongs to another user than the runner exporting it.
+func TestCheckoutExportReadsARepositoryAnotherUserWrote(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("requires git")
+	}
+	workspace := t.TempDir()
+	for _, args := range [][]string{{"init", "-q", "."}, {"commit", "-q", "--allow-empty", "-m", "job"}} {
+		command := exec.Command("git", args...)
+		command.Dir = workspace
+		command.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	state := filepath.Join(t.TempDir(), "state.json")
+	if err := recordCheckout(state, workspace, false); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
+	if result := exportCheckoutAt(context.Background(), state, t.TempDir(), gitCommand); !strings.HasPrefix(result, "exported") {
+		t.Fatal(result)
+	}
+}

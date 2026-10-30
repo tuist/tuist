@@ -1,39 +1,25 @@
 ---
 {
-  "title": "Manifests",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process."
+  "title": "清單",
+  "titleTemplate": ":title · 專案 · 功能 · 指南 · Tuist",
+  "description": "定義 Tuist 專案、工作區同生成設定嘅清單檔案。"
 }
 ---
 # Manifests {#manifests}
 
-Tuist defaults to Swift files as the primary way to define projects and
-workspaces and configure the generation process. These files are referred to as
-**manifest files** throughout the documentation.
+Tuist 預設使用 Swift 檔案作為定義專案、工作區及設定產生流程的主要方式。整份文件都將這些檔案稱為**manifest 檔案**。
 
-The decision of using Swift was inspired by the [Swift Package
-Manager](https://www.swift.org/documentation/package-manager/), which also uses
-Swift files to define packages. Thanks to the usage of Swift, we can leverage
-the compiler to validate the correctness of the content and reuse code across
-different manifest files, and Xcode to provide a first-class editing experience
-thanks to the syntax highlighting, auto-completion, and validation.
+採用 Swift 的決定受[Swift Package Manager](https://www.swift.org/documentation/package-manager/)啟發，後者同樣使用 Swift 檔案來定義套件。得益於使用 Swift，我們可以利用編譯器驗證內容正確性，並在不同 manifest 檔案之間重用程式碼；同時借助 Xcode 的語法高亮、自動完成與驗證功能，提供一流的編輯體驗。
 
 > [!NOTE]
-> **Caching**
+> **快取**
 >
-> Since manifest files are Swift files that need to be compiled, Tuist caches the
-> compilation results to speed up the parsing process. Therefore, you'll notice
-> that the first time you run Tuist, it might take a bit longer to generate the
-> project. Subsequent runs will be faster.
+> 由於 manifest 檔案是需要編譯的 Swift 檔案，Tuist 會快取編譯結果以加速解析過程。因此，你會發現首次執行 Tuist 時，產生專案可能需要較長時間。後續執行則會更快。
 
 
 ## Project.swift {#projectswift}
 
-The
-<LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink>
-manifest declares an Xcode project. The project gets generated in the same
-directory where the manifest file is located with the name indicated in the
-`name` property.
+[`Project.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/project) manifest 用於宣告一個 Xcode 專案。專案會在 manifest 檔案所在目錄中產生，名稱由`name`屬性指定。
 
 ```swift
 // Project.swift
@@ -47,22 +33,14 @@ let project = Project(
 
 
 > [!WARNING]
-> **Root Variables**
+> **根層級變數**
 >
-> The only variable that should be at the root of the manifest is `let project =
-> Project(...)`. If you need to reuse code across various parts of the manifest,
-> you can use Swift functions.
+> manifest 根層級唯一應出現的變數是`let project = Project(...)`。如果你需要在 manifest 的不同部分重用程式碼，可以使用 Swift 函式。
 
 
 ## Workspace.swift {#workspaceswift}
 
-By default, Tuist generates an [Xcode
-Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)
-containing the project being generated and the projects of its dependencies. If
-for any reason you'd like to customize the workspace to add additional projects
-or include files and groups, you can do so by defining a
-<LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>
-manifest.
+預設情況下，Tuist 會產生一個包含正在產生的專案及其依賴專案的[Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)。如果出於任何原因你想自訂工作區以加入額外專案或納入檔案與群組，可以透過定義[`Workspace.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/workspace) manifest 來實現。
 
 ```swift
 // Workspace.swift
@@ -77,35 +55,18 @@ let workspace = Workspace(
 ```
 
 > [!NOTE]
-> Tuist will resolve the dependency graph and include the projects of the
-> dependencies in the workspace. You don't need to include them manually. This is
-> necessary for the build system to resolve the dependencies correctly.
+> Tuist 會解析依賴圖並將依賴專案納入工作區。你無須手動加入它們。這對建置系統正確解析依賴關係至關重要。
 
 
-### Multi or mono-project {#multi-or-monoproject}
+### 多專案或單一專案 {#multi-or-monoproject}
 
-A question that often comes up is whether to use a single project or multiple
-projects in a workspace. In a world without Tuist where a mono-project setup
-would lead to frequent Git conflicts the usage of workspaces is encouraged.
-However, since we don't recommend including the Tuist-generated Xcode projects
-in the Git repository, Git conflicts are not an issue. Therefore, the decision
-of using a single project or multiple projects in a workspace is up to you.
+常見的一個問題是：應該在工作區中使用單一專案還是多個專案。在沒有 Tuist 的世界裡，單一專案設定往往會導致頻繁的 Git 衝突，因此建議使用工作區。然而，由於我們不建議將 Tuist 產生的 Xcode 專案納入 Git 儲存庫，Git 衝突並非問題。因此，選擇在工作區中使用單一專案或多個專案取決於你。
 
-In the Tuist project we lean on mono-projects because the cold generation time
-is faster (fewer manifest files to compile) and we leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> as a unit of encapsulation. However, you might want to
-use Xcode projects as a unit of encapsulation to represent different domains of
-your application, which aligns more closely with the Xcode's recommended project
-structure.
+在 Tuist 專案中，我們傾向使用單一專案，因為冷啟動產生時間更快（需要編譯的 manifest 檔案較少），並且我們將<.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link>作為封裝單元。不過，你可能希望使用 Xcode 專案作為封裝單元來代表應用程式的不同領域，這更貼近 Xcode 建議的專案結構。
 
 ## Tuist.swift {#tuistswift}
 
-Tuist provides
-<LocalizedLink href="/contributors/principles#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can
-customize the configuration by defining a
-<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-at the root of the project, which is used by Tuist to determine the root of the
-project.
+Tuist 提供<.localized_link href="/contributors/principles#default-to-conventions">合理的預設值</.localized_link>以簡化專案設定。不過，你可以透過在專案根目錄定義[`Tuist.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist)來自訂設定，Tuist 會用它來確定專案的根目錄。
 
 ```swift
 import ProjectDescription
