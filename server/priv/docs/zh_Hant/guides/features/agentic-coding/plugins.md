@@ -1,25 +1,25 @@
 ---
 {
   "title": "外掛程式",
-  "titleTemplate": ":title · 代理編碼 · 功能 · 指南 · Tuist",
-  "description": "安裝適用於 Cursor 的 Tuist 外掛程式，或廠商中立的 Agent Plugins 套件。"
+  "titleTemplate": ":title · AI 代理編碼 · 功能 · 指南 · Tuist",
+  "description": "安裝 Tuist 的 Cursor 外掛程式，或供應商中立的 Agent Plugins 套件。"
 }
 ---
 
 # 外掛程式
 
-Tuist 將代理技能與託管的 MCP 伺服器打包為外掛程式，讓你可以一併安裝。請選擇符合你編碼代理的外掛程式套件。
+Tuist 將代理技能與託管 MCP 伺服器打包為外掛程式，讓你一次安裝兩者。請選擇符合你編碼代理的外掛程式套件。
 
 ## Claude Code
 
-[Tuist Claude Code 市集](https://github.com/tuist/claude-plugin)將 Tuist 外掛程式打包，可使用以下指令安裝：
+[Tuist Claude Code 市集](https://github.com/tuist/claude-plugin)已將 Tuist 外掛程式打包，可使用以下指令安裝：
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
 claude plugin install tuist@tuist-plugins
 ```
 
-此外掛程式提供 Tuist 技能，並將 Claude Code 連線至託管的 MCP 伺服器。
+此外掛程式提供 Tuist 技能，並將 Claude Code 連接至託管的 MCP 伺服器。
 
 ## Cursor
 
@@ -27,15 +27,15 @@ claude plugin install tuist@tuist-plugins
 
 1. 在 Cursor 側邊欄中開啟 **Customize**。
 2. 搜尋 **Tuist**。
-3. 選擇 **Install**，然後決定要為目前專案或你的使用者帳號安裝。
+3. 選擇 **Install**，然後決定要為目前專案或你的使用者帳戶安裝。
 
-你也可以在 Cursor 中輸入 `/add-plugin` 以開啟相同的安裝流程。此外掛程式提供 Tuist 技能，並將 Cursor 連線至託管的 MCP 伺服器。
+你也可以在 Cursor 中輸入 `/add-plugin` 以開啟相同的安裝流程。此外掛程式提供 Tuist 技能，並將 Cursor 連接至託管的 MCP 伺服器。
 
 若你的組織管理 Cursor 市集，請先從 **Settings → Plugins → Team Marketplaces → Import Marketplace** 匯入 `https://github.com/tuist/cursor-plugin`。
 
 ## 其他編碼代理
 
-[Tuist Agent Plugin](https://github.com/tuist/agent-plugin)遵循開放且供應商中立的 [Agent Plugins](https://agent-plugins.org/) 標準。將相容的用戶端指向該儲存庫，並依照該用戶端的指示安裝或參照外掛程式目錄：
+[Tuist Agent Plugin](https://github.com/tuist/agent-plugin)遵循開放且廠商中立的 [Agent Plugins](https://agent-plugins.org/) 標準。將相容的用戶端指向該儲存庫，並依照該用戶端的指示安裝或參照外掛程式目錄：
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
@@ -51,4 +51,4 @@ git clone https://github.com/tuist/agent-plugin.git
 tuist auth login
 ```
 
-託管的 MCP 伺服器會在需要時要求登入。請參閱 [MCP guide](/guides/features/agentic-coding/mcp) 以取得針對不同用戶端的設定與驗證詳細資訊。
+託管的 MCP 伺服器會在需要時要求自己的登入。請參閱 [MCP guide](/guides/features/agentic-coding/mcp) 以取得針對特定用戶端的設定與驗證詳細資訊。

@@ -31,4 +31,4 @@ Incluimos algunos datos generados en la documentación:
 
 Son opcionales. La documentación se renderiza sin ellos, así que ejecútalos solo cuando necesites actualizar el contenido generado.
 
-La referencia de la API de ProjectDescription se aloja por separado como un sitio DocC en [projectdescription.tuist.dev](https://projectdescription.tuist.dev). Para compilarla localmente, ejecuta `mise run docs:project-description` desde la raíz del repositorio.
+La referencia de la API de ProjectDescription se aloja por separado como un sitio DocC en [projectdescription.tuist.dev](https://projectdescription.tuist.dev). Para compilarlo localmente, ejecuta `mise run docs:project-description` desde la raíz del repositorio.

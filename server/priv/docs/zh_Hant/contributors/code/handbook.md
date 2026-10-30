@@ -11,11 +11,11 @@
 
 ## 用途 {#what-it-is-for}
 
-這本手冊記錄了 Tuist 作為一家公司的運作方式：價值觀、政策與工程實踐。這是一個 VitePress 網站。
+本手冊說明 Tuist 作為一家公司的運作方式：價值觀、政策與工程實踐。這是一個 VitePress 網站。
 
 ## 如何貢獻 {#how-to-contribute}
 
-### 在本機設定 {#set-up-locally}
+### 本機設定 {#set-up-locally}
 
 ```bash
 cd handbook

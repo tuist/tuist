@@ -2,7 +2,7 @@
 {
   "title": "Plugins",
   "titleTemplate": ":title · Programación con agentes · Funcionalidades · Guías · Tuist",
-  "description": "Instala el plugin de Tuist para Cursor o el paquete Agent Plugins, independiente del proveedor."
+  "description": "Instala el plugin de Tuist para Cursor o el paquete de Agent Plugins independiente del proveedor."
 }
 ---
 
@@ -12,7 +12,7 @@ Tuist empaqueta sus habilidades para agentes y su servidor MCP alojado como plug
 
 ## Claude Code
 
-El [marketplace de Tuist Claude Code](https://github.com/tuist/claude-plugin) empaqueta el plugin de Tuist para instalarlo con:
+El [marketplace de Tuist para Claude Code](https://github.com/tuist/claude-plugin) incluye el plugin de Tuist para instalarlo con:
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
@@ -23,19 +23,19 @@ El plugin proporciona habilidades de Tuist y conecta Claude Code al servidor MCP
 
 ## Cursor
 
-Instala el [plugin de Tuist para Cursor](https://github.com/tuist/cursor-plugin) desde el [Cursor Marketplace](https://cursor.com/marketplace):
+Instala el [plugin de Tuist para Cursor](https://github.com/tuist/cursor-plugin) desde el [Marketplace de Cursor](https://cursor.com/marketplace):
 
 1. Abre **Personalizar** en la barra lateral de Cursor.
 2. Busca **Tuist**.
-3. Selecciona **Instalar** y luego elige si deseas instalarlo para el proyecto actual o para tu cuenta de usuario.
+3. Selecciona **Instalar** y elige si quieres instalarlo para el proyecto actual o para tu cuenta de usuario.
 
 También puedes escribir `/add-plugin` en Cursor para abrir el mismo flujo de instalación. El plugin proporciona habilidades de Tuist y conecta Cursor al servidor MCP alojado.
 
-Si tu organización gestiona los marketplaces de Cursor, importa primero `https://github.com/tuist/cursor-plugin` desde **Configuración → Plugins → Marketplaces de equipo → Importar marketplace**.
+Si tu organización gestiona los marketplaces de Cursor, importa primero `https://github.com/tuist/cursor-plugin` desde **Configuración → Plugins → Marketplaces del equipo → Importar marketplace**.
 
 ## Otros agentes de programación
 
-El [Tuist Agent Plugin](https://github.com/tuist/agent-plugin) sigue el estándar abierto e independiente del proveedor [Agent Plugins](https://agent-plugins.org/). Apunta un cliente compatible al repositorio, siguiendo las instrucciones de ese cliente para instalar o hacer referencia a directorios de plugins:
+El [Plugin de Agente de Tuist](https://github.com/tuist/agent-plugin) sigue el estándar abierto e independiente del proveedor [Agent Plugins](https://agent-plugins.org/). Apunta un cliente compatible al repositorio siguiendo las instrucciones de ese cliente para instalar o hacer referencia a directorios de plugins:
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
@@ -45,7 +45,7 @@ Instala las habilidades de Tuist y registra `https://tuist.dev/mcp` como un serv
 
 ## Autenticación
 
-La mayoría de las habilidades utilizan la interfaz de línea de comandos de Tuist, así que autentícate una vez antes de pedirle a un agente que acceda a los datos de tu proyecto:
+La mayoría de las habilidades usan la interfaz de línea de comandos de Tuist, así que autentícate una vez antes de pedirle a un agente que acceda a los datos de tu proyecto:
 
 ```bash
 tuist auth login
