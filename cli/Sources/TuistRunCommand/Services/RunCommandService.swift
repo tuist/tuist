@@ -501,13 +501,17 @@ struct RunCommandService {
         #else
             let hostPlatform: Components.Schemas.PreviewSupportedPlatform = .linux
         #endif
-        for build in preview.builds.filter({
+        let builds = preview.builds.filter {
+            let architectures = $0.supported_architectures ?? []
+            return architectures.isEmpty || architectures.contains(ExecutablePreviewTarget.host.architectures[0])
+        }
+        for build in builds.filter({
             $0._type == .executable && $0.supported_platforms.contains(hostPlatform)
         }) {
             if try await runExecutablePreview(build, arguments: arguments) { return true }
         }
         #if os(macOS)
-            for build in preview.builds.filter({ $0._type == .app_bundle && $0.supported_platforms.contains(.macos) }) {
+            for build in builds.filter({ $0._type == .app_bundle && $0.supported_platforms.contains(.macos) }) {
                 var desktopPreview = preview
                 desktopPreview.builds = [build]
                 let appBundle = try await downloadAppleAppBundle(

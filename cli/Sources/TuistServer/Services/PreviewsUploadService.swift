@@ -191,6 +191,7 @@ public protocol PreviewsUploadServicing {
                             buildVersion: resolvedBuildVersion(gitCommitSHA ?? binaryId),
                             bundleIdentifier: nil,
                             supportedPlatforms: platforms,
+                            supportedArchitectures: target.architectures,
                             gitBranch: gitBranch,
                             gitCommitSHA: gitCommitSHA,
                             gitRef: gitRef,
@@ -297,6 +298,13 @@ public protocol PreviewsUploadServicing {
                             at: bundle.path,
                             name: bundle.infoPlist.executableName ?? bundle.infoPlist.name
                         )
+                        var architectures: [String] = []
+                        if bundle.infoPlist.supportedPlatforms.contains(.device(.macOS)) {
+                            let executable = bundle.path.appending(
+                                components: "Contents", "MacOS", bundle.infoPlist.executableName ?? bundle.infoPlist.name
+                            )
+                            architectures = (try? ExecutablePreviewTarget.read(at: executable.url))?.architectures ?? []
+                        }
 
                         preview = try await uploadPreviewBuild(
                             buildPath: bundleArchivePath,
@@ -307,6 +315,7 @@ public protocol PreviewsUploadServicing {
                             bundleIdentifier: bundle.infoPlist.bundleId,
                             supportedPlatforms: bundle.infoPlist.supportedPlatforms
                                 .map(Components.Schemas.PreviewSupportedPlatform.init),
+                            supportedArchitectures: architectures,
                             gitBranch: gitBranch,
                             gitCommitSHA: gitCommitSHA,
                             gitRef: gitRef,
@@ -356,6 +365,7 @@ public protocol PreviewsUploadServicing {
             buildVersion: String,
             bundleIdentifier: String?,
             supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
+            supportedArchitectures: [String] = [],
             gitBranch: String?,
             gitCommitSHA: String?,
             gitRef: String?,
@@ -376,6 +386,7 @@ public protocol PreviewsUploadServicing {
                     buildVersion: buildVersion,
                     bundleIdentifier: bundleIdentifier,
                     supportedPlatforms: supportedPlatforms,
+                    supportedArchitectures: supportedArchitectures,
                     gitBranch: gitBranch,
                     gitCommitSHA: gitCommitSHA,
                     gitRef: gitRef,

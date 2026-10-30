@@ -256,6 +256,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         {:ok, build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"])
         assert build.type == :executable
         assert build.supported_platforms == [String.to_existing_atom(@platform)]
+        assert build.supported_architectures == []
       end
     end
 
@@ -270,10 +271,15 @@ defmodule TuistWeb.PreviewsControllerTest do
       stub(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://example.com/build.zip" end)
       conn = Authentication.put_current_user(conn, user)
 
-      targets = [{"macos", "macos-arm64"}, {"macos", "macos-x86_64"}, {"linux", "linux-x86_64"}]
+      targets = [
+        {"macos", "macos-arm64", ["arm64"]},
+        {"macos", "macos-x86_64", ["x86_64"]},
+        {"macos", "macos-universal", ["arm64", "x86_64"]},
+        {"linux", "linux-x86_64", ["x86_64"]}
+      ]
 
       responses =
-        Enum.map(targets, fn {platform, binary_id} ->
+        Enum.map(targets, fn {platform, binary_id, architectures} ->
           started =
             conn
             |> put_req_header("content-type", "application/json")
@@ -283,9 +289,13 @@ defmodule TuistWeb.PreviewsControllerTest do
               git_commit_sha: "preview-commit",
               build_version: "preview-commit",
               binary_id: binary_id,
-              supported_platforms: [platform]
+              supported_platforms: [platform],
+              supported_architectures: architectures
             )
             |> json_response(:ok)
+
+          {:ok, build} = AppBuilds.app_build_by_id(started["data"]["app_build_id"])
+          assert build.supported_architectures == architectures
 
           conn
           |> put_req_header("content-type", "application/json")
@@ -300,11 +310,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert responses |> Enum.map(& &1["id"]) |> Enum.uniq() |> length() == 1
       preview = List.last(responses)
       assert Enum.sort(preview["supported_platforms"]) == ["linux", "macos"]
-      assert length(preview["builds"]) == 3
+      assert length(preview["builds"]) == 4
       assert Enum.all?(preview["builds"], &(&1["type"] == "executable"))
 
-      assert Enum.sort(Enum.map(preview["builds"], & &1["binary_id"])) ==
-               Enum.sort(Enum.map(targets, &elem(&1, 1)))
+      assert Enum.sort(
+               Enum.map(preview["builds"], fn build ->
+                 {hd(build["supported_platforms"]), build["binary_id"], build["supported_architectures"]}
+               end)
+             ) == Enum.sort(targets)
 
       started =
         conn
@@ -816,6 +829,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                  %{
                    "id" => app_build.id,
                    "type" => "app_bundle",
+                   "supported_architectures" => [],
                    "supported_platforms" => ["ios"],
                    "url" => "https://mocked-url.com",
                    "inserted_at" => DateTime.to_iso8601(app_build.inserted_at),
@@ -1415,6 +1429,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                    %{
                      "id" => app_build_two.id,
                      "type" => "app_bundle",
+                     "supported_architectures" => [],
                      "supported_platforms" => ["ios"],
                      "url" => "https://mocked-url.com",
                      "inserted_at" => DateTime.to_iso8601(app_build_two.inserted_at),

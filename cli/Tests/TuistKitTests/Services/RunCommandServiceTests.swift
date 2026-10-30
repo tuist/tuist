@@ -174,14 +174,21 @@ struct RunCommandServiceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func selectsCompatiblePlatformAndArchitectureBeforeRunningBuild() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [
+        (nil, false), ([], false), (ExecutablePreviewTarget.host.architectures, false),
+        (["arm64", "x86_64"], false), (ExecutablePreviewTarget.host.architectures, true),
+    ] as [([String]?, Bool)])
+    func selectsCompatiblePlatformAndArchitectureBeforeDownloadingBuild(
+        architectures: [String]?, mismatchedMetadata: Bool
+    ) async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let wrongTool = directory.appending(component: "wrong-tool")
         #if arch(arm64)
             let cpu: UInt8 = 7
+            let wrongArchitecture = "x86_64"
         #else
             let cpu: UInt8 = 12
+            let wrongArchitecture = "arm64"
         #endif
         try Data([0xCF, 0xFA, 0xED, 0xFE, cpu, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0]).write(to: wrongTool.url)
         let tool = directory.appending(component: "tool")
@@ -203,8 +210,17 @@ struct RunCommandServiceTests {
             let archive = try await FileArchivingFactory().makeFileArchiver(for: [executable, manifest])
                 .zip(name: executable.basename)
             let url = URL(string: "https://tuist.dev/\(executable.basename).zip")!
-            given(remoteArtifactDownloader).download(url: .value(url)).willReturn(archive)
-            builds.append(.test(id: executable.basename, supportedPlatforms: [.macos], type: .executable, url: url))
+            let isKnownIncompatible = executable == wrongTool && !(architectures ?? []).isEmpty && !mismatchedMetadata
+            if isKnownIncompatible {
+                given(remoteArtifactDownloader).download(url: .value(url)).willThrow(TestError())
+            } else {
+                given(remoteArtifactDownloader).download(url: .value(url)).willReturn(archive)
+            }
+            builds.append(.test(
+                id: executable.basename,
+                supportedArchitectures: isKnownIncompatible ? [wrongArchitecture] : architectures,
+                supportedPlatforms: [.macos], type: .executable, url: url
+            ))
         }
         given(getPreviewService).getPreview(.any, fullHandle: .any, serverURL: .any).willReturn(.test(
             builds: builds, supportedPlatforms: [.linux, .macos]
@@ -214,6 +230,23 @@ struct RunCommandServiceTests {
             runnable: .url(URL(string: "https://tuist.dev/tuist/tuist/previews/id")!), arguments: [output.pathString]
         )
         #expect(try String(contentsOf: output.url, encoding: .utf8) == "right build")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func rejectsUnavailableArchitectureWithoutDownloading() async throws {
+        #if arch(arm64)
+            let architectures = ["x86_64"]
+        #else
+            let architectures = ["arm64"]
+        #endif
+        given(remoteArtifactDownloader).download(url: .any).willThrow(TestError())
+        given(getPreviewService).getPreview(.any, fullHandle: .any, serverURL: .any).willReturn(.test(
+            builds: [.test(supportedArchitectures: architectures, supportedPlatforms: [.macos], type: .executable)],
+            supportedPlatforms: [.macos]
+        ))
+        await #expect(throws: RunCommandServiceError.incompatibleDesktopPreview) {
+            try await subject.run(runnable: .url(URL(string: "https://tuist.dev/tuist/tuist/previews/id")!))
+        }
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [

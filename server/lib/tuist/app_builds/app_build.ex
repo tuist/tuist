@@ -35,6 +35,7 @@ defmodule Tuist.AppBuilds.AppBuild do
         linux: 10
       ]
 
+    field :supported_architectures, {:array, :string}, default: []
     field :binary_id, :string
     field :build_version, :string
 
@@ -48,10 +49,13 @@ defmodule Tuist.AppBuilds.AppBuild do
       :type,
       :inserted_at,
       :supported_platforms,
+      :supported_architectures,
       :binary_id,
       :build_version
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
+    |> validate_subset(:supported_architectures, ["arm64", "x86_64"])
+    |> validate_length(:supported_architectures, max: 2)
     |> validate_required([:preview_id, :type])
     |> unique_constraint([:binary_id, :build_version],
       name: :app_builds_binary_id_build_version_non_apk_index

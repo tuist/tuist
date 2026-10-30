@@ -24,7 +24,11 @@ struct ExecutablePreviewManifestTests {
             1, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 16, 0, 0, 0, 0,
         ]
         try Data(universal).write(to: executable)
-        #expect(try ExecutablePreviewTarget.read(at: executable) == .init(platform: "macos", architectures: ["x86_64", "arm64"]))
+        #expect(try ExecutablePreviewTarget.read(at: executable) == .init(platform: "macos", architectures: ["arm64", "x86_64"]))
+
+        universal[31] = 7
+        try Data(universal).write(to: executable)
+        #expect(try ExecutablePreviewTarget.read(at: executable) == .init(platform: "macos", architectures: ["x86_64"]))
 
         universal[28] = 0
         try Data(universal).write(to: executable)

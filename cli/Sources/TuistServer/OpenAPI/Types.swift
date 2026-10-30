@@ -24047,6 +24047,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/id`.
             public var id: Swift.String
+            /// CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuild/supported_architectures`.
+            public var supported_architectures: [Swift.String]?
             /// - Remark: Generated from `#/components/schemas/AppBuild/supported_platforms`.
             public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
             /// The type of the build
@@ -24071,18 +24075,21 @@ public enum Components {
             /// - Parameters:
             ///   - binary_id: The Mach-O UUID or SHA-256 content hash of the build.
             ///   - id: Unique identifier of the build.
+            ///   - supported_architectures: CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
             ///   - supported_platforms:
             ///   - _type: The type of the build
             ///   - url: The URL to download the build
             public init(
                 binary_id: Swift.String? = nil,
                 id: Swift.String,
+                supported_architectures: [Swift.String]? = nil,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
                 _type: Components.Schemas.AppBuild._typePayload,
                 url: Swift.String
             ) {
                 self.binary_id = binary_id
                 self.id = id
+                self.supported_architectures = supported_architectures
                 self.supported_platforms = supported_platforms
                 self._type = _type
                 self.url = url
@@ -24090,6 +24097,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case binary_id
                 case id
+                case supported_architectures
                 case supported_platforms
                 case _type = "type"
                 case url
@@ -78512,6 +78520,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/release_notes`.
                     public var release_notes: Swift.String?
+                    /// CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_architectures`.
+                    public var supported_architectures: [Swift.String]?
                     /// The supported platforms of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
@@ -78548,6 +78560,7 @@ public enum Operations {
                     ///   - git_commit_sha: The git commit SHA associated with the preview.
                     ///   - git_ref: The git ref associated with the preview.
                     ///   - release_notes: Optional plain-text release notes describing this preview build.
+                    ///   - supported_architectures: CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds.
                     ///   - supported_platforms: The supported platforms of the preview.
                     ///   - track: The track for the preview (e.g., 'beta', 'nightly').
                     ///   - _type: The type of the preview to upload.
@@ -78561,6 +78574,7 @@ public enum Operations {
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         release_notes: Swift.String? = nil,
+                        supported_architectures: [Swift.String]? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         track: Swift.String? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
@@ -78574,6 +78588,7 @@ public enum Operations {
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.release_notes = release_notes
+                        self.supported_architectures = supported_architectures
                         self.supported_platforms = supported_platforms
                         self.track = track
                         self._type = _type
@@ -78588,6 +78603,7 @@ public enum Operations {
                         case git_commit_sha
                         case git_ref
                         case release_notes
+                        case supported_architectures
                         case supported_platforms
                         case track
                         case _type = "type"

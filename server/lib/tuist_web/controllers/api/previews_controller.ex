@@ -76,6 +76,14 @@ defmodule TuistWeb.API.PreviewsController do
              items: PreviewSupportedPlatform,
              description: "The supported platforms of the preview."
            },
+           supported_architectures: %Schema{
+             type: :array,
+             items: %Schema{type: :string, pattern: "^(arm64|x86_64)$"},
+             maxItems: 2,
+             uniqueItems: true,
+             description:
+               "CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds."
+           },
            git_branch: %Schema{
              type: :string,
              description: "The git branch associated with the preview."
@@ -199,6 +207,7 @@ defmodule TuistWeb.API.PreviewsController do
            git_commit_sha: Map.get(body_params, :git_commit_sha),
            created_by_account_id: account.id,
            supported_platforms: supported_platforms,
+           supported_architectures: Map.get(body_params, :supported_architectures, []),
            binary_id: binary_id,
            build_version: build_version
          }) do
@@ -897,6 +906,7 @@ defmodule TuistWeb.API.PreviewsController do
       url: Storage.generate_download_url(key, account, expires_in: expires_in),
       type: app_build.type,
       supported_platforms: app_build.supported_platforms,
+      supported_architectures: app_build.supported_architectures,
       inserted_at: app_build.inserted_at,
       binary_id: app_build.binary_id,
       build_version: app_build.build_version

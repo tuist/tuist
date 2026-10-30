@@ -75,7 +75,7 @@ public struct ExecutablePreviewTarget: Equatable {
         {
             let architectures = (0 ..< Int(count)).compactMap { architecture(word(8 + $0 * 20, littleEndian: false)) }
             if !architectures.isEmpty {
-                return Self(platform: "macos", architectures: architectures)
+                return Self(platform: "macos", architectures: Array(Set(architectures)).sorted())
             }
         }
         throw UnsupportedExecutable()

@@ -14055,6 +14055,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        supported_architectures:
+          description: CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         supported_platforms:
           items:
             $ref: '#/components/schemas/PreviewSupportedPlatform'
@@ -33764,6 +33773,18 @@ paths:
                   maxLength: 10000
                   nullable: true
                   type: string
+                  x-struct:
+                  x-validate:
+                supported_architectures:
+                  description: CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds.
+                  items:
+                    pattern: ^(arm64|x86_64)$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 2
+                  type: array
+                  uniqueItems: true
                   x-struct:
                   x-validate:
                 supported_platforms:

@@ -25,6 +25,12 @@ defmodule TuistWeb.API.Schemas.AppBuild do
         type: :array,
         items: PreviewSupportedPlatform
       },
+      supported_architectures: %Schema{
+        type: :array,
+        items: %Schema{type: :string},
+        description:
+          "CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable."
+      },
       binary_id: %Schema{
         type: :string,
         description: "The Mach-O UUID or SHA-256 content hash of the build."
