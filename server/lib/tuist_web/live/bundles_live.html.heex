@@ -364,25 +364,7 @@
             }
           >
             <:col :let={bundle} label={dgettext("dashboard_cache", "Name")}>
-              <div data-part="cell" data-type="text">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span data-part="label">{bundle.name}</span>
-                  <.badge
-                    :for={{tag, index} <- bundle.custom_tags |> Enum.take(2) |> Enum.with_index()}
-                    label={tag}
-                    color={if index == 0, do: "success", else: "information"}
-                    style="light-fill"
-                    size="large"
-                  />
-                  <.badge
-                    :if={length(bundle.custom_tags) > 2}
-                    label={"+#{length(bundle.custom_tags) - 2}"}
-                    color="information"
-                    style="light-fill"
-                    size="large"
-                  />
-                </div>
-              </div>
+              <.project_with_tags_cell label={bundle.name} tags={bundle.custom_tags} />
             </:col>
             <:col :let={bundle} label={dgettext("dashboard_cache", "Branch")}>
               <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />

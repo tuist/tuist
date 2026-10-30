@@ -7,6 +7,7 @@ defmodule TuistWeb.BundlesLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.EmptyState
   import TuistWeb.Previews.PlatformTag
+  import TuistWeb.Runs.ProjectWithTags
 
   alias Noora.Filter
   alias Tuist.Bundles

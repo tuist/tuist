@@ -16,15 +16,16 @@ defmodule TuistWeb.BundleLiveTest do
     project: project
   } do
     # Given
-    bundle = BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid", "release"])
+    bundle = BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid", "release", "nightly"])
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}")
 
     # Then
     assert has_element?(lv, "span[data-part='label']", "main")
-    assert has_element?(lv, "[data-part='metadata']", "paid")
-    assert has_element?(lv, "[data-part='metadata']", "release")
+    assert has_element?(lv, "[data-part='metadata'] .noora-badge[data-color='success']", "paid")
+    assert has_element?(lv, "[data-part='metadata'] .noora-badge[data-color='information']", "release")
+    assert has_element?(lv, "[data-part='metadata'] .noora-badge[data-color='information']", "nightly")
   end
 
   test "raises not found error when the bundle does not exist", %{conn: conn} do

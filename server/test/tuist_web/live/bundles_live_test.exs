@@ -68,8 +68,10 @@ defmodule TuistWeb.BundlesLiveTest do
     path = ~p"/#{organization.account.name}/#{project.name}/bundles"
     {:ok, lv, _html} = live(conn, path)
 
-    assert has_element?(lv, "#bundles-table", "paid")
-    assert has_element?(lv, "#bundles-table", "+1")
+    assert has_element?(lv, "#bundles-table .noora-badge[data-color='success']", "paid")
+    assert has_element?(lv, "#bundles-table .noora-badge[data-color='information']", "+2")
+    refute has_element?(lv, "#bundles-table .noora-badge", "release")
+    refute has_element?(lv, "#bundles-table .noora-badge", "nightly")
     refute has_element?(lv, "#filter-dropdown", "other-project")
 
     render_click(lv, "add_filter", %{"value" => "custom_tags"})
