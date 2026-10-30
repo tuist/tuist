@@ -20,6 +20,36 @@ defmodule TuistWeb.DocsLiveTest do
     :ok
   end
 
+  describe "preview build-system guides" do
+    test "overview links to Xcode, Gradle, and Bazel", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews")
+
+      for {system, name} <- [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}] do
+        assert has_element?(
+                 view,
+                 ~s(a[data-part="feature-card"][href="/en/docs/guides/features/previews/#{system}"]),
+                 name
+               )
+      end
+
+      assert has_element?(view, "#publish-from-once")
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/previews/once"]))
+    end
+
+    test "serves setup and eligibility for each build system", %{conn: conn} do
+      for {system, title, command} <- [
+            {"xcode", "Xcode previews", "tuist share App"},
+            {"gradle", "Gradle previews", "./gradlew :app:assembleDebug"},
+            {"bazel", "Bazel previews", "--publish --project acme/app"},
+            {"once", "Once artifact publication", "--allow-on-build"}
+          ] do
+        {:ok, view, html} = live(conn, "/en/docs/guides/features/previews/" <> system)
+        assert has_element?(view, "h1", title)
+        assert html |> Floki.parse_document!() |> Floki.find("main") |> Floki.text() =~ command
+      end
+    end
+  end
+
   describe "Rust documentation" do
     test "feature overviews link to Rust guides", %{conn: conn} do
       for path <- [

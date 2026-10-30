@@ -290,8 +290,11 @@ operations; retain them until an administrator removes them.
 - **Full closures** (account object storage):
   `{account_id}/{project_id}/artifacts/{intent_key}/{digest}` stores the immutable
   artifact-set document, all member manifests and all payloads, including unknown
-  consumption interfaces. Authenticated uploads verify SHA-256; commit validates
-  the reachable closure before returning a receipt. Supported native interfaces
+  consumption interfaces. Once and Bazel application publications use this same
+  namespace, receipt identity and export process. Bazel publications include only
+  the selected signed application payload and derived native metadata, not
+  signing keys or unrelated rule outputs. Authenticated uploads verify SHA-256;
+  commit validates the reachable closure before returning a receipt. Supported native interfaces
   additionally create `previews`/`app_builds` rows with the publication's project,
   creator, revision, track and original timestamp, honoring the project's default
   preview visibility. The nullable `app_builds.artifact_storage_key` references

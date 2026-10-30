@@ -7,48 +7,31 @@
 ---
 # Previews {#previews}
 
-Tuist Previews let you generate and share app previews so teammates can test builds without rebuilding locally.
+Tuist Previews let teammates test your application without rebuilding it locally or waiting for a TestFlight or Play Console release. Publish a build to your Tuist project, then share its preview link.
 
-When building an app, you may want to share it with others to get feedback.
-Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
-However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or a friend.
+Choose your build system for setup, signing requirements, and publication commands:
 
-To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
+<.home_cards>
+  <.home_card
+    title="Xcode"
+    details="Share applications from existing Xcode projects or Tuist-generated projects."
+    link="/guides/features/previews/xcode"
+  />
+  <.home_card
+    title="Gradle"
+    details="Build an Android APK with Gradle and share it with the Tuist CLI."
+    link="/guides/features/previews/gradle"
+  />
+  <.home_card
+    title="Bazel"
+    details="Publish signed Android, Apple simulator, and macOS applications with companion Bazel rules."
+    link="/guides/features/previews/bazel"
+  />
+</.home_cards>
 
-> [!WARNING]
-> **Device Builds Need To Be Signed**
->
-> When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
+## Run a preview {#run-a-preview}
 
-::: code-group
-```bash [Tuist Project (Debug)]
-tuist generate App
-tuist xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
-tuist xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
-tuist share App
-```
-```bash [Tuist Project (Release)]
-tuist generate App
-tuist xcodebuild build -scheme App -workspace App.xcworkspace -configuration Release -sdk iphonesimulator # Build the app for the simulator
-tuist xcodebuild build -scheme App -workspace App.xcworkspace -configuration Release -destination 'generic/platform=iOS' # Build the app for the device
-tuist share App --configuration Release
-```
-```bash [Xcode Project (Debug)]
-tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
-tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
-tuist share App --configuration Debug --platforms iOS
-tuist share App.ipa # Share an existing .ipa file
-```
-```bash [Xcode Project (Release)]
-tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Release # Build the app for the simulator
-tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Release -destination 'generic/platform=iOS' # Build the app for the device
-tuist share App --configuration Release --platforms iOS
-tuist share App.ipa # Share an existing .ipa file
-```
-<!-- -->
-:::
-
-The command will generate a link that you can share with anyone to run the app – either on a simulator or an actual device. All they'll need to do is to run the command below:
+After publishing, share the returned preview link. Recipients can run a compatible build on a connected device or simulator:
 
 ```bash
 tuist run {url}
@@ -66,76 +49,13 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-> [!WARNING]
-> **Unique Build Numbers In Ci**
->
-> Ensure the `CFBundleVersion` (build version) is unique by leveraging a CI run number that most CI providers expose. For example, in GitHub Actions you can set the `CFBundleVersion` to the  <code v-pre>${{ github.run_number }}</code> variable. 
->
-> Uploading a preview with the same binary (build) and the same `CFBundleVersion` will fail.
-
 ## Publish from Once {#publish-from-once}
 
-[Once](https://buildonce.dev/docs/guide/infrastructure/tuist#publish-application-previews)
-can publish immutable artifacts to the same Tuist project using existing Tuist
-authentication. This flow requires Once 0.74.0 or later and a Tuist server with
-the artifact receiver. Once 0.73.x uses the legacy single-payload adapter instead.
-Configure the provider in the workspace's `once.toml`:
+Existing Once integrations have a separate <.localized_link href="/guides/features/previews/once">artifact publication guide</.localized_link>. Publication remains separate from cached graph execution.
 
-```toml
-[infrastructures.tuist]
-kind = "tuist"
-account = "acme"
-project = "app"
+## Publish from Bazel {#publish-from-bazel}
 
-[infrastructure.artifacts]
-name = "tuist"
-```
-
-```sh
-once auth login --provider tuist
-once artifact publish MyApplication --track review
-```
-
-Tuist's authenticated artifact receiver retains the complete set, member
-manifests and payloads, including unknown interfaces. Supported native interfaces
-are projected asynchronously into previews with the project's default visibility,
-using existing project access and preview distribution. Generic artifact contents
-stay private, even in public projects. A publication receipt confirms artifact storage,
-not completion of preview processing; its URL opens the project's previews list.
-
-Apple projection accepts `dev.once.apple-install.v2` metadata for ad-hoc signed
-macOS and simulator applications exported on macOS. Physical-device applications
-are not eligible for this flow. Android projection accepts
-`dev.once.android-install.v1` metadata with a verified signature. Once approves
-automatic publication only for debug-signed, non-instrumentation APKs. Unknown
-interfaces remain downloadable as artifacts without creating previews.
-Android installation links preserve an `.apk` filename even though artifact
-payloads are stored under content digests.
-
-To publish from builds, opt in and explicitly authorize the destination:
-
-```toml
-[infrastructure]
-publish_on_build = ["MyApplication"]
-```
-
-```sh
-once artifact publish MyApplication --allow-on-build
-once build MyApplication
-```
-
-All requested builds must succeed. Automatic publication also requires producer
-approval of the entire closure and local authorization for this machine,
-workspace, exact endpoint, target and stable Tuist project destination. Without
-policy or authorization there are no artifact-publication network requests.
-Replaying the same retained publication verifies the remote receipt and avoids
-another upload. This differs from the duplicate-build behavior of `tuist share`.
-
-Artifact publications expire after 30 days on hosted Tuist. Self-hosted instances
-use `TUIST_APP_PREVIEW_RETENTION_DAYS`; leaving it unset disables expiry for this
-family. Expired publication records remain as tombstones and cannot be reactivated
-by replaying the same intent. The existing `tuist share` signing, visibility and
-distribution workflows remain unchanged.
+See the <.localized_link href="/guides/features/previews/bazel">Bazel preview guide</.localized_link> for the application rules, runtime publication consent, and cache replay behavior.
 
 ## Tracks {#tracks}
 
@@ -156,7 +76,7 @@ This is useful for:
 > [!WARNING]
 > **Previews' Visibility**
 >
-> Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
+> Previews use the project's default visibility. Private previews require authentication and project access; make previews public in project settings only when the application can be shared with anyone.
 
 ## Release notes {#release-notes}
 

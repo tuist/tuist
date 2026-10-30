@@ -396,7 +396,15 @@ defmodule Tuist.Docs.Sidebar do
         label: "Bundles",
         weight: :medium,
         items: [
-          %Item{label: "Previews", slug: "/en/guides/features/previews"},
+          %Item{
+            label: "Previews",
+            slug: "/en/guides/features/previews",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/previews/xcode", icon: "brand_apple"},
+              %Item{label: "Gradle", slug: "/en/guides/features/previews/gradle", icon: "brand_gradle"},
+              %Item{label: "Bazel", slug: "/en/guides/features/previews/bazel", icon: "brand_bazel"}
+            ]
+          },
           %Item{
             label: "Insights",
             text_path: "sidebars.guides.items.develop.items.bundle-insights",

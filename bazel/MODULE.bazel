@@ -1,0 +1,7 @@
+module(
+    name = "tuist_previews",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_android", version = "0.8.0")
+bazel_dep(name = "rules_apple", version = "5.3.1")

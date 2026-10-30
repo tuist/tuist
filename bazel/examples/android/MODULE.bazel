@@ -1,0 +1,21 @@
+module(name = "tuist_android_preview_example")
+
+bazel_dep(name = "tuist_previews", version = "0.1.0")
+local_path_override(
+    module_name = "tuist_previews",
+    path = "../..",
+)
+
+bazel_dep(name = "rules_android", version = "0.8.0")
+
+android_tools = use_extension("@rules_android//bzlmod_extensions:android_extensions.bzl", "remote_android_tools_extensions")
+use_repo(android_tools, "android_tools")
+
+android_sdk = use_extension("@rules_android//rules/android_sdk_repository:rule.bzl", "android_sdk_repository_extension")
+android_sdk.configure(
+    api_level = 35,
+    build_tools_version = "35.0.0",
+)
+use_repo(android_sdk, "androidsdk")
+
+register_toolchains("@androidsdk//:sdk-toolchain", "@androidsdk//:all")
