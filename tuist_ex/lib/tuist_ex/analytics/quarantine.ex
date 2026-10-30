@@ -9,11 +9,15 @@ defmodule TuistEx.Analytics.Quarantine do
   # `inspect/1` prints it, the describe block ("" outside one), and the
   # test's own name, without ExUnit's type and describe prefixes.
   #
-  # ExUnit filters match one tag at a time, so a skipped test is excluded by
-  # its full name (`test:"test <describe> <name>"`), the only tag that names
-  # it. A test of the same full name in another module is excluded with it,
-  # and a test of another type (`property`, `feature`) is not excluded; the
-  # formatter names both after the run.
+  # A skipped test is left out by its exact ExUnit id, `{module, name}`,
+  # through `ExcludeTestIds`, which patches ExUnit for it. Where it cannot,
+  # ExUnit's own filters leave it out by its full name
+  # (`test:"test <describe> <name>"`), the only tag that names it: those
+  # match one tag at a time, so a test of the same full name in another
+  # module is left out with it, and an include filter brings it back. Either
+  # way, a test of another type (`property`, `feature`) runs. The formatter
+  # names, after the run, what the name filter left out with it and the
+  # skipped tests that ran.
 
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
@@ -89,7 +93,18 @@ defmodule TuistEx.Analytics.Quarantine do
     do: MapSet.size(muted) == 0 and MapSet.size(skipped) == 0
 
   @doc """
-  The `mix test` arguments that leave the skipped tests out.
+  The ExUnit ids, `{module, name}`, of the skipped tests: the module as
+  ExUnit holds it, and the test's full name, as `test.name` holds it.
+  """
+  def test_ids(%__MODULE__{skipped: skipped}) do
+    Enum.map(skipped, fn {module, _suite, _name} = identity ->
+      {Module.concat([module]), String.to_atom(full_name(identity))}
+    end)
+  end
+
+  @doc """
+  The `mix test` arguments that leave the skipped tests out by name, where
+  `test_ids/1` cannot.
   """
   def exclude_args(policy) do
     policy |> excluded_names() |> Enum.sort() |> Enum.flat_map(&["--exclude", "test:" <> &1])
@@ -99,13 +114,13 @@ defmodule TuistEx.Analytics.Quarantine do
   The full ExUnit names of the skipped tests, as `test.name` holds them.
   """
   def excluded_names(%__MODULE__{skipped: skipped}) do
-    MapSet.new(skipped, fn
-      {_module, "", name} -> "test " <> name
-      {_module, suite, name} -> "test " <> suite <> " " <> name
-    end)
+    MapSet.new(skipped, &full_name/1)
   end
 
   def excluded_names(nil), do: MapSet.new()
+
+  defp full_name({_module, "", name}), do: "test " <> name
+  defp full_name({_module, suite, name}), do: "test " <> suite <> " " <> name
 
   def identity(%{module: module, describe: describe, name: name}),
     do: {module, describe || "", name}

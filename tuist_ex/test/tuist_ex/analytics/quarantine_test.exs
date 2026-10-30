@@ -81,6 +81,20 @@ defmodule TuistEx.Analytics.QuarantineTest do
              {:excluded, "due to test filter"}
   end
 
+  test "names a skipped test by the ExUnit id of its module and full name" do
+    policy =
+      Quarantine.from_cases([
+        test_case("skipped", "App.OrderTest", nil, "ships"),
+        test_case("skipped", "App.CartTest", "add/2", "rejects nil"),
+        test_case("muted", "App.CartTest", "add/2", "flakes")
+      ])
+
+    assert Enum.sort(Quarantine.test_ids(policy)) == [
+             {App.CartTest, :"test add/2 rejects nil"},
+             {App.OrderTest, :"test ships"}
+           ]
+  end
+
   test "a run fails only on muted tests when every failed test is muted" do
     policy = Quarantine.from_cases([test_case("muted", "App.CartTest", "add/2", "flakes")])
 
