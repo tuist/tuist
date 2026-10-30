@@ -173,6 +173,23 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
           head_size_bytes: 1_000_000_000,
           reason: "prewarm",
           extra: "dropped"
+        },
+        %{
+          kind: "checkout",
+          id: "checkout-use",
+          account_id: 42,
+          scope: "checkout-scope",
+          generation: 1,
+          image_digest: "d",
+          content_digest: "c",
+          volume_bytes: 20_000_000_000,
+          head_size_bytes: nil,
+          reason: "recent",
+          checkout_generation: 3,
+          clone_url: "https://github.com/org/repo",
+          default_branch: "main",
+          uid: 1000,
+          volume_key: "key"
         }
       ]
     end)
@@ -194,6 +211,23 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
                  "volume_bytes" => 20_000_000_000,
                  "head_size_bytes" => 1_000_000_000,
                  "reason" => "prewarm"
+               },
+               %{
+                 "kind" => "checkout",
+                 "id" => "checkout-use",
+                 "account_id" => 42,
+                 "scope" => "checkout-scope",
+                 "generation" => 1,
+                 "image_digest" => "d",
+                 "content_digest" => "c",
+                 "volume_bytes" => 20_000_000_000,
+                 "head_size_bytes" => nil,
+                 "reason" => "recent",
+                 "checkout_generation" => 3,
+                 "clone_url" => "https://github.com/org/repo",
+                 "default_branch" => "main",
+                 "uid" => 1000,
+                 "volume_key" => "key"
                }
              ]
            }

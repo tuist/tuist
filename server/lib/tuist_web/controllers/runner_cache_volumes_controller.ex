@@ -129,7 +129,12 @@ defmodule TuistWeb.RunnerCacheVolumesController do
               :content_digest,
               :volume_bytes,
               :head_size_bytes,
-              :reason
+              :reason,
+              :checkout_generation,
+              :clone_url,
+              :default_branch,
+              :uid,
+              :volume_key
             ])
           end)
 

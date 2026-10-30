@@ -420,7 +420,9 @@ prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
 only into free space above the reserve, never evicting, and as a speculative
 master that pressure eviction takes first until a job clones it.
 `tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
-heads' used bytes it installed (`job`, `prewarm`, `recent`). Dispatch separately prefers handing a polling host a queued job whose
+heads' used bytes it installed (`job`, `prewarm`, `recent`). Checkout HEADs in the list (`kind: "checkout"`)
+go to the checkout populator as a `Spare` restore: free space only, never
+evicting, never replacing a job's request; they are not counted there. Dispatch separately prefers handing a polling host a queued job whose
 predicted custom volumes the host's Node labels advertise (see
 `Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
 the built-in volume. Both that preference and the macOS Pod placement preference

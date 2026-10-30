@@ -239,6 +239,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the saved head's used bytes for each installed master (`job`, `refresh` for a
   newer HEAD of a local master, `prewarm`, `recent`; an unknown listing reason
   counts as `recent`). Hosts of every environment report it, so filter by `env`.
+  Checkout HEADs in the list go to `PrefetchCheckout` (see the checkout notes) and
+  are not counted there.
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
   carry a bounded `reason` and the host logs why; a 425 retried until the
   deadline is `execution_pending`, not `denied`. A Pod waits for GitHub's job
@@ -330,7 +332,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the LFS filter.
 - A master whose tip moved (a default-branch commit, or a started lineage) is
   published under the job's use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
-  one); a cold host with a HEAD restores it in the background instead. A cold
+  one); a cold host with a HEAD restores it in the background instead, and the
+  prefetch poller restores the checkout HEADs the server lists for the host class
+  ahead of any job (`PrefetchCheckout`, a `Spare` restore from free space only). A cold
   answer journals no branch and reports the use deleted at once. A host without
   working git answers `denied`, so guests do not export. `Track` maps the
   server's stable `volume_key` to the current scope and drops the previous

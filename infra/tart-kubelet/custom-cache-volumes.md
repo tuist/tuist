@@ -313,7 +313,8 @@ so the server can tell which custom volumes this host holds.
 The prefetch poller (`PrefetchPoller`) also hands it the saved custom-volume HEADs
 the server lists for the host class: dispatch cannot know which custom volumes a job attaches, so
 every host of the class warms them. These speculative downloads use free space
-only and never evict a master. Read-only `retain` and `download` image requests
+only and never evict a master. Checkout HEADs in the list go to the checkout
+populator, which restores them the same way. Read-only `retain` and `download` image requests
 may name a use allocated on another node, since such a master is held under the
 use that published it. Agent shutdown cancels and joins the worker. macOS custom volumes emit the shared
 operation/source/result metrics through tart-kubelet's existing metrics endpoint.

@@ -96,3 +96,46 @@ func TestListingRestoresNothingWhenTheServerRefuses(t *testing.T) {
 	}
 	l.once(context.Background())
 }
+
+// A listed checkout HEAD goes to the checkout populator as a spare restore; it
+// is never restored as a custom master or counted as one.
+func TestListingHandsCheckoutHeadsToTheCheckouts(t *testing.T) {
+	token := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(token, []byte("agent-token"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	scope, key := strings.Repeat("a", 64), strings.Repeat("d", 64)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"masters": [{"kind": "checkout", "id": "11111111-1111-4111-8111-111111111111", "scope": "`+scope+`",
+			"generation": 3, "image_digest": "`+strings.Repeat("b", 40)+`", "content_digest": "`+strings.Repeat("c", 64)+`", "head_size_bytes": 50,
+			"reason": "recent", "checkout_generation": 2, "clone_url": "https://github.com/org/repo", "default_branch": "main", "uid": 1000, "volume_key": "`+key+`"}]}`)
+	}))
+	defer server.Close()
+
+	var tasks []cachevolumes.CheckoutTask
+	installed := map[string]int64{}
+	l := &listing{
+		url: server.URL + "/masters", node: "linux-01", tokenPath: token, client: server.Client(),
+		local: func(cachevolumes.Identity) bool { return false },
+		restore: func(context.Context, cachevolumes.Slot) error {
+			t.Error("a checkout HEAD was restored as a custom master")
+			return nil
+		},
+		checkout:  func(task cachevolumes.CheckoutTask) bool { tasks = append(tasks, task); return true },
+		installed: func(reason string, bytes int64) { installed[reason] += bytes },
+		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)), budget: time.Minute,
+	}
+	l.once(context.Background())
+
+	want := cachevolumes.CheckoutTask{
+		Scope: scope, Generation: 2, CloneURL: "https://github.com/org/repo", DefaultBranch: "main",
+		Use: "11111111-1111-4111-8111-111111111111", BaseGeneration: 3, ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64),
+		UID: 1000, VolumeKey: key, Spare: true,
+	}
+	if len(tasks) != 1 || tasks[0] != want {
+		t.Fatalf("checkout prefetches = %+v", tasks)
+	}
+	if len(installed) != 0 {
+		t.Fatal("counted a checkout restore it only queued", installed)
+	}
+}

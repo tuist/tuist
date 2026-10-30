@@ -277,7 +277,7 @@ func main() {
 		// Checkout images are larger than custom ones, so their archives get their own bound.
 		Transfer: &imageTransfer{URL: transfer.URL, Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Log: metrics.logger}}
 	space := &checkoutSpace{root: *root, reserve: backend.MinFreeBytes, checkouts: checkouts}
-	checkouts.Room = space.room
+	checkouts.Room, checkouts.Spare = space.room, space.spare
 	backend.Seed, backend.FreeBytesContext, backend.Reclaim = checkouts.Seed, space.free, space.reclaim
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
@@ -319,7 +319,7 @@ func main() {
 	go checkouts.Start(context.Background())
 	// Separate from the job prefetcher, so a missed master never waits behind a
 	// listed one: at most one download of each kind at a time.
-	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HasMaster, restore: backend.PrefetchSpare, observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
+	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HasMaster, restore: backend.PrefetchSpare, checkout: prefetchCheckout(checkouts), observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
 	go listed.run(context.Background())
 	go func() {
 		for {

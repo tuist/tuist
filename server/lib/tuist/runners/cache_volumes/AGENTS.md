@@ -187,7 +187,11 @@ these schemas persist volume identities and per-job uses.
   under the use through `image/3` (`checkout_publish`): only the generation and the
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
-  `prefetch_heads` skips checkout volumes; a host restores their HEAD itself.
+  `prefetch_heads` lists checkout HEADs in a list of their own (`@checkout_limit`,
+  after the custom volumes' lists, so they never take a custom volume's place), as
+  `kind: "checkout"` with the `checkout_generation`, `clone_url`, `default_branch`,
+  `uid` and `volume_key` a host restores the master with. A host without the
+  master still answers a job cold and restores it in the background.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
   default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the
