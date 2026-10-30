@@ -1463,7 +1463,8 @@ jobs:
       # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
       # (see Project.swift): the EE suite this job has always run, which covers
       # caching, module cache and selective testing against canary, plus
-      # TuistServerAcceptanceTests, which covers build and test result ingestion.
+      # TuistServerAcceptanceTests, which covers build and test result ingestion
+      # and a sharded Xcode build (plan, upload, then a shard run from the upload).
       # Ingestion had no coverage here at all, which is how a change that killed
       # 100% of build ingestion promoted to production green on 2026-09-09, and
       # one that killed 100% of xcresult processing on 2026-09-23.
@@ -1572,6 +1573,66 @@ jobs:
         env:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
         run: mise run --no-deps e2e module_cache_backward_compat
+
+  # Sharded builds gate - a build job creates its shard plan and starts
+  # uploading within a second, and every one of those requests can land on a
+  # ClickHouse replica that has not fetched the plan yet. The probe does the
+  # same for an Xcode and a Mix project, with each plan's uploads in flight at
+  # once, then a Mix project is built, sharded and tested through tuist_ex.
+  # The Xcode CLI flow is ShardAcceptanceTests in Acceptance Tests above.
+  # Nothing here retries: a 404 right after plan creation is the regression.
+  shard-acceptance:
+    name: Shard acceptance (Xcode + Mix)
+    needs: canary
+    if: ${{ always() && needs.canary.result == 'success' }}
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      TUIST_URL: https://canary.tuist.dev
+      TUIST_PROJECT: tuist/shard-plan-probe-mix
+      TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-shard-acceptance
+      # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
+      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+      TUIST_AUTH_PASSWORD: tuistrocks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Use shard plans right after creating them
+        env:
+          TUIST_PROBE_CREATE_BUILD_SYSTEMS: xcode mix
+        run: .github/scripts/shard-plan-visibility-probe.sh tuist/shard-plan-probe-xcode "$TUIST_PROJECT"
+      - name: Create the Mix fixtures
+        working-directory: tuist_ex
+        run: |
+          for directory in .shard-build .shard-0 .shard-1; do
+            bash ../.github/scripts/shard-storage-smoke-fixture.sh "$directory"
+          done
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      # Compiled first so each server-facing command starts with a fresh
+      # access token, which lives ten minutes.
+      - name: Build, plan and run the Mix shards
+        working-directory: tuist_ex
+        run: |
+          token() {
+            curl -fsS -X POST "$TUIST_URL/api/auth" -H 'Content-Type: application/json' \
+              -d "$(jq -n --arg email "$TUIST_AUTH_EMAIL" --arg password "$TUIST_AUTH_PASSWORD" '{email: $email, password: $password}')" \
+              | jq -r '.access_token'
+          }
+          for directory in .shard-build .shard-0 .shard-1; do
+            (cd "$directory" && mix deps.get && MIX_ENV=test mix compile)
+          done
+          (cd .shard-build && TUIST_TOKEN="$(token)" mix tuist.test.build --shard-total 2)
+          for index in 0 1; do
+            (cd ".shard-$index" && TUIST_TOKEN="$(token)" TUIST_SHARD_INDEX="$index" mix tuist.test)
+          done
 
   # Kura promotion gate - production's wave 0 never starts on an image the
   # canary environment has not actually converged on (spec #79). The canary
@@ -1706,6 +1767,7 @@ jobs:
         canary,
         acceptance-tests,
         backward-compatibility-acceptance,
+        shard-acceptance,
         kura-canary-rollout-gate,
         runners-acceptance,
         tag-infra-releases,
@@ -1720,6 +1782,7 @@ jobs:
       needs.canary.result == 'success' &&
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
+      needs.shard-acceptance.result == 'success' &&
       needs.kura-canary-rollout-gate.result == 'success' &&
       needs.runners-acceptance.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
@@ -1771,3 +1834,29 @@ jobs:
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
       install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
     secrets: inherit
+
+  # Production shard check - production's ClickHouse takes far more writes than
+  # canary's, so its replicas lag more often and a plan read that canary got
+  # away with can still fail here. Runs the same probe as shard-acceptance
+  # against tuist.dev after either production leg; on a hotfix, which skips
+  # canary, it is the only check of the deployed shard API.
+  production-shard-acceptance:
+    name: Shard acceptance on production
+    needs: [production, production-hotfix]
+    if: ${{ always() && (needs.production.result == 'success' || needs.production-hotfix.result == 'success') }}
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Use shard plans right after creating them
+        env:
+          TUIST_URL: https://tuist.dev
+          TUIST_PROBE_ITERATIONS: 5
+        run: .github/scripts/shard-plan-visibility-probe.sh tuist/tuist tuist/server

@@ -723,4 +723,76 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["message"] =~ "shard_plan_id or reference"
     end
   end
+
+  # The build job uploads its artifacts within a second of creating the plan, and in production
+  # those requests can read from a ClickHouse replica that has not fetched the plan yet. Deleting
+  # the plan's rows reproduces that replica for every read path, not just the ones a stub covers.
+  describe "uploads from the build job that created the plan" do
+    for build_system <- [:xcode, :gradle, :bazel, :once] do
+      @tag build_system: build_system
+      test "succeed for a #{build_system} project when no replica returns the plan yet", %{
+        conn: conn,
+        user: user,
+        build_system: build_system
+      } do
+        project =
+          ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id, build_system: build_system)
+
+        api = "/api/projects/#{project.account.name}/#{project.name}/tests/shards"
+
+        post_json = fn path, body ->
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(path, body)
+        end
+
+        plan_id =
+          api
+          |> post_json.(%{reference: "github-123-1", modules: ["AppTests", "CoreTests"], shard_total: 2})
+          |> json_response(:ok)
+          |> Map.fetch!("id")
+
+        for table <- ["shard_plans", "shard_plan_modules", "shard_plan_test_suites"] do
+          column = if table == "shard_plans", do: "id", else: "shard_plan_id"
+
+          Tuist.IngestRepo.query!(
+            "ALTER TABLE #{table} DELETE WHERE #{column} = {$0:UUID} SETTINGS mutations_sync = 1",
+            [plan_id]
+          )
+        end
+
+        assert {:error, :not_found} = Tuist.Shards.get_shard_plan(plan_id)
+
+        stub(Tuist.Storage, :multipart_start, fn _key, _actor -> {:ok, "upload-id"} end)
+        stub(Tuist.Storage, :multipart_generate_url, fn _key, "upload-id", 1, _actor -> "https://storage/part-1" end)
+        stub(Tuist.Storage, :multipart_complete_upload, fn _key, "upload-id", [{1, "etag1"}], _actor -> :ok end)
+
+        assert %{"data" => %{"upload_id" => "upload-id"}} =
+                 "#{api}/upload/start"
+                 |> post_json.(%{shard_plan_id: plan_id, artifact: "shared"})
+                 |> json_response(:ok)
+
+        assert %{"data" => %{"url" => "https://storage/part-1"}} =
+                 "#{api}/upload/generate-url"
+                 |> post_json.(%{
+                   shard_plan_id: plan_id,
+                   upload_id: "upload-id",
+                   part_number: 1,
+                   artifact: "shared"
+                 })
+                 |> json_response(:ok)
+
+        assert %{"status" => "success"} =
+                 "#{api}/upload/complete"
+                 |> post_json.(%{
+                   shard_plan_id: plan_id,
+                   upload_id: "upload-id",
+                   parts: [%{part_number: 1, etag: "etag1"}],
+                   artifact: "shared"
+                 })
+                 |> json_response(:ok)
+      end
+    end
+  end
 end
