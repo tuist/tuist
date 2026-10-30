@@ -12412,6 +12412,25 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/artifacts`.
                 public var artifacts: [Components.Schemas.BundleArtifact]
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/custom_metadata`.
+                public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                    /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/custom_metadata/tags`.
+                    public var tags: [Swift.String]?
+                    /// Creates a new `custom_metadataPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                    public init(tags: [Swift.String]? = nil) {
+                        self.tags = tags
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case tags
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/custom_metadata`.
+                public var custom_metadata: Components.Schemas.BundleRequest.bundlePayload.custom_metadataPayload?
                 /// The bundle download size in bytes
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/download_size`.
@@ -12463,6 +12482,7 @@ public enum Components {
                 /// - Parameters:
                 ///   - app_bundle_id: The bundle ID of the app
                 ///   - artifacts: The artifacts in this bundle
+                ///   - custom_metadata:
                 ///   - download_size: The bundle download size in bytes
                 ///   - git_branch: The git branch associated with the bundle.
                 ///   - git_commit_sha: The git commit SHA associated with the bundle.
@@ -12475,6 +12495,7 @@ public enum Components {
                 public init(
                     app_bundle_id: Swift.String,
                     artifacts: [Components.Schemas.BundleArtifact],
+                    custom_metadata: Components.Schemas.BundleRequest.bundlePayload.custom_metadataPayload? = nil,
                     download_size: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
@@ -12487,6 +12508,7 @@ public enum Components {
                 ) {
                     self.app_bundle_id = app_bundle_id
                     self.artifacts = artifacts
+                    self.custom_metadata = custom_metadata
                     self.download_size = download_size
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
@@ -12500,6 +12522,7 @@ public enum Components {
                 public enum CodingKeys: String, CodingKey {
                     case app_bundle_id
                     case artifacts
+                    case custom_metadata
                     case download_size
                     case git_branch
                     case git_commit_sha
@@ -18703,6 +18726,25 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/artifacts`.
             public var artifacts: [Components.Schemas.BundleArtifact]?
+            /// - Remark: Generated from `#/components/schemas/Bundle/custom_metadata`.
+            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                ///
+                /// - Remark: Generated from `#/components/schemas/Bundle/custom_metadata/tags`.
+                public var tags: [Swift.String]?
+                /// Creates a new `custom_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                public init(tags: [Swift.String]? = nil) {
+                    self.tags = tags
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case tags
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/Bundle/custom_metadata`.
+            public var custom_metadata: Components.Schemas.Bundle.custom_metadataPayload?
             /// The bundle download size in bytes
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/download_size`.
@@ -18756,6 +18798,7 @@ public enum Components {
             /// - Parameters:
             ///   - app_bundle_id: The bundle ID of the app
             ///   - artifacts: The artifacts in this bundle
+            ///   - custom_metadata:
             ///   - download_size: The bundle download size in bytes
             ///   - git_branch: The git branch associated with the bundle.
             ///   - git_commit_sha: The git commit SHA associated with the bundle.
@@ -18771,6 +18814,7 @@ public enum Components {
             public init(
                 app_bundle_id: Swift.String,
                 artifacts: [Components.Schemas.BundleArtifact]? = nil,
+                custom_metadata: Components.Schemas.Bundle.custom_metadataPayload? = nil,
                 download_size: Swift.Int? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -18786,6 +18830,7 @@ public enum Components {
             ) {
                 self.app_bundle_id = app_bundle_id
                 self.artifacts = artifacts
+                self.custom_metadata = custom_metadata
                 self.download_size = download_size
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
@@ -18802,6 +18847,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case app_bundle_id
                 case artifacts
+                case custom_metadata
                 case download_size
                 case git_branch
                 case git_commit_sha
@@ -45206,6 +45252,10 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter by tags. Returns bundles containing ALL specified tags.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/tags`.
+                public var tags: [Swift.String]?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -45221,14 +45271,17 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - tags: Filter by tags. Returns bundles containing ALL specified tags.
                 ///   - page: Page number for pagination.
                 ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
                 public init(
+                    tags: [Swift.String]? = nil,
                     page: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
                     page_size: Swift.Int? = nil
                 ) {
+                    self.tags = tags
                     self.page = page
                     self.git_branch = git_branch
                     self.page_size = page_size
@@ -45333,6 +45386,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBundles.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBundles.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid bundle filters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listBundles.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listBundles.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -45611,6 +45715,25 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/artifacts`.
                         public var artifacts: [Components.Schemas.BundleArtifact]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/custom_metadata/tags`.
+                            public var tags: [Swift.String]?
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                            public init(tags: [Swift.String]? = nil) {
+                                self.tags = tags
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/custom_metadata`.
+                        public var custom_metadata: Operations.createBundle.Input.Body.jsonPayload.bundlePayload.custom_metadataPayload?
                         /// The bundle download size in bytes
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/download_size`.
@@ -45662,6 +45785,7 @@ public enum Operations {
                         /// - Parameters:
                         ///   - app_bundle_id: The bundle ID of the app
                         ///   - artifacts: The artifacts in this bundle
+                        ///   - custom_metadata:
                         ///   - download_size: The bundle download size in bytes
                         ///   - git_branch: The git branch associated with the bundle.
                         ///   - git_commit_sha: The git commit SHA associated with the bundle.
@@ -45674,6 +45798,7 @@ public enum Operations {
                         public init(
                             app_bundle_id: Swift.String,
                             artifacts: [Components.Schemas.BundleArtifact],
+                            custom_metadata: Operations.createBundle.Input.Body.jsonPayload.bundlePayload.custom_metadataPayload? = nil,
                             download_size: Swift.Int? = nil,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -45686,6 +45811,7 @@ public enum Operations {
                         ) {
                             self.app_bundle_id = app_bundle_id
                             self.artifacts = artifacts
+                            self.custom_metadata = custom_metadata
                             self.download_size = download_size
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -45699,6 +45825,7 @@ public enum Operations {
                         public enum CodingKeys: String, CodingKey {
                             case app_bundle_id
                             case artifacts
+                            case custom_metadata
                             case download_size
                             case git_branch
                             case git_commit_sha

@@ -433,9 +433,11 @@ The code coverage tools are available to accounts with code coverage enabled.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_bundles` | List bundles (app binaries) for a project. | `account_handle`, `project_handle` |
-| `get_bundle` | Get detailed information about a specific bundle. | `bundle_id` |
+| `list_bundles` | List bundles (app binaries) for a project. Optionally filter by `git_branch` and `tags` (all tags must match exactly). | `account_handle`, `project_handle` |
+| `get_bundle` | Get detailed information about a specific bundle, including custom tags. | `bundle_id` |
 | `get_bundle_artifact_tree` | Get the full artifact tree for a bundle as a flat list sorted by path. | `bundle_id` |
+
+`list_bundles` accepts `tags: ["paid", "production"]` to distinguish build flavors or environments. Tags are case-sensitive labels containing letters, numbers, hyphens, or underscores, with at most 10 tags and 50 characters per tag. List and detail results include `custom_metadata.tags`. Pagination counts and branch filters apply to the tagged results; omitting `tags` preserves the unfiltered behavior. Invalid tag filters return an error rather than broadening the query.
 
 #### Generations
 

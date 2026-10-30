@@ -13,6 +13,7 @@ defmodule TuistWeb.BundlesLive do
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -151,6 +152,7 @@ defmodule TuistWeb.BundlesLive do
          } = socket,
          params
        ) do
+    validate_tag_filter!(params)
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
     {start_datetime, end_datetime} = socket.assigns.bundle_size_period
@@ -207,6 +209,16 @@ defmodule TuistWeb.BundlesLive do
     |> assign(:bundles_meta, next_bundles_meta)
   end
 
+  # Validate before Noora can discard an unsupported operator and broaden the query.
+  defp validate_tag_filter!(%{"filter_custom_tags_val" => value} = params) when value not in [nil, ""] do
+    if !(params["filter_custom_tags_op"] in ["=~", "!=~"] and is_binary(value) and
+           Regex.match?(~r/^[a-zA-Z0-9_-]{1,50}$/, value)) do
+      raise BadRequestError, "Invalid bundle tag filter"
+    end
+  end
+
+  defp validate_tag_filter!(_params), do: :ok
+
   defp build_flop_filters(filters) do
     size_filters =
       filters
@@ -232,12 +244,21 @@ defmodule TuistWeb.BundlesLive do
         %{field: filter.field, op: :contains, value: filter.value}
       end)
 
+    tag_filters =
+      Enum.flat_map(filters, fn
+        %{field: :tag, value: value, operator: op} when not is_nil(value) ->
+          [%{field: :tag, op: if(op == :=~, do: :contains, else: :not_contains), value: value}]
+
+        _ ->
+          []
+      end)
+
     other_filters =
       filters
-      |> Enum.reject(fn filter -> filter.field in [:install_size, :download_size, :supported_platforms] end)
+      |> Enum.reject(fn filter -> filter.field in [:install_size, :download_size, :supported_platforms, :tag] end)
       |> Filter.Operations.convert_filters_to_flop()
 
-    size_filters ++ platform_filters ++ other_filters
+    size_filters ++ platform_filters ++ tag_filters ++ other_filters
   end
 
   defp fetch_bundle_size_analytics_data(
@@ -959,6 +980,14 @@ defmodule TuistWeb.BundlesLive do
         display_name: dgettext("dashboard_cache", "Download size (MB)"),
         type: :number,
         operator: :>=,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "custom_tags",
+        field: :tag,
+        display_name: dgettext("dashboard_cache", "Tags"),
+        type: :list,
+        operator: :=~,
         value: nil
       }
     ]

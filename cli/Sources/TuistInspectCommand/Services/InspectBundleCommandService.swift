@@ -117,7 +117,8 @@ public struct InspectBundleCommandService {
             configuration: String?,
             platforms: [Platform],
             derivedDataPath: String?,
-            json: Bool
+            json: Bool,
+            tags: [String] = []
         ) async throws {
             let path = try await self.path(path)
             let bundlePath = try await resolveBundlePath(
@@ -131,7 +132,8 @@ public struct InspectBundleCommandService {
             try await inspect(
                 path: path,
                 bundlePath: bundlePath,
-                json: json
+                json: json,
+                tags: tags
             )
         }
     #endif
@@ -139,7 +141,8 @@ public struct InspectBundleCommandService {
     public func run(
         path: String?,
         bundle: String,
-        json: Bool
+        json: Bool,
+        tags: [String] = []
     ) async throws {
         let path = try await self.path(path)
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -148,14 +151,16 @@ public struct InspectBundleCommandService {
         try await inspect(
             path: path,
             bundlePath: bundlePath,
-            json: json
+            json: json,
+            tags: tags
         )
     }
 
     private func inspect(
         path: AbsolutePath,
         bundlePath: AbsolutePath,
-        json: Bool
+        json: Bool,
+        tags: [String]
     ) async throws {
         let config = try await configLoader.loadConfig(path: path)
 
@@ -193,7 +198,8 @@ public struct InspectBundleCommandService {
                 appBundleReport: appBundleReport,
                 gitCommitSHA: gitCommitSHA,
                 gitBranch: gitBranch,
-                gitRef: gitRef
+                gitRef: gitRef,
+                tags: tags.map { $0.trimmingCharacters(in: .whitespaces) }
             )
         }
         AlertController.current.success(

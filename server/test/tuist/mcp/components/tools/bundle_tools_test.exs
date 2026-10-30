@@ -7,8 +7,74 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
   alias Tuist.MCP.Components.Tools.GetBundleArtifactTree
   alias Tuist.MCP.Components.Tools.ListBundles
   alias Tuist.Projects
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BundlesFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "list_bundles" do
+    test "filters and paginates exact ALL-tag matches through tools/call", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      older =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          custom_tags: ["paid", "release"],
+          inserted_at: ~U[2026-10-01 00:00:00Z]
+        )
+
+      newer =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          custom_tags: ["paid", "release", "nightly"],
+          inserted_at: ~U[2026-10-02 00:00:00Z]
+        )
+
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid"])
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid-extra", "release"])
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid", "release"], git_branch: "feature")
+      BundlesFixtures.bundle_fixture(custom_tags: ["paid", "release"])
+
+      conn = assign(conn, :current_subject, user)
+
+      args = %{
+        "account_handle" => project.account.name,
+        "project_handle" => project.name,
+        "tags" => ["paid", "release"],
+        "git_branch" => "main",
+        "page_size" => 1
+      }
+
+      for {page, expected} <- [{1, newer}, {2, older}] do
+        response =
+          EMCP.Server.handle_message(Tuist.MCP.Server.server(), conn, %{
+            "jsonrpc" => "2.0",
+            "id" => page,
+            "method" => "tools/call",
+            "params" => %{"name" => "list_bundles", "arguments" => Map.put(args, "page", page)}
+          })
+
+        assert %{"bundles" => [bundle], "pagination_metadata" => %{"total_count" => 2}} =
+                 response["result"]["structuredContent"]
+
+        assert bundle["id"] == expected.id
+        assert bundle["custom_metadata"]["tags"] == expected.custom_tags
+      end
+    end
+
+    test "rejects malformed or unbounded tags before querying" do
+      project = %{id: 1, name: "app"}
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+      stub(Tuist.Authorization, :authorize, fn :bundle_read, :subject, ^project -> :ok end)
+      reject(Bundles, :list_bundles, 1)
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      for tags <- ["paid", [nil], [" "], ["paid", " "], [String.duplicate("a", 51)], Enum.map(1..11, &"tag#{&1}")] do
+        response = ListBundles.call(conn, %{"account_handle" => "acme", "project_handle" => "app", "tags" => tags})
+        assert response["isError"]
+      end
+    end
+
     test "returns paginated bundles" do
       project = %{id: 1, name: "app"}
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
@@ -27,6 +93,7 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
              download_size: 30_000_000,
              git_branch: "main",
              git_commit_sha: "abc123",
+             custom_tags: [],
              inserted_at: ~U[2024-01-01 12:00:00Z]
            }
          ],
@@ -86,6 +153,7 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
            git_branch: "main",
            git_commit_sha: "abc123",
            git_ref: "refs/tags/v1.0.0",
+           custom_tags: ["paid", "release"],
            project_id: 1,
            inserted_at: ~U[2024-01-01 12:00:00Z]
          }}
@@ -102,6 +170,7 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
       result = JSON.decode!(text)
       assert result["id"] == "bundle-1"
       assert result["install_size"] == 50_000_000
+      assert result["custom_metadata"] == %{"tags" => ["paid", "release"]}
       refute Map.has_key?(result, "artifacts")
     end
   end
