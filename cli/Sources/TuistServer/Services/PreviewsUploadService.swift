@@ -180,7 +180,7 @@ public protocol PreviewsUploadServicing {
                     let archiver = try fileArchiver.makeFileArchiver(for: [path, manifestPath])
                     let archivePath = try await archiver.zip(name: path.basename)
                     do {
-                        let binaryId = try await apkBinaryId(at: archivePath)
+                        let binaryId = try await contentHash(at: archivePath)
                         let platforms: [Components.Schemas.PreviewSupportedPlatform] = target.platform == "macos" ? [.macos] :
                             [.linux]
                         let preview = try await uploadPreviewBuild(
@@ -210,7 +210,7 @@ public protocol PreviewsUploadServicing {
                 }
             case let .apk(apkPath, metadata):
                 let buildVersion = resolvedBuildVersion(metadata.versionCode)
-                let binaryId = try await apkBinaryId(at: apkPath)
+                let binaryId = try await contentHash(at: apkPath)
 
                 let preview = try await uploadPreviewBuild(
                     buildPath: apkPath,
@@ -414,10 +414,10 @@ public protocol PreviewsUploadServicing {
             )
         }
 
-        // MARK: - APK (cross-platform)
+        // MARK: - Content identity (cross-platform)
 
-        private func apkBinaryId(at path: AbsolutePath) async throws -> String {
-            let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
+        private func contentHash(at path: AbsolutePath) async throws -> String {
+            let data = try Data(contentsOf: path.url)
             let digest = SHA256.hash(data: data)
             return digest.map { String(format: "%02x", $0) }.joined()
         }

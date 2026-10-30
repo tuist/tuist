@@ -12,7 +12,7 @@ public struct ExecutablePreviewManifest: Codable {
     }
 }
 
-public struct ExecutablePreviewTarget: Codable, Equatable {
+public struct ExecutablePreviewTarget: Equatable {
     public let platform: String
     public let architectures: [String]
 

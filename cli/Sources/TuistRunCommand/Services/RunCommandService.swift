@@ -372,38 +372,8 @@ struct RunCommandService {
             arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil
         } ?? device
         let arguments = arguments.first == "--" ? Array(arguments.dropFirst()) : arguments
-        #if os(macOS)
-            let hostPlatform: Components.Schemas.PreviewSupportedPlatform = .macos
-        #else
-            let hostPlatform: Components.Schemas.PreviewSupportedPlatform = .linux
-        #endif
         if device == nil || device?.lowercased() == "mac" || device?.lowercased() == "localhost" {
-            for build in preview.builds.filter({
-                $0._type == .executable && $0.supported_platforms.contains(hostPlatform)
-            }) {
-                if try await runExecutablePreview(build, arguments: arguments) { return }
-            }
-            #if os(macOS)
-                for build in preview.builds.filter({ $0._type == .app_bundle && $0.supported_platforms.contains(.macos) }) {
-                    var desktopPreview = preview
-                    desktopPreview.builds = [build]
-                    let appBundle = try await downloadAppleAppBundle(
-                        for: .device(.macOS), preview: desktopPreview, previewLink: previewLink
-                    )
-                    guard let name = appBundle.infoPlist.executableName else {
-                        throw RunCommandServiceError.appBundleNotFoundInArchive
-                    }
-                    let binary = appBundle.path.appending(components: "Contents", "MacOS", name)
-                    guard try ExecutablePreviewTarget.read(at: binary.url).isCompatible else { continue }
-                    try await commandRunner.runAndPrint(
-                        arguments: ["/usr/bin/open", "-n", appBundle.path.pathString, "--args"] + arguments
-                    )
-                    return
-                }
-            #endif
-            if preview.builds.contains(where: { $0._type == .executable || $0.supported_platforms.contains(.macos) }) {
-                throw RunCommandServiceError.incompatibleDesktopPreview
-            }
+            if try await runDesktopPreview(preview, previewLink: previewLink, arguments: arguments) { return }
         }
 
         var destinationDevices: [DestinationDevice] = []
@@ -519,7 +489,46 @@ struct RunCommandService {
         }
     }
 
-    // MARK: - Executables
+    // MARK: - Desktop previews
+
+    private func runDesktopPreview(
+        _ preview: Components.Schemas.Preview,
+        previewLink: URL,
+        arguments: [String]
+    ) async throws -> Bool {
+        #if os(macOS)
+            let hostPlatform: Components.Schemas.PreviewSupportedPlatform = .macos
+        #else
+            let hostPlatform: Components.Schemas.PreviewSupportedPlatform = .linux
+        #endif
+        for build in preview.builds.filter({
+            $0._type == .executable && $0.supported_platforms.contains(hostPlatform)
+        }) {
+            if try await runExecutablePreview(build, arguments: arguments) { return true }
+        }
+        #if os(macOS)
+            for build in preview.builds.filter({ $0._type == .app_bundle && $0.supported_platforms.contains(.macos) }) {
+                var desktopPreview = preview
+                desktopPreview.builds = [build]
+                let appBundle = try await downloadAppleAppBundle(
+                    for: .device(.macOS), preview: desktopPreview, previewLink: previewLink
+                )
+                guard let name = appBundle.infoPlist.executableName else {
+                    throw RunCommandServiceError.appBundleNotFoundInArchive
+                }
+                let binary = appBundle.path.appending(components: "Contents", "MacOS", name)
+                guard try ExecutablePreviewTarget.read(at: binary.url).isCompatible else { continue }
+                try await commandRunner.runAndPrint(
+                    arguments: ["/usr/bin/open", "-n", appBundle.path.pathString, "--args"] + arguments
+                )
+                return true
+            }
+        #endif
+        if preview.builds.contains(where: { $0._type == .executable || $0.supported_platforms.contains(.macos) }) {
+            throw RunCommandServiceError.incompatibleDesktopPreview
+        }
+        return false
+    }
 
     private func executableEntryPoint(in directory: AbsolutePath) async throws -> AbsolutePath {
         let manifestPath = directory.appending(component: ExecutablePreviewManifest.filename)
