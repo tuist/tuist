@@ -64,7 +64,7 @@ fi
 
 mise run db:migrate
 
-# Amp orbs seed on the first server start instead (.agents/server).
+# Amp orb setup seeds separately, only when the database is empty.
 if [ "${1:-}" != "--no-seed" ]; then
   mise run db:seed
 fi

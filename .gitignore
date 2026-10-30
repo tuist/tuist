@@ -122,7 +122,6 @@ Tuist/Dependencies/graph.json
 .agents/*
 !.agents/setup
 !.agents/resume
-!.agents/server
 .amp/portals/
 mise.local.toml
 *.p12

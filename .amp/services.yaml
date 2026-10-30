@@ -1,9 +1,9 @@
 services:
   server:
     # .agents/setup pins this checkout to dev instance 100, so the server listens
-    # on TUIST_SERVER_PORT=8180 from mise's environment. The first start seeds
-    # the dev database.
-    command: .agents/server
+    # on TUIST_SERVER_PORT=8180 from mise's environment.
+    command: mise run dev
+    cwd: server
     port: 8180
     platforms: [linux]
     portal:

@@ -128,11 +128,17 @@ step "Starting ClickHouse"
 mise run --no-deps clickhouse:start
 
 # deps.get, aube installs, Noora build, dev compile, and database
-# create/migrate; on a stale snapshot only what changed. The dev database is
-# seeded on the first server start (.agents/server), since most threads never
-# start the server and the seed takes minutes.
+# create/migrate; on a stale snapshot only what changed.
 step "Bootstrapping server dependencies and databases"
 time mise run --no-deps install --no-seed
+
+# Seed here so the snapshot carries the data to every thread. A stale
+# snapshot is seeded already, and the seeds are not idempotent.
+dev_db="$(mise exec -- printenv TUIST_SERVER_POSTGRES_DB)"
+if ! psql -h localhost -d "$dev_db" -Atqc "SELECT EXISTS (SELECT 1 FROM users)" | grep -qx t; then
+  step "Seeding $dev_db"
+  time mise run --no-deps db:seed
+fi
 
 # Stop the databases cleanly so their data directories are consistent in
 # the snapshot; .agents/resume starts them again.
@@ -157,13 +163,11 @@ other_guidance=""
 # Tuist orb environment
 
 - `.agents/setup` installed the root and `server/` mise toolchains (shims on PATH),
-  PostgreSQL 16 (pg_ctlcluster, trust auth), compiled the server and created and migrated its databases.
+  PostgreSQL 16 (pg_ctlcluster, trust auth), compiled the server and created, migrated and seeded its databases.
 - `.agents/resume` starts PostgreSQL and ClickHouse; rerun `mise run clickhouse:start` from `server/` if ClickHouse is down.
 - This checkout's dev instance is 100: server on port 8180, databases `tuist_development_100`.
-- Start the server with `amp orb services ensure` (service `server`). The dev database is seeded on
-  the first server start, before the server boots, so that start takes about 5 minutes; follow it with
-  `amp orb service logs server`. Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
-  To seed without the server, run `mise run db:seed` from `server/`.
+- Start the server with `amp orb services ensure` (service `server`).
+  Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
 - The server test build is not precompiled: the first `MIX_ENV=test` compile or `mix test` takes about 6 minutes.
 - macOS-only work (Xcode, `tuist generate`, Swift app targets) is not possible in this orb.
 EOF
