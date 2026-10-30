@@ -1319,6 +1319,14 @@ defmodule Tuist.Runners.JobsTest do
               }} = Jobs.get_for_account(account.id, 9201)
     end
 
+    test "reports a cancelled lifecycle row in the ClickHouse status convention" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 9251, fleet: "fleet-pg-cancelled")
+      {:ok, _} = Jobs.complete(9251, "cancelled")
+
+      assert {:ok, %Job{status: "completed", conclusion: "cancelled"}} = Jobs.get_for_account(account.id, 9251)
+    end
+
     test "returns :not_found for another account's job that has not reached ClickHouse yet" do
       account = account_fixture()
       other = account_fixture()

@@ -929,33 +929,8 @@ defmodule Tuist.Runners.Jobs do
   end
 
   defp lifecycle_job(%WorkflowJob{} = row, replica) do
-    %Job{
-      workflow_job_id: row.workflow_job_id,
-      account_id: row.account_id,
-      fleet_name: row.fleet_name,
-      repository: row.repository,
-      platform: row.platform,
-      vcpus: row.vcpus,
-      memory_gb: row.memory_gb,
-      workflow_run_id: row.workflow_run_id,
-      workflow_name: row.workflow_name,
-      run_attempt: row.run_attempt,
-      job_name: row.job_name,
-      head_branch: row.head_branch,
-      head_sha: row.head_sha,
-      status: row.status,
-      conclusion: row.conclusion || "",
-      enqueued_at: row.enqueued_at,
-      claimed_at: row.claimed_at,
-      started_at: row.started_at,
-      completed_at: row.completed_at,
-      pod_name: row.pod_name || "",
-      runner_name: row.runner_name || "",
-      log_archived_at: row.log_archived_at || (replica && replica.log_archived_at),
-      executor_claimed_at: row.executor_claimed_at,
-      requested_dispatch_label: row.requested_dispatch_label,
-      updated_at: row.updated_at
-    }
+    job = struct(Job, WorkflowJobs.replica_row(row))
+    %{job | log_archived_at: row.log_archived_at || (replica && replica.log_archived_at)}
   end
 
   @doc """

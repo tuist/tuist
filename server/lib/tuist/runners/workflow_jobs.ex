@@ -509,6 +509,12 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  The ClickHouse `runner_jobs` row the outbox replays for `row`'s
+  current state, versioned at the row's own `updated_at`.
+  """
+  def replica_row(%WorkflowJob{} = row), do: ch_row(row, row.updated_at)
+
+  @doc """
   Terminal upsert for the completion choke point. Existing rows CAS
   from any non-terminal status; a missing row (completed delivered
   before queued, or the job predates this table) is inserted terminal
