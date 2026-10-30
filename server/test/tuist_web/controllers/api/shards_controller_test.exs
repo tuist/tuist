@@ -785,7 +785,11 @@ defmodule TuistWeb.API.ShardsControllerTest do
         assert %{"status" => "success"} =
                  "#{api}/upload/complete"
                  |> post_json.(
-                   Map.merge(plan, %{upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}], artifact: "shared"})
+                   Map.merge(plan, %{
+                     upload_id: "upload-id",
+                     parts: [%{part_number: 1, etag: "etag1"}],
+                     artifact: "shared"
+                   })
                  )
                  |> json_response(:ok)
       end
