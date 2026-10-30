@@ -865,21 +865,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
-        let shardCurrentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let passedDerivedDataPath = try derivedDataPath.map {
-            try AbsolutePath(
-                validating: $0,
-                relativeTo: shardCurrentPath
-            )
-        }
-        let ownedDerivedDataPath = passedDerivedDataPath == nil
-            ? try coverageDerivedDataPath(
-                runId: runId,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                config: config
-            )
-            : nil
-        let derivedDataPath = passedDerivedDataPath ?? ownedDerivedDataPath
+        let (derivedDataPath, ownedDerivedDataPath) = try await testWithoutBuildingDerivedDataPaths(
+            derivedDataPath,
+            runId: runId,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            config: config
+        )
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
@@ -999,21 +990,28 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
     }
 
+    /// The derived data a `test-without-building` run uses, and the part of it the run owns.
+    ///
     /// Without a `-derivedDataPath`, `test-without-building` writes the run's profile under the
     /// default DerivedData, in a folder whose hash follows the products' location: a shard extracts
     /// them to a fresh directory, so nothing could find it again. A run that uploads coverage writes
     /// into one of its own instead, removed once the run is uploaded.
-    private func coverageDerivedDataPath(
+    private func testWithoutBuildingDerivedDataPaths(
+        _ derivedDataPath: String?,
         runId: String,
         passthroughXcodeBuildArguments: [String],
         config: Tuist
-    ) throws -> AbsolutePath? {
+    ) async throws -> (path: AbsolutePath?, owned: AbsolutePath?) {
+        if let derivedDataPath {
+            return (try await Environment.current.pathRelativeToWorkingDirectory(derivedDataPath), nil)
+        }
         guard UploadResultBundleService.uploadsCoverage(config: config),
               !passthroughXcodeBuildArguments.contains("-derivedDataPath")
-        else { return nil }
-        return try cacheDirectoriesProvider
+        else { return (nil, nil) }
+        let owned = try cacheDirectoriesProvider
             .cacheDirectory(for: .runs)
             .appending(components: runId, "DerivedData")
+        return (owned, owned)
     }
 
     private func removeOwnedDerivedData(_ path: AbsolutePath?) async {
@@ -1165,21 +1163,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        let passedDerivedDataPath = try derivedDataPath.map {
-            try AbsolutePath(
-                validating: $0,
-                relativeTo: currentWorkingDirectory
-            )
-        }
-        let ownedDerivedDataPath = passedDerivedDataPath == nil
-            ? try coverageDerivedDataPath(
-                runId: runId,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                config: config
-            )
-            : nil
-        let derivedDataPath = passedDerivedDataPath ?? ownedDerivedDataPath
+        let (derivedDataPath, ownedDerivedDataPath) = try await testWithoutBuildingDerivedDataPaths(
+            derivedDataPath,
+            runId: runId,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            config: config
+        )
 
         // This job did not build the products and usually repeats nothing from the build command, so
         // the restriction the build ran under is restored from the bundle and narrowed by whatever
