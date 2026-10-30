@@ -316,12 +316,12 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         Logger.current.debug("Processing \(project.packages.count) packages for project \(project.name)")
         for package in project.packages {
             switch package {
-            case let .local(path):
-                Logger.current.debug("Processing local package at \(path.pathString) for project \(project.name)")
-                let relativePath = path.relative(to: project.sourceRootPath).pathString
+            case let .local(config):
+                Logger.current.debug("Processing local package at \(config.path.pathString) for project \(project.name)")
+                let relativePath = config.path.relative(to: project.sourceRootPath).pathString
                 let reference = PBXFileReference(
                     sourceTree: .group,
-                    name: path.components.last,
+                    name: config.path.components.last,
                     lastKnownFileType: "folder",
                     path: relativePath
                 )
@@ -331,15 +331,31 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                     traits: project.packageTraits?[package.identity]
                 )
                 pbxproj.add(object: packageReference)
-                localPackageReferences[path.pathString] = packageReference
+                localPackageReferences[config.path.pathString] = packageReference
 
                 pbxproj.add(object: reference)
 
-                if let existingPackageGroup = try pbxproj.rootGroup()?.group(named: "Packages") {
-                    existingPackageGroup.children.append(reference)
+                guard let root = try pbxproj.rootGroup() else { continue }
+
+                if !config.isStandardReference {
+                    let localConfig = GeneratorLocalPackageReferenceConfig(
+                        path: config.path.pathString,
+                        sourceRoot: project.sourceRootPath.pathString,
+                        grouping: config.grouping
+                    )
+                    try addLocalPackageReference(
+                        root: root,
+                        reference: reference,
+                        project: pbxproj,
+                        localConfig: localConfig
+                    )
                 } else {
-                    let packageGroup = try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder)
-                    packageGroup?.first?.children.append(reference)
+                    if let existingPackageGroup = root.group(named: "Packages") {
+                        existingPackageGroup.children.append(reference)
+                    } else {
+                        let packageGroup = try root.addGroup(named: "Packages", options: .withoutFolder)
+                        packageGroup.first?.children.append(reference)
+                    }
                 }
 
             case let .remote(url: url, requirement: requirement):
@@ -357,6 +373,86 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         Logger.current.debug("Finished processing Swift package references for project \(project.name)")
         pbxProject.remotePackages = remotePackageReferences.sorted { $0.key < $1.key }.map { $1 }
         pbxProject.localPackages = localPackageReferences.sorted { $0.key < $1.key }.map { $1 }
+    }
+
+    func addLocalPackageReference(
+        root: PBXGroup,
+        reference: PBXFileReference,
+        project: PBXProj?,
+        localConfig: GeneratorLocalPackageReferenceConfig
+    ) throws {
+        let mainGroupName = localConfig.grouping == .original ? "Project" : "Packages"
+        let baseGroup = try root.group(namedOrPath: mainGroupName)
+            ?? root.addGroup(named: mainGroupName, options: .withoutFolder).first
+
+        let components = makeGroupComponents(from: localConfig)
+
+        var currentGroup = baseGroup
+        for folder in components {
+            guard let group = currentGroup else { break }
+
+            if localConfig.grouping == .original {
+                currentGroup = try resolveStructuredReference(named: folder, in: group, project: project)
+            } else {
+                currentGroup = try group.group(namedOrPath: folder)
+                    ?? group.addGroup(named: folder, options: .withoutFolder).first
+            }
+        }
+
+        currentGroup?.children.append(reference)
+    }
+
+    func resolveStructuredReference(
+        named name: String,
+        in parent: PBXGroup,
+        project: PBXProj?
+    ) throws -> PBXGroup {
+        if let group = parent.children.compactMap({ $0 as? PBXGroup }).first(where: { $0.name == name || $0.path == name }) {
+            return group
+        }
+        
+        if let reference = parent.childReference(namedOrPath: name),
+           !(reference is PBXGroup),
+           let index = parent.children.firstIndex(of: reference) {
+            parent.children.remove(at: index)
+        }
+        
+        let newGroup = PBXGroup(
+            children: [],
+            sourceTree: .group,
+            name: nil,
+            path: name
+        )
+        project?.add(object: newGroup)
+        parent.children.append(newGroup)
+        return newGroup
+    }
+
+    private func makeGroupComponents(from config: GeneratorLocalPackageReferenceConfig) -> [String] {
+        if case let .custom(groupPath) = config.grouping {
+            return groupPath.split(separator: "/").map(String.init)
+        }
+
+        // Calculate relative path to sourceRoot
+        var relativePath = config.path
+        if relativePath.hasPrefix(config.sourceRoot + "/") {
+            relativePath.removeFirst(config.sourceRoot.count + 1)
+        }
+
+        var components = relativePath.split(separator: "/").map(String.init)
+
+        // Remove excluding prefix
+        if case let .trimmingPrefix(excludingPath) = config.grouping {
+            let excludeComponents = excludingPath.split(separator: "/").map(String.init)
+            if components.starts(with: excludeComponents) {
+                components.removeFirst(excludeComponents.count)
+            }
+        }
+
+        // Remove last element
+        components.removeLast()
+
+        return components
     }
 
     private func generateAttributes(project: Project) -> [String: ProjectAttribute] {
@@ -391,5 +487,33 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     private func determineProjectConstants() throws -> ProjectConstants {
         // TODO: Determine if this can be inferred by the set Xcode version
         .xcode13
+    }
+}
+
+private extension PBXGroup {
+    func group(namedOrPath nameOrPath: String) -> PBXGroup? {
+        return children
+            .compactMap { $0 as? PBXGroup }
+            .first(where: { $0.name == nameOrPath || $0.path == nameOrPath })
+    }
+
+    func childReference(namedOrPath nameOrPath: String) -> PBXFileElement? {
+        return children.first(where: { $0.path == nameOrPath || ($0.name == nameOrPath) })
+    }
+}
+
+struct GeneratorLocalPackageReferenceConfig: Equatable, Codable, Sendable {
+    let path: String
+    let sourceRoot: String
+    let grouping: LocalPackageReferenceConfig.Grouping?
+    
+    init(
+        path: String,
+        sourceRoot: String,
+        grouping: LocalPackageReferenceConfig.Grouping? = nil
+    ) {
+        self.path = path
+        self.sourceRoot = sourceRoot
+        self.grouping = grouping
     }
 }
