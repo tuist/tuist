@@ -101,6 +101,11 @@
           font: var(--noora-font-body-small);
         }
 
+        & > [data-part="title"] + .noora-terminal,
+        & > .noora-terminal + .noora-button {
+          margin-top: var(--noora-spacing-7);
+        }
+
         & button {
           flex-shrink: 1;
         }
