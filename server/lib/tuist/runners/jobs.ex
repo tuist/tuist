@@ -934,6 +934,39 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  The current ClickHouse row of up to `limit` jobs with a
+  `workflow_job_id` above `after_id`, in id order, across every account.
+  Feeds `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`.
+
+  `FINAL` is bounded by the id range of the page, which is the table's
+  sort key, so it merges only the parts that hold those jobs.
+  """
+  def list_replica_after(after_id, limit) when is_integer(after_id) and is_integer(limit) and limit > 0 do
+    ids =
+      ClickHouseRepo.all(
+        from(j in Job,
+          where: j.workflow_job_id > ^after_id,
+          distinct: true,
+          order_by: j.workflow_job_id,
+          limit: ^limit,
+          select: j.workflow_job_id
+        )
+      )
+
+    case ids do
+      [] ->
+        []
+
+      ids ->
+        Job
+        |> from(hints: ["FINAL"])
+        |> where([j], j.workflow_job_id >= ^List.first(ids) and j.workflow_job_id <= ^List.last(ids))
+        |> order_by([j], j.workflow_job_id)
+        |> ClickHouseRepo.all()
+    end
+  end
+
+  @doc """
   Counts `queued` rows for `fleet_name`. Used by the autoscaler
   to size the warm pool — every queued workflow_job needs a Pod
   to claim it, so the desired replica count grows with this

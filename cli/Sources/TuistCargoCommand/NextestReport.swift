@@ -73,17 +73,17 @@ final class NextestReport: NSObject, XMLParserDelegate {
 
     static func read(_ url: URL) throws -> NextestReport {
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= 50_000_000 else { throw CargoReportError(message: "Nextest report exceeds 50 MB.") }
+        guard size <= 50_000_000 else { throw CargoReportError(message: "Cargo test report exceeds 50 MB.") }
         let data = try Data(contentsOf: url)
         guard let xml = String(data: data, encoding: .utf8), !xml.contains("<!DOCTYPE") else {
-            throw CargoReportError(message: "Nextest report contains a document type declaration.")
+            throw CargoReportError(message: "Cargo test report contains a document type declaration.")
         }
         let report = NextestReport()
         let parser = XMLParser(data: data)
         parser.shouldResolveExternalEntities = false
         parser.delegate = report
         guard parser.parse(), !report.rejected, report.foundRoot else {
-            throw CargoReportError(message: "Nextest produced an invalid test report.")
+            throw CargoReportError(message: "Cargo test report is invalid.")
         }
         return report
     }

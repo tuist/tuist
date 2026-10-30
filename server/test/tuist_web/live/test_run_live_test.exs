@@ -86,20 +86,27 @@ defmodule TuistWeb.TestRunLiveTest do
     end
   end
 
-  for {scheme, title} <- [{"", "mix test"}, {"integration", "mix test · integration"}] do
+  for {build_system, scheme, title} <- [
+        {:mix, "", "mix test"},
+        {:mix, "integration", "mix test · integration"},
+        {:cargo, "nextest", "Cargo tests"},
+        {:cargo, "cargo nextest run · ci", "Cargo tests · ci"},
+        {:cargo, "cargo test", "cargo test"}
+      ] do
+    @build_system build_system
     @scheme scheme
     @card_title title
-    test "uses #{@card_title} on public Mix test-run cards", %{
+    test "uses #{@card_title} on public #{@build_system} test-run cards", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, project} = Projects.update_project(project, %{build_system: :mix, visibility: :public})
+      {:ok, project} = Projects.update_project(project, %{build_system: @build_system, visibility: :public})
 
       {:ok, run} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          build_system: "mix",
+          build_system: Atom.to_string(@build_system),
           scheme: @scheme,
           git_branch: "feature/elixir-og",
           status: "failure"

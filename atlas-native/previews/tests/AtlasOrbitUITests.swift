@@ -1,6 +1,49 @@
 import XCTest
 
 final class AtlasOrbitUITests: XCTestCase {
+    @MainActor func testBackgroundInboxUpdatesKeepFilterAndConversationUsable() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        defer { app.terminate() }
+        for appearance in [[], ["--dark", "--large-text"]] {
+            let mode = appearance.isEmpty ? "light" : "dark-large"
+            app.launchArguments = ["--workspace", "--orbit-inbox-updates"] + appearance
+            app.launch()
+            XCUIDevice.shared.orientation = .portrait
+            let row = app.buttons["thread-01922cc0-0000-7000-8000-000000000002"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            let picker = app.segmentedControls["orbit-status"]
+            let refreshing = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == false"), object: app.buttons["orbit-create"])
+            XCTAssertEqual(XCTWaiter.wait(for: [refreshing], timeout: 5), .completed)
+            let frame = picker.frame
+            for _ in 0..<6 {
+                XCTAssertTrue(picker.isEnabled, "Background reads must not disable the filter")
+                XCTAssertEqual(picker.frame, frame)
+                _ = app.screenshot()
+            }
+            row.tap()
+            let composer = app.textFields["thread-composer"]
+            XCTAssertTrue(composer.waitForExistence(timeout: 5))
+            composer.tap()
+            composer.typeText("Keep this draft while metadata changes.")
+            XCTAssertTrue(app.navigationBars["Query plan comparison complete"].waitForExistence(timeout: 10))
+            XCTAssertEqual(composer.value as? String, "Keep this draft while metadata changes.")
+            capture(app, "ios-orbit-live-detail-\(mode)-preview")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            XCTAssertTrue(row.label.contains("Updated comparison across affected projects."))
+            XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'thread-'")).count, 3)
+            for _ in 0..<6 {
+                XCTAssertTrue(picker.isEnabled)
+                _ = app.screenshot()
+            }
+            capture(app, "ios-orbit-live-inbox-\(mode)-preview")
+            row.tap()
+            XCTAssertTrue(composer.waitForExistence(timeout: 5))
+            XCTAssertEqual(composer.value as? String, "Keep this draft while metadata changes.")
+            app.terminate()
+        }
+    }
+
     @MainActor func testRefreshAndRepeatedComposeKeepInboxBelowNavigation() throws {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         defer { app.terminate() }

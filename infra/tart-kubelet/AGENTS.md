@@ -116,12 +116,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   comes from ConfigMaps labelled
   `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
   the `announce` job of `runner-image-release.yml` writes into canary and
-  production. A deploy holds each pool on its current image until every
-  Ready, schedulable Node holding the current image's golden label also
+  production as the release publishes each image. A deploy holds each pool
+  on its current image until every Ready, schedulable Node holding the
+  current image's golden label also
   holds the new one (`.github/scripts/runner-image-staging-gate.sh`, run by
   `server-deployment.yml` before the chart upgrade), and `announce` waits for
   the same before it dispatches the release's deploy. Both give up an hour
-  after the announcement (`tuist.dev/runner-image-announced-at`), and a
+  after the latest announcement (`tuist.dev/runner-image-announced-at`), and a
   release dispatched with `skip_staging` moves the pools at once
   (`tuist.dev/runner-image-staging: skip`). Canary's deploy instead waits up
   to 30 minutes for staging, ignoring the hour, and fails closed, so runners
@@ -280,6 +281,14 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Join workers before closing the store, preserve in-flight admission reservations
   during recovery scans, and never hold the global store lock across writer-fence
   API calls. Slow publication or restoration must not starve another guest.
+
+- A runner guest that writes `logd-wedged` into its status share is stopped by
+  the host (`stopWedgedGuest`), in the background, and its runner is published
+  terminated with reason `LogdWedged` and exit code 1. The guest restarts a
+  wedged logd itself (`infra/runner-image/logd-watchdog.sh`) and writes the
+  file only when that fails. It cannot halt itself then, so without the stop
+  its job hangs until the job's timeout and the VM keeps its host after that. Find them with
+  `{job="tuist-macos-tart-kubelet"} |= "wedged logd"`.
 
 - Readiness: without a `readinessProbe`, a Pod is Ready once its VM has an IP
   (customer runner Pods stay here). An `httpGet`/`tcpSocket` probe runs in

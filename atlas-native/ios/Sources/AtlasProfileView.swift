@@ -28,25 +28,26 @@ struct AtlasSettingsView: View {
                         Text(profile?.user.name ?? "Your profile").font(.headline)
                     }.frame(maxWidth: .infinity).padding(.vertical, 12)
                 }.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                if let profile {
-                    Section { LabeledContent("Email", value: profile.user.email).textSelection(.enabled) }
-                    Section {
-                        if !profile.user.description.isEmpty {
-                            Text(profile.user.description).textSelection(.enabled)
-                        }
-                        Button(profile.user.description.isEmpty ? "Tell Pip about yourself" : "Edit description") {
-                            if let profileRequest {
-                                profileModel.beginEditing()
-                                editor = AtlasProfileEditorModel(description: profile.user.description, request: profileRequest)
-                            }
-                        }
-                        .disabled(profile.cached == true)
-                        .accessibilityIdentifier("profile-edit-description")
-                    } header: { Text("About you") } footer: {
-                        Text("Share your company role, personality and communication preferences. " +
-                             "Pip uses this only in your private conversations, not shared threads. " +
-                             "It is sent to the configured AI provider with those conversations.")
+                Section {
+                    LabeledContent("Email", value: profile?.user.email ?? (profileModel.errorMessage == nil ? "Loading…" : "Unavailable"))
+                        .textSelection(.enabled)
+                }
+                Section {
+                    if let description = profile?.user.description, !description.isEmpty {
+                        Text(description).textSelection(.enabled)
                     }
+                    Button((profile?.user.description ?? "").isEmpty ? "Tell Pip about yourself" : "Edit description") {
+                        if let profile, let profileRequest {
+                            profileModel.beginEditing()
+                            editor = AtlasProfileEditorModel(description: profile.user.description, request: profileRequest)
+                        }
+                    }
+                    .disabled(profile == nil || profile?.cached == true)
+                    .accessibilityIdentifier("profile-edit-description")
+                } header: { Text("About you") } footer: {
+                    Text("Share your company role, personality and communication preferences. " +
+                         "Pip uses this only in your private conversations, not shared threads. " +
+                         "It is sent to the configured AI provider with those conversations.")
                 }
             }
             Section("Account") {
