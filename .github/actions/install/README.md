@@ -1,10 +1,11 @@
 # Tuist install
 
 Install generated-project dependencies with automatic caching on macOS and Linux
-GitHub Actions runners. The action retains the package's `.build` directory using
-Tuist volumes when their client is available, or GitHub's archive cache otherwise.
-It always runs `tuist install` with forced resolved versions and a nested dependency
-cache, including on cache hits. There is no cache-mode input.
+GitHub Actions runners. By default, the action retains the package's `.build`
+directory using Tuist volumes when their client is available, or GitHub's archive
+cache otherwise. On runners that already keep `.build` on disk between jobs, set
+`cache: external` to skip the action's own caching. It always runs `tuist install`
+with forced resolved versions and a nested dependency cache, including on cache hits.
 
 ## Usage
 
@@ -35,8 +36,9 @@ required CLI and Swift toolchain installed.
 | Input | Default | Behavior |
 | --- | --- | --- |
 | `path` | `.` | Project directory inside `GITHUB_WORKSPACE`, relative to it or absolute. Subdirectories follow Tuist's root lookup. |
-| `cache-key` | Generated | Override the cache namespace to share a compatible workspace between jobs, or rotate it. |
-| `size` | 20gb for new volumes | Volume capacity on Tuist runners, from `1gb` to `100gb`. Raise it when `.build` nears the volume's size: a volume stops saving at 99% full. Changing it keeps the saved contents. Ignored for GitHub caching. |
+| `cache` | `auto` | `auto` selects Tuist volumes or GitHub caching. `external` leaves `.build` persistence to the runner; see [Runners that persist `.build`](#runners-that-persist-build). |
+| `cache-key` | Generated | Override the cache namespace to share a compatible workspace between jobs, or rotate it. Ignored for external caching. |
+| `size` | 20gb for new volumes | Volume capacity on Tuist runners, from `1gb` to `100gb`. Raise it when `.build` nears the volume's size: a volume stops saving at 99% full. Changing it keeps the saved contents. Ignored for GitHub and external caching. |
 
 The action follows Tuist's root markers (`Tuist/`, `Tuist.swift`, `tuist.toml`,
 `Plugin.swift`, or `.git/`) and prefers `Tuist/Package.swift` over a root
@@ -68,6 +70,8 @@ Paths and keys are passed as literal arguments, not evaluated as shell code.
 
 ## Automatic cache selection
 
+With the default `cache: auto`:
+
 - When `tuist-cache-volume` is on `PATH` or available at `/__e/tuist-cache-volume`,
   attach a volume and use symlink materialization.
 - Otherwise, use `actions/cache@v4` to restore/save `.build`, and copy package
@@ -86,9 +90,65 @@ scoping applies: fork PRs can read base-branch caches, while saves from a
 Archive transfers and copies add overhead; caching is not a promise of faster
 installation for every dependency graph.
 
+## Runners that persist `.build`
+
+Some runners already keep the package's `.build` directory on disk between jobs,
+such as self-hosted machines with persistent workspaces or runners that mount a
+provider cache volume at `.build`. Set `cache: external` there to get the same
+install path as Tuist volumes without the action's own caching:
+
+- No volume is attached and no archive is restored or saved, even when
+  `tuist-cache-volume` is available.
+- Package sources use symlink materialization. The links point into
+  `.build/dependency-cache`, so persisting `.build` alone is enough.
+- `tuist install --force-resolved-versions` runs against whatever `.build` contains.
+
+On a self-hosted runner with a persistent workspace, keep `actions/checkout` from
+cleaning ignored files, which would delete `.build`:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    clean: false
+- uses: jdx/mise-action@v4
+- uses: tuist/install@v1
+  with:
+    cache: external
+```
+
+On runners whose provider mounts cache volumes at a path, mount one at the
+package's `.build` after checkout and before this action. For example, with
+`namespacelabs/nscloud-cache-action`:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: namespacelabs/nscloud-cache-action@v1
+  with:
+    path: Tuist/.build
+- uses: jdx/mise-action@v4
+- uses: tuist/install@v1
+  with:
+    cache: external
+```
+
+The mount path must be the `.build` directory beside the package this action
+selects: `Tuist/.build` for `Tuist/Package.swift`, or `.build` for a root
+`Package.swift`. The `cache-path` output shows the resolved location.
+
+The action does not inspect, clear, or relocate a pre-existing `.build` in this
+mode. A missing or empty directory is a cold install. A nonempty one is reused:
+the forced install reconciles it with `Package.resolved` and re-creates the
+source links, which use absolute paths, so a changed checkout path is repaired by
+the next install. To start fresh, clear `.build` with the runner's own tooling.
+Do not let concurrent jobs write to the same `.build`.
+
+The runner, not this action or Tuist, decides what persists, including changes
+made by fork pull requests. Persist `.build` only where its contents may be read
+by every job that later uses it.
+
 ## What is retained
 
-Both backends retain workspace state, cached manifest JSON, downloaded sources,
+Every backend retains workspace state, cached manifest JSON, downloaded sources,
 and native compiled manifests. The action explicitly sets:
 
 ```text
@@ -97,15 +157,16 @@ and native compiled manifests. The action explicitly sets:
 --cache-path <package>/.build/dependency-cache
 ```
 
-Materialization is `symlink` for volumes and `copy` for GitHub archives.
+Materialization is `symlink` for volumes and external caching, and `copy` for
+GitHub archives.
 
 The scratch path overrides configured `--scratch-path` options, keeping workspace
 state in the retained directory. A nonempty `SWIFTPM_BUILD_DIR` is rejected because
 it would redirect workspace state elsewhere. Leave the package-manifest
 environment at `.automatic`; this action does not set an exclusion list.
 
-Run the action before anything populates `.build`; do not combine it with another
-cache step for that directory. Existing nonempty volume targets fail through the
+With `cache: auto`, run the action before anything populates `.build`; do not
+combine it with another cache step for that directory. Existing nonempty volume targets fail through the
 volume action's normal contract; nothing is deleted or relocated. Unavailable
 volume storage uses its empty job-local directory fallback, then installation
 proceeds normally. Clearing `.build` also clears its dependency caches.
@@ -119,8 +180,8 @@ cache. No workflow credential or `id-token` permission is required for volume at
 
 | Output | Meaning |
 | --- | --- |
-| `cache-hit` | `true` for a saved volume snapshot or exact GitHub archive hit. A GitHub prefix match reports `false`, even though data was restored. Installation always runs. |
-| `cache-backend` | Automatically selected backend: `volume` or `github`. |
+| `cache-hit` | `true` for a saved volume snapshot or exact GitHub archive hit. A GitHub prefix match reports `false`, even though data was restored. Always `false` for `cache: external`, where the action does not know what the runner restored. Installation always runs. |
+| `cache-backend` | Selected backend: `volume` or `github` with `cache: auto`, or `external`. |
 | `cache-path` | Absolute path to `.build/dependency-cache`. |
 
 Use the cache output for later native SwiftPM commands:

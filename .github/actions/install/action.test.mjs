@@ -244,3 +244,43 @@ test('size reaches the cache volume and never the GitHub archive', () => {
   assert.match(step('volume'), /^        size: \$\{\{ inputs\.size \}\}$/m);
   assert.doesNotMatch(step('archive'), /size/);
 });
+
+test('external cache skips volumes and archives, keeps persisted .build, and symlinks', t => {
+  const f = fixture(t);
+  const pkg = f.pkg();
+  f.write(path.join(pkg, '.build/workspace-state.json'), 'persisted');
+  const outputs = success(f.prepare({ TUIST_INSTALL_CACHE: 'external', RUNNER_OS: '', RUNNER_ARCH: '' }));
+  assert.equal(outputs.backend, 'external');
+  assert.equal(outputs.materialization, 'symlink');
+  assert.equal(outputs['archive-key'], '');
+  assert.equal(outputs['archive-prefix'], '');
+  assert.equal(outputs['cache-path'], `${pkg}/.build/dependency-cache`);
+  success(f.install(outputs));
+  assert.match(fs.readFileSync(f.env.CAPTURE_ARGS, 'utf8'), /--force-resolved-versions\0--scratch-path\0[^\0]+\/\.build\0/);
+  assert.match(fs.readFileSync(f.env.CAPTURE_ARGS, 'utf8'), /--cached-directory-materialization=symlink\0/);
+  assert.equal(fs.readFileSync(path.join(pkg, '.build/workspace-state.json'), 'utf8'), 'persisted');
+  fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: 'external' })).backend, 'external');
+});
+
+test('cache defaults to automatic selection and rejects unknown modes', t => {
+  const f = fixture(t);
+  f.pkg();
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: '' })).backend, 'volume');
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: 'auto' })).backend, 'volume');
+  for (const mode of ['volume', 'github', 'none', 'External', 'external\nbackend=github']) {
+    const result = f.prepare({ TUIST_INSTALL_CACHE: mode });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /cache must be auto or external/);
+    assert.deepEqual(result.outputs, {});
+  }
+});
+
+test('cache input reaches prepare and defaults to auto', () => {
+  const definition = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
+  const step = id => definition.split(/\n    - /).find(s => s.startsWith(`id: ${id}\n`));
+  assert.match(definition, /\n  cache:\n    description: [^\n]+\n    default: auto\n/);
+  assert.match(step('prepare'), /^        TUIST_INSTALL_CACHE: \$\{\{ inputs\.cache \}\}$/m);
+  assert.match(step('volume'), /^      if: steps\.prepare\.outputs\.backend == 'volume'$/m);
+  assert.match(step('archive'), /^      if: steps\.prepare\.outputs\.backend == 'github'$/m);
+});
