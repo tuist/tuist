@@ -228,24 +228,27 @@ defmodule Tuist.Storage.ExpiredArtifacts do
         |> select([shard_plan], %{
           id: shard_plan.id,
           project_id: shard_plan.project_id,
+          storage_target: shard_plan.storage_target,
           inserted_at: shard_plan.inserted_at
         })
         |> ClickHouseRepo.all()
 
-      prefixes =
-        Enum.flat_map(rows, fn shard_plan ->
-          case Map.fetch(projects_by_id, shard_plan.project_id) do
-            {:ok, project} -> [Shards.plan_object_prefix(account, project, shard_plan.id)]
-            :error -> []
+      result =
+        Enum.reduce_while(rows, :ok, fn shard_plan, :ok ->
+          project = Map.fetch!(projects_by_id, shard_plan.project_id)
+
+          with {:ok, actor} <- Tuist.Shards.Storage.resolve(shard_plan, account),
+               :ok <- Storage.delete_all_objects(Shards.plan_object_prefix(account, project, shard_plan.id), actor) do
+            {:cont, :ok}
+          else
+            {:error, _} = error -> {:halt, error}
           end
         end)
 
-      delete_prefixes_and_continue(
-        account,
-        prefixes,
-        next_cursor(rows, batch_size),
-        progress_cursor(:shard_bundle, rows)
-      )
+      with :ok <- result,
+           :ok <- persist_progress_cursor(account, progress_cursor(:shard_bundle, rows)) do
+        {:ok, next_cursor(rows, batch_size)}
+      end
     end
   end
 

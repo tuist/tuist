@@ -88,12 +88,26 @@ defmodule TuistEx.Analytics.HTTP do
              method,
              url,
              body,
-             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++ report_headers
+             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++
+               report_headers ++ runner_headers(suffix, options)
            ) do
         {:ok, status, decoded} when status in 200..299 -> {:ok, decoded}
         {:ok, status, decoded} -> {:error, {:http, status, decoded}}
         {:error, reason} -> {:error, reason}
       end
+    end
+  end
+
+  defp runner_headers(suffix, options) do
+    environment = Keyword.get(options, :environment, &System.get_env/1)
+    grant = environment.("TUIST_CACHE_SIGNING_GRANT")
+
+    if (suffix == "/tests/shards" or String.starts_with?(suffix, "/tests/shards/")) and
+         is_binary(grant) and
+         byte_size(grant) in 1..8192 and Regex.match?(~r/\A[A-Za-z0-9_.-]+\z/, grant) do
+      [{"x-tuist-runner-grant", grant}]
+    else
+      []
     end
   end
 

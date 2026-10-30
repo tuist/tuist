@@ -1299,7 +1299,14 @@ defmodule Tuist.Runners do
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
              # untrusted job's cache is never account-portable.
-             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id))
+             cache_signing_grant:
+               if(trusted,
+                 do:
+                   CacheGrant.mint(candidate.account_id,
+                     site: runner_grant_site(fleet_name, context),
+                     platform: Catalog.fleet_platform(fleet_name)
+                   )
+               )
            }}
         else
           {:error, reason} = err ->
@@ -1315,6 +1322,13 @@ defmodule Tuist.Runners do
 
         release_safely(candidate, claim, :unknown_account)
         {:error, :unknown_account}
+    end
+  end
+
+  defp runner_grant_site(fleet_name, context) do
+    case Catalog.fleet_platform(fleet_name) do
+      :linux -> Sites.shard_storage_site(Map.get(context, :node_name))
+      _ -> Map.get(context, :site)
     end
   end
 
