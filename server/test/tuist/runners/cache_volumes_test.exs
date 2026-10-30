@@ -2236,19 +2236,46 @@ defmodule Tuist.Runners.CacheVolumesTest do
                CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
     end
 
-    test "a published checkout use releases its branch and is never prefetched", %{params: params} do
+    test "a published checkout use releases its branch and is prefetched with what a host restores it from", %{
+      account: account,
+      params: params
+    } do
       since = DateTime.add(DateTime.utc_now(), -60, :second)
       {:ok, checkout} = CacheVolumes.allocate_checkout(params)
-
-      publish = %{
-        "operation" => "publish",
-        "image_digest" => String.duplicate("b", 40),
-        "content_digest" => String.duplicate("c", 64)
-      }
+      digest = String.duplicate("b", 40)
+      content = String.duplicate("c", 64)
+      publish = %{"operation" => "publish", "image_digest" => digest, "content_digest" => content}
 
       assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
       assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
-      assert [] = CacheVolumes.recent_macos_heads(["mac-node"], since, 8)
+
+      account_id = account.id
+      checkout_id = checkout.id
+      scope = checkout.scope
+      volume_key = checkout.volume_key
+      checkout_generation = checkout.generation
+
+      assert [
+               %{
+                 kind: "checkout",
+                 id: ^checkout_id,
+                 account_id: ^account_id,
+                 scope: ^scope,
+                 generation: 1,
+                 image_digest: ^digest,
+                 content_digest: ^content,
+                 checkout_generation: ^checkout_generation,
+                 clone_url: "https://github.com/org/repo",
+                 default_branch: "main",
+                 uid: 501,
+                 volume_key: ^volume_key
+               }
+             ] = CacheVolumes.recent_macos_heads(["other-node", "mac-node"], since, 8)
+
+      stub(Runners, :volume_master_download_url, fn _, _, ^digest, ^content -> {:ok, "https://storage/head"} end)
+
+      assert {:ok, %{generation: 1, download_url: "https://storage/head"}} =
+               CacheVolumes.image("other-node", checkout_id, %{"operation" => "download", "generation" => 1})
     end
 
     test "follows the setting of the profile the job was dispatched to", %{account: account, job: job, params: params} do

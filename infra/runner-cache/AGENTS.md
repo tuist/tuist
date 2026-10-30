@@ -279,7 +279,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   nobody wrote for an hour.
 - `Checkouts` (`checkout.go`) is the one populator for both hosts: it builds,
   ingests, publishes, restores and evicts checkout masters, and the host only
-  wires it to its admission (`Room`), transfer and tools. `CheckoutImages` is the
+  wires it to its admission (`Room`, and `Spare` for a restore the server listed
+  before any job asked: free space only, never evicting, never replacing a job's
+  request or waiting for room), transfer and tools. `CheckoutImages` is the
   only platform part. `APFSCheckoutImages` (macOS) keeps the tree at the image
   root and leaves ownership to the guest's `-owners off` attach.
   `Ext4CheckoutImages` (Linux) formats sparse ext4 with inode tables and journal

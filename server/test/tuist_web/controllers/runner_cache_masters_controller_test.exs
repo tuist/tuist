@@ -49,6 +49,40 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
              }
     end
 
+    test "passes on what a host restores a checkout master with", %{conn: conn} do
+      stub(K8sClient, :create_runner_host_token_review, fn "host-token" ->
+        {:ok, %{namespace: "tuist", name: "tart-kubelet-mac-01", uid: "uid"}}
+      end)
+
+      checkout = %{
+        kind: "checkout",
+        id: "use",
+        account_id: 42,
+        scope: "scope",
+        generation: 3,
+        image_digest: "d",
+        content_digest: "c",
+        volume_bytes: 20_000_000_000,
+        head_size_bytes: nil,
+        checkout_generation: 1,
+        clone_url: "https://github.com/org/repo",
+        default_branch: "main",
+        uid: 502,
+        volume_key: "key"
+      }
+
+      expect(VolumePrefetch, :for_node, fn "mac-01" -> [checkout] end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer host-token")
+        |> get("/api/internal/runners/cache-masters")
+
+      assert json_response(conn, 200) == %{
+               "masters" => [Map.new(checkout, fn {key, value} -> {Atom.to_string(key), value} end)]
+             }
+    end
+
     test "refuses a token without the host audience", %{conn: conn} do
       stub(K8sClient, :create_runner_host_token_review, fn "runner-token" -> {:error, :unauthenticated} end)
       reject(&VolumePrefetch.for_node/1)

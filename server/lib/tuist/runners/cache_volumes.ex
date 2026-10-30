@@ -153,8 +153,7 @@ defmodule Tuist.Runners.CacheVolumes do
          # A pull request from a branch or fork named like the default branch is not one.
          default_branch_job: identity.trusted,
          may_start_master: may_start_master?(identity, profile),
-         # Stable across clears, so a host can drop the copies of a cleared generation.
-         volume_key: :sha256 |> :crypto.hash(usage.volume_id) |> Base.encode16(case: :lower)
+         volume_key: checkout_volume_key(usage.volume_id)
        })}
     else
       {:error, :pending} -> {:error, :pending}
@@ -1053,7 +1052,9 @@ defmodule Tuist.Runners.CacheVolumes do
   @doc """
   The saved HEADs of the macOS custom volumes jobs used on `node_names` since
   `since`, most recently used first. Each is the identity a host restores and
-  then retains its master under: the use that published the HEAD.
+  then retains its master under: the use that published the HEAD. A checkout
+  HEAD (`kind: "checkout"`) also carries what the host restores its master
+  with, as `allocate_checkout/1` does.
   """
   def recent_macos_heads(node_names, %DateTime{} = since, limit) do
     since = DateTime.truncate(since, :second)
@@ -1061,16 +1062,14 @@ defmodule Tuist.Runners.CacheVolumes do
     from(u in Usage,
       join: v in Volume,
       on: v.id == u.volume_id,
-      where:
-        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.deleted_at) and
-          v.key != ^@checkout_key,
+      where: u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.deleted_at),
       group_by: v.id,
       order_by: [desc: max(u.inserted_at)],
       limit: ^limit,
       select: v
     )
     |> Repo.all()
-    |> Enum.flat_map(&head_identity/1)
+    |> Enum.flat_map(&prefetch_head/1)
   end
 
   defp head_identity(volume) do
@@ -1103,6 +1102,26 @@ defmodule Tuist.Runners.CacheVolumes do
       _ -> []
     end
   end
+
+  defp prefetch_head(%Volume{key: @checkout_key, provider: "github", default_branch: branch} = volume)
+       when is_binary(branch) do
+    for head <- head_identity(volume) do
+      Map.merge(head, %{
+        kind: @checkout_key,
+        checkout_generation: volume.generation,
+        clone_url: "https://github.com/" <> volume.repository,
+        default_branch: branch,
+        uid: volume.uid,
+        volume_key: checkout_volume_key(volume.id)
+      })
+    end
+  end
+
+  defp prefetch_head(%Volume{key: @checkout_key}), do: []
+  defp prefetch_head(volume), do: head_identity(volume)
+
+  # Stable across clears, so a host can drop the copies of a cleared generation.
+  defp checkout_volume_key(volume_id), do: :sha256 |> :crypto.hash(volume_id) |> Base.encode16(case: :lower)
 
   # HEAD arbitration, immutable objects, checksums and delayed reclamation live
   # in `Runners`. The volume lock also serializes clearing with publication.
