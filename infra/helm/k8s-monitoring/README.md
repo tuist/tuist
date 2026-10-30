@@ -270,9 +270,11 @@ curl -s -u "1774467:$TOKEN" -X POST -H 'Content-Type: application/json' \
   $BASE/v1/recommendations/exemptions
 ```
 
-The prefix rule still drops `instance`, so a matcher on it matches nothing. The
-Build queue duration and XCResult queue duration alerts filter
-`tuist_oban_job_queue_time_milliseconds_bucket` on `instance="production"`.
+The prefix rule still drops `instance`, so a matcher on it matches nothing.
+Select production with `env="production"` or `cluster="tuist-production"`. The
+four Oban queue and processing duration alerts matched `instance="production"`
+and evaluated nothing from 2026-09-10; see
+[alerts.md](alerts.md#ingestion-queue-wait-and-processing-duration).
 
 `sum:counter` cannot count an increment it never saw. A counter series a
 source creates on its first increment (a label combination the code does not
