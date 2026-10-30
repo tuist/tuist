@@ -92,27 +92,33 @@ public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
     public var profiles: CacheProfiles
     /// The storage backends to use for caching.
     public var storages: [CacheStorageOption]
+    /// Whether cached binaries carry portable debug information (dSYMs and source metadata).
+    public var debugSymbols: Bool
 
     public init(
         keepSourceTargets: Bool,
         profiles: CacheProfiles,
-        storages: [CacheStorageOption] = [.local, .remote]
+        storages: [CacheStorageOption] = [.local, .remote],
+        debugSymbols: Bool = true
     ) {
         self.keepSourceTargets = keepSourceTargets
         self.profiles = profiles
         self.storages = storages
+        self.debugSymbols = debugSymbols
     }
 
     #if DEBUG
         public static func test(
             keepSourceTargets: Bool = false,
             profiles: CacheProfiles = .init([:], default: .onlyExternal),
-            storages: [CacheStorageOption] = [.local, .remote]
+            storages: [CacheStorageOption] = [.local, .remote],
+            debugSymbols: Bool = true
         ) -> Self {
             .init(
                 keepSourceTargets: keepSourceTargets,
                 profiles: profiles,
-                storages: storages
+                storages: storages,
+                debugSymbols: debugSymbols
             )
         }
     #endif

@@ -52,6 +52,36 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
         #expect(environment.cachedModuleSourceMappings == (status == "verified" ? [artifact: mappings] : [:]))
     }
 
+    @Test(.inTemporaryDirectory)
+    func replacementSkipsVerification_whenTheCacheOptsOutOfDebugSymbols() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = fixture(at: path, coverage: false)
+        let artifact = path.appending(component: "Feature.xcframework")
+        let reader = MockCachedModuleDebuggingMetadataReading()
+        let storage = MockCacheStoring()
+        given(storage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([.test(
+            name: "Feature",
+            hash: "feature"
+        ): artifact])
+        let mutator = MockCacheGraphMutating()
+        given(mutator).map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
+            .willReturn(fixture.graph)
+        let subject = subject(
+            fixture: fixture, path: path, storage: storage, mutator: mutator, reader: reader, debugSymbols: .off
+        )
+
+        let (_, _, environment) = try await subject.map(graph: fixture.graph, environment: MapperEnvironment())
+
+        verify(reader).sourceMappings(artifact: .any, target: .any).called(0)
+        verify(mutator).map(
+            graph: .any,
+            precompiledArtifacts: .value([fixture.feature: artifact]),
+            sources: .any,
+            keepSourceTargets: .any
+        ).called(1)
+        #expect(environment.cachedModuleSourceMappings == [:])
+    }
+
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func coverageCollectionDoesNotOverridePrecomputedVariant(coverage: Bool) async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -88,7 +118,7 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
         let hasher = MockCacheGraphContentHashing()
         given(hasher).contentHashes(
             for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any,
-            destination: .any, coverage: .value(variant)
+            destination: .any, coverage: .value(variant), debugSymbols: .any
         ).willReturn([fixture.feature: .test(hash: "feature")])
         let subject = TargetsToCacheBinariesGraphMapper(
             config: .test(),
@@ -182,7 +212,8 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
         path: AbsolutePath,
         storage: MockCacheStoring,
         mutator: MockCacheGraphMutating,
-        reader: MockCachedModuleDebuggingMetadataReading
+        reader: MockCachedModuleDebuggingMetadataReading,
+        debugSymbols: BinaryCacheDebugSymbols = .on
     ) -> TargetsToCacheBinariesGraphMapper {
         TargetsToCacheBinariesGraphMapper(
             config: .test(),
@@ -191,6 +222,7 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
             configuration: "Debug",
             cacheGraphMutator: mutator,
             cacheStorage: storage,
+            debugSymbols: debugSymbols,
             precomputedTargetHashes: [TargetReference(projectPath: path, name: "Feature"): .test(hash: "feature")],
             debuggingMetadataReader: reader
         )

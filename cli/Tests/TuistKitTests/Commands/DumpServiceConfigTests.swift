@@ -50,6 +50,7 @@ struct DumpServiceConfigTests {
           "project": {
             "tuist": {
               "cacheOptions": {
+                "debugSymbols": true,
                 "keepSourceTargets": false,
                 "profiles": {
                   "defaultProfile": {

@@ -174,6 +174,20 @@ Restored native modules need linked debug information as well as access to the c
 
 For verified replacements, Tuist prepares source relocations in consumer-owned dSYM UUID plists and links debug-only companions for static cached code. It does not rewrite cached binaries or install producer-source paths in LLDB's persistent global source map. Explicit debugger initializers and module-loader settings remain authoritative. Debug symbols and source relocation do not repair source-relative runtime file access or native Xcode coverage reports; coverage variant selection and LLVM export remain separate features.
 
+dSYMs and source metadata make `tuist cache` slower and need considerably more disk while it warms. If you don't need to debug into cached modules, turn them off in `Tuist.swift`:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(debugSymbols: false)
+    )
+)
+```
+
+With `debugSymbols: false`, Debug modules are warmed without dSYMs or source metadata, and `tuist generate` replaces targets with them without verifying their debug information. Breakpoints in those modules don't resolve to their sources. Release modules keep their dSYMs, so archives can still symbolicate crashes in them. Binaries warmed with one setting are never used by a project with the other, so changing it means warming the cache again.
+
 With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.
 
 On Xcode 27 and later, generated projects leave Xcode's per-project prefix mappings (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) off unless a project sets them. Their prefixes, such as `/^src`, name a different directory in every project, and LLDB resolves them against the debugged target's project only. Sources are recorded under workspace-wide prefixes instead: `/^root` for the Tuist root directory, `/^spm` for the Swift package scratch directory, and `/^intermediates` and `/^products` for build outputs. Each one names the same directory in every project, so breakpoints resolve in sources from any project in the workspace.

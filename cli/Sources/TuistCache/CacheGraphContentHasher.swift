@@ -17,7 +17,8 @@ public protocol CacheGraphContentHashing {
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?,
-        coverage: BinaryCacheCoverage
+        coverage: BinaryCacheCoverage,
+        debugSymbols: BinaryCacheDebugSymbols
     ) async throws -> [GraphTarget: TargetContentHash]
 }
 
@@ -40,6 +41,10 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     /// coverage sit beside the plain ones, and a command with coverage on never reads the latter.
     /// Remote packages keep the plain key, since coverage is never kept for code outside the repository.
     public static let coverageDimension = "coverage"
+
+    /// The dimension of every key when the cache opts out of debug symbols: binaries without dSYMs or source
+    /// identities sit beside the ones that carry them, so neither kind is read by a command expecting the other.
+    public static let withoutDebugSymbolsDimension = "without-debug-symbols"
 
     public init(
         contentHasher: ContentHashing = ContentHasher()
@@ -74,7 +79,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?,
-        coverage: BinaryCacheCoverage
+        coverage: BinaryCacheCoverage,
+        debugSymbols: BinaryCacheDebugSymbols
     ) async throws -> [GraphTarget: TargetContentHash] {
         // Hashes depend on the resolved configuration, never on whether it was named explicitly, came
         // from the manifest, or fell back to the first debug configuration. A cache filled by
@@ -103,7 +109,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             try await SwiftVersionProvider.current.swiftlangVersion(),
             try await XcodeController.current.selectedBuildVersion(),
             version.rawValue,
-        ]
+        ] + (debugSymbols == .off ? [Self.withoutDebugSymbolsDimension] : [])
         let targetAdditionalStrings = targetAdditionalStrings(
             additionalStrings, coverage: coverage, configuration: resolvedConfiguration, graph: graph
         )

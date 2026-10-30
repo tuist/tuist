@@ -89,10 +89,12 @@ public struct HashCacheCommandService: HashCacheServicing {
         let graph: XcodeGraph.Graph
         let defaultConfiguration: String?
         let coverage: BinaryCacheCoverage
+        let debugSymbols: BinaryCacheDebugSymbols
 
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
             coverage = .resolved(config: config)
+            debugSymbols = BinaryCacheDebugSymbols(config: config)
 
             #if canImport(TuistCacheEE)
                 let generator = generatorFactory.binaryCacheWarmingPreload(
@@ -119,7 +121,8 @@ public struct HashCacheCommandService: HashCacheServicing {
             defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
             destination: nil,
-            coverage: coverage
+            coverage: coverage,
+            debugSymbols: debugSymbols
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }

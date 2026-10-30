@@ -190,7 +190,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     ),
                     configuration: configuration,
                     cacheStorage: cacheStorage,
-                    coverage: BinaryCacheCoverage(config: config)
+                    coverage: BinaryCacheCoverage(config: config),
+                    debugSymbols: BinaryCacheDebugSymbols(config: config)
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
@@ -234,7 +235,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     ),
                     configuration: configuration,
                     cacheStorage: cacheStorage,
-                    coverage: BinaryCacheCoverage(config: config)
+                    coverage: BinaryCacheCoverage(config: config),
+                    debugSymbols: BinaryCacheDebugSymbols(config: config)
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
@@ -293,6 +295,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     configuration: configuration,
                     cacheStorage: cacheStorage,
                     coverage: BinaryCacheCoverage(config: config),
+                    debugSymbols: BinaryCacheDebugSymbols(config: config),
                     sdkSelection: sdkSelection
                 )
                 mappers.append(focusTargetsGraphMapper)
@@ -345,6 +348,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 configuration: configuration,
                 cacheStorage: cacheStorage,
                 coverage: coverage,
+                debugSymbols: BinaryCacheDebugSymbols(config: config),
                 precomputedTargetHashes: targetHashes,
                 sdkSelection: sdkSelection
             )

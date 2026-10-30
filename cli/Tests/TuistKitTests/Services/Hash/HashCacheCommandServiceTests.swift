@@ -74,7 +74,8 @@ import XcodeGraph
                 ),
                 excludedTargets: .value([]),
                 destination: .value(nil),
-                coverage: .value(.off)
+                coverage: .value(.off),
+                debugSymbols: .any
             ).willReturn([
                 graphTarget: .test(hash: hash),
             ])
@@ -113,7 +114,8 @@ import XcodeGraph
             given(manifestloader).hasRootManifest(at: .value(path)).willReturn(true)
             given(cacheGraphContentHasher).contentHashes(
                 for: .value(graph), configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             ).willReturn([:])
 
             try await subject.run(path: path.pathString, configuration: nil)
@@ -123,7 +125,8 @@ import XcodeGraph
             ).called(1)
             verify(cacheGraphContentHasher).contentHashes(
                 for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                coverage: .value(expected)
+                coverage: .value(expected),
+                debugSymbols: .any
             ).called(1)
         }
     }
