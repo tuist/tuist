@@ -35,7 +35,7 @@ struct CargoShardDownloadTests {
             try await CargoShardService.downloadArchive(from: url, to: archive.url, transfer: transfer)
         }
 
-        #expect(error?.message == "Downloading the nextest shard archive failed.")
+        #expect(error?.message == "Downloading the Cargo shard archive failed.")
         #expect(ScriptedArchiveStorage.attempts(url) == 1)
     }
 }

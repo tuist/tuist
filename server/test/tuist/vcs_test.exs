@@ -2216,6 +2216,72 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "uses runner-neutral Cargo labels in failure and flaky summaries without rewriting reports" do
+      project =
+        ProjectsFixtures.project_fixture(
+          build_system: :cargo,
+          vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+        )
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          build_system: "cargo",
+          scheme: "cargo nextest run · ci",
+          status: "failure",
+          test_modules: [
+            %{
+              name: "rust::lib",
+              status: "failure",
+              duration: 30,
+              test_cases: [
+                %{name: "failed", test_suite_name: "tests", status: "failure", duration: 10},
+                %{
+                  name: "flaky",
+                  test_suite_name: "tests",
+                  status: "success",
+                  duration: 20,
+                  repetitions: [
+                    %{repetition_number: 1, name: "flaky", status: "failure", duration: 10},
+                    %{repetition_number: 2, name: "flaky", status: "success", duration: 10}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+      stub(Req, :get, fn _ -> {:ok, %Req.Response{status: 200, body: []}} end)
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json].body
+        assert body =~ "**Cargo tests · ci**: 1 flaky test"
+        assert body =~ "**Cargo tests · ci**: 1 failed test"
+        refute body =~ "nextest"
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+
+      assert {:ok, stored_run} = Tests.get_test(test_run.id)
+      assert stored_run.scheme == "cargo nextest run · ci"
+    end
+
     test "creates a comment with flaky tests" do
       # Given
       project =
