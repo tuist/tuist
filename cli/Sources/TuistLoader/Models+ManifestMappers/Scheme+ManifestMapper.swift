@@ -12,6 +12,7 @@ extension XcodeGraph.Scheme {
         let name = manifest.name
         let shared = manifest.shared
         let hidden = manifest.hidden
+        let orderHint = manifest.orderHint
         let buildAction = try manifest.buildAction.map { try XcodeGraph.BuildAction.from(
             manifest: $0,
             generatorPaths: generatorPaths
@@ -47,6 +48,7 @@ extension XcodeGraph.Scheme {
             name: name,
             shared: shared,
             hidden: hidden,
+            orderHint: orderHint,
             buildAction: buildAction,
             testAction: testAction,
             runAction: runAction,

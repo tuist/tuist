@@ -7,6 +7,7 @@ public struct Scheme: Equatable, Codable, Sendable {
     public var name: String
     public var shared: Bool
     public var hidden: Bool
+    public var orderHint: Int?
     public var buildAction: BuildAction?
     public var testAction: TestAction?
     public var runAction: RunAction?
@@ -20,6 +21,7 @@ public struct Scheme: Equatable, Codable, Sendable {
         name: String,
         shared: Bool = false,
         hidden: Bool = false,
+        orderHint: Int? = nil,
         buildAction: BuildAction? = nil,
         testAction: TestAction? = nil,
         runAction: RunAction? = nil,
@@ -30,6 +32,7 @@ public struct Scheme: Equatable, Codable, Sendable {
         self.name = name
         self.shared = shared
         self.hidden = hidden
+        self.orderHint = orderHint
         self.buildAction = buildAction
         self.testAction = testAction
         self.runAction = runAction
