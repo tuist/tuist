@@ -4,6 +4,7 @@ defmodule Tuist.Docs.SidebarTest do
 
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Loader
   alias Tuist.Docs.Page
   alias Tuist.Docs.Sidebar
 
@@ -12,6 +13,29 @@ defmodule Tuist.Docs.SidebarTest do
 
     tree = Sidebar.tree()
     assert [_ | _] = tree
+  end
+
+  test "every authored navigation label is available to the translation rule" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+
+    catalog =
+      "../../priv/docs/strings/en.json"
+      |> Path.expand(__DIR__)
+      |> File.read!()
+      |> JSON.decode!()
+      |> catalog_texts()
+      |> MapSet.new()
+
+    # Example names come from project READMEs, not the navigation catalog.
+    examples = MapSet.new(Loader.load_example_items!(), &elem(&1, 0))
+
+    missing =
+      Sidebar.tree()
+      |> navigation_labels()
+      |> Enum.reject(&(is_nil(&1) or MapSet.member?(catalog, &1) or MapSet.member?(examples, &1)))
+      |> Enum.uniq()
+
+    assert missing == [], "Navigation labels missing from strings/en.json: #{inspect(missing)}"
   end
 
   test "puts install and the starting journeys first in the guides sidebar" do
@@ -151,5 +175,17 @@ defmodule Tuist.Docs.SidebarTest do
   defp collect_item_slugs(%{slug: slug, items: items}) do
     own = if slug, do: [slug], else: []
     own ++ Enum.flat_map(items, &collect_item_slugs/1)
+  end
+
+  defp navigation_labels(nodes) do
+    Enum.flat_map(nodes, fn node -> [node.label | navigation_labels(node.items)] end)
+  end
+
+  defp catalog_texts(map) do
+    Enum.flat_map(map, fn
+      {"text", value} when is_binary(value) -> [value]
+      {_key, value} when is_map(value) -> catalog_texts(value)
+      _ -> []
+    end)
   end
 end

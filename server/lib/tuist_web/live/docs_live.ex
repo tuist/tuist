@@ -169,12 +169,17 @@ defmodule TuistWeb.DocsLive do
   end
 
   def render(%{view: :overview} = assigns) do
+    headings =
+      Enum.map(@overview_headings, fn heading ->
+        %{heading | text: Gettext.dgettext(TuistWeb.Gettext, "docs", heading.text)}
+      end)
+
     assigns =
       assigns
       |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
       |> assign(:get_started_path, docs_path("/#{assigns.locale}/guides/get-started"))
       |> assign(:copy_check_icon, @copy_check_icon)
-      |> assign(:headings, @overview_headings)
+      |> assign(:headings, headings)
 
     ~H"""
     <TuistWeb.Docs.Components.layout

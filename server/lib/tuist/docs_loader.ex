@@ -17,7 +17,7 @@ defmodule Tuist.Docs.Loader do
 
   # Paths
   @source_docs_root Path.expand("../../priv/docs", __DIR__)
-  @locales if(Tuist.Environment.test?(), do: ["en"], else: Locale.supported_locales())
+  @locales if(Tuist.Environment.single_locale?(), do: ["en"], else: Locale.supported_locales())
   @source_examples_root Path.expand("../../../examples/xcode", __DIR__)
   @priv_examples_root Path.expand("../../priv/examples/xcode", __DIR__)
 
@@ -32,8 +32,8 @@ defmodule Tuist.Docs.Loader do
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
   @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
-  @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
-  @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
+  @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)[ \t]*\{#([\w-]+)\}\s*$/m
+  @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:[ \t]*\{#([\w-]+)\})?\s*$/m
   @code_group_regex ~r/^(?<indent>[ \t]*):::[ \t]*code-group[ \t]*\n(?<content>.*?)^\k<indent>:::[ \t]*$/ms
   @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
   # Tempered inner group so the title capture stops at the first `</strong>`
@@ -140,8 +140,14 @@ defmodule Tuist.Docs.Loader do
       |> Path.join("**/*.md")
       |> Path.wildcard()
     end)
-    |> Enum.sort()
+    # A renamed English page can leave an obsolete translation at the same
+    # URL. Prefer the file matching the current English source layout.
+    |> Enum.sort_by(fn source_path ->
+      [_locale | relative_path] = source_path |> Path.relative_to(docs_root) |> Path.split()
+      {not File.exists?(Path.join([docs_root, "en" | relative_path])), source_path}
+    end)
     |> Enum.reject(&excluded_source?/1)
+    |> Enum.uniq_by(&(&1 |> Path.relative_to(docs_root) |> source_to_slug()))
   end
 
   defp example_readmes do

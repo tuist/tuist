@@ -5,6 +5,7 @@ defmodule Tuist.DocsTest do
   alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Loader
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Docs.Page
 
@@ -15,6 +16,39 @@ defmodule Tuist.DocsTest do
       assert page.slug == "/en/guides/install-tuist"
       assert page.title == "Install Tuist"
       assert page.body =~ "Install Tuist"
+    end
+
+    @tag :tmp_dir
+    test "localized headings retain explicit IDs with or without a separating space", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "localized-headings.md")
+
+      File.write!(source_path, """
+      # 本地化标题{#localized-title}
+
+      ## 拉取/合并请求注释{#pullmerge-request-comments}
+
+      ## 测试覆盖率 {#test-coverage}
+
+      ## 普通标题
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+      document = Floki.parse_fragment!(page.body)
+
+      assert page.headings == [
+               %{level: 2, text: "拉取/合并请求注释", id: "pullmerge-request-comments"},
+               %{level: 2, text: "测试覆盖率", id: "test-coverage"},
+               %{level: 2, text: "普通标题", id: "普通标题"}
+             ]
+
+      assert Floki.text(Floki.find(document, "h1")) == "本地化标题"
+
+      for heading <- Enum.take(page.headings, 2) do
+        anchor = Floki.find(document, ~s(h2 a[id="#{heading.id}"][href="##{heading.id}"]))
+        assert anchor |> Floki.find("[data-part=heading-text]") |> Floki.text() == heading.text
+      end
+
+      refute page.body =~ "{#"
     end
 
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
@@ -138,6 +172,15 @@ defmodule Tuist.DocsTest do
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
       assert selective_testing_page.source_path == "en/guides/features/selective-testing/index.md"
+    end
+
+    @tag :locale
+    test "current translations take precedence over obsolete pages at the same URL" do
+      for locale <- ~w(es ja ko ru yue_Hant zh_Hans zh_Hant) do
+        page = Docs.get_page("/#{locale}/guides/features/selective-testing")
+
+        assert page.source_path == "#{locale}/guides/features/selective-testing/index.md"
+      end
     end
 
     test "loads static CLI documentation pages" do
