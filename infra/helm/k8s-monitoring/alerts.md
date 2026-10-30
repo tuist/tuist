@@ -2678,10 +2678,13 @@ sum by (platform) (increase(
 ))
 ```
 
-- C: `1 - $A / $B`, the share of jobs over 10 s. It is above 10% exactly
-  when the p90 is over 10 s, because 10 s is a bucket boundary.
-- Condition: `$C > 0.1 && $B >= 20`; pending period 30 minutes; severity
-  warning; policy tree (`#notifications`)
+- C: `1 - $A / $B`, the share of jobs over 10 s, shown in the
+  notification. It is above 10% exactly when the p90 is over 10 s, because
+  10 s is a bucket boundary.
+- Condition: `$B - $A > 0.1 * $B && $B >= 20`, which is C over 10% without
+  the division. When B is 0, C is NaN, and Grafana treats a NaN condition
+  as firing. Pending period 30 minutes; severity warning; policy tree
+  (`#notifications`)
 - No `affected_service`: jobs still start.
 - `test-runner-queue-time-alert.sh` checks the expression with promtool.
 
@@ -3007,8 +3010,9 @@ that carries the same fields undercounts.
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
 removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
 and `increase()` over it returned an empty result, as with the Oban counters
-in **Ingestion jobs being discarded**. It now has an exact `sum:counter` rule
-and rates, but both agents create each `(operation, source, result)` series
+in **Ingestion jobs being discarded**. Auto-apply removed the exact rule added
+for it; since 2026-10-30 18:16 UTC the `tuist_` prefix rule stores
+`sum:counter` and it rates, but both agents create each `(operation, source, result)` series
 on its first increment, and that first increment is never counted (see
 `README.md`, *Metrics aggregated downstream of this chart*). Compared with the
 host logs over 17:20 to 18:20 UTC that day, the metric read 12 to 31% low on

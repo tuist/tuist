@@ -1,6 +1,6 @@
 <div id="preview">
   <.alert
-    :if={@user_agent.os.family != "iOS"}
+    :if={@user_agent.os.family != "iOS" and not @desktop_preview}
     id="download-tuist-app-alert"
     phx-hook="DeeplinkValidation"
     data-deeplink-element-id="preview-run-button"
@@ -57,6 +57,13 @@
         <.dots_dark />
       </div>
       <img
+        :if={@cli_preview}
+        src={~p"/app/images/cli-icon.svg"}
+        alt={dgettext("dashboard_previews", "Command-line preview")}
+        data-part="icon"
+      />
+      <img
+        :if={not @cli_preview}
         id="preview-header-icon"
         src={~p"/app/images/app-icon-placeholder.svg"}
         data-image-src={
@@ -71,7 +78,12 @@
       />
     </div>
     <h1 data-part="title">{@preview.display_name}</h1>
-    <div data-part="version">
+    <.tag
+      :if={@cli_preview}
+      label={dgettext("dashboard_previews", "CLI")}
+      data-part="preview-type"
+    />
+    <div :if={@preview.version} data-part="version">
       <div data-part="icon">
         <%= if @preview.supported_platforms == [:android] do %>
           <.icon name="device_mobile" />
@@ -127,7 +139,7 @@
           </div>
         </div>
         <div data-part="metadata-row">
-          <div data-part="metadata">
+          <div :if={@preview.bundle_identifier} data-part="metadata">
             <div data-part="title">
               <%= if @preview.supported_platforms == [:android] do %>
                 {dgettext("dashboard_previews", "Package name")}
@@ -188,7 +200,11 @@
   <.card
     data-part="install-app-card"
     icon="devices_down"
-    title={dgettext("dashboard_previews", "Install App")}
+    title={
+      if @desktop_preview,
+        do: dgettext("dashboard_previews", "Run preview"),
+        else: dgettext("dashboard_previews", "Install App")
+    }
   >
     <.card_section data-part="install-app-card-section">
       <div
@@ -263,7 +279,7 @@
       </div>
       <div
         :if={
-          @preview.supported_platforms != [:android] and
+          not @desktop_preview and @preview.supported_platforms != [:android] and
             is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))
         }
         data-part="device-not-available"
@@ -295,8 +311,24 @@
           </span>
         </div>
       </div>
-      <.line_divider text={dgettext("dashboard_previews", "Or run using CLI")} />
+      <.line_divider
+        :if={not @desktop_preview}
+        text={dgettext("dashboard_previews", "Or run using CLI")}
+      />
       <.terminal id="install-app-card-terminal" command={"tuist run #{@preview_url}"} />
+      <.alert
+        :if={@desktop_preview}
+        id="desktop-preview-trust-alert"
+        status="warning"
+        size="large"
+        title={dgettext("dashboard_previews", "Only run previews you trust")}
+        description={
+          dgettext(
+            "dashboard_previews",
+            "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
+          )
+        }
+      />
     </.card_section>
   </.card>
 </div>

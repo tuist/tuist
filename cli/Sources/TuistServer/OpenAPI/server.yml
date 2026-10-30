@@ -3625,8 +3625,11 @@ components:
           x-struct:
           x-validate:
         supported_platforms:
+          description: Supported platforms. Clients must ignore unknown platforms.
           items:
-            $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: string
+            x-struct:
+            x-validate:
           type: array
           x-struct:
           x-validate:
@@ -7079,6 +7082,12 @@ components:
           minLength: 1
           type: string
           writeOnly: true
+          x-struct:
+          x-validate:
+        snapshot_id:
+          description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          type: string
           x-struct:
           x-validate:
         template:
@@ -13890,6 +13899,7 @@ components:
         - visionos_simulator
         - macos
         - android
+        - linux
       title: PreviewSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
@@ -14045,7 +14055,7 @@ components:
     AppBuild:
       properties:
         binary_id:
-          description: The Mach-O UUID of the build's main binary.
+          description: The Mach-O UUID or SHA-256 content hash of the build.
           type: string
           x-struct:
           x-validate:
@@ -14054,18 +14064,26 @@ components:
           type: string
           x-struct:
           x-validate:
-        supported_platforms:
+        supported_architectures:
+          description: CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
           items:
-            $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        supported_platforms:
+          description: Supported platforms. Clients must ignore unknown platforms.
+          items:
+            type: string
+            x-struct:
+            x-validate:
           type: array
           x-struct:
           x-validate:
         type:
-          description: The type of the build
-          enum:
-            - app_bundle
-            - ipa
-            - apk
+          description: The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats.
           type: string
           x-struct:
           x-validate:
@@ -17204,7 +17222,7 @@ paths:
   /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}:
     post:
       callbacks: {}
-      description: Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+      description: "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it."
       operationId: dispatchAmpOrb
       parameters:
         - description: The account handle.
@@ -17259,6 +17277,12 @@ paths:
                   minLength: 1
                   type: string
                   writeOnly: true
+                  x-struct:
+                  x-validate:
+                snapshot_id:
+                  description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+                  pattern: ^[A-Za-z0-9._:-]{1,255}$
+                  type: string
                   x-struct:
                   x-validate:
                 template:
@@ -33764,6 +33788,18 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                supported_architectures:
+                  description: CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds.
+                  items:
+                    pattern: ^(arm64|x86_64)$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 2
+                  type: array
+                  uniqueItems: true
+                  x-struct:
+                  x-validate:
                 supported_platforms:
                   description: The supported platforms of the preview.
                   items:
@@ -33783,6 +33819,7 @@ paths:
                     - app_bundle
                     - ipa
                     - apk
+                    - executable
                   type: string
                   x-struct:
                   x-validate:
