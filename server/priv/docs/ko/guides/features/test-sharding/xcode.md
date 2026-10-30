@@ -1,33 +1,33 @@
 ---
 {
-  "title": "Xcode Test Sharding",
-  "titleTemplate": ":title · Test Sharding · Features · Guides · Tuist",
-  "description": "Distribute Xcode tests across multiple CI runners with Tuist Test Sharding."
+  "title": "Xcode 테스트 샤딩",
+  "titleTemplate": ":title · 테스트 샤딩 · 기능 · 가이드 · Tuist",
+  "description": "Tuist 테스트 샤딩을 사용하여 여러 CI 러너에 Xcode 테스트를 분산하세요."
 }
 ---
 # Xcode 테스트 샤딩 {#xcode-test-sharding}
 
 > [!WARNING]
-> **요구 사항**
+> **필수 조건**
 >
-> - <.localized_link href="/guides/features/test-insights/xcode">Xcode 테스트 인사이트</.localized_link>가 구성되어야 합니다. 샤딩은 지난 30일간의 테스트 인사이트 타이밍 데이터를 사용하여 샤드 간 부하를 균형 있게 분배하며, 인사이트가 없으면 모든 샤드가 테스트 스위트가 알려지지 않은 상태로 실행됩니다.
+> - <.localized_link href="/guides/features/test-insights/xcode">Xcode 테스트 인사이트</.localized_link>가 구성되어 있어야 합니다. 샤딩은 지난 30일간의 테스트 인사이트 타이밍 데이터를 사용하여 샤드 간 부하를 균등하게 분배하며, 인사이트가 없으면 모든 샤드가 해당 스위트가 알려지지 않은 상태로 실행됩니다.
 
-Xcode 프로젝트의 테스트 샤딩은 `tuist xcodebuild build-for-testing`을 사용하여 샤드 계획을 생성하고 `tuist xcodebuild test`를 사용하여 각 샤드를 실행합니다.
+Xcode 프로젝트의 테스트 샤딩은 `tuist xcodebuild build-for-testing`을 사용하여 샤드 계획을 생성하고 `tuist xcodebuild test`을 사용하여 각 샤드를 실행합니다.
 
 ## 작동 방식 {#how-it-works}
 
 테스트 샤딩은 두 단계 워크플로를 따릅니다:
 
-1. **빌드 단계:** Tuist는 빌드된 `.xctestrun` 파일에서 테스트 모듈을 읽어 서버에 **샤드 계획**을 생성합니다. 서버는 지난 30일간의 역사적 테스트 타이밍 데이터를 사용하여 각 샤드가 대략 동일한 시간이 소요되도록 테스트를 샤드 간에 분배합니다. 빌드 단계는 CI 시스템이 병렬 러너를 생성하는 데 사용하는 **샤드 매트릭스**를 출력합니다.
+1. **빌드 단계:** Tuist는 빌드된 `.xctestrun` 파일에서 테스트 모듈을 읽어 서버에 **샤드 계획**을 생성합니다. 서버는 지난 30일간의 역사적 테스트 타이밍 데이터를 사용하여 각 샤드가 거의 동일한 시간이 소요되도록 테스트를 샤드 간에 분배합니다. 빌드 단계는 CI 시스템이 병렬 러너를 생성하는 데 사용하는 **샤드 매트릭스**를 출력합니다.
 2. **테스트 단계:** 각 지속적 통합 러너는 **샤드 인덱스**와 정확한 **샤드 계획 식별자**를 받은 후, 해당 계획의 테스트 선택을 실행합니다.
 
-수트 단위 세분성을 사용하면 서버는 모듈별로 알려진 수트를 선택합니다. 현재 `.xctestrun`의 각 모듈에 대해, 빌드 중인 브랜치에서 최근 몇 차례의 CI 실행에 포함된 수트를 합집합으로 취하며, 브랜치 이력이 없는 모듈은 프로젝트의 기본 브랜치를 대체 값으로 사용합니다. 최신 실행 대신 여러 실행을 읽는 것이 중요한 이유는, 샤딩된 실행에서는 각 샤드가 완료될 때마다 샤드당 하나의 테스트 실행 결과를 업로드하므로 가장 최근 실행에는 지금까지 수집된 모듈의 일부만 포함되기 때문이며, 또한 최신 브랜치 실행에서 건너뛴 수트가 선택적 테스트 실행에서 숨겨지지 않도록 하기 때문입니다.
+수트 단위의 세분화(granularity)를 사용하면 서버는 모듈별로 알려진 수트를 선택합니다. 현재 `.xctestrun`의 각 모듈에 대해, 빌드 중인 브랜치에서의 최근 몇 차례 CI 실행에 포함된 수트를 합집합으로 취하며, 브랜치 이력이 없는 모듈의 경우 프로젝트의 기본 브랜치를 폴백(fallback)으로 사용합니다. 최신 실행 하나만 읽지 않고 여러 실행을 읽는 것이 중요한 이유는, 샤딩된 실행에서는 각 샤드가 완료될 때마다 샤드당 하나의 테스트 실행 결과를 업로드하므로 가장 최근 실행에는 지금까지 수집된 모듈의 일부만 포함되기 때문이며, 또한 선택적 테스팅 실행에서 최신 브랜치 실행 시 건너뛴 수트가 숨겨지는 것을 방지하기 때문입니다.
 
-`--shard-granularity suite`을 사용할 때, Tuist는 요청된 샤드 수에 맞춰 알려진 수트를 균형 있게 분배하고 마지막 샤드를 catch-all로 사용합니다. 예를 들어, `--shard-total 5`는 샤드 인덱스 `0`부터 `4`까지를 생성하며, 샤드 인덱스 `4`가 catch-all로 사용됩니다. 일반 샤드는 할당된 수트에 대해 `-only-testing` 옵션을 사용하여 실행됩니다. 마지막 샤드는 `-only-testing` 없이 실행되며 이전 샤드에 할당된 모든 수트에 대해 `-skip-testing`를 전달하므로, 계획된 수트 외에도 새로 추가된 수트나 역사적 목록에 누락된 수트를 실행합니다. 모듈 단위 세분성은 `.xctestrun` 파일이 모듈 목록을 제공하므로 catch-all이 필요하지 않습니다.
+`--shard-granularity suite` 옵션을 사용하면 Tuist는 요청된 샤드 수에 맞춰 알려진 수트를 균등하게 분배하고 마지막 샤드를 캐치올(catch-all)로 사용합니다. 예를 들어 `--shard-total 5`는 `0`부터 `4`까지의 샤드 인덱스를 생성하며, 샤드 인덱스 `4`가 캐치올 역할을 합니다. 일반 샤드는 할당된 수트에 대해 `-only-testing` 옵션과 함께 실행됩니다. 마지막 샤드는 `-only-testing` 없이 실행되며 이전 샤드에 할당된 모든 수트에 대해 `-skip-testing`를 전달하므로, 계획된 수트 외에도 새로 추가된 수트나 역사적 목록에 누락된 수트를 실행합니다. 모듈 단위 세분화는 `.xctestrun` 파일이 모듈 목록을 제공하므로 캐치올이 필요하지 않습니다.
 
 ## 빌드 단계 {#build-phase}
 
-테스트를 빌드하고 샤드 계획을 생성하세요:
+테스트를 빌드하고 샤드 계획을 생성합니다:
 
 ```sh
 tuist xcodebuild build-for-testing \
@@ -36,7 +36,7 @@ tuist xcodebuild build-for-testing \
   --shard-total 5
 ```
 
-이 명령은 다음을 수행합니다:
+이 명령은 다음 작업을 수행합니다:
 1. `xcodebuild build-for-testing`을 사용하여 테스트를 빌드합니다
 2. 역사적 타이밍 데이터를 사용하여 Tuist 서버에 샤드 계획을 생성합니다
 3. `.xctestproducts` 번들을 업로드하거나 샤드 러너가 사용할 샤드 아카이브를 작성합니다
@@ -48,7 +48,7 @@ tuist xcodebuild build-for-testing \
 |------|---------------------|-------------|
 | `--shard-max <N>` | `TUIST_TEST_SHARD_MAX` | 최대 샤드 수. `--shard-max-duration`과 함께 사용하여 샤드 수를 제한합니다 |
 | `--shard-min <N>` | `TUIST_TEST_SHARD_MIN` | 최소 샤드 수 |
-| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | 정확한 샤드 수(`--shard-min`/`--shard-max`와 상호 배타적). 수트 단위 세분성을 사용할 경우 마지막 샤드가 catch-all입니다 |
+| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | 정확한 샤드 수(`--shard-min`/`--shard-max`와 상호 배타적). 수트 단위 세분화를 사용하면 마지막 샤드가 캐치올 역할을 합니다 |
 | `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | 샤드당 목표 최대 지속 시간(밀리초) |
 | `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module`(기본값)은 전체 테스트 모듈을 샤드 간에 분배합니다. `suite`는 더 세밀한 균형 조정을 위해 개별 테스트 클래스를 분배합니다 |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | 샤드 계획의 고유 식별자(지원되는 CI 제공업체에서 자동 파생) |
@@ -71,7 +71,7 @@ tuist xcodebuild test \
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | 실행할 샤드의 0 기반 인덱스 |
 | `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | 빌드 단계에서 생성된 정확한 샤드 계획 식별자. 생성된 제공업체 출력에는 이 값이 자동으로 포함됩니다 |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | 샤드 계획의 고유 식별자(지원되는 CI 제공업체에서 자동 파생) |
-| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | 로컬로 관리되는 샤드 아카이브의 경로. Tuist는 원격 스토리지에서 테스트 제품을 다운로드하는 대신 이를 추출합니다 |
+| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | 로컬에서 관리되는 샤드 아카이브의 경로. Tuist는 원격 스토리지에서 테스트 제품을 다운로드하는 대신 이를 추출합니다 |
 
 Tuist는 `.xctestproducts` 번들을 다운로드하고 해당 샤드에 할당된 테스트만 포함하도록 필터링합니다.
 
@@ -86,7 +86,7 @@ Tuist는 다음 CI 제공업체를 자동으로 감지합니다:
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-다른 제공업체의 경우, `.tuist-shard-matrix.json` 파일을 참조하여 병렬 작업을 설정하세요.
+다른 제공업체의 경우 `.tuist-shard-matrix.json` 파일을 참조하여 병렬 작업을 설정하세요.
 
 ### GitHub Actions {#github-actions}
 
@@ -135,7 +135,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist는 [하위 파이프라인](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines)으로 트리거할 수 있는 `.tuist-shard-child-pipeline.yml`을 생성합니다. 생성된 샤드 작업이 확장하는 `.tuist-shard` 템플릿 작업을 정의하세요:
+Tuist는 [하위 파이프라인](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines)으로 트리거할 수 있는 `.tuist-shard-child-pipeline.yml`을 생성합니다. 생성된 샤드 작업이 확장할 `.tuist-shard` 템플릿 작업을 정의하세요:
 
 ```yaml
 # .gitlab-ci.yml
@@ -181,7 +181,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist는 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation)용 매개변수가 포함된 `.tuist-shard-continuation.json`을 생성합니다. 계속되는 구성에서 `shard-plan-id` 매개변수를 선언해야 합니다:
+Tuist는 [연속 Orb](https://circleci.com/developer/orbs/orb/circleci/continuation)용 매개변수가 포함된 `.tuist-shard-continuation.json`을 생성합니다. 계속되는 구성에서 `shard-plan-id` 매개변수를 선언해야 합니다:
 
 ```yaml
 # .circleci/config.yml
@@ -260,7 +260,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist는 샤드당 하나의 단계가 포함된 `.tuist-shard-pipeline.yml`을 생성합니다. `buildkite-agent pipeline upload`를 사용하여 업로드하세요:
+Tuist는 샤드당 하나의 단계가 포함된 `.tuist-shard-pipeline.yml`을 생성합니다. `buildkite-agent pipeline upload`을 사용하여 이를 업로드하세요:
 
 ```yaml
 # pipeline.yml
@@ -277,7 +277,7 @@ steps:
       queue: macos
 ```
 
-각 생성된 단계에는 환경에 `TUIST_SHARD_INDEX` 및 `TUIST_SHARD_PLAN_ID`가 설정되어 있습니다. 공유 스크립트를 사용하여 각 샤드 단계에 테스트 명령을 추가하세요:
+생성된 각 단계에는 환경에 `TUIST_SHARD_INDEX` 및 `TUIST_SHARD_PLAN_ID`가 설정되어 있습니다. 공유 스크립트를 사용하여 각 샤드 단계에 테스트 명령을 추가하세요:
 
 ```bash
 # .buildkite/shard-step.sh
@@ -290,7 +290,7 @@ tuist xcodebuild test \
 
 ### Codemagic {#codemagic}
 
-Codemagic은 동적 매트릭스 작업을 지원하지 않으므로 샤드별로 별도의 워크플로를 정의하세요. Tuist는 빌드 워크플로 내에서 사용할 수 있도록 `TUIST_SHARD_MATRIX` 및 `TUIST_SHARD_COUNT`를 `CM_ENV` 파일에 기록합니다. Codemagic의 `CM_ENV`는 워크플로 범위를 가지므로 정확한 샤드 계획 식별자가 워크플로 경계를 넘지 않습니다. 테스트 워크플로는 참조 기반 샤드 조회로 대체됩니다:
+Codemagic은 동적 매트릭스 작업을 지원하지 않으므로 샤드별로 별도의 워크플로를 정의하세요. Tuist는 빌드 워크플로 내에서 사용할 수 있도록 `TUIST_SHARD_MATRIX` 및 `TUIST_SHARD_COUNT`를 `CM_ENV` 파일에 기록합니다. Codemagic의 `CM_ENV`는 워크플로 범위를 가지므로 정확한 샤드 계획 식별자는 워크플로 경계를 넘지 않습니다. 테스트 워크플로는 참조 기반 샤드 조회로 대체됩니다:
 
 ```yaml
 # codemagic.yaml
@@ -439,7 +439,7 @@ workflows:
 
 기본적으로 빌드 단계는 `.xctestproducts` 번들을 원격 스토리지에 업로드하고 각 샤드 러너가 이를 다운로드합니다. CI 제공업체가 **공유 볼륨**(작업 간에 마운트되는 영구 스토리지)를 지원하는 경우, 테스트 제품을 공유 파일 시스템을 통해 전달하여 이 업로드/다운로드 과정을 완전히 생략할 수 있습니다.
 
-이는 특히 대형 테스트 번들의 경우 샤드 시작 시간을 크게 단축할 수 있습니다.
+이는 특히 대규모 테스트 번들의 경우 샤드 시작 시간을 크게 단축할 수 있습니다.
 
 공유 볼륨을 사용하려면:
 
@@ -464,7 +464,7 @@ tuist xcodebuild test \
 ```
 
 > [!IMPORTANT]
-> 동시 실행 간 충돌을 피하기 위해 워크플로 실행마다 고유한 경로(예: CI 실행 ID 포함)를 사용하세요. 또한 샤딩 완료 후 테스트 제품을 정리하여 볼륨에 오래된 데이터가 누적되지 않도록 해야 합니다.
+> 동시 실행 간 충돌을 방지하기 위해 워크플로 실행마다 고유한 경로를 사용하세요(예: CI 실행 ID 포함). 또한 볼륨에 오래된 데이터가 쌓이는 것을 방지하기 위해 샤딩 완료 후 테스트 제품을 정리해야 합니다.
 
 | 플래그 | 환경 변수 | 설명 |
 |------|---------------------|-------------|
@@ -499,7 +499,7 @@ tuist xcodebuild test \
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) 러너는 GitHub Actions 아티팩트와 잘 동작합니다. 빌드 작업이 샤드 아카이브를 로컬에 작성하고 업로드한 후, 각 샤드 작업에서 `tuist xcodebuild test`을 실행하기 전에 다운로드하도록 `TUIST_TEST_SHARD_ARCHIVE_PATH`를 한 번 설정하세요:
+[Namespace](https://namespace.so) 러너는 GitHub Actions 아티팩트와 잘 연동됩니다. 빌드 작업이 샤드 아카이브를 로컬에 작성하도록 `TUIST_TEST_SHARD_ARCHIVE_PATH`를 한 번 설정하고, 이를 업로드한 후 각 샤드 작업에서 `tuist xcodebuild test`를 실행하기 전에 다운로드하세요:
 
 ```yaml
 name: Tests

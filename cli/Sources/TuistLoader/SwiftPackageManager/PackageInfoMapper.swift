@@ -1118,6 +1118,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
     /// SwiftPM headers remain compiler and cache inputs, but do not become Xcode header build files.
     /// In particular, a directory module preserves its include hierarchy instead of flattening every
     /// nested header into a framework. Custom and umbrella maps keep their original module composition.
+    /// `exclude` only removes project headers: everything under the public headers path stays includable
+    /// through its search path, as it does in SwiftPM.
     private func discoveredHeaders(
         for target: PackageInfo.Target,
         moduleMap: ModuleMap?,
@@ -1140,7 +1142,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return .path(isDirectory ? path.appending(component: "**").pathString : path.pathString)
         }
         return .swiftPackageHeaders(
-            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"))]),
             project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
             sourceLayout: .init(
                 root: .path(targetPath.pathString),

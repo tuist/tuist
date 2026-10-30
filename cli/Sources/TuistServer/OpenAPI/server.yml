@@ -1495,6 +1495,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - actor
@@ -4371,6 +4377,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - cache
         - id
@@ -6366,6 +6378,12 @@ components:
           enum:
             - success
             - failure
+          type: string
+          x-struct:
+          x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -12750,6 +12768,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - actor
@@ -13450,6 +13474,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              tuist_version:
+                description: The reporting Tuist CLI version.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
             required:
               - id
               - actor
@@ -13711,6 +13741,12 @@ components:
                 enum:
                   - success
                   - failure
+                type: string
+                x-struct:
+                x-validate:
+              tuist_version:
+                description: The reporting tuist_ex library version.
+                nullable: true
                 type: string
                 x-struct:
                 x-validate:
@@ -20209,6 +20245,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -26200,6 +26248,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        tuist_version:
+                          description: The reporting tuist_ex library version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                       required:
                         - id
                         - actor
@@ -27085,6 +27139,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -27813,6 +27879,12 @@ paths:
                     enum:
                       - success
                       - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting tuist_ex library version.
+                    nullable: true
                     type: string
                     x-struct:
                     x-validate:
@@ -31407,6 +31479,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                       required:
                         - id
                         - actor
@@ -32323,6 +32401,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -39745,6 +39835,12 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - cache
                   - id
@@ -40923,6 +41019,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -48727,6 +48835,12 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting Tuist Gradle plugin version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 type: object
                 x-struct:
                 x-validate:
@@ -51631,6 +51745,12 @@ paths:
                           x-validate:
                         tasks_up_to_date_count:
                           type: integer
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist Gradle plugin version.
+                          nullable: true
+                          type: string
                           x-struct:
                           x-validate:
                       type: object

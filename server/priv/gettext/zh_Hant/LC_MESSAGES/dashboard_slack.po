@@ -14,7 +14,7 @@ msgstr "Language: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:198
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
-msgstr "找不到帳戶。請再試一次。"
+msgstr "找不到帳號。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
@@ -35,7 +35,7 @@ msgstr "Slack 授權失敗：%{reason}"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:132
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
-msgstr "儲存頻道選擇失敗。請再試一次。"
+msgstr "無法儲存頻道選擇。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:194
 #, elixir-autogen, elixir-format
@@ -50,9 +50,9 @@ msgstr "找不到警示規則。請再試一次。"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "授權請求已過期。請重新開始 Slack 連線流程。"
+msgstr "授權請求已過期。請重新啟動 Slack 連線流程。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack 傳回了非預期的 Webhook URL。請再試一次。"
+msgstr "Slack 回傳了非預期的 Webhook URL。請重試。"

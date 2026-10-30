@@ -1,0 +1,573 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "150a60b67029963187d6bcfec0c2a83b207ebc8443782f5c1568eec285cad4ad",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Telemetry {#telemetry}": {
+                  "content_hash": "7a9105126fdc791f8b4a1bbb2d69915bd9ffd351044a6e0f2456f3be41dd16c2"
+                },
+                "## Accounts metrics {#accounts-metrics}": {
+                  "content_hash": "3d7cba3cb4ceba6e7262c7fcad0f3c6621ec5ff673b037e2cbb800c274780969"
+                },
+                "## Authentication metrics {#authentication-metrics}": {
+                  "content_hash": "aed7ebceb8d67148ebdee21d28cd1510f3e177d50e904e7eeceea934c1967205"
+                },
+                "## Cache metrics {#cache-metrics}": {
+                  "content_hash": "2f841bf99825233e238712defb2f68e925507e192b0860cb718a9f86494d54f9"
+                },
+                "## Database metrics {#database-metrics}": {
+                  "content_hash": "26fb90e77bc728a2205dc6d4766a37c211f86257a458c9f31ca4fed6690c4a5e"
+                },
+                "## Distributed tracing (OpenTelemetry) {#opentelemetry}": {
+                  "content_hash": "b0db60e8176030db8365c17b29782cfd1199c6081289babc22721a95e5516159"
+                },
+                "## Elixir metrics {#elixir-metrics}": {
+                  "content_hash": "9b548882f8cc57e2b91ee57588369dafada70ecbf666ea7122dfca5f0e01425c"
+                },
+                "## HTTP metrics {#http-metrics}": {
+                  "content_hash": "97f49731e14f4c7d0b2bab7ba70fb31d31919769d6a0caf054a81fd1b60689db"
+                },
+                "## Log forwarding (Loki) {#log-forwarding}": {
+                  "content_hash": "eb65e90039b1d4adf2902f90f3f419605c2c7ff9182e75c3638d31ddd67e3014"
+                },
+                "## Previews metrics {#previews-metrics}": {
+                  "content_hash": "2fff0aad6e1c8267eee00abf91ea8190b41045e69c41100b0cfe102e1ec71846"
+                },
+                "## Projects metrics {#projects-metrics}": {
+                  "content_hash": "27c21ebe4f168424b8202400747e264d907589a89a70858927c40135f8dc34d5"
+                },
+                "## Prometheus metrics {#prometheus-metrics}": {
+                  "content_hash": "8c0681325f382a1cf5daf624171c56955f274603dfee48df1a0e982730eaff81"
+                },
+                "## Real user monitoring {#real-user-monitoring}": {
+                  "content_hash": "f9d6ba13b3244fb98f30e1091f9d013a2370a315ae1facda1ee809fb637af643"
+                },
+                "## Runs metrics {#runs-metrics}": {
+                  "content_hash": "6ab9e973e10ac6e4e4b75484009f708eb888e83718f20966d3e733f544fd032d"
+                },
+                "## Storage metrics {#storage-metrics}": {
+                  "content_hash": "038f12060b939e94eda25287155aa20be5cffffb98f590e22d21267d9a28e87a"
+                },
+                "### Configuration {#log-forwarding-configuration}": {
+                  "content_hash": "c8ad66594a69fcf42d98c23dc4291019e4623f609c945ca9c386c8c5fbfcd4e4"
+                },
+                "### Configuration {#opentelemetry-configuration}": {
+                  "content_hash": "a4877f20c9d0353714242e3f98267231f7e04a4298829ce1cbd150697359142c"
+                },
+                "### Configuration {#real-user-monitoring-configuration}": {
+                  "content_hash": "8995b24da47b83e7dba7e289709cf56ae2ef2eaff2388344c93287a962b700e5"
+                },
+                "### Example setup with Grafana Alloy {#log-forwarding-alloy-example}": {
+                  "content_hash": "5c54139889444f92ee794152b9efe379befe1381ad50f715ff0341913a4988c6"
+                },
+                "### Example setup with Grafana Alloy {#opentelemetry-alloy-example}": {
+                  "content_hash": "73cea6093ff64b5ce51c02e913598f0e5c2cb0e0f12a5f31b7bb04693d6bd94f"
+                },
+                "### Instrumented libraries {#opentelemetry-instrumented-libraries}": {
+                  "content_hash": "bb33207ab701520b9f0399877e8680bc42c9294c28d7f6b6fc2be4c8ea9b6c5b"
+                },
+                "### Privacy considerations {#real-user-monitoring-privacy}": {
+                  "content_hash": "01c1fc425934a8e98ba4816d0e89f8b9c439f03ea5799e63482f64a618f8c728"
+                },
+                "### What is collected {#real-user-monitoring-collected}": {
+                  "content_hash": "7d722196b251bbeff4f6fe49f9415fe55563ae9a4f283547382a02633c9b2931"
+                },
+                "### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}": {
+                  "content_hash": "cd86dc36233cbf32ae7c9eac99e25e713768626b54b868dc37e790d883eb4119"
+                },
+                "### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}": {
+                  "content_hash": "4cccdc27da8ba7708955cd38d550ce58f263d816fbf0b1241c6efedd2157bf6d"
+                },
+                "### `tuist_authentication_token_refresh_error_total` (counter) {#tuist_authentication_token_refresh_error_total-counter}": {
+                  "content_hash": "ba6a1452984003b68a9047f2abf70332e657db0956663bf0853ec728f649b836"
+                },
+                "### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}": {
+                  "content_hash": "8307edb40a20207d55b4acde6addc32a12d58d768a2ae1252bc9dbc7e8d97b5c"
+                },
+                "### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}": {
+                  "content_hash": "9956b0896e558b5035175396e167235a9de2957774e1406786b224ca44fb82c6"
+                },
+                "### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}": {
+                  "content_hash": "79f08d4a29a941b29544471fb650937584a53dd4fabcdf400cbd64a552806892"
+                },
+                "### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}": {
+                  "content_hash": "c429b5b09af97dac698b36a89316ab142e340896f97492e8ef4e54fb1fdd430c"
+                },
+                "### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}": {
+                  "content_hash": "e44590fa722c1ef71ed268481058e618a9078c6cfed055416d4b25734a141eb6"
+                },
+                "### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}": {
+                  "content_hash": "96ac3939522fbe255e0e79846f80346202190342f2ba45e8d0e0e5fbf519916c"
+                },
+                "### `tuist_http_connection_duration_nanoseconds_bucket` (distribution) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}": {
+                  "content_hash": "22f2285f619cc760ba243d0a5dee7c283dfaedf169c12019a537e8e48ccc057d"
+                },
+                "### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}": {
+                  "content_hash": "ced3288a704a439eeafc736babd5809c93050700f60c239ee0f4d8096c03ec90"
+                },
+                "### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}": {
+                  "content_hash": "b11e1e96e799adf52df81e65f2c145f7528bac0299617ab4c112fddf808abfa4"
+                },
+                "### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}": {
+                  "content_hash": "fb783b4f8ed6830701f6af82f39e09b23fb13b9de1befd3102125f9d0cf87ac9"
+                },
+                "### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}": {
+                  "content_hash": "33c733d3cfab1a41a12687298f28080b9a7e7319029ab0910e6789deec9ada82"
+                },
+                "### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}": {
+                  "content_hash": "5ec60dd23a2e65bec1715a99dd3e739c42b7ec0dbdbc5d9e5bc23120e0353153"
+                },
+                "### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}": {
+                  "content_hash": "4a507d290cd0dcaaf425aa3095dd42bfe9e63a7c2ec20182e93a67719628bf7b"
+                },
+                "### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}": {
+                  "content_hash": "f66241ea6f4ca445ad24d9d6d3b093ede6298572af48ef9e01da8b92a608c9a8"
+                },
+                "### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}": {
+                  "content_hash": "72d31ccc46bb626700e5d66e9b4f9e9c967949e20f670e6297b42d2fd9a413bc"
+                },
+                "### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}": {
+                  "content_hash": "8fb14f65599418140ac331532a42e084c0d999bcabe326b69974c6055afd9b61"
+                },
+                "### `tuist_http_receive_duration_nanoseconds_bucket` (distribution) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}": {
+                  "content_hash": "174287b35c9269afe94199f2192d4ecfe906d9a3530a46658ddd1bcc1c6d3e72"
+                },
+                "### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}": {
+                  "content_hash": "4ce1417d04c6bd1780b7fa590bb03afe31a342e1bb95cf7dd3ef47fd864b3f73"
+                },
+                "### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}": {
+                  "content_hash": "7dad125aee573a3c7e3d73afe89183b60bcc64736b31e16cc7ea976d15a23b79"
+                },
+                "### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}": {
+                  "content_hash": "cd78e40a463cf3922e9dafe872e503928f254b5a9c8fa3edfb0f86b7ff40ad70"
+                },
+                "### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}": {
+                  "content_hash": "fa6bce8c349725c706fca14324341f6c0278a781fe6fe2d8fe13194e625d7548"
+                },
+                "### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}": {
+                  "content_hash": "5c0f62f2f61220803e8375fe18fdaea69e8166ba46fd838c828b19d2df9aa02f"
+                },
+                "### `tuist_http_send_duration_nanoseconds_bucket` (distribution) {#tuist_http_send_duration_nanoseconds_bucket-distribution}": {
+                  "content_hash": "72f657662ebf4f25fba7fabdfca9a27095396214531043aae094aace3abe6b64"
+                },
+                "### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}": {
+                  "content_hash": "49746c8b072e3875c669ceb6209bfa8a60f708249a93abe9caa8dd5741a0ea0e"
+                },
+                "### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}": {
+                  "content_hash": "2d0a5c91f4c49a56f413ae78cade7d7cb0c5a254a75663a34fda7042e7768352"
+                },
+                "### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}": {
+                  "content_hash": "4c140bf5d9714748de2151a1b44d43e960183f35af2aee5027b316c74166d2b7"
+                },
+                "### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}": {
+                  "content_hash": "45b58ff055d84ff4ac8388173394efd123b5f4551f61f40c023396776c1d9a28"
+                },
+                "### `tuist_repo_pool_checkout_queue_busy_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_busy_samples_sum-sum}": {
+                  "content_hash": "9da53e620867263182be2196a42875d97d2ac53ea2e004253520d1cdfe327fdc"
+                },
+                "### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}": {
+                  "content_hash": "23c09dcc890af5011542689db64b7018f902da73db7613e24191e2b96e186688"
+                },
+                "### `tuist_repo_pool_checkout_queue_observed_sum` (sum) {#tuist_repo_pool_checkout_queue_observed_sum-sum}": {
+                  "content_hash": "9be1f5b87c17e23469bc7cdcfe7f03e004475c7b3844f7eac2f3fbad7a0d80ed"
+                },
+                "### `tuist_repo_pool_checkout_queue_starved_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}": {
+                  "content_hash": "702f164cf555140344c22b429f4aca952c2c3d79ba1246e19a33a4f7628945e3"
+                },
+                "### `tuist_repo_pool_checkout_queue_total_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}": {
+                  "content_hash": "2608b288209b8a75e8e58aabe2a32fe4987f25f54c0366d4da29508ff2426161"
+                },
+                "### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}": {
+                  "content_hash": "5e7c9cfa220eacbf3a36587cf1c62ea0edecc818656e3e8bca328266a3012701"
+                },
+                "### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}": {
+                  "content_hash": "ec3feb8783ae38d68e0394dccf05be6f68e1c627ea7a1d954926705fac737707"
+                },
+                "### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}": {
+                  "content_hash": "23b9b1640a5dc3b47cb2f50bdf7d2146e03633b2d0410a3b2b03a92129fea208"
+                },
+                "### `tuist_repo_pool_size` (last_value) {#tuist_repo_pool_size-last_value}": {
+                  "content_hash": "d542f0ba07ef9c6b754b21a9c7d1cb3d8b74d2b6d2cf0cd700b903f59e069dc9"
+                },
+                "### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}": {
+                  "content_hash": "32f61728a76ec2fefaa33a681140ab6666ff7b3e3e978c3d853e101d4c6e1239"
+                },
+                "### `tuist_runs_total` (counter) {#tuist_runs_total-counter}": {
+                  "content_hash": "5c7c64d0546ef2c922f59b81015691411c6fe67f1c295dffd7574e1eaaa2620b"
+                },
+                "### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}": {
+                  "content_hash": "64e17ec9d7c39e8760d1677a4a8fdfb5c405b53c8ba5e0d32bc3ce2a21e6b164"
+                },
+                "### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}": {
+                  "content_hash": "2b3204a5407399af37964150e6e33cfa6d67b56f7dcc32bec239119932734eb5"
+                },
+                "### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}": {
+                  "content_hash": "553eaff69a5280eb9f35edc7ecf4805d3985e976ea800a7b66700da36c5a8d5f"
+                },
+                "### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}": {
+                  "content_hash": "211f0eb4279c71faa5c67ded0f282794cd8a328b468f06a93923e0f92702dd4a"
+                },
+                "### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}": {
+                  "content_hash": "7ef44ffa133c3ba7b2c115fb4af8014c73066c4d7072a80e8a1c671ddd5c9aab"
+                },
+                "### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-hist": {
+                  "content_hash": "970dbff0b6ce4a3bd1f2f1903e6d28110a692b3b0df1e69949c71c27ee44a575"
+                },
+                "### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}": {
+                  "content_hash": "d4e0eb1763ea7a6af46d37bf2dd1949bf80bf8970f466f2c5ee374ed5ee7834f"
+                },
+                "### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}": {
+                  "content_hash": "ce050d5dbd4bdf5620af4c50f0654ef5d9d63ca6b9fb73840094d069a276b9a7"
+                },
+                "### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}": {
+                  "content_hash": "48de1dbecb7ac4b0e3092678149fef8b6f98cb0b93b4b2cf45fc6b79a6f5f72a"
+                },
+                "### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}": {
+                  "content_hash": "5eae019137c15cfcffb16f2c8b6d58f30d001cddbfccb4d902fb5ba94e77b6ff"
+                },
+                "### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}": {
+                  "content_hash": "ba2430c7a85a833bce0ab6ead570c53e202ed01afbec94916c76e63340e727c1"
+                },
+                "### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}": {
+                  "content_hash": "7e4d28bcd3fe38062efb3dd41cceb147370e73c04db9d57ca9a4b8d6f0fce808"
+                },
+                "### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}": {
+                  "content_hash": "f9ec547074c8b79b5a7559ece60a74b28922cff19ed9956dd3f7c8ff525a5e09"
+                },
+                "### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}": {
+                  "content_hash": "a7e97ce71569a5596fc63538f3d82acb6c986c427d7eb1ac351b7c9c80ba1595"
+                },
+                "### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_": {
+                  "content_hash": "d6fb5587720c18d33366998e9518c2b8c2f8a6974825300f5c16f319c1142912"
+                },
+                "### `tuist_storage_multipart_start_upload_duration_count` (counter) {#tuist_storage_multipart_start_upload_duration_count-counter}": {
+                  "content_hash": "967ae8ed8e16e3e35339f21d555c36a51a6e91d0a47ce4158cd1bdcc3729b26e"
+                },
+                "### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}": {
+                  "content_hash": "ae3fcac34f091315697353ddaec8b5344f799703b27cae1e985e6857d5bce2c6"
+                },
+                "#### Tags {#tuist-authentication-token-refresh-error-total-tags}": {
+                  "content_hash": "1ada05754a5dcc7858c00b3847e0b7ec7fbc12448eadac0d79691b15e0591121"
+                },
+                "#### Tags {#tuist-cache-events-total-tags}": {
+                  "content_hash": "9d2f726170560adcdaa1851a14414056d2ae2b6574f12bf6a110f1e0a71d13ea"
+                },
+                "#### Tags {#tuist-runs-duration-miliseconds-tags}": {
+                  "content_hash": "049e5c86da5f9b71f2ab0667cb36368ecaec350aa129f689fd61e279037e772d"
+                },
+                "#### Tags {#tuist-runs-total-tags}": {
+                  "content_hash": "725957008f3ba8604bb7d51579afa7a3242ecedb5905cda34b9a1c8ac13a15b8"
+                },
+                "#### Tags {#tuist-storage-check-object-existence-count-tags}": {
+                  "content_hash": "19be046ffc881ac79350bbef11ebf285993804f730e726b5dcf57607c890fa1f"
+                },
+                "#### Tags {#tuist-storage-check-object-existence-duration-milliseconds-tags}": {
+                  "content_hash": "af8e2fb727a745afa9520b2aa28b3d36b573e0e8971946617101447e8da28772"
+                },
+                "#### Tags {#tuist-storage-delete-all-objects-count-tags}": {
+                  "content_hash": "2d996cbab2332b08153042efa1f8f9f8a6b64dd00971845796a856fd0ae161a9"
+                },
+                "#### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}": {
+                  "content_hash": "8860bfb930deeee3e3f998fda840ef323387e1ed058a28a51abdd007a56867a3"
+                },
+                "#### Tags {#tuist-storage-generate-download-presigned-url-count-tags}": {
+                  "content_hash": "20135823f38fcbfa323aa2383a1d3b966804c1f54e141a116203ba5dc61b8801"
+                },
+                "#### Tags {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}": {
+                  "content_hash": "5b31195f64a15fc3909fc857923057bfef5ddfe9c5a46c9a28372e6d73932d38"
+                },
+                "#### Tags {#tuist-storage-get-object-as-string-count-tags}": {
+                  "content_hash": "fcbe1370240870bce50b17819f080834158e9b81b3cae8f5e6c073f15d56ddeb"
+                },
+                "#### Tags {#tuist-storage-get-object-as-string-duration-milliseconds-tags}": {
+                  "content_hash": "df7b0f83c10e7ac1b8105adb250ac3de5de881b2683c118f0082845d041706fe"
+                },
+                "#### Tags {#tuist-storage-get-object-size-count-tags}": {
+                  "content_hash": "460949188788412a8e5a32529e7cc99db0242f8f9e3bfe884c03d8c7b92c70f9"
+                },
+                "#### Tags {#tuist-storage-get-object-size-duration-miliseconds-tags}": {
+                  "content_hash": "b3fd9d0b269e43286aafc4ad0002368b454f54c7cfc28ddfd8c9496c20e0f1d3"
+                },
+                "#### Tags {#tuist-storage-get-object-size-size-bytes-tags}": {
+                  "content_hash": "d064c009e8f34f08c7c4246f2c6928c7e04b1722d45e38cd006e9c3a07216e70"
+                },
+                "#### Tags {#tuist-storage-multipart-complete-upload-count-tags}": {
+                  "content_hash": "7d02bdde76ab814cddaced278bdfd747a5c4226ec66e095b9a3832d34d14a1b0"
+                },
+                "#### Tags {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}": {
+                  "content_hash": "52f70020d981ba8336ca2dbe63529c9c591e0afeb5be47facb073064123ecadb"
+                },
+                "#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}": {
+                  "content_hash": "979564470f9494849fd4cef6934aee3a9d72be2f0f2e71991f4f35b218f367a4"
+                },
+                "#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}": {
+                  "content_hash": "1fa291db9aaff48571183b3c49557e2cce0071c1640a22167022114be85d03f2"
+                },
+                "#### Tags {#tuist-storage-multipart-start-upload-duration-count-tags}": {
+                  "content_hash": "8e47775f3b117fde860cedee802e3a676ddc3ae0ff499fb68dba6a3a8939c0ef"
+                },
+                "#### Tags {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}": {
+                  "content_hash": "1af9a21224cf12b6933000ca7668f49bddd26ef7c8e793de4c4135c9398dec13"
+                },
+                "#### Tags {#tuist_repo_pool_checkout_queue_busy_samples_total-tags}": {
+                  "content_hash": "9fc67e991f4607f7d2d7f8fb3b6d6c6964d0b0bfe2f5deb3c4b1c049fc66ba31"
+                },
+                "#### Tags {#tuist_repo_pool_checkout_queue_length-tags}": {
+                  "content_hash": "324dc16f173e836cdbfc7a9a2402dac28e5ae80160008a5d7c88f4fe0aa0a974"
+                },
+                "#### Tags {#tuist_repo_pool_checkout_queue_observed_sum-tags}": {
+                  "content_hash": "d02b10b04fc0b4c0ce5fc5a52e0de5cba15a2d3ca30f991dc6e34b57be2e9d89"
+                },
+                "#### Tags {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}": {
+                  "content_hash": "46513577fcf9e5f51489d9b7d4c2a6e28aa67042a3918f38d2bcc70eeefd6e27"
+                },
+                "#### Tags {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}": {
+                  "content_hash": "4077624afa3762e3fb8812b16a7aebf31a9457e861874a259cb8d1996eca0c93"
+                },
+                "#### Tags {#tuist_repo_pool_db_connection_connected_and_disconnected-tags}": {
+                  "content_hash": "f24e19b2e0aded4b7c9cf5a600dbf542f4a805c5a47f3c200e897933530b9b78"
+                },
+                "#### Tags {#tuist_repo_pool_ready_conn_count-tags}": {
+                  "content_hash": "eac4be79f78dad8d305024d36f792ab65d4f1d56f00f7e3bad025fa7a95f058e"
+                },
+                "#### Tags {#tuist_repo_pool_size-tags}": {
+                  "content_hash": "85abbca82c0a64d1d0710609f413e32ed177d6b91089f898319b0ebde064ffc8"
+                },
+                "Preamble": {
+                  "content_hash": "6bce2c10334280d6f15040d3881ac2287a43ae1e719f3f44f5288ae39db55990"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "af46fc84d4b46f8deb734aa685f5f978856e6bea99b12613f4080b8e7e7e775c",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/server/self-host/telemetry.md",
+          "metadata": {
+            "content_hash": "4ce84cdb21865df502f6e49646a45e6c84f14c4036c1aaacd7eb31d66d668b78"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "34807f35d1855cb41da027ee7f425661550ca581c3785729fdac9a5925881bd0",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Georgian",
+            "locale": "ka",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/ka.md": {
+                    "content_hash": "4f5b84dfb24c0fb498ba5ca6e0ecdd2bb7e71f86f82225ee17ababe35d440de3",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "cd0f88bf9c583d69aa4a287ca8e75704446a5a0837b50f2765e9000a310de7c5"
+                      },
+                      "## Georgian-specific translation rules": {
+                        "content_hash": "36a9eb19e6ba97a532d3405b5a21026c3f10323365d70d29aaa7e62f760eb149"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "bea962b8441067e1fc0360bbd5766c1eae0dc0662559d0e65708bae3ec4ad03c"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c53fff03f505b9f717ecad6338ef286316ab15bfdef3958a4cc981f8972e285c",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "2959a6998ac8301886eb4260779209b48b39702118a8a80f021a1568dc7df5cd"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "aaaa323144d0aa263b3c3b320f63fa40d6f277ca8e12bac4001fb8a508c0d17f",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "c18f36f445e3f1b1119032b90a7907097b5bb97f568b020c7a5a8333447a8658",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "46cd0d46b8ec33568c3a93b3ece4c97d16025419d8825d3cb662f6c6070037e4",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "150a60b67029963187d6bcfec0c2a83b207ebc8443782f5c1568eec285cad4ad",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/server/self-host/telemetry.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "cfe5b5b1b883334bd8a34197f41c1aa09f067caa92a03ce33bfae41d6f999b09",
+  "output_path": "server/priv/docs/ka/guides/server/self-host/telemetry.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "8383450748ab15467fb1943b534d1177c954b0c2",
+  "source_path": "server/priv/docs/en/guides/server/self-host/telemetry.md",
+  "translated_at": "2026-10-29T17:31:49.877240Z",
+  "translation_session_id": "01a188b0-7292-734f-ab4a-f3f9b863a28e"
+}

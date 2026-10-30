@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Compress a modular Xcode project into declarative Swift and unlock module caching, selective testing, a package registry, and build and test insights on top of the graph."
+  "title": "Proyecto Xcode generado",
+  "titleTemplate": ":title · Primeros pasos · Guías · Tuist",
+  "description": "Convierte un proyecto Xcode modular en Swift declarativo y desbloquea la caché de módulos, los tests selectivos, un registro de paquetes y análisis de compilación y pruebas sobre el grafo."
 }
 ---
 # Proyecto de Xcode generado {#generated-xcode-project}
@@ -16,9 +16,9 @@ https://tuist.dev/en/docs/guides/get-started/generated-xcode-project
 
 :::
 
-Sigue esta ruta cuando quieras que Tuist describa y genere tu proyecto de Xcode a partir de manifiestos Swift. Un proyecto generado comprime la complejidad de un proyecto modular de Xcode en una descripción concisa y declarativa del grafo. También es un requisito estricto para la caché de módulos y las pruebas selectivas.
+Sigue esta ruta cuando quieras que Tuist describa y genere tu proyecto de Xcode a partir de manifiestos en Swift. Un proyecto generado comprime la complejidad de un proyecto modular de Xcode en una descripción concisa y declarativa del grafo. También es un requisito estricto para la caché de módulos y los tests selectivos.
 
-Cada sección a continuación comienza con lo que falta hoy y luego te guía a través de la funcionalidad que cubre esa carencia.
+Cada sección a continuación comienza explicando qué falta hoy y luego te guía por la funcionalidad que cubre esa carencia.
 
 ## Requisitos previos
 
@@ -27,30 +27,30 @@ Cada sección a continuación comienza con lo que falta hoy y luego te guía a t
 
 ## Crear el proyecto
 
-La forma más rápida de verlo funcionar es con un proyecto nuevo. En un directorio vacío, ejecuta `tuist init` y elige **Crear un proyecto generado**, selecciona la plataforma, confirma el nombre, luego autenticate y elige la cuenta que debe ser propietaria del proyecto.
+La forma más rápida de verlo funcionar es con un proyecto nuevo. En un directorio vacío, ejecuta `tuist init` y elige **Crear un proyecto generado**, selecciona la plataforma, confirma el nombre, luego autentícate y elige la cuenta que debe ser propietaria del proyecto.
 
 ```bash
 mkdir MyApp && cd MyApp
 tuist init
 ```
 
-Si estás ejecutando esto desde un agente de codificación o un script, ejecuta primero `tuist auth login` (el flujo del navegador espera a que presiones Enter), luego usa el formulario no interactivo:
+Si lo estás haciendo desde un agente de programación o un script, ejecuta primero `tuist auth login` (el flujo del navegador espera a que pulses Intro) y después usa el modo no interactivo:
 
 ```bash
 tuist init --build-system generated-xcode --name MyApp --platform ios --account <account>
 ```
 
-Cuando init termine, ejecuta `tuist generate`. Tuist escribe un `.xcworkspace` junto a tus manifiestos y lo abre en Xcode. Compila y ejecuta el target. Deberías ver cómo se lanza la app de ejemplo en el simulador.
+Cuando finalice init, ejecuta `tuist generate`. Tuist escribe un `.xcworkspace` junto a tus manifiestos y lo abre en Xcode. Compila y ejecuta el target. Deberías ver que la app de ejemplo se lanza en el simulador.
 
 Ese es el estado "conectado + generando". Todo lo siguiente es opcional e independiente.
 
-Si estás migrando una app existente, conéctala primero con la [guía de migración de proyectos de Xcode](https://tuist.dev/en/docs/guides/features/projects/adoption/migrate/xcode-project), luego regresa y continúa con las secciones que se ajusten a tu problema.
+Si estás migrando una app existente, conéctala primero con la [guía de migración de proyectos de Xcode](https://tuist.dev/en/docs/guides/features/projects/adoption/migrate/xcode-project) y luego vuelve aquí para continuar con las secciones que se ajusten a tu caso.
 
 ## Generación del proyecto
 
-Un `.xcodeproj` agrupa la estructura de tu app en XML: referencias de archivos, fases de compilación, dependencias de targets, esquemas y configuraciones de compilación viven todos en el mismo árbol, sin ninguna primitiva para razonar sobre el grafo como tal. A medida que el proyecto crece, esa estructura se vuelve más difícil de mantener en mente, y Xcode no tiene un identificador estable para que las herramientas lo hasheen y omitan trabajo cuando nada ha cambiado.
+Un `.xcodeproj` agrupa la estructura de tu app en XML: referencias de archivos, fases de compilación, dependencias de targets, esquemas y ajustes de compilación viven todos en el mismo árbol, sin ninguna primitiva para razonar sobre el grafo como grafo. A medida que el proyecto crece, esa estructura resulta más difícil de mantener en mente, y Xcode no ofrece un identificador estable para que las herramientas lo hasheen y omitan trabajo cuando nada ha cambiado.
 
-Los proyectos generados comprimen el grafo en Swift declarativo. `Project.swift` describe targets, dependencias y recursos directamente, y Tuist mantiene un modelo estable del grafo detrás de él. Ese modelo es lo que habilita las secciones siguientes: la caché de módulos lo hashea para reutilizar binarios, y las pruebas selectivas lo hashean para omitir tests cuyas entradas no han cambiado.
+Los proyectos generados comprimen el grafo en Swift declarativo. `Project.swift` describe directamente los targets, las dependencias y los recursos, y Tuist mantiene un modelo estable del grafo detrás de él. Ese modelo es lo que habilita las secciones siguientes: la caché de módulos lo hashea para reutilizar binarios y los tests selectivos lo hashean para omitir tests cuyas entradas no han cambiado.
 
 ```swift
 import ProjectDescription
@@ -74,33 +74,33 @@ Cada `tuist generate` produce un workspace determinista a partir de los manifies
 
 ## Caché de módulos
 
-Compilar un proyecto modular de Xcode desde cero tiene un coste por máquina. Cada compañero de equipo y cada runner de CI produce su propia copia de los mismos archivos objeto. La caché de compilación de Xcode acorta el ciclo interno pero no elimina la compilación por máquina de cada target, y no puede reemplazar un framework completo con un binario precompilado.
+Compilar un proyecto modular de Xcode desde cero tiene un coste por máquina. Cada compañero y cada runner de CI genera su propia copia de los mismos archivos objeto. La caché de compilación de Xcode acorta el ciclo interno, pero no elimina la compilación por máquina de cada target ni puede sustituir un framework completo por un binario precompilado.
 
-La caché de módulos sí lo hace. Compila cada dependencia cacheable en tu grafo una vez (frameworks, bibliotecas, bundles), almacena los binarios resultantes frente a un hash de las entradas del target, e intercambia el target por su binario en generaciones posteriores. Los módulos sin cambios dejan de compilarse:
+La caché de módulos sí lo hace. Compila una única vez cada dependencia cacheable de tu grafo (frameworks, bibliotecas, bundles), almacena los binarios resultantes asociándolos a un hash de las entradas del target y sustituye el target por su binario en generaciones posteriores. Los módulos sin cambios dejan de compilarse:
 
 ```bash
 tuist cache
 ```
 
-La primera ejecución compila todo y sube los binarios a tu cuenta. En la siguiente `tuist generate`, las dependencias sin cambios se reemplazan con sus binarios en caché y Xcode enlaza contra `.xcframework`s en lugar de compilar desde el código fuente.
+La primera ejecución compila todo y sube los binarios a tu cuenta. En la siguiente `tuist generate`, las dependencias sin cambios se sustituyen por sus binarios en caché y Xcode enlaza contra `.xcframework`s en lugar de compilar desde el código fuente.
 
-## Pruebas selectivas
+## Tests selectivos
 
-`xcodebuild test` no sabe qué tests afecta un cambio, así que CI ejecuta toda la suite en cada push. A medida que la suite crece, la brecha entre lo que realmente necesita ejecutarse y lo que se ejecuta pasa de minutos a decenas de minutos.
+`xcodebuild test` no sabe qué tests afecta un cambio, por lo que la CI ejecuta toda la suite en cada push. A medida que la suite crece, la brecha entre lo que realmente necesita ejecutarse y lo que se ejecuta pasa de minutos a decenas de minutos.
 
-Las pruebas selectivas ejecutan solo los tests afectados por lo que ha cambiado desde la última ejecución exitosa de tests, utilizando el grafo del proyecto y el mismo algoritmo de hashing en el que se basa la caché de módulos:
+Los tests selectivos ejecutan solo los tests afectados por lo que ha cambiado desde la última ejecución de tests exitosa, utilizando el grafo del proyecto y el mismo algoritmo de hashing en el que se basa la caché de módulos:
 
 ```bash
 tuist test
 ```
 
-La primera `tuist test` ejecuta todo y persiste hashes por target. Las ejecuciones posteriores omiten targets cuyas entradas no han cambiado. Mueve `tuist test` a CI en lugar de `xcodebuild test` y la retroalimentación llega en segundos en lugar de minutos.
+La primera `tuist test` ejecuta todo y persiste hashes por target. Las ejecuciones posteriores omiten los targets cuyas entradas no han cambiado. Integra `tuist test` en tu CI en lugar de `xcodebuild test` y el feedback llega en segundos en vez de minutos.
 
 ## Registro de paquetes
 
-Swift Package Manager resuelve dependencias clonando profundamente el historial git de cada paquete, porque los paquetes se direccionan por URL en lugar de por un registro. En un proyecto con docenas de paquetes transitivos, la resolución tarda minutos en un checkout limpio y se repite en cada job de CI.
+Swift Package Manager resuelve las dependencias clonando en profundidad el historial git de cada paquete, porque los paquetes se direccionan por URL en lugar de mediante un registro. En un proyecto con decenas de paquetes transitivos, la resolución tarda minutos en un checkout limpio y se repite en cada job de CI.
 
-El Registro de Paquetes de Tuist sirve los mismos paquetes que rastrea el Índice de Paquetes Swift, pero como un registro real, por lo que SwiftPM solo obtiene el commit que realmente necesitas. Habilítalo una vez configurando `registryEnabled: true` en tu `Tuist.swift`:
+El Registro de Paquetes de Tuist sirve los mismos paquetes que rastrea el Swift Package Index, pero como un registro real, de modo que SwiftPM solo obtiene el commit que realmente necesitas. Actívalo una vez configurando `registryEnabled: true` en tu `Tuist.swift`:
 
 ```swift
 let tuist = Tuist(
@@ -114,18 +114,18 @@ let tuist = Tuist(
 
 Regenera. La resolución de paquetes baja de minutos a segundos.
 
-## Información de compilación
+## Análisis de compilaciones
 
-Xcode registra las duraciones de compilación por target en el log y en el informe de compilación. Ninguno de ellos se agrega entre ejecuciones o entre máquinas, por lo que una regresión en el tiempo de compilación suele manifestarse solo como un CI más lento en general.
+Xcode registra las duraciones de compilación por target en el log y en el informe de compilación. Ninguno de ellos agrega datos entre ejecuciones o entre máquinas, por lo que una regresión en el tiempo de compilación suele manifestarse únicamente como una CI más lenta en general.
 
-La información de compilación registra automáticamente la duración y los tiempos de fase de cada compilación para esquemas generados. No hay nada extra que configurar. Abre la pestaña **Compilaciones** del dashboard después de tu próximo ciclo de `tuist generate` + compilación.
+Análisis de compilaciones registra automáticamente la duración y los tiempos por fase de cada compilación para los esquemas generados. No hay nada adicional que configurar. Abre la pestaña **Compilaciones** del panel tras tu próximo ciclo de `tuist generate` + compilación.
 
-## Información de tests
+## Análisis de tests
 
-Xcode informa los resultados por test una ejecución a la vez. No agrega la señal entre ejecuciones que realmente necesitas: tasa de inestabilidad, duración semana tras semana, qué variantes de simulador fallan.
+Xcode informa de los resultados por test una ejecución a la vez. No agrega la señal entre ejecuciones que realmente necesitas: tasa de inestabilidad, duración semana a semana y qué variantes de simulador fallan.
 
-La información de tests registra automáticamente el resultado y la duración de cada test para esquemas generados y correlaciona los resultados entre ejecuciones. Los tests inestables, lentos y las fallas aparecen en la pestaña **Tests** del dashboard. Cuando se acumulan inestabilidades, ponlos en cuarentena desde el dashboard para que dejen de bloquear los merges.
+Análisis de tests registra automáticamente el resultado y la duración de cada test para los esquemas generados y correlaciona los resultados entre ejecuciones. Los tests inestables, los tests lentos y los fallos aparecen en la pestaña **Tests** del panel. Cuando se acumulan inestabilidades, ponlos en cuarentena desde el panel para que dejen de bloquear los merges.
 
 ## Involucra al equipo
 
-La caché de módulos y las pruebas selectivas rinden más cuando todos trabajan sobre la misma superficie compartida. Invita a tus compañeros a la organización desde la configuración de cuenta en el dashboard, y configura <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link> (Google, Okta, Microsoft) para que la incorporación sea un clic en lugar de un `tuist auth login` por persona.
+La caché de módulos y los tests selectivos rinden más cuando todo el mundo trabaja sobre la misma superficie compartida. Invita a tus compañeros a la organización desde la configuración de la cuenta en el panel y configura <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link> (Google, Okta, Microsoft) para que la incorporación sea un clic en lugar de un `tuist auth login` por persona.

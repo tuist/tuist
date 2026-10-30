@@ -587,6 +587,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     id =
       GradleFixtures.build_fixture(
         project_id: project.id,
+        tuist_version: "0.13.0-canary.2",
         custom_values: %{"tuist.cpu.available_processors" => "28", "team" => "mobile"}
       )
 
@@ -595,6 +596,8 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert has_element?(view, "#gradle-build > #build-environment", "Build environment")
     assert has_element?(view, "#build-environment-content[hidden]", "Gradle Version")
     assert has_element?(view, "#build-environment-content[hidden]", "Java Version")
+    assert has_element?(view, "#build-environment-content[hidden]", "Tuist Gradle plugin version")
+    assert has_element?(view, "#build-environment-content", "0.13.0-canary.2")
     refute has_element?(view, "[data-part=build-details]", "Gradle Version")
     refute has_element?(view, "[data-part=build-details]", "Java Version")
     assert has_element?(view, "#build-environment button[aria-expanded=false]")
@@ -616,6 +619,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     assert has_element?(view, "#build-environment-content[hidden]", "8.5")
     assert has_element?(view, "#build-environment-content[hidden]", "17.0.1")
+    refute has_element?(view, "#build-environment-content", "Tuist Gradle plugin version")
     refute has_element?(view, "[data-part=build-details]", "Gradle Version")
     assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
   end

@@ -79,6 +79,9 @@ final class AtlasOrbitPreviewData: ObservableObject {
             if let query = command["query"] as? String { self.query = query }
             if let domain = command["domain"] as? String { self.domain = domain }
             loads += 1
+            if loads > 1, ProcessInfo.processInfo.arguments.contains("--delayed-orbit-refresh") {
+                try await Task.sleep(for: .seconds(3))
+            }
             if loads > 1, ProcessInfo.processInfo.arguments.contains("--fail-orbit-refresh") {
                 throw AtlasAuthenticationError(kind: "server", message: "Preview refresh failed. Loaded threads are retained.")
             }

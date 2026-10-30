@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import OpenAPIRuntime
@@ -6,6 +7,7 @@ import Path
 import Testing
 import TuistConstants
 import TuistEnvironment
+import TuistLogging
 import TuistProcess
 import TuistSupport
 import TuistTesting
@@ -449,6 +451,7 @@ struct ServerAuthenticationControllerTests {
         let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
         try await Date.$now.withValue({ date }) {
             // Given
+            let subject = ServerAuthenticationController(cachedValueStore: CachedValueStore())
             let serverURL: URL = .test()
             let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
 
@@ -474,6 +477,10 @@ struct ServerAuthenticationControllerTests {
         .withMockedEnvironment(),
         .withMockedDependencies()
     ) func executeRefresh_preserves_transient_client_errors() async throws {
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
         let date = Date()
         try await Date.$now.withValue({ date }) {
             let serverURL: URL = .test()
@@ -590,60 +597,91 @@ struct ServerAuthenticationControllerTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
-        .withMockedDependencies()
-    ) mutating func concurrent_refresh_without_locking_races_on_the_refresh_endpoint() async throws {
-        // Regression test reproducing the iOS token refresh race. Before #10276
-        // the iOS branch of `authenticationToken(serverURL:refreshIfNeeded:)`
-        // passed `locking: false`, landing in `case (.expired, false, false)`
-        // which calls `executeRefresh` directly — no cache coalescing, no
-        // locking. In production that let multiple concurrent callers each
-        // hit `/api/auth/refresh_token`; the server rotated the refresh token
-        // on the winner and returned 401 to every loser, whose error path
-        // wiped credentials and surfaced as "You need to be authenticated to
-        // access this resource".
+        .withMockedDependencies(),
+        arguments: [
+            (false, false, false), (false, true, false), (true, false, false), (true, true, false),
+            (false, false, true), (false, true, true), (true, false, true), (true, true, true),
+        ]
+    ) func concurrent_helper_and_foreground_refreshes_preserve_the_session(
+        forceRefresh: Bool,
+        trailingSlash: Bool,
+        inProcess: Bool
+    ) async throws {
         let date = Date()
-        let countingRefreshService = CountingRefreshAuthTokenService(
-            tokens: try Self.makeTokens(date: date)
-        )
-        subject = ServerAuthenticationController(
-            refreshAuthTokenService: countingRefreshService,
-            cachedValueStore: CachedValueStore()
-        )
-        let serverCredentialsStore = MockServerCredentialsStoring()
         let serverURL: URL = .test()
-
+        let foregroundURL = try #require(URL(string: serverURL.absoluteString + (trailingSlash ? "/" : "")))
         let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
-        let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh")
-        let storeCredentials: ServerCredentials = .test(
-            accessToken: accessToken.token,
-            refreshToken: refreshToken.token
+        let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(3600), typ: "refresh")
+        let refreshedTokens = try Self.makeTokens(date: date)
+        let forcedTokens = try Self.makeTokens(date: date.addingTimeInterval(1))
+        let expectedTokens = forceRefresh ? forcedTokens : refreshedTokens
+        let rotatingService = RotatingRefreshAuthTokenService(
+            refreshToken: refreshToken.token,
+            tokens: [refreshedTokens, forcedTokens]
         )
-
-        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
-        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willReturn()
-
-        let subjectCopy = subject!
-        try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
-            try await Date.$now.withValue({ date }) {
-                try await withThrowingTaskGroup(of: Void.self) { group in
-                    for _ in 0 ..< 10 {
-                        group.addTask {
-                            try await subjectCopy.refreshToken(
-                                serverURL: serverURL,
-                                inBackground: false,
-                                locking: false,
-                                forceInProcessLock: false
-                            )
-                        }
-                    }
-                    try await group.waitForAll()
-                }
-            }
+        let credentialsStore = ServerCredentialsStore(
+            backend: .fileSystem,
+            configDirectory: try #require(FileSystem.temporaryTestDirectory)
+        )
+        try await credentialsStore.store(
+            credentials: .test(accessToken: accessToken.token, refreshToken: refreshToken.token),
+            serverURL: serverURL
+        )
+        let helperCache = CachedValueStore(backend: inProcess ? .inSystemProcess : .fileSystem)
+        let helper = ServerAuthenticationController(
+            refreshAuthTokenService: rotatingService,
+            cachedValueStore: helperCache
+        )
+        let gateAttempt = AsyncStream<Bool>.makeStream()
+        let foreground = ServerAuthenticationController(
+            refreshAuthTokenService: rotatingService,
+            cachedValueStore: inProcess ? helperCache : CachedValueStore(backend: .fileSystem)
+        )
+        let logger = Logger(label: "refresh-contention") { _ in
+            RefreshContentionLogHandler(attempted: gateAttempt.continuation)
         }
 
-        let callCount = await countingRefreshService.callCount
-        #expect(callCount > 1, "Expected concurrent callers to race on the refresh endpoint, got \(callCount) calls")
+        try await ServerCredentialsStore.$current.withValue(credentialsStore) {
+            let helperTask = Task {
+                try await helper.refreshToken(
+                    serverURL: serverURL,
+                    inBackground: false,
+                    locking: false,
+                    forceInProcessLock: false
+                )
+            }
+            await rotatingService.waitUntilRefreshing()
+            let foregroundTask = Task {
+                try await Logger.$current.withValue(logger) {
+                    if forceRefresh {
+                        try await foreground.refreshToken(serverURL: foregroundURL)
+                    } else {
+                        let token = try await foreground.authenticationToken(serverURL: foregroundURL)
+                        #expect(token?.value == refreshedTokens.accessToken)
+                    }
+                }
+            }
+            let deadline = Task {
+                try await Task.sleep(for: .seconds(5))
+                gateAttempt.continuation.yield(false)
+                gateAttempt.continuation.finish()
+            }
+            for await attempted in gateAttempt.stream {
+                #expect(attempted, "The foreground caller must reach the refresh gate before the helper completes")
+            }
+            deadline.cancel()
+            await rotatingService.completeFirstRefresh()
+            let helperResult = await helperTask.result
+            let foregroundResult = await foregroundTask.result
+            try helperResult.get()
+            try foregroundResult.get()
+        }
+
+        let credentials = try await credentialsStore.get(serverURL: serverURL)
+        #expect(credentials.accessToken == expectedTokens.accessToken)
+        #expect(credentials.refreshToken == expectedTokens.refreshToken)
     }
 
     @Test(
@@ -772,6 +810,11 @@ struct ServerAuthenticationControllerTests {
         .withMockedEnvironment(),
         .withMockedDependencies()
     ) func executeRefresh_refreshes_expired_oauth_account_token_through_oauth_grant() async throws {
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
         let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
@@ -872,6 +915,11 @@ struct ServerAuthenticationControllerTests {
         .withMockedEnvironment(),
         .withMockedDependencies()
     ) func executeRefresh_does_not_refresh_account_token_without_account_refresh_token() async throws {
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
         let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
@@ -900,6 +948,10 @@ struct ServerAuthenticationControllerTests {
         .withMockedEnvironment(),
         .withMockedDependencies()
     ) func executeRefresh_preserves_credentials_when_oauth_refresh_token_is_rejected() async throws {
+        let subject = ServerAuthenticationController(
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
         let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
@@ -963,6 +1015,10 @@ struct ServerAuthenticationControllerTests {
         .withMockedEnvironment(),
         .withMockedDependencies()
     ) func executeRefresh_preserves_credentials_on_transient_oauth_refresh_errors() async throws {
+        let subject = ServerAuthenticationController(
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
         let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
@@ -1159,5 +1215,69 @@ private actor CountingRefreshAuthTokenService: RefreshAuthTokenServicing {
         await Task.yield()
         try await Task.sleep(nanoseconds: 100_000_000)
         return tokens
+    }
+}
+
+private actor RotatingRefreshAuthTokenService: RefreshAuthTokenServicing {
+    private var validRefreshToken: String
+    private var tokens: [ServerAuthenticationTokens]
+    private let started = AsyncStream<Void>.makeStream()
+    private let release = AsyncStream<Void>.makeStream()
+    private var isFirstRefresh = true
+
+    init(refreshToken: String, tokens: [ServerAuthenticationTokens]) {
+        validRefreshToken = refreshToken
+        self.tokens = tokens
+    }
+
+    func waitUntilRefreshing() async {
+        for await _ in started.stream {
+            return
+        }
+    }
+
+    func completeFirstRefresh() {
+        release.continuation.finish()
+    }
+
+    func refreshTokens(serverURL _: URL, refreshToken: String) async throws -> ServerAuthenticationTokens {
+        guard refreshToken == validRefreshToken else {
+            throw RefreshAuthTokenServiceError.unauthorized("Refresh token revoked")
+        }
+        let tokens = tokens.removeFirst()
+        validRefreshToken = tokens.refreshToken
+        if isFirstRefresh {
+            isFirstRefresh = false
+            started.continuation.yield()
+            started.continuation.finish()
+            for await _ in release.stream {}
+        }
+        return tokens
+    }
+}
+
+private struct RefreshContentionLogHandler: LogHandler {
+    let attempted: AsyncStream<Bool>.Continuation
+    var metadata: Logger.Metadata = [:]
+    var logLevel: Logger.Level = .debug
+
+    subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+        get { metadata[key] }
+        set { metadata[key] = newValue }
+    }
+
+    func log(
+        level _: Logger.Level,
+        message: Logger.Message,
+        metadata _: Logger.Metadata?,
+        source _: String,
+        file _: String,
+        function _: String,
+        line _: UInt
+    ) {
+        if message.description.hasPrefix("Waiting for credential refresh lock ") {
+            attempted.yield(true)
+            attempted.finish()
+        }
     }
 }

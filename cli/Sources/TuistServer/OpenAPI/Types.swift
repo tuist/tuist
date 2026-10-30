@@ -6977,6 +6977,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/MixBuild/status`.
             public var status: Components.Schemas.MixBuild.statusPayload
+            /// The reporting tuist_ex library version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MixBuild/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `MixBuild`.
             ///
             /// - Parameters:
@@ -7000,6 +7004,7 @@ public enum Components {
             ///   - otp_version:
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting tuist_ex library version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 ci_host: Swift.String? = nil,
@@ -7020,7 +7025,8 @@ public enum Components {
                 mix_env: Swift.String? = nil,
                 otp_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.MixBuild.statusPayload
+                status: Components.Schemas.MixBuild.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.ci_host = ci_host
@@ -7042,6 +7048,7 @@ public enum Components {
                 self.otp_version = otp_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -7064,6 +7071,7 @@ public enum Components {
                 case otp_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// The usage of one usage-based meter over a billing period, in the meter's unit, and what it is charged so far.
@@ -10804,6 +10812,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/MixBuildDetail/status`.
             public var status: Components.Schemas.MixBuildDetail.statusPayload
+            /// The reporting tuist_ex library version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MixBuildDetail/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `MixBuildDetail`.
             ///
             /// - Parameters:
@@ -10828,6 +10840,7 @@ public enum Components {
             ///   - otp_version:
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting tuist_ex library version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 cache: Components.Schemas.MixBuildDetail.cachePayload,
@@ -10849,7 +10862,8 @@ public enum Components {
                 mix_env: Swift.String? = nil,
                 otp_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.MixBuildDetail.statusPayload
+                status: Components.Schemas.MixBuildDetail.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.cache = cache
@@ -10872,6 +10886,7 @@ public enum Components {
                 self.otp_version = otp_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -10895,6 +10910,7 @@ public enum Components {
                 case otp_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
@@ -13825,6 +13841,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/status`.
             public var status: Components.Schemas.CargoBuildDetail.statusPayload
+            /// The reporting Tuist CLI version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `CargoBuildDetail`.
             ///
             /// - Parameters:
@@ -13846,6 +13866,7 @@ public enum Components {
             ///   - rust_version: The rustc version.
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting Tuist CLI version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 cache: Components.Schemas.CargoBuildDetail.cachePayload? = nil,
@@ -13864,7 +13885,8 @@ public enum Components {
                 is_ci: Swift.Bool,
                 rust_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.CargoBuildDetail.statusPayload
+                status: Components.Schemas.CargoBuildDetail.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.cache = cache
@@ -13884,6 +13906,7 @@ public enum Components {
                 self.rust_version = rust_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -13904,6 +13927,7 @@ public enum Components {
                 case rust_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint`.
@@ -22387,6 +22411,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/CargoBuild/status`.
             public var status: Components.Schemas.CargoBuild.statusPayload
+            /// The reporting Tuist CLI version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CargoBuild/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `CargoBuild`.
             ///
             /// - Parameters:
@@ -22407,6 +22435,7 @@ public enum Components {
             ///   - rust_version: The rustc version.
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting Tuist CLI version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 ci_host: Swift.String? = nil,
@@ -22424,7 +22453,8 @@ public enum Components {
                 is_ci: Swift.Bool,
                 rust_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.CargoBuild.statusPayload
+                status: Components.Schemas.CargoBuild.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.ci_host = ci_host
@@ -22443,6 +22473,7 @@ public enum Components {
                 self.rust_version = rust_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -22462,6 +22493,7 @@ public enum Components {
                 case rust_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// A product file's coverage at a commit, merged over every run that measured it.
@@ -23253,6 +23285,10 @@ public enum Components {
                 }
                 /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/status`.
                 public var status: Components.Schemas.CargoBuildList.buildsPayloadPayload.statusPayload
+                /// The reporting Tuist CLI version.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/tuist_version`.
+                public var tuist_version: Swift.String?
                 /// Creates a new `buildsPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -23273,6 +23309,7 @@ public enum Components {
                 ///   - rust_version: The rustc version.
                 ///   - started_at:
                 ///   - status:
+                ///   - tuist_version: The reporting Tuist CLI version.
                 public init(
                     actor: Components.Schemas.ReportActor,
                     ci_host: Swift.String? = nil,
@@ -23290,7 +23327,8 @@ public enum Components {
                     is_ci: Swift.Bool,
                     rust_version: Swift.String? = nil,
                     started_at: Foundation.Date? = nil,
-                    status: Components.Schemas.CargoBuildList.buildsPayloadPayload.statusPayload
+                    status: Components.Schemas.CargoBuildList.buildsPayloadPayload.statusPayload,
+                    tuist_version: Swift.String? = nil
                 ) {
                     self.actor = actor
                     self.ci_host = ci_host
@@ -23309,6 +23347,7 @@ public enum Components {
                     self.rust_version = rust_version
                     self.started_at = started_at
                     self.status = status
+                    self.tuist_version = tuist_version
                 }
                 public enum CodingKeys: String, CodingKey {
                     case actor
@@ -23328,6 +23367,7 @@ public enum Components {
                     case rust_version
                     case started_at
                     case status
+                    case tuist_version
                 }
             }
             /// - Remark: Generated from `#/components/schemas/CargoBuildList/builds`.
@@ -23577,6 +23617,10 @@ public enum Components {
                 }
                 /// - Remark: Generated from `#/components/schemas/MixBuildList/buildsPayload/status`.
                 public var status: Components.Schemas.MixBuildList.buildsPayloadPayload.statusPayload
+                /// The reporting tuist_ex library version.
+                ///
+                /// - Remark: Generated from `#/components/schemas/MixBuildList/buildsPayload/tuist_version`.
+                public var tuist_version: Swift.String?
                 /// Creates a new `buildsPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -23600,6 +23644,7 @@ public enum Components {
                 ///   - otp_version:
                 ///   - started_at:
                 ///   - status:
+                ///   - tuist_version: The reporting tuist_ex library version.
                 public init(
                     actor: Components.Schemas.ReportActor,
                     ci_host: Swift.String? = nil,
@@ -23620,7 +23665,8 @@ public enum Components {
                     mix_env: Swift.String? = nil,
                     otp_version: Swift.String? = nil,
                     started_at: Foundation.Date? = nil,
-                    status: Components.Schemas.MixBuildList.buildsPayloadPayload.statusPayload
+                    status: Components.Schemas.MixBuildList.buildsPayloadPayload.statusPayload,
+                    tuist_version: Swift.String? = nil
                 ) {
                     self.actor = actor
                     self.ci_host = ci_host
@@ -23642,6 +23688,7 @@ public enum Components {
                     self.otp_version = otp_version
                     self.started_at = started_at
                     self.status = status
+                    self.tuist_version = tuist_version
                 }
                 public enum CodingKeys: String, CodingKey {
                     case actor
@@ -23664,6 +23711,7 @@ public enum Components {
                     case otp_version
                     case started_at
                     case status
+                    case tuist_version
                 }
             }
             /// - Remark: Generated from `#/components/schemas/MixBuildList/builds`.
@@ -40508,6 +40556,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The Tuist CLI version that generated the associated project, when available.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/tuist_generation_version`.
+                        public var tuist_generation_version: Swift.String?
+                        /// The reporting Tuist CLI version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// URL to view the build in the dashboard.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/url`.
@@ -40542,6 +40598,8 @@ public enum Operations {
                         ///   - scheme: The scheme that was built.
                         ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
+                        ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                        ///   - tuist_version: The reporting Tuist CLI version.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
                         public init(
@@ -40568,6 +40626,8 @@ public enum Operations {
                             scheme: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
                             status: Operations.getBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_generation_version: Swift.String? = nil,
+                            tuist_version: Swift.String? = nil,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
                         ) {
@@ -40594,6 +40654,8 @@ public enum Operations {
                             self.scheme = scheme
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_generation_version = tuist_generation_version
+                            self.tuist_version = tuist_version
                             self.url = url
                             self.xcode_version = xcode_version
                         }
@@ -40621,6 +40683,8 @@ public enum Operations {
                             case scheme
                             case started_at
                             case status
+                            case tuist_generation_version
+                            case tuist_version
                             case url
                             case xcode_version
                         }
@@ -59221,6 +59285,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listMixBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The reporting tuist_ex library version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -59244,6 +59312,7 @@ public enum Operations {
                             ///   - otp_version:
                             ///   - started_at:
                             ///   - status:
+                            ///   - tuist_version: The reporting tuist_ex library version.
                             public init(
                                 actor: Components.Schemas.ReportActor,
                                 ci_host: Swift.String? = nil,
@@ -59264,7 +59333,8 @@ public enum Operations {
                                 mix_env: Swift.String? = nil,
                                 otp_version: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
-                                status: Operations.listMixBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                                status: Operations.listMixBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_version: Swift.String? = nil
                             ) {
                                 self.actor = actor
                                 self.ci_host = ci_host
@@ -59286,6 +59356,7 @@ public enum Operations {
                                 self.otp_version = otp_version
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_version = tuist_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case actor
@@ -59308,6 +59379,7 @@ public enum Operations {
                                 case otp_version
                                 case started_at
                                 case status
+                                case tuist_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/GET/responses/200/content/json/builds`.
@@ -60870,6 +60942,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The Tuist CLI version that generated the associated project, when available.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/tuist_generation_version`.
+                        public var tuist_generation_version: Swift.String?
+                        /// The reporting Tuist CLI version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// URL to view the build in the dashboard.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/url`.
@@ -60904,6 +60984,8 @@ public enum Operations {
                         ///   - scheme: The scheme that was built.
                         ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
+                        ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                        ///   - tuist_version: The reporting Tuist CLI version.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
                         public init(
@@ -60930,6 +61012,8 @@ public enum Operations {
                             scheme: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
                             status: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_generation_version: Swift.String? = nil,
+                            tuist_version: Swift.String? = nil,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
                         ) {
@@ -60956,6 +61040,8 @@ public enum Operations {
                             self.scheme = scheme
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_generation_version = tuist_generation_version
+                            self.tuist_version = tuist_version
                             self.url = url
                             self.xcode_version = xcode_version
                         }
@@ -60983,6 +61069,8 @@ public enum Operations {
                             case scheme
                             case started_at
                             case status
+                            case tuist_generation_version
+                            case tuist_version
                             case url
                             case xcode_version
                         }
@@ -62628,6 +62716,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getMixBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The reporting tuist_ex library version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -62652,6 +62744,7 @@ public enum Operations {
                         ///   - otp_version:
                         ///   - started_at:
                         ///   - status:
+                        ///   - tuist_version: The reporting tuist_ex library version.
                         public init(
                             actor: Components.Schemas.ReportActor,
                             cache: Operations.getMixBuild.Output.Ok.Body.jsonPayload.cachePayload,
@@ -62673,7 +62766,8 @@ public enum Operations {
                             mix_env: Swift.String? = nil,
                             otp_version: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
-                            status: Operations.getMixBuild.Output.Ok.Body.jsonPayload.statusPayload
+                            status: Operations.getMixBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_version: Swift.String? = nil
                         ) {
                             self.actor = actor
                             self.cache = cache
@@ -62696,6 +62790,7 @@ public enum Operations {
                             self.otp_version = otp_version
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_version = tuist_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case actor
@@ -62719,6 +62814,7 @@ public enum Operations {
                             case otp_version
                             case started_at
                             case status
+                            case tuist_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -72873,6 +72969,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The reporting Tuist CLI version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -72893,6 +72993,7 @@ public enum Operations {
                             ///   - rust_version: The rustc version.
                             ///   - started_at:
                             ///   - status:
+                            ///   - tuist_version: The reporting Tuist CLI version.
                             public init(
                                 actor: Components.Schemas.ReportActor,
                                 ci_host: Swift.String? = nil,
@@ -72910,7 +73011,8 @@ public enum Operations {
                                 is_ci: Swift.Bool,
                                 rust_version: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
-                                status: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                                status: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_version: Swift.String? = nil
                             ) {
                                 self.actor = actor
                                 self.ci_host = ci_host
@@ -72929,6 +73031,7 @@ public enum Operations {
                                 self.rust_version = rust_version
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_version = tuist_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case actor
@@ -72948,6 +73051,7 @@ public enum Operations {
                                 case rust_version
                                 case started_at
                                 case status
+                                case tuist_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/builds`.
@@ -74625,6 +74729,14 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The Tuist CLI version that generated the associated project, when available.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/tuist_generation_version`.
+                            public var tuist_generation_version: Swift.String?
+                            /// The reporting Tuist CLI version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// URL to view the build in the dashboard.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/url`.
@@ -74656,6 +74768,8 @@ public enum Operations {
                             ///   - scheme: The scheme that was built.
                             ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
+                            ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                            ///   - tuist_version: The reporting Tuist CLI version.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
                             public init(
@@ -74679,6 +74793,8 @@ public enum Operations {
                                 scheme: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_generation_version: Swift.String? = nil,
+                                tuist_version: Swift.String? = nil,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
                             ) {
@@ -74702,6 +74818,8 @@ public enum Operations {
                                 self.scheme = scheme
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_generation_version = tuist_generation_version
+                                self.tuist_version = tuist_version
                                 self.url = url
                                 self.xcode_version = xcode_version
                             }
@@ -74726,6 +74844,8 @@ public enum Operations {
                                 case scheme
                                 case started_at
                                 case status
+                                case tuist_generation_version
+                                case tuist_version
                                 case url
                                 case xcode_version
                             }
@@ -96289,6 +96409,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The reporting Tuist CLI version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -96310,6 +96434,7 @@ public enum Operations {
                         ///   - rust_version: The rustc version.
                         ///   - started_at:
                         ///   - status:
+                        ///   - tuist_version: The reporting Tuist CLI version.
                         public init(
                             actor: Components.Schemas.ReportActor,
                             cache: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.cachePayload? = nil,
@@ -96328,7 +96453,8 @@ public enum Operations {
                             is_ci: Swift.Bool,
                             rust_version: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
-                            status: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.statusPayload
+                            status: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_version: Swift.String? = nil
                         ) {
                             self.actor = actor
                             self.cache = cache
@@ -96348,6 +96474,7 @@ public enum Operations {
                             self.rust_version = rust_version
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_version = tuist_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case actor
@@ -96368,6 +96495,7 @@ public enum Operations {
                             case rust_version
                             case started_at
                             case status
+                            case tuist_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -99887,6 +100015,14 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The Tuist CLI version that generated the associated project, when available.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/tuist_generation_version`.
+                            public var tuist_generation_version: Swift.String?
+                            /// The reporting Tuist CLI version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// URL to view the build in the dashboard.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/url`.
@@ -99918,6 +100054,8 @@ public enum Operations {
                             ///   - scheme: The scheme that was built.
                             ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
+                            ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                            ///   - tuist_version: The reporting Tuist CLI version.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
                             public init(
@@ -99941,6 +100079,8 @@ public enum Operations {
                                 scheme: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_generation_version: Swift.String? = nil,
+                                tuist_version: Swift.String? = nil,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
                             ) {
@@ -99964,6 +100104,8 @@ public enum Operations {
                                 self.scheme = scheme
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_generation_version = tuist_generation_version
+                                self.tuist_version = tuist_version
                                 self.url = url
                                 self.xcode_version = xcode_version
                             }
@@ -99988,6 +100130,8 @@ public enum Operations {
                                 case scheme
                                 case started_at
                                 case status
+                                case tuist_generation_version
+                                case tuist_version
                                 case url
                                 case xcode_version
                             }
@@ -121679,6 +121823,10 @@ public enum Operations {
                         public var git_commit_sha: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/is_ci`.
                         public var is_ci: Swift.Bool?
+                        /// The reporting Tuist Gradle plugin version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -121715,6 +121863,7 @@ public enum Operations {
                         ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
                         ///   - git_commit_sha:
                         ///   - is_ci:
+                        ///   - tuist_version: The reporting Tuist Gradle plugin version.
                         public init(
                             tasks_cache_hit_count: Swift.Int? = nil,
                             git_branch: Swift.String? = nil,
@@ -121748,7 +121897,8 @@ public enum Operations {
                             gradle_version: Swift.String? = nil,
                             cache_download_bytes: Swift.Int? = nil,
                             git_commit_sha: Swift.String? = nil,
-                            is_ci: Swift.Bool? = nil
+                            is_ci: Swift.Bool? = nil,
+                            tuist_version: Swift.String? = nil
                         ) {
                             self.tasks_cache_hit_count = tasks_cache_hit_count
                             self.git_branch = git_branch
@@ -121783,6 +121933,7 @@ public enum Operations {
                             self.cache_download_bytes = cache_download_bytes
                             self.git_commit_sha = git_commit_sha
                             self.is_ci = is_ci
+                            self.tuist_version = tuist_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case tasks_cache_hit_count
@@ -121818,6 +121969,7 @@ public enum Operations {
                             case cache_download_bytes
                             case git_commit_sha
                             case is_ci
+                            case tuist_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -129657,6 +129809,10 @@ public enum Operations {
                             public var tasks_remote_hit_count: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_up_to_date_count`.
                             public var tasks_up_to_date_count: Swift.Int?
+                            /// The reporting Tuist Gradle plugin version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -129684,6 +129840,7 @@ public enum Operations {
                             ///   - tasks_local_hit_count:
                             ///   - tasks_remote_hit_count:
                             ///   - tasks_up_to_date_count:
+                            ///   - tuist_version: The reporting Tuist Gradle plugin version.
                             public init(
                                 actor: Components.Schemas.ReportActor? = nil,
                                 cache_hit_rate: Swift.Double? = nil,
@@ -129708,7 +129865,8 @@ public enum Operations {
                                 tasks_executed_count: Swift.Int? = nil,
                                 tasks_local_hit_count: Swift.Int? = nil,
                                 tasks_remote_hit_count: Swift.Int? = nil,
-                                tasks_up_to_date_count: Swift.Int? = nil
+                                tasks_up_to_date_count: Swift.Int? = nil,
+                                tuist_version: Swift.String? = nil
                             ) {
                                 self.actor = actor
                                 self.cache_hit_rate = cache_hit_rate
@@ -129734,6 +129892,7 @@ public enum Operations {
                                 self.tasks_local_hit_count = tasks_local_hit_count
                                 self.tasks_remote_hit_count = tasks_remote_hit_count
                                 self.tasks_up_to_date_count = tasks_up_to_date_count
+                                self.tuist_version = tuist_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case actor
@@ -129760,6 +129919,7 @@ public enum Operations {
                                 case tasks_local_hit_count
                                 case tasks_remote_hit_count
                                 case tasks_up_to_date_count
+                                case tuist_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/builds`.

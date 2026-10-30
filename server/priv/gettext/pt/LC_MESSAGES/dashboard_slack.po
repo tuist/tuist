@@ -50,9 +50,9 @@ msgstr "Regra de alerta não encontrada. Tente novamente."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "Solicitação de autorização expirou. Inicie o processo de conexão com o Slack novamente."
+msgstr "Solicitação de autorização expirada. Inicie novamente o processo de conexão com o Slack."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "O Slack retornou um URL de webhook inesperado. Por favor, tente novamente."
+msgstr "O Slack retornou um URL de webhook inesperado. Tente novamente."

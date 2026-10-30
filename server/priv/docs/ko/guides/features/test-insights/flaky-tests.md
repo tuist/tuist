@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Flaky Tests",
-  "titleTemplate": ":title · Test Insights · Features · Guides · Tuist",
-  "description": "Automatically detect and track flaky tests in your CI pipelines."
+  "title": "불안정한 테스트",
+  "titleTemplate": ":title · 테스트 인사이트 · 기능 · 가이드 · Tuist",
+  "description": "CI 파이프라인에서 불안정한 테스트를 자동으로 감지하고 추적합니다."
 }
 ---
 # 불안정한 테스트 {#flaky-tests}
 
-불안정한 테스트는 동일한 코드로 여러 번 실행했을 때 서로 다른 결과(통과 또는 실패)를 내는 테스트입니다. 이러한 테스트는 테스트 스위트에 대한 신뢰를 떨어뜨리고, 잘못된 실패를 조사하는 데 개발자의 시간을 낭비하게 만듭니다. Tuist는 불안정한 테스트를 자동으로 감지하고 시간에 따라 추적할 수 있도록 도와줍니다.
+불안정한 테스트는 동일한 코드로 여러 번 실행할 때마다 서로 다른 결과(성공 또는 실패)를 내는 테스트입니다. 이러한 테스트는 테스트 스위트에 대한 신뢰를 떨어뜨리고, 잘못된 실패를 조사하는 데 개발자의 시간을 낭비하게 만듭니다. Tuist는 불안정한 테스트를 자동으로 감지하고 시간이 지남에 따라 추적할 수 있도록 도와줍니다.
 
 <.home_cards>
   <.home_card
@@ -37,7 +37,7 @@
 />
   <.home_card
     title="Rust"
-    details="CI 실행 간 결과를 사용하여 불안정한 Cargo 테스트를 감지하고 조사합니다."
+    details="CI 실행 전반의 결과를 사용하여 불안정한 Cargo 테스트를 감지하고 조사합니다."
     link="/guides/features/test-insights/flaky-tests/rust"
 />
 </.home_cards>

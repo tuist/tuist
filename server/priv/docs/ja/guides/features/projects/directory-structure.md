@@ -1,22 +1,17 @@
 ---
 {
-  "title": "Directory structure",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about the structure of Tuist projects and how to organize them."
+  "title": "ディレクトリ構造",
+  "titleTemplate": ":title · プロジェクト · 機能 · ガイド · Tuist",
+  "description": "Tuist プロジェクトの構造と整理方法について学びます。"
 }
 ---
 # ディレクトリ構造 {#directory-structure}
 
-Tuist プロジェクトは、Xcode プロジェクトを置き換えるために一般的に使用されますが、この使用例に限定されるものではありません。Tuist
-プロジェクトは、SPM
-パッケージ、テンプレート、プラグイン、タスクなどの他のタイプのプロジェクトを生成するためにも使用されます。このドキュメントでは、Tuist
-プロジェクトの構造とその整理方法について説明します。後の節では、テンプレート、プラグイン、タスクを定義する方法について説明する。
+Tuistプロジェクトは一般的にXcodeプロジェクトを置き換えるために使用されますが、この用途に限定されるものではありません。Tuistプロジェクトは、SPMパッケージ、テンプレート、プラグイン、タスクなど、他の種類のプロジェクトを生成するためにも使用されます。このドキュメントでは、Tuistプロジェクトの構造とその整理方法について説明します。後のセクションでは、テンプレート、プラグイン、タスクの定義方法についても取り上げます。
 
-## 標準Tuistプロジェクト{#standard-tuist-projects}。
+## 標準的なTuistプロジェクト {#standard-tuist-projects}
 
-Tuistプロジェクトは、**、Tuistによって生成される最も一般的なタイプのプロジェクトである。**
-アプリ、フレームワーク、ライブラリなどを構築するために使用される。Xcodeプロジェクトとは異なり、TuistプロジェクトはSwiftで定義され、より柔軟でメンテナンスしやすくなっています。また、Tuist
-プロジェクトはより宣言的で、理解しやすく、推論しやすくなっています。以下の構造は、Xcodeプロジェクトを生成する典型的なTuistプロジェクトを示している：
+Tuistプロジェクトは**Tuistによって生成される最も一般的なタイプのプロジェクトです。** これらは、アプリ、フレームワーク、ライブラリなどをビルドするために使用されます。Xcodeプロジェクトとは異なり、TuistプロジェクトはSwiftで定義されるため、より柔軟で保守が容易です。また、宣言的であるため、理解しやすく、推論しやすいという特徴もあります。以下の構造は、Xcodeプロジェクトを生成する典型的なTuistプロジェクトを示しています。
 
 ```bash
 Tuist.swift
@@ -31,35 +26,23 @@ Projects/
 Workspace.swift
 ```
 
-- **Tuistディレクトリ：** このディレクトリには2つの目的がある。第一に、プロジェクトのルートが**
-  であることを**に知らせる。これにより、プロジェクトのルートからの相対パスを構築し、プロジェクト内のどのディレクトリからでもTuistコマンドを実行することができる。第二に、以下のファイルのコンテナである：
-  - **ProjectDescriptionHelpers：** このディレクトリには、すべてのマニフェスト ファイルで共有される Swift
-    コードが含まれます。マニフェストファイルは`ProjectDescriptionHelpers`
-    をインポートして、このディレクトリで定義されたコードを使用することができます。コードを共有することは、重複を避け、プロジェクト間の一貫性を確保するために有用です。
-  - **Package.swift：**
-    このファイルには、TuistがXcodeプロジェクトと（[CocoaPods](https://cococapods)のような）設定可能で最適化可能なターゲットを使用してそれらを統合するためのSwift
-    Packageの依存関係が含まれています。詳しくは<LocalizedLink href="/guides/features/projects/dependencies">こちら</LocalizedLink>。
+- **Tuistディレクトリ:** このディレクトリには2つの目的があります。まず、**プロジェクトのルートがどこにあるか**を示します。これにより、プロジェクトのルートに対する相対パスを構築したり、プロジェクト内の任意のディレクトリからTuistコマンドを実行したりできます。次に、以下のファイルのコンテナとなります。
+  - **ProjectDescriptionHelpers:** このディレクトリには、すべてのマニフェストファイルで共有されるSwiftコードが含まれています。マニフェストファイルはこのディレクトリで定義されたコードを使用するために`import ProjectDescriptionHelpers`できます。コードを共有することは、重複を避け、プロジェクト間の一貫性を確保するのに役立ちます。
+  - **Package.swift:** このファイルには、TuistがXcodeプロジェクトとターゲットを使用して統合するためのSwift Package依存関係（[CocoaPods](https://cococapods)のような構成可能で最適化可能なもの）が含まれています。詳細は<.localized_link href="/guides/features/projects/dependencies">こちら</.localized_link>をご覧ください。
 
-- **ルート・ディレクトリ** ：`Tuist` ディレクトリも含むプロジェクトのルートディレクトリ。
-  - <LocalizedLink href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink>このファイルには、すべてのプロジェクト、ワークスペース、環境で共有されるTuistの設定が含まれています。例えば、スキームの自動生成を無効にしたり、プロジェクトのデプロイメントターゲットを定義したりするのに使用できます。
-  - <LocalizedLink href="/guides/features/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink>このマニフェストは、Xcode
-    ワークスペースを表します。他のプロジェクトをグループ化するために使用され、追加のファイルやスキームを追加することもできます。
-  - <LocalizedLink href="/guides/features/projects/manifests#project-swift"><bold>プロジェクト.swift:</bold></LocalizedLink>。このマニフェストは、Xcode
-    プロジェクトを表します。これは、プロジェクトの一部であるターゲットとその依存関係を定義するために使用されます。
+- **ルートディレクトリ**: プロジェクトのルートディレクトリであり、`Tuist`ディレクトリも含まれています。
+  - <.localized_link href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></.localized_link> このファイルには、すべてのプロジェクト、ワークスペース、環境で共有されるTuistの構成が含まれています。例えば、スキームの自動生成を無効にしたり、プロジェクトのデプロイメントターゲットを定義したりするために使用できます。
+  - <.localized_link href="/guides/features/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></.localized_link> このマニフェストはXcodeワークスペースを表します。他のプロジェクトをグループ化するために使用され、追加のファイルやスキームを追加することもできます。
+  - <.localized_link href="/guides/features/projects/manifests#project-swift"><bold>Project.swift:</bold></.localized_link> このマニフェストはXcodeプロジェクトを表します。プロジェクトの一部であるターゲットとその依存関係を定義するために使用されます。
 
-上記のプロジェクトと対話するとき、コマンドは`Workspace.swift` または`Project.swift`
-ファイルが作業ディレクトリまたは`--path` フラグで指定されたディレクトリにあることを期待します。マニフェストは、プロジェクトのルートを表す`Tuist`
-ディレクトリを含むディレクトリのディレクトリまたはサブディレクトリにある必要があります。
+上記のプロジェクトを操作する場合、コマンドは作業ディレクトリまたは`--path`フラグで指定されたディレクトリに`Workspace.swift`または`Project.swift`ファイルがあることを期待します。マニフェストは、プロジェクトのルートを表す`Tuist`ディレクトリを含むディレクトリ、またはそのサブディレクトリにある必要があります。
 
 > [!TIP]
-> Xcodeのワークスペースは、プロジェクトを複数のXcodeプロジェクトに分割し、マージの衝突の可能性を減らすことができた。そのためにワークスペースを使用していたのであれば、Tuistでは必要ない。Tuistはプロジェクトとその依存関係のプロジェクトを含むワークスペースを自動生成する。
+> Xcodeワークスペースでは、マージ競合の可能性を減らすために、プロジェクトを複数のXcodeプロジェクトに分割することができました。もしあなたがワークスペースをその目的で使用していたのであれば、Tuistではそれらは必要ありません。Tuistは、プロジェクトとその依存関係のプロジェクトを含むワークスペースを自動生成します。
 
 
-## Swiftパッケージ <Badge type="warning" text="beta" />{#swift-package-badge-typewarning-textbeta-}.
+## Swift Package <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 
-TuistはSPMパッケージプロジェクトもサポートしている。SPMパッケージで作業している場合、何も更新する必要はないはずです。Tuistは自動的にあなたのルート`Package.swift`
-をピックアップし、あたかも`Project.swift` マニフェストであるかのようにTuistのすべての機能が動作します。
+TuistはSPMパッケージプロジェクトもサポートしています。SPMパッケージで作業している場合、何も更新する必要はありません。Tuistは自動的にルートの`Package.swift`を検出し、Tuistのすべての機能はそれが`Project.swift`マニフェストであるかのように動作します。
 
-始めるには、SPMパッケージで`tuist install` と`tuist generate`
-を実行してください。これで、あなたのプロジェクトは、バニラXcode
-SPM統合で表示されるのと同じスキームとファイルをすべて持つようになります。しかし、<LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink>を実行し、SPMの依存関係とモジュールの大部分をプリコンパイルすることもできます。
+開始するには、SPMパッケージで`tuist install`および`tuist generate`を実行してください。あなたのプロジェクトには現在、通常のXcode SPM統合で見られるものと同じすべてのスキームとファイルがあるはずです。しかし、今では<.localized_link href="/guides/features/cache">`tuist cache`</.localized_link>を実行し、SPM依存関係とモジュールの大部分を事前コンパイルできるため、後続のビルドが非常に高速になります。

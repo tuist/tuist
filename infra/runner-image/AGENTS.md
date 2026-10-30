@@ -381,8 +381,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   140 GB. The build's first provisioner grows the APFS container into it
   (`diskutil repairDisk` + `apfs resizeContainer`), because the plugin
   only resizes after deleting a recovery partition, and its last fails the
-  build below 100 GiB available. Growing the disk again takes room from
-  the rack's disk plan (`rackFleet.machine` in
+  build below 100 GiB available. The live resize intermittently fails with
+  -69606 and rolls itself back, so it is retried up to five times. Growing
+  the disk again takes room from the rack's disk plan (`rackFleet.machine` in
   `values-managed-production.yaml`), which counts two guests at this size.
 - `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
   client, built from `cas-plugin/` alongside `runner-shell-agent` by
@@ -593,7 +594,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the

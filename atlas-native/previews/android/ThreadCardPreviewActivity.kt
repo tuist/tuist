@@ -95,7 +95,7 @@ class ThreadCardPreviewActivity : Activity() {
             threads.put(
                 JSONObject()
                     .put("id", "01922cc0-0000-7000-8000-00000000000${index + 1}")
-                    .put("kind", "shared")
+                    .put("kind", if (index == 0 && intent.getBooleanExtra("environment", false)) "private" else "shared")
                     .put("status", "active")
                     .put("owner_id", "preview-self")
                     .put("origin", "signal")
@@ -227,7 +227,11 @@ class ThreadCardPreviewActivity : Activity() {
                 }
             }
         presence.setActive(true)
-        val screen = AtlasOrbitScreen(this, "Orbit", model, presence, {})
+        val environments = AtlasEnvironmentFixtures()
+        val screen =
+            AtlasOrbitScreen(this, "Orbit", model, presence, {}, environmentRequest = { action, done ->
+                done(runCatching { environments.execute(action) })
+            })
         screen.view.fitsSystemWindows = true
         setContentView(screen.view)
         model.open()

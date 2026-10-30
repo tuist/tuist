@@ -22,7 +22,6 @@ struct AtlasOrbitView: View {
     @Environment(\.atlasLiveActivity) private var liveActivity
     #elseif os(macOS)
     @Environment(\.atlasEnvironmentRequest) private var environmentRequest
-    @State private var showingEnvironment = false
     #endif
 
     init(recordID: String? = nil, revision: UUID? = nil, request: @escaping ([String: Any]) async throws -> Data,
@@ -111,13 +110,11 @@ struct AtlasOrbitView: View {
             ToolbarItem(id: "orbit-create", placement: .primaryAction) { composeButton }
             ToolbarItem(placement: .primaryAction) { AtlasOrbitDomainFilter(model: model) }
             ToolbarItem(id: "orbit-environment", placement: .primaryAction) {
-                Button("Tool environment", systemImage: "desktopcomputer") { showingEnvironment.toggle() }
-                    .disabled(desktopThread?.kind != "private" || environmentRequest == nil)
-                    .popover(isPresented: $showingEnvironment) {
-                        if let thread = desktopThread, let environmentRequest {
-                            AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
-                        }
-                    }
+                if let thread = desktopThread, thread.kind == "private", thread.status == "active", let environmentRequest {
+                    AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
+                } else {
+                    Button("Tool environment", systemImage: "desktopcomputer") {}.disabled(true)
+                }
             }
             ToolbarItem(id: "thread-info", placement: .primaryAction) {
                 Button("Thread details", systemImage: "info.circle") { showingThreadInfo = true }
@@ -144,14 +141,18 @@ struct AtlasOrbitView: View {
             List(selection: desktopSelection) { inboxRows }
                 .listStyle(.inset)
             #else
-            List { inboxRows }.listStyle(.plain)
+            List {
+                // A top safe-area inset crosses the large title/search bar during pull-to-refresh.
+                // Keep the picker in the same scrolling content as the conversations.
+                statusPicker
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                inboxRows
+            }
+            .listStyle(.plain)
             #endif
         }
-        #if os(iOS)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            statusPicker.padding(.horizontal, 16).padding(.vertical, 8)
-        }
-        #endif
         .modifier(AtlasThemedContent())
         .overlay {
             if model.loading, model.assistant == nil { ProgressView("Loading threads") }

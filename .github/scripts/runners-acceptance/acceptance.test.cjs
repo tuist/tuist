@@ -276,6 +276,17 @@ test('canary qualifies the acceptance pool before production enables Docker cach
   assert.equal(values('values-managed-production.yaml').runnersFleetLinux.cacheVolumes.dockerCache.enabled, true);
 });
 
+test('only the cold phase empties the build cache, before the builder is set up', () => {
+  const probe = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-probe.yml'), 'utf8'));
+  const steps = probe.jobs.build.steps;
+  const reset = steps.findIndex(step => step.name === 'Start from an empty build cache');
+  const builder = steps.findIndex(step => step.uses === './.github/actions/setup-docker-builder');
+  assert.ok(reset >= 0 && reset < builder);
+  assert.equal(steps[reset].if, "inputs.phase == 'cold'");
+  assert.match(steps[reset].run, /docker builder prune -af/);
+  assert.match(steps[reset].run, /--filter label=dev\.tuist\.cache=buildkit \| xargs -r docker volume rm/);
+});
+
 test('probe rejects an older candidate image before any build', () => {
   const probe = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-probe.yml'), 'utf8'));
   const check = probe.jobs.build.steps.find(step => step.name === 'Require candidate runner and mounted cache');

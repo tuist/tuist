@@ -577,6 +577,97 @@ struct ResolveTests {
     }
 
     @Test
+    func coldResolutionWritesTheOriginHashForPackagesBelowToolsVersion510() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0", "1.1.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, toolsVersion: "5.9")
+            func resolveCold(_ name: String) async throws -> ResolvedPins {
+                let cacheDirectory = root.appendingPathComponent("\(name)-cache")
+                #expect(
+                    try await PackageResolver.shouldUseNativeColdPath(
+                        packageDir: package,
+                        cacheRoot: cacheDirectory,
+                        registryConfig: RegistryConfig()
+                    )
+                )
+                _ = try await SwifterPM().resolve(
+                    .init(
+                        packageDirectory: package,
+                        cacheDirectory: cacheDirectory,
+                        scratchDirectory: root.appendingPathComponent("\(name)-scratch"),
+                        disableSandbox: true,
+                        quiet: true
+                    ))
+                return try await ResolvedFile.read(packageDir: package)
+            }
+
+            let cold = try await resolveCold("cold")
+            #expect(cold.version == 2)
+            #expect(cold.pins.map(\.state.version) == ["1.0.0"])
+            #expect(cold.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+
+            // SwiftPM leaves Package.resolved alone when its pins are unchanged.
+            var withoutOriginHash = cold
+            withoutOriginHash.originHash = nil
+            try await ResolvedFile.write(packageDir: package, resolved: withoutOriginHash, mirrors: MirrorConfig())
+            let unchanged = try await resolveCold("unchanged")
+            #expect(unchanged.pins == cold.pins)
+            #expect(unchanged.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+
+            try await writeAppPackageManifest(
+                at: package, dependencyURL: dependency.path, exactVersion: "1.1.0", toolsVersion: "5.9"
+            )
+            let bumped = try await resolveCold("bumped")
+            #expect(bumped.version == 2)
+            #expect(bumped.pins.map(\.state.version) == ["1.1.0"])
+            #expect(bumped.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: package) != nil)
+        }
+    }
+
+    @Test
+    func coldForcedResolutionLeavesTheResolvedFileWithoutAnOriginHashUntouched() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, toolsVersion: "5.9")
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: root.appendingPathComponent("cache"),
+                    scratchDirectory: root.appendingPathComponent("scratch"),
+                    disableSandbox: true,
+                    quiet: true
+                ))
+            var withoutOriginHash = try await ResolvedFile.read(packageDir: package)
+            withoutOriginHash.originHash = nil
+            try await ResolvedFile.write(packageDir: package, resolved: withoutOriginHash, mirrors: MirrorConfig())
+            let lockfile = package.appendingPathComponent("Package.resolved")
+            let original = try await fileSystem.readFile(at: lockfile.absolutePath)
+
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: root.appendingPathComponent("forced-cache"),
+                    scratchDirectory: root.appendingPathComponent("forced-scratch"),
+                    disableSandbox: true,
+                    forceResolvedVersions: true,
+                    restorePackage: false,
+                    quiet: true
+                ))
+
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == original)
+        }
+    }
+
+    @Test
     func coldResolutionCopiesCheckoutsInContinuousIntegration() async throws {
         try await Environment.$values.withValue(["CI": "1"]) {
             try await withTemporaryDirectory { root in
@@ -2655,7 +2746,8 @@ struct ResolveTests {
         dependencyURL: String,
         exactVersion: String = "1.0.0",
         fromVersion: String? = nil,
-        dependencyName: String = "Dependency"
+        dependencyName: String = "Dependency",
+        toolsVersion: String = "6.0"
     ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
@@ -2669,7 +2761,7 @@ struct ResolveTests {
             }
         try await fileSystem.atomicWrite(
             """
-            // swift-tools-version: 6.0
+            // swift-tools-version: \(toolsVersion)
             import PackageDescription
 
             let package = Package(

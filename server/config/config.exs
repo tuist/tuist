@@ -343,7 +343,8 @@ config :phoenix, :filter_parameters, [
   "secret",
   "token",
   "credential",
-  "installation_receipt"
+  "installation_receipt",
+  "arguments"
 ]
 
 # Use Jason for JSON parsing in Phoenix

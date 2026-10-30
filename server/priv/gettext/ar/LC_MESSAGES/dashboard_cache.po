@@ -14,13 +14,13 @@ msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/bundle_live.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "%{duplicates_count} duplicates"
-msgstr "%{duplicates_count} تكرارات"
+msgstr "%{duplicates_count} تكرار"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:769
 #: lib/tuist_web/live/xcode_cache_live.html.heex:898
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
-msgstr "%{duration} ثانية"
+msgstr "%{duration} ث"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:74
 #: lib/tuist_web/live/module_cache_live.html.heex:166
@@ -44,7 +44,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/cache_runs_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
-msgstr "%{run_duration} ثانية"
+msgstr "%{run_duration} ث"
 
 #: lib/tuist_web/live/bundle_live.html.heex:384
 #, elixir-autogen, elixir-format
@@ -128,23 +128,23 @@ msgstr "المتوسط"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
-msgstr "متوسط معدل نجاح التخزين المؤقت"
+msgstr "متوسط معدل العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Avg. hit rate"
-msgstr "متوسط معدل الإصابات"
+msgstr "متوسط معدل العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/bundle_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Binaries"
-msgstr "الملفات الثنائية"
+msgstr "ملفات ثنائية"
 
 #: lib/tuist_web/live/bundle_live.ex:1043
 #: lib/tuist_web/live/bundle_live.html.heex:569
 #, elixir-autogen, elixir-format
 msgid "Binary"
-msgstr "ملف ثنائي"
+msgstr "ثنائي"
 
 #: lib/tuist_web/live/bundle_live.html.heex:81
 #: lib/tuist_web/live/bundles_live.ex:933
@@ -154,7 +154,7 @@ msgstr "ملف ثنائي"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:562
 #, elixir-autogen, elixir-format
 msgid "Branch"
-msgstr "الفرع"
+msgstr "فرع"
 
 #: lib/tuist_web/live/bundles_live.html.heex:43
 #: lib/tuist_web/live/module_cache_live.html.heex:36
@@ -166,7 +166,7 @@ msgstr "الفرع:"
 #: lib/tuist_web/live/bundle_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "Bundle"
-msgstr "الحزمة"
+msgstr "حزمة"
 
 #: lib/tuist_web/live/bundle_live.html.heex:70
 #, elixir-autogen, elixir-format
@@ -212,14 +212,14 @@ msgstr "CI"
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
-msgstr "عمليات التخزين المؤقت"
+msgstr "تشغيلات ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:259
 #: lib/tuist_web/live/xcode_cache_live.ex:242
 #: lib/tuist_web/live/xcode_cache_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "تنزيلات التخزين المؤقت"
+msgstr "تنزيلات ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:41
 #: lib/tuist_web/live/module_cache_live.ex:398
@@ -235,44 +235,44 @@ msgstr "تنزيلات التخزين المؤقت"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:801
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "معدل نجاح التخزين المؤقت"
+msgstr "معدل العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "يمثل معدل نجاح التخزين المؤقت النسبة المئوية للأهداف القابلة للتخزين المؤقت التي تم حلها من التخزين المؤقت (محلي أو بعيد) بدلاً من إعادة بنائها."
+msgstr "يمثل معدل العثور في ذاكرة التخزين المؤقت نسبة الأهداف القابلة للتخزين المؤقت التي تم حلها من الذاكرة المؤقتة (محليًا أو عن بُعد) بدلاً من إعادة بنائها."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "تمثل نسبة الإصابات في الذاكرة المؤقتة النسبة المئوية للمهام القابلة للتخزين المؤقت التي تم حلها من الذاكرة المؤقتة (محليًا أو عن بُعد) بدلاً من إعادة بنائها."
+msgstr "تمثل نسبة العثور في ذاكرة التخزين المؤقت النسبة المئوية للمهام القابلة للتخزين المؤقت التي تم حلها من الذاكرة المؤقتة (محليًا أو عن بُعد) بدلاً من إعادة بنائها."
 
 #: lib/tuist_web/live/module_cache_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
-msgstr "الإصابات في الذاكرة المؤقتة"
+msgstr "العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
-msgstr "تمثل الإصابات في الذاكرة المؤقتة العدد الإجمالي للأهداف التي تم حلها من الذاكرة المؤقتة (محليًا أو عن بُعد) خلال الفترة المحددة."
+msgstr "يمثل عدد مرات العثور في ذاكرة التخزين المؤقت العدد الإجمالي للأهداف التي تم حلها من الذاكرة المؤقتة (محليًا أو عن بُعد) خلال الفترة المحددة."
 
 #: lib/tuist_web/live/module_cache_live.ex:389
 #, elixir-autogen, elixir-format
 msgid "Cache misses"
-msgstr "فقدان الذاكرة المؤقتة"
+msgstr "عدم العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
-msgstr "يمثل فقدان الذاكرة المؤقتة العدد الإجمالي للأهداف القابلة للتخزين المؤقت التي كان لا بد من إعادة بنائها لأنها لم تُعثر عليها في الذاكرة المؤقتة خلال الفترة المحددة."
+msgstr "يمثل عدد حالات عدم العثور في ذاكرة التخزين المؤقت العدد الإجمالي للأهداف القابلة للتخزين المؤقت التي كان لا بد من إعادة بنائها لأنها لم تُعثر عليها في الذاكرة المؤقتة خلال الفترة المحددة."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:260
 #: lib/tuist_web/live/xcode_cache_live.ex:247
 #: lib/tuist_web/live/xcode_cache_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "تحميلات الذاكرة المؤقتة"
+msgstr "عمليات رفع الذاكرة المؤقتة"
 
 #: lib/tuist_web/live/cache_runs_live.ex:44
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
@@ -306,7 +306,7 @@ msgstr "حذف الحزمة"
 #: lib/tuist_web/live/bundle_live.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "Directory"
-msgstr "الدليل"
+msgstr "المجلد"
 
 #: lib/tuist_web/live/bundles_live.html.heex:266
 #, elixir-autogen, elixir-format
@@ -392,14 +392,14 @@ msgstr "خط"
 #: lib/tuist_web/live/bundle_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Fonts"
-msgstr "خطوط"
+msgstr "الخطوط"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:750
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:297
 #: lib/tuist_web/live/xcode_cache_live.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "Hit Rate"
-msgstr "معدل النجاح"
+msgstr "معدل العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/cache_runs_live.ex:73
 #: lib/tuist_web/live/cache_runs_live.html.heex:10
@@ -407,7 +407,7 @@ msgstr "معدل النجاح"
 #: lib/tuist_web/live/cache_runs_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
-msgstr "معدل النجاح"
+msgstr "معدل العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:233
 #: lib/tuist_web/live/module_cache_module_live.html.heex:119
@@ -416,7 +416,7 @@ msgstr "معدل النجاح"
 #: lib/tuist_web/live/modules_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Hits"
-msgstr "المرات"
+msgstr "عمليات العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/bundle_live.ex:1027
 #: lib/tuist_web/live/bundles_live.ex:398
@@ -479,7 +479,7 @@ msgstr "التعريبات"
 #: lib/tuist_web/live/modules_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "الإخفاقات"
+msgstr "عدم العثور في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/bundle_live.html.heex:185
 #: lib/tuist_web/live/bundle_live.html.heex:627
@@ -493,7 +493,7 @@ msgstr "تفصيل الوحدات"
 #: lib/tuist_web/live/module_cache_module_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
-msgstr "ذاكرة التخزين المؤقت للوحدات"
+msgstr "ذاكرة تخزين مؤقت للوحدة"
 
 #: lib/tuist_web/live/bundle_live.html.heex:61
 #: lib/tuist_web/live/bundle_live.html.heex:649
@@ -540,7 +540,7 @@ msgstr "لم يتم العثور على وحدات نمطية"
 #: lib/tuist_web/live/bundles_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Not available"
-msgstr "غير متوفر"
+msgstr "غير متاح"
 
 #: lib/tuist_web/live/bundle_live.ex:1049
 #: lib/tuist_web/live/bundle_live.html.heex:575
@@ -558,7 +558,7 @@ msgstr "نظرة عامة"
 #: lib/tuist_web/live/xcode_cache_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "تم اجتيازها"
+msgstr "ناجح"
 
 #: lib/tuist_web/live/bundle_live.html.heex:519
 #: lib/tuist_web/live/bundle_live.html.heex:526
@@ -628,7 +628,7 @@ msgstr "يمثل حجم حزمة التطبيق غير المضغوطة التي
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to analyze a bundle."
-msgstr "قم بتشغيل الأمر التالي لتحليل الحزمة."
+msgstr "شغّل الأمر التالي لتحليل الحزمة."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:519
 #: lib/tuist_web/live/xcode_cache_live.ex:424
@@ -636,7 +636,7 @@ msgstr "قم بتشغيل الأمر التالي لتحليل الحزمة."
 #: lib/tuist_web/live/xcode_cache_live.html.heex:874
 #, elixir-autogen, elixir-format
 msgid "Scheme"
-msgstr "مخطط"
+msgstr "المخطط"
 
 #: lib/tuist_web/live/bundle_live.html.heex:508
 #: lib/tuist_web/live/bundle_live.html.heex:638
@@ -678,18 +678,18 @@ msgstr "الحالة"
 #: lib/tuist_web/live/bundles_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-msgstr "حجم تنزيل الحزمة. هذا هو حجم التطبيق المضغوط الذي يقوم المستخدم بتنزيله من متجر التطبيقات."
+msgstr "حجم تنزيل الحزمة. هذا هو حجم التطبيق المضغوط الذي ينزله المستخدم من متجر التطبيقات."
 
 #: lib/tuist_web/live/bundles_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-msgstr "حجم تثبيت الحزمة. هذا هو حجم التطبيق غير المضغوط ويمثل مقدار المساحة التي يشغلها التطبيق على الجهاز."
+msgstr "حجم تثبيت الحزمة. هذا هو حجم التطبيق غير المضغوط ويمثل المساحة التي يشغلها التطبيق على الجهاز."
 
 #: lib/tuist_web/live/bundle_live.html.heex:609
 #: lib/tuist_web/live/bundle_live.html.heex:702
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "حاول تغيير مصطلح البحث"
+msgstr "جرّب تغيير مصطلح البحث"
 
 #: lib/tuist_web/live/bundle_live.ex:1039
 #: lib/tuist_web/live/bundle_live.html.heex:53
@@ -760,12 +760,12 @@ msgstr "p50"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "p50 cache hit rate"
-msgstr "معدل إصابة ذاكرة التخزين المؤقت p50"
+msgstr "معدل العثور في ذاكرة التخزين المؤقت p50"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "p50 hit rate"
-msgstr "معدل الإصابة p50"
+msgstr "معدل العثور p50"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:483
 #: lib/tuist_web/live/xcode_cache_live.html.heex:620
@@ -777,12 +777,12 @@ msgstr "p90"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "p90 cache hit rate"
-msgstr "معدل إصابة الذاكرة المؤقتة p90"
+msgstr "معدل العثور في ذاكرة التخزين المؤقت p90"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "p90 hit rate"
-msgstr "معدل الإصابة p90"
+msgstr "معدل العثور p90"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:470
 #: lib/tuist_web/live/xcode_cache_live.html.heex:607
@@ -794,12 +794,12 @@ msgstr "p99"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "p99 cache hit rate"
-msgstr "معدل إصابة الذاكرة المؤقتة p99"
+msgstr "معدل العثور في ذاكرة التخزين المؤقت p99"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "p99 hit rate"
-msgstr "معدل الإصابة p99"
+msgstr "معدل العثور p99"
 
 #: lib/tuist_web/live/bundles_live.ex:284
 #: lib/tuist_web/live/module_cache_live.ex:419
@@ -892,7 +892,7 @@ msgstr "آخر 7 أيام"
 #: lib/tuist_web/live/xcode_cache_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "منذ الفترة السابقة"
+msgstr "منذ الفترة الأخيرة"
 
 #: lib/tuist_web/live/module_cache_live.ex:415
 #: lib/tuist_web/live/toolchain_cache_live.ex:233
@@ -904,22 +904,22 @@ msgstr "منذ الأمس"
 #: lib/tuist_web/live/cache_runs_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
-msgstr "نقطة نهاية التخزين المؤقت"
+msgstr "نقطة نهاية ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Xcode cache for your project"
-msgstr "إعداد تخزين Xcode المؤقت لمشروعك"
+msgstr "إعداد ذاكرة تخزين Xcode المؤقتة لمشروعك"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr "يمكنك إعداد تخزين Xcode المؤقت لمشروعك عن طريق تشغيل:"
+msgstr "يمكنك إعداد ذاكرة تخزين Xcode المؤقتة لمشروعك عن طريق تشغيل:"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
-msgstr "وثائق Tuist"
+msgstr "توثيق Tuist"
 
 #: lib/tuist_web/live/bundle_live.ex:1057
 #, elixir-autogen, elixir-format
@@ -945,7 +945,7 @@ msgstr "AAB"
 #: lib/tuist_web/live/bundles_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "APK"
-msgstr "APK"
+msgstr "ملف APK"
 
 #: lib/tuist_web/live/bundle_live.html.heex:69
 #, elixir-autogen, elixir-format
@@ -963,12 +963,12 @@ msgstr "البيئة"
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "تم الوصول إلى حد 10,000 إدخال، البيانات متضمنة فقط حتى %{date}. حاول التصفية لتضييق نطاق مجموعة البيانات."
+msgstr "تم الوصول إلى حد 10,000 سجل، البيانات مُضمَّنة فقط حتى %{date}. جرّب تطبيق فلاتر لتضييق نطاق مجموعة البيانات."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
-msgstr "تم الوصول إلى حد 10,000 إدخال، البيانات متضمنة فقط حتى %{date}. حاول تضييق نطاق التاريخ لعرض بيانات أحدث."
+msgstr "تم الوصول إلى حد 10,000 سجل، البيانات مُضمَّنة فقط حتى %{date}. جرّب تضييق نطاق التاريخ لعرض بيانات أحدث."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:299
 #, elixir-autogen, elixir-format
@@ -997,17 +997,17 @@ msgstr "إنتاجية ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Cache transfer"
-msgstr "نقل الذاكرة المؤقتة"
+msgstr "نقل ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Cache transfer represents the total size of cache artifacts downloaded from and uploaded to remote storage during the given period."
-msgstr "يمثل نقل الذاكرة المؤقتة الحجم الإجمالي لعناصر الذاكرة المؤقتة التي تم تنزيلها من التخزين البعيد وتحميلها إليه خلال الفترة المحددة."
+msgstr "يمثل نقل ذاكرة التخزين المؤقت الحجم الإجمالي لمخرجات ذاكرة التخزين المؤقت التي تم تنزيلها من التخزين البعيد وتحميلها إليه خلال الفترة المحددة."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
-msgstr "معدل نقل البيانات المجمع للتنزيل والتحميل مقابل تخزين الذاكرة المؤقتة البعيدة خلال الفترة المحددة، والمشتق من عدد البايتات المنقولة عبر الزمن."
+msgstr "معدل نقل البيانات المجمع للتنزيل والتحميل مقابل تخزين ذاكرة التخزين المؤقت البعيدة خلال الفترة المحددة، ويُشتق من عدد البايتات المنقولة عبر الزمن."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:265
 #: lib/tuist_web/live/xcode_cache_live.ex:290
@@ -1020,7 +1020,7 @@ msgstr "معدل نقل بيانات التنزيل"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:444
 #, elixir-autogen, elixir-format
 msgid "Downloads"
-msgstr "التنزيلات"
+msgstr "عمليات التنزيل"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:349
 #, elixir-autogen, elixir-format
@@ -1050,7 +1050,7 @@ msgstr "التحميلات"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Write"
-msgstr "كتابة"
+msgstr "الكتابة"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:263
 #: lib/tuist_web/live/xcode_cache_live.ex:271
@@ -1077,7 +1077,7 @@ msgstr "%{share}%"
 #: lib/tuist_web/live/modules_live.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "Changed"
-msgstr "تم التغيير"
+msgstr "تغيّر"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:326
 #: lib/tuist_web/live/module_cache_module_live.ex:350
@@ -1093,7 +1093,7 @@ msgstr "بارد"
 #: lib/tuist_web/live/modules_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "Cold misses"
-msgstr "الإخفاقات الباردة"
+msgstr "عدم العثور البارد"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:49
 #: lib/tuist_web/live/module_cache_module_live.html.heex:151
@@ -1101,12 +1101,12 @@ msgstr "الإخفاقات الباردة"
 #: lib/tuist_web/live/modules_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Dependents"
-msgstr "المعتمدون"
+msgstr "التبعيات"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "How many modules this one invalidates downstream when it changes."
-msgstr "عدد الوحدات التي تبطلها هذه الوحدة في المسار اللاحق عند تغييرها."
+msgstr "عدد الوحدات التي تصبح غير صالحة في المراحل التالية عند تغيير هذه الوحدة."
 
 #: lib/tuist_web/components/module_invalidations_table.ex:28
 #, elixir-autogen, elixir-format
@@ -1128,12 +1128,12 @@ msgstr "الوحدات"
 #: lib/tuist_web/live/module_cache_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Most dependents"
-msgstr "الأكثر اعتماداً"
+msgstr "الأكثر تبعية"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "Most missed"
-msgstr "الأكثر تفويتاً"
+msgstr "الأكثر عدم العثور"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:201
 #, elixir-autogen, elixir-format
@@ -1149,12 +1149,12 @@ msgstr "يحتاج إلى حواف الرسم البياني لواجهة سطر
 #: lib/tuist_web/live/modules_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "No cache misses yet"
-msgstr "لا توجد حالات عدم تطابق في ذاكرة التخزين المؤقت حتى الآن"
+msgstr "لم يحدث عدم العثور في ذاكرة التخزين المؤقت بعد"
 
 #: lib/tuist_web/live/modules_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "No modules match your search"
-msgstr "لا تتطابق أي وحدات مع بحثك"
+msgstr "لا توجد وحدات تطابق بحثك"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:24
 #, elixir-autogen, elixir-format
@@ -1164,12 +1164,12 @@ msgstr "المنتج: %{product}"
 #: lib/tuist_web/live/modules_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Search modules"
-msgstr "بحث الوحدات"
+msgstr "بحث عن الوحدات"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
-msgstr "نسبة الإبطال الناتجة فقط عن تغيير تبعية علوية وليس عن كود الوحدة نفسه (العلوية ÷ المتغيرة + العلوية). هذه هي النسبة التي يمكن تحسينها عبر حدود أفضل للوحدات."
+msgstr "نسبة الإبطال الناتجة فقط عن تغيير تبعية علوية بدلاً من تغيير كود الوحدة نفسها (العلوي ÷ المتغير + العلوي). تمثل هذه النسبة ما يمكن تحسينه عبر وضع حدود أفضل للوحدات."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
@@ -1179,7 +1179,7 @@ msgstr "نسبة عمليات بناء هذه الوحدة التي تم تقد�
 #: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
-msgstr "الوحدة التي تسببت في أكبر عدد من حالات عدم التطابق في ذاكرة التخزين المؤقت خلال الفترة. تقليل وتيرة إعادة بنائها يحقق أكبر عائد مباشر."
+msgstr "الوحدة التي شهدت أعلى معدل لعدم العثور في ذاكرة التخزين المؤقت خلال الفترة. تقليل تكرار إعادة بنائها يحقق أكبر عائد مباشر."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:325
 #: lib/tuist_web/live/module_cache_module_live.ex:349
@@ -1195,12 +1195,12 @@ msgstr "علوي"
 #: lib/tuist_web/live/modules_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "Upstream misses"
-msgstr "إخفاقات المصدر الأصلي"
+msgstr "عدم العثور في ذاكرة التخزين المؤقت بسبب التبعية"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Upstream share"
-msgstr "مشاركة المصدر الأصلي"
+msgstr "نسبة عدم العثور في ذاكرة التخزين المؤقت بسبب التبعية"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:557
 #, elixir-autogen, elixir-format
@@ -1210,7 +1210,7 @@ msgstr "عرض جميع الوحدات"
 #: lib/tuist_web/live/module_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "The module that invalidates the most other modules when it changes. It is the highest-impact target for better boundaries."
-msgstr "الوحدة التي تُبطل معظم الوحدات الأخرى عند تغييرها. إنها الهدف الأعلى تأثيراً لتحسين الحدود."
+msgstr "الوحدة التي تُبطل صلاحية أكبر عدد من الوحدات الأخرى عند تغييرها. إنها الهدف الأعلى تأثيراً لتحسين الحدود."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:429
 #, elixir-autogen, elixir-format
@@ -1227,27 +1227,27 @@ msgstr "لا شيء"
 #: lib/tuist_web/live/module_cache_module_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "Cached"
-msgstr "مُخزَّن مؤقتاً"
+msgstr "مخزّن مؤقتاً"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "No builds match these filters"
-msgstr "لا تتطابق أي عمليات بناء مع هذه الفلاتر"
+msgstr "لا توجد عمليات بناء تطابق هذه الفلاتر"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Search commit sha"
-msgstr "البحث عن تجزئة الالتزام (commit sha)"
+msgstr "البحث عن تجزئة الالتزام"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "إصابة"
+msgstr "تم العثور عليه"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "فشل"
+msgstr "لم يتم العثور عليه"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:527
 #, elixir-autogen, elixir-format
@@ -1279,17 +1279,17 @@ msgstr "الكل"
 #: lib/tuist_web/live/modules_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Changed misses"
-msgstr "الإخفاقات المتغيرة"
+msgstr "عدم العثور بسبب التغيير"
 
 #: lib/tuist_web/live/modules_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Module builds served from cache instead of being rebuilt."
-msgstr "عمليات بناء الوحدة المقدمة من ذاكرة التخزين المؤقت بدلاً من إعادة بنائها."
+msgstr "تمت خدمة عمليات بناء الوحدة من ذاكرة التخزين المؤقت بدلاً من إعادة بنائها."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Builds where this module was served from the cache."
-msgstr "عمليات البناء حيث تم تقديم هذه الوحدة من ذاكرة التخزين المؤقت."
+msgstr "عمليات البناء التي تم فيها خدمة هذه الوحدة من ذاكرة التخزين المؤقت."
 
 #: lib/tuist_web/live/bundle_live.html.heex:471
 #, elixir-autogen, elixir-format
@@ -1299,32 +1299,32 @@ msgstr "و%{count} أخرى"
 #: lib/tuist_web/helpers/module_cache.ex:59
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
-msgstr "كان لهذا المفتاح الدقيق سابقاً إصابة عن بُعد في نفس نقطة نهاية ذاكرة التخزين المؤقت، لكنه الآن يفشل. على الأرجح تم طرد الأثر المخزن مؤقتاً."
+msgstr "كان لهذا المفتاح الدقيق سابقاً نتيجة إيجاد في الذاكرة البعيدة عند نقطة نهاية ذاكرة التخزين المؤقت نفسها، لكنه الآن يفشل في الإيجاد. على الأرجح تم طرد المخرج المخزّن."
 
 #: lib/tuist_web/helpers/module_cache.ex:38
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
-msgstr "تغيرت المدخلات المبلغ عنها للوحدة، مثل ملفاتها، وإعدادات البناء، والتكوين، أو إصدار المترجم."
+msgstr "تغيّرت المدخلات المبلّغة للوحدة، مثل ملفاتها أو إعدادات البناء أو التهيئة أو إصدار المترجم."
 
 #: lib/tuist_web/helpers/module_cache.ex:52
 #, elixir-autogen, elixir-format
 msgid "No earlier comparison is available, or the reported inputs and remote-hit history do not explain this miss."
-msgstr "لا تتوفر مقارنة سابقة، أو أن المدخلات المبلغ عنها وسجل الإصابات عن بُعد لا تفسر هذا الفشل."
+msgstr "لا تتوفر مقارنة سابقة، أو لا تفسّر المدخلات المبلّغة وسجلّ نتائج الإيجاد البعيدة هذا الفشل في الإيجاد."
 
 #: lib/tuist_web/helpers/module_cache.ex:66
 #, elixir-autogen, elixir-format
 msgid "This observation reports a local or remote cache hit."
-msgstr "هذا التقرير يشير إلى إصابة في ذاكرة التخزين المؤقت المحلية أو البعيدة."
+msgstr "يُبلغ هذا الرصد عن وجود نتيجة إيجاد في الذاكرة المحلية أو البعيدة."
 
 #: lib/tuist_web/helpers/module_cache.ex:45
 #, elixir-autogen, elixir-format
 msgid "The module's own reported inputs stayed the same, but a dependency or external package hash changed."
-msgstr "ظلت المدخلات المُبلَّغ عنها من الوحدة كما هي، لكن تجزئة إحدى التبعيات أو الحزم الخارجية تغيرت."
+msgstr "بقيت مدخلات الوحدة المُبلَّغ عنها كما هي، لكن تجزئة إحدى التبعيات أو الحزم الخارجية تغيرت."
 
 #: lib/tuist_web/helpers/module_cache.ex:70
 #, elixir-autogen, elixir-format
 msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
-msgstr "تم التغيير: تغيرت مدخلات الوحدة. المصدر العلوي: تغيرت التبعيات. بارد: أدلة غير كافية. مُطرود: مفتاح كان مُقدَّمًا سابقًا أصبح مفقودًا الآن."
+msgstr "متغير: تغيرت مدخلات الوحدة. تابع لأعلى: تغيرت التبعيات. بارد: أدلة غير كافية. مُطرود: مفتاح كان متاحاً سابقاً لم يُعثر عليه الآن."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:327
 #: lib/tuist_web/live/module_cache_module_live.ex:351
@@ -1340,45 +1340,45 @@ msgstr "مُطرود"
 #: lib/tuist_web/live/modules_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Evicted misses"
-msgstr "فقدانات المطرودين"
+msgstr "عدم العثور بسبب الطرد"
 
 #: lib/tuist_web/live/modules_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "غير متاح"
+msgstr "غير متوفر"
 
 #: lib/tuist_web/live/mix_build_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Local hit"
-msgstr "إصابة محلية"
+msgstr "العثور محلياً"
 
 #: lib/tuist_web/live/mix_build_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "فاقد"
+msgstr "عدم العثور"
 
 #: lib/tuist_web/live/mix_build_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr "إصابة عن بُعد"
+msgstr "العثور عن بُعد"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "Cache results recorded for %{measured} of %{total} recent build. Builds without recorded cache results are excluded from the hit rate."
 msgid_plural "Cache results recorded for %{measured} of %{total} recent builds. Builds without recorded cache results are excluded from the hit rate."
-msgstr[0] "تم تسجيل نتائج التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. يتم استبعاد عمليات البناء التي لا تحتوي على نتائج تخزين مؤقت مسجلة من معدل الإصابات."
-msgstr[1] "تم تسجيل نتائج التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. يتم استبعاد عمليات البناء التي لا تحتوي على نتائج تخزين مؤقت مسجلة من معدل الإصابات."
-msgstr[2] "تم تسجيل نتائج التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. يتم استبعاد عمليات البناء التي لا تحتوي على نتائج تخزين مؤقت مسجلة من معدل الإصابات."
-msgstr[3] "تم تسجيل نتائج التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. يتم استبعاد عمليات البناء التي لا تحتوي على نتائج تخزين مؤقت مسجلة من معدل الإصابات."
-msgstr[4] "تم تسجيل نتائج التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. يتم استبعاد عمليات البناء التي لا تحتوي على نتائج تخزين مؤقت مسجلة من معدل الإصابات."
-msgstr[5] "تم تسجيل نتائج التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. يتم استبعاد عمليات البناء التي لا تحتوي على نتائج تخزين مؤقت مسجلة من معدل الإصابات."
+msgstr[0] "تم تسجيل نتائج ذاكرة التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. تُستبعد عمليات البناء التي لا تحتوي على نتائج مسجلة في ذاكرة التخزين المؤقت من معدل العثور."
+msgstr[1] "تم تسجيل نتائج ذاكرة التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. تُستبعد عمليات البناء التي لا تحتوي على نتائج مسجلة في ذاكرة التخزين المؤقت من معدل العثور."
+msgstr[2] "تم تسجيل نتائج ذاكرة التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. تُستبعد عمليات البناء التي لا تحتوي على نتائج مسجلة في ذاكرة التخزين المؤقت من معدل العثور."
+msgstr[3] "تم تسجيل نتائج ذاكرة التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. تُستبعد عمليات البناء التي لا تحتوي على نتائج مسجلة في ذاكرة التخزين المؤقت من معدل العثور."
+msgstr[4] "تم تسجيل نتائج ذاكرة التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. تُستبعد عمليات البناء التي لا تحتوي على نتائج مسجلة في ذاكرة التخزين المؤقت من معدل العثور."
+msgstr[5] "تم تسجيل نتائج ذاكرة التخزين المؤقت لـ %{measured} من أصل %{total} عملية بناء حديثة. تُستبعد عمليات البناء التي لا تحتوي على نتائج مسجلة في ذاكرة التخزين المؤقت من معدل العثور."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
-msgstr "متوسطات ومئات النسب المئوية لمعدلات إصابة التخزين المؤقت لكل عملية بناء على حدة. تعيد الإصابات استخدام المخرجات المخزنة مؤقتًا؛ وتشمل حالات عدم الإصابة فشل البحث، والترجمات الباردة، وإعادة البناء للتحقق. يتم استبعاد الجلب المسبق."
+msgstr "المتوسط والنسب المئوية لمعدلات العثور الفردية في ذاكرة التخزين المؤقت للبناء. يعيد العثور استخدام المخرجات المخزنة؛ وتشمل حالات عدم العثور فشل البحث، والترجمات الباردة، وإعادة البناء للتحقق. تُستبعد عمليات الجلب المسبق."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."
-msgstr "قياسات تجريبية لتخزين Cargo المؤقت. تستخدم إجماليات النقل عدادات البايت على نطاق العملية بأكملها. تقيس زمن الوصول عمليات الفهرسة لكل مفتاح، وليس وقت الترجمة أو نقل القطع الأثرية. يستخدم الإنتاج العمليات الناجحة المقاسة لنظام CAS فقط؛ ويتم استبعاد العمليات الفاشلة والموجودة بالفعل. قد تكون سجلات الفحص جزئية."
+msgstr "قياسات تجريبية لذاكرة التخزين المؤقت لـ Cargo. تستخدم إجماليات النقل عدادات البايت على مستوى البناء بأكمله. تقيس زمن الاستجابة عمليات الفهرسة لكل مفتاح مسجلة، وليس وقت الترجمة أو نقل المخرجات. يستخدم معدل الإنتاج فقط عمليات نقل CAS الناجحة المقاسة؛ وتُستبعد العمليات الفاشلة والموجودة مسبقاً. قد تكون سجلات الفحص جزئية."

@@ -12,6 +12,9 @@ Monitoring cost controls must preserve metric identity and operator audit record
 See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
 Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
 runs the mixed-version latency expression through promtool.
+The runner queue-time p90 rule is in `k8s-monitoring/runner-queue-time-alert-rules.json`,
+tested by `test-runner-queue-time-alert.sh`; it reads a server histogram, so
+renaming its `limit_held` or `platform` tags breaks the rule.
 Runner macOS host-health rules are in `k8s-monitoring/runner-macos-host-alert-rules.json`;
 `test-runner-macos-host-alerts.sh` tests their risk, socket-count and collector
 freshness expressions with promtool. Keep the four `macos_host_*` metric families

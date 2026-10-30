@@ -19,6 +19,7 @@ defmodule Tuist.Shards do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
+  alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
@@ -34,7 +35,7 @@ defmodule Tuist.Shards do
   @concurrency_shard_runs 50
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
-  def create_shard_plan(%Project{} = project, params) do
+  def create_shard_plan(%Project{} = project, params, opts \\ []) do
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
@@ -87,6 +88,8 @@ defmodule Tuist.Shards do
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
       inserted_at: now,
+      storage_target:
+        ShardStorage.select(project, Repo.preload(project, :account).account, Keyword.get(opts, :runner_grant)),
       reporting_version:
         if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account)), do: 1, else: 0)
     }
@@ -127,22 +130,24 @@ defmodule Tuist.Shards do
     end
   end
 
-  def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil) do
+  def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil, opts \\ []) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        start_upload_for_plan(project, account, plan, artifact)
+        start_upload_for_plan(project, account, plan, artifact, opts)
     end
   end
 
-  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan, artifact \\ nil) do
-    start_upload_for_plan_id(project, account, plan.id, artifact)
+  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan, artifact \\ nil, opts \\ []) do
+    start_upload_for_plan_id(project, account, plan.id, artifact, opts)
   end
 
-  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id, artifact \\ nil) do
-    Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), account)
+  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id, artifact \\ nil, opts \\ []) do
+    with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
+      Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), actor)
+    end
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index, opts \\ []) do
@@ -165,32 +170,58 @@ defmodule Tuist.Shards do
     end
   end
 
-  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts, artifact \\ nil) do
+  def complete_upload(
+        %Project{} = project,
+        %Account{} = account,
+        reference,
+        upload_id,
+        parts,
+        artifact \\ nil,
+        opts \\ []
+      ) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact)
+        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact, opts)
     end
   end
 
-  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts, artifact \\ nil) do
-    Storage.multipart_complete_upload(
-      artifact_object_key(account, project, plan_id, artifact),
-      upload_id,
-      parts,
-      account
-    )
+  def complete_upload_for_plan(
+        %Project{} = project,
+        %Account{} = account,
+        plan_id,
+        upload_id,
+        parts,
+        artifact \\ nil,
+        opts \\ []
+      ) do
+    with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
+      Storage.multipart_complete_upload(
+        artifact_object_key(account, project, plan_id, artifact),
+        upload_id,
+        parts,
+        actor
+      )
+    end
   end
 
-  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number, artifact \\ nil) do
+  def generate_upload_url(
+        %Project{} = project,
+        %Account{} = account,
+        reference,
+        upload_id,
+        part_number,
+        artifact \\ nil,
+        opts \\ []
+      ) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact)
+        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact, opts)
     end
   end
 
@@ -200,36 +231,46 @@ defmodule Tuist.Shards do
         plan_id,
         upload_id,
         part_number,
-        artifact \\ nil
+        artifact \\ nil,
+        opts \\ []
       ) do
-    url =
-      Storage.multipart_generate_url(
-        artifact_object_key(account, project, plan_id, artifact),
-        upload_id,
-        part_number,
-        account
-      )
+    with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
+      url =
+        Storage.multipart_generate_url(
+          artifact_object_key(account, project, plan_id, artifact),
+          upload_id,
+          part_number,
+          actor
+        )
 
-    {:ok, url}
+      {:ok, url}
+    end
+  end
+
+  defp plan_storage(project, account, plan_id, opts) do
+    case get_plan_by_id(project.id, plan_id) do
+      nil -> {:error, :not_found}
+      plan -> ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant))
+    end
   end
 
   # Each shard downloads only the products it needs: a single `shared` artifact (frameworks,
   # dylibs, the xctestrun, etc.) plus one per-module artifact for each module assigned to the
   # shard. Falls back to the legacy single per-plan bundle when split artifacts weren't uploaded.
-  defp shard_download_urls(account, project, plan_id, modules) do
+  defp shard_download_urls(account, project, %{id: plan_id} = plan, modules, actor) do
     shared_key = artifact_object_key(account, project, plan_id, "shared")
 
-    if Storage.object_exists?(shared_key, account) do
-      shared_url = Storage.generate_download_url(shared_key, account)
+    if plan.storage_target in [nil, ""] and Storage.object_exists?(shared_key, actor) do
+      shared_url = Storage.generate_download_url(shared_key, actor)
 
       module_urls =
         Enum.map(modules, fn module ->
-          Storage.generate_download_url(artifact_object_key(account, project, plan_id, "module:" <> module), account)
+          Storage.generate_download_url(artifact_object_key(account, project, plan_id, "module:" <> module), actor)
         end)
 
       {nil, [shared_url | module_urls]}
     else
-      bundle_url = Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
+      bundle_url = Storage.generate_download_url(bundle_object_key(account, project, plan_id), actor)
       {bundle_url, [bundle_url]}
     end
   end
@@ -449,17 +490,20 @@ defmodule Tuist.Shards do
         # still run every un-skipped target, so it downloads the plan's whole module inventory
         # rather than only its selection modules.
         download_modules = Map.get(shard_data, :download_modules, modules)
-        {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
 
-        {:ok,
-         %{
-           shard_plan_id: plan.id,
-           modules: modules,
-           suites: suites,
-           skip: skip,
-           download_url: download_url,
-           download_urls: download_urls
-         }}
+        with {:ok, actor} <- ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant)) do
+          {download_url, download_urls} = shard_download_urls(account, project, plan, download_modules, actor)
+
+          {:ok,
+           %{
+             shard_plan_id: plan.id,
+             modules: modules,
+             suites: suites,
+             skip: skip,
+             download_url: download_url,
+             download_urls: download_urls
+           }}
+        end
     end
   end
 

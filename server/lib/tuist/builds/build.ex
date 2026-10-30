@@ -72,6 +72,7 @@ defmodule Tuist.Builds.Build do
     belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
     field :macos_version, :string, default: ""
     field :xcode_version, :string, default: ""
+    field :tuist_version, :string, default: ""
     field :is_ci, :boolean
     field :model_identifier, :string, default: ""
     field :scheme, :string, default: ""
@@ -116,6 +117,7 @@ defmodule Tuist.Builds.Build do
       :ci_provider,
       :macos_version,
       :xcode_version,
+      :tuist_version,
       :model_identifier,
       :scheme,
       :configuration,
@@ -133,6 +135,7 @@ defmodule Tuist.Builds.Build do
         :duration,
         :macos_version,
         :xcode_version,
+        :tuist_version,
         :is_ci,
         :model_identifier,
         :scheme,

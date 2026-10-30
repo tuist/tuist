@@ -21,7 +21,7 @@ msgstr "構件"
 #: lib/tuist_web/live/docs_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
-msgstr "自動偵測在沒有代碼變更的情況下失敗的不穩定測試，節省調查誤報失敗的時間。"
+msgstr "自動偵測在沒有代碼變更下失敗的不穩定測試，節省調查誤報故障的時間。"
 
 #: lib/tuist_web/docs/layouts.ex:58
 #: lib/tuist_web/docs/layouts/root.html.heex:194
@@ -33,7 +33,7 @@ msgstr "Bluesky"
 #: lib/tuist_web/live/docs_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "建置"
+msgstr "建構"
 
 #: lib/tuist_web/live/docs_live.ex:319
 #: lib/tuist_web/live/docs_live.ex:735
@@ -51,13 +51,13 @@ msgstr "與 Tuist 社群即時聊天。"
 #: lib/tuist_web/live/docs_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
-msgstr "與數千名使用 Tuist 發布更優質應用程式的開發者聯繫。獲取幫助、分享成果，並塑造應用程式開發工具的未來。"
+msgstr "與數千名使用 Tuist 開發更優質應用程式的開發者交流。獲取協助、分享成果，並塑造應用程式開發工具的未來。"
 
 #: lib/tuist_web/live/docs_live.ex:529
 #: lib/tuist_web/live/docs_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Contribute or report issues to our open source repository."
-msgstr "向我們的開源儲存庫貢獻代碼或回報問題。"
+msgstr "向我們的開源儲存庫貢獻或回報問題。"
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:71
 #: lib/tuist_web/docs/components/page_layout.html.heex:74
@@ -73,7 +73,7 @@ msgstr "複製頁面"
 #: lib/tuist_web/docs/components/toc.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Copy page as markdown for LLMs"
-msgstr "將頁面複製為 Markdown 格式供 LLMs 使用"
+msgstr "以 Markdown 格式複製頁面供 LLM 使用"
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:35
 #, elixir-autogen, elixir-format
@@ -95,19 +95,19 @@ msgstr "不穩定性"
 #: lib/tuist_web/live/docs_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Follow Tuist on LinkedIn for news and updates."
-msgstr "在 LinkedIn 上關注 Tuist，以獲取新聞和更新。"
+msgstr "在 LinkedIn 上關注 Tuist，獲取最新消息和更新。"
 
 #: lib/tuist_web/live/docs_live.ex:582
 #: lib/tuist_web/live/docs_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "Follow us on Bluesky to stay up to date with our work."
-msgstr "在 Bluesky 上關注我們，隨時掌握我們的最新工作動態。"
+msgstr "在 Bluesky 上關注我們，隨時了解我們的最新工作。"
 
 #: lib/tuist_web/live/docs_live.ex:594
 #: lib/tuist_web/live/docs_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Follow us on Mastodon to stay up to date with our work."
-msgstr "在 Mastodon 上關注我們，隨時掌握我們的最新工作動態。"
+msgstr "在 Mastodon 上關注我們，隨時了解我們的最新工作。"
 
 #: lib/tuist_web/docs/layouts.ex:47
 #: lib/tuist_web/docs/layouts/root.html.heex:170
@@ -127,19 +127,19 @@ msgstr "指南"
 #: lib/tuist_web/live/docs_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "Insights"
-msgstr "洞察"
+msgstr "深入分析"
 
 #: lib/tuist_web/live/docs_live.ex:482
 #: lib/tuist_web/live/docs_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
-msgstr "從真實的實作中學習，並在工具鏈順利運作時獲得靈感。"
+msgstr "從真實實作中學習，並體驗當你的工具鏈順利運作時的無限可能。"
 
 #: lib/tuist_web/live/docs_live.ex:570
 #: lib/tuist_web/live/docs_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Learn from videos from the Tuist team and the community."
-msgstr "從 Tuist 團隊和社群的影片中學習。"
+msgstr "觀看 Tuist 團隊和社群的影片，從中學習。"
 
 #: lib/tuist_web/docs/layouts/root.html.heex:109
 #: lib/tuist_web/docs/layouts/root.html.heex:269
@@ -168,7 +168,7 @@ msgstr "在此頁面"
 #: lib/tuist_web/live/docs_live.ex:798
 #, elixir-autogen, elixir-format
 msgid "Open source and community"
-msgstr "開源與社區"
+msgstr "開源與社群"
 
 #: lib/tuist_web/docs/layouts/root.html.heex:341
 #, elixir-autogen, elixir-format
@@ -213,13 +213,13 @@ msgstr "觀看 Tuist 實際運作"
 #: lib/tuist_web/live/docs_live.ex:753
 #, elixir-autogen, elixir-format
 msgid "Selection"
-msgstr "選取"
+msgstr "選取項目"
 
 #: lib/tuist_web/live/docs_live.ex:554
 #: lib/tuist_web/live/docs_live.ex:809
 #, elixir-autogen, elixir-format
 msgid "Share your ideas, report issues, and discuss with other community members."
-msgstr "分享你的想法、回報問題，並與其他社群成員討論。"
+msgstr "分享你的想法、回報問題，並與其他社群成員交流。"
 
 #: lib/tuist_web/docs/layouts/root.html.heex:107
 #, elixir-autogen, elixir-format
@@ -306,7 +306,7 @@ msgstr "最後更新於 %{date}"
 #: lib/tuist_web/live/docs_live.ex:640
 #, elixir-autogen, elixir-format
 msgid "View"
-msgstr "檢視"
+msgstr "查看"
 
 #: lib/tuist_web/live/docs_live.ex:642
 #, elixir-autogen, elixir-format
@@ -347,55 +347,55 @@ msgstr "安裝 Tuist"
 #: lib/tuist_web/live/docs_live.ex:771
 #, elixir-autogen, elixir-format
 msgid "Move from a successful build to useful feedback with shareable previews and bundle-size insights."
-msgstr "透過可分享的預覽和套件大小分析，將成功的建構轉化為有用的回饋。"
+msgstr "透過可分享的預覽和應用程式包大小分析，將成功構建轉化為有用的反饋。"
 
 #: lib/tuist_web/live/docs_live.ex:190
 #: lib/tuist_web/live/docs_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "One platform for faster build toolchains"
-msgstr "一個平台，加速你的建構工具鏈"
+msgstr "一個平台，加速你的構建工具鏈"
 
 #: lib/tuist_web/live/docs_live.ex:372
 #: lib/tuist_web/live/docs_live.ex:754
 #, elixir-autogen, elixir-format
 msgid "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
-msgstr "偵測自上次成功執行以來的變更，僅在本地端和持續整合中執行受影響的測試。"
+msgstr "檢測自上次成功運行以來的變更，僅在本地和持續集成中運行受影響的測試。"
 
 #: lib/tuist_web/live/docs_live.ex:356
 #: lib/tuist_web/live/docs_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
-msgstr "執行重要的測試、偵測不穩定的行為，並了解本地端和持續整合中的測試效能。"
+msgstr "運行重要的測試，檢測不穩定行為，並了解本地和持續集成中的測試效能。"
 
 #: lib/tuist_web/live/docs_live.ex:306
 #: lib/tuist_web/live/docs_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
-msgstr "在開發者機器、持續整合、執行器和編碼代理之間共享建構工作，然後利用分析結果找出回歸問題。"
+msgstr "在開發者機器、持續集成、運行器和編碼代理之間共享構建工作，然後利用洞察發現回歸問題。"
 
 #: lib/tuist_web/live/docs_live.ex:436
 #: lib/tuist_web/live/docs_live.ex:777
 #, elixir-autogen, elixir-format
 msgid "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
-msgstr "分享連結讓其他人可以在其裝置或模擬器上運行你的應用程式，無需設定 TestFlight。"
+msgstr "透過連結分享你的應用程式，讓其他人無需設定 TestFlight 即可在其裝置或模擬器上運行。"
 
 #: lib/tuist_web/live/docs_live.ex:295
 #: lib/tuist_web/live/docs_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
-msgstr "加速建構、提升測試可靠性、了解效能，並在專為你的工具鏈設計的基礎設施上執行工作流程。"
+msgstr "加快構建速度，提高測試可靠性，了解效能，並在專為你的工具鏈設計的基礎設施上運行工作流程。"
 
 #: lib/tuist_web/live/docs_live.ex:408
 #: lib/tuist_web/live/docs_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
-msgstr "追蹤測試效能，及早發現緩慢的測試，並透過即時日誌偵錯持續整合失敗。"
+msgstr "透過即時日誌追蹤測試效能、及早發現緩慢測試，並偵錯持續整合失敗。"
 
 #: lib/tuist_web/live/docs_live.ex:341
 #: lib/tuist_web/live/docs_live.ex:741
 #, elixir-autogen, elixir-format
 msgid "Understand build performance across local and continuous integration environments before slowdowns affect your team."
-msgstr "在速度變慢影響你的團隊之前，了解本機和持續整合環境中的建構效能。"
+msgstr "在拖慢團隊之前，了解本機與持續整合環境中的建構效能。"
 
 #: lib/tuist_web/docs/layouts/root.html.heex:300
 #, elixir-autogen, elixir-format
@@ -415,7 +415,7 @@ msgstr "開啟選單"
 #: lib/tuist_web/live/docs_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Follow us on X to stay up to date with our work."
-msgstr "在 X 上關注我們，以掌握我們的最新動態。"
+msgstr "關注我們嘅 X 帳號，隨時掌握最新動態。"
 
 #: lib/tuist_web/live/docs_live.ex:233
 #, elixir-autogen, elixir-format
@@ -441,7 +441,7 @@ msgstr "支援："
 #: lib/tuist_web/live/docs_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "install specific version of tuist"
-msgstr "安裝特定版本的 tuist"
+msgstr "安裝特定版本的 Tuist"
 
 #: lib/tuist_web/live/docs_live.ex:245
 #, elixir-autogen, elixir-format
@@ -464,22 +464,22 @@ msgstr "執行器"
 #: lib/tuist_web/live/docs_live.ex:784
 #, elixir-autogen, elixir-format
 msgid "Run workflows on managed compute with cache infrastructure colocated for the best performance."
-msgstr "在託管運算資源上執行工作流程，並搭配共置的快取基礎設施以獲得最佳效能。"
+msgstr "在託管運算資源上執行工作流程，並搭配共置的快取基礎設施以達致最佳效能。"
 
 #: lib/tuist_web/live/docs_live.ex:467
 #: lib/tuist_web/live/docs_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
-msgstr "在託管的 macOS 和 Linux 執行器上執行持續整合工作流程，快取基礎設施與運算資源共置以達到最佳效果，並與你的開發機器共享。"
+msgstr "在託管的 macOS 和 Linux 執行器上執行持續整合工作流程，快取基礎設施與運算資源共置以達致最佳效果，並與你的開發機器共享。"
 
 #: lib/tuist_web/live/docs_live.ex:192
 #: lib/tuist_web/live/docs_live.ex:713
 #, elixir-autogen, elixir-format
 msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
-msgstr "代碼的生產速度和規模比以往任何時候都快。Tuist 可與你已使用的構建系統無縫整合，適用於 Xcode、Gradle、Bazel、Elixir 和 Rust 專案，提供讓軟體整合與交付跟上節奏所需的基礎設施。"
+msgstr "代碼嘅產出速度同規模都達到前所未有嘅水平。Tuist 能整合你現有嘅構建系統，支援 Xcode、Gradle、Bazel、Elixir 同 Rust 項目，提供必要基礎設施，確保軟件集成同交付緊貼開發節奏。"
 
 #: lib/tuist_web/live/docs_live.ex:323
 #: lib/tuist_web/live/docs_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
-msgstr "在不同機器和 CI 之間共享 Xcode、Gradle、Bazel 和 Rust 的構建成品，以及經過審核的 Elixir 依賴套件。Rust 快取功能目前處於實驗階段。"
+msgstr "跨機器同 CI 共享 Xcode、Gradle、Bazel 同 Rust 構建成品，以及經審核嘅 Elixir 依賴套件。Rust 緩存功能目前處於實驗階段。"

@@ -197,6 +197,42 @@ struct AtlasAIAccountsTests {
         #expect(accounts.errorMessage == nil)
     }
 
+}
+
+@MainActor
+struct AtlasProfileTests {
+    @Test func profileRefreshRetainsLoadedContentButClearsRevokedAndInvalidatedState() async throws {
+        let data = Data("""
+        {"server_version":"1.2","user":{"name":"Taylor","email":"taylor@example.org","description":"Engineer"}}
+        """.utf8)
+        let model = AtlasProfile()
+        await model.load(request: { _ in data }, cachedRead: nil)
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        let request: ([String: Any]) async throws -> Data = { _ in
+            try await withCheckedThrowingContinuation { finish = $0; started.continuation.yield(()) }
+        }
+        let refresh = Task { await model.load(request: request, cachedRead: nil) }
+        for await _ in started.stream { break }
+        #expect(model.profile?.user.email == "taylor@example.org" && model.profile?.serverVersion == "1.2")
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "network", message: "Offline"))
+        await refresh.value
+        #expect(model.profile?.user.description == "Engineer" && model.errorMessage == "Offline")
+
+        let late = Task { await model.load(request: request, cachedRead: nil) }
+        for await _ in started.stream { break }
+        model.invalidate()
+        finish?.resume(returning: data)
+        await late.value
+        #expect(model.profile == nil && model.errorMessage == nil)
+
+        await model.load(request: { _ in data }, cachedRead: nil)
+        await model.load(request: { _ in
+            throw AtlasAuthenticationError(kind: "forbidden", message: "Access revoked")
+        }, cachedRead: nil)
+        #expect(model.profile == nil && model.errorMessage == "Access revoked")
+    }
+
     @Test func profileEditorRetainsDraftOnFailureAndSendsOnlyDescription() async throws {
         var fail = true
         let editor = AtlasProfileEditorModel(description: "") { action in
