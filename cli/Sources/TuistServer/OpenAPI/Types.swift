@@ -9793,8 +9793,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/release_notes`.
             public var release_notes: Swift.String?
+            /// Supported platforms. Clients must ignore unknown platforms.
+            ///
             /// - Remark: Generated from `#/components/schemas/Preview/supported_platforms`.
-            public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
+            public var supported_platforms: [Swift.String]
             /// The track for the preview (e.g., 'beta', 'nightly')
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/track`.
@@ -9823,7 +9825,7 @@ public enum Components {
             ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - release_notes: Optional plain-text release notes describing this preview build
-            ///   - supported_platforms:
+            ///   - supported_platforms: Supported platforms. Clients must ignore unknown platforms.
             ///   - track: The track for the preview (e.g., 'beta', 'nightly')
             ///   - url: The URL to download the preview
             ///   - version: The app version of the preview
@@ -9841,7 +9843,7 @@ public enum Components {
                 inserted_at: Swift.String,
                 qr_code_url: Swift.String,
                 release_notes: Swift.String? = nil,
-                supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
+                supported_platforms: [Swift.String],
                 track: Swift.String? = nil,
                 url: Swift.String,
                 version: Swift.String? = nil
@@ -23872,6 +23874,7 @@ public enum Components {
             case visionos_simulator = "visionos_simulator"
             case macos = "macos"
             case android = "android"
+            case linux = "linux"
         }
         /// The URL to upload a multipart part
         ///
@@ -24046,7 +24049,7 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/AppBuild`.
         public struct AppBuild: Codable, Hashable, Sendable {
-            /// The Mach-O UUID of the build's main binary.
+            /// The Mach-O UUID or SHA-256 content hash of the build.
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/binary_id`.
             public var binary_id: Swift.String?
@@ -24054,20 +24057,18 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/id`.
             public var id: Swift.String
+            /// CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuild/supported_architectures`.
+            public var supported_architectures: [Swift.String]?
+            /// Supported platforms. Clients must ignore unknown platforms.
+            ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/supported_platforms`.
-            public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
-            /// The type of the build
+            public var supported_platforms: [Swift.String]
+            /// The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats.
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/type`.
-            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case app_bundle = "app_bundle"
-                case ipa = "ipa"
-                case apk = "apk"
-            }
-            /// The type of the build
-            ///
-            /// - Remark: Generated from `#/components/schemas/AppBuild/type`.
-            public var _type: Components.Schemas.AppBuild._typePayload
+            public var _type: Swift.String
             /// The URL to download the build
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/url`.
@@ -24075,20 +24076,23 @@ public enum Components {
             /// Creates a new `AppBuild`.
             ///
             /// - Parameters:
-            ///   - binary_id: The Mach-O UUID of the build's main binary.
+            ///   - binary_id: The Mach-O UUID or SHA-256 content hash of the build.
             ///   - id: Unique identifier of the build.
-            ///   - supported_platforms:
-            ///   - _type: The type of the build
+            ///   - supported_architectures: CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
+            ///   - supported_platforms: Supported platforms. Clients must ignore unknown platforms.
+            ///   - _type: The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats.
             ///   - url: The URL to download the build
             public init(
                 binary_id: Swift.String? = nil,
                 id: Swift.String,
-                supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
-                _type: Components.Schemas.AppBuild._typePayload,
+                supported_architectures: [Swift.String]? = nil,
+                supported_platforms: [Swift.String],
+                _type: Swift.String,
                 url: Swift.String
             ) {
                 self.binary_id = binary_id
                 self.id = id
+                self.supported_architectures = supported_architectures
                 self.supported_platforms = supported_platforms
                 self._type = _type
                 self.url = url
@@ -24096,6 +24100,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case binary_id
                 case id
+                case supported_architectures
                 case supported_platforms
                 case _type = "type"
                 case url
@@ -78526,6 +78531,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/release_notes`.
                     public var release_notes: Swift.String?
+                    /// CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_architectures`.
+                    public var supported_architectures: [Swift.String]?
                     /// The supported platforms of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
@@ -78541,6 +78550,7 @@ public enum Operations {
                         case app_bundle = "app_bundle"
                         case ipa = "ipa"
                         case apk = "apk"
+                        case executable = "executable"
                     }
                     /// The type of the preview to upload.
                     ///
@@ -78561,6 +78571,7 @@ public enum Operations {
                     ///   - git_commit_sha: The git commit SHA associated with the preview.
                     ///   - git_ref: The git ref associated with the preview.
                     ///   - release_notes: Optional plain-text release notes describing this preview build.
+                    ///   - supported_architectures: CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds.
                     ///   - supported_platforms: The supported platforms of the preview.
                     ///   - track: The track for the preview (e.g., 'beta', 'nightly').
                     ///   - _type: The type of the preview to upload.
@@ -78574,6 +78585,7 @@ public enum Operations {
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         release_notes: Swift.String? = nil,
+                        supported_architectures: [Swift.String]? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         track: Swift.String? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
@@ -78587,6 +78599,7 @@ public enum Operations {
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.release_notes = release_notes
+                        self.supported_architectures = supported_architectures
                         self.supported_platforms = supported_platforms
                         self.track = track
                         self._type = _type
@@ -78601,6 +78614,7 @@ public enum Operations {
                         case git_commit_sha
                         case git_ref
                         case release_notes
+                        case supported_architectures
                         case supported_platforms
                         case track
                         case _type = "type"

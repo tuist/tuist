@@ -7,8 +7,17 @@ import TuistConfigLoader
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 import TuistServer
 import TuistSupport
+
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#endif
 
 #if os(macOS)
     import struct TSCUtility.Version
@@ -30,6 +39,8 @@ enum RunCommandServiceError: LocalizedError, Equatable {
     case deviceNotFound(String)
     case noDevicesFound
     case schemeRunNotSupportedOnLinux
+    case invalidExecutablePreview
+    case incompatibleDesktopPreview
     #if os(macOS)
         case schemeNotFound(scheme: String, existing: [String])
         case schemeWithoutRunnableTarget(scheme: String)
@@ -59,6 +70,10 @@ enum RunCommandServiceError: LocalizedError, Equatable {
             return "No devices found. Connect a device or start a simulator/emulator."
         case .schemeRunNotSupportedOnLinux:
             return "Running schemes and specifiers is only supported on macOS. Use a preview URL instead."
+        case .invalidExecutablePreview:
+            return "The preview archive must contain a manifest pointing to an executable file inside the archive."
+        case .incompatibleDesktopPreview:
+            return "No compatible desktop build for \(ExecutablePreviewTarget.host.platform)/\(ExecutablePreviewTarget.host.architectures.joined(separator: ", ")). Publish a distribution for this operating system and CPU architecture."
         #if os(macOS)
             case let .schemeNotFound(scheme, existing):
                 return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
@@ -130,6 +145,8 @@ struct RunCommandService {
     private let remoteArtifactDownloader: RemoteArtifactDownloading
     private let fileArchiverFactory: FileArchivingFactorying
     private let adbController: AdbControlling
+    private let commandRunner: CommandRunning
+    private let execute: (AbsolutePath, [String]) async throws -> Void
 
     #if os(macOS)
         private let generatorFactory: GeneratorFactorying
@@ -187,7 +204,9 @@ struct RunCommandService {
             listPreviewsService: ListPreviewsServicing,
             appBundleLoader: AppBundleLoading,
             deviceController: DeviceControlling,
-            simulatorController: SimulatorControlling
+            simulatorController: SimulatorControlling,
+            commandRunner: CommandRunning = CommandRunner(),
+            execute: @escaping (AbsolutePath, [String]) async throws -> Void = Self.execute
         ) {
             self.configLoader = configLoader
             self.getPreviewService = getPreviewService
@@ -203,6 +222,8 @@ struct RunCommandService {
             self.appBundleLoader = appBundleLoader
             self.deviceController = deviceController
             self.simulatorController = simulatorController
+            self.commandRunner = commandRunner
+            self.execute = execute
         }
     #else
         init(
@@ -211,7 +232,9 @@ struct RunCommandService {
             fileSystem: FileSysteming,
             remoteArtifactDownloader: RemoteArtifactDownloading,
             fileArchiverFactory: FileArchivingFactorying,
-            adbController: AdbControlling
+            adbController: AdbControlling,
+            commandRunner: CommandRunning = CommandRunner(),
+            execute: @escaping (AbsolutePath, [String]) async throws -> Void = Self.execute
         ) {
             self.configLoader = configLoader
             self.getPreviewService = getPreviewService
@@ -219,19 +242,23 @@ struct RunCommandService {
             self.remoteArtifactDownloader = remoteArtifactDownloader
             self.fileArchiverFactory = fileArchiverFactory
             self.adbController = adbController
+            self.commandRunner = commandRunner
+            self.execute = execute
         }
     #endif
 
     func run(
         path _: String?,
         runnable: Runnable,
-        device: String?
+        device: String?,
+        arguments: [String] = []
     ) async throws {
         switch runnable {
         case let .url(previewLink):
             try await runPreviewLink(
                 previewLink,
-                device: device
+                device: device,
+                arguments: arguments
             )
         case .scheme, .specifier:
             throw RunCommandServiceError.schemeRunNotSupportedOnLinux
@@ -251,8 +278,6 @@ struct RunCommandService {
             rosetta: Bool,
             arguments: [String]
         ) async throws {
-            let device = arguments.firstIndex(of: "-destination").map { arguments[$0 + 1] } ?? device
-
             let runPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
             let osVersion = try osVersion.map { versionString in
@@ -266,9 +291,14 @@ struct RunCommandService {
             case let .url(previewLink):
                 try await runPreviewLink(
                     previewLink,
-                    device: device
+                    device: device,
+                    arguments: arguments
                 )
             case let .scheme(scheme):
+                let device = arguments.first == "--" ? device : arguments.firstIndex(of: "-destination").flatMap {
+                    arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil
+                } ?? device
+                let arguments = arguments.first == "--" ? Array(arguments.dropFirst()) : arguments
                 try await runScheme(
                     scheme,
                     path: runPath,
@@ -311,7 +341,8 @@ struct RunCommandService {
                 }
                 try await runPreviewLink(
                     preview.url,
-                    device: device
+                    device: device,
+                    arguments: arguments
                 )
             }
         }
@@ -322,7 +353,8 @@ struct RunCommandService {
     // swiftlint:disable:next function_body_length
     private func runPreviewLink(
         _ previewLink: URL,
-        device: String?
+        device: String?,
+        arguments: [String]
     ) async throws {
         guard let scheme = previewLink.scheme,
               let host = previewLink.host,
@@ -336,19 +368,45 @@ struct RunCommandService {
             serverURL: serverURL
         )
 
+        let device = arguments.first == "--" ? device : arguments.firstIndex(of: "-destination").flatMap {
+            arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil
+        } ?? device
+        let arguments = arguments.first == "--" ? Array(arguments.dropFirst()) : arguments
+        if device == nil || device?.lowercased() == "mac" || device?.lowercased() == "localhost" {
+            if try await runDesktopPreview(preview, previewLink: previewLink, arguments: arguments) { return }
+        }
+
         var destinationDevices: [DestinationDevice] = []
 
-        if preview.supported_platforms.contains(.android) {
+        if preview.supported_platforms.contains("android"),
+           preview.builds.contains(where: { $0._type == "apk" && $0.supported_platforms.contains("android") })
+        {
             let androidDevices = try await adbController.findAvailableDevices()
             destinationDevices.append(contentsOf: androidDevices.map(DestinationDevice.android))
         }
 
         #if os(macOS)
-            if preview.supported_platforms.contains(where: { $0 != .android }) {
+            let applePlatforms = preview.builds
+                .filter { $0._type == "app_bundle" || $0._type == "ipa" }
+                .flatMap(\.supported_platforms)
+                .filter { preview.supported_platforms.contains($0) }
+            if applePlatforms.contains(where: {
+                [
+                    "ios",
+                    "ios_simulator",
+                    "tvos",
+                    "tvos_simulator",
+                    "watchos",
+                    "watchos_simulator",
+                    "visionos",
+                    "visionos_simulator",
+                ]
+                .contains($0)
+            }) {
                 let physicalDevices = try await deviceController.findAvailableDevices()
                 destinationDevices.append(contentsOf: physicalDevices.map(DestinationDevice.physical))
 
-                let simulators = try await appleSimulators(for: preview)
+                let simulators = try await appleSimulators(supportedPlatforms: applePlatforms)
                 destinationDevices.append(contentsOf: simulators.map(DestinationDevice.simulator))
             }
         #endif
@@ -449,6 +507,116 @@ struct RunCommandService {
         }
     }
 
+    // MARK: - Desktop previews
+
+    private func runDesktopPreview(
+        _ preview: Components.Schemas.Preview,
+        previewLink: URL,
+        arguments: [String]
+    ) async throws -> Bool {
+        let hostPlatform = ExecutablePreviewTarget.host.platform
+        let builds = preview.builds.filter {
+            let architectures = $0.supported_architectures ?? []
+            return architectures.isEmpty || architectures.contains(ExecutablePreviewTarget.host.architectures[0])
+        }
+        for build in builds.filter({
+            $0._type == "executable" && $0.supported_platforms.contains(hostPlatform)
+        }) {
+            if try await runExecutablePreview(build, arguments: arguments) { return true }
+        }
+        #if os(macOS)
+            for build in builds.filter({ $0._type == "app_bundle" && $0.supported_platforms.contains("macos") }) {
+                var desktopPreview = preview
+                desktopPreview.builds = [build]
+                let appBundle = try await downloadAppleAppBundle(
+                    for: .device(.macOS), preview: desktopPreview, previewLink: previewLink
+                )
+                guard let name = appBundle.infoPlist.executableName else {
+                    throw RunCommandServiceError.appBundleNotFoundInArchive
+                }
+                let binary = appBundle.path.appending(components: "Contents", "MacOS", name)
+                guard try ExecutablePreviewTarget.read(at: binary.url).isCompatible else { continue }
+                try await commandRunner.runAndPrint(
+                    arguments: ["/usr/bin/open", "-n", appBundle.path.pathString, "--args"] + arguments
+                )
+                return true
+            }
+        #endif
+        if preview.builds.contains(where: {
+            $0._type == "executable" || ($0._type == "app_bundle" && $0.supported_platforms.contains("macos"))
+        }) {
+            throw RunCommandServiceError.incompatibleDesktopPreview
+        }
+        return false
+    }
+
+    private func executableEntryPoint(in directory: AbsolutePath) async throws -> AbsolutePath {
+        let manifestPath = directory.appending(component: ExecutablePreviewManifest.filename)
+        guard let manifest: ExecutablePreviewManifest = try? await fileSystem.readJSONFile(at: manifestPath)
+        else { throw RunCommandServiceError.invalidExecutablePreview }
+        let root = try AbsolutePath(validating: directory.url.resolvingSymlinksInPath().path)
+        let executable = directory.appending(manifest.executable)
+        let resolved = try AbsolutePath(validating: executable.url.resolvingSymlinksInPath().path)
+        guard resolved.isDescendant(of: root),
+              let values = try? resolved.url.resourceValues(forKeys: [.isRegularFileKey, .isExecutableKey]),
+              values.isRegularFile == true, values.isExecutable == true
+        else { throw RunCommandServiceError.invalidExecutablePreview }
+        return executable
+    }
+
+    private func runExecutablePreview(_ build: Components.Schemas.AppBuild, arguments: [String]) async throws -> Bool {
+        guard let url = URL(string: build.url) else { throw RunCommandServiceError.appNotFound(build.url) }
+        let cache = Environment.current.cacheDirectory.appending(components: "previews", (url.host ?? "local").md5)
+        let directory = cache.appending(component: build.id.md5)
+        if try await !fileSystem.exists(directory) {
+            guard let archivePath = try await remoteArtifactDownloader.download(url: url)
+            else { throw RunCommandServiceError.appNotFound(build.url) }
+            let unarchiver = try FileUnarchiver(path: archivePath)
+            let staging = cache.appending(component: UUID().uuidString)
+            do {
+                let unpacked = try await unarchiver.unzipSelfContained()
+                _ = try await executableEntryPoint(in: unpacked)
+                try await fileSystem.move(from: unpacked, to: staging)
+                _ = try await executableEntryPoint(in: staging)
+                // Only a same-filesystem rename may publish a complete distribution.
+                if rename(staging.pathString, directory.pathString) != 0 {
+                    let code = errno
+                    guard code == EEXIST || code == ENOTEMPTY else {
+                        throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+                    }
+                    _ = try await executableEntryPoint(in: directory)
+                    try await fileSystem.remove(staging)
+                }
+                try? await unarchiver.delete()
+                try await fileSystem.remove(archivePath)
+            } catch {
+                try? await fileSystem.remove(staging)
+                try? await unarchiver.delete()
+                try? await fileSystem.remove(archivePath)
+                throw error
+            }
+        }
+        let executable = try await executableEntryPoint(in: directory)
+        guard try ExecutablePreviewTarget.read(at: executable.url).isCompatible else { return false }
+        try await execute(executable, arguments)
+        return true
+    }
+
+    private static func execute(_ executable: AbsolutePath, arguments: [String]) throws {
+        var argv = ([executable.pathString] + arguments).map { strdup($0) } + [nil]
+        defer { argv.forEach { free($0) } }
+        // Swift concurrency workers can block signals; the preview must receive them normally.
+        var mask = sigset_t()
+        var previousMask = sigset_t()
+        sigemptyset(&mask)
+        let error = pthread_sigmask(SIG_SETMASK, &mask, &previousMask)
+        guard error == 0 else { throw POSIXError(POSIXErrorCode(rawValue: error) ?? .EIO) }
+        defer { pthread_sigmask(SIG_SETMASK, &previousMask, nil) }
+        // Replace the wrapper, preserving the terminal, process identity, environment and exit status.
+        execv(executable.pathString, &argv)
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+
     // MARK: - Android
 
     private func runAndroidApp(
@@ -456,7 +624,7 @@ struct RunCommandService {
         preview: Components.Schemas.Preview,
         previewLink: URL
     ) async throws {
-        guard let build = preview.builds.first(where: { $0.supported_platforms.contains(.android) })
+        guard let build = preview.builds.first(where: { $0._type == "apk" && $0.supported_platforms.contains("android") })
         else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
         let displayName = preview.display_name ?? "app"
@@ -497,21 +665,21 @@ struct RunCommandService {
 
     #if os(macOS)
         private func appleSimulators(
-            for preview: Components.Schemas.Preview
+            supportedPlatforms: [String]
         ) async throws -> [SimulatorDeviceAndRuntime] {
             try await simulatorController.devicesAndRuntimes().filter { deviceAndRuntime in
-                try preview.supported_platforms.contains { supportedPlatform in
+                try supportedPlatforms.contains { supportedPlatform in
                     switch supportedPlatform {
-                    case .ios, .tvos, .watchos, .visionos, .macos, .android:
-                        return false
-                    case .ios_simulator:
+                    case "ios_simulator":
                         return try deviceAndRuntime.runtime.platform() == .iOS
-                    case .tvos_simulator:
+                    case "tvos_simulator":
                         return try deviceAndRuntime.runtime.platform() == .tvOS
-                    case .watchos_simulator:
+                    case "watchos_simulator":
                         return try deviceAndRuntime.runtime.platform() == .watchOS
-                    case .visionos_simulator:
+                    case "visionos_simulator":
                         return try deviceAndRuntime.runtime.platform() == .visionOS
+                    default:
+                        return false
                     }
                 }
             }
@@ -524,26 +692,26 @@ struct RunCommandService {
             })
         }
 
-        private func previewSupportedPlatform(for destination: DestinationType) -> Components.Schemas.PreviewSupportedPlatform {
+        private func previewSupportedPlatform(for destination: DestinationType) -> String {
             switch destination {
             case let .device(platform):
                 switch platform {
-                case .iOS: return .ios
-                case .macOS: return .macos
-                case .tvOS: return .tvos
-                case .watchOS: return .watchos
-                case .visionOS: return .visionos
+                case .iOS: return "ios"
+                case .macOS: return "macos"
+                case .tvOS: return "tvos"
+                case .watchOS: return "watchos"
+                case .visionOS: return "visionos"
                 }
             case let .simulator(platform):
                 switch platform {
-                case .iOS: return .ios_simulator
-                case .macOS: return .macos
-                case .tvOS: return .tvos_simulator
-                case .watchOS: return .watchos_simulator
-                case .visionOS: return .visionos_simulator
+                case .iOS: return "ios_simulator"
+                case .macOS: return "macos"
+                case .tvOS: return "tvos_simulator"
+                case .watchOS: return "watchos_simulator"
+                case .visionOS: return "visionos_simulator"
                 }
             case .android:
-                return .android
+                return "android"
             }
         }
 
@@ -553,8 +721,10 @@ struct RunCommandService {
             previewLink: URL
         ) async throws -> AppBundle {
             let targetPlatform = previewSupportedPlatform(for: destination)
-            guard let buildURLString = preview.builds.first(where: { $0.supported_platforms.contains(targetPlatform) })?.url,
-                  let buildURL = URL(string: buildURLString)
+            guard let buildURLString = preview.builds.first(where: {
+                ($0._type == "app_bundle" || $0._type == "ipa") && $0.supported_platforms.contains(targetPlatform)
+            })?.url,
+                let buildURL = URL(string: buildURLString)
             else {
                 throw RunCommandServiceError.noCompatibleAppBuild(destination: destination.description)
             }

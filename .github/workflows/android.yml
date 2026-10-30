@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - android/**
+      - cli/Sources/TuistServer/OpenAPI/server.yml
       - .github/workflows/android.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - android/**
+      - cli/Sources/TuistServer/OpenAPI/server.yml
       - .github/workflows/android.yml
   merge_group:
 
