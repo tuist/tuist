@@ -12,6 +12,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var activityStarted: ContinuousClock.Instant?
     private var inboxActivityStarted: ContinuousClock.Instant?
     private var followStarted: ContinuousClock.Instant?
+    private var inboxUpdate = 0
+    private var inboxUpdates: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-inbox-updates") }
     private var rich: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-rich") }
     private var signals: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-signals") }
     private var activity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-activity") }
@@ -184,7 +186,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ])
         }
         if action["action"] as? String == "next" {
-            try await Task.sleep(for: .seconds(activity || follow || inboxActivity ? 1 : 30))
+            try await Task.sleep(for: .seconds(activity || follow || inboxActivity || inboxUpdates ? 1 : 30))
+            if inboxUpdates { inboxUpdate += 1 }
         }
         if action["action"] as? String == "draft" {
             draft = action["body"] as? String ?? ""
@@ -222,6 +225,9 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private func snapshot() throws -> Data {
         sequence += 1
         if inboxActivity, inboxActivityStarted == nil { inboxActivityStarted = clock.now }
+        if inboxUpdates, selected?["id"] as? String == sharedID {
+            selected?["title"] = inboxUpdate >= 6 ? "Query plan comparison complete" : "Build listing latency"
+        }
         if let id = selected?["id"] as? String {
             drafts[id] = draft
             mentionsByThread[id] = draftMentions
@@ -342,6 +348,10 @@ final class AtlasOrbitPreviewData: ObservableObject {
                     let elapsed = inboxActivityStarted?.duration(to: clock.now).components.seconds ?? 0
                     row["agent_status"] = elapsed < 12 ? "running" : "idle"
                 }
+                if inboxUpdates, row["id"] as? String == sharedID, inboxUpdate >= 6 {
+                    row["title"] = "Query plan comparison complete"
+                    row["summary"] = "Updated comparison across affected projects."
+                }
                 return row
             }.filter { row in
                 let label = row["domain"] as? String
@@ -364,7 +374,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ],
             "model_error": modelError as Any? ?? NSNull(), "models_loading": false,
             "has_drafts": !draft.isEmpty || !draftAttachments.isEmpty || drafts.values.contains(where: { !$0.isEmpty }),
-            "loading": false, "history_loading": false, "saving": false,
+            "loading": inboxUpdates && inboxUpdate % 4 < 2, "history_loading": false, "saving": false,
             "has_more": false, "has_older": ProcessInfo.processInfo.arguments.contains("--orbit-prompts") && !olderPromptsLoaded,
             "needs_session": false
         ])

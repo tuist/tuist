@@ -263,7 +263,7 @@ extension AtlasOrbitView {
             Text("Archived").tag("archived")
         }
         .pickerStyle(.segmented)
-        .disabled(model.loading || model.saving)
+        .disabled(model.saving || openingPrivate)
         .accessibilityIdentifier("orbit-status")
     }
 
