@@ -116,6 +116,11 @@ while true; do
         (( delay <= 10 )) || delay=10
         continue
     fi
+    if [[ "$ORB_OPERATION" == spawn && "$status" == 429 ]] &&
+        grep -Eiq $'^x-tuist-orb-refusal: sandbox-limit\r?$' "$headers"; then
+        echo 'The Tuist account reached its sandbox limit, and paused Orbs count toward it. Delete threads you no longer need, then retry.' >&2
+        exit 1
+    fi
     echo "Tuist Orb $ORB_OPERATION failed (HTTP $status)." >&2
     exit 1
 done
