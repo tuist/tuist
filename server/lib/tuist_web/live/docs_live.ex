@@ -29,6 +29,7 @@ defmodule TuistWeb.DocsLive do
 
   def mount(_params, _session, socket) do
     locale = Gettext.get_locale()
+    Gettext.put_locale(TuistWeb.Gettext, locale)
 
     socket =
       socket

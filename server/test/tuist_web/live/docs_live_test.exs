@@ -372,6 +372,22 @@ defmodule TuistWeb.DocsLiveTest do
       end
     end
 
+    test "an explicit docs language overrides the signed-in user's preference", %{conn: conn} do
+      user = user_fixture()
+
+      for {locale, preferred_locale, builds} <- [{"en", "ka", "Builds"}, {"ka", "en", "ბილდები"}] do
+        {:ok, user} = Accounts.update_user_preferred_locale(user, preferred_locale)
+        conn = conn |> log_in_user(user) |> get("/#{locale}/docs")
+        document = conn |> html_response(200) |> Floki.parse_document!()
+
+        assert document |> Floki.find("#docs-toc a[href='#builds']") |> Floki.text() |> String.trim() == builds
+
+        {:ok, view, _html} = live(conn)
+        assert has_element?(view, "#docs-toc a[href='#builds']", builds)
+        assert has_element?(view, "h2#builds", builds)
+      end
+    end
+
     test "non-Latin sidebar sections have distinct collapsible IDs", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/ja/docs")
       document = Floki.parse_fragment!(render(view))

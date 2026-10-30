@@ -35,6 +35,8 @@ defmodule Tuist.DocsTest do
       page = Loader.load_page_source!({:page, source_path})
       document = Floki.parse_fragment!(page.body)
 
+      assert page.title == "本地化标题"
+
       assert page.headings == [
                %{level: 2, text: "拉取/合并请求注释", id: "pullmerge-request-comments"},
                %{level: 2, text: "测试覆盖率", id: "test-coverage"},
@@ -49,6 +51,41 @@ defmodule Tuist.DocsTest do
       end
 
       refute page.body =~ "{#"
+    end
+
+    @tag :tmp_dir
+    test "heading examples remain literal code and do not enter page metadata", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "heading-examples.md")
+
+      File.write!(source_path, """
+      ```markdown
+      # 示例标题{#example-title}
+      ## 示例章节{#example-section}
+      ```
+
+      # 真实标题{#real-title}
+
+      ~~~~markdown
+      ## 围栏示例 {#fenced-example}
+      ~~~
+      ~~~~
+
+      ## 真实章节{#real-section}
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+
+      assert page.headings == [%{level: 2, text: "真实章节", id: "real-section"}]
+      assert page.title == "真实标题"
+
+      document = Floki.parse_fragment!(page.body)
+
+      assert Enum.map(Floki.find(document, "[data-part=code] code"), &Floki.text/1) == [
+               "# 示例标题{#example-title}\n## 示例章节{#example-section}\n",
+               "## 围栏示例 {#fenced-example}\n~~~\n"
+             ]
+
+      assert Floki.find(document, "h2 a[id=real-section]") != []
     end
 
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
