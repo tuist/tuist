@@ -85,7 +85,7 @@ defmodule Tuist.Kura.UsageIngestionTest do
     running = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
     assert_receive {:inserting, worker}
     waiting = for _ <- 1..2, do: Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
-    :ok = wait_for_pending_loads(limiter, 3)
+    assert wait_for_pending_loads(limiter, 3) == 3
 
     assert Usage.ingest_batch([event()], [], [], nil, limiter: limiter) == {:error, :overloaded}
     assert Enum.map(waiting, &Task.await/1) == [{:error, :overloaded}, {:error, :overloaded}]
@@ -160,12 +160,14 @@ defmodule Tuist.Kura.UsageIngestionTest do
     refute_received {:insert_attempt, _, _}
   end
 
-  defp wait_for_pending_loads(limiter, count) do
-    if map_size(:sys.get_state(limiter).loads) == count do
-      :ok
+  defp wait_for_pending_loads(limiter, count, attempts \\ 20) do
+    pending = map_size(:sys.get_state(limiter).loads)
+
+    if pending == count or attempts == 0 do
+      pending
     else
       Process.sleep(5)
-      wait_for_pending_loads(limiter, count)
+      wait_for_pending_loads(limiter, count, attempts - 1)
     end
   end
 
