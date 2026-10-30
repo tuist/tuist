@@ -4,6 +4,7 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias Tuist.Application.CertificateTrust
   alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
@@ -48,6 +49,7 @@ defmodule Tuist.Application do
 
   @impl true
   def start(_type, _args) do
+    CertificateTrust.configure!(Environment.mode(), :os.type())
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
