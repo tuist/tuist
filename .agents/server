@@ -1,30 +1,16 @@
 #!/usr/bin/env bash
 # Runs the dev server for the orb's `server` service. Setup migrates the dev
-# database without seeding it, so the first start seeds it once the server
-# listens; threads that never start the server skip the seed.
+# database without seeding it, so the first start seeds it before the server
+# boots; threads that never start the server skip the seed. Seeding next to a
+# running dev server does not fit in a 4 GiB orb.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../server"
 
 dev_db="$(mise exec -- printenv TUIST_SERVER_POSTGRES_DB)"
-if psql -h localhost -d "$dev_db" -Atqc "SELECT EXISTS (SELECT 1 FROM users)" | grep -qx t; then
-  exec mise exec -- mise/tasks/dev.sh
+if ! psql -h localhost -d "$dev_db" -Atqc "SELECT EXISTS (SELECT 1 FROM users)" | grep -qx t; then
+  echo "Seeding $dev_db before the first server start"
+  mise run --no-deps db:seed
 fi
 
-mise exec -- mise/tasks/dev.sh &
-server=$!
-trap 'kill "$server" 2>/dev/null' INT TERM
-
-port="$(mise exec -- printenv TUIST_SERVER_PORT)"
-until (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; do
-  kill -0 "$server" 2>/dev/null || {
-    wait "$server"
-    exit
-  }
-  sleep 2
-done
-
-echo "Seeding $dev_db (first server start)"
-mise run --no-deps db:seed || echo "Seeding $dev_db failed; rerun it with \`mise run db:seed\` from server/" >&2
-
-wait "$server"
+exec mise exec -- mise/tasks/dev.sh
