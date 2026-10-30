@@ -31,9 +31,9 @@ So when we asked ourselves which ecosystem to support next, Elixir felt obvious.
 
 When we see teams like [Remote](https://remote.com/blog/partnerships/welcoming-elixir-creator-jose-valim), [Discord](https://discord.com/blog/tracing-discords-elixir-systems-without-melting-everything), [Supabase's Realtime team](https://supabase.com/docs/guides/realtime/architecture), or [Apple's Environmental Systems team](https://jobs.apple.com/en-us/details/200604960/sr-software-engineer-elixir-environmental-systems?team=SFTWR) betting on Elixir, we want them to have build and test tooling that grows with their projects. And there's [WhatsApp](https://www.erlang-solutions.com/blog/20-years-of-open-source-erlang-openerlang-interview-with-anton-lavrik-from-whatsapp/), which built its messaging backend with [Erlang](https://www.erlang.org/), sharing the same runtime as Elixir. We get so much from this ecosystem. Helping organizations move faster with it feels like a good way to contribute.
 
-Here's what we've built so far. If you'd rather watch, we've recorded a walkthrough on [YouTube](https://www.youtube.com/watch?v=ghAc5n7LgyM).
+Here's what we've built so far. If you'd rather watch, we've recorded a walkthrough on [YouTube](https://www.youtube.com/watch?v=rTxXBc0Fegc).
 
-<iframe title="Elixir, meet Tuist: Faster builds. Fewer flaky tests." width="560" height="315" src="https://www.youtube-nocookie.com/embed/ghAc5n7LgyM" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="fullscreen" allowfullscreen style="display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 0;"></iframe>
+<iframe title="Elixir, meet Tuist: Faster builds. Fewer flaky tests." width="560" height="315" src="https://www.youtube-nocookie.com/embed/rTxXBc0Fegc" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="fullscreen" allowfullscreen style="display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 0;"></iframe>
 
 ## Getting started with Tuist and Mix
 
