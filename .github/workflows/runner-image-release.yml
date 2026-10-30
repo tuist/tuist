@@ -78,6 +78,7 @@ jobs:
       - run: bash infra/runner-image/tcc-report_test.sh
       - run: bash infra/runner-image/runner-caches_test.sh
       - run: bash infra/runner-image/clock_test.sh
+      - run: bash infra/runner-image/logd-watchdog_test.sh
       - run: bash infra/linux-runner-image/run-job_test.sh
 
   test-staging-gate:

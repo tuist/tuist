@@ -198,6 +198,22 @@ func readRunnerExitTime(statusDir string) (time.Time, bool) {
 	return fi.ModTime(), true
 }
 
+// logdWedgedFile is the guest's report that its logd wedged
+// (`infra/runner-image/logd-watchdog.sh`). From then on every guest process
+// that logs is blocked, the job's build and the guest's own halt included, so
+// the host stops the VM.
+const logdWedgedFile = "logd-wedged"
+
+// readLogdWedged reports whether the guest reported a wedged logd. Only the
+// file's presence counts.
+func readLogdWedged(statusDir string) bool {
+	f, _, ok := openGuestFile(statusDir, logdWedgedFile)
+	if ok {
+		f.Close()
+	}
+	return ok
+}
+
 // runnerHeartbeatFile is the guest's liveness beat: dispatch-poll.sh
 // rewrites it once per poll while it is warm, and once more when it takes
 // a job. The contents are the state it is in; the mtime is the beat.

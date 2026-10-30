@@ -399,6 +399,22 @@ added to catch that failed on `admin`'s unwritable cache instead.
   lane into the volume, so without a binary here nothing on the machine could
   ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
   no CAS daemon of its own.
+- `/opt/tuist/logd-watchdog.sh` — reports a wedged `logd`. `dispatch-poll.sh`
+  forks it at boot, so it covers the warm standby and the job. A wedged logd
+  spins on one core and stops draining log buffers, and every process that
+  logs then blocks in `os_log`: syspolicyd stalls holding the lock Xcode's
+  execution-policy registrations wait on, and the build stops with no
+  compiler running, the VM flat at one core's worth of CPU. Wedged is logd
+  using 50% of a core in each of ten 30-second samples; a healthy guest's
+  logd stays near 1%, including under a heavy build. The watchdog writes
+  `logd-wedged` into the status share, and tart-kubelet stops the VM (see
+  `infra/tart-kubelet/AGENTS.md`). Never recover a wedged logd inside the
+  guest: SIGTERM leaves it running but still not draining, and `sudo`, which
+  the guest's own halt goes through, blocks with everything else, so the
+  watchdog uses neither. A warm VM that reports it exits instead of polling,
+  so it never takes a job. Evidence: on 2026-10-30 a 12 vCPU rack VM stopped
+  compiling 10 minutes into a build and sat until the job ended 60 minutes
+  later, and the VM then never halted.
 - `/opt/tuist/runner-shell-agent` — interactive shell bridge.
   `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
   at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are

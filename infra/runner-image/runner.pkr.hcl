@@ -58,6 +58,7 @@ packer {
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
 #   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
+#   /opt/tuist/logd-watchdog.sh                 <- restarts a wedged logd (forked at boot)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
 #   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
@@ -502,6 +503,11 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/logd-watchdog.sh"
+    destination = "/tmp/logd-watchdog.sh"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/tuist-runner-cache"
     destination = "/tmp/tuist-runner-cache"
   }
@@ -544,6 +550,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/logd-watchdog.sh /opt/tuist/logd-watchdog.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
@@ -558,7 +565,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
-      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/logd-watchdog.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
     ]
   }
 
