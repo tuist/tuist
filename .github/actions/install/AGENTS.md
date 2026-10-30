@@ -3,9 +3,12 @@
 Source for the standalone `tuist/install` composite action. See
 `../../workflows/install-action.yml` for tests, packaging, and automatic main-branch releases.
 
-- Select automatically: `tuist-cache-volume` on PATH or /__e uses volumes; otherwise
-  compose `actions/cache@v4`. No backend input. Never archive mounted paths or
-  convert volume failures into a second cache attempt. Do not implement mounts.
+- `cache: auto` selects automatically: `tuist-cache-volume` on PATH or /__e uses
+  volumes; otherwise compose `actions/cache@v4`. `cache: external` is the only
+  other mode: the runner persists `.build`, so skip both backends and use symlinks.
+  Keep it provider-neutral; no provider-specific backends or detection. Never
+  archive mounted paths or convert volume failures into a second cache attempt.
+  Do not implement mounts.
 - Keep package discovery aligned with TuistRootDirectoryLocator and
   ManifestFilesLocator. Prefer Tuist/Package.swift, retain package-relative .build,
   and explicitly pass scratch/cache paths. Reject SWIFTPM_BUILD_DIR overrides.
