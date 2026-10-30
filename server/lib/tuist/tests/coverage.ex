@@ -539,7 +539,12 @@ defmodule Tuist.Tests.Coverage do
       "coverage_files",
       "git_commit_files",
       "coverage_target_sources",
-      "coverage_test_sources"
+      "coverage_test_sources",
+      "test_impacts",
+      "test_impact_changed_files",
+      "test_impact_tests",
+      "test_selection_runs",
+      "test_selection_tests"
     ],
     runs: ["coverage_runs"]
   }

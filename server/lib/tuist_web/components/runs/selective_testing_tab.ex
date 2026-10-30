@@ -1,10 +1,16 @@
 defmodule TuistWeb.Runs.SelectiveTestingTab do
   @moduledoc """
   Shared component for the Selective Testing tab used in both RunDetailLive and TestRunLive.
+  TestRunLive also shows it as the Modules tab of a coverage selection, with each module's
+  requested tests and why they run next to its hit.
   """
   use TuistWeb, :html
   use Noora
 
+  import TuistWeb.TestSelection.Components, only: [reason_label: 1]
+
+  alias Tuist.Tests.Selections
+  alias Tuist.Utilities.DateFormatter
   alias Tuist.Xcode
   alias Tuist.Xcode.XcodeTarget
   alias TuistWeb.Runs.ModuleCacheTab
@@ -22,6 +28,11 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
   attr :project, :map, required: true
   attr :available_filters, :list, required: true
   attr :selective_testing_active_filters, :list, required: true
+  attr :title, :string, default: nil
+
+  attr :selection_targets, :map,
+    default: nil,
+    doc: "The coverage selection's requested tests per module name, which adds their columns."
 
   def selective_testing_tab(assigns) do
     assigns = assign(assigns, :selective_testing_json, selective_testing_targets_json(assigns.run))
@@ -73,7 +84,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
         </.card_section>
       </.card>
       <.card
-        title={dgettext("dashboard_tests", "Selective Testing")}
+        title={@title || dgettext("dashboard_tests", "Selective Testing")}
         icon="history_toggle"
         data-part="selective-testing"
       >
@@ -92,7 +103,12 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
         </:actions>
         <.card_section data-part="selective-testing-section">
           <div data-part="filters">
-            <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
+            <.form
+              for={%{}}
+              id="search-selective-testing-form"
+              phx-change="search-selective-testing"
+              phx-debounce="200"
+            >
               <.text_input
                 type="search"
                 id="search-selective-testing"
@@ -160,6 +176,62 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
               <.text_cell label={
                 test_module.selective_testing_hash || dgettext("dashboard_tests", "Unknown")
               } />
+            </:col>
+            <:col
+              :let={test_module}
+              :if={@selection_targets}
+              label={dgettext("dashboard_tests", "Selected")}
+            >
+              <.text_cell label={
+                case @selection_targets[test_module.name] do
+                  nil -> "–"
+                  target -> "#{format_number(target.selected)} / #{format_number(target.requested)}"
+                end
+              } />
+            </:col>
+            <:col
+              :let={test_module}
+              :if={@selection_targets}
+              label={dgettext("dashboard_tests", "Skip rate")}
+            >
+              <.text_cell label={
+                case @selection_targets[test_module.name] do
+                  nil -> "–"
+                  target -> "#{Selections.skip_rate(target.selected, target.skipped)}%"
+                end
+              } />
+            </:col>
+            <:col
+              :let={test_module}
+              :if={@selection_targets}
+              label={dgettext("dashboard_tests", "Why it runs")}
+            >
+              <.text_cell label={
+                case @selection_targets[test_module.name] do
+                  nil -> "–"
+                  target -> target.reasons |> Enum.sort() |> Enum.map_join(", ", &reason_label/1)
+                end
+              } />
+            </:col>
+            <:col
+              :let={test_module}
+              :if={@selection_targets}
+              label={dgettext("dashboard_tests", "Est. time saved")}
+            >
+              <.text_cell
+                label={
+                  case @selection_targets[test_module.name] do
+                    nil ->
+                      "–"
+
+                    target ->
+                      DateFormatter.format_duration_from_milliseconds(
+                        target.estimated_skipped_duration
+                      )
+                  end
+                }
+                icon="history"
+              />
             </:col>
             <:expanded_content :let={test_module}>
               <ModuleCacheTab.subhashes_list

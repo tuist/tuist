@@ -149,6 +149,21 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={
+            Project.xcode_project?(@selected_project) and
+              Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)
+          }
+          label={dgettext("dashboard", "Test Selection")}
+          icon="filter"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}

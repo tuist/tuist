@@ -19,12 +19,15 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Bazel
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Selections
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
@@ -32,6 +35,7 @@ defmodule TuistWeb.TestRunLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
+  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -106,6 +110,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
+      |> assign(:selection_run, selection_run(project, socket.assigns.selected_account, run))
+      |> RunTab.assign_defaults()
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -345,6 +351,10 @@ defmodule TuistWeb.TestRunLive do
 
   def handle_event("refresh_test_run", _params, socket) do
     {:noreply, reload_run_state(socket)}
+  end
+
+  def handle_event("search-selection", %{"search" => search}, socket) do
+    {:noreply, push_patch(socket, to: "?" <> RunTab.search_query(socket.assigns.uri, search), replace: true)}
   end
 
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
@@ -590,6 +600,11 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
+    socket =
+      if socket.assigns.selection_run,
+        do: RunTab.assign_data(socket, socket.assigns.selection_run, params),
+        else: socket
+
     if socket.assigns.command_event do
       {analytics, meta} = load_selective_testing_data(socket.assigns.command_event, params)
       assign_selective_testing_data(socket, analytics, meta, params)
@@ -1678,6 +1693,12 @@ defmodule TuistWeb.TestRunLive do
       |> Map.new()
 
     assign(socket, :text_attachment_urls, urls)
+  end
+
+  defp selection_run(project, account, run) do
+    if Project.xcode_project?(project) and FeatureFlags.xcode_coverage_enabled?(account) do
+      Selections.run_for_test_run(project.id, run.id)
+    end
   end
 
   defp assign_shard_rows(socket, run) do

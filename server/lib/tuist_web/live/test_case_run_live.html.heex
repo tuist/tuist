@@ -108,7 +108,28 @@
       patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
       replace={true}
     />
+    <.tab_menu_horizontal_item
+      :if={@selection}
+      label={dgettext("dashboard_tests", "Selective Testing")}
+      selected={@selected_tab == "selective-testing"}
+      patch={"?#{Query.put(@uri.query, "tab", "selective-testing")}"}
+      replace={true}
+    />
   </.tab_menu_horizontal>
+
+  <TestCaseRunTab.test_selection
+    :if={@selected_tab == "selective-testing"}
+    selection={@selection}
+    all_files={@selection_all_files}
+    files={@selection_files}
+    search={@selection_files_search}
+    page={@selection_files_page}
+    total_pages={@selection_files_total_pages}
+    uri={@uri}
+    project={@selected_project}
+    account={@selected_account}
+    test_run_id={@test_case_run.test_run_id}
+  />
 
   <div :if={@selected_tab == "overview"} data-part="overview">
     <.card

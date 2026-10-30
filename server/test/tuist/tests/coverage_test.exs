@@ -643,6 +643,6 @@ defmodule Tuist.Tests.CoverageTest do
       |> Enum.sort()
 
     assert tables ==
-             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs coverage_target_sources coverage_test_sources git_commit_files)
+             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs coverage_target_sources coverage_test_sources git_commit_files test_impact_changed_files test_impact_tests test_impacts test_selection_runs test_selection_tests)
   end
 end
