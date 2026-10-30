@@ -115,6 +115,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.LearnedWarmFloors
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
@@ -678,6 +679,10 @@ defmodule Tuist.Runners do
       occupied runner sessions over active one-minute buckets in
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
+    * `learned_warm_floor` — the burst this fleet's jobs arrive in, or 0
+      when it had no job in the last day (`LearnedWarmFloors`). The
+      controller keeps up to that many runners idle above load, capped per
+      pool by `maxLearnedWarmPoolFloor`.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -703,6 +708,7 @@ defmodule Tuist.Runners do
       queued: queued,
       withheld: withheld,
       p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+      learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
       preferred_nodes: preferred_nodes(fleet_name)
     }
   end
@@ -1293,7 +1299,14 @@ defmodule Tuist.Runners do
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
              # untrusted job's cache is never account-portable.
-             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id))
+             cache_signing_grant:
+               if(trusted,
+                 do:
+                   CacheGrant.mint(candidate.account_id,
+                     site: runner_grant_site(fleet_name, context),
+                     platform: Catalog.fleet_platform(fleet_name)
+                   )
+               )
            }}
         else
           {:error, reason} = err ->
@@ -1309,6 +1322,13 @@ defmodule Tuist.Runners do
 
         release_safely(candidate, claim, :unknown_account)
         {:error, :unknown_account}
+    end
+  end
+
+  defp runner_grant_site(fleet_name, context) do
+    case Catalog.fleet_platform(fleet_name) do
+      :linux -> Sites.shard_storage_site(Map.get(context, :node_name))
+      _ -> Map.get(context, :site)
     end
   end
 

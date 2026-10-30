@@ -24,15 +24,20 @@ import Foundation
     /// a self-hosted Tuist/Kura server with a private CA on hosts where installing a
     /// trusted root in the System keychain isn't practical (for example headless CI).
     ///
-    /// `@unchecked Sendable` is safe because the stored certificates and redirect policy
-    /// are immutable, assigned once at init and never mutated, so the instance can be shared across the URLSession delegate
-    /// queue. Adding mutable state here would need to re-establish that invariant.
+    /// `@unchecked Sendable` is safe because the certificates, extra deny set and
+    /// redirect policy are immutable, assigned once at init and never mutated, so
+    /// the instance can be shared across the URLSession delegate queue. Adding
+    /// mutable state here would need to re-establish that invariant.
     final class TuistURLSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         private let additionalCertificates: [SecCertificate]
+        private let additionalBlockedSPKIHashes: Set<String>
         private let followRedirects: Bool
 
-        init(additionalCertificates: [SecCertificate], followRedirects: Bool = true) {
+        init(
+            additionalCertificates: [SecCertificate], additionalBlockedSPKIHashes: Set<String> = [], followRedirects: Bool = true
+        ) {
             self.additionalCertificates = additionalCertificates
+            self.additionalBlockedSPKIHashes = additionalBlockedSPKIHashes
             self.followRedirects = followRedirects
             super.init()
         }
@@ -49,7 +54,11 @@ import Foundation
                 return
             }
 
-            if TLSValidator.evaluate(trust, addingAdditionalAnchors: additionalCertificates) {
+            if TLSValidator.evaluate(
+                trust,
+                addingAdditionalAnchors: additionalCertificates,
+                additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+            ) {
                 completionHandler(.useCredential, URLCredential(trust: trust))
             } else {
                 completionHandler(.cancelAuthenticationChallenge, nil)
@@ -81,13 +90,40 @@ import Foundation
         /// CA) on top of the system root store before evaluation. Returns `true` if the
         /// server is trusted. The system root store is never replaced: extra anchors are
         /// additive (`SecTrustSetAnchorCertificatesOnly(trust, false)`).
-        static func evaluate(_ trust: SecTrust, addingAdditionalAnchors anchors: [SecCertificate]) -> Bool {
-            if !anchors.isEmpty {
-                SecTrustSetAnchorCertificates(trust, anchors as CFArray)
-                SecTrustSetAnchorCertificatesOnly(trust, false)
-            }
+        static func evaluate(
+            _ trust: SecTrust, addingAdditionalAnchors anchors: [SecCertificate], additionalBlockedSPKIHashes: Set<String> = []
+        ) -> Bool {
+            guard configure(trust, addingAdditionalAnchors: anchors, additionalBlockedSPKIHashes: additionalBlockedSPKIHashes)
+            else { return false }
             var error: CFError?
-            return SecTrustEvaluateWithError(trust, &error)
+            return SecTrustEvaluateWithError(trust, &error) && isAllowedChain(
+                trust,
+                additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+            )
+        }
+
+        static func configure(
+            _ trust: SecTrust, addingAdditionalAnchors anchors: [SecCertificate], additionalBlockedSPKIHashes: Set<String>
+        ) -> Bool {
+            guard !anchors.isEmpty else { return true }
+            let allowed = anchors.filter {
+                CertificateTrust.isAllowed(
+                    derCertificate: SecCertificateCopyData($0) as Data,
+                    additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+                )
+            }
+            return SecTrustSetAnchorCertificates(trust, allowed as CFArray) == errSecSuccess &&
+                SecTrustSetAnchorCertificatesOnly(trust, false) == errSecSuccess
+        }
+
+        static func isAllowedChain(_ trust: SecTrust, additionalBlockedSPKIHashes: Set<String>) -> Bool {
+            guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate], !chain.isEmpty else { return false }
+            return chain.allSatisfy {
+                CertificateTrust.isAllowed(
+                    derCertificate: SecCertificateCopyData($0) as Data,
+                    additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+                )
+            }
         }
     }
 

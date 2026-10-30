@@ -7,6 +7,8 @@ defmodule Tuist.Runners.WorkflowJobsTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
   alias Tuist.Runners.WorkflowJobTransitionEvent
@@ -532,6 +534,108 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert claim_row.executed_workflow_job_id == 910_051
       assert executed_row.runner_name == "runner-x"
       assert executed_row.executed_workflow_job_id == 910_051
+    end
+
+    test "stamps the claim time of the runner's session on the executed job and replicates it once" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_053))
+      runner_claimed_at = ~U[2026-10-28 15:37:38.431474Z]
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: 910_054,
+        fleet_name: "fleet-a",
+        pod_name: "pod-1",
+        runner_name: "runner-x",
+        started_at: runner_claimed_at
+      })
+
+      Repo.delete_all(WorkflowJobTransitionEvent)
+
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_053, account.id)
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_053, account.id)
+
+      assert get_row!(910_053).executor_claimed_at == runner_claimed_at
+      assert [%WorkflowJobTransitionEvent{payload: payload}] = Repo.all(WorkflowJobTransitionEvent)
+      assert WorkflowJobs.decode_transition_payload(payload).executor_claimed_at == runner_claimed_at
+    end
+
+    test "observes the queue time to the runner's claim once, apart from limit holds" do
+      handler_id = "workflow-jobs-executed-#{System.unique_integer([:positive])}"
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_job_executed(),
+          fn _name, measurements, metadata, _config -> send(test_pid, {:executed, measurements, metadata}) end,
+          nil
+        )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      account = account_fixture()
+      enqueued_at = ~U[2026-10-28 15:37:30.000000Z]
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_056, enqueued_at: enqueued_at))
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: 910_057,
+        fleet_name: "fleet-a",
+        pod_name: "pod-1",
+        runner_name: "runner-x",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        started_at: DateTime.add(enqueued_at, 12, :second)
+      })
+
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_056, account.id)
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_056, account.id)
+
+      assert_received {:executed, %{queue_time_ms: 12_000}, %{fleet: "fleet-a", platform: "linux", limit_held: "false"}}
+      refute_received {:executed, _, _}
+
+      # The account's sessions fill its 64 GB Linux memory limit when the
+      # next job is enqueued.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_058, enqueued_at: DateTime.add(enqueued_at, 30, :second)))
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: 910_059,
+        fleet_name: "fleet-a",
+        pod_name: "pod-2",
+        runner_name: "runner-z",
+        platform: :linux,
+        vcpus: 16,
+        memory_gb: 48,
+        started_at: DateTime.add(enqueued_at, 20, :second)
+      })
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: 910_058,
+        fleet_name: "fleet-a",
+        pod_name: "pod-3",
+        runner_name: "runner-y",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        started_at: DateTime.add(enqueued_at, 45, :second)
+      })
+
+      assert :ok = WorkflowJobs.record_execution("runner-y", 910_058, account.id)
+
+      assert_received {:executed, %{queue_time_ms: 15_000}, %{limit_held: "true"}}
+    end
+
+    test "leaves the claim time unset for a runner with no session" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_055))
+
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_055, account.id)
+
+      assert get_row!(910_055).executor_claimed_at == nil
     end
 
     test "is scoped to the webhook's account" do

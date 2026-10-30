@@ -67,6 +67,7 @@ extension Client {
                 ServerClientFeatureFlagsHeadersMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientActorHeadersMiddleware(),
+                ServerClientRunnerHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
                     networkTrustedReports: networkTrustedReports,

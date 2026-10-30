@@ -1,0 +1,204 @@
+name: Sandbox Orbs Isolated Validation
+
+# No cluster credentials, deployments or registry publication. The entire
+# environment belongs to one disposable GitHub-hosted VM, including its KVM
+# guests, network namespaces and reflink filesystem.
+on:
+  pull_request:
+    paths:
+      - infra/sandbox-image/**
+      - infra/sandboxd/**
+      - infra/amp-orbs/**
+      - .github/workflows/sandbox-orbs-validation.yml
+  workflow_dispatch:
+    inputs:
+      live_amp:
+        description: Run authenticated Amp validation (requires the temporary provider secret and two manual Amp turns)
+        type: boolean
+        default: false
+
+concurrency:
+  group: sandbox-orbs-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  firecracker:
+    if: ${{ !inputs.live_amp }}
+    name: Real Firecracker Orb lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require hardware virtualization
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo test -r /dev/kvm
+          sudo test -w /dev/kvm
+          uname -m
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      - name: Build guest template
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-template:validation
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
+          cache-to: type=gha,mode=max,scope=sandbox-orbs-validation
+      - name: Build sandboxd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-daemon:validation
+          cache-from: type=gha,scope=sandboxd-image
+      - name: Real VM lifecycle and guest bootstrap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xfsprogs
+          bash infra/amp-orbs/validate-firecracker.sh
+      - name: Upload isolated validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-orbs-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sandbox-orbs-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  live:
+    name: Live Amp on isolated Tuist and Firecracker
+    if: github.event_name == 'workflow_dispatch' && inputs.live_amp
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MIX_ENV: test
+      TUIST_SERVER_TEST_POSTGRES_DB: tuist_amp_orbs_live
+      TUIST_SERVER_TEST_CLICKHOUSE_DB: tuist_amp_orbs_live
+      TUIST_SERVER_CLICKHOUSE_HTTP_PORT: '8123'
+      MISE_ENV: ci
+      ERL_FLAGS: '+S 4:4'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:26.1.2.11
+        env:
+          CLICKHOUSE_SKIP_USER_SETUP: '1'
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 10s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require disposable KVM runner
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test -c /dev/kvm
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xfsprogs
+      - uses: actions/cache/restore@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: orb-live-mix-${{ runner.os }}-${{ hashFiles('server/mix.lock', 'mise.toml') }}-${{ github.sha }}
+          restore-keys: |
+            orb-live-mix-${{ runner.os }}-${{ hashFiles('server/mix.lock', 'mise.toml') }}-
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-install-args: erlang elixir
+          restore-mix-cache: 'false'
+      - name: Use installed Erlang and Elixir directly
+        working-directory: server
+        run: |
+          # Shims reload development environment defaults. A broad mise exec
+          # also installs unrelated monorepo tools; use the installed binaries.
+          dirname "$(mise which mix)" >> "$GITHUB_PATH"
+          dirname "$(mise which erl)" >> "$GITHUB_PATH"
+      - name: Compile isolated control plane
+        working-directory: server
+        run: |
+          [[ $(command -v mix) != */shims/* ]]
+          mix compile
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: ${{ steps.mix-cache.outputs.cache-primary-key }}
+      - name: Migrate disposable databases
+        working-directory: server
+        run: |
+          # Override mise's checkout-local development defaults.
+          # ClickHouse reaches PostgreSQL through the service container network.
+          env \
+            TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live \
+            TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live \
+            TUIST_IPV4_DATABASE_URL=postgres://postgres:postgres@postgres:5432/tuist_amp_orbs_live \
+            bash mise/tasks/db/migrate.sh --create --no-compile
+      - name: Install isolated Kubernetes tools
+        working-directory: infra
+        run: |
+          mise install --locked kind kubectl
+          mise where kind >> /dev/null
+          dirname "$(mise which kind)" >> "$GITHUB_PATH"
+          dirname "$(mise which kubectl)" >> "$GITHUB_PATH"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build real guest
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          platforms: linux/amd64
+          load: true
+          tags: sandbox-orbs-template:validation
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
+      - name: Build real daemon
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: sandbox-orbs-daemon:validation
+          cache-from: type=gha,scope=sandboxd-image
+      - name: Authenticated Amp lifecycle (waits for two manual turns)
+        env:
+          AMP_ORB_PROVIDER_TOKEN: ${{ secrets.AMP_ORB_ISOLATED_VALIDATION_TOKEN }}
+        run: bash infra/amp-orbs/validate-live.sh
+      - name: Upload selected live evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: amp-live-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/amp-live-evidence/
+          if-no-files-found: ignore
+          retention-days: 7

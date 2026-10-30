@@ -30,7 +30,7 @@ msgstr "Solicitud de autorización no válida. Inténtalo de nuevo."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:167
 #, elixir-autogen, elixir-format
 msgid "Slack authorization failed: %{reason}"
-msgstr "La autorización de Slack falló: %{reason}"
+msgstr "Error en la autorización de Slack: %{reason}"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:132
 #, elixir-autogen, elixir-format
@@ -55,4 +55,4 @@ msgstr "La solicitud de autorización ha caducado. Inicia de nuevo el proceso de
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack devolvió una URL de webhook inesperada. Por favor, inténtalo de nuevo."
+msgstr "Slack ha devuelto una URL de webhook inesperada. Inténtalo de nuevo."

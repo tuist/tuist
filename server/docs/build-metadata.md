@@ -70,3 +70,25 @@ Unknown future keys remain ordinary strings through storage, REST, MCP and Kura 
 Xcode, Gradle, Mix and Bazel reuse their existing metadata columns. Cargo adds empty-default `custom_tags Array(String)` and `custom_values Map(String, String)` columns to `cargo_builds`. Metadata follows the parent build's retention and project-scoped export, with no new blob category. See `server/data-export.md`.
 
 Resource time series, metadata filtering/materialization, automatic identity, and additional Once/Bazel instrumentation are outside this change.
+
+## Reporting integration versions
+
+Build environment also shows the reporting integration's release version, independently of toolchain and wire-contract versions:
+
+| Builds | Source | Display |
+| --- | --- | --- |
+| Xcode and Cargo | `x-tuist-cli-version` | Tuist CLI version |
+| Gradle | `x-tuist-gradle-plugin-version` | Tuist Gradle plugin version |
+| Mix | `x-tuist-ex-version` | tuist_ex version |
+| Once | Existing `once_version` run event | Once version |
+| Bazel | Existing BEP `build_tool_version` | Bazel version |
+
+Xcode records the uploading CLI, which need not be the machine or CLI that originally built an imported activity log. Its separate **Tuist generator version** comes from the linked `generate` command event through `generation_id`, scoped to the build's project. It remains available for older builds with that link, even without a reporting version or cache observations. Missing, deleted, non-generation, or foreign-project references stay unknown. Lists resolve generation versions in bounded batches rather than querying per build. Native Bazel reports go directly through BEP/Kura; a setup-time Tuist CLI version is not a build's reporting version. Once already reports its own release, including its compatibility commands.
+
+The four HTTP report types persist optional version headers in `tuist_version`, outside `custom_metadata`. Missing, repeated, invalid UTF-8 or over-256-byte headers become an empty string and are omitted in the UI; prerelease and future version formats remain opaque strings. Version metadata never gates authentication or report acceptance. Mix stamps its own package version when compiling the integration, not the consuming application's version. No report JSON shape, required response field, or protocol version changes, so older servers ignore the additional header and newer servers accept older clients. Xcode processing preserves the version from the original report, including job-metadata recovery when its placeholder is unavailable; older queued jobs default to empty.
+
+REST and MCP build lists and details return optional nullable open-string `tuist_version` fields, plus `tuist_generation_version` for Xcode. Unknown versions are null; clients must tolerate absent fields from older servers and future version strings. Generated OpenAPI clients keep these additions optional. Bazel retains `bazel_version` on lists/details and Once retains `once_version` on run details, with no protocol changes.
+
+Apply the additive ClickHouse migration on every serving database, then **complete the Xcode processor rollout before deploying new web writers**. An old processor reconstructs replacement rows without the new column and would overwrite a stamped placeholder's version with the empty default, even when job metadata carries the version. Older queued jobs remain processable by new processors and retain an unknown reporting version. Existing binaries can continue reading and inserting legacy rows after migration because the columns default to empty.
+
+For rollback, stop new web writers first, drain all version-bearing `:process_build` jobs on upgraded processors, including in-flight, scheduled, retryable and snoozed jobs, then downgrade processors. Leave the additive columns in place; never drop columns while new readers/writers or queued jobs need them. This requires no coordinated CLI, Gradle plugin, or Hex-package upgrade. Versions follow their parent build's retention and project-scoped export in `server/data-export.md`.

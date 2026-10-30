@@ -306,7 +306,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipQuarantine: skipQuarantine,
             config: config
         )
-        let skipTestTargets = skipTestTargets + skippedQuarantinedTests
+        var skipTestTargets = skipTestTargets + skippedQuarantinedTests
         await RunMetadataStorage.current.update(
             skippedQuarantinedTestIdentifiers: Set(skippedQuarantinedTests.map(\.description))
         )
@@ -426,6 +426,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if generateOnly {
             return
         }
+
+        let targetTags = testTargetTags(in: mapperEnvironment.initialGraph ?? graph)
+        let testTargets = try resolveTestTargets(testTargets, targetTags: targetTags)
+        skipTestTargets = try skipTestTargets.flatMap { try $0.resolvingTargetQuery(targetTags: targetTags) }
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -653,6 +657,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if action == .build {
             let selectiveTestingGraph = computeSelectiveTestingGraph(
                 mapperEnvironment: mapperEnvironment,
+                graph: graph,
                 schemes: schemes,
                 testPlanConfiguration: testPlanConfiguration,
                 requestedTestIdentifiers: testTargets
@@ -773,6 +778,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return (muted, skipped)
     }
 
+    private func testTargetTags(in graph: Graph) -> [String: Set<String>] {
+        graph.projects.values.flatMap(\.targets.values)
+            .filter(\.product.testsBundle)
+            .reduce(into: [:]) { result, target in
+                result[target.name, default: []].formUnion(target.metadata.tags)
+            }
+    }
+
+    private func resolveTestTargets(
+        _ testTargets: [TestIdentifier],
+        targetTags: [String: Set<String>]?
+    ) throws -> [TestIdentifier] {
+        let resolved = try testTargets.flatMap { try $0.resolvingTargetQuery(targetTags: targetTags) }
+        if !testTargets.isEmpty, resolved.isEmpty {
+            throw FocusTargetsGraphMappersError.noTargetsFound
+        }
+        return resolved
+    }
+
     // MARK: - Shard Execute
 
     // swiftlint:disable:next function_body_length function_parameter_count
@@ -789,8 +813,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         resultBundlePath: AbsolutePath?,
         derivedDataPath: String?,
         retryCount _: Int,
-        testTargets: [TestIdentifier],
-        skipTestTargets: [TestIdentifier],
+        testTargets requestedTestTargets: [TestIdentifier],
+        skipTestTargets requestedSkipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         runId: String,
@@ -816,6 +840,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testProductsPath: localTestProductsPath,
             testProductsArchivePath: shardArchivePath
         )
+
+        let testTargets: [TestIdentifier]
+        let skipTestTargets: [TestIdentifier]
+        do {
+            let targetTags = shard.selectiveTestingGraph?.testTargetTags
+            testTargets = try resolveTestTargets(requestedTestTargets, targetTags: targetTags)
+            skipTestTargets = try requestedSkipTestTargets.flatMap { try $0.resolvingTargetQuery(targetTags: targetTags) }
+        } catch {
+            await cleanUpTestProducts(at: shard.testProductsPath, localTestProductsPath: localTestProductsPath)
+            throw error
+        }
 
         let hashUploadStorage = try await selectiveTestHashUploadStorage(noUpload: noUpload, config: config)
 
@@ -1109,6 +1144,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
             at: selectiveTestingGraphPath
         )
+
+        let testTargets = try resolveTestTargets(testTargets, targetTags: selectiveTestingGraph.testTargetTags)
+        let skipTestTargets = try skipTestTargets.flatMap {
+            try $0.resolvingTargetQuery(targetTags: selectiveTestingGraph.testTargetTags)
+        }
 
         await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
@@ -1473,10 +1513,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func computeSelectiveTestingGraph(
         mapperEnvironment: MapperEnvironment,
+        graph: Graph,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?,
         requestedTestIdentifiers: [TestIdentifier]
     ) -> SelectiveTestingGraph {
+        let targetTags = testTargetTags(in: mapperEnvironment.initialGraph ?? graph)
         guard let initialGraph = mapperEnvironment.initialGraph else {
             let attemptedTestPlans = attemptedTestPlans(
                 schemes: schemes,
@@ -1485,7 +1527,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return SelectiveTestingGraph(
                 testTargetHashes: [:],
                 attemptedTestPlans: attemptedTestPlans,
-                requestedTestIdentifiers: requestedTestIdentifiers.map(\.description)
+                requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
+                testTargetTags: targetTags
             )
         }
 
@@ -1517,7 +1560,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return SelectiveTestingGraph(
             testTargetHashes: testTargetHashes,
             attemptedTestPlans: attemptedTestPlans,
-            requestedTestIdentifiers: requestedTestIdentifiers.map(\.description)
+            requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
+            testTargetTags: targetTags
         )
     }
 

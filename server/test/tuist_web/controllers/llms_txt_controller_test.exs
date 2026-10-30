@@ -123,7 +123,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
     test "includes the full Markdown source of every English documentation page", %{conn: conn} do
       body = conn |> get("/llms-full.txt") |> response(200)
-      pages = Docs.pages()
+      pages = Enum.filter(Docs.pages(), &(&1.slug == "/en" or String.starts_with?(&1.slug, "/en/")))
       assert pages != []
 
       for page <- pages do

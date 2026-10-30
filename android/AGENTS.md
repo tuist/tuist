@@ -33,6 +33,23 @@ production.
   configuration-cache reuse, and publishing task graphs with
   `-Dorg.gradle.unsafe.isolated-projects=true`.
 
+## Certificate trust
+
+- API, token-refresh, and Coil clients use `CertificateTrust.clientBuilder`.
+  Keep native platform/enterprise trust and hostname checks authoritative, then
+  reject denied keys in the complete `X509TrustManagerExtensions` evaluated path,
+  including anchors not served by the peer. Do not replace roots or global defaults.
+- Keep `PolicyTrustManager`'s reflective hostname/configuration methods under R8.
+  API 26/27 must not invoke API-28-only `isSameTrustConfiguration`.
+- The app targets API 35 without CT opt-in. Before enabling CT or raising that
+  target, preserve TLS-extension/OCSP SCT inputs during revalidation and qualify
+  CT-enforcing devices; the hostname-only API cannot carry those inputs.
+- Run `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`.
+  Robolectric's JVM path adapter is not native Conscrypt qualification. Run
+  `CertificateTrustDeviceTest` on a selected connected device; public controls
+  require `-Pandroid.testInstrumentationRunnerArguments.tuistTrustLive=true`.
+  Browser OAuth remains governed by the external browser/OS.
+
 ## Icons
 
 Keep adaptive background, foreground, and monochrome layers aligned. Render source

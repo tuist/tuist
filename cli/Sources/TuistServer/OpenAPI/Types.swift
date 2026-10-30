@@ -94,6 +94,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
     @available(*, deprecated)
     func completeAnalyticsArtifactMultipartUpload(_ input: Operations.completeAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output
+    /// Dispatch a self-hosted Amp Orb lifecycle job.
+    ///
+    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)`.
+    func dispatchAmpOrb(_ input: Operations.dispatchAmpOrb.Input) async throws -> Operations.dispatchAmpOrb.Output
     /// Returns a preview with a given id.
     ///
     /// This endpoint returns a preview with a given id, including the url to download the preview.
@@ -1519,6 +1526,23 @@ extension APIProtocol {
         body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body? = nil
     ) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output {
         try await completeAnalyticsArtifactMultipartUpload(Operations.completeAnalyticsArtifactMultipartUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Dispatch a self-hosted Amp Orb lifecycle job.
+    ///
+    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)`.
+    public func dispatchAmpOrb(
+        path: Operations.dispatchAmpOrb.Input.Path,
+        headers: Operations.dispatchAmpOrb.Input.Headers = .init(),
+        body: Operations.dispatchAmpOrb.Input.Body? = nil
+    ) async throws -> Operations.dispatchAmpOrb.Output {
+        try await dispatchAmpOrb(Operations.dispatchAmpOrb.Input(
             path: path,
             headers: headers,
             body: body
@@ -6953,6 +6977,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/MixBuild/status`.
             public var status: Components.Schemas.MixBuild.statusPayload
+            /// The reporting tuist_ex library version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MixBuild/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `MixBuild`.
             ///
             /// - Parameters:
@@ -6976,6 +7004,7 @@ public enum Components {
             ///   - otp_version:
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting tuist_ex library version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 ci_host: Swift.String? = nil,
@@ -6996,7 +7025,8 @@ public enum Components {
                 mix_env: Swift.String? = nil,
                 otp_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.MixBuild.statusPayload
+                status: Components.Schemas.MixBuild.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.ci_host = ci_host
@@ -7018,6 +7048,7 @@ public enum Components {
                 self.otp_version = otp_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -7040,6 +7071,7 @@ public enum Components {
                 case otp_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// The usage of one usage-based meter over a billing period, in the meter's unit, and what it is charged so far.
@@ -10780,6 +10812,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/MixBuildDetail/status`.
             public var status: Components.Schemas.MixBuildDetail.statusPayload
+            /// The reporting tuist_ex library version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MixBuildDetail/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `MixBuildDetail`.
             ///
             /// - Parameters:
@@ -10804,6 +10840,7 @@ public enum Components {
             ///   - otp_version:
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting tuist_ex library version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 cache: Components.Schemas.MixBuildDetail.cachePayload,
@@ -10825,7 +10862,8 @@ public enum Components {
                 mix_env: Swift.String? = nil,
                 otp_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.MixBuildDetail.statusPayload
+                status: Components.Schemas.MixBuildDetail.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.cache = cache
@@ -10848,6 +10886,7 @@ public enum Components {
                 self.otp_version = otp_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -10871,6 +10910,7 @@ public enum Components {
                 case otp_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
@@ -13801,6 +13841,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/status`.
             public var status: Components.Schemas.CargoBuildDetail.statusPayload
+            /// The reporting Tuist CLI version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `CargoBuildDetail`.
             ///
             /// - Parameters:
@@ -13822,6 +13866,7 @@ public enum Components {
             ///   - rust_version: The rustc version.
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting Tuist CLI version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 cache: Components.Schemas.CargoBuildDetail.cachePayload? = nil,
@@ -13840,7 +13885,8 @@ public enum Components {
                 is_ci: Swift.Bool,
                 rust_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.CargoBuildDetail.statusPayload
+                status: Components.Schemas.CargoBuildDetail.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.cache = cache
@@ -13860,6 +13906,7 @@ public enum Components {
                 self.rust_version = rust_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -13880,6 +13927,7 @@ public enum Components {
                 case rust_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint`.
@@ -14810,6 +14858,83 @@ public enum Components {
                 case reference
                 case shard_plan_id
                 case upload_id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb`.
+        public struct DispatchAmpOrb: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/amp_url`.
+            public var amp_url: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/memory_mb`.
+            @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                case _4096 = 4096
+                case _8192 = 8192
+                case _16384 = 16384
+            }
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/memory_mb`.
+            public var memory_mb: Components.Schemas.DispatchAmpOrb.memory_mbPayload?
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/operation`.
+            @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case spawn = "spawn"
+                case pause = "pause"
+                case delete = "delete"
+            }
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/operation`.
+            public var operation: Components.Schemas.DispatchAmpOrb.operationPayload
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/orb_token`.
+            public var orb_token: Swift.String?
+            /// Sandbox template name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/template`.
+            public var template: Swift.String?
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
+            @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                case _2 = 2
+                case _4 = 4
+                case _8 = 8
+            }
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
+            public var vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload?
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/workspace_gb`.
+            public var workspace_gb: Swift.Int?
+            /// Creates a new `DispatchAmpOrb`.
+            ///
+            /// - Parameters:
+            ///   - amp_url:
+            ///   - memory_mb:
+            ///   - operation:
+            ///   - orb_token:
+            ///   - template: Sandbox template name.
+            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///   - workspace_gb:
+            public init(
+                amp_url: Swift.String? = nil,
+                memory_mb: Components.Schemas.DispatchAmpOrb.memory_mbPayload? = nil,
+                operation: Components.Schemas.DispatchAmpOrb.operationPayload,
+                orb_token: Swift.String? = nil,
+                template: Swift.String? = nil,
+                vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload? = nil,
+                workspace_gb: Swift.Int? = nil
+            ) {
+                self.amp_url = amp_url
+                self.memory_mb = memory_mb
+                self.operation = operation
+                self.orb_token = orb_token
+                self.template = template
+                self.vcpus = vcpus
+                self.workspace_gb = workspace_gb
+            }
+            public enum CodingKeys: String, CodingKey {
+                case amp_url
+                case memory_mb
+                case operation
+                case orb_token
+                case template
+                case vcpus
+                case workspace_gb
             }
         }
         /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeResponse`.
@@ -21288,6 +21413,8 @@ public enum Components {
         public struct Sandbox: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Sandbox/agent_environment_id`.
             public var agent_environment_id: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/Sandbox/amp_orb_id`.
+            public var amp_orb_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/anthropic_session_id`.
             public var anthropic_session_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/error_message`.
@@ -21333,6 +21460,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - agent_environment_id:
+            ///   - amp_orb_id:
             ///   - anthropic_session_id:
             ///   - error_message:
             ///   - hostname:
@@ -21351,6 +21479,7 @@ public enum Components {
             ///   - workspace_gb:
             public init(
                 agent_environment_id: Swift.Int? = nil,
+                amp_orb_id: Swift.String? = nil,
                 anthropic_session_id: Swift.String? = nil,
                 error_message: Swift.String? = nil,
                 hostname: Swift.String? = nil,
@@ -21369,6 +21498,7 @@ public enum Components {
                 workspace_gb: Swift.Int
             ) {
                 self.agent_environment_id = agent_environment_id
+                self.amp_orb_id = amp_orb_id
                 self.anthropic_session_id = anthropic_session_id
                 self.error_message = error_message
                 self.hostname = hostname
@@ -21388,6 +21518,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_environment_id
+                case amp_orb_id
                 case anthropic_session_id
                 case error_message
                 case hostname
@@ -22272,6 +22403,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/CargoBuild/status`.
             public var status: Components.Schemas.CargoBuild.statusPayload
+            /// The reporting Tuist CLI version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CargoBuild/tuist_version`.
+            public var tuist_version: Swift.String?
             /// Creates a new `CargoBuild`.
             ///
             /// - Parameters:
@@ -22292,6 +22427,7 @@ public enum Components {
             ///   - rust_version: The rustc version.
             ///   - started_at:
             ///   - status:
+            ///   - tuist_version: The reporting Tuist CLI version.
             public init(
                 actor: Components.Schemas.ReportActor,
                 ci_host: Swift.String? = nil,
@@ -22309,7 +22445,8 @@ public enum Components {
                 is_ci: Swift.Bool,
                 rust_version: Swift.String? = nil,
                 started_at: Foundation.Date? = nil,
-                status: Components.Schemas.CargoBuild.statusPayload
+                status: Components.Schemas.CargoBuild.statusPayload,
+                tuist_version: Swift.String? = nil
             ) {
                 self.actor = actor
                 self.ci_host = ci_host
@@ -22328,6 +22465,7 @@ public enum Components {
                 self.rust_version = rust_version
                 self.started_at = started_at
                 self.status = status
+                self.tuist_version = tuist_version
             }
             public enum CodingKeys: String, CodingKey {
                 case actor
@@ -22347,6 +22485,7 @@ public enum Components {
                 case rust_version
                 case started_at
                 case status
+                case tuist_version
             }
         }
         /// A product file's coverage at a commit, merged over every run that measured it.
@@ -23138,6 +23277,10 @@ public enum Components {
                 }
                 /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/status`.
                 public var status: Components.Schemas.CargoBuildList.buildsPayloadPayload.statusPayload
+                /// The reporting Tuist CLI version.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/tuist_version`.
+                public var tuist_version: Swift.String?
                 /// Creates a new `buildsPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -23158,6 +23301,7 @@ public enum Components {
                 ///   - rust_version: The rustc version.
                 ///   - started_at:
                 ///   - status:
+                ///   - tuist_version: The reporting Tuist CLI version.
                 public init(
                     actor: Components.Schemas.ReportActor,
                     ci_host: Swift.String? = nil,
@@ -23175,7 +23319,8 @@ public enum Components {
                     is_ci: Swift.Bool,
                     rust_version: Swift.String? = nil,
                     started_at: Foundation.Date? = nil,
-                    status: Components.Schemas.CargoBuildList.buildsPayloadPayload.statusPayload
+                    status: Components.Schemas.CargoBuildList.buildsPayloadPayload.statusPayload,
+                    tuist_version: Swift.String? = nil
                 ) {
                     self.actor = actor
                     self.ci_host = ci_host
@@ -23194,6 +23339,7 @@ public enum Components {
                     self.rust_version = rust_version
                     self.started_at = started_at
                     self.status = status
+                    self.tuist_version = tuist_version
                 }
                 public enum CodingKeys: String, CodingKey {
                     case actor
@@ -23213,6 +23359,7 @@ public enum Components {
                     case rust_version
                     case started_at
                     case status
+                    case tuist_version
                 }
             }
             /// - Remark: Generated from `#/components/schemas/CargoBuildList/builds`.
@@ -23462,6 +23609,10 @@ public enum Components {
                 }
                 /// - Remark: Generated from `#/components/schemas/MixBuildList/buildsPayload/status`.
                 public var status: Components.Schemas.MixBuildList.buildsPayloadPayload.statusPayload
+                /// The reporting tuist_ex library version.
+                ///
+                /// - Remark: Generated from `#/components/schemas/MixBuildList/buildsPayload/tuist_version`.
+                public var tuist_version: Swift.String?
                 /// Creates a new `buildsPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -23485,6 +23636,7 @@ public enum Components {
                 ///   - otp_version:
                 ///   - started_at:
                 ///   - status:
+                ///   - tuist_version: The reporting tuist_ex library version.
                 public init(
                     actor: Components.Schemas.ReportActor,
                     ci_host: Swift.String? = nil,
@@ -23505,7 +23657,8 @@ public enum Components {
                     mix_env: Swift.String? = nil,
                     otp_version: Swift.String? = nil,
                     started_at: Foundation.Date? = nil,
-                    status: Components.Schemas.MixBuildList.buildsPayloadPayload.statusPayload
+                    status: Components.Schemas.MixBuildList.buildsPayloadPayload.statusPayload,
+                    tuist_version: Swift.String? = nil
                 ) {
                     self.actor = actor
                     self.ci_host = ci_host
@@ -23527,6 +23680,7 @@ public enum Components {
                     self.otp_version = otp_version
                     self.started_at = started_at
                     self.status = status
+                    self.tuist_version = tuist_version
                 }
                 public enum CodingKeys: String, CodingKey {
                     case actor
@@ -23549,6 +23703,7 @@ public enum Components {
                     case otp_version
                     case started_at
                     case status
+                    case tuist_version
                 }
             }
             /// - Remark: Generated from `#/components/schemas/MixBuildList/builds`.
@@ -28661,6 +28816,8 @@ public enum Operations {
                         public struct sandboxesPayloadPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/agent_environment_id`.
                             public var agent_environment_id: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/amp_orb_id`.
+                            public var amp_orb_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/anthropic_session_id`.
                             public var anthropic_session_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/error_message`.
@@ -28706,6 +28863,7 @@ public enum Operations {
                             ///
                             /// - Parameters:
                             ///   - agent_environment_id:
+                            ///   - amp_orb_id:
                             ///   - anthropic_session_id:
                             ///   - error_message:
                             ///   - hostname:
@@ -28724,6 +28882,7 @@ public enum Operations {
                             ///   - workspace_gb:
                             public init(
                                 agent_environment_id: Swift.Int? = nil,
+                                amp_orb_id: Swift.String? = nil,
                                 anthropic_session_id: Swift.String? = nil,
                                 error_message: Swift.String? = nil,
                                 hostname: Swift.String? = nil,
@@ -28742,6 +28901,7 @@ public enum Operations {
                                 workspace_gb: Swift.Int
                             ) {
                                 self.agent_environment_id = agent_environment_id
+                                self.amp_orb_id = amp_orb_id
                                 self.anthropic_session_id = anthropic_session_id
                                 self.error_message = error_message
                                 self.hostname = hostname
@@ -28761,6 +28921,7 @@ public enum Operations {
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case agent_environment_id
+                                case amp_orb_id
                                 case anthropic_session_id
                                 case error_message
                                 case hostname
@@ -29126,6 +29287,8 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/agent_environment_id`.
                         public var agent_environment_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/amp_orb_id`.
+                        public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/error_message`.
@@ -29171,6 +29334,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - agent_environment_id:
+                        ///   - amp_orb_id:
                         ///   - anthropic_session_id:
                         ///   - error_message:
                         ///   - hostname:
@@ -29189,6 +29353,7 @@ public enum Operations {
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
+                            amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
@@ -29207,6 +29372,7 @@ public enum Operations {
                             workspace_gb: Swift.Int
                         ) {
                             self.agent_environment_id = agent_environment_id
+                            self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
                             self.error_message = error_message
                             self.hostname = hostname
@@ -29226,6 +29392,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
+                            case amp_orb_id
                             case anthropic_session_id
                             case error_message
                             case hostname
@@ -31640,6 +31807,604 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "internalServerError",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Dispatch a self-hosted Amp Orb lifecycle job.
+    ///
+    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)`.
+    public enum dispatchAmpOrb {
+        public static let id: Swift.String = "dispatchAmpOrb"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/path/orb_id`.
+                public var orb_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - orb_id:
+                public init(
+                    account_handle: Swift.String,
+                    orb_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.orb_id = orb_id
+                }
+            }
+            public var path: Operations.dispatchAmpOrb.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.dispatchAmpOrb.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.dispatchAmpOrb.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.dispatchAmpOrb.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/amp_url`.
+                    public var amp_url: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/memory_mb`.
+                    @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                        case _4096 = 4096
+                        case _8192 = 8192
+                        case _16384 = 16384
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/memory_mb`.
+                    public var memory_mb: Operations.dispatchAmpOrb.Input.Body.jsonPayload.memory_mbPayload?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/operation`.
+                    @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case spawn = "spawn"
+                        case pause = "pause"
+                        case delete = "delete"
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/operation`.
+                    public var operation: Operations.dispatchAmpOrb.Input.Body.jsonPayload.operationPayload
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/orb_token`.
+                    public var orb_token: Swift.String?
+                    /// Sandbox template name.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/template`.
+                    public var template: Swift.String?
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
+                    @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                        case _2 = 2
+                        case _4 = 4
+                        case _8 = 8
+                    }
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
+                    public var vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/workspace_gb`.
+                    public var workspace_gb: Swift.Int?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - amp_url:
+                    ///   - memory_mb:
+                    ///   - operation:
+                    ///   - orb_token:
+                    ///   - template: Sandbox template name.
+                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///   - workspace_gb:
+                    public init(
+                        amp_url: Swift.String? = nil,
+                        memory_mb: Operations.dispatchAmpOrb.Input.Body.jsonPayload.memory_mbPayload? = nil,
+                        operation: Operations.dispatchAmpOrb.Input.Body.jsonPayload.operationPayload,
+                        orb_token: Swift.String? = nil,
+                        template: Swift.String? = nil,
+                        vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload? = nil,
+                        workspace_gb: Swift.Int? = nil
+                    ) {
+                        self.amp_url = amp_url
+                        self.memory_mb = memory_mb
+                        self.operation = operation
+                        self.orb_token = orb_token
+                        self.template = template
+                        self.vcpus = vcpus
+                        self.workspace_gb = workspace_gb
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case amp_url
+                        case memory_mb
+                        case operation
+                        case orb_token
+                        case template
+                        case vcpus
+                        case workspace_gb
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/content/application\/json`.
+                case json(Operations.dispatchAmpOrb.Input.Body.jsonPayload)
+            }
+            public var body: Operations.dispatchAmpOrb.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.dispatchAmpOrb.Input.Path,
+                headers: Operations.dispatchAmpOrb.Input.Headers = .init(),
+                body: Operations.dispatchAmpOrb.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The Orb operation completed
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.dispatchAmpOrb.Output.NoContent)
+            /// The Orb operation completed
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.dispatchAmpOrb.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.dispatchAmpOrb.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.dispatchAmpOrb.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid job
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.dispatchAmpOrb.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.dispatchAmpOrb.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.dispatchAmpOrb.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.dispatchAmpOrb.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.dispatchAmpOrb.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.dispatchAmpOrb.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.dispatchAmpOrb.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.dispatchAmpOrb.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox is not in a state that allows the operation
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.dispatchAmpOrb.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.dispatchAmpOrb.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.dispatchAmpOrb.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.dispatchAmpOrb.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.dispatchAmpOrb.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.dispatchAmpOrb.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.dispatchAmpOrb.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.dispatchAmpOrb.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.dispatchAmpOrb.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.dispatchAmpOrb.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox node rejected the operation
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.dispatchAmpOrb.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.dispatchAmpOrb.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.dispatchAmpOrb.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.dispatchAmpOrb.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// No sandbox node is available
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.dispatchAmpOrb.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.dispatchAmpOrb.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct GatewayTimeout: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/504/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/504/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.dispatchAmpOrb.Output.GatewayTimeout.Body
+                /// Creates a new `GatewayTimeout`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.dispatchAmpOrb.Output.GatewayTimeout.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox node did not answer in time
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/504`.
+            ///
+            /// HTTP response code: `504 gatewayTimeout`.
+            case gatewayTimeout(Operations.dispatchAmpOrb.Output.GatewayTimeout)
+            /// The associated value of the enum case if `self` is `.gatewayTimeout`.
+            ///
+            /// - Throws: An error if `self` is not `.gatewayTimeout`.
+            /// - SeeAlso: `.gatewayTimeout`.
+            public var gatewayTimeout: Operations.dispatchAmpOrb.Output.GatewayTimeout {
+                get throws {
+                    switch self {
+                    case let .gatewayTimeout(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gatewayTimeout",
                             response: self
                         )
                     }
@@ -39775,6 +40540,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The Tuist CLI version that generated the associated project, when available.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/tuist_generation_version`.
+                        public var tuist_generation_version: Swift.String?
+                        /// The reporting Tuist CLI version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// URL to view the build in the dashboard.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/url`.
@@ -39809,6 +40582,8 @@ public enum Operations {
                         ///   - scheme: The scheme that was built.
                         ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
+                        ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                        ///   - tuist_version: The reporting Tuist CLI version.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
                         public init(
@@ -39835,6 +40610,8 @@ public enum Operations {
                             scheme: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
                             status: Operations.getBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_generation_version: Swift.String? = nil,
+                            tuist_version: Swift.String? = nil,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
                         ) {
@@ -39861,6 +40638,8 @@ public enum Operations {
                             self.scheme = scheme
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_generation_version = tuist_generation_version
+                            self.tuist_version = tuist_version
                             self.url = url
                             self.xcode_version = xcode_version
                         }
@@ -39888,6 +40667,8 @@ public enum Operations {
                             case scheme
                             case started_at
                             case status
+                            case tuist_generation_version
+                            case tuist_version
                             case url
                             case xcode_version
                         }
@@ -41991,6 +42772,8 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/agent_environment_id`.
                         public var agent_environment_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/amp_orb_id`.
+                        public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/error_message`.
@@ -42036,6 +42819,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - agent_environment_id:
+                        ///   - amp_orb_id:
                         ///   - anthropic_session_id:
                         ///   - error_message:
                         ///   - hostname:
@@ -42054,6 +42838,7 @@ public enum Operations {
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
+                            amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
@@ -42072,6 +42857,7 @@ public enum Operations {
                             workspace_gb: Swift.Int
                         ) {
                             self.agent_environment_id = agent_environment_id
+                            self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
                             self.error_message = error_message
                             self.hostname = hostname
@@ -42091,6 +42877,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
+                            case amp_orb_id
                             case anthropic_session_id
                             case error_message
                             case hostname
@@ -56412,6 +57199,8 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/agent_environment_id`.
                         public var agent_environment_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/amp_orb_id`.
+                        public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/error_message`.
@@ -56457,6 +57246,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - agent_environment_id:
+                        ///   - amp_orb_id:
                         ///   - anthropic_session_id:
                         ///   - error_message:
                         ///   - hostname:
@@ -56475,6 +57265,7 @@ public enum Operations {
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
+                            amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
@@ -56493,6 +57284,7 @@ public enum Operations {
                             workspace_gb: Swift.Int
                         ) {
                             self.agent_environment_id = agent_environment_id
+                            self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
                             self.error_message = error_message
                             self.hostname = hostname
@@ -56512,6 +57304,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
+                            case amp_orb_id
                             case anthropic_session_id
                             case error_message
                             case hostname
@@ -58476,6 +59269,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listMixBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The reporting tuist_ex library version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -58499,6 +59296,7 @@ public enum Operations {
                             ///   - otp_version:
                             ///   - started_at:
                             ///   - status:
+                            ///   - tuist_version: The reporting tuist_ex library version.
                             public init(
                                 actor: Components.Schemas.ReportActor,
                                 ci_host: Swift.String? = nil,
@@ -58519,7 +59317,8 @@ public enum Operations {
                                 mix_env: Swift.String? = nil,
                                 otp_version: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
-                                status: Operations.listMixBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                                status: Operations.listMixBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_version: Swift.String? = nil
                             ) {
                                 self.actor = actor
                                 self.ci_host = ci_host
@@ -58541,6 +59340,7 @@ public enum Operations {
                                 self.otp_version = otp_version
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_version = tuist_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case actor
@@ -58563,6 +59363,7 @@ public enum Operations {
                                 case otp_version
                                 case started_at
                                 case status
+                                case tuist_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/GET/responses/200/content/json/builds`.
@@ -60125,6 +60926,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The Tuist CLI version that generated the associated project, when available.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/tuist_generation_version`.
+                        public var tuist_generation_version: Swift.String?
+                        /// The reporting Tuist CLI version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// URL to view the build in the dashboard.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/url`.
@@ -60159,6 +60968,8 @@ public enum Operations {
                         ///   - scheme: The scheme that was built.
                         ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
+                        ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                        ///   - tuist_version: The reporting Tuist CLI version.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
                         public init(
@@ -60185,6 +60996,8 @@ public enum Operations {
                             scheme: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
                             status: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_generation_version: Swift.String? = nil,
+                            tuist_version: Swift.String? = nil,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
                         ) {
@@ -60211,6 +61024,8 @@ public enum Operations {
                             self.scheme = scheme
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_generation_version = tuist_generation_version
+                            self.tuist_version = tuist_version
                             self.url = url
                             self.xcode_version = xcode_version
                         }
@@ -60238,6 +61053,8 @@ public enum Operations {
                             case scheme
                             case started_at
                             case status
+                            case tuist_generation_version
+                            case tuist_version
                             case url
                             case xcode_version
                         }
@@ -61883,6 +62700,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getMixBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The reporting tuist_ex library version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -61907,6 +62728,7 @@ public enum Operations {
                         ///   - otp_version:
                         ///   - started_at:
                         ///   - status:
+                        ///   - tuist_version: The reporting tuist_ex library version.
                         public init(
                             actor: Components.Schemas.ReportActor,
                             cache: Operations.getMixBuild.Output.Ok.Body.jsonPayload.cachePayload,
@@ -61928,7 +62750,8 @@ public enum Operations {
                             mix_env: Swift.String? = nil,
                             otp_version: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
-                            status: Operations.getMixBuild.Output.Ok.Body.jsonPayload.statusPayload
+                            status: Operations.getMixBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_version: Swift.String? = nil
                         ) {
                             self.actor = actor
                             self.cache = cache
@@ -61951,6 +62774,7 @@ public enum Operations {
                             self.otp_version = otp_version
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_version = tuist_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case actor
@@ -61974,6 +62798,7 @@ public enum Operations {
                             case otp_version
                             case started_at
                             case status
+                            case tuist_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -72128,6 +72953,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The reporting Tuist CLI version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -72148,6 +72977,7 @@ public enum Operations {
                             ///   - rust_version: The rustc version.
                             ///   - started_at:
                             ///   - status:
+                            ///   - tuist_version: The reporting Tuist CLI version.
                             public init(
                                 actor: Components.Schemas.ReportActor,
                                 ci_host: Swift.String? = nil,
@@ -72165,7 +72995,8 @@ public enum Operations {
                                 is_ci: Swift.Bool,
                                 rust_version: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
-                                status: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                                status: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_version: Swift.String? = nil
                             ) {
                                 self.actor = actor
                                 self.ci_host = ci_host
@@ -72184,6 +73015,7 @@ public enum Operations {
                                 self.rust_version = rust_version
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_version = tuist_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case actor
@@ -72203,6 +73035,7 @@ public enum Operations {
                                 case rust_version
                                 case started_at
                                 case status
+                                case tuist_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/builds`.
@@ -73880,6 +74713,14 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The Tuist CLI version that generated the associated project, when available.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/tuist_generation_version`.
+                            public var tuist_generation_version: Swift.String?
+                            /// The reporting Tuist CLI version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// URL to view the build in the dashboard.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/url`.
@@ -73911,6 +74752,8 @@ public enum Operations {
                             ///   - scheme: The scheme that was built.
                             ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
+                            ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                            ///   - tuist_version: The reporting Tuist CLI version.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
                             public init(
@@ -73934,6 +74777,8 @@ public enum Operations {
                                 scheme: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_generation_version: Swift.String? = nil,
+                                tuist_version: Swift.String? = nil,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
                             ) {
@@ -73957,6 +74802,8 @@ public enum Operations {
                                 self.scheme = scheme
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_generation_version = tuist_generation_version
+                                self.tuist_version = tuist_version
                                 self.url = url
                                 self.xcode_version = xcode_version
                             }
@@ -73981,6 +74828,8 @@ public enum Operations {
                                 case scheme
                                 case started_at
                                 case status
+                                case tuist_generation_version
+                                case tuist_version
                                 case url
                                 case xcode_version
                             }
@@ -92654,6 +93503,8 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/agent_environment_id`.
                         public var agent_environment_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/amp_orb_id`.
+                        public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/error_message`.
@@ -92699,6 +93550,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - agent_environment_id:
+                        ///   - amp_orb_id:
                         ///   - anthropic_session_id:
                         ///   - error_message:
                         ///   - hostname:
@@ -92717,6 +93569,7 @@ public enum Operations {
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
+                            amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
@@ -92735,6 +93588,7 @@ public enum Operations {
                             workspace_gb: Swift.Int
                         ) {
                             self.agent_environment_id = agent_environment_id
+                            self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
                             self.error_message = error_message
                             self.hostname = hostname
@@ -92754,6 +93608,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
+                            case amp_orb_id
                             case anthropic_session_id
                             case error_message
                             case hostname
@@ -95538,6 +96393,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// The reporting Tuist CLI version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -95559,6 +96418,7 @@ public enum Operations {
                         ///   - rust_version: The rustc version.
                         ///   - started_at:
                         ///   - status:
+                        ///   - tuist_version: The reporting Tuist CLI version.
                         public init(
                             actor: Components.Schemas.ReportActor,
                             cache: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.cachePayload? = nil,
@@ -95577,7 +96437,8 @@ public enum Operations {
                             is_ci: Swift.Bool,
                             rust_version: Swift.String? = nil,
                             started_at: Foundation.Date? = nil,
-                            status: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.statusPayload
+                            status: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            tuist_version: Swift.String? = nil
                         ) {
                             self.actor = actor
                             self.cache = cache
@@ -95597,6 +96458,7 @@ public enum Operations {
                             self.rust_version = rust_version
                             self.started_at = started_at
                             self.status = status
+                            self.tuist_version = tuist_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case actor
@@ -95617,6 +96479,7 @@ public enum Operations {
                             case rust_version
                             case started_at
                             case status
+                            case tuist_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -99136,6 +99999,14 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload
+                            /// The Tuist CLI version that generated the associated project, when available.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/tuist_generation_version`.
+                            public var tuist_generation_version: Swift.String?
+                            /// The reporting Tuist CLI version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// URL to view the build in the dashboard.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/url`.
@@ -99167,6 +100038,8 @@ public enum Operations {
                             ///   - scheme: The scheme that was built.
                             ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
+                            ///   - tuist_generation_version: The Tuist CLI version that generated the associated project, when available.
+                            ///   - tuist_version: The reporting Tuist CLI version.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
                             public init(
@@ -99190,6 +100063,8 @@ public enum Operations {
                                 scheme: Swift.String? = nil,
                                 started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
+                                tuist_generation_version: Swift.String? = nil,
+                                tuist_version: Swift.String? = nil,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
                             ) {
@@ -99213,6 +100088,8 @@ public enum Operations {
                                 self.scheme = scheme
                                 self.started_at = started_at
                                 self.status = status
+                                self.tuist_generation_version = tuist_generation_version
+                                self.tuist_version = tuist_version
                                 self.url = url
                                 self.xcode_version = xcode_version
                             }
@@ -99237,6 +100114,8 @@ public enum Operations {
                                 case scheme
                                 case started_at
                                 case status
+                                case tuist_generation_version
+                                case tuist_version
                                 case url
                                 case xcode_version
                             }
@@ -120928,6 +121807,10 @@ public enum Operations {
                         public var git_commit_sha: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/is_ci`.
                         public var is_ci: Swift.Bool?
+                        /// The reporting Tuist Gradle plugin version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -120964,6 +121847,7 @@ public enum Operations {
                         ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
                         ///   - git_commit_sha:
                         ///   - is_ci:
+                        ///   - tuist_version: The reporting Tuist Gradle plugin version.
                         public init(
                             tasks_cache_hit_count: Swift.Int? = nil,
                             git_branch: Swift.String? = nil,
@@ -120997,7 +121881,8 @@ public enum Operations {
                             gradle_version: Swift.String? = nil,
                             cache_download_bytes: Swift.Int? = nil,
                             git_commit_sha: Swift.String? = nil,
-                            is_ci: Swift.Bool? = nil
+                            is_ci: Swift.Bool? = nil,
+                            tuist_version: Swift.String? = nil
                         ) {
                             self.tasks_cache_hit_count = tasks_cache_hit_count
                             self.git_branch = git_branch
@@ -121032,6 +121917,7 @@ public enum Operations {
                             self.cache_download_bytes = cache_download_bytes
                             self.git_commit_sha = git_commit_sha
                             self.is_ci = is_ci
+                            self.tuist_version = tuist_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case tasks_cache_hit_count
@@ -121067,6 +121953,7 @@ public enum Operations {
                             case cache_download_bytes
                             case git_commit_sha
                             case is_ci
+                            case tuist_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -128906,6 +129793,10 @@ public enum Operations {
                             public var tasks_remote_hit_count: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_up_to_date_count`.
                             public var tasks_up_to_date_count: Swift.Int?
+                            /// The reporting Tuist Gradle plugin version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -128933,6 +129824,7 @@ public enum Operations {
                             ///   - tasks_local_hit_count:
                             ///   - tasks_remote_hit_count:
                             ///   - tasks_up_to_date_count:
+                            ///   - tuist_version: The reporting Tuist Gradle plugin version.
                             public init(
                                 actor: Components.Schemas.ReportActor? = nil,
                                 cache_hit_rate: Swift.Double? = nil,
@@ -128957,7 +129849,8 @@ public enum Operations {
                                 tasks_executed_count: Swift.Int? = nil,
                                 tasks_local_hit_count: Swift.Int? = nil,
                                 tasks_remote_hit_count: Swift.Int? = nil,
-                                tasks_up_to_date_count: Swift.Int? = nil
+                                tasks_up_to_date_count: Swift.Int? = nil,
+                                tuist_version: Swift.String? = nil
                             ) {
                                 self.actor = actor
                                 self.cache_hit_rate = cache_hit_rate
@@ -128983,6 +129876,7 @@ public enum Operations {
                                 self.tasks_local_hit_count = tasks_local_hit_count
                                 self.tasks_remote_hit_count = tasks_remote_hit_count
                                 self.tasks_up_to_date_count = tasks_up_to_date_count
+                                self.tuist_version = tuist_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case actor
@@ -129009,6 +129903,7 @@ public enum Operations {
                                 case tasks_local_hit_count
                                 case tasks_remote_hit_count
                                 case tasks_up_to_date_count
+                                case tuist_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/builds`.

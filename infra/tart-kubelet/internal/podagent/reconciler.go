@@ -438,6 +438,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.publishRunnerHeartbeat(ctx, pod); err != nil {
 		logger.Error(err, "publish runner heartbeat; will retry")
 	}
+	r.logBootTiming(ctx, pod)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
@@ -1563,6 +1564,7 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			}
 			vmBootDurationSeconds.WithLabelValues(pool).Observe(time.Since(entry.StartTS.Time).Seconds())
 			entry.BootObserved = true
+			entry.IPAt = time.Now()
 		}
 		// For Pods that opt into scraping we report the host IP as
 		// the Pod IP so existing pod-IP-based discovery (Alloy's
@@ -1978,7 +1980,10 @@ type Entry struct {
 	// transition), not per reconcile — observing on every
 	// podStatus would skew the distribution toward `0` for
 	// long-lived VMs that get reconciled hundreds of times.
-	BootObserved      bool
+	BootObserved bool
+	// IPAt is when this host first saw the VM's IP; zero for a boot it did not witness.
+	IPAt              time.Time
+	BootTimingLogged  bool
 	MetricsForwarder  *Forwarder
 	VNCForwarder      *TCPForwarder
 	VNCRelayTokenHash string

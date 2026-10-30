@@ -76,9 +76,16 @@ defmodule Tuist.AppBuilds do
   def app_build_by_id(id, opts \\ []) do
     if Tuist.UUIDv7.valid?(id) do
       preload = Keyword.get(opts, :preload, [])
-      app_build = Repo.get(AppBuild, id)
+      project_id = Keyword.get(opts, :project_id)
 
-      case app_build do
+      query = from(a in AppBuild, where: a.id == ^id)
+
+      query =
+        if is_nil(project_id),
+          do: query,
+          else: from(a in query, join: p in assoc(a, :preview), where: p.project_id == ^project_id)
+
+      case Repo.one(query) do
         nil -> {:error, :not_found}
         %AppBuild{} = app_build -> {:ok, Repo.preload(app_build, preload)}
       end

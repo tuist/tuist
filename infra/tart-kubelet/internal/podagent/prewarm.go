@@ -181,8 +181,9 @@ type runnerPoolSpec struct {
 		} `json:"autoscaling"`
 	} `json:"spec"`
 	Status struct {
-		ObservedImage string `json:"observedImage"`
-		PreviousImage string `json:"previousImage"`
+		ObservedImage string     `json:"observedImage"`
+		PreviousImage string     `json:"previousImage"`
+		LastDemandAt  *time.Time `json:"lastDemandAt"`
 	} `json:"status"`
 }
 

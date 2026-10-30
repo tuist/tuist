@@ -157,7 +157,9 @@ struct CargoReporting {
         await submit(payload, kind: "tests")
     }
 
-    func tests(report: CargoTestReport, metadata: [String: Any], failed: Bool) async {
+    func tests(
+        report: CargoTestReport, metadata: [String: Any], failed: Bool, shardID: String? = nil, shardIndex: Int? = nil
+    ) async {
         var payload = metadata
         let label = environment["TUIST_SCHEME"].flatMap { $0.isEmpty ? nil : $0 }
         payload.merge(
@@ -171,6 +173,7 @@ struct CargoReporting {
             ],
             uniquingKeysWith: { _, new in new }
         )
+        if let shardID { payload["shard_plan_id"] = shardID; payload["shard_index"] = shardIndex }
         await submit(payload, kind: "tests")
     }
 

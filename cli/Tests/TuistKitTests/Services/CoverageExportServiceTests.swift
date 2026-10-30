@@ -248,6 +248,20 @@ struct CoverageExportServiceTests {
         #expect(!CoverageExportService.isSwiftMangled("-[Foo bar]"))
     }
 
+    @Test(.inTemporaryDirectory) func readsAnAppsDebugDylibInsteadOfItsStubExecutable() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let app = directory.appending(component: "App.app")
+        try FileManager.default.createDirectory(atPath: app.pathString, withIntermediateDirectories: true)
+        let executable = app.appending(component: "App").pathString
+        let header = Data([0xCF, 0xFA, 0xED, 0xFE, 0, 0, 0, 0])
+        try header.write(to: URL(fileURLWithPath: executable))
+        let target = XcodeCoverageTarget(name: "App.app", buildProductPath: executable, files: [])
+
+        #expect(CoverageExportService.products(of: [target]).map(\.path) == [executable])
+        try header.write(to: URL(fileURLWithPath: executable + ".debug.dylib"))
+        #expect(CoverageExportService.products(of: [target]).map(\.path) == [executable + ".debug.dylib"])
+    }
+
     @Test(.inTemporaryDirectory) func resolvesTheBuildsTargetsAgainstTheProductsTheRunUsed() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let products = directory.appending(components: "Build", "Products", "Debug-iphonesimulator")

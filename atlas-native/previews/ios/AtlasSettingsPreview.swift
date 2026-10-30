@@ -8,17 +8,21 @@ struct AtlasSettingsPreview: App {
     @State private var backgrounded = false
     @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var business = AtlasBusinessPreviewData()
+    @StateObject private var profile = AtlasProfile()
     @StateObject private var threads = AtlasOrbitPreviewData()
+    @StateObject private var environments = AtlasEnvironmentPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var navigation = AtlasNavigation()
     @StateObject private var notifications = AtlasPushNotifications()
     @StateObject private var connections = AtlasConnections(request: { action in
         if action["action"] as? String == "list" {
+            let configured = !ProcessInfo.processInfo.arguments.contains("--unavailable-connections")
             return Data("""
-            {"connections":[{"provider":"github","name":"GitHub","configured":true,
+            {"connections":[{"provider":"github","name":"GitHub","configured":\(configured),
             "account_name":null,"status":"not_connected"},
-            {"provider":"slack","name":"Slack","configured":true,
-            "account_name":"Demo teammate · Demo workspace","status":"connected"},
+            {"provider":"slack","name":"Slack","configured":\(configured),
+            "account_name":\(configured ? "\"Demo teammate · Demo workspace\"" : "null"),
+            "status":"\(configured ? "connected" : "not_connected")"},
             {"provider":"google","name":"Google","configured":true,
             "account_name":"demo@example.org","status":"needs_authorization"}]}
             """.utf8)
@@ -66,7 +70,12 @@ struct AtlasSettingsPreview: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if ProcessInfo.processInfo.arguments.contains("--live-activity") {
+                if ProcessInfo.processInfo.arguments.contains("--coding") {
+                    NavigationStack { AtlasCodingSettingsView(request: environments.request) }
+                } else if ProcessInfo.processInfo.arguments.contains("--repository-picker") {
+                    AtlasThreadRepositoryPicker(threadId: "00000000-0000-4000-8000-000000000001", selected: "acme/mobile",
+                                                request: environments.request, changed: {})
+                } else if ProcessInfo.processInfo.arguments.contains("--live-activity") {
                     AtlasLiveActivityPreview()
                 } else if ProcessInfo.processInfo.arguments.contains("--voice-input") {
                     AtlasVoiceInputPreview()
@@ -82,7 +91,7 @@ struct AtlasSettingsPreview: App {
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local, presence: presence.model,
                                        navigation: navigation) {
                         AtlasSettingsView(server: previewServer, accounts: accounts,
-                                          signOut: {}, profileRequest: business.request, connections: connections)
+                                          signOut: {}, profileRequest: business.request, profileModel: profile, connections: connections)
                     }
                 } else {
                     NavigationStack {
@@ -94,13 +103,15 @@ struct AtlasSettingsPreview: App {
                                 request: holidays.request
                             )
                         } else {
-                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {}, connections: connections)
+                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {},
+                                              profileModel: profile, connections: connections)
                         }
                     }
                 }
             }
             .environment(\.atlasNavigation, navigation)
             .environment(\.atlasServer, previewServer)
+            .environment(\.atlasEnvironmentRequest, environments.request)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background { backgrounded = true }
                 if phase == .active, backgrounded {
@@ -146,46 +157,8 @@ struct AtlasSettingsPreview: App {
             }
             .preferredColorScheme(appearance.mode.scheme ?? (ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light))
             .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--large-text") ? .accessibility2 : .large)
+            .environment(\._accessibilityReduceTransparency, ProcessInfo.processInfo.arguments.contains("--reduce-transparency"))
+            .environment(\._colorSchemeContrast, ProcessInfo.processInfo.arguments.contains("--increased-contrast") ? .increased : .standard)
         }
-    }
-}
-
-@MainActor
-private final class AtlasPresencePreviewData: ObservableObject {
-    private var sequence = 0
-    private var location: [String: String] = [:]
-    private var waiting: CheckedContinuation<Data, Never>?
-    lazy var model = AtlasPresence { [self] action in
-        switch action["action"] as? String {
-        case "open": return Data("{\"connection\":\"preview-only\"}".utf8)
-        case "update":
-            location = [:]
-            for field in ["resource", "id"] {
-                if let value = action[field] as? String { location[field] = value }
-            }
-            sequence += 1
-            waiting?.resume(returning: snapshot())
-            waiting = nil
-            return Data("{\"updated\":true}".utf8)
-        case "next":
-            if (action["after"] as? UInt64 ?? 0) < sequence { return snapshot() }
-            return await withCheckedContinuation { waiting = $0 }
-        default:
-            sequence += 1
-            waiting?.resume(returning: snapshot())
-            waiting = nil
-            return Data("{\"closed\":true}".utf8)
-        }
-    }
-
-    private func snapshot() -> Data {
-        try! JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "location": location, "self_id": "preview-self",
-            "people": [
-                ["id": "online", "name": "Alex Morgan", "email": "alex@example.org", "online": true,
-                 "here": !location.isEmpty && !ProcessInfo.processInfo.arguments.contains("--nobody-here")],
-                ["id": "offline", "name": "Sam Rivera", "email": "sam@example.org", "online": false, "here": false]
-            ]
-        ])
     }
 }

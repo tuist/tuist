@@ -14,7 +14,7 @@ msgstr "Language: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/preview_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
-msgstr "Значок %{app_name}"
+msgstr "Иконка %{app_name}"
 
 #: lib/tuist_web/live/preview_live.ex:41
 #, elixir-autogen, elixir-format
@@ -36,7 +36,7 @@ msgstr "Собрано в"
 #: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
-msgstr "Идентификатор пакета"
+msgstr "Идентификатор бандла"
 
 #: lib/tuist_web/live/preview_live.html.heex:161
 #: lib/tuist_web/live/previews_live.html.heex:91
@@ -57,7 +57,7 @@ msgstr "Удалить превью"
 #: lib/tuist_web/live/preview_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Details"
-msgstr "Подробности"
+msgstr "Сведения"
 
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
@@ -78,7 +78,7 @@ msgstr "Установить приложение"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "Последние превью приложений"
+msgstr "Последние предварительные сборки приложения"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -94,7 +94,7 @@ msgstr "Нет"
 #: lib/tuist_web/live/preview_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
-msgstr "Или запустите через CLI"
+msgstr "Или запустить через CLI"
 
 #: lib/tuist_web/live/previews_live.html.heex:78
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "Имя пакета"
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "Отсканируйте этот QR-код на вашем Android-устройстве, чтобы скачать и установить эту версию приложения"
+msgstr "Отсканируйте этот QR-код на устройстве Android, чтобы скачать и установить эту версию приложения"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format

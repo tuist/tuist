@@ -29,17 +29,28 @@ defmodule TuistWeb.BuildRunLiveTest do
     project: project,
     organization: organization
   } do
-    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, custom_values: %{"team" => "mobile"})
+    generation = CommandEventsFixtures.command_event_fixture(project_id: project.id, tuist_version: "4.100.0")
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        generation_id: generation.id,
+        tuist_version: "4.200.0-canary.2",
+        custom_values: %{"team" => "mobile"}
+      )
+
     path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
     {:ok, view, _} = live(conn, path)
 
-    for label <- ["Xcode version", "macOS version", "Mac device"] do
+    for label <- ["Tuist CLI version", "Tuist generator version", "Xcode version", "macOS version", "Mac device"] do
       assert has_element?(view, "#build-environment-content[hidden]", label)
       refute has_element?(view, "[data-part=build-details]", label)
     end
 
     assert has_element?(view, "#build-environment-content", "12.4")
     assert has_element?(view, "#build-environment-content", "11.2.3")
+    assert has_element?(view, "#build-environment-content", "4.100.0")
+    assert has_element?(view, "#build-environment-content", "4.200.0-canary.2")
     assert has_element?(view, "[data-part=build-details]", "Configuration")
     assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
     refute has_element?(view, "[data-part=build-details] #build-environment")

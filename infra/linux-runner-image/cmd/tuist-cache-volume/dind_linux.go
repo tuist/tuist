@@ -82,6 +82,7 @@ type daemon struct {
 	ledger    dockerLedger
 	run       func(context.Context, string, ...string) ([]byte, error)
 	usedBytes func(string) (int64, error)
+	trim      func(string) error // test seam; production uses syncfs + FITRIM
 	// pipe runs the docker command from with its output as the docker command to's input.
 	pipe func(ctx context.Context, from, to []string) error
 }

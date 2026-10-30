@@ -50,7 +50,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
-  test "repairs a release that was skipped before skip classifications were versioned" do
+  test "repairs a legacy skipped release after a transient manifest fetch failure" do
     legacy_metadata = %{
       "releases" => %{},
       "skipped_releases" => %{"1.0.0" => %{"reason" => "missing_manifests"}}
@@ -68,9 +68,28 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
     end)
 
+    expect(Finch, :request, fn _request, _finch, _opts ->
+      {:error, %Mint.HTTPError{module: Mint.HTTP2, reason: :closed_for_writing}}
+    end)
+
+    stub(Finch, :request, fn _request, _finch, _opts ->
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         headers: [{"content-type", "application/json"}],
+         body: JSON.encode!(%{"content" => Base.encode64(@default_manifest_content), "encoding" => "base64"})
+       }}
+    end)
+
     expect(TuistCommon.GitHub, :get_file_content, 2, fn
-      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
-        {:ok, @default_manifest_content}
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", opts ->
+        Mimic.call_original(TuistCommon.GitHub, :get_file_content, [
+          "apple/swift-argument-parser",
+          "token",
+          "Package.swift",
+          "v1.0.0",
+          opts
+        ])
 
       "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
         {:error, :not_found}
@@ -209,9 +228,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
     end)
 
-    expect(TuistCommon.GitHub, :get_file_content, fn
-      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
-        {:error, {:rate_limited, 403, 420}}
+    expect(Finch, :request, fn _request, _finch, _opts ->
+      {:ok, %Finch.Response{status: 429, headers: [{"retry-after", "420"}]}}
+    end)
+
+    stub(Finch, :request, fn _request, _finch, _opts ->
+      flunk("rate limits must defer the job without immediate retries")
     end)
 
     stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
@@ -282,9 +304,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
     end)
 
-    expect(TuistCommon.GitHub, :get_file_content, fn
-      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
-        {:error, {:http_error, 503}}
+    expect(Finch, :request, fn _request, _finch, _opts ->
+      {:ok, %Finch.Response{status: 503}}
+    end)
+
+    stub(Finch, :request, fn _request, _finch, _opts ->
+      flunk("upstream HTTP failures must defer the job without immediate retries")
     end)
 
     stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
@@ -1214,6 +1239,58 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
                  "tag" => "v1.0.0"
                }
              })
+  end
+
+  for failed_path <- ["Package.swift", "Package@swift-5.10.swift"] do
+    test "stops after four attempts fetching #{failed_path} without publishing or skipping the release" do
+      failed_path = unquote(failed_path)
+
+      stub(Lock, :try_acquire, fn _, _ -> {:ok, :acquired} end)
+      stub(Metadata, :get_package, fn _, _, _ -> {:error, :not_found} end)
+
+      stub(Metadata, :put_package, fn _, _, metadata ->
+        send(self(), {:metadata_written, metadata})
+        :ok
+      end)
+
+      stub(TuistCommon.GitHub, :list_repository_contents, fn _, _, _, _ ->
+        {:ok, [%{"path" => "Package.swift"}, %{"path" => "Package@swift-5.10.swift"}]}
+      end)
+
+      stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ ->
+        flunk("must not publish a release with a failed manifest fetch")
+      end)
+
+      stub(TuistCommon.GitHub, :get_file_content, fn handle, token, path, tag, opts ->
+        if path == failed_path do
+          Mimic.call_original(TuistCommon.GitHub, :get_file_content, [handle, token, path, tag, opts])
+        else
+          {:ok, @default_manifest_content}
+        end
+      end)
+
+      expect(Finch, :request, 4, fn _request, _finch, _opts ->
+        {:error, %Mint.HTTPError{module: Mint.HTTP2, reason: :closed_for_writing}}
+      end)
+
+      stub(Finch, :request, fn _request, _finch, _opts ->
+        flunk("must stop after the initial attempt and three retries")
+      end)
+
+      assert {:error,
+              {:manifest_fetch_failed,
+               [%{path: ^failed_path, reason: %Req.HTTPError{protocol: :http2, reason: :closed_for_writing}}]}} =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+
+      refute_received {:metadata_written, _}
+    end
   end
 
   defp stub_successful_fetch do

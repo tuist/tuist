@@ -10,13 +10,18 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var failedCachedRefresh = false
     private let clock = ContinuousClock()
     private var activityStarted: ContinuousClock.Instant?
+    private var inboxActivityStarted: ContinuousClock.Instant?
     private var followStarted: ContinuousClock.Instant?
     private var rich: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-rich") }
+    private var signals: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-signals") }
     private var activity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-activity") }
+    private var inboxActivity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-inbox-activity") }
     private var follow: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-follow") }
     private var selected: [String: Any]?
     private var listKind: String?
     private var listStatus = "active"
+    private var query = ""
+    private var domain = ""
     private var archivedIDs: Set<String> = []
     private var createdThreads: [[String: Any]] = []
     private var draft = ""
@@ -29,6 +34,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var drafts: [String: String] = [:]
     private var attachmentsByThread: [String: [[String: Any]]] = [:]
     private var sentByThread: [String: [[String: Any]]] = [:]
+    private var modelsByThread: [String: String] = [:]
+    private var modelError: String?
     private var seededAttachments = false
     private var olderPromptsLoaded = false
     private let promptTime = Date()
@@ -47,6 +54,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
         }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
+        case "models":
+            modelError = ProcessInfo.processInfo.arguments.contains("--fail-model-catalog")
+                ? "Reconnect ChatGPT in Settings → AI accounts to load its models." : nil
+        case "set_model":
+            if let id = command["id"] as? String, selected?["id"] as? String == id {
+                let choice = command["model"] as? String
+                modelsByThread[id] = choice
+                selected?["model"] = choice
+                modelError = nil
+            }
         case "load":
             if cached {
                 try await Task.sleep(for: .seconds(6))
@@ -59,7 +76,12 @@ final class AtlasOrbitPreviewData: ObservableObject {
             }
             listKind = command["kind"] as? String
             if let status = command["status"] as? String { listStatus = status }
+            if let query = command["query"] as? String { self.query = query }
+            if let domain = command["domain"] as? String { self.domain = domain }
             loads += 1
+            if loads > 1, ProcessInfo.processInfo.arguments.contains("--delayed-orbit-refresh") {
+                try await Task.sleep(for: .seconds(3))
+            }
             if loads > 1, ProcessInfo.processInfo.arguments.contains("--fail-orbit-refresh") {
                 throw AtlasAuthenticationError(kind: "server", message: "Preview refresh failed. Loaded threads are retained.")
             }
@@ -95,7 +117,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 }
             }
         case "create": select(thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared"))
-        case "leave": select(nil)
+        case "leave":
+            if command["id"] as? String == selected?["id"] as? String { select(nil) }
         case "people":
             let query = command["query"] as? String ?? ""
             mentionCandidates = query.isEmpty || "Alex Morgan".localizedCaseInsensitiveContains(query)
@@ -103,7 +126,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         case "history":
             if command["older"] as? Bool == true {
                 if ProcessInfo.processInfo.arguments.contains("--delayed-orbit-history") {
-                    try await Task.sleep(for: .seconds(8))
+                    try await Task.sleep(for: .seconds(20))
                 }
                 olderPromptsLoaded = true
             }
@@ -113,15 +136,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 promotedIDs.insert(id)
                 selected?["kind"] = "shared"
                 if let index = createdThreads.firstIndex(where: { $0["id"] as? String == id }) { createdThreads[index]["kind"] = "shared" }
-                handoff = message(id: "handoff-\(sent.count)", kind: "system", body: """
-                    Conversation so far — excerpts for new participants (not an AI-generated summary).
-
-                    Initial request (excerpt):
-                    > Check whether other projects are affected too.
-
-                    Latest Pip reply (excerpt):
-                    > The build listing became slower after this morning’s deployment. I’m comparing the query plans.
-                    """, extra: ["notice_kind": "handoff"])
+                handoff = message(id: "joined-\(sent.count)", kind: "system", body: "Alex Morgan joins the conversation.",
+                                  extra: ["notice_kind": "joined"])
             }
             if sent.isEmpty, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let index = createdThreads.firstIndex(where: { $0["id"] as? String == selected?["id"] as? String }) {
@@ -133,6 +149,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
             ]))
             if let handoff { sent.append(handoff) }
+            if ProcessInfo.processInfo.arguments.contains("--orbit-suggestions") {
+                let firstReply = sent.filter { $0["kind"] as? String == "human" }.count == 1
+                sent.append(message(id: UUID().uuidString, kind: "agent", body: firstReply
+                    ? "Two open tasks need your attention: the release checklist and the account review."
+                    : "The release checklist is due first. Start with validation, then prepare the rollback plan.", extra: [
+                        "suggestions": firstReply
+                            ? ["Show the overdue tasks", "Group tasks by account", "What can wait until tomorrow?"]
+                            : ["Summarize the release risks", "Explain the rollback plan", "Which checks are still missing?"]
+                    ]))
+            }
             draft = ""
             draftMentions = []
             draftAttachments = []
@@ -158,7 +184,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ])
         }
         if action["action"] as? String == "next" {
-            try await Task.sleep(for: .seconds(activity || follow ? 1 : 30))
+            try await Task.sleep(for: .seconds(activity || follow || inboxActivity ? 1 : 30))
         }
         if action["action"] as? String == "draft" {
             draft = action["body"] as? String ?? ""
@@ -195,6 +221,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
 
     private func snapshot() throws -> Data {
         sequence += 1
+        if inboxActivity, inboxActivityStarted == nil { inboxActivityStarted = clock.now }
         if let id = selected?["id"] as? String {
             drafts[id] = draft
             mentionsByThread[id] = draftMentions
@@ -278,21 +305,64 @@ final class AtlasOrbitPreviewData: ObservableObject {
             thread(id: secondPrivateID, title: "Release checklist", kind: "private"),
             thread(id: sharedID, title: "Build listing latency", kind: "shared")
         ]
-        let threads = (createdThreads + seedThreads).map { value in
+        var threads = (createdThreads + seedThreads).map { value in
             var thread = value
             thread["status"] = archivedIDs.contains(value["id"] as? String ?? "") ? "archived" : "active"
             return thread
         }
+        if signals {
+            // Rust snapshots preserve the server's global priority order, before native rendering.
+            let order = ["now": 0, "today": 1, "later": 2]
+            threads.sort { (order[$0["priority"] as? String ?? ""] ?? 3) < (order[$1["priority"] as? String ?? ""] ?? 3) }
+        }
+        if signals, selected?["id"] as? String == sharedID {
+            messages = [
+                message(id: "signal-initial", kind: "system", body: "Error rate increased after the latest deployment. Pip is investigating."),
+                message(id: "signal-reply", kind: "agent", body: "The increase is concentrated in build listing requests. Compare the new filter’s query plan before choosing a mitigation."),
+                message(id: "signal-joined", kind: "system", body: "Taylor joins the conversation.", extra: ["notice_kind": "joined"]),
+                message(id: "signal-catch-up", kind: "system", body: """
+                    Factual excerpts, not an AI-generated summary.
+
+                    Initial request (excerpt):
+                    > Error rate increased after the latest deployment.
+
+                    Latest Pip reply (excerpt):
+                    > Compare the new filter’s query plan before choosing a mitigation.
+                    """, extra: ["notice_kind": "private_handoff"])
+            ] + sent
+        }
         return try JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
+            "sequence": sequence, "assistant": ["name": "Pip", "configured": true, "searchable": true,
+                                                 "domains": [["id": "engineering", "name": "Engineering"], ["id": "commercial", "name": "Commercial"]]],
             "cached": cached,
-            "threads": threads.filter { (listKind == nil || $0["kind"] as? String == listKind) && $0["status"] as? String == listStatus },
+            "threads": threads.map { row in
+                var row = row
+                row["domain"] = (row["kind"] as? String == "shared") ? "commercial" : "engineering"
+                if inboxActivity, row["id"] as? String == privateID {
+                    let elapsed = inboxActivityStarted?.duration(to: clock.now).components.seconds ?? 0
+                    row["agent_status"] = elapsed < 12 ? "running" : "idle"
+                }
+                return row
+            }.filter { row in
+                let label = row["domain"] as? String
+                let text = "\(row["title"] as? String ?? "") \(row["summary"] as? String ?? "")"
+                return (listKind == nil || row["kind"] as? String == listKind) && row["status"] as? String == listStatus
+                    && (domain.isEmpty || (domain == "unclassified" ? label == nil : label == domain))
+                    && (query.isEmpty || text.localizedCaseInsensitiveContains(query))
+            },
             "status_filter": listStatus,
+            "query": query, "domain_filter": domain,
             "selection_id": selected?["id"] as Any? ?? NSNull(),
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
             "draft": draft, "draft_mentions": draftMentions, "mention_candidates": mentionCandidates,
             "draft_attachments": draftAttachments, "attachment_busy": false,
+            "models": ProcessInfo.processInfo.arguments.contains("--fail-model-catalog") ? [] : [
+                ["id": "chatgpt:gpt-6.1-sol", "name": "GPT-6.1 Sol", "provider": "ChatGPT"],
+                ["id": "chatgpt:gpt-6-sol", "name": "GPT-6 Sol", "provider": "ChatGPT"],
+                ["id": "workspace", "name": "Workspace model", "provider": "Atlas"]
+            ],
+            "model_error": modelError as Any? ?? NSNull(), "models_loading": false,
             "has_drafts": !draft.isEmpty || !draftAttachments.isEmpty || drafts.values.contains(where: { !$0.isEmpty }),
             "loading": false, "history_loading": false, "saving": false,
             "has_more": false, "has_older": ProcessInfo.processInfo.arguments.contains("--orbit-prompts") && !olderPromptsLoaded,
@@ -381,6 +451,15 @@ final class AtlasOrbitPreviewData: ObservableObject {
     }
 
     private func thread(id: String, title: String, kind: String) -> [String: Any] {
+        if signals {
+            let priority = id == sharedID ? "now" : id == secondPrivateID ? "today" : "later"
+            return ["id": id, "title": id == sharedID ? "Build listing errors" : id == secondPrivateID ? "Northstar asks about SSO" : "New lead from Acme",
+                    "kind": "shared", "status": archivedIDs.contains(id) ? "archived" : "active",
+                    "summary": id == sharedID ? "Error rate increased after the latest deployment." : id == secondPrivateID ? "Pip found the setup guide and drafted a response." : "Review the company and suggest a first response.",
+                    "priority": priority, "origin": "signal", "owner_id": "preview-self",
+                    "participants": [["id": "preview-self", "name": "Taylor"], ["id": "online", "name": "Alex"]],
+                    "updated_at": ISO8601DateFormatter().string(from: promptTime)]
+        }
         if AtlasSocialPreviewData.enabled, var social = AtlasSocialPreviewData.threads.first(where: { $0["id"] as? String == id }) {
             social["status"] = archivedIDs.contains(id) ? "archived" : "active"
             return social
@@ -388,6 +467,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         let updated = id == secondPrivateID ? Calendar.current.date(byAdding: .day, value: -1, to: promptTime)! : promptTime
         return ["id": id, "title": title, "kind": promotedIDs.contains(id) ? "shared" : kind,
          "status": archivedIDs.contains(id) ? "archived" : "active",
+         "model": modelsByThread[id] as Any? ?? NSNull(),
          "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
          "origin": kind == "private" ? "manual" : "signal", "owner_id": "preview-self", "participants": [["id": "preview-self", "name": "Taylor"]],
          "updated_at": ISO8601DateFormatter().string(from: updated)]

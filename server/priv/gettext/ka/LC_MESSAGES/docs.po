@@ -21,10 +21,10 @@ msgstr "არტიფაქტები"
 #: lib/tuist_web/live/docs_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
-msgstr "ავტომატურად აღმოაჩინეთ არასტაბილური ტესტები, რომლებიც კოდის ცვლილებების გარეშე მარცხდება და დაზოგეთ დრო ყალბი შეცდომების გამოძიებაზე."
+msgstr "ავტომატურად აღმოაჩინეთ არასტაბილური ტესტები, რომლებიც კოდის ცვლილებების გარეშე მცირდება და დაზოგეთ დრო, რომელიც იხარჯება ცრუ შეცდომების გამოძიებაზე."
 
 #: lib/tuist_web/docs/layouts.ex:58
-#: lib/tuist_web/docs/layouts/root.html.heex:193
+#: lib/tuist_web/docs/layouts/root.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
 msgstr "Bluesky"
@@ -33,7 +33,7 @@ msgstr "Bluesky"
 #: lib/tuist_web/live/docs_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "აწყობები"
+msgstr "ბილდები"
 
 #: lib/tuist_web/live/docs_live.ex:319
 #: lib/tuist_web/live/docs_live.ex:735
@@ -45,19 +45,19 @@ msgstr "ქეში"
 #: lib/tuist_web/live/docs_live.ex:807
 #, elixir-autogen, elixir-format
 msgid "Chat with the Tuist community in real-time."
-msgstr "რეალურ დროში ესაუბრეთ Tuist-ის საზოგადოებას."
+msgstr "ესაუბრეთ Tuist-ის საზოგადოებას რეალურ დროში."
 
 #: lib/tuist_web/live/docs_live.ex:511
 #: lib/tuist_web/live/docs_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
-msgstr "დაუკავშირდით ათასობით დეველოპერს, რომლებიც Tuist-ით უკეთეს აპებს აწვდიან. მიიღეთ დახმარება, გაუზიარეთ წარმატებები და ჩამოაყალიბეთ აპების დეველოპმენტის ინსტრუმენტების მომავალი."
+msgstr "დაუკავშირდით ათასობით დეველოპერს, ვინც Tuist-ით უკეთეს აპებს ქმნის. მიიღეთ დახმარება, გაუზიარეთ წარმატებები და ჩამოაყალიბეთ აპების განვითარების ინსტრუმენტების მომავალი."
 
 #: lib/tuist_web/live/docs_live.ex:529
 #: lib/tuist_web/live/docs_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Contribute or report issues to our open source repository."
-msgstr "შეიტანეთ თქვენი წვლილი ან შეატყობინეთ პრობლემები ჩვენს ღია კოდის რეპოზიტორიას."
+msgstr "შეიტანეთ წვლილი ან შეატყობინეთ პრობლემები ჩვენს ღია კოდის რეპოზიტორიას."
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:71
 #: lib/tuist_web/docs/components/page_layout.html.heex:74
@@ -73,7 +73,7 @@ msgstr "გვერდის კოპირება"
 #: lib/tuist_web/docs/components/toc.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Copy page as markdown for LLMs"
-msgstr "გვერდის კოპირება markdown-ად LLM-ებისთვის"
+msgstr "გვერდის კოპირება markdown-ში LLM-ებისთვის"
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:35
 #, elixir-autogen, elixir-format
@@ -101,16 +101,16 @@ msgstr "მიჰყევით Tuist-ს LinkedIn-ზე სიახლეე
 #: lib/tuist_web/live/docs_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "Follow us on Bluesky to stay up to date with our work."
-msgstr "მიჰყევით ჩვენ Bluesky-ზე, რომ იყოთ ჩვენს საქმიანობაში მიმდინარე მოვლენებთან."
+msgstr "მიჰყევით ჩვენ Bluesky-ზე, რომ იყოთ საქმეებთან ერთად."
 
 #: lib/tuist_web/live/docs_live.ex:594
 #: lib/tuist_web/live/docs_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Follow us on Mastodon to stay up to date with our work."
-msgstr "მიჰყევით ჩვენ Mastodon-ზე, რომ იყოთ ჩვენს საქმიანობაში მიმდინარე მოვლენებთან."
+msgstr "მიჰყევით ჩვენ Mastodon-ზე, რომ იყოთ საქმეებთან ერთად."
 
 #: lib/tuist_web/docs/layouts.ex:47
-#: lib/tuist_web/docs/layouts/root.html.heex:169
+#: lib/tuist_web/docs/layouts/root.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
@@ -127,13 +127,13 @@ msgstr "სახელმძღვანელოები"
 #: lib/tuist_web/live/docs_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "Insights"
-msgstr "ინსაიტები"
+msgstr "ინფორმაცია"
 
 #: lib/tuist_web/live/docs_live.ex:482
 #: lib/tuist_web/live/docs_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
-msgstr "ისწავლეთ რეალური დანერგვებიდან და შთაგონდით იმით, თუ რა არის შესაძლებელი, როცა თქვენი ინსტრუმენტების ნაკრები უბრალოდ მუშაობს."
+msgstr "ისწავლეთ რეალური დანერგვებიდან და მიიღეთ შთაგონება იმ შესაძლებლობებით, როცა თქვენი ინსტრუმენტების ჯაჭვი უბრალოდ მუშაობს."
 
 #: lib/tuist_web/live/docs_live.ex:570
 #: lib/tuist_web/live/docs_live.ex:811
@@ -142,24 +142,24 @@ msgid "Learn from videos from the Tuist team and the community."
 msgstr "ისწავლეთ Tuist-ის გუნდისა და საზოგადოების ვიდეოებიდან."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:109
-#: lib/tuist_web/docs/layouts/root.html.heex:268
+#: lib/tuist_web/docs/layouts/root.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Main navigation"
 msgstr "მთავარი ნავიგაცია"
 
 #: lib/tuist_web/docs/layouts.ex:52
-#: lib/tuist_web/docs/layouts/root.html.heex:177
+#: lib/tuist_web/docs/layouts/root.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr "Mastodon"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:355
+#: lib/tuist_web/docs/layouts/root.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Menu"
 msgstr "მენიუ"
 
 #: lib/tuist_web/docs/components/toc.html.heex:39
-#: lib/tuist_web/docs/layouts/root.html.heex:365
+#: lib/tuist_web/docs/layouts/root.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "On this page"
 msgstr "ამ გვერდზე"
@@ -170,7 +170,7 @@ msgstr "ამ გვერდზე"
 msgid "Open source and community"
 msgstr "ღია კოდი და საზოგადოება"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:339
+#: lib/tuist_web/docs/layouts/root.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Page navigation"
 msgstr "გვერდის ნავიგაცია"
@@ -179,7 +179,7 @@ msgstr "გვერდის ნავიგაცია"
 #: lib/tuist_web/live/docs_live.ex:776
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "Previews"
+msgstr "პრივიუები"
 
 #: lib/tuist_web/docs/layouts.ex:37
 #: lib/tuist_web/docs/layouts/root.html.heex:134
@@ -198,7 +198,7 @@ msgstr "რესურსები"
 msgid "Return to top"
 msgstr "დაბრუნება ზევით"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:248
+#: lib/tuist_web/docs/layouts/root.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "ძებნა"
@@ -207,7 +207,7 @@ msgstr "ძებნა"
 #: lib/tuist_web/live/docs_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "See Tuist in action"
-msgstr "იხილეთ Tuist-ის მოქმედებაში"
+msgstr "იხილეთ Tuist მოქმედებაში"
 
 #: lib/tuist_web/live/docs_live.ex:368
 #: lib/tuist_web/live/docs_live.ex:753
@@ -219,15 +219,15 @@ msgstr "შერჩევა"
 #: lib/tuist_web/live/docs_live.ex:809
 #, elixir-autogen, elixir-format
 msgid "Share your ideas, report issues, and discuss with other community members."
-msgstr "გაუზიარეთ იდეები, შეატყობინეთ პრობლემები და ისაუბრეთ სხვა საზოგადოების წევრებთან."
+msgstr "გაუზიარეთ თქვენი იდეები, შეატყობინეთ პრობლემების შესახებ და იმსჯელეთ სხვა საზოგადოების წევრებთან."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Skip to content"
-msgstr "კონტენტზე გადასვლა"
+msgstr "გადადით შინაარსზე"
 
 #: lib/tuist_web/docs/layouts.ex:56
-#: lib/tuist_web/docs/layouts/root.html.heex:185
+#: lib/tuist_web/docs/layouts/root.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
@@ -283,7 +283,7 @@ msgstr "ნავიგაცია"
 msgid "No search history"
 msgstr "ძებნის ისტორია არ არის"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:383
+#: lib/tuist_web/docs/layouts/root.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "ძებნა..."
@@ -311,11 +311,11 @@ msgstr "ნახვა"
 #: lib/tuist_web/live/docs_live.ex:642
 #, elixir-autogen, elixir-format
 msgid "as Markdown"
-msgstr "როგორც Markdown"
+msgstr "Markdown-ში"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:209
-#: lib/tuist_web/docs/layouts/root.html.heex:231
-#: lib/tuist_web/docs/layouts/root.html.heex:283
+#: lib/tuist_web/docs/layouts/root.html.heex:210
+#: lib/tuist_web/docs/layouts/root.html.heex:232
+#: lib/tuist_web/docs/layouts/root.html.heex:284
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "შესვლა"
@@ -326,8 +326,8 @@ msgstr "შესვლა"
 msgid "Copied"
 msgstr "დაკოპირებულია"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:206
-#: lib/tuist_web/docs/layouts/root.html.heex:227
+#: lib/tuist_web/docs/layouts/root.html.heex:207
+#: lib/tuist_web/docs/layouts/root.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Toggle theme"
 msgstr "თემის გადართვა"
@@ -341,7 +341,7 @@ msgstr "Tuist-ის შესაძლებლობების შესწ�
 #: lib/tuist_web/live/docs_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Install Tuist"
-msgstr "Tuist-ის ინსტალაცია"
+msgstr "Tuist-ის დაყენება"
 
 #: lib/tuist_web/live/docs_live.ex:423
 #: lib/tuist_web/live/docs_live.ex:771
@@ -359,55 +359,55 @@ msgstr "ერთი პლატფორმა სწრაფი ბილდ
 #: lib/tuist_web/live/docs_live.ex:754
 #, elixir-autogen, elixir-format
 msgid "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
-msgstr "შეასრულეთ მხოლოდ იმ ტესტები, რომლებზეც გავლენა მოახდინა ცვლილებებმა თქვენი ბოლო წარმატებული გაშვებიდან, როგორც ლოკალურად, ასევე უწყვეტი ინტეგრაციის პროცესში."
+msgstr "გაუშვით მხოლოდ იმ ტესტები, რომლებზეც ცვლილებებმა იმოქმედა — აღმოაჩინეთ ცვლილებები ბოლო წარმატებული გაშვების შემდეგ, როგორც ლოკალურად, ისე CI-ში."
 
 #: lib/tuist_web/live/docs_live.ex:356
 #: lib/tuist_web/live/docs_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
-msgstr "შეასრულეთ მნიშვნელოვანი ტესტები, აღმოაჩინეთ არასტაბილური ქცევა და გაიაზრეთ ტესტების შესრულება ლოკალურად და უწყვეტი ინტეგრაციის დროს."
+msgstr "გაუშვით მნიშვნელოვანი ტესტები, აღმოაჩინეთ არასტაბილური ქცევა და შეაფასეთ ტესტების შესრულება ლოკალურად და CI-ში."
 
 #: lib/tuist_web/live/docs_live.ex:306
 #: lib/tuist_web/live/docs_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
-msgstr "გაუზიარეთ ბილდის სამუშაო დეველოპერების კომპიუტერებს, უწყვეტი ინტეგრაციის სისტემებს, გამშვებებსა და კოდირების აგენტებს, შემდეგ კი გამოიყენეთ ანალიტიკა რეგრესიების აღმოსაჩენად."
+msgstr "გაანაწილეთ ბილდის სამუშაო დეველოპერების მანქანებს, CI-ს, რანერებსა და კოდირების აგენტებს შორის და გამოიყენეთ ანალიტიკა რეგრესიების აღმოსაჩენად."
 
 #: lib/tuist_web/live/docs_live.ex:436
 #: lib/tuist_web/live/docs_live.ex:777
 #, elixir-autogen, elixir-format
 msgid "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
-msgstr "გაუზიარეთ თქვენი აპლიკაცია ბმულით, რათა სხვებმა შეძლონ მისი გაშვება საკუთარ მოწყობილობაზე ან სიმულატორზე TestFlight-ის კონფიგურაციის გარეშე."
+msgstr "გაუზიარეთ თქვენი აპი ბმულით, რათა სხვებმა შეძლონ მისი გაშვება საკუთარ მოწყობილობაზე ან სიმულატორზე TestFlight-ის კონფიგურაციის გარეშე."
 
 #: lib/tuist_web/live/docs_live.ex:295
 #: lib/tuist_web/live/docs_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
-msgstr "დააჩქარეთ ბილდები, გააუმჯობესეთ ტესტების საიმედოობა, გაიაზრეთ შესრულება და გაუშვით სამუშაო ნაკადები ინფრასტრუქტურაზე, რომელიც შექმნილია თქვენი ინსტრუმენტებისთვის."
+msgstr "აჩქარეთ ბილდები, გაზარდეთ ტესტების საიმედოობა, გაიგეთ შესრულების მახასიათებლები და გაუშვით სამუშაო პროცესები თქვენი ინსტრუმენტებისთვის შექმნილ ინფრასტრუქტურაზე."
 
 #: lib/tuist_web/live/docs_live.ex:408
 #: lib/tuist_web/live/docs_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
-msgstr "თესტების შესრულების მონიტორინგი, ნელი თესტების ადრეული გამოვლენა და უწყვეტი ინტეგრაციის შეცდომების დიაგნოსტიკა რეალურ დროში ლოგების საშუალებით."
+msgstr "შეაფასეთ ტესტების შესრულება, დროულად აღმოაჩინეთ ნელი ტესტები და გაარკვიეთ უწყვეტი ინტეგრაციის შეცდომები რეალურ დროში ლოგების საშუალებით."
 
 #: lib/tuist_web/live/docs_live.ex:341
 #: lib/tuist_web/live/docs_live.ex:741
 #, elixir-autogen, elixir-format
 msgid "Understand build performance across local and continuous integration environments before slowdowns affect your team."
-msgstr "აიგეთ ბილდის შესრულება ლოკალურ და უწყვეტი ინტეგრაციის გარემოებში, სანამ შენელებები თქვენს გუნდს შეეხება."
+msgstr "გაიგეთ ბილდის შესრულების მახასიათებლები როგორც ადგილობრივ, ისე უწყვეტი ინტეგრაციის გარემოში, სანამ შენელებები თქვენს გუნდს შეეხება."
 
-#: lib/tuist_web/docs/layouts/root.html.heex:299
+#: lib/tuist_web/docs/layouts/root.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Close menu"
 msgstr "მენიუს დახურვა"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:306
+#: lib/tuist_web/docs/layouts/root.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "Documentation sections"
 msgstr "დოკუმენტაციის სექციები"
 
-#: lib/tuist_web/docs/layouts/root.html.heex:255
+#: lib/tuist_web/docs/layouts/root.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Open menu"
 msgstr "მენიუს გახსნა"
@@ -415,7 +415,7 @@ msgstr "მენიუს გახსნა"
 #: lib/tuist_web/live/docs_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Follow us on X to stay up to date with our work."
-msgstr "გამოგვყევით X-ზე, რომ იყოთ ჩვენი საქმიანობის კურსში."
+msgstr "მიჰყევით ჩვენ X-ზე, რომ იყოთ საქმის კურსში."
 
 #: lib/tuist_web/live/docs_live.ex:233
 #, elixir-autogen, elixir-format
@@ -452,34 +452,34 @@ msgstr "ან მიჰყევით ინსტრუქციებს"
 #: lib/tuist_web/live/docs_live.ex:782
 #, elixir-autogen, elixir-format
 msgid "Compute"
-msgstr "გამოთვლა"
+msgstr "გამოთვლები"
 
 #: lib/tuist_web/live/docs_live.ex:463
 #: lib/tuist_web/live/docs_live.ex:789
 #, elixir-autogen, elixir-format
 msgid "Runners"
-msgstr "გამშვებები (Runners)"
+msgstr "რანერები"
 
 #: lib/tuist_web/live/docs_live.ex:451
 #: lib/tuist_web/live/docs_live.ex:784
 #, elixir-autogen, elixir-format
 msgid "Run workflows on managed compute with cache infrastructure colocated for the best performance."
-msgstr "წარმართეთ სამუშაო პროცესები მართულ გამოთვლებზე, სადაც ქეშის ინფრასტრუქტურა განთავსებულია იმავე ადგილას საუკეთესო წარმადობისთვის."
+msgstr "წარმართეთ სამუშაო პროცესები მართულ გამოთვლით რესურსებზე, სადაც ქეშის ინფრასტრუქტურა განლაგებულია იმავე ადგილას საუკეთესო წარმადობისთვის."
 
 #: lib/tuist_web/live/docs_live.ex:467
 #: lib/tuist_web/live/docs_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
-msgstr "წარმართეთ უწყვეტი ინტეგრაციის სამუშაო პროცესები მართულ macOS და Linux გამშვებებზე, სადაც ქეშის ინფრუქტურა განთავსებულია გამოთვლების გვერდით საუკეთესო შედეგებისთვის და გაზიარებულია თქვენს დეველოპერულ მანქანებთან."
+msgstr "წარმართეთ უწყვეტი ინტეგრაციის სამუშაო პროცესები მართულ macOS და Linux რანერებზე, სადაც ქეშის ინფრასტრუქტურა განლაგებულია გამოთვლითი რესურსების გვერდით საუკეთესო შედეგებისთვის და გაზიარებულია თქვენს დეველოპერულ მანქანებთან."
 
 #: lib/tuist_web/live/docs_live.ex:192
 #: lib/tuist_web/live/docs_live.ex:713
 #, elixir-autogen, elixir-format
 msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
-msgstr "კოდი უფრო სწრაფად და უფრო დიდი მოცულობით იქმნება, ვიდრე ოდესმე. Tuist ინტეგრირდება თქვენს მიერ უკვე გამოყენებულ აგების სისტემებში Xcode-ის, Gradle-ის, Bazel-ის, Elixir-ისა და Rust-ის პროექტებზე, უზრუნველყოფს ინფრასტრუქტურას, რომელიც საშუალებას აძლევს პროგრამული უზრუნველყოფის ინტეგრაციასა და მიწოდებას შეინარჩუნოს შესაბამისი ტემპი."
+msgstr "კოდი იქმნება უფრო სწრაფად და დიდი მოცულობით, ვიდრე ოდესმე. Tuist ინტეგრირდება თქვენს არსებულ ბილდის სისტემებში Xcode-ის, Gradle-ის, Bazel-ის, Elixir-ისა და Rust-ის პროექტებისთვის, უზრუნველყოფს ინფრასტრუქტურას, რომელიც საშუალებას აძლევს პროგრამული უზრუნველყოფის ინტეგრაციასა და მიწოდებას შეინარჩუნოს თანმიმდევრული ტემპი."
 
 #: lib/tuist_web/live/docs_live.ex:323
 #: lib/tuist_web/live/docs_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
-msgstr "გაუზიარეთ Xcode-ის, Gradle-ის, Bazel-ისა და Rust-ის აგების არტეფაქტები და აუდიტირებული Elixir-ის დამოკიდებულებების პაკეტები მანქანებსა და CI-ს შორის. Rust-ის ქეშირება ექსპერიმენტულია."
+msgstr "გაუზიარეთ Xcode-ის, Gradle-ის, Bazel-ისა და Rust-ის ბილდის არტიფაქტები და აუდიტირებული Elixir-ის დამოკიდებულებების პაკეტები მანქანებსა და CI-ს შორის. Rust-ის კეშირება ექსპერიმენტულია."

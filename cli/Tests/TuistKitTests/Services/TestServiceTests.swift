@@ -12,7 +12,6 @@ import TuistCI
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
-import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGenerator
@@ -29,6 +28,7 @@ import TuistXCResultService
 import XcodeGraph
 import XCResultParser
 import XCTest
+@testable import TuistCore
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -9315,5 +9315,300 @@ private final class LockedValue<Value>: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         transform(&storage)
+    }
+}
+
+struct TestServiceTargetQueryTests {
+    private enum Failure: Error {
+        case unexpectedTestExecution
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [
+        "tag:snapshot", "AppTests/Suite/testView",
+    ], [false, true])
+    func disjointShardSkipsSuccessfully(query: String, callerOwnedProducts: Bool) async throws {
+        let shard = try await makeShard(identifiers: ["OtherTests/Suite"])
+        let (subject, _) = makeSubject(shard: shard)
+
+        try await run(subject, productsPath: shard.testProductsPath, included: [query], callerOwnedProducts: callerOwnedProducts)
+
+        #expect(try await FileSystem().exists(shard.testProductsPath) == callerOwnedProducts)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [
+        (["tag:missing"], [], false),
+        (["tag:snapshot"], [], true),
+        ([], ["tag:snapshot"], true),
+    ], [false, true])
+    func invalidFiltersRespectProductsOwnership(
+        selection: (included: [String], excluded: [String], legacy: Bool),
+        callerOwnedProducts: Bool
+    ) async throws {
+        let shard = try await makeShard(identifiers: ["AppTests/Suite"], legacy: selection.legacy)
+        let (subject, _) = makeSubject(shard: shard)
+
+        if selection.legacy {
+            await #expect(throws: TestIdentifier.Error.self) {
+                try await run(
+                    subject,
+                    productsPath: shard.testProductsPath,
+                    included: selection.included,
+                    excluded: selection.excluded,
+                    callerOwnedProducts: callerOwnedProducts
+                )
+            }
+        } else {
+            await #expect(throws: FocusTargetsGraphMappersError.noTargetsFound) {
+                try await run(
+                    subject,
+                    productsPath: shard.testProductsPath,
+                    included: selection.included,
+                    excluded: selection.excluded,
+                    callerOwnedProducts: callerOwnedProducts
+                )
+            }
+        }
+
+        #expect(try await FileSystem().exists(shard.testProductsPath) == callerOwnedProducts)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [
+        ([], ["AppTests/Suite", "OtherTests"], ["AppTests/Suite", "OtherTests"]),
+        (["tag:snapshot"], ["AppTests/Suite", "OtherTests"], ["AppTests/Suite"]),
+        (["AppTests/Suite/testView"], ["AppTests/Suite", "OtherTests"], ["AppTests/Suite/testView"]),
+        (["tag:snapshot"], [], ["AppTests"]),
+    ])
+    func shardSelectionDoesNotWiden(
+        selection: (included: [String], assigned: [String], expected: [String])
+    ) async throws {
+        let shard = try await makeShard(identifiers: selection.assigned)
+        let (subject, command) = makeSubject(shard: shard)
+        command.reset()
+        given(command).run(arguments: .any).willReturn()
+
+        try await run(subject, productsPath: shard.testProductsPath, included: selection.included)
+
+        verify(command).run(arguments: .matching { arguments in
+            let identifiers = arguments.indices.filter { arguments[$0] == "-only-testing" }.map { arguments[$0 + 1] }
+            return identifiers == selection.expected
+                && arguments.containsConsecutive("-skip-testing", "AppTests/SkippedSuite")
+        }).called(1)
+        #expect(try await !FileSystem().exists(shard.testProductsPath))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger(), arguments: [
+        XcodeBuildTestAction.test, .build,
+    ])
+    func generatedProjectResolvesTagsBeforeFilteringCachedTargets(action: XcodeBuildTestAction) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(component: "Tests.xctestproducts")
+        try await FileSystem().makeDirectory(at: products)
+        let app = Target.test(
+            name: "AppTests", product: .unitTests, bundleId: "io.tuist.AppTests", metadata: .metadata(tags: ["snapshot"])
+        )
+        let cached = Target.test(
+            name: "CachedTests", product: .unitTests, bundleId: "io.tuist.CachedTests", metadata: .metadata(tags: ["snapshot"])
+        )
+        let scheme = Scheme.test(name: "Tests", testAction: .test(targets: [
+            .test(target: .init(projectPath: directory, name: app.name)),
+        ]))
+        let graph = Graph.test(
+            workspace: .test(schemes: [scheme]),
+            projects: [directory: .test(path: directory, targets: [app])]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            workspace: .test(schemes: [.test(name: "Tests", testAction: .test(targets: [
+                .test(target: .init(projectPath: directory, name: app.name)),
+                .test(target: .init(projectPath: directory, name: cached.name)),
+            ]))]),
+            projects: [directory: .test(path: directory, targets: [app, cached])]
+        )
+        let generator = MockGenerating()
+        given(generator).generateWithGraph(path: .any, options: .any).willReturn((directory, graph, environment))
+        let factory = MockGeneratorFactorying()
+        given(factory).testing(
+            config: .any,
+            testPlan: .any,
+            includedTargets: .any,
+            excludedTargets: .any,
+            skipUITests: .any,
+            skipUnitTests: .any,
+            configuration: .any,
+            ignoreBinaryCache: .any,
+            ignoreSelectiveTesting: .any,
+            cacheStorage: .any,
+            destination: .any,
+            schemeName: .any,
+            coverage: .any
+        ).willReturn(generator)
+        let inspector = MockBuildGraphInspecting()
+        given(inspector).testableSchemes(graphTraverser: .any).willReturn([])
+        given(inspector).workspaceSchemes(graphTraverser: .any).willReturn([scheme])
+        given(inspector).testableTarget(
+            scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any, action: .any
+        ).willReturn(.test(target: app))
+        given(inspector).buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any).willReturn([])
+        let config = MockConfigLoading()
+        given(config).loadConfig(path: .any).willReturn(.test(project: .testGeneratedProject()))
+        let cache = MockCacheStoring()
+        given(cache).store(.any, cacheCategory: .any).willReturn([])
+        let caches = MockCacheStorageFactorying()
+        given(caches).cacheStorage(config: .any).willReturn(cache)
+        let directories = MockCacheDirectoriesProviding()
+        given(directories).cacheDirectory(for: .any).willReturn(directory)
+        let derivedData = MockDerivedDataLocating()
+        given(derivedData).locate(for: .any).willReturn(directory.appending(component: "DerivedData"))
+        let command = MockXcodeBuildControlling()
+        given(command).test(
+            .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+            derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+            testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any, passthroughXcodeBuildArguments: .any
+        ).willReturn()
+        let subject = TestService(
+            generatorFactory: factory,
+            cacheStorageFactory: caches,
+            xcodebuildController: command,
+            buildGraphInspector: inspector,
+            cacheDirectoriesProvider: directories,
+            configLoader: config,
+            derivedDataLocator: derivedData
+        )
+
+        try await run(
+            subject,
+            productsPath: products,
+            included: ["tag:snapshot"],
+            excluded: ["tag:snapshot/SkippedSuite"],
+            callerOwnedProducts: true,
+            action: action,
+            shardIndex: nil
+        )
+
+        verify(command).test(
+            .any, scheme: .value("Tests"), clean: .any, destination: .any, action: .value(action), rosetta: .any,
+            derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+            testTargets: .value([try TestIdentifier(string: "AppTests")]),
+            skipTestTargets: .value([
+                try TestIdentifier(string: "AppTests/SkippedSuite"), try TestIdentifier(string: "CachedTests/SkippedSuite"),
+            ]),
+            testPlanConfiguration: .any, passthroughXcodeBuildArguments: .any
+        ).called(1)
+        #expect(Logger.testingLogHandler.collected[.notice, ==].contains(
+            "The following targets have not changed since the last successful run and will be skipped: CachedTests"
+        ))
+        if action == .build {
+            let metadata: SelectiveTestingGraph = try await FileSystem().readJSONFile(
+                at: products.appending(component: SelectiveTestingGraph.fileName)
+            )
+            #expect(metadata.testTargetTags == ["AppTests": ["snapshot"], "CachedTests": ["snapshot"]])
+            #expect(metadata.requestedTestIdentifiers == ["AppTests", "CachedTests"])
+        }
+    }
+
+    private func makeShard(identifiers: [String], legacy: Bool = false) async throws -> Shard {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(component: "Tests.xctestproducts")
+        try await FileSystem().makeDirectory(at: products)
+        return Shard(
+            reference: "ref",
+            shardPlanId: "plan",
+            testProductsPath: products,
+            testIdentifiers: identifiers,
+            skipTestIdentifiers: ["AppTests/SkippedSuite"],
+            modules: ["AppTests", "OtherTests"],
+            selectiveTestingGraph: SelectiveTestingGraph(
+                testTargetHashes: [:],
+                testTargetTags: legacy ? nil : ["AppTests": ["snapshot"], "OtherTests": []]
+            )
+        )
+    }
+
+    private func makeSubject(shard: Shard) -> (TestService, MockXcodeBuildControlling) {
+        let configLoader = MockConfigLoading()
+        given(configLoader).loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "org/project"))
+        let shards = MockShardServicing()
+        given(shards).shard(
+            shardIndex: .any,
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardPlanId: .any,
+            testProductsPath: .any,
+            testProductsArchivePath: .any
+        ).willReturn(shard)
+        let command = MockXcodeBuildControlling()
+        given(command).run(arguments: .any).willThrow(Failure.unexpectedTestExecution)
+        let server = MockServerEnvironmentServicing()
+        given(server).url(configServerURL: .any).willReturn(URL(string: "https://tuist.dev")!)
+        let directories = MockCacheDirectoriesProviding()
+        given(directories).cacheDirectory(for: .any).willReturn(shard.testProductsPath.parentDirectory)
+        let cache = MockCacheStorageFactorying()
+        given(cache).cacheStorage(config: .any).willReturn(MockCacheStoring())
+        let git = MockGitControlling()
+        given(git).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(git).topLevelGitDirectory(workingDirectory: .any).willReturn(shard.testProductsPath.parentDirectory)
+        let results = MockXCResultServicing()
+        given(results).parse(path: .any, rootDirectory: .any).willReturn(nil)
+        return (
+            TestService(
+                cacheStorageFactory: cache,
+                xcodebuildController: command,
+                cacheDirectoriesProvider: directories,
+                configLoader: configLoader,
+                xcResultService: results,
+                gitController: git,
+                serverEnvironmentService: server,
+                shardService: shards
+            ),
+            command
+        )
+    }
+
+    private func run(
+        _ subject: TestService,
+        productsPath: AbsolutePath,
+        included: [String],
+        excluded: [String] = [],
+        callerOwnedProducts: Bool = false,
+        action: XcodeBuildTestAction = .testWithoutBuilding,
+        shardIndex: Int? = 0
+    ) async throws {
+        var arguments = ["-destination", "platform=macOS"]
+        if callerOwnedProducts {
+            arguments += ["-testProductsPath", productsPath.pathString]
+        }
+        try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
+            try await subject.run(
+                runId: "run",
+                schemeName: nil,
+                clean: false,
+                noUpload: false,
+                configuration: nil,
+                path: productsPath.parentDirectory,
+                deviceName: nil,
+                platform: nil,
+                osVersion: nil,
+                action: action,
+                rosetta: false,
+                skipUITests: false,
+                skipUnitTests: false,
+                resultBundlePath: nil,
+                derivedDataPath: nil,
+                retryCount: 0,
+                testTargets: try included.map(TestIdentifier.init(string:)),
+                skipTestTargets: try excluded.map(TestIdentifier.init(string:)),
+                testPlanConfiguration: nil,
+                ignoreBinaryCache: true,
+                ignoreSelectiveTesting: true,
+                generateOnly: false,
+                passthroughXcodeBuildArguments: arguments,
+                skipQuarantine: true,
+                shardReference: "ref",
+                shardIndex: shardIndex,
+                mode: .local
+            )
+        }
     }
 }

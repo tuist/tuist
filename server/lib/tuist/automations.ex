@@ -52,8 +52,7 @@ defmodule Tuist.Automations do
   @baseline_event_batch_size 500
   @baseline_enumeration_settings [
     max_threads: 1,
-    max_memory_usage: 128 * 1024 * 1024,
-    optimize_aggregation_in_order: 1
+    max_memory_usage: 128 * 1024 * 1024
   ]
 
   def list_alerts(project_id) do
@@ -586,11 +585,11 @@ defmodule Tuist.Automations do
             publish_and_commit_alert_baseline(publishing_attempt, evaluate_batch, apply_match)
 
           {:ok, %BaselineAttempt{}} ->
-            # A competing worker still owns the enumeration. The publication
-            # watermark orders by `test_case_id` while the evaluation cursor is
-            # keyset on the test case name tuple, so publishing now would filter
-            # out lower-id results that enumeration has not written yet and
-            # commit a baseline missing them. Leave the attempt for the next run.
+            # A competing worker still owns the enumeration. Publishing now
+            # would commit a baseline missing the results enumeration has not
+            # written yet, and the publication watermark (Postgres uuid order)
+            # does not follow ClickHouse's UUID order, so a later publish could
+            # not pick them up either. Leave the attempt for the next run.
             :ok
 
           {:error, :stale} ->
@@ -659,10 +658,9 @@ defmodule Tuist.Automations do
       [] ->
         count
 
-      test_cases ->
-        ids = Enum.map(test_cases, & &1.id)
+      ids ->
         count = count + length(matching_test_case_ids(alert, ids, default_branch))
-        count_existing_matches(alert, default_branch, baseline_evaluation_cursor(List.last(test_cases)), count)
+        count_existing_matches(alert, default_branch, baseline_evaluation_cursor(ids), count)
     end
   end
 
@@ -722,30 +720,18 @@ defmodule Tuist.Automations do
   defp test_case_id(%{test_case_id: id}), do: id
   defp test_case_id(id), do: id
 
+  # Keyset on `id` alone: deduplicating 16-byte ids keeps a page's memory small,
+  # whereas paging on the (module, suite, name, id) sort key held a block of
+  # name strings per unmerged part and outgrew the cap on the largest projects.
   @doc false
   def list_alert_baseline_test_case_page(project_id, cursor) do
     query =
       from(test_case in TestCase,
         where: test_case.project_id == ^project_id,
-        group_by: [
-          test_case.module_name,
-          test_case.suite_name,
-          test_case.name,
-          test_case.id
-        ],
-        order_by: [
-          asc: test_case.module_name,
-          asc: test_case.suite_name,
-          asc: test_case.name,
-          asc: test_case.id
-        ],
+        distinct: true,
+        order_by: [asc: test_case.id],
         limit: @baseline_evaluation_batch_size,
-        select: %{
-          id: test_case.id,
-          module_name: test_case.module_name,
-          suite_name: test_case.suite_name,
-          name: test_case.name
-        }
+        select: test_case.id
       )
 
     query
@@ -753,35 +739,22 @@ defmodule Tuist.Automations do
     |> ClickHouseRepo.all(settings: @baseline_enumeration_settings)
   end
 
-  defp apply_alert_baseline_evaluation_cursor(query, nil), do: query
-
-  defp apply_alert_baseline_evaluation_cursor(query, %{
-         "module_name" => module_name,
-         "suite_name" => suite_name,
-         "name" => name,
-         "id" => id
-       }) do
-    where(
-      query,
-      [test_case],
-      test_case.module_name > ^module_name or
-        (test_case.module_name == ^module_name and
-           (test_case.suite_name > ^suite_name or
-              (test_case.suite_name == ^suite_name and
-                 (test_case.name > ^name or
-                    (test_case.name == ^name and test_case.id > ^id)))))
-    )
+  defp apply_alert_baseline_evaluation_cursor(query, %{"id" => id} = cursor) when map_size(cursor) == 1 do
+    where(query, [test_case], test_case.id > ^id)
   end
+
+  # `nil`, or a cursor from the earlier name-ordered enumeration, which cannot
+  # resume an id-ordered one; re-evaluated batches are idempotent.
+  defp apply_alert_baseline_evaluation_cursor(query, _cursor), do: query
 
   defp evaluate_alert_baseline(attempt, project_id, evaluate_batch) do
     case list_alert_baseline_test_case_page(project_id, attempt.evaluation_cursor) do
       [] ->
         finish_alert_baseline_evaluation(attempt)
 
-      test_cases ->
-        test_case_ids = Enum.map(test_cases, & &1.id)
+      test_case_ids ->
         triggered_test_case_ids = test_case_ids |> evaluate_batch.() |> Enum.uniq()
-        evaluation_cursor = baseline_evaluation_cursor(List.last(test_cases))
+        evaluation_cursor = baseline_evaluation_cursor(test_case_ids)
 
         case persist_alert_baseline_batch(
                attempt,
@@ -800,14 +773,7 @@ defmodule Tuist.Automations do
     end
   end
 
-  defp baseline_evaluation_cursor(test_case) do
-    %{
-      "module_name" => test_case.module_name,
-      "suite_name" => test_case.suite_name,
-      "name" => test_case.name,
-      "id" => test_case.id
-    }
-  end
+  defp baseline_evaluation_cursor(test_case_ids), do: %{"id" => List.last(test_case_ids)}
 
   @doc false
   def persist_alert_baseline_batch(%BaselineAttempt{} = attempt, evaluation_cursor, triggered_test_case_ids) do

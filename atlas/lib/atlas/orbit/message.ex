@@ -14,6 +14,8 @@ defmodule Atlas.Orbit.Message do
   schema "orbit_messages" do
     field :kind, :string
     field :body, :string, default: ""
+    field :suggestions, {:array, :string}, default: []
+    field :private_body, Binary, redact: true
     field :author_name, :string, default: ""
     field :client_id, Ecto.UUID
     field :address_agent, :boolean, default: false
@@ -25,12 +27,15 @@ defmodule Atlas.Orbit.Message do
     field :tool_output, :string, default: ""
     field :tool_call_key, :string
     field :tool_result, Binary, redact: true
+    field :device_input, Binary, redact: true
+    field :device_output, Binary, redact: true
     field :position, :integer
     field :seq, :integer
 
     belongs_to :thread, Thread
     belongs_to :run, Run
     belongs_to :author, User
+    belongs_to :recipient, User
     belongs_to :parent_message, __MODULE__
     has_many :attachments, Attachment, preload_order: [asc: :position]
 
@@ -39,4 +44,6 @@ defmodule Atlas.Orbit.Message do
 
   def kinds, do: @kinds
   def tool_statuses, do: @tool_statuses
+  def tool_input(message), do: Map.get(message, :device_input) || Map.get(message, :tool_input) || ""
+  def tool_output(message), do: Map.get(message, :device_output) || Map.get(message, :tool_output) || ""
 end

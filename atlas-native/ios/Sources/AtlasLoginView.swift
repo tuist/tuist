@@ -6,6 +6,36 @@ struct AtlasLoginView: View {
     @State private var showingSelfHosted = false
 
     var body: some View {
+        #if os(macOS)
+        VStack(spacing: 20) {
+            Image("AtlasMark").resizable().renderingMode(.template).scaledToFit()
+                .foregroundStyle(.white).padding(14).frame(width: 72, height: 72)
+                .background(AtlasBrand.accent, in: RoundedRectangle(cornerRadius: 16))
+                .accessibilityHidden(true)
+            Text("Welcome to Atlas").font(.largeTitle.bold())
+            Text("Your workspace, together.").foregroundStyle(.secondary)
+            signIn(bottomInset: 0)
+        }
+        .frame(maxWidth: 380)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
+        .sheet(isPresented: $showingSelfHosted) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Self-hosted server").font(.headline)
+                Text("Enter the HTTPS address of your Atlas server.")
+                TextField("https://atlas.example.com", text: $authentication.selfHostedAddress)
+                    .textFieldStyle(.roundedBorder).autocorrectionDisabled()
+                HStack {
+                    Spacer()
+                    Button("Cancel", role: .cancel) { showingSelfHosted = false }.keyboardShortcut(.cancelAction)
+                    Button("Sign in") {
+                        showingSelfHosted = false
+                        Task { await authentication.signIn(selfHosted: true) }
+                    }.keyboardShortcut(.defaultAction)
+                }
+            }.padding(24).frame(width: 420)
+        }
+        #else
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
@@ -60,6 +90,7 @@ struct AtlasLoginView: View {
         } message: {
             Text("Enter the HTTPS address of your Atlas server.")
         }
+        #endif
     }
 
     private func signIn(bottomInset: CGFloat) -> some View {

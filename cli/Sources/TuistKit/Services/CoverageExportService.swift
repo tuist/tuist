@@ -273,12 +273,15 @@ public struct CoverageExportService: CoverageExportServicing {
         let kind: Kind
     }
 
-    /// The targets' products that carry coverage mappings, each once.
+    /// The targets' products that carry coverage mappings, each once. `xccov` names an app by its
+    /// executable, a stub when Xcode built the app's code into a debug dylib beside it
+    /// (`<name>.debug.dylib`), so the dylib is read instead.
     static func products(of targets: [XcodeCoverageTarget]) -> [Product] {
         var products: [Product] = []
         var seen: Set<String> = []
         for path in targets.compactMap(\.buildProductPath) {
-            let resolved = resolvedProductPath(path)
+            var resolved = resolvedProductPath(path)
+            if FileManager.default.fileExists(atPath: resolved + ".debug.dylib") { resolved += ".debug.dylib" }
             guard seen.insert(resolved).inserted, let kind = Self.kind(of: resolved) else { continue }
             products.append(Product(path: resolved, kind: kind))
         }

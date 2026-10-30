@@ -48,8 +48,20 @@ cancellable and leaves the reserve intact. See
   server's `/api/internal/runners/desired_replicas` endpoint and
   patches `RunnerPool.spec.replicas`. The per-pool policy math lives in
   `internal/scaling/desired.go`; tuning knobs (`minWarmPoolFloor`,
-  `maxReplicas`, `scaleDownCooldownSeconds`, `holdRecentPeak`) live in
-  the `RunnerPool` spec, so a tuning change is helm-only.
+  `maxLearnedWarmPoolFloor`, `maxReplicas`, `scaleDownCooldownSeconds`,
+  `holdRecentPeak`) live in the `RunnerPool` spec, so a tuning change is
+  helm-only.
+
+  The server also learns a floor per pool (`learned_warm_floor`,
+  `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
+  the pool has had a job in the last day. The pool keeps that many runners
+  idle above load, capped by `maxLearnedWarmPoolFloor` (0, the default,
+  turns it off), and the allocator funds it in the floor tier alongside
+  `minWarmPoolFloor`. Set the cap to what an idle pool may cost; the
+  learned value follows demand, so floors need no hand-tuning when demand
+  moves between pools. `tuist_runners_autoscaler_learned_warm_floor_replicas`
+  and `..._learned_warm_spare_replicas` show the learned value and what the
+  cap leaves of it.
 
   `holdRecentPeak` (default true) keeps a pool sized to the server's
   hourly p95 of concurrent runners after load falls. A pool whose jobs
@@ -58,6 +70,11 @@ cancellable and leaves the reserve intact. See
   `minWarmPoolFloor` instead of holding the burst's runners for an
   hour. Explicit `runnersFleet.pools` / `runnersFleetLinux.pools`
   entries render it when their `autoscaling` block sets it.
+
+  The autoscaler also stamps `status.lastDemandAt` when the pool has real
+  work (`Signals.Load() > 0`), at most every ten minutes, with a status merge
+  patch. tart-kubelet ranks the images a host keeps within its golden budget by
+  it (`infra/tart-kubelet/AGENTS.md`).
 
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
@@ -163,11 +180,13 @@ cancellable and leaves the reserve intact. See
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
 
-    Sandbox admission is CI-first with zero additional warm memory. The fleet's
-    first enabled pool publishes short-lived per-node grants; CI reservations
-    revoke before tainting, and queued or unknown CI demand disables sandbox
-    preemption. Keep the server/controller protocol and its ordering guarantees
-    aligned with [`fleet-sharing.md`](../sandboxd/fleet-sharing.md).
+    Queued CI and sandbox work have equal admission priority with zero additional
+    warm sandbox memory. The fleet's first enabled pool publishes short-lived
+    per-node grants; CI reservations revoke before tainting, and unknown fleet
+    demand disables sandbox
+    preemption. Queued CI alone does not revoke sandbox grants or block retiring
+    idle, unclaimed warm runners for sandbox growth. Keep the server/controller
+    protocol and its ordering guarantees aligned with [`fleet-sharing.md`](../sandboxd/fleet-sharing.md).
 
     Sandbox daemons (`infra/sandboxd`, namespace from
     `TUIST_SANDBOXES_NAMESPACE`, an env var so a controller release that
@@ -332,7 +351,12 @@ cancellable and leaves the reserve intact. See
     `macOSClaimGrace` (3m) after its VM starts, so the guest's first
     dispatch poll can claim the job it was created for. Candidate
     ranking counts those seats as occupants to wait out. The
-    taint is removed when the Pod lands or after
+    taint is removed when the pool has placed all its Pods, when the
+    host has no room for another of the pool's Pods even once every
+    other pool's Pod is gone (`reservedHostSeated`; the same reconcile
+    then reserves the next host, so a pool short several Pods of a
+    one-per-host shape gets them one host at a time instead of one per
+    timeout), or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
     fleet nodes, so darwin and linux hold separate budgets), since a
@@ -1205,10 +1229,11 @@ Shape:
   config, **not** the runner's `<runner root>/_work` default —
   see "Why the work directory is /home/runner/work" below.
 - `dind-externals` emptyDir at `/home/runner/actions-runner/externals`
-  (sidecar only), filled by the `dind-externals` init container —
+  (sidecar only), filled by the `dind-externals` native sidecar —
   the runner image running `cp -a` out of its own image layer into
   the volume, staged at `/mnt/dind-externals` there so the mount
-  doesn't shadow the source. See "Why stage externals" below.
+  doesn't shadow the source. The poller mounts it read-only for the
+  copy's marker. See "Why stage externals" below.
 - `dind-storage` emptyDir at `/mnt/dind-disk` (sidecar only).
   Plain node-disk emptyDir — holds a sparse `disk.img` the
   sidecar entrypoint loop-mounts as ext4 onto `/var/lib/docker`
@@ -1268,11 +1293,22 @@ runtimes every JS action executes under — ships in the runner
 image alone. Without the staged copy every step in the job
 container dies on a missing `/__e/node2x/bin/node`.
 
-Same fix ARC ships as `init-dind-externals`. The copy runs before
-the sidecar, so it is in place by the time dockerd can serve a
-container and a runner image that stops shipping externals fails
-the Pod early rather than at job time. Cost is a per-Pod copy of
-the node runtimes at warm-up, off the job's critical path.
+Same fix ARC ships as `init-dind-externals`, but as a native sidecar
+with no startupProbe, so the containers after it start while it
+copies. The copy takes 3-6 s on a host booting several sandboxes, and
+as a blocking init container it sat in front of every cold boot: a
+job that arrives faster than the warm floor waits for the whole boot.
+`tuist-cache-volume` is copied first and renamed into place, because
+the `dind` sidecar executes it (it waits for that file alone); the
+rest follows, then `.tuist-externals-staged`. The poller waits for
+that marker before its first claim, so no job starts against a partial
+copy, and exits non-zero after 120 s without it, which fails the Pod
+early as before when an image stops shipping externals. A restarted
+sidecar leaves a finished copy alone, since a job may be running it.
+
+The `dind` startupProbe runs every second (120 s ceiling). dockerd is
+up about a second after its container starts, and every container
+after it waits for the probe to see that.
 
 ### Why the work directory is /home/runner/work
 
@@ -1485,7 +1521,7 @@ runner gets `TUIST_DOCKER_CACHE=1`. It needs cache volumes. With the field off t
 sidecar's command is byte for byte what it was (`TestDockerCacheOffKeepsTheSidecarCommand`):
 any change to it replaces every Pod of the pools it covers. Staging and production
 enable it on every Linux pool and keep it as the off switch, while the per-account
-`:runner_docker_cache` flag decides who gets a cache (canary has no cache volumes).
+`:runner_docker_cache` flag decides who gets a cache (canary qualifies its default Linux shape before production enablement).
 The agent serves `/docker`, `/docker-seen` and `/docker-merge`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
 
 Managed production enables custom volumes on normal deployment. The agent image

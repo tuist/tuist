@@ -9,18 +9,19 @@ Native clients for Atlas, with a shared Rust core and builds powered by
 | Command line | Rust, using the shared core directly |
 | Android | Kotlin and native Android widgets |
 | iOS | Swift and SwiftUI |
+| macOS | Shared SwiftUI features with a native desktop shell and Sparkle |
 | Build, test and cache | Once |
 | Internal distribution | [tuist/atlas-mobile](https://tuist.dev/tuist/atlas-mobile) |
 
 The app signs in to hosted or self-hosted Atlas using its existing browser login
 page, then presents a native workspace using the shared Rust catalog.
 Rust owns OAuth discovery, dynamic public-client registration, S256 PKCE, token
-exchange and refresh. iOS presents a system authentication session and stores
+exchange and refresh. iOS and macOS present a system authentication session and store
 credentials in Keychain; Android opens the system browser and encrypts credentials
 with an Android Keystore key. Saved sessions are restored on launch. Self-hosted
 servers require HTTPS and OAuth discovery/dynamic registration support.
 
-Both native login screens follow Tuist's welcome layout, backdrop, spacing,
+The native login screens follow Tuist's welcome layout, backdrop, spacing,
 button treatments and rounded bottom panel, customized with Atlas's azure palette
 and the same Tuist mark used by Atlas's web login and dashboard. They offer Atlas-hosted and self-hosted browser sign-in; provider
 selection happens on the server's login page. Light and dark assets share a
@@ -58,28 +59,38 @@ without contacting providers or changing accounts.
 
 ## Durable read cache
 
-Orbit's first inbox page uses stale-while-revalidate: Rust reads a bounded SQLite
-projection before OAuth renewal or HTTP, then replaces it after a protected read.
-Returning to the tab retains the in-memory model. Startup and background refresh
-show no cache banner. A failed refresh keeps the saved rows and shows a compact
-“Couldn’t refresh” with Retry, cleared on recovery. Thread history, attachments,
-drafts and live activity are not persisted; opening a saved row still requires a
-protected server read.
-Other feature lists are not yet backed by this cache.
+On iOS and macOS, Orbit, business lists/details, Profile, Time off, AI-account and
+connection metadata, and Automation lists/details use stale-while-revalidate:
+Rust reads a bounded SQLite projection before OAuth renewal or HTTP, then replaces
+it after a protected read. Returning retains the in-memory model; background refresh
+does not blank loaded content. Transient failures retain saved data with Retry.
+Orbit also saves up to 25 non-tool messages from the newest history page, excluding
+tool evidence/components. Saved history is read-only until protected revalidation.
+Automation saves only names, descriptions, versions, status, timing and step metadata,
+never schemas, reviewed revisions, approval payloads/digests, inputs or results.
+Credentials, pending grants, drafts, attachment bytes and live presence/activity are
+never cached. Android currently hydrates only its inbox; these additional adapters
+are shared by the Apple apps, not yet wired into Android's feature models.
 
 `auth/src/cache.rs` uses bundled SQLite through `rusqlite` on every platform. The
 adapters supply only a private, backup-excluded directory: Application Support's
 `Atlas/ReadCache` on iOS (device file protection), or Android's `noBackupFilesDir/reads`.
 The database is `reads.sqlite3`. Credentials remain in the existing secure stores,
 never SQLite. This is sandbox/file-protected storage, not application-level encrypted
-SQLite. Snapshots retain titles, summaries and display metadata, but strip participant
-identities, ownership, mutation capabilities and live agent status. Cached rows
-cannot authorize mutations.
+SQLite. Inbox/history snapshots strip participants, ownership and live agent status;
+business snapshots strip mutation permissions and editor options. Other typed feature
+projections retain their authorized display fields, including Profile identity and
+description, personal holiday dates, business records/related details and finance
+aggregates, provider account names and connection scopes. Cached data cannot authorize
+mutations; metadata-dependent actions require fresh revalidation.
 
 Keys bind the canonical server origin, a random credential-lifetime namespace,
-projection version and kind/status filters. Token rotation retains the namespace;
+projection version, resource/record, pagination and search/filter criteria. Token rotation retains the namespace;
 a new login replaces it. Logout retires it and deletes its rows; generation checks
-reject late writes after mutations, revocation or logout. Reads expire after seven
+reject late writes after mutations, revocation or logout. Apple mutations invalidate
+before and after the request, including uncertain outcomes. Authoritative access denial
+clears saved projections; current-session authentication rejection returns to sign-in.
+Reads expire after seven
 days, with pruning on open, at most 32 snapshots and 1 MiB per snapshot. The default
 4 KiB SQLite pages are capped at 4096 pages. Storage failures disable caching without
 blocking online use. Remote revocation cannot erase an offline device's already
@@ -99,7 +110,7 @@ reopen, data-preserving upgrade, rollback, downgrade, isolation and late-write f
 
 ## Object navigation
 
-Both clients accept server-bound native object links for Orbit, Tasks, Accounts, Finance,
+The native clients accept server-bound object links for Orbit, Tasks, Accounts, Finance,
 Time off, People and Profile. A link can open a thread, task, account or invoice directly
 by UUID, independently of loaded list pages. Notifications, other systems and UI
 agents use the same read-only destination contract and normal authentication.
@@ -107,7 +118,8 @@ Supported hosted HTTPS links use iOS Universal Links and Android App Links, with
 explicit **Open in Atlas** and browser fallback actions on the web. Native screens
 also offer **Open in browser** for richer web functionality. Automatic handoff
 requires an installed build and verified signing/domain setup; self-hosted
-instances use the server-bound custom scheme.
+instances use the server-bound custom scheme. macOS registers that custom scheme;
+automatic HTTPS association is not enabled for the desktop app.
 The shared allowlist in `core/src/destinations.rs` defines seven stable screen keys:
 `tasks`, `accounts`, `invoices`, `time-off`, `people`, `profile`, and `orbit`.
 Tasks, accounts, invoices, and Orbit accept a record ID. Notifications should carry a `destination_url` using
@@ -199,7 +211,7 @@ mise install rust github:tuist/once
 ONCE_CACHE_PROVIDER=local mise run check
 ```
 
-The toolchain pins Once 0.68.2, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
+The toolchain pins Once 0.71.2, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
 The preparation workaround is still required: this Once release does not include
 [automatic source materialization](https://github.com/tuist/once/pull/390) yet.
 Once that fix ships, remove the preparation task, its task dependencies and CI
@@ -291,6 +303,120 @@ The app supports iOS 17+ and links the Rust core statically. `AtlasIOS` builds
 for arm64 simulators; `AtlasIOSDevice` builds for physical devices. Neither
 build includes the isolated screenshot fixtures.
 
+### macOS
+
+On an Apple silicon Mac with Xcode installed:
+
+```sh
+ONCE_CACHE_PROVIDER=local mise run build:macos
+ONCE_CACHE_PROVIDER=local mise run test:macos
+open .once/macos/Atlas.app
+```
+
+`AtlasMacOS` compiles the same SwiftUI feature sources and Rust contracts as iOS,
+with a resizable sidebar workspace, compact native business tables, native sheets
+and a separate Settings window. Table headers sort loaded rows only; amounts
+remain separated by currency, with no invented conversion. Search and filters
+still apply on the server before pagination.
+It requires macOS 14 or later and currently builds for Apple silicon only. New
+record and refresh actions support Command-N and Command-R; the conversation
+editor uses Return for a newline and Command-Return to send. Unsaved work blocks
+sidebar navigation. Live Activities remain iOS-only. Thread result cards
+use their server-provided selectable text fallback on macOS; NSH has no macOS
+slice. Voice input requires locally available Apple Speech recognition, never a
+cloud fallback.
+
+**Personal tool environments:** Settings has General, AI accounts, This Mac and
+Updates tabs. This Mac is off by default and binds an environment to the signed-in
+profile on the selected Atlas server. Choose individual folders, immediate
+subfolders of project parent directories, or explicitly include Home. File tools
+stay inside the selected project. Terminal access is separately opt-in and every
+command requires approval of its exact text, Mac and project in the conversation,
+on iPhone or Mac. An approved command runs as the macOS user, not in a folder
+sandbox, for up to 30 minutes with bounded tail output. Keep-awake is optional
+and also applies on battery power. Display tools
+are not implemented; their disabled control does not request OS permissions.
+
+Private Orbit conversations select Atlas server or a registered environment and
+project from the toolbar. The model loop, Atlas business tools, messages and
+encrypted checkpoints remain server-side. Environment selection is frozen when a
+run starts. The command ledger survives deployment; a claimed command is never
+executed again after an uncertain result. Results can be uploaded idempotently,
+and unknown outcomes remain explicit. Closing the Mac app takes its environment
+offline without deleting the conversation. Device tools are unavailable to shared
+threads, research children and MCP callers. A conversation that has dispatched a
+personal tool cannot later be shared. Local paths and consent stay in device-only
+Keychain storage scoped to the server and owner; invoked file contents and command
+output are sent to Atlas and the configured AI provider.
+
+If a Mac becomes unavailable, cancel any active run and select Atlas server or
+another environment for the next message in the same conversation. History stays
+on Atlas; local files, installed tools and build artifacts do not move with the
+conversation. The environment picker, exact-command review, progress and Stop
+action are shared by iPhone and Mac. Terminal jobs wait durably for approval,
+then execute independently of the bounded model run. Confirmed completion resumes
+the server conversation. A Stop request is not a confirmed stop until the Mac
+responds. Keep Atlas open on the execution Mac; a lost or quit Mac leaves an
+explicit unknown outcome rather than rerunning the command elsewhere.
+
+The build task prepares an ad-hoc-signed runnable copy in `.once/macos/Atlas.app`.
+Once's cached flat bundle is not a distributable macOS app and remains unchanged.
+The native icon reuses Atlas's existing white mark and azure artwork, with macOS
+rounded-square geometry, padding and shadow. Cargo configuration pins host C/Rust
+dependencies to the original Apple silicon macOS 11 floor instead of the selected
+SDK's default; the app's SwiftUI deployment minimum remains macOS 14.
+
+**Updates:** the app's **Check for Updates…** command and **Settings → Updates**
+controls use Sparkle 2.10.1. Atlas reuses Tuist's Developer ID/notarization and
+Sparkle signing references but has its own feed:
+`https://github.com/tuist/tuist/releases/download/atlas-appcast/atlas-appcast.xml`.
+Trusted main-branch CI gates signing on build/test/lint and credential-free
+packaging checks, notarizes and staples before generating the update signature,
+then publishes `atlas-macos@<epoch>` before replacing the feed. Set up and protect
+the `atlas-macos-releases` GitHub environment with access to the existing
+`OP_SERVICE_ACCOUNT_TOKEN` before enabling delivery. The initial feed does not
+exist until the first successful release. PR builds never receive signing keys.
+Local builds cannot establish notarization or real update installation; validate
+a signed old-to-new update separately before distributing widely.
+
+After `build:macos`, verify the publishing tools locally without distribution
+credentials or Keychain changes:
+
+```sh
+bash macos/distribution/test-packaging.sh
+bash macos/distribution/test-framework-boundary.sh .once/out/AtlasSparkle/sdk/Sparkle.framework
+bash macos/distribution/test-appcast.sh .once/out/AtlasSparkle/sdk .once/macos/Atlas.app
+```
+
+The appcast check generates two successive updates with disposable keys, verifies
+their archive signatures with Sparkle and CryptoKit, and checks tamper rejection,
+build monotonicity and feed history. macOS CI runs these real-tool checks before
+uploading the unsigned app; notarization/provider operations use separate fixtures
+locally and remain unproven until an authorized release.
+
+**Notifications:** Profile offers opt-in native macOS alerts when the server
+advertises desktop push support. Notification clicks reopen the workspace and use
+the existing origin-bound navigation; signing out disables enrollment and retries
+offline server cleanup on the same origin. Already accepted Apple alerts can
+still arrive after sign-out. Foreground views suppress banners while editing.
+
+Desktop releases additionally require a Push-enabled **Developer ID** profile for
+the shared iOS/macOS App ID `dev.tuist.atlas`, stored at
+`op://tuist/Atlas macOS Developer ID/Atlas_macOS_Developer_ID.provisionprofile`.
+Create/regenerate it under team `U6LC622NKF` for the existing Tuist Developer ID
+Application certificate and grant the protected release account read access.
+Packaging verifies the profile and derives the macOS APNs entitlement/environment;
+an iOS profile is not interchangeable. Local ad-hoc builds intentionally have no
+push entitlement or environment stamp. The server separately requires
+`ATLAS_APNS_MACOS_ENABLED=true` and APNs credentials authorized for the fixed
+shared topic `dev.tuist.atlas`. Older servers omit that capability safely.
+See [desktop distribution](macos/distribution/AGENTS.md) and
+[server push setup](../atlas/deploy/AGENTS.md#push-notifications) for rollout
+and signed-app delivery checks. Builds do not create the profile or configure Apple.
+
+`AtlasMacOSPreview` is an optional offline workspace using fictional fixtures;
+it is never part of release builds. See [preview guidance](previews/AGENTS.md).
+
 ### Signed device previews
 
 Device previews use ad-hoc distribution, not TestFlight. We can reuse the
@@ -379,14 +505,14 @@ mise run build:android
   including state/PKCE validation and issuing-client preservation on refresh.
   iOS tests cover the real Rust bridge and Keychain persistence semantics with
   a process-local adapter; the simulator app includes its own Keychain entitlement.
-- Builds the Rust CLI, Android and iOS in build jobs, independently of the core,
-  CLI and iOS test jobs. The Swift tests exercise the adapter against the real
+- Builds the Rust CLI, Android, iOS and macOS in build jobs, independently of the core,
+  CLI, iOS and macOS test jobs. The Swift tests exercise the adapter against the real
   Rust library.
 - Retains the CLI tar archive, APK, simulator/device ZIPs and test reports as GitHub
   artifacts for 14 days. The CLI archive preserves executable permissions and
   its artifact name identifies the build host's OS and architecture.
 - Uses shared caching in trusted jobs when authentication succeeds, except for
-  Android and iOS device builds. These use only the local cache so distribution signing
+  Android, iOS device and macOS builds. These use only the local cache so distribution signing
   never consumes outputs from the shared cache used by pull requests. Forks also
   use only the local cache and have no OIDC permission.
 - Publishes the APK, simulator app and signed device IPA to Tuist's `nightly`

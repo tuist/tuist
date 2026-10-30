@@ -75,6 +75,14 @@ defmodule AtlasWeb.ConnectionsLive do
                 size="small"
               />
               <.button
+                :if={entry.configured && entry.provider == "google"}
+                id="connection-gmail-consent"
+                href={~p"/connections/google/authorize?gmail=read"}
+                label={gettext("Allow Gmail monitoring")}
+                variant="secondary"
+                size="small"
+              />
+              <.button
                 :if={entry.status != "not_connected"}
                 id={"connection-disconnect-#{entry.provider}"}
                 label={gettext("Disconnect")}
@@ -90,7 +98,7 @@ defmodule AtlasWeb.ConnectionsLive do
       </div>
       <p data-part="description">
         {gettext(
-          "Credentials are encrypted and never shown to agents. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Google requests file and read-only calendar access, never Gmail access."
+          "Credentials are encrypted and never shown to agents. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Google normally requests file and read-only calendar access. Allow Gmail monitoring separately grants read-only email access. Monitoring starts only after you configure and enable a signal source, whose selected readers can receive matching message excerpts."
         )}
       </p>
     </section>

@@ -15,7 +15,9 @@
 //!   makes cross-process upload dedup server-side) -> UpdateActionResult
 //!   LAST, so a reader can never observe an entry whose graph is incomplete.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::cell::RefCell;
+use std::io;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -134,6 +136,11 @@ const WRITE_PRESSURE_BACKOFF_MS: u64 = 5_000;
 // costs that wait per compile. Recovery is detected by a background probe, so
 // the window only bounds how long a node that came straight back is ignored.
 const LOOKUP_UNAVAILABLE_BACKOFF_MS: u64 = 5_000;
+// After the server refuses a credential, how long the same `Remote` stops sending
+// it. Each refused probe doubles the window up to the maximum; a new credential
+// or an accepted request ends it.
+const CREDENTIAL_REFUSAL_BACKOFF_MS: u64 = 60_000;
+const MAX_CREDENTIAL_REFUSAL_BACKOFF_MS: u64 = 5 * 60_000;
 // The background probe's lookup. Nothing publishes it, so a serving node
 // answers NOT_FOUND, which is what closes the breaker.
 const LOOKUP_PROBE_KEY: &[u8] = b"tuist-cas-plugin/lookup-probe";
@@ -485,6 +492,20 @@ fn runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
+pub(crate) fn secure_endpoint(
+    endpoint: Endpoint,
+    roots: rustls::RootCertStore,
+    additional_blocked: Vec<String>,
+) -> Result<Endpoint, String> {
+    endpoint
+        .tls_config_with_verifier(
+            ClientTlsConfig::new(),
+            crate::certificate_trust::verifier(roots, additional_blocked)
+                .map_err(|_| "no allowed TLS trust anchors".to_owned())?,
+        )
+        .map_err(|_| "could not configure secure cache transport".to_owned())
+}
+
 /// The connection a `Remote` sends on, replaced when kura answers that the
 /// replica behind it is draining. An HTTP/2 connection stays on one replica,
 /// and a draining replica refuses every request until it exits, so a retry on
@@ -534,6 +555,7 @@ impl ChannelSlot {
 pub(crate) struct RemoteChannel {
     slot: Arc<ChannelSlot>,
     ready: Option<(u64, Channel)>,
+    credentials: Arc<CredentialBreaker>,
 }
 
 impl Clone for RemoteChannel {
@@ -541,6 +563,7 @@ impl Clone for RemoteChannel {
         Self {
             slot: self.slot.clone(),
             ready: None,
+            credentials: self.credentials.clone(),
         }
     }
 }
@@ -567,16 +590,27 @@ impl tonic::codegen::Service<tonic::codegen::http::Request<tonic::body::Body>> f
             .take()
             .expect("RemoteChannel::call without poll_ready");
         let slot = self.slot.clone();
+        let credentials = self.credentials.clone();
+        let credential = credential_fingerprint(
+            request
+                .headers()
+                .get("authorization")
+                .map(|value| value.as_bytes()),
+        );
+        let method = request.uri().path().to_owned();
+        if !credentials.admit(credential, &method, now_ms()) {
+            return Box::pin(async { Ok(credential_paused_response()) });
+        }
         let response = channel.call(request);
         Box::pin(async move {
             let response = response.await?;
             // kura refuses before it handles the request, so the refusal is a
             // trailers-only response whose status rides in the headers.
-            if tonic::Status::from_header_map(response.headers())
-                .is_some_and(|status| draining(&status))
-            {
+            let status = tonic::Status::from_header_map(response.headers());
+            if status.as_ref().is_some_and(draining) {
                 slot.reconnect(generation);
             }
+            credentials.observe(credential, &method, status.as_ref());
             Ok(response)
         })
     }
@@ -614,6 +648,8 @@ pub struct Remote {
     shed_writes: AtomicU64,
     // Shared with the background probe, which outlives the call that starts it.
     lookups: Arc<LookupBreaker>,
+    // Shared with the channel, which observes every response.
+    credentials: Arc<CredentialBreaker>,
 }
 
 const CAPABILITIES_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
@@ -636,6 +672,9 @@ impl hyper::body::Body for OneFrame {
 }
 
 fn retryable(status: &tonic::Status) -> bool {
+    if crate::certificate_trust::tls_failure(status) {
+        return false;
+    }
     match status.code() {
         tonic::Code::Unavailable
         | tonic::Code::Unknown
@@ -1053,21 +1092,213 @@ impl LookupBreaker {
     }
 }
 
+/// Stops a `Remote` from sending a credential the server refused with
+/// PERMISSION_DENIED or UNAUTHENTICATED. Kura authorizes each operation
+/// separately (a read-only credential reads but is refused writes), so a refusal
+/// pauses only its gRPC method. The publication sweep re-sends each spooled
+/// record every few seconds, so without this a refused credential repeats its
+/// refusal for as long as the proxy runs. Each elapsed window lets one request
+/// through as a probe, a new credential is always sent, and any other answer
+/// the server gives closes that method's window.
+struct CredentialBreaker {
+    instance: String,
+    open: AtomicBool,
+    refusals: Mutex<std::collections::HashMap<(u64, String), CredentialRefusal>>,
+    skipped: AtomicU64,
+}
+
+struct CredentialRefusal {
+    until_ms: u64,
+    backoff_ms: u64,
+    probing: bool,
+}
+
+fn credential_fingerprint(authorization: Option<&[u8]>) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    authorization.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn refuses_credential(status: &tonic::Status) -> bool {
+    matches!(
+        status.code(),
+        tonic::Code::PermissionDenied | tonic::Code::Unauthenticated
+    )
+}
+
+impl CredentialBreaker {
+    fn new(instance: String) -> Self {
+        Self {
+            instance,
+            open: AtomicBool::new(false),
+            refusals: Mutex::new(std::collections::HashMap::new()),
+            skipped: AtomicU64::new(0),
+        }
+    }
+
+    /// Whether a request carrying `credential` to `method` may be sent.
+    fn admit(&self, credential: u64, method: &str, now_ms: u64) -> bool {
+        if !self.open.load(Ordering::Relaxed) {
+            return true;
+        }
+        let mut refusals = self.refusals.lock().unwrap();
+        let Some(refusal) = refusals.get_mut(&(credential, method.to_owned())) else {
+            return true;
+        };
+        if now_ms < refusal.until_ms {
+            self.skipped.fetch_add(1, Ordering::Relaxed);
+            return false;
+        }
+        // Re-armed before probing, so exactly one request asks per window.
+        refusal.until_ms = now_ms + refusal.backoff_ms;
+        refusal.probing = true;
+        true
+    }
+
+    /// Whether `method` refuses `credential` for the current window, without
+    /// claiming the window's probe.
+    fn refusing(&self, credential: u64, method: &str, now_ms: u64) -> bool {
+        self.open.load(Ordering::Relaxed)
+            && self
+                .refusals
+                .lock()
+                .unwrap()
+                .get(&(credential, method.to_owned()))
+                .is_some_and(|refusal| now_ms < refusal.until_ms)
+    }
+
+    fn observe(&self, credential: u64, method: &str, status: Option<&tonic::Status>) {
+        self.observe_at(credential, method, status, now_ms());
+    }
+
+    fn observe_at(
+        &self,
+        credential: u64,
+        method: &str,
+        status: Option<&tonic::Status>,
+        now_ms: u64,
+    ) {
+        match status {
+            Some(status) if refuses_credential(status) => {
+                self.refused(credential, method, status, now_ms)
+            }
+            // These say nothing about the credential: the request may never have
+            // reached the code that checks it.
+            Some(status)
+                if matches!(
+                    status.code(),
+                    tonic::Code::Unavailable
+                        | tonic::Code::ResourceExhausted
+                        | tonic::Code::Unknown
+                        | tonic::Code::DeadlineExceeded
+                        | tonic::Code::Cancelled
+                        | tonic::Code::Internal
+                ) => {}
+            _ => self.accepted(credential, method),
+        }
+    }
+
+    fn refused(&self, credential: u64, method: &str, status: &tonic::Status, now_ms: u64) {
+        let mut refusals = self.refusals.lock().unwrap();
+        match refusals.get_mut(&(credential, method.to_owned())) {
+            // Requests already in flight when the window opened come back
+            // refused too; only a refused probe lengthens it.
+            Some(refusal) => {
+                if refusal.probing {
+                    refusal.backoff_ms =
+                        (refusal.backoff_ms * 2).min(MAX_CREDENTIAL_REFUSAL_BACKOFF_MS);
+                    refusal.until_ms = now_ms + refusal.backoff_ms;
+                    refusal.probing = false;
+                }
+            }
+            None => {
+                // A refusal of a newer credential retires the older ones.
+                refusals.retain(|(refused, _), _| *refused == credential);
+                refusals.insert(
+                    (credential, method.to_owned()),
+                    CredentialRefusal {
+                        until_ms: now_ms + CREDENTIAL_REFUSAL_BACKOFF_MS,
+                        backoff_ms: CREDENTIAL_REFUSAL_BACKOFF_MS,
+                        probing: false,
+                    },
+                );
+                self.open.store(true, Ordering::Relaxed);
+                crate::log_line(&format!(
+                    "cache credential refused for {} by {method} ({status}); pausing those \
+                     requests until the credential changes, retrying after {}s",
+                    self.instance,
+                    CREDENTIAL_REFUSAL_BACKOFF_MS / 1000
+                ));
+            }
+        }
+    }
+
+    fn accepted(&self, credential: u64, method: &str) {
+        if !self.open.load(Ordering::Relaxed) {
+            return;
+        }
+        let mut refusals = self.refusals.lock().unwrap();
+        let before = refusals.len();
+        refusals.retain(|(refused, refused_method), _| {
+            *refused == credential && refused_method != method
+        });
+        if refusals.len() < before {
+            crate::log_line(&format!(
+                "cache credential accepted again for {} by {method}; {} request(s) were not sent",
+                self.instance,
+                self.skipped.load(Ordering::Relaxed)
+            ));
+        }
+        if refusals.is_empty() {
+            self.open.store(false, Ordering::Relaxed);
+        }
+    }
+}
+
+const CREDENTIAL_PAUSED: &str =
+    "the cache refused this credential; requests are paused until it changes";
+
+// What a publication sends after its existence probe: blob presence, the upload
+// and the action entry.
+const PUBLICATION_METHODS: [&str; 3] = [
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs",
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs",
+    "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult",
+];
+
+/// The trailers-only answer a request the breaker holds back gets, decoded by
+/// the client exactly like the server's own refusal.
+fn credential_paused_response() -> tonic::codegen::http::Response<tonic::body::Body> {
+    let mut response = tonic::codegen::http::Response::new(tonic::body::Body::empty());
+    let headers = response.headers_mut();
+    headers.insert(
+        "content-type",
+        tonic::codegen::http::HeaderValue::from_static("application/grpc"),
+    );
+    headers.insert(
+        "grpc-status",
+        tonic::codegen::http::HeaderValue::from(tonic::Code::PermissionDenied as i32),
+    );
+    headers.insert(
+        "grpc-message",
+        tonic::codegen::http::HeaderValue::from_static(CREDENTIAL_PAUSED),
+    );
+    response
+}
+
 type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
 
-/// Wraps a message in a `tonic::Request`, attaching the bearer when present.
-fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> {
+/// Keeps account routing and authorization together, including spawned RPCs.
+fn authed_request<T>(message: T, auth: &tonic::metadata::MetadataMap) -> tonic::Request<T> {
     let mut request = tonic::Request::new(message);
-    if let Some(value) = auth {
-        request
-            .metadata_mut()
-            .insert("authorization", value.clone());
-    }
+    *request.metadata_mut() = auth.clone();
     request
 }
 
 impl Remote {
     pub fn new(config: RemoteConfig, tokens: Arc<TokenProvider>) -> Arc<Self> {
+        let credentials = Arc::new(CredentialBreaker::new(config.instance.clone()));
         Arc::new(Self {
             config,
             tokens,
@@ -1085,6 +1316,7 @@ impl Remote {
             write_pressure_backoff_until_ms: AtomicU64::new(0),
             shed_writes: AtomicU64::new(0),
             lookups: Arc::default(),
+            credentials,
         })
     }
 
@@ -1130,11 +1362,13 @@ impl Remote {
         let Ok(mut client) = self.ac_client() else {
             return;
         };
-        let request = self.authed(reapi::GetActionResultRequest {
+        let Ok(request) = self.authed(reapi::GetActionResultRequest {
             instance_name: self.config.instance.clone(),
             action_digest: Some(action_digest(LOOKUP_PROBE_KEY)),
             ..Default::default()
-        });
+        }) else {
+            return;
+        };
         let lookups = self.lookups.clone();
         runtime().spawn(async move {
             lookups.record(client.get_action_result(request).await.as_ref().map(|_| ()));
@@ -1177,16 +1411,55 @@ impl Remote {
         size >= 2 * 1024 * 1024 && self.supports_chunking()
     }
 
-    /// The `authorization: Bearer <token>` header, or `None` when the endpoint
-    /// is unauthenticated. Cloned onto every request so the spawned batch-read
-    /// tasks stay self-contained.
-    fn authorization(&self) -> Option<AuthValue> {
-        let token = self.tokens.current()?;
-        AuthValue::try_from(format!("Bearer {token}")).ok()
+    fn credential(&self) -> Result<Option<AuthValue>, tonic::Status> {
+        let token = self
+            .tokens
+            .current_for_endpoint(&self.config.grpc_url)
+            .map_err(tonic::Status::unauthenticated)?;
+        // Invalid supplied credentials must never become absent headers.
+        Ok(token.map(|token| {
+            AuthValue::try_from(format!("Bearer {token}"))
+                .unwrap_or_else(|_| AuthValue::from_static("Bearer"))
+        }))
     }
 
-    fn authed<T>(&self, message: T) -> tonic::Request<T> {
-        authed_request(message, self.authorization().as_ref())
+    /// Whether a request a publication needs would be held back because the
+    /// server refused the current credential for it, so the publication can
+    /// skip the local work it would spend before reaching that request.
+    pub fn publication_refused(&self) -> bool {
+        self.credential().is_ok_and(|credential| {
+            let credential =
+                credential_fingerprint(credential.as_ref().map(|value| value.as_bytes()));
+            let now = now_ms();
+            PUBLICATION_METHODS
+                .iter()
+                .any(|method| self.credentials.refusing(credential, method, now))
+        })
+    }
+
+    /// Requests not sent because the server had refused their credential.
+    pub fn skipped_credential_requests(&self) -> u64 {
+        self.credentials.skipped.load(Ordering::Relaxed)
+    }
+
+    fn authorization(&self) -> Result<tonic::metadata::MetadataMap, tonic::Status> {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        if let Some(credential) = self.credential()? {
+            metadata.insert("authorization", credential);
+        }
+        if let Some(account) = self.tokens.account_handle() {
+            let value = AuthValue::try_from(account)
+                .map_err(|_| tonic::Status::invalid_argument("invalid cache account handle"))?;
+            value
+                .to_str()
+                .map_err(|_| tonic::Status::invalid_argument("invalid cache account handle"))?;
+            metadata.insert("x-tuist-account-handle", value);
+        }
+        Ok(metadata)
+    }
+
+    fn authed<T>(&self, message: T) -> Result<tonic::Request<T>, tonic::Status> {
+        Ok(authed_request(message, &self.authorization()?))
     }
 
     /// An authed request carrying a git ref (the branch a publish is attributed
@@ -1208,8 +1481,8 @@ impl Remote {
         header: &'static str,
         binary_header: &'static str,
         value: Option<&str>,
-    ) -> tonic::Request<T> {
-        let mut request = self.authed(message);
+    ) -> Result<tonic::Request<T>, tonic::Status> {
+        let mut request = self.authed(message)?;
         if let Some(value) = value.filter(|value| !value.is_empty()) {
             if let Ok(ascii) = tonic::metadata::MetadataValue::try_from(value) {
                 request.metadata_mut().insert(header, ascii);
@@ -1219,7 +1492,7 @@ impl Remote {
                 tonic::metadata::MetadataValue::from_bytes(value.as_bytes()),
             );
         }
-        request
+        Ok(request)
     }
 
     fn channel(&self) -> Result<RemoteChannel, String> {
@@ -1244,9 +1517,9 @@ impl Remote {
                 // Public kura endpoints are https (TLS with the system trust
                 // store); private-network endpoints stay plaintext h2c.
                 if self.config.grpc_url.starts_with("https://") {
-                    endpoint = endpoint
-                        .tls_config(ClientTlsConfig::new().with_native_roots())
-                        .map_err(|e| format!("tls config: {e}"))?;
+                    let mut roots = rustls::RootCertStore::empty();
+                    roots.add_parsable_certificates(rustls_native_certs::load_native_certs().certs);
+                    endpoint = secure_endpoint(endpoint, roots, Vec::new())?;
                 }
                 // connect_lazy establishes (and transparently re-establishes)
                 // the connection per request, so a Kura restart or transient
@@ -1257,6 +1530,7 @@ impl Remote {
                 Ok(RemoteChannel {
                     slot: Arc::new(ChannelSlot::new(endpoint)),
                     ready: None,
+                    credentials: self.credentials.clone(),
                 })
             })
             .clone()
@@ -1333,7 +1607,7 @@ impl Remote {
                 ..Default::default()
             };
             let response = retry_call_if(
-                || runtime().block_on(client.get_action_result(self.authed(request.clone()))),
+                || runtime().block_on(client.get_action_result(self.authed(request.clone())?)),
                 lookup_retryable,
             );
             self.lookups.record(response.as_ref().map(|_| ()));
@@ -1397,7 +1671,7 @@ impl Remote {
                 "x-tuist-trunk-branch",
                 "x-tuist-trunk-branch-bin",
                 trunk,
-            )))
+            )?))
         });
         match response {
             Ok(response) => {
@@ -1506,7 +1780,7 @@ impl Remote {
         let client = self
             .cas_client()?
             .max_decoding_message_size(2 * 1024 * 1024);
-        let auth = self.authorization();
+        let auth = self.authorization().map_err(|status| status.to_string())?;
         let splits = runtime().block_on(async {
             stream::iter(large)
                 .map(|blob| {
@@ -1521,7 +1795,7 @@ impl Remote {
                         let result = retry_call_async_if(
                             || {
                                 let mut client = client.clone();
-                                let request = authed_request(request.clone(), auth.as_ref());
+                                let request = authed_request(request.clone(), &auth);
                                 async move { client.split_blob(request).await }
                             },
                             |status| {
@@ -1737,7 +2011,7 @@ impl Remote {
         }
         let client = self.cas_client()?;
         let instance = self.config.instance.clone();
-        let auth = self.authorization();
+        let auth = self.authorization().map_err(|status| status.to_string())?;
         let chunks = chunk_digests(blobs);
         let responses = runtime().block_on(async {
             let mut join_set = tokio::task::JoinSet::new();
@@ -1757,7 +2031,7 @@ impl Remote {
                             let auth = auth.clone();
                             async move {
                                 client
-                                    .batch_read_blobs(authed_request(request, auth.as_ref()))
+                                    .batch_read_blobs(authed_request(request, &auth))
                                     .await
                             }
                         },
@@ -1810,7 +2084,7 @@ impl Remote {
                 ..Default::default()
             };
             let response = retry_call(|| {
-                runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
+                runtime().block_on(client.find_missing_blobs(self.authed(request.clone())?))
             })
             .map_err(|status| format!("find_missing: {status}"))?;
             Ok(response.into_inner().missing_blob_digests)
@@ -1908,7 +2182,7 @@ impl Remote {
         }
         self.batch_update_whole(whole, true)?;
         let client = self.cas_client()?;
-        let auth = self.authorization();
+        let auth = self.authorization().map_err(|status| status.to_string())?;
         let splices = runtime().block_on(async {
             stream::iter(recipes)
                 .map(|(digest, chunk_digests)| {
@@ -1925,7 +2199,7 @@ impl Remote {
                         let result =
                             retry_write_async(&self.write_pressure_backoff_until_ms, || {
                                 let mut client = client.clone();
-                                let request = authed_request(request.clone(), auth.as_ref());
+                                let request = authed_request(request.clone(), &auth);
                                 async move { client.splice_blob(request).await }
                             })
                             .await;
@@ -2002,7 +2276,10 @@ impl Remote {
         else {
             return false;
         };
-        let (metadata, _, ()) = self.authed(()).into_parts();
+        let Ok(authorization) = self.authed(()) else {
+            return false;
+        };
+        let (metadata, _, ()) = authorization.into_parts();
         request.headers_mut().extend(metadata.into_headers());
 
         runtime().block_on(async move {
@@ -2042,9 +2319,11 @@ impl Remote {
                 return false;
             };
             let mut client = CapabilitiesClient::new(channel);
-            let mut request = self.authed(reapi::GetCapabilitiesRequest {
+            let Ok(mut request) = self.authed(reapi::GetCapabilitiesRequest {
                 instance_name: self.config.instance.clone(),
-            });
+            }) else {
+                return false;
+            };
             request.set_timeout(Duration::from_secs(5));
             let Ok(Ok(response)) = runtime().block_on(async {
                 tokio::time::timeout(Duration::from_secs(5), client.get_capabilities(request)).await
@@ -2106,7 +2385,7 @@ impl Remote {
                 let response = retry_write(&self.write_pressure_backoff_until_ms, || {
                     self.uploaded_blob_bytes
                         .fetch_add(size as u64, Ordering::Relaxed);
-                    runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
+                    runtime().block_on(client.batch_update_blobs(self.authed(request.clone())?))
                 })
                 .map_err(|status| format!("batch_update: {status}"))?;
                 for entry in response.into_inner().responses {
@@ -2190,7 +2469,7 @@ impl Remote {
                     "x-tuist-branch",
                     "x-tuist-branch-bin",
                     branch,
-                );
+                )?;
                 if let Some(trunk) = trunk.filter(|trunk| !trunk.is_empty()) {
                     if let Ok(value) = tonic::metadata::MetadataValue::try_from(trunk) {
                         request.metadata_mut().insert("x-tuist-trunk-branch", value);
@@ -2269,8 +2548,24 @@ pub fn decode_frame(frame: &[u8]) -> Option<Node> {
     })
 }
 
-pub fn compress_frame(frame: &[u8]) -> Vec<u8> {
-    zstd::stream::encode_all(frame, 1).unwrap_or_default()
+pub fn compress_frame(mut frame: &[u8]) -> Vec<u8> {
+    thread_local! {
+        static CONTEXT: RefCell<zstd::zstd_safe::CCtx<'static>> =
+            RefCell::new(zstd::zstd_safe::CCtx::create());
+    }
+    CONTEXT.with(|context| {
+        let mut context = context.borrow_mut();
+        if context.init(1).is_err() {
+            return Vec::new();
+        }
+        // Preserve encode_all's streaming bytes: compressed content determines
+        // the remote digest, so bulk compression would change blob identities.
+        let mut encoder = zstd::stream::write::Encoder::with_context(Vec::new(), &mut context);
+        if io::copy(&mut frame, &mut encoder).is_err() {
+            return Vec::new();
+        }
+        encoder.finish().unwrap_or_default()
+    })
 }
 
 /// Small compressed outputs cannot reuse transfer chunks. Keep their original
@@ -2838,5 +3133,122 @@ mod tests {
             first,
             "a second arm within the window does not extend it"
         );
+    }
+}
+
+#[cfg(test)]
+mod credential_breaker_tests {
+    use super::{
+        CredentialBreaker, CREDENTIAL_REFUSAL_BACKOFF_MS, MAX_CREDENTIAL_REFUSAL_BACKOFF_MS,
+    };
+
+    const REFUSED: u64 = 1;
+    const ROTATED: u64 = 2;
+    const WRITE: &str = "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult";
+    const READ: &str = "/build.bazel.remote.execution.v2.ActionCache/GetActionResult";
+
+    fn denied() -> tonic::Status {
+        tonic::Status::permission_denied("no")
+    }
+
+    fn refused_at(now: u64) -> CredentialBreaker {
+        let breaker = CredentialBreaker::new("acme/app".into());
+        breaker.observe_at(REFUSED, WRITE, Some(&denied()), now);
+        breaker
+    }
+
+    #[test]
+    fn a_refusal_pauses_only_that_credential_and_method() {
+        let breaker = refused_at(0);
+        assert!(!breaker.admit(REFUSED, WRITE, 1));
+        assert!(breaker.refusing(REFUSED, WRITE, 1));
+        assert!(
+            breaker.admit(REFUSED, READ, 1),
+            "a read-only credential keeps reading"
+        );
+        assert!(
+            breaker.admit(ROTATED, WRITE, 1),
+            "a new credential is always sent"
+        );
+    }
+
+    #[test]
+    fn each_window_lets_one_probe_through_and_a_refused_probe_doubles_it() {
+        let breaker = refused_at(0);
+        let elapsed = CREDENTIAL_REFUSAL_BACKOFF_MS;
+        assert!(breaker.admit(REFUSED, WRITE, elapsed), "the probe");
+        assert!(
+            !breaker.admit(REFUSED, WRITE, elapsed),
+            "only one probe per window"
+        );
+
+        breaker.observe_at(REFUSED, WRITE, Some(&denied()), elapsed);
+        let doubled = elapsed + 2 * CREDENTIAL_REFUSAL_BACKOFF_MS;
+        assert!(!breaker.admit(REFUSED, WRITE, doubled - 1));
+        assert!(breaker.admit(REFUSED, WRITE, doubled));
+    }
+
+    #[test]
+    fn refusals_already_in_flight_do_not_lengthen_the_window() {
+        let breaker = refused_at(0);
+        breaker.observe_at(REFUSED, WRITE, Some(&denied()), 10);
+        assert!(breaker.admit(REFUSED, WRITE, CREDENTIAL_REFUSAL_BACKOFF_MS));
+    }
+
+    #[test]
+    fn the_window_stops_growing_at_five_minutes() {
+        let breaker = refused_at(0);
+        let mut now = 0;
+        for _ in 0..10 {
+            now += MAX_CREDENTIAL_REFUSAL_BACKOFF_MS;
+            assert!(breaker.admit(REFUSED, WRITE, now));
+            breaker.observe_at(
+                REFUSED,
+                WRITE,
+                Some(&tonic::Status::unauthenticated("no")),
+                now,
+            );
+        }
+        let five_minutes = 5 * 60_000;
+        assert!(!breaker.admit(REFUSED, WRITE, now + five_minutes - 1));
+        assert!(breaker.admit(REFUSED, WRITE, now + five_minutes));
+    }
+
+    #[test]
+    fn an_answered_request_resumes_its_method() {
+        let breaker = refused_at(0);
+        breaker.observe_at(REFUSED, READ, Some(&denied()), 0);
+        breaker.observe_at(REFUSED, WRITE, Some(&tonic::Status::not_found("miss")), 1);
+        assert!(breaker.admit(REFUSED, WRITE, 2));
+        assert!(
+            !breaker.admit(REFUSED, READ, 2),
+            "another method stays paused"
+        );
+
+        breaker.observe_at(REFUSED, READ, None, 3);
+        assert!(breaker.admit(REFUSED, READ, 4));
+    }
+
+    #[test]
+    fn a_newer_credential_retires_the_older_ones() {
+        let breaker = refused_at(0);
+        breaker.observe_at(ROTATED, WRITE, Some(&denied()), 1);
+        assert!(breaker.admit(REFUSED, WRITE, 2));
+        assert!(!breaker.admit(ROTATED, WRITE, 2));
+
+        breaker.observe_at(ROTATED, WRITE, None, 3);
+        assert!(breaker.admit(ROTATED, WRITE, 4));
+        assert!(breaker.refusals.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn transient_failures_neither_pause_nor_resume() {
+        let breaker = CredentialBreaker::new("acme/app".into());
+        breaker.observe_at(REFUSED, WRITE, Some(&tonic::Status::unavailable("down")), 0);
+        assert!(breaker.admit(REFUSED, WRITE, 1));
+
+        let breaker = refused_at(0);
+        breaker.observe_at(REFUSED, WRITE, Some(&tonic::Status::unavailable("down")), 1);
+        assert!(!breaker.admit(REFUSED, WRITE, 2));
     }
 }

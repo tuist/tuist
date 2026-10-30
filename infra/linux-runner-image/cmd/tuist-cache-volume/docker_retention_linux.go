@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -128,6 +129,12 @@ func (d *daemon) retainDocker(ctx context.Context, host, root string, ledger doc
 // their holes. Run after dockerd stops, while mounted, on BOTH merge choices.
 // Failure withholds publication rather than repeatedly uploading deleted data.
 func (d *daemon) trimDocker(ctx context.Context, root string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if d.trim != nil {
+		return d.trim(root)
+	}
 	// ext4 defers freeing deleted extents until their journal transaction
 	// commits. Without this flush, FITRIM can succeed while reclaiming almost
 	// none of the files cleanup just removed.
@@ -135,13 +142,22 @@ func (d *daemon) trimDocker(ctx context.Context, root string) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	err = unix.Syncfs(int(file.Fd()))
-	file.Close()
 	if err != nil {
 		return fmt.Errorf("sync Docker cache before trim: %w", err)
 	}
-	if out, err := d.run(ctx, "fstrim", root); err != nil {
-		return fmt.Errorf("trim Docker cache: %s: %w", strings.TrimSpace(string(out)), err)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Linux linux/fs.h: _IOWR('X', 121, struct fstrim_range). All three
+	// fields are __u64 on both supported architectures (amd64 and arm64).
+	// Calling the kernel directly avoids installing util-linux: its mount
+	// replaced the BusyBox mount used by the working Kata startup path.
+	rangeToTrim := struct{ Start, Length, MinLength uint64 }{Length: ^uint64(0)}
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, file.Fd(), 0xc0185879, uintptr(unsafe.Pointer(&rangeToTrim)))
+	if errno != 0 {
+		return fmt.Errorf("trim Docker cache: %w", errno)
 	}
 	return nil
 }

@@ -328,6 +328,8 @@
       <TuistWeb.Components.BuildMetadata.environment_metadata
         values={@run.custom_values || %{}}
         fields={[
+          {dgettext("dashboard_builds", "Tuist CLI version"), @run.tuist_version},
+          {dgettext("dashboard_builds", "Tuist generator version"), @tuist_generation_version},
           {dgettext("dashboard_builds", "Xcode version"), @run.xcode_version},
           {dgettext("dashboard_builds", "macOS version"), @run.macos_version},
           {dgettext("dashboard_builds", "Mac device"),

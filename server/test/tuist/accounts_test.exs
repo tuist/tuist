@@ -3,6 +3,7 @@ defmodule Tuist.AccountsTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
@@ -2839,6 +2840,62 @@ defmodule Tuist.AccountsTest do
     setup do
       stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       %{user: user_fixture()}
+    end
+
+    test "a delivery failure does not suppress an immediate retry", %{user: user} do
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, :delivery_failed} =
+                   Accounts.deliver_user_reset_password_instructions(%{
+                     user: user,
+                     reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+                   })
+        end)
+
+      assert log =~ "Password reset email delivery failed"
+      refute log =~ "mail provider unavailable"
+      refute log =~ user.email
+
+      refute Repo.exists?(from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"))
+
+      stub(Bamboo.TestAdapter, :deliver, fn email, config ->
+        Mimic.call_original(Bamboo.TestAdapter, :deliver, [email, config])
+      end)
+
+      token =
+        extract_user_token(fn reset_password_url ->
+          Accounts.deliver_user_reset_password_instructions(%{
+            user: user,
+            reset_password_url: reset_password_url
+          })
+        end)
+
+      assert Accounts.get_user_by_reset_password_token(token).id == user.id
+      assert_receive {:delivered_email, email}
+      assert email.to == [nil: user.email]
+    end
+
+    test "a delivery failure preserves a replacement token if its own token was already removed", %{user: user} do
+      {replacement_token, replacement_user_token} = UserToken.build_email_token(user, "reset_password")
+
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        # A reset on another replica can remove the in-flight delivery's token.
+        Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+        Repo.insert!(replacement_user_token)
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      assert {:error, :delivery_failed} =
+               Accounts.deliver_user_reset_password_instructions(%{
+                 user: user,
+                 reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+               })
+
+      assert Accounts.get_user_by_reset_password_token(replacement_token).id == user.id
     end
 
     test "sends token through notification", %{user: user} do

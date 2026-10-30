@@ -372,7 +372,19 @@ added to catch that failed on `admin`'s unwritable cache instead.
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
-  the job ends. Best-effort; never blocks the job.
+  the job ends. Best-effort; never blocks the job. Samples the server
+  answers 202 (no job proven on the Pod until GitHub's `in_progress`
+  webhook, which can lag the job by minutes), 5xx or not at all are
+  resent with the next batch, so a job's first sample is its start.
+  Disk free is the APFS container's Avail.
+- The job VM's disk is `disk_size_gb` (200 GB), larger than the base's
+  140 GB. The build's first provisioner grows the APFS container into it
+  (`diskutil repairDisk` + `apfs resizeContainer`), because the plugin
+  only resizes after deleting a recovery partition, and its last fails the
+  build below 100 GiB available. The live resize intermittently fails with
+  -69606 and rolls itself back, so it is retried up to five times. Growing
+  the disk again takes room from the rack's disk plan (`rackFleet.machine` in
+  `values-managed-production.yaml`), which counts two guests at this size.
 - `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
   client, built from `cas-plugin/` alongside `runner-shell-agent` by
   `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in
@@ -457,19 +469,25 @@ CI:
 - **Releases.** `.github/workflows/runner-image-release.yml` runs on
   pushes to `main` under `infra/runner-image/**` and on
   `workflow_dispatch`, in its own concurrency lane, off the server
-  deploy path:
+  deploy path. A release in flight finishes; a newer one waits behind
+  it, and only the latest waiting run is kept:
   1. `plan` (`.github/scripts/runner-image-release-plan.sh`) rebuilds a
-     profile when the image's sources changed in a releasable commit,
-     when the previous release did not carry it, or when its
-     `macos-tahoe-xcode` base resolves to a different digest than the
-     one in the previous release's `build-manifest.json`. Every other
-     profile is carried over. A base-only change releases a patch
-     version.
-  2. `build` fans the rebuilt profiles across the `vm-image-builder`
-     hosts. Each clones its base by digest and pushes
-     `:macos-<dashes>-<semver>` and `:macos-<dashes>`.
+     profile's stacked image when the image's sources changed in a
+     releasable commit, when the previous release did not carry it, or
+     when its `macos-tahoe-xcode` base resolves to a different digest
+     than the one in the previous release's `build-manifest.json`. It
+     rebuilds a standalone image only when the release is dispatched
+     with `standalone`, or when the previous release published none for
+     the profile. Every other image is carried over. A base-only change
+     releases a patch version.
+  2. `build-stacked` runs the stacked builds (see "Stacked images"), and
+     `build` the standalone ones on the `vm-image-builder` hosts. Each
+     clones its base by digest and pushes `:macos-<dashes>-<semver>`
+     and `:macos-<dashes>`, with `-stacked` for the stacked image.
   3. `carry` re-tags `:macos-<dashes>-<previous>` as
      `:macos-<dashes>-<semver>`, a manifest copy with no layer upload.
+     A carried standalone image stays on the base it was built on,
+     which `build-manifest.json` records as `standalone_base_digest`.
   4. `release` checks every profile tag is published, then creates the
      `runner-image@<semver>` tag and GitHub Release with
      `build-manifest.json` attached. The chart's
@@ -530,18 +548,23 @@ the runner layer is an ASIF overlay. Clone and run need macOS 27 and
 Tart 2.36 or newer, so only rack hosts run it. Older hosts can pull one
 but not boot it.
 
-- **Release.** The plan builds a profile's stacked image whenever it
-  rebuilds the standalone one, and when the previous release published
-  none for it (its `build-manifest.json` entry lacks `stacked: true`).
-  Otherwise `carry` re-tags it like the standalone tag. The
-  `build-stacked` job runs on the macOS 27 builder (`macos-27` label),
-  and the release gate requires both tags of every profile.
+- **Release.** The plan builds a profile's stacked image on the release
+  triggers above, and when the previous release published none for it
+  (its `build-manifest.json` entry lacks `stacked: true`). Otherwise
+  `carry` re-tags it like the standalone tag. The `build-stacked` job
+  runs on the macOS 27 builders (`macos-27` label), and the release gate
+  requires both tags of every profile. Pulling the base is most of a
+  stacked build, so its disk reclaim keeps the release's other bases
+  cached, evicting the ones later in `profiles.json` first.
 - **Where it runs.** `server-deployment.yml` resolves each published
   stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
   Rack pools run it when `rackFleet.runners.stackedImages` is on, which
   requires every host of that rack, including borrowed ones, to run
-  macOS 27 and Tart 2.36 or newer. Rented pools, explicit pools and any
-  Xcode pinned by `imageTag` keep the standalone image.
+  macOS 27 and Tart 2.36 or newer, as does an explicit pool that names
+  an `xcodeVersion` and selects that rack's fleet. Rented pools, other
+  explicit pools and any Xcode pinned by `imageTag` keep the standalone
+  image, so a release that rents macOS hosts again is dispatched with
+  `standalone`.
 - **One-off builds.** `runner-image.yml` with `stacked: true` builds the
   same image from a branch and pushes `:macos-<dashes>-<git-sha>-stacked`.
 
@@ -571,7 +594,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the

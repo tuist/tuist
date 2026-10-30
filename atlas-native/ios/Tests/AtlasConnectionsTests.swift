@@ -10,6 +10,27 @@ struct AtlasConnectionsTests {
         """.utf8)
     }
 
+    @Test func cachedConnectionMustRefreshBeforeDisconnectAndDenialClearsIt() async {
+        var failure: String? = "network"
+        var status = "connected"
+        let model = AtlasConnections(request: { action in
+            if action["action"] as? String == "disconnect" { status = "not_connected"; return Data("{}".utf8) }
+            if let failure { throw AtlasAuthenticationError(kind: failure, message: "Unavailable") }
+            return metadata(status)
+        }, authorize: { _ in nil })
+        model.cachedRequest = { _ in metadata("connected") }
+        await model.load()
+        #expect(model.cached && model.connections.first?.connected == true)
+        failure = nil
+        await model.disconnect("github")
+        #expect(model.cached && model.connections.first?.connected == true)
+        await model.load()
+        #expect(!model.cached && model.connections.first?.connected == true)
+        failure = "sign_in_required"
+        await model.load()
+        #expect(model.connections.isEmpty && !model.busy)
+    }
+
     @Test func browserReturnReloadsTheAuthoritativeGrantInsteadOfTrustingTheURL() async {
         for status in ["connected", "not_connected"] {
             let model = AtlasConnections(request: { action in

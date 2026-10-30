@@ -11,6 +11,7 @@ defmodule TuistWeb.EndpointTest do
       |> put_req_header("x-tuist-operator-grant", "grant")
       |> put_req_header("authorization", "Bearer token")
       |> put_req_header("x-tuist-actor-id", "jane.doe")
+      |> put_req_header("x-tuist-runner-grant", "signed.runner.grant")
       |> put_req_header("accept", "application/json")
 
     assert TuistWeb.Endpoint.scrub_sentry_headers(conn) == %{"accept" => "application/json"}

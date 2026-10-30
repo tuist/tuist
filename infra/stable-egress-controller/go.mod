@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/stable-egress-controller
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/hetznercloud/hcloud-go/v2 v2.17.0
@@ -66,3 +66,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+godebug default=go1.25

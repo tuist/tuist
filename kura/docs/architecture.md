@@ -144,6 +144,22 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 | Helm chart, rollout scripts, observability config | `ops/` |
 | End-to-end and shell-based tests | `test/e2e/`, `spec/e2e/` |
 
+## Network-trusted cache authorization
+
+The self-hosted Tuist server owns the default-off
+`TUIST_NETWORK_TRUSTED_CACHE_ACCESS` policy. Public discovery informs clients;
+Kura instead authenticates with its control-plane credentials to fetch the
+account-bound internal cache policy. A separate eight-entry cache coalesces
+checks and expires authority within 60 seconds of request start, without the
+credential engine's outage grace. Older/malformed/unreachable control planes
+deny unsigned access after expiry. HTTP and gRPC distinguish absent credentials
+from supplied invalid, blank or duplicate credentials before policy evaluation.
+Only cache read/write/inspect and capabilities operations qualify; purges,
+Remote Asset fetching and BES reporting do not. Tenant routing checks remain
+mandatory. Operators enforce the office/VPN boundary outside Kura. Peer/storage
+formats are unchanged, and mixed-version nodes continue serving authenticated
+clients while old nodes refuse unsigned requests.
+
 ## Storage Planes
 
 Kura splits durable state into two planes so that the hot path is simple and the cold path can compact freely:
@@ -381,6 +397,10 @@ shutdown joins. A single outstanding blocking DNS lookup, serial deadline-bound
 samples, and bounded response/resolver buffers limit work. Results go to ordinary
 JSON logs. This shares the runtime process resource budget; it is not a separate
 security sandbox. See the [runbook](../../infra/kura-controller/connectivity-diagnostics.md).
+The fixed profile compares server `/ready` and Alloy `/v1/traces` header timings,
+including normal and absolute DNS names. Alloy receives unauthenticated GETs on
+port 4318, never spans. Six serial samples precede a 60-second pause; there is no
+additional worker, retry queue or application startup dependency.
 
 Each node exposes:
 
@@ -390,6 +410,7 @@ Each node exposes:
 - OpenTelemetry traces for replication and request handling. When trace export is active, cache requests include child spans for authorization, manifest lookup, artifact opening, and response-body transfer. The additional spans are not constructed when trace export is disabled, keeping the default request path lean.
 - Control-plane usage metering for public cache traffic when configured through `KURA_CONTROL_PLANE_URL` and client credentials. Kura aggregates bytes and request counts into bounded in-memory windows, persists closed windows into a dedicated RocksDB usage outbox, and pushes batches to `/_internal/kura/usage`. Delivery pauses under critical memory pressure and is at least once, with deterministic event ids for control-plane deduplication. Both transports are metered and tagged by `protocol`: the HTTP cache path emits `protocol = "http"`, and the REAPI (gRPC) path emits `protocol = "grpc"` with `artifact_kind = "reapi"`. A batch RPC (`BatchReadBlobs`/`BatchUpdateBlobs`) books one request carrying the aggregate bytes, matching the one-request-per-call accounting of the HTTP and ByteStream paths, and re-uploads of an already-present blob are not billed. A request authorized by a credential carrying a signed `cache_origin` claim (the coarse country or subdivision the control plane signs into exchanged cache tokens) is also bucketed by that origin, which the rollup carries as an optional `origin` field and appends to its event id. The origin is read only off a credential the authorization engine confirmed and is held per credential beside its access level; requests without one keep the event id and payload they always had.
 - Storage telemetry for control-plane claim sizing rides the same usage batches as two additive arrays. Every segment evicted by ring rotation queues a capacity-eviction report (segment id, creation and newest-content timestamps, eviction time, artifact count, bytes) whose event id is deterministic per segment; the startup orphan sweep deliberately reports nothing, since it removes crash debris rather than shedding under size pressure. A ring-occupancy snapshot (budget, live segment count and bytes, oldest/newest timestamps) is included at most every 15 minutes. Both are in-memory only with bounded queues: losing a restart's worth of reports is noise to a policy reading weeks of aggregates, and keeping them off the durable outbox leaves the on-disk format untouched. The shed age (eviction time minus newest content) is also exported as the `kura_segment_shed_age_seconds` histogram.
+- Usage delivery has one retry owner: Kura retains RocksDB rows until the server completes the whole batch and returns 2xx. The server bounds whole-batch concurrency per replica and uses a shared three-second deadline, without application or driver insert replay; partial commits return 503 and deduplicate on replay. Delivery uses capped exponential backoff with jitter and honors numeric Retry-After as a minimum. Graceful shutdown stops and joins the delivery/checkpoint loops before a final synced local checkpoint after producer drain, reserving five seconds ahead of sibling catch-up. It never drains the remote backlog. Final current-window IDs include a process incarnation, leaving closed-window IDs unchanged. A final checkpoint may append at most the bounded in-memory bucket count beyond the normal soft outbox depth; repeated restarts can grow that backlog. Hard termination before persistence, failed local writes, incomplete producer drain and volume loss remain loss boundaries.
 - Node geographic attribution: each pod stamps the country and subdivision its deployment configures (`KURA_NODE_COUNTRY` / `KURA_NODE_SUBDIVISION`, set per fleet from the datacenter the node runs in) onto the OTel Resource as `geo.country.iso_code` and `geo.region.iso_code`, next to the unchanged `kura.region`, so every span carries them; the same pair lands on the low-cardinality `kura_node_geo_info` metric for Grafana maps (`src/node_location.rs`). Resolution is a pure function of configuration — no egress-IP probe, no geographic database — falling back only to a country prefix already embedded in the region label (`fr-par` -> `FR`). Client-side geographic attribution does not exist: Kura never geolocates a client IP.
 - Pull replication: `kura_sync_forward_*` (feed depth and drops, per-sibling cursor lag in rows and seconds, `410`s received by reason, drain-gate expiries), `kura_sync_pull_links` by link kind, `kura_region_sync_*` (including `kura_region_sync_lag_seconds`, the lag signal: newest version the remote gateway lists minus newest applied, zero while the remote region is idle) and `kura_region_watermark_age_seconds` per origin region, `kura_peer_clock_skew_seconds` per peer, and `kura_gateway_role{state}` with its change counter. They are the "Pull replication" row of the `Tuist Kura / Details` dashboard, with the interpretation of each in its panel description.
 - Structured logs intended for Loki/Promtail.

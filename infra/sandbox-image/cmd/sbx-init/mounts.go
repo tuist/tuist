@@ -46,4 +46,9 @@ func mountFilesystems(log *slog.Logger) {
 			log.Error("mount", slog.String("target", m.target), slog.String("fstype", m.fstype), slog.Any("error", err))
 		}
 	}
+	// These must be created after mounting /dev: links baked into the rootfs
+	// would be hidden by devtmpfs, including when the kernel mounts it first.
+	if err := ensureDeviceLinks("/dev"); err != nil {
+		log.Error("device descriptor links", slog.Any("error", err))
+	}
 }
