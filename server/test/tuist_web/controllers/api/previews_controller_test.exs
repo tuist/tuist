@@ -19,6 +19,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   setup do
     user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
     project = ProjectsFixtures.project_fixture(account_id: account.id)
+    stub(AppBuilds, :preview_install_token, fn _preview -> "install-token" end)
     %{user: user, project: project, account: account}
   end
 
@@ -887,7 +888,9 @@ defmodule TuistWeb.PreviewsControllerTest do
         |> json_response(:ok)
 
       assert response["supported_platforms"] == ["android"]
-      assert response["device_url"] == url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk")
+
+      assert response["device_url"] ==
+               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk?token=install-token")
     end
 
     test "legacy builds without per-build platform metadata retain their preview platforms", %{
@@ -1055,7 +1058,10 @@ defmodule TuistWeb.PreviewsControllerTest do
                "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
                "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "device_url" =>
-                 "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/manifest.plist")}",
+                 "itms-services://?action=download-manifest&url=" <>
+                   URI.encode_www_form(
+                     url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/manifest.plist?token=install-token")
+                   ),
                "bundle_identifier" => "dev.tuist.app",
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
@@ -1182,7 +1188,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["supported_platforms"] == ["android"]
 
       assert response["device_url"] ==
-               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk")
+               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk?token=install-token")
     end
 
     test "returns error when project doesn't exist", %{
@@ -1655,7 +1661,12 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"),
                  "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
                  "device_url" =>
-                   "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/manifest.plist")}",
+                   "itms-services://?action=download-manifest&url=" <>
+                     URI.encode_www_form(
+                       url(
+                         ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/manifest.plist?token=install-token"
+                       )
+                     ),
                  "bundle_identifier" => "dev.tuist.app",
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
