@@ -9793,8 +9793,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/release_notes`.
             public var release_notes: Swift.String?
+            /// Supported platforms. Clients must ignore unknown platforms.
+            ///
             /// - Remark: Generated from `#/components/schemas/Preview/supported_platforms`.
-            public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
+            public var supported_platforms: [Swift.String]
             /// The track for the preview (e.g., 'beta', 'nightly')
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/track`.
@@ -9823,7 +9825,7 @@ public enum Components {
             ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - release_notes: Optional plain-text release notes describing this preview build
-            ///   - supported_platforms:
+            ///   - supported_platforms: Supported platforms. Clients must ignore unknown platforms.
             ///   - track: The track for the preview (e.g., 'beta', 'nightly')
             ///   - url: The URL to download the preview
             ///   - version: The app version of the preview
@@ -9841,7 +9843,7 @@ public enum Components {
                 inserted_at: Swift.String,
                 qr_code_url: Swift.String,
                 release_notes: Swift.String? = nil,
-                supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
+                supported_platforms: [Swift.String],
                 track: Swift.String? = nil,
                 url: Swift.String,
                 version: Swift.String? = nil
@@ -24051,21 +24053,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/supported_architectures`.
             public var supported_architectures: [Swift.String]?
+            /// Supported platforms. Clients must ignore unknown platforms.
+            ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/supported_platforms`.
-            public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
-            /// The type of the build
+            public var supported_platforms: [Swift.String]
+            /// The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats.
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/type`.
-            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case app_bundle = "app_bundle"
-                case ipa = "ipa"
-                case apk = "apk"
-                case executable = "executable"
-            }
-            /// The type of the build
-            ///
-            /// - Remark: Generated from `#/components/schemas/AppBuild/type`.
-            public var _type: Components.Schemas.AppBuild._typePayload
+            public var _type: Swift.String
             /// The URL to download the build
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/url`.
@@ -24076,15 +24071,15 @@ public enum Components {
             ///   - binary_id: The Mach-O UUID or SHA-256 content hash of the build.
             ///   - id: Unique identifier of the build.
             ///   - supported_architectures: CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
-            ///   - supported_platforms:
-            ///   - _type: The type of the build
+            ///   - supported_platforms: Supported platforms. Clients must ignore unknown platforms.
+            ///   - _type: The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats.
             ///   - url: The URL to download the build
             public init(
                 binary_id: Swift.String? = nil,
                 id: Swift.String,
                 supported_architectures: [Swift.String]? = nil,
-                supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
-                _type: Components.Schemas.AppBuild._typePayload,
+                supported_platforms: [Swift.String],
+                _type: Swift.String,
                 url: Swift.String
             ) {
                 self.binary_id = binary_id

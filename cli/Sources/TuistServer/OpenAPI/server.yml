@@ -3625,8 +3625,11 @@ components:
           x-struct:
           x-validate:
         supported_platforms:
+          description: Supported platforms. Clients must ignore unknown platforms.
           items:
-            $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: string
+            x-struct:
+            x-validate:
           type: array
           x-struct:
           x-validate:
@@ -14065,18 +14068,16 @@ components:
           x-struct:
           x-validate:
         supported_platforms:
+          description: Supported platforms. Clients must ignore unknown platforms.
           items:
-            $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: string
+            x-struct:
+            x-validate:
           type: array
           x-struct:
           x-validate:
         type:
-          description: The type of the build
-          enum:
-            - app_bundle
-            - ipa
-            - apk
-            - executable
+          description: The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats.
           type: string
           x-struct:
           x-validate:

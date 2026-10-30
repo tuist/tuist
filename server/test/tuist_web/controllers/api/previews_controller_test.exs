@@ -5,6 +5,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -299,6 +300,7 @@ defmodule TuistWeb.PreviewsControllerTest do
 
           conn
           |> put_req_header("content-type", "application/json")
+          |> put_req_header("x-tuist-preview-capabilities", "desktop")
           |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
             preview_id: started["data"]["app_build_id"],
             app_build_id: started["data"]["app_build_id"],
@@ -753,6 +755,242 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       assert response["message"] ==
                "tuist is not authorized to create preview"
+    end
+  end
+
+  describe "client compatibility" do
+    for operation <- [:show, :index, :latest, :complete], capabilities <- [nil, "desktop", "future-capability"] do
+      @operation operation
+      @capabilities capabilities
+      test "#{operation} with #{inspect(capabilities)} preserves supported builds", %{
+        conn: conn,
+        user: user,
+        project: project,
+        account: account
+      } do
+        previous = AppBuildsFixtures.preview_fixture(project: project, inserted_at: ~U[2020-01-01 00:00:00Z])
+
+        AppBuildsFixtures.app_build_fixture(
+          preview: previous,
+          binary_id: "previous",
+          build_version: "1",
+          supported_platforms: [:ios_simulator]
+        )
+
+        preview =
+          AppBuildsFixtures.preview_fixture(
+            project: project,
+            supported_platforms: [:ios_simulator, :android, :macos, :linux]
+          )
+
+        legacy_types = [{:app_bundle, :ios_simulator}, {:ipa, :ios}, {:apk, :android}, {:app_bundle, :macos}]
+
+        legacy_builds =
+          for {type, platform} <- legacy_types do
+            AppBuildsFixtures.app_build_fixture(preview: preview, type: type, supported_platforms: [platform])
+          end
+
+        cli =
+          AppBuildsFixtures.app_build_fixture(
+            preview: preview,
+            type: :executable,
+            supported_platforms: [:macos, :linux]
+          )
+
+        new_platform =
+          AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, supported_platforms: [:linux])
+
+        stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+        stub(Storage, :multipart_complete_upload, fn _key, _upload, _parts, _actor -> :ok end)
+        conn = Authentication.put_current_user(conn, user)
+        conn = if @capabilities, do: put_req_header(conn, "x-tuist-preview-capabilities", @capabilities), else: conn
+
+        response =
+          case @operation do
+            :show ->
+              conn |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}") |> json_response(:ok)
+
+            :index ->
+              conn
+              |> get(~p"/api/projects/#{account.name}/#{project.name}/previews")
+              |> json_response(:ok)
+              |> Map.fetch!("previews")
+              |> Enum.find(&(&1["id"] == preview.id))
+
+            :latest ->
+              conn
+              |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=previous&build_version=1")
+              |> json_response(:ok)
+              |> Map.fetch!("preview")
+
+            :complete ->
+              conn
+              |> put_req_header("content-type", "application/json")
+              |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+                preview_id: hd(legacy_builds).id,
+                multipart_upload_parts: %{upload_id: "upload", parts: [%{part_number: 1, etag: "etag"}]}
+              )
+              |> json_response(:ok)
+          end
+
+        assert response["id"] == preview.id
+
+        expected_ids =
+          Enum.map(legacy_builds, & &1.id) ++ if(@capabilities == "desktop", do: [cli.id, new_platform.id], else: [])
+
+        assert Enum.sort(Enum.map(response["builds"], & &1["id"])) == Enum.sort(expected_ids)
+        assert "linux" in response["supported_platforms"] == (@capabilities == "desktop")
+
+        if @capabilities != "desktop" do
+          assert Enum.all?(response["builds"], &(&1["type"] in ["app_bundle", "ipa", "apk"]))
+          refute Enum.any?(response["builds"], &("linux" in &1["supported_platforms"]))
+          if @operation == :show, do: assert(response["url"] == hd(response["builds"])["url"])
+        end
+      end
+    end
+
+    test "old clients get upgrade guidance for CLI-only previews", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:linux])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :executable, supported_platforms: [:linux])
+      reject(Storage, :generate_download_url, 3)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "newer Tuist client"
+    end
+
+    test "legacy install links and platforms reflect only compatible completed builds", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:android, :macos])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :apk, supported_platforms: [:android])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :executable, supported_platforms: [:macos])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, supported_platforms: [:ios_simulator])
+      stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+        |> json_response(:ok)
+
+      assert response["supported_platforms"] == ["android"]
+      assert response["device_url"] == url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk")
+    end
+
+    test "legacy builds without per-build platform metadata retain their preview platforms", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:ios_simulator])
+      build = AppBuildsFixtures.app_build_fixture(preview: preview, supported_platforms: [])
+      stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+        |> json_response(:ok)
+
+      assert response["supported_platforms"] == ["ios_simulator"]
+      assert [%{"id" => build_id, "supported_platforms" => []}] = response["builds"]
+      assert build_id == build.id
+    end
+
+    for mixed <- [false, true], capabilities <- [nil, "desktop"] do
+      @mixed mixed
+      @capabilities capabilities
+      test "latest selects an eligible build before limiting with mixed=#{mixed} and #{inspect(capabilities)}", %{
+        conn: conn,
+        user: user,
+        project: project,
+        account: account
+      } do
+        [source, compatible, native] =
+          for date <- [~U[2020-01-01 00:00:00Z], ~U[2021-01-01 00:00:00Z], ~U[2022-01-01 00:00:00Z]] do
+            AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:macos], inserted_at: date)
+          end
+
+        AppBuildsFixtures.app_build_fixture(
+          preview: source,
+          binary_id: "original",
+          build_version: "1",
+          supported_platforms: [:macos]
+        )
+
+        AppBuildsFixtures.app_build_fixture(preview: compatible, supported_platforms: [:macos])
+        AppBuildsFixtures.app_build_fixture(preview: native, type: :executable, supported_platforms: [:macos])
+
+        if @mixed do
+          AppBuildsFixtures.app_build_fixture(preview: native, supported_platforms: [:ios_simulator])
+        end
+
+        stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+        conn = Authentication.put_current_user(conn, user)
+        conn = if @capabilities, do: put_req_header(conn, "x-tuist-preview-capabilities", @capabilities), else: conn
+
+        response =
+          conn
+          |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=original&build_version=1")
+          |> json_response(:ok)
+
+        expected = if @capabilities, do: native, else: compatible
+        assert response["preview"]["id"] == expected.id
+      end
+    end
+
+    test "the rollout gate rejects new enum writes without blocking mobile uploads", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      stub(FeatureFlags, :cli_previews_enabled?, fn _account -> false end)
+      stub(Storage, :multipart_start, fn _key, _actor -> {:ok, "mobile-upload"} end)
+      conn = Authentication.put_current_user(conn, user)
+
+      for {type, platforms} <- [{"executable", ["macos"]}, {"ipa", ["linux"]}] do
+        response =
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+            type: type,
+            display_name: "tuist",
+            supported_platforms: platforms
+          )
+          |> json_response(:forbidden)
+
+        assert response["message"] =~ "Finish upgrading all server replicas"
+      end
+
+      assert Repo.aggregate(Preview, :count) == 0
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          type: "ipa",
+          display_name: "App",
+          bundle_identifier: "dev.example.app",
+          supported_platforms: ["ios"]
+        )
+        |> json_response(:ok)
+
+      assert response["data"]["upload_id"] == "mobile-upload"
     end
   end
 

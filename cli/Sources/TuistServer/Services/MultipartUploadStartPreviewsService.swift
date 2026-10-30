@@ -102,7 +102,7 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
                         git_commit_sha: gitCommitSHA,
                         git_ref: gitRef,
                         release_notes: releaseNotes,
-                        supported_architectures: supportedArchitectures,
+                        supported_architectures: supportedArchitectures.isEmpty ? nil : supportedArchitectures,
                         supported_platforms: supportedPlatforms,
                         track: track,
                         _type: type,

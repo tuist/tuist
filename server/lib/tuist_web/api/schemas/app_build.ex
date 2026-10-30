@@ -3,8 +3,6 @@ defmodule TuistWeb.API.Schemas.AppBuild do
   The schema for the Tuist AppBuild response.
   """
   alias OpenApiSpex.Schema
-  alias Tuist.AppBuilds.AppBuild
-  alias TuistWeb.API.Schemas.PreviewSupportedPlatform
 
   require OpenApiSpex
 
@@ -18,12 +16,13 @@ defmodule TuistWeb.API.Schemas.AppBuild do
       url: %Schema{type: :string, description: "The URL to download the build"},
       type: %Schema{
         type: :string,
-        enum: Ecto.Enum.values(AppBuild, :type),
-        description: "The type of the build"
+        description:
+          "The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats."
       },
       supported_platforms: %Schema{
         type: :array,
-        items: PreviewSupportedPlatform
+        items: %Schema{type: :string},
+        description: "Supported platforms. Clients must ignore unknown platforms."
       },
       supported_architectures: %Schema{
         type: :array,

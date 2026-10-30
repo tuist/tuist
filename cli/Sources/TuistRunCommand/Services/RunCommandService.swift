@@ -378,17 +378,35 @@ struct RunCommandService {
 
         var destinationDevices: [DestinationDevice] = []
 
-        if preview.supported_platforms.contains(.android) {
+        if preview.supported_platforms.contains("android"),
+           preview.builds.contains(where: { $0._type == "apk" && $0.supported_platforms.contains("android") })
+        {
             let androidDevices = try await adbController.findAvailableDevices()
             destinationDevices.append(contentsOf: androidDevices.map(DestinationDevice.android))
         }
 
         #if os(macOS)
-            if preview.supported_platforms.contains(where: { $0 != .android }) {
+            let applePlatforms = preview.builds
+                .filter { $0._type == "app_bundle" || $0._type == "ipa" }
+                .flatMap(\.supported_platforms)
+                .filter { preview.supported_platforms.contains($0) }
+            if applePlatforms.contains(where: {
+                [
+                    "ios",
+                    "ios_simulator",
+                    "tvos",
+                    "tvos_simulator",
+                    "watchos",
+                    "watchos_simulator",
+                    "visionos",
+                    "visionos_simulator",
+                ]
+                .contains($0)
+            }) {
                 let physicalDevices = try await deviceController.findAvailableDevices()
                 destinationDevices.append(contentsOf: physicalDevices.map(DestinationDevice.physical))
 
-                let simulators = try await appleSimulators(for: preview)
+                let simulators = try await appleSimulators(supportedPlatforms: applePlatforms)
                 destinationDevices.append(contentsOf: simulators.map(DestinationDevice.simulator))
             }
         #endif
@@ -496,22 +514,18 @@ struct RunCommandService {
         previewLink: URL,
         arguments: [String]
     ) async throws -> Bool {
-        #if os(macOS)
-            let hostPlatform: Components.Schemas.PreviewSupportedPlatform = .macos
-        #else
-            let hostPlatform: Components.Schemas.PreviewSupportedPlatform = .linux
-        #endif
+        let hostPlatform = ExecutablePreviewTarget.host.platform
         let builds = preview.builds.filter {
             let architectures = $0.supported_architectures ?? []
             return architectures.isEmpty || architectures.contains(ExecutablePreviewTarget.host.architectures[0])
         }
         for build in builds.filter({
-            $0._type == .executable && $0.supported_platforms.contains(hostPlatform)
+            $0._type == "executable" && $0.supported_platforms.contains(hostPlatform)
         }) {
             if try await runExecutablePreview(build, arguments: arguments) { return true }
         }
         #if os(macOS)
-            for build in builds.filter({ $0._type == .app_bundle && $0.supported_platforms.contains(.macos) }) {
+            for build in builds.filter({ $0._type == "app_bundle" && $0.supported_platforms.contains("macos") }) {
                 var desktopPreview = preview
                 desktopPreview.builds = [build]
                 let appBundle = try await downloadAppleAppBundle(
@@ -528,7 +542,9 @@ struct RunCommandService {
                 return true
             }
         #endif
-        if preview.builds.contains(where: { $0._type == .executable || $0.supported_platforms.contains(.macos) }) {
+        if preview.builds.contains(where: {
+            $0._type == "executable" || ($0._type == "app_bundle" && $0.supported_platforms.contains("macos"))
+        }) {
             throw RunCommandServiceError.incompatibleDesktopPreview
         }
         return false
@@ -608,7 +624,7 @@ struct RunCommandService {
         preview: Components.Schemas.Preview,
         previewLink: URL
     ) async throws {
-        guard let build = preview.builds.first(where: { $0.supported_platforms.contains(.android) })
+        guard let build = preview.builds.first(where: { $0._type == "apk" && $0.supported_platforms.contains("android") })
         else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
         let displayName = preview.display_name ?? "app"
@@ -649,21 +665,21 @@ struct RunCommandService {
 
     #if os(macOS)
         private func appleSimulators(
-            for preview: Components.Schemas.Preview
+            supportedPlatforms: [String]
         ) async throws -> [SimulatorDeviceAndRuntime] {
             try await simulatorController.devicesAndRuntimes().filter { deviceAndRuntime in
-                try preview.supported_platforms.contains { supportedPlatform in
+                try supportedPlatforms.contains { supportedPlatform in
                     switch supportedPlatform {
-                    case .ios, .tvos, .watchos, .visionos, .macos, .android, .linux:
-                        return false
-                    case .ios_simulator:
+                    case "ios_simulator":
                         return try deviceAndRuntime.runtime.platform() == .iOS
-                    case .tvos_simulator:
+                    case "tvos_simulator":
                         return try deviceAndRuntime.runtime.platform() == .tvOS
-                    case .watchos_simulator:
+                    case "watchos_simulator":
                         return try deviceAndRuntime.runtime.platform() == .watchOS
-                    case .visionos_simulator:
+                    case "visionos_simulator":
                         return try deviceAndRuntime.runtime.platform() == .visionOS
+                    default:
+                        return false
                     }
                 }
             }
@@ -676,26 +692,26 @@ struct RunCommandService {
             })
         }
 
-        private func previewSupportedPlatform(for destination: DestinationType) -> Components.Schemas.PreviewSupportedPlatform {
+        private func previewSupportedPlatform(for destination: DestinationType) -> String {
             switch destination {
             case let .device(platform):
                 switch platform {
-                case .iOS: return .ios
-                case .macOS: return .macos
-                case .tvOS: return .tvos
-                case .watchOS: return .watchos
-                case .visionOS: return .visionos
+                case .iOS: return "ios"
+                case .macOS: return "macos"
+                case .tvOS: return "tvos"
+                case .watchOS: return "watchos"
+                case .visionOS: return "visionos"
                 }
             case let .simulator(platform):
                 switch platform {
-                case .iOS: return .ios_simulator
-                case .macOS: return .macos
-                case .tvOS: return .tvos_simulator
-                case .watchOS: return .watchos_simulator
-                case .visionOS: return .visionos_simulator
+                case .iOS: return "ios_simulator"
+                case .macOS: return "macos"
+                case .tvOS: return "tvos_simulator"
+                case .watchOS: return "watchos_simulator"
+                case .visionOS: return "visionos_simulator"
                 }
             case .android:
-                return .android
+                return "android"
             }
         }
 
@@ -706,7 +722,7 @@ struct RunCommandService {
         ) async throws -> AppBundle {
             let targetPlatform = previewSupportedPlatform(for: destination)
             guard let buildURLString = preview.builds.first(where: {
-                ($0._type == .app_bundle || $0._type == .ipa) && $0.supported_platforms.contains(targetPlatform)
+                ($0._type == "app_bundle" || $0._type == "ipa") && $0.supported_platforms.contains(targetPlatform)
             })?.url,
                 let buildURL = URL(string: buildURLString)
             else {

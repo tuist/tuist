@@ -833,6 +833,10 @@ struct RunCommandServiceTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let androidDevice = AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator)
+        var futureBuild = Components.Schemas.AppBuild.test(supportedPlatforms: [.macos, .android, .ios_simulator])
+        futureBuild._type = "future_format"
+        futureBuild.url = "https://tuist.dev/future-format.zip"
+        let apkURL = URL(string: "https://tuist.dev/app.apk")!
 
         given(getPreviewService)
             .getPreview(
@@ -841,12 +845,13 @@ struct RunCommandServiceTests {
                 serverURL: .any
             )
             .willReturn(.test(
-                builds: [.test(
+                builds: [futureBuild, .test(
                     supportedPlatforms: [.android],
-                    type: .apk
+                    type: .apk,
+                    url: apkURL
                 )],
                 bundleIdentifier: "com.example.app",
-                supportedPlatforms: [.android]
+                supportedPlatforms: [.android, .ios_simulator]
             ))
 
         given(adbController)
@@ -855,7 +860,7 @@ struct RunCommandServiceTests {
 
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
         given(remoteArtifactDownloader)
-            .download(url: .any)
+            .download(url: .value(apkURL))
             .willReturn(downloadedArchive)
 
         let fileUnarchiver = MockFileUnarchiving()
@@ -893,6 +898,28 @@ struct RunCommandServiceTests {
         verify(adbController)
             .launchApp(packageName: .value("com.example.app"), device: .value(androidDevice))
             .called(1)
+    }
+
+    @Test(.withMockedDependencies(), arguments: [false, true])
+    func run_preview_link_unavailable_formats_do_not_offer_apple_destinations(futureFormat: Bool) async throws {
+        var futureBuild = Components.Schemas.AppBuild.test(supportedPlatforms: [.ios_simulator])
+        futureBuild._type = futureFormat ? "future_format" : "app_bundle"
+        given(getPreviewService)
+            .getPreview(.any, fullHandle: .any, serverURL: .any)
+            .willReturn(.test(
+                builds: [futureBuild, .test(supportedPlatforms: [.android], type: .apk)],
+                supportedPlatforms: futureFormat ? [.ios_simulator, .android] : [.android]
+            ))
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator)])
+
+        await #expect(throws: RunCommandServiceError.deviceNotFound("iPhone 15 Pro")) {
+            try await subject.run(
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                device: "iPhone 15 Pro"
+            )
+        }
     }
 
     @Test(

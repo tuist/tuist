@@ -104,6 +104,7 @@ defmodule Tuist.AppBuilds do
   """
   def latest_preview_for_binary_id_and_build_version(binary_id, build_version, %Project{} = project, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
+    supported_types = Keyword.get(opts, :supported_types, Ecto.Enum.values(AppBuild, :type))
 
     with {:ok, app_build} <-
            app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
@@ -112,10 +113,9 @@ defmodule Tuist.AppBuilds do
       normalized_track = track || ""
 
       supported_platforms_as_integers =
-        Enum.map(
-          app_build.supported_platforms,
-          &Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1]
-        )
+        app_build.supported_platforms
+        |> Enum.filter(&(&1 in Keyword.get(opts, :supported_platforms, app_build.supported_platforms)))
+        |> Enum.map(&Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1])
 
       git_branch_filter =
         if is_nil(git_branch),
@@ -131,6 +131,7 @@ defmodule Tuist.AppBuilds do
             where: p.bundle_identifier == ^bundle_identifier,
             where: ^git_branch_filter,
             where: p.track == ^normalized_track,
+            where: ab.type in ^supported_types,
             where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
             order_by: [desc: p.inserted_at],
             limit: 1,

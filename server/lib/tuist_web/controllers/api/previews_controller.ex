@@ -6,6 +6,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds
+  alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.Storage
   alias TuistWeb.API.Responses
@@ -20,6 +21,20 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
 
+  @legacy_build_types [:app_bundle, :ipa, :apk]
+  @legacy_platforms [
+    :ios,
+    :ios_simulator,
+    :tvos,
+    :tvos_simulator,
+    :watchos,
+    :watchos_simulator,
+    :visionos,
+    :visionos_simulator,
+    :macos,
+    :android
+  ]
+
   plug(TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms])
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -29,8 +44,26 @@ defmodule TuistWeb.API.PreviewsController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :preview)
+  plug(:require_cli_previews when action == :multipart_start)
 
   tags(["Previews"])
+
+  defp require_cli_previews(conn, _opts) do
+    %{body_params: body, assigns: %{selected_project: project}} = conn
+    cli? = body.type == "executable" or Enum.any?(Map.get(body, :supported_platforms, []), &(to_string(&1) == "linux"))
+
+    if cli? and not FeatureFlags.cli_previews_enabled?(project.account) do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{
+        message:
+          "CLI previews are not enabled on this server yet. Finish upgrading all server replicas before enabling CLI uploads."
+      })
+      |> halt()
+    else
+      conn
+    end
+  end
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a preview artifact.",
@@ -452,7 +485,7 @@ defmodule TuistWeb.API.PreviewsController do
 
     conn
     |> put_status(:ok)
-    |> json(map_preview(preview, account_handle, project_handle, selected_project.account))
+    |> json(map_preview(conn, preview, account_handle, project_handle, selected_project.account))
   end
 
   operation(:show,
@@ -508,17 +541,17 @@ defmodule TuistWeb.API.PreviewsController do
       {:ok, preview} ->
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
-        response = map_preview(preview, account_handle, project_handle, selected_project.account)
+        response = map_preview(conn, preview, account_handle, project_handle, selected_project.account)
 
-        response =
-          if Enum.empty?(response.builds) do
-            response
-          else
-            # Note: the URL field is deprecated but we still need to return to cater for older CLI versions
-            %{response | url: hd(response.builds).url}
-          end
-
-        json(conn, response)
+        if response.builds == [] and preview.app_builds != [] do
+          conn
+          |> put_status(:bad_request)
+          |> json(%{message: "This preview requires a newer Tuist client with desktop preview support."})
+        else
+          # The URL field is deprecated but older CLI versions download it directly.
+          response = if response.builds == [], do: response, else: %{response | url: hd(response.builds).url}
+          json(conn, response)
+        end
 
       {:error, :not_found} ->
         conn
@@ -666,7 +699,7 @@ defmodule TuistWeb.API.PreviewsController do
       previews:
         Enum.map(
           previews,
-          &map_preview(&1, account_handle, project_handle, selected_project.account)
+          &map_preview(conn, &1, account_handle, project_handle, selected_project.account)
         ),
       pagination_metadata: %{
         has_next_page: meta.has_next_page?,
@@ -777,11 +810,20 @@ defmodule TuistWeb.API.PreviewsController do
       ) do
     build_version = Map.get(params, :build_version)
 
-    case AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, selected_project,
-           preload: [:app_builds, :created_by_account]
+    compatibility =
+      if desktop_previews_supported?(conn),
+        do: [],
+        else: [supported_types: @legacy_build_types, supported_platforms: @legacy_platforms]
+
+    case AppBuilds.latest_preview_for_binary_id_and_build_version(
+           binary_id,
+           build_version,
+           selected_project,
+           [preload: [:app_builds, :created_by_account]] ++ compatibility
          ) do
       {:ok, preview} ->
-        json(conn, %{preview: map_preview(preview, account_handle, project_handle, selected_project.account)})
+        response = map_preview(conn, preview, account_handle, project_handle, selected_project.account)
+        json(conn, %{preview: response})
 
       {:error, :not_found} ->
         json(conn, %{preview: nil})
@@ -978,7 +1020,42 @@ defmodule TuistWeb.API.PreviewsController do
     end
   end
 
-  defp map_preview(preview, account_handle, project_handle, account, opts \\ []) do
+  defp desktop_previews_supported?(conn) do
+    conn
+    |> get_req_header("x-tuist-preview-capabilities")
+    |> Enum.flat_map(&String.split(&1, ",", trim: true))
+    |> Enum.any?(&(String.trim(&1) == "desktop"))
+  end
+
+  defp map_preview(conn, preview, account_handle, project_handle, account, opts \\ []) do
+    # Shipped clients decode these fields as closed enums. Only clients that
+    # explicitly opt in may receive new formats or platforms, including in a
+    # mixed preview's upload-completion and update-check responses.
+    preview =
+      if desktop_previews_supported?(conn) do
+        preview
+      else
+        builds =
+          preview.app_builds
+          |> Enum.filter(fn build ->
+            build.type in @legacy_build_types and
+              (build.supported_platforms == [] or Enum.any?(build.supported_platforms, &(&1 in @legacy_platforms)))
+          end)
+          |> Enum.map(fn build ->
+            %{build | supported_platforms: Enum.filter(build.supported_platforms, &(&1 in @legacy_platforms))}
+          end)
+
+        build_platforms = Enum.flat_map(builds, & &1.supported_platforms)
+        unknown_platforms? = Enum.any?(builds, &(&1.supported_platforms == []))
+
+        supported_platforms =
+          Enum.filter(preview.supported_platforms, fn platform ->
+            platform in @legacy_platforms and (unknown_platforms? or platform in build_platforms)
+          end)
+
+        %{preview | app_builds: builds, supported_platforms: supported_platforms}
+      end
+
     builds =
       preview.app_builds
       |> Enum.map(&map_app_build(&1, account_handle, project_handle, account, opts))

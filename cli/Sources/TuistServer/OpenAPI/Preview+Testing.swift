@@ -31,7 +31,7 @@
                 id: id,
                 inserted_at: insertedAt,
                 qr_code_url: qrCodeURL.absoluteString,
-                supported_platforms: supportedPlatforms,
+                supported_platforms: supportedPlatforms.map(\.rawValue),
                 track: track,
                 url: url.absoluteString,
                 version: version
@@ -45,14 +45,20 @@
             id: String = "app-build-id",
             supportedArchitectures: [String]? = nil,
             supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform] = [.ios, .ios_simulator],
-            type: Components.Schemas.AppBuild._typePayload = .app_bundle,
+            type: PreviewType = .appBundle,
             url: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/app-build-id")!
         ) -> Self {
-            .init(
+            let type = switch type {
+            case .appBundle: "app_bundle"
+            case .ipa: "ipa"
+            case .apk: "apk"
+            case .executable: "executable"
+            }
+            return .init(
                 binary_id: binaryId,
                 id: id,
                 supported_architectures: supportedArchitectures,
-                supported_platforms: supportedPlatforms,
+                supported_platforms: supportedPlatforms.map(\.rawValue),
                 _type: type,
                 url: url.absoluteString
             )
