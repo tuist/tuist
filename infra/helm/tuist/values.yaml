@@ -2570,8 +2570,8 @@ sandboxes:
   enabled: false
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
-  # server deploys publish/select the guest template automatically; sandboxd
-  # remains explicitly pinned. Empty tags are a render-time failure.
+  # server deploys publish and select both; environment values pin only the
+  # versions a first install starts from. Empty tags are a render-time failure.
   image:
     repository: ghcr.io/tuist/sandboxd
     tag: ""
