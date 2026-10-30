@@ -401,13 +401,19 @@ added to catch that failed on `admin`'s unwritable cache instead.
   no CAS daemon of its own.
 - `/opt/tuist/logd-watchdog.sh`, run as root from boot by
   `/Library/LaunchDaemons/dev.tuist.logd-watchdog.plist` — restarts a wedged
-  `logd`. A wedged logd spins on one core and stops draining log buffers, and
-  a process whose buffer fills blocks in `os_log`: syspolicyd stalls holding
-  the lock Xcode's execution-policy registrations wait on, and the build
-  stops with no compiler running, the VM flat at one core's worth of CPU.
-  Wedged is logd using 50% of a core in each of four 30-second samples; a
-  healthy guest's logd stays near 1%, including under a heavy build. The
-  watchdog SIGKILLs it, launchd starts a new one, and the blocked writers
+  `logd`. A wedged logd stops draining log buffers, and a process whose
+  buffer fills blocks in `os_log`: syspolicyd stalls holding the lock Xcode's
+  execution-policy registrations wait on, and the build stops with no
+  compiler running. Wedged is either of:
+  - logd using 50% of a core in each of four 30-second samples; a healthy
+    guest's logd stays near 1%, including under a heavy build.
+  - a 1000-line info-level `logger` write blocking for 10 s in two samples in
+    a row, which catches a logd that stops draining without spinning. Keep
+    the probe bigger than a fresh process's log buffer: on staging, writes of
+    100 lines or fewer, a single `logger` line, `log config --status` and
+    `spctl --status` all still returned while logd was stopped.
+
+  The watchdog SIGKILLs it, launchd starts a new one, and the blocked writers
   carry on. Rules the incident and the staging reproduction set:
   - SIGKILL, never SIGTERM: SIGTERM leaves logd running and still not
     draining.

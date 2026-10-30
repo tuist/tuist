@@ -2,7 +2,7 @@
 # Sources logd-watchdog.sh and drives watchdog_tick against a scripted logd.
 # `ps`, `kill` and `sleep` are stand-ins, so the test signals nothing and runs
 # on macOS and Linux alike.
-# shellcheck disable=SC2034
+# shellcheck disable=SC2034,SC2329
 set -uo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -37,14 +37,21 @@ kill() {
 
 sleep() { :; }
 
+# The real probe is exercised on its own below; ticks read a scripted outcome.
+eval "real_$(declare -f probe_logging)"
+probe_logging() { [ "$(cat "${work}/probe")" = ok ]; }
+
 setup() {
   work=$(mktemp -d "$base/test.XXXXXX")
   echo 300 >"${work}/pid"
   echo 0 >"${work}/cpu"
+  echo ok >"${work}/probe"
   RESPAWN=1
   LOGD_WATCHDOG_INTERVAL=30
   LOGD_WEDGED_PERCENT=50
   LOGD_WEDGED_SAMPLES=4
+  LOGD_PROBE_TIMEOUT=10
+  LOGD_STALLED_SAMPLES=2
   LOGD_RESTART_TIMEOUT=10
   LOGD_WEDGED_MARKER="${work}/logd-wedged"
   LOGD_WATCHDOG_LOG="${work}/poll.log"
@@ -52,6 +59,7 @@ setup() {
   prev_pid=""
   prev_cpu=0
   hot_samples=0
+  stalled_samples=0
   restarts=0
   watchdog_tick || fail 'the first sample reported a wedge'
 }
@@ -143,6 +151,53 @@ test_no_logd_is_not_an_error() {
   setup
   : >"${work}/pid"
   watchdog_tick || fail 'tick failed without a logd'
+}
+
+test_an_idle_logd_that_blocks_writes_is_killed() {
+  setup
+  echo stalled >"${work}/probe"
+  spend 0
+  eq 0 "${rc}"
+  [ ! -e "${work}/kills" ] || fail 'killed after one blocked write'
+  spend 0
+  eq 0 "${rc}"
+  eq "-KILL 300" "$(cat "${work}/kills")"
+  [[ "$(log)" == *"logd (pid 300) left a log write blocked for 10s in 2 samples in a row; killing it (restart 1)"* ]] || fail "unexpected log: $(log)"
+  [[ "$(log)" == *"logd restarted (pid 301)"* ]] || fail "unexpected log: $(log)"
+}
+
+test_a_blocked_write_that_recovers_is_not_a_wedge() {
+  setup
+  for probe in stalled ok stalled ok stalled ok; do
+    echo "${probe}" >"${work}/probe"
+    spend 0
+    eq 0 "${rc}"
+  done
+  [ ! -e "${work}/kills" ] || fail 'killed a logd whose writes recovered'
+}
+
+test_an_idle_logd_that_blocks_writes_and_does_not_come_back_is_reported() {
+  setup
+  RESPAWN=0
+  echo stalled >"${work}/probe"
+  spend 0
+  spend 0
+  eq 1 "${rc}"
+  [ -s "${LOGD_WEDGED_MARKER}" ] || fail 'no wedged marker'
+}
+
+test_the_probe_is_bounded_and_killed() {
+  (
+    unset -f kill sleep
+    LOGD_PROBE_TIMEOUT=1
+    logger() { exec sleep 937; }
+    started=${SECONDS}
+    real_probe_logging && fail 'a blocked write passed the probe'
+    [ $((SECONDS - started)) -le 3 ] || fail 'the probe was not bounded'
+    pgrep -fx 'sleep 937' >/dev/null && fail 'left the blocked probe running'
+    logger() { :; }
+    real_probe_logging || fail 'a returning write failed the probe'
+  ) || exit 1
 }
 
 test_the_runner_log_is_never_created() {

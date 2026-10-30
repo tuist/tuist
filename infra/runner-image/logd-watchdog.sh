@@ -3,17 +3,21 @@
 # dev.tuist.logd-watchdog LaunchDaemon for the life of the VM, so it covers the
 # warm standby and the job alike.
 #
-# A wedged logd spins on one core and stops draining the processes' log
-# buffers. A process whose buffer fills then blocks inside os_log, including
-# syspolicyd while it holds the lock Xcode's execution-policy registrations
-# wait on, so a build stops with no compiler running. SIGKILL recovers it:
-# launchd starts a new logd and the blocked writers carry on. SIGTERM does not:
-# logd stays up, still not draining, and sudo starts blocking too, which is why
-# this runs as root instead of going through sudo.
+# A wedged logd stops draining the processes' log buffers. A process whose
+# buffer fills then blocks inside os_log, including syspolicyd while it holds
+# the lock Xcode's execution-policy registrations wait on, so a build stops
+# with no compiler running. SIGKILL recovers it: launchd starts a new logd and
+# the blocked writers carry on. SIGTERM does not: logd stays up, still not
+# draining, and sudo starts blocking too, which is why this runs as root
+# instead of going through sudo.
 #
-# Wedged is logd using LOGD_WEDGED_PERCENT of one core in each of
-# LOGD_WEDGED_SAMPLES consecutive samples. A healthy guest's logd stays near 1%
-# of a core, including under a heavy build.
+# logd counts as wedged when either:
+# - it uses LOGD_WEDGED_PERCENT of one core in each of LOGD_WEDGED_SAMPLES
+#   consecutive samples. A healthy guest's logd stays near 1% of a core,
+#   including under a heavy build.
+# - a log write from a fresh process does not return within LOGD_PROBE_TIMEOUT
+#   seconds in each of LOGD_STALLED_SAMPLES consecutive samples, which catches
+#   a logd that stops draining without spinning.
 #
 # A logd that launchd does not bring back is reported by writing
 # LOGD_WEDGED_MARKER. In the status share, tart-kubelet reads it and stops the
@@ -26,6 +30,9 @@ STATUS_SHARE="/Volumes/My Shared Files/status"
 LOGD_WATCHDOG_INTERVAL="${LOGD_WATCHDOG_INTERVAL:-30}"
 LOGD_WEDGED_PERCENT="${LOGD_WEDGED_PERCENT:-50}"
 LOGD_WEDGED_SAMPLES="${LOGD_WEDGED_SAMPLES:-4}"
+LOGD_PROBE_LINES="${LOGD_PROBE_LINES:-1000}"
+LOGD_PROBE_TIMEOUT="${LOGD_PROBE_TIMEOUT:-10}"
+LOGD_STALLED_SAMPLES="${LOGD_STALLED_SAMPLES:-2}"
 LOGD_RESTART_TIMEOUT="${LOGD_RESTART_TIMEOUT:-10}"
 LOGD_WATCHDOG_LOG="${LOGD_WATCHDOG_LOG:-/var/log/tuist-runner/poll.log}"
 
@@ -97,9 +104,32 @@ restart_logd() {
   return 1
 }
 
+# probe_logging writes LOGD_PROBE_LINES info messages from a fresh `logger`
+# and fails when it has not returned within LOGD_PROBE_TIMEOUT seconds. That is
+# more than a new process's log buffer holds, so the write has to wait for logd
+# to drain it; a single message would land in the empty buffer and return. Info
+# messages stay in memory and are never written to the guest's disk. The probe
+# is killed rather than waited on, so one stuck in os_log never blocks the
+# watchdog.
+probe_logging() {
+  local probe waited=0
+  yes "probe $(printf '%0194d' 0)" | head -n "${LOGD_PROBE_LINES}" | logger -p user.info -t logd-watchdog >/dev/null 2>&1 &
+  probe=$!
+  while kill -0 "${probe}" 2>/dev/null; do
+    if [ "${waited}" -ge "${LOGD_PROBE_TIMEOUT}" ]; then
+      kill -KILL "${probe}" 2>/dev/null
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 0
+}
+
 prev_pid=""
 prev_cpu=0
 hot_samples=0
+stalled_samples=0
 restarts=0
 
 # report_wedged writes the marker the host stops the VM on.
@@ -111,36 +141,49 @@ report_wedged() {
 }
 
 # watchdog_tick takes one sample and restarts logd once it has been wedged for
-# LOGD_WEDGED_SAMPLES samples in a row. Returns 1 once logd is reported as
-# unrecoverable, after which there is nothing left to do.
+# LOGD_WEDGED_SAMPLES or LOGD_STALLED_SAMPLES samples in a row. Returns 1 once
+# logd is reported as unrecoverable, after which there is nothing left to do.
 watchdog_tick() {
-  local sample pid cpu percent new_pid
+  local sample pid cpu percent reason new_pid
+  if probe_logging; then
+    stalled_samples=0
+  else
+    stalled_samples=$((stalled_samples + 1))
+  fi
   sample=$(logd_sample)
   if [ -z "${sample}" ]; then
     prev_pid=""
     hot_samples=0
+    stalled_samples=0
     return 0
   fi
   pid="${sample%% *}"
   cpu="${sample#* }"
-  if [ "${pid}" != "${prev_pid}" ]; then
-    prev_pid="${pid}"
-    prev_cpu="${cpu}"
+  if [ "${pid}" = "${prev_pid}" ]; then
+    percent=$(((cpu - prev_cpu) / LOGD_WATCHDOG_INTERVAL))
+    if [ "${percent}" -ge "${LOGD_WEDGED_PERCENT}" ]; then
+      hot_samples=$((hot_samples + 1))
+    else
+      hot_samples=0
+    fi
+  else
     hot_samples=0
-    return 0
   fi
-  percent=$(((cpu - prev_cpu) / LOGD_WATCHDOG_INTERVAL))
+  prev_pid="${pid}"
   prev_cpu="${cpu}"
-  if [ "${percent}" -lt "${LOGD_WEDGED_PERCENT}" ]; then
-    hot_samples=0
+
+  if [ "${hot_samples}" -ge "${LOGD_WEDGED_SAMPLES}" ]; then
+    reason="used at least ${LOGD_WEDGED_PERCENT}% of a core for $((LOGD_WEDGED_SAMPLES * LOGD_WATCHDOG_INTERVAL))s (last ${percent}%)"
+  elif [ "${stalled_samples}" -ge "${LOGD_STALLED_SAMPLES}" ]; then
+    reason="left a log write blocked for ${LOGD_PROBE_TIMEOUT}s in ${stalled_samples} samples in a row"
+  else
     return 0
   fi
-  hot_samples=$((hot_samples + 1))
-  [ "${hot_samples}" -ge "${LOGD_WEDGED_SAMPLES}" ] || return 0
 
   hot_samples=0
+  stalled_samples=0
   restarts=$((restarts + 1))
-  say "logd (pid ${pid}) used at least ${LOGD_WEDGED_PERCENT}% of a core for $((LOGD_WEDGED_SAMPLES * LOGD_WATCHDOG_INTERVAL))s (last ${percent}%); killing it (restart ${restarts})"
+  say "logd (pid ${pid}) ${reason}; killing it (restart ${restarts})"
   if ! new_pid=$(restart_logd "${pid}"); then
     report_wedged "logd (pid ${pid}) did not come back within ${LOGD_RESTART_TIMEOUT}s"
     return 1
