@@ -12,3 +12,14 @@ public enum ClientAuthenticationError: LocalizedError, Equatable {
         }
     }
 }
+
+/// A failure to obtain credentials for a request, raised before the request is sent. Obtaining credentials retries on
+/// its own, so `RetryMiddleware` does not replay the request again, which would multiply the refreshes it sends, and
+/// rethrows `underlyingError` instead.
+public struct CredentialAcquisitionError: Error {
+    public let underlyingError: any Error
+
+    public init(underlyingError: any Error) {
+        self.underlyingError = underlyingError
+    }
+}

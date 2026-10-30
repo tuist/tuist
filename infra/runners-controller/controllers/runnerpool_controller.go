@@ -92,6 +92,10 @@ type RunnerPoolReconciler struct {
 	APIReader client.Reader
 	Scheme    *runtime.Scheme
 
+	// SandboxesNamespace holds the daemon allocations that cannot be freed by
+	// draining runner Pods. Empty disables sandbox accounting.
+	SandboxesNamespace string
+
 	// SessionsClient closes a Pod's billing session immediately before
 	// the reap deletes it — see reapRunner for why the ordering matters.
 	// nil disables reporting; the reap itself still runs.
@@ -214,7 +218,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Setting on first reconcile (when `ObservedImage` is empty) is
 	// fine — there are no stale Pods yet, and the timestamp just
 	// establishes the t=0 baseline for any future roll.
+	//
+	// The image being replaced goes to `status.previousImage`, which
+	// tart-kubelet reads to pull the new image on hosts holding the old one
+	// before its GC reaps the old one.
 	if pool.Status.ObservedImage != pool.Spec.Image {
+		if pool.Status.ObservedImage != "" {
+			pool.Status.PreviousImage = pool.Status.ObservedImage
+		}
 		pool.Status.ObservedImage = pool.Spec.Image
 		pool.Status.ImageRolledAt = metav1.Now()
 	}
@@ -615,7 +626,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	for i := 0; i < overflow && i < len(idleAlive); i++ {
 		p := idleAlive[i]
 		preemptedFor, preempted := preemptionMark(p, now)
-		if preempted {
+		switch {
+		case preempted && preemptedFor == preemptedForSandboxes:
+			logger.Info("retire idle runner pod for a sandbox carve-out's growth",
+				"pod", p.Name, "node", p.Spec.NodeName)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeNormal, "RunnerPodPreemptedForSandboxes",
+					"A sandbox carve-out on node %s is waiting for memory; retiring this idle runner ahead of the scale-down cooldown. "+
+						"Runners executing a job are left to complete.",
+					p.Spec.NodeName)
+			}
+		case preempted:
 			logger.Info("retire idle runner pod for starved sibling pools",
 				"pod", p.Name, "node", p.Spec.NodeName, "for", preemptedFor)
 			if r.Recorder != nil {

@@ -270,3 +270,27 @@ type errConflictingAnnouncement struct{ reason string }
 func (e errConflictingAnnouncement) Error() string {
 	return "this differs from what the machine first announced: " + e.reason
 }
+
+// mayAnnounce says why a machine that reached the internet boot server may
+// not announce itself, empty when it may: it is a declared host whose
+// declaration carries the check code of the TPM it announces. Anyone on the
+// internet can reach that server, so nothing else becomes a candidate.
+func (s *Server) mayAnnounce(ctx context.Context, a Announcement) (string, error) {
+	host := &infrav1.RackLinuxHost{}
+	err := s.api.Get(ctx, types.NamespacedName{Namespace: s.cfg.Namespace, Name: a.UUID}, host)
+	switch {
+	case apierrors.IsNotFound(err):
+		return "no host is declared with this machine's UUID", nil
+	case err != nil:
+		return "", err
+	case host.Spec.TPMCheckCode == "":
+		return "the host is declared without its TPM's check code", nil
+	case a.EK == "":
+		return "the machine announced no TPM", nil
+	}
+	der, err := base64.StdEncoding.DecodeString(a.EK)
+	if err != nil || rackseed.CheckCode(der) != rackseed.NormalizeCheckCode(host.Spec.TPMCheckCode) {
+		return "the machine's TPM does not have the host's check code", nil
+	}
+	return "", nil
+}

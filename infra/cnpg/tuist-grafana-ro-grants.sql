@@ -33,14 +33,11 @@ BEGIN;
 GRANT CONNECT ON DATABASE tuist TO tuist_grafana_ro;
 GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_grafana_ro;
 
--- accounts: identity + billing contact + the module-cache counters the
--- billing-outreach panels rank on. Excludes the custom-storage credentials
+-- accounts: identity + billing contact. Excludes the custom-storage credentials
 -- (s3_access_key_id, s3_secret_access_key, s3_endpoint, s3_bucket_name) and
 -- customer_id.
 GRANT SELECT (
-  id, name, billing_email, organization_id,
-  current_month_remote_cache_hits_count,
-  current_month_remote_cache_hits_count_updated_at
+  id, name, billing_email, organization_id
 ) ON :"tuist_schema".accounts TO tuist_grafana_ro;
 
 -- projects: identity + the Gradle build-system panels. Excludes `token` and the

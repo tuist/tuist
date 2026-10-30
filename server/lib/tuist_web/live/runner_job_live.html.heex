@@ -132,7 +132,7 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.run_duration_ms(@job),
+                  TuistWeb.Helpers.RunnerJobDurations.run_ms(@job),
                   fractional_seconds: false
                 )}
               </span>
@@ -142,7 +142,7 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.queued_duration_ms(@job),
+                  TuistWeb.Helpers.RunnerJobDurations.queued_ms(@job),
                   fractional_seconds: false
                 )}
               </span>
@@ -194,6 +194,12 @@
               <span data-part="label">
                 {if(@job.repository in [nil, ""], do: "None", else: @job.repository)}
               </span>
+            </div>
+          </div>
+          <div :if={@job.runner_name not in [nil, ""]} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Runner")}</div>
+              <span data-part="command-label">{@job.runner_name}</span>
             </div>
           </div>
         </div>

@@ -170,5 +170,6 @@ characters.
 
 On macOS, use a macOS runner profile. Native jobs are supported; Linux container
 examples do not apply to macOS. Volumes mount in the macOS guest, so a separate
-Docker VM does not inherit them. Built-in Tuist and Xcode caches stay automatic;
-custom volumes use separate empty directories and platform-specific identities.
+Docker VM does not inherit them. The Xcode and Tuist module caches have their
+own volumes through `tuist/xcode-cache` and `tuist/module-cache`; other custom
+volumes use separate empty directories and platform-specific identities.

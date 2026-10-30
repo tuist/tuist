@@ -74,9 +74,9 @@ type OVHDedicatedMachineSpec struct {
 	// +optional
 	NodeTaints []corev1.Taint `json:"nodeTaints,omitempty"`
 
-	// VRackID is the OVH vRack the server is attached to for the private
-	// intra-region mesh. Unused at Qty-1 (a single public box needs no private
-	// fabric); wired in the multi-box HA follow-up alongside the failover IP.
+	// VRackID explicitly enrolls a Kata runner in the environment's managed
+	// private network. It must match the environment ConfigMap. Cache hosts
+	// enroll through their cache taint without requiring this field.
 	// +optional
 	VRackID string `json:"vRackID,omitempty"`
 

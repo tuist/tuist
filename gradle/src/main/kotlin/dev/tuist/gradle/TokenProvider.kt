@@ -1,7 +1,7 @@
 package dev.tuist.gradle
 
 import dev.tuist.gradle.services.RefreshAuthTokenService
-import java.io.File
+import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.URI
 import java.util.concurrent.TimeUnit
@@ -13,14 +13,7 @@ open class TokenProvider(
     internal val credentialStore: CredentialStore = CredentialStore(),
     internal val envProvider: (String) -> String? = { System.getenv(it) },
     internal val tokenCacheFactory: (URI) -> CachedValueStore<String> = { url ->
-        val sanitizedUrl = URI(url.scheme, url.host, url.path, null).toASCIIString()
-            .replace(Regex("[/: ]"), "_")
-        CachedValueStore(
-            lockFilePath = File(
-                File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
-                "token_$sanitizedUrl.lock"
-            )
-        )
+        CachedValueStore(lockFilePath = credentialStore.refreshLockFile(url))
     }
 ) {
     /** Convenience constructor: wires an internal [RefreshAuthTokenService] from the given [httpClients]. */
@@ -84,9 +77,8 @@ open class TokenProvider(
                 Credentials(newTokens.accessToken, newTokens.refreshToken)
             )
             return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
-        } catch (e: java.net.ConnectException) {
-            throw e
-        } catch (e: InterruptedIOException) {
+        } catch (e: IOException) {
+            // Transport failures and unavailable servers say nothing about the credentials.
             throw e
         } catch (_: Exception) {
             throw NotAuthenticatedException(serverURL)

@@ -12,8 +12,8 @@ private const val HOSTED = "https://atlas.tuist.dev/"
 
 internal fun checkDestinations() {
     val capabilities = AtlasCore().destinations()
-    check(capabilities.map { it.screen } == listOf("tasks", "accounts", "invoices", "time-off", "people", "profile"))
-    check(capabilities.filter { it.records }.map { it.screen } == listOf("tasks", "accounts", "invoices"))
+    check(capabilities.map { it.screen } == listOf("tasks", "accounts", "invoices", "time-off", "people", "profile", "orbit"))
+    check(capabilities.filter { it.records }.map { it.screen } == listOf("tasks", "accounts", "invoices", "orbit"))
 
     fun parse(link: String) = AtlasDestination.parse(link, capabilities)
 
@@ -27,6 +27,8 @@ internal fun checkDestinations() {
             "DEV.TUIST.ATLAS://NAVIGATE/time-off?server=HTTPS://atlas.tuist.dev" to AtlasDestination("time-off"),
             "dev.tuist.atlas://navigate/people?server=https://atlas.tuist.dev/" to AtlasDestination("people"),
             "dev.tuist.atlas://navigate/profile?server=https://atlas.tuist.dev" to AtlasDestination("profile"),
+            "dev.tuist.atlas://navigate/orbit?server=https://atlas.tuist.dev" to AtlasDestination("orbit"),
+            "dev.tuist.atlas://navigate/orbit/$RECORD?server=https://atlas.tuist.dev" to AtlasDestination("orbit", RECORD),
         )
     accepted.forEach { (link, destination) ->
         check(parse(link) == AtlasDestination.Link(destination, HOSTED)) { "Expected to accept $link" }
@@ -127,15 +129,21 @@ private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestina
         val page = AtlasDestination.Link(AtlasDestination(capability.screen), HOSTED)
         check(parse(requireNotNull(page.webURL(capabilities))) == page)
         check(parse("${HOSTED}open/${capability.screen}") == page)
-        check(parse(requireNotNull(page.browserURL(capabilities))) == page)
+        val browserPage = requireNotNull(page.browserURL(capabilities))
+        if (capability.screen == "orbit") {
+            check(browserPage == HOSTED && parse(browserPage) == null)
+        } else {
+            check(parse(browserPage) == page)
+        }
         if (capability.records) {
             val record = AtlasDestination.Link(AtlasDestination(capability.screen, RECORD), HOSTED)
             check(parse(requireNotNull(record.webURL(capabilities))) == record)
             check(parse("${HOSTED}open/${capability.screen}/$RECORD") == record)
-            if (capability.screen == "accounts") check(parse(requireNotNull(record.browserURL(capabilities))) == record)
+            val browserRecord = !capability.recordPath.startsWith("/open/")
+            if (browserRecord) check(parse(requireNotNull(record.browserURL(capabilities))) == record)
             check(
                 record.browserURL(capabilities) ==
-                    if (capability.screen == "accounts") "${HOSTED}commercial/sales/accounts/$RECORD" else page.browserURL(capabilities),
+                    if (browserRecord) HOSTED + capability.recordPath.removePrefix("/") + "/$RECORD" else page.browserURL(capabilities),
             )
         }
     }
@@ -159,6 +167,11 @@ private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestina
             "//tasks",
             "/open/tasks/%2e%2e",
             "/open/tasks/${RECORD.uppercase()}",
+            "/orbit",
+            "/orbit/$RECORD",
+            "/orbit/new",
+            "/orbit/$RECORD/edit",
+            "/orbit/${RECORD.uppercase()}",
         )
     invalidPaths.forEach { check(parse(HOSTED.removeSuffix("/") + it) == null) { "Accepted web path $it" } }
     listOf(
@@ -176,6 +189,14 @@ private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestina
     check(accountPattern.match("/commercial/sales/accounts/$RECORD"))
     check(!accountPattern.match("/commercial/sales/accounts/new"))
     check(!accountPattern.match("/commercial/sales/accounts/$RECORD/notes"))
+    val orbitPattern =
+        android.os.PatternMatcher(
+            "/open/orbit/........-....-....-....-............",
+            android.os.PatternMatcher.PATTERN_SIMPLE_GLOB,
+        )
+    check(orbitPattern.match("/open/orbit/$RECORD"))
+    check(!orbitPattern.match("/open/orbit/new"))
+    check(!orbitPattern.match("/open/orbit/$RECORD/edit"))
 }
 
 private fun checkDestinationRouter() {

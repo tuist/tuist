@@ -181,6 +181,28 @@ struct RetryProviderErrorClassificationTests {
         #expect(await operationCalls.count == 1)
     }
 
+    @Test(.withMockedEnvironment()) func keeps_three_retries_by_default() async throws {
+        // Given
+        let delayProvider = MockDelayProviding()
+        given(delayProvider)
+            .delay(for: .any)
+            .willReturn(1)
+        let subject = RetryProvider(delayProvider: delayProvider)
+        let operationCalls = OperationCounter()
+        let error = GetCacheServiceError.unknownError(503)
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                await operationCalls.increment()
+                throw error
+            }
+        }
+
+        // Then
+        #expect(await operationCalls.count == 4)
+    }
+
     @Test func retries_a_retryable_server_error() async throws {
         // Given
         let operationCalls = OperationCounter()

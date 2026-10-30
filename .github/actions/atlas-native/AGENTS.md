@@ -40,8 +40,16 @@ directly in that same workflow. Keep permission decisions in the workflow:
   publication job owns signing, not this shared PR/fork action.
 - Both iOS builds run `atlas-native/modules/check-sdk.sh` before packaging: the
   Mach-O SDK must match the selected Xcode SDK while minimum OS stays iOS 17.
+  Check both the host binary and the embedded Live Activity executable, so a
+  missing extension or mismatched SDK cannot produce a published app archive.
+  `modules/check-widget.sh` also checks each embedded extension's real Mach-O
+  startup: system `_NSExtensionMain` entry with retained Swift main/entry metadata.
   The isolated UI preview has the same gate before simulator tests. A successful
   compile alone does not verify modern system appearance.
+- macOS builds run real Sparkle framework/signature and appcast checks before
+  archiving. Those checks use disposable copies and Ed25519 keys, never a user's
+  Keychain or distribution credentials. Keep them in fork builds too; production
+  signing, notarization and publication remain in the protected release workflow.
 - The CLI is a command-line artifact, not an Android/iOS preview. Keep its artifact
   name labeled with the build host OS and architecture.
 - Validate changes with `actionlint .github/workflows/atlas-mobile.yml` and the

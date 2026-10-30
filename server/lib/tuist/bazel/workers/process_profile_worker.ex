@@ -21,6 +21,8 @@ defmodule Tuist.Bazel.Workers.ProcessProfileWorker do
             {:discard, :project_not_found}
 
           project ->
+            Tuist.Observability.set_selection(%{selected_project: project})
+
             case Profile.ingest(project, id, compressed) do
               :ok ->
                 Repo.update_all(query, set: [state: "processed", compressed: nil, updated_at: DateTime.utc_now()])

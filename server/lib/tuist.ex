@@ -46,6 +46,9 @@ defmodule Tuist do
       Ops.ClickHouse,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
+      Ops.FeatureFlags,
+      Observability,
+      BrowserTelemetry.Receipts,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -59,7 +62,6 @@ defmodule Tuist do
       Cache,
       Cache.Analytics,
       CacheEndpoints,
-      Atlas,
       Atlas.Email,
       AtlasWorkloadIdentity,
       Kubernetes.Client,
@@ -144,6 +146,7 @@ defmodule Tuist do
       Builds.Build,
       Builds.CASOutput,
       Builds.Analytics,
+      Builds.Metadata,
       Builds.Steps,
       Builds.RecordedSteps,
       Builds.Workers.ProcessBuildWorker,
@@ -193,9 +196,12 @@ defmodule Tuist do
       Authentication,
       Authentication.UnavailableError,
       Authentication.SubjectCache,
+      Authentication.RefreshReplays,
+      IdempotentRequests,
       Authorization,
       Guardian,
       OIDC,
+      OIDC.JWKSCache,
       Authorization.Checks,
       Billing,
       Billing.Entitlements,
@@ -208,6 +214,7 @@ defmodule Tuist do
       AppBuilds.AppBuild,
       Projects,
       Projects.Project,
+      Accounts.OIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,
       Apple,
       Xcode,
@@ -292,6 +299,21 @@ defmodule Tuist do
       SCIM,
       SCIM.Filter,
       SCIM.Resource,
+      # Firecracker sandboxes for coding-agent sessions (control plane
+      # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
+      Sandboxes,
+      Sandboxes.AtlasIdentity,
+      Sandboxes.ProviderEnvironments,
+      Sandboxes.AmpIntegrations,
+      Sandboxes.AmpIntegration,
+      Sandboxes.AmpRuntime,
+      Sandboxes.AgentEnvironment,
+      Sandboxes.AgentSession,
+      Sandboxes.Anthropic.Client,
+      Sandboxes.Concurrency,
+      Sandboxes.Nodes,
+      Sandboxes.Router,
+      Sandboxes.Sandbox,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the
@@ -302,6 +324,7 @@ defmodule Tuist do
       Runners.CacheVolumes,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,
+      Runners.DockerCache,
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,

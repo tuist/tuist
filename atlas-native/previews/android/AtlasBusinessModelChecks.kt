@@ -12,6 +12,7 @@ fun main() {
 
 internal fun checkBusinessModels() {
     checkBusinessLists()
+    checkProfileEditing()
     val fixtures = AtlasBusinessFixtures()
     val pending = mutableListOf<Pair<JSONObject, (Result<JSONObject>) -> Unit>>()
     val model = AtlasBusinessModel("tasks") { action, done -> pending.add(action to done) }
@@ -134,6 +135,50 @@ internal fun checkBusinessModels() {
     profile.clear()
     completeProfile(Result.success(fixtures.execute(JSONObject().put("resource", "profile"))))
     check(profile.name.isEmpty() && profile.email.isEmpty() && profile.version.isEmpty())
+}
+
+private fun checkProfileEditing() {
+    val pending = mutableListOf<Pair<JSONObject, (Result<JSONObject>) -> Unit>>()
+    val model = AtlasProfileModel { action, done -> pending.add(action to done) }
+
+    fun profile(description: String = "") =
+        JSONObject().put("server_version", "demo").put(
+            "user",
+            JSONObject().put("name", "Alex").put("email", "alex@example.org").put("description", description),
+        )
+    model.load()
+    pending.removeAt(0).second(Result.success(profile()))
+    model.edit()
+    model.change("Role\nCurious")
+    model.load()
+    check(pending.isEmpty() && model.dirty && model.valid)
+    model.save()
+    model.save()
+    model.cancel()
+    check(pending.size == 1 && model.saving && model.draft == "Role\nCurious")
+    val (action, done) = pending.removeAt(0)
+    check(action.getString("action") == "update_profile" && action.getString("description") == model.draft)
+    check(action.keys().asSequence().toSet() == setOf("resource", "action", "description"))
+    done(Result.failure(IllegalStateException("Try again")))
+    check(model.draft == "Role\nCurious" && model.error == "Try again" && !model.saving)
+    model.save()
+    pending.removeAt(0).second(Result.success(profile("Role\nCurious")))
+    check(model.description == "Role\nCurious" && model.draft == null && model.error == null)
+    model.edit()
+    model.change("🦀".repeat(4000))
+    check(model.valid)
+    model.change("🦀".repeat(4001))
+    model.save()
+    check(!model.valid && pending.isEmpty())
+    model.change("é".repeat(2001))
+    check(!model.valid)
+    model.change("")
+    check(model.valid)
+    model.save()
+    val late = pending.removeAt(0).second
+    model.clear()
+    late(Result.success(profile("Must not return")))
+    check(model.description.isEmpty() && model.draft == null && !model.busy)
 }
 
 private fun checkBusinessLists() {

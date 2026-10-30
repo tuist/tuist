@@ -5,27 +5,20 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
   alias Tuist.Billing
   alias Tuist.Billing.Workers.SyncCustomerStripeMetersWorker
   alias Tuist.Billing.Workers.SyncCustomerStripeMeterWorker
-  alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  setup do
-    stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
-    :ok
-  end
-
-  test "snapshots the usage-based pricing meters for an account with the flag" do
+  test "snapshots the usage meters" do
     customer_id = UUIDv7.generate()
     %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
     period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
     period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
 
     stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
-    stub(FeatureFlags, :usage_based_pricing_enabled?, fn ^account -> true end)
 
     expect(Billing, :customer_meter_values, fn ^account,
                                                ^period_start_datetime,
                                                ^period_end_datetime,
-                                               [include_qa: false, usage_based_pricing: true] ->
+                                               [include_qa: false] ->
       [%{event_name: "cache_egress_megabytes", value: 10}, %{event_name: "passing_test_cases", value: 20}]
     end)
 
@@ -57,9 +50,9 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     expect(Billing, :customer_meter_values, fn ^account,
                                                ^period_start_datetime,
                                                ^period_end_datetime,
-                                               [include_qa: true, usage_based_pricing: false] ->
+                                               [include_qa: true] ->
       [
-        %{event_name: "remote_cache_hit", value: 10},
+        %{event_name: "cache_egress_megabytes", value: 10},
         %{event_name: "llm_input_token", value: 20},
         %{event_name: "runner_macos_compute_unit_milliseconds", value: 30}
       ]
@@ -79,8 +72,8 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     assert length(jobs) == 3
 
     assert jobs |> Enum.map(& &1.args["event_name"]) |> Enum.sort() == [
+             "cache_egress_megabytes",
              "llm_input_token",
-             "remote_cache_hit",
              "runner_macos_compute_unit_milliseconds"
            ]
 
@@ -102,14 +95,11 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
       {:ok, [{period_start_datetime, boundary}, {boundary, period_end_datetime}]}
     end)
 
-    stub(Billing, :customer_meter_values, fn ^account,
-                                             window_start,
-                                             window_end,
-                                             [include_qa: false, usage_based_pricing: false] ->
+    stub(Billing, :customer_meter_values, fn ^account, window_start, window_end, [include_qa: false] ->
       # Distinguish the two windows so the enqueued values prove each was
       # snapshotted against its own bounds rather than the whole day.
       value = if window_start == period_start_datetime and window_end == boundary, do: 10, else: 20
-      [%{event_name: "remote_cache_hit", value: value}]
+      [%{event_name: "cache_egress_megabytes", value: value}]
     end)
 
     assert :ok =
@@ -141,11 +131,8 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
 
     stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
 
-    stub(Billing, :customer_meter_values, fn ^account,
-                                             _window_start,
-                                             _window_end,
-                                             [include_qa: false, usage_based_pricing: false] ->
-      [%{event_name: "remote_cache_hit", value: 7}]
+    stub(Billing, :customer_meter_values, fn ^account, _window_start, _window_end, [include_qa: false] ->
+      [%{event_name: "cache_egress_megabytes", value: 7}]
     end)
 
     stub(Billing, :usage_windows, fn ^account, ^period_start_datetime, ^period_end_datetime ->
@@ -171,11 +158,8 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
 
     stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
 
-    expect(Billing, :customer_meter_values, fn ^account,
-                                               %DateTime{},
-                                               %DateTime{},
-                                               [include_qa: false, usage_based_pricing: false] ->
-      [%{event_name: "remote_cache_hit", value: 5}]
+    expect(Billing, :customer_meter_values, fn ^account, %DateTime{}, %DateTime{}, [include_qa: false] ->
+      [%{event_name: "cache_egress_megabytes", value: 5}]
     end)
 
     assert :ok =
@@ -185,7 +169,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
              })
 
     [job] = all_enqueued(worker: SyncCustomerStripeMeterWorker)
-    assert job.args["event_name"] == "remote_cache_hit"
+    assert job.args["event_name"] == "cache_egress_megabytes"
     assert is_integer(job.args["period_start"])
     assert is_integer(job.args["period_end"])
     assert job.args["period_end"] > job.args["period_start"]
@@ -202,7 +186,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     expect(Billing, :customer_meter_values, fn ^account,
                                                ^period_start_datetime,
                                                ^period_end_datetime,
-                                               [include_qa: false, usage_based_pricing: false] ->
+                                               [include_qa: false] ->
       []
     end)
 
@@ -242,8 +226,8 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     expect(Billing, :customer_meter_values, 1, fn ^account,
                                                   ^period_start_datetime,
                                                   ^period_end_datetime,
-                                                  [include_qa: false, usage_based_pricing: false] ->
-      [%{event_name: "remote_cache_hit", value: 12}]
+                                                  [include_qa: false] ->
+      [%{event_name: "cache_egress_megabytes", value: 12}]
     end)
 
     assert :ok =

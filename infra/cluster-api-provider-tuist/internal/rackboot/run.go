@@ -112,3 +112,25 @@ func (l tftpLog) OnSuccess(stats tftp.TransferStats) {
 func (l tftpLog) OnFailure(stats tftp.TransferStats, err error) {
 	l.s.log.Info("a TFTP transfer failed", "file", stats.Filename, "to", stats.RemoteAddr.String(), "error", err.Error())
 }
+
+// RunInternet serves the internet boot server's seeds and announcements on
+// its listen address, behind the cluster's ingress, until ctx ends or the
+// listener fails.
+func (s *Server) RunInternet(ctx context.Context) error {
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", s.cfg.Listen)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", s.cfg.Listen, err)
+	}
+	server := newHTTPServer(s.Handler())
+	errc := make(chan error, 1)
+	go func() { errc <- server.Serve(listener) }()
+	s.log.Info("serving seeds and announcements to the internet", "address", s.cfg.Listen)
+	select {
+	case <-ctx.Done():
+		shutdown, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		return server.Shutdown(shutdown)
+	case err := <-errc:
+		return fmt.Errorf("HTTP on %s: %w", s.cfg.Listen, err)
+	}
+}

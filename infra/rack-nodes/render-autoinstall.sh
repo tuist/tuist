@@ -45,3 +45,19 @@ render_stick_seed() {
   fi
   (cd "$module" && go run ./cmd/rack-seed -out "$outdir" -stick-server "$server")
 }
+
+# Renders the preinstall image's seeds: the deploy seed a vendor boots once,
+# under <outdir>/deploy, and the resident installer's, under <outdir>/resident,
+# which asks the boot servers in <servers> (comma-separated, in order) for the
+# machine's install and takes a site's static WAN from <wans-file> when nothing
+# gave it a default route. Neither carries a credential.
+# Sourced: render_preinstall_seeds <outdir> <servers> <wans-file>
+render_preinstall_seeds() {
+  local outdir="$1" servers="$2" wans="$3" module
+  module="$(git rev-parse --show-toplevel)/infra/cluster-api-provider-tuist"
+  if ! command -v go >/dev/null; then
+    echo "error: go is needed to render the seeds (brew install go)" >&2
+    return 1
+  fi
+  (cd "$module" && go run ./cmd/rack-seed -preinstall -out "$outdir" -servers "$servers" -wans-file "$wans")
+}

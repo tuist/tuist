@@ -26,6 +26,38 @@ struct AtlasBusinessTests {
         #expect(model.query == "Follow")
     }
 
+    @Test func savedRowsArriveBeforeRefreshRemainReadOnlyAndDisappearAfterAccessDenial() async throws {
+        var saved = try #require(JSONSerialization.jsonObject(with: overview) as? [String: Any])
+        saved["cached"] = true
+        saved["can_write"] = false
+        saved["items"] = [["id": "saved", "fields": ["title": "Saved task"], "can_edit": false, "can_delete": false]]
+        let cache = try JSONSerialization.data(withJSONObject: saved)
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        var suspend = true
+        let model = AtlasBusiness(resource: .tasks) { action in
+            if action["action"] as? String == "create" { return Data("{\"item\":\(item)}".utf8) }
+            if !suspend { throw AtlasAuthenticationError(kind: "network", message: "Offline") }
+            return try await withCheckedThrowingContinuation { finish = $0; started.continuation.yield(()) }
+        }
+        model.cachedRequest = { _ in cache }
+        let loading = Task { await model.load() }
+        for await _ in started.stream { break }
+        #expect(model.page?.items.first?["title"] == "Saved task" && model.page?.cached == true)
+        #expect(model.page?.canWrite == false && model.page?.items.first?.canEdit == false)
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "network", message: "Offline"))
+        await loading.value
+        suspend = false
+        #expect(model.page?.items.first?.id == "saved" && !model.busy)
+        #expect(!(await model.save(fields: ["title": "Must not write"], editing: nil)))
+        suspend = true
+        let retry = Task { await model.load() }
+        for await _ in started.stream { break }
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "sign_in_required", message: "Revoked"))
+        await retry.value
+        #expect(model.page == nil && model.records.isEmpty && model.forbidden && !model.busy)
+    }
+
     @Test func failedMutationRetainsContentButSuccessfulSaveSurvivesARefreshFailure() async {
         var failure = false
         var mutationFails = true
@@ -142,6 +174,59 @@ struct AtlasBusinessTests {
         #expect(!model.forbidden && model.errorMessage == nil && !model.busy)
     }
 
+    @Test func financeOverviewSurvivesPaginationButRefreshReplacesIt() async throws {
+        var cash = "123456789.13"
+        let model = AtlasBusiness(resource: .invoices) { action in
+            let page = action["page"] as? Int ?? 1
+            var payload = try #require(JSONSerialization.jsonObject(with: response(ids: ["invoice-\(page)"], page: page))
+                as? [String: Any])
+            if page == 1 {
+                payload["finance_overview"] = [
+                    "currency": "EUR", "as_of": "2026-10-22", "account_count": 3,
+                    "available_cash": cash, "monthly_burn": NSNull(), "runway_months": NSNull(),
+                    "fx_published_on": "2026-10-21", "excluded_currencies": [],
+                    "months": [["month": "2026-10", "income": "10.25", "expense": "27.50"]]
+                ]
+            }
+            return try JSONSerialization.data(withJSONObject: payload)
+        }
+        await model.load()
+        await model.loadMore()
+        #expect(model.page?.items.count == 2)
+        #expect(model.page?.financeOverview?.availableCash == "123456789.13")
+        #expect(model.page?.financeOverview?.months.first?.expense == "27.50")
+        #expect(model.page?.financeOverview?.monthlyBurn == nil)
+        cash = "900.01"
+        await model.load()
+        #expect(model.page?.financeOverview?.availableCash == "900.01")
+    }
+
+    @Test func accountDetailsSurviveListRefreshAndAreReplacedByAuthorizedDetailResponse() async throws {
+        var summary = "Authorized summary"
+        let model = AtlasBusiness(resource: .accounts) { action in
+            if action["action"] as? String != "show" { return try response(ids: ["account"], page: 1) }
+            return try JSONSerialization.data(withJSONObject: ["item": [
+                "id": "account", "can_edit": false, "can_delete": false, "fields": ["name": "Northstar"],
+                "details": [
+                    "fields": ["overview_summary": summary], "address": [:], "billing": [:], "signatory": [:],
+                    "children": [], "contacts": [], "terms": [], "invoices": [], "documents": [],
+                    "events": [], "outcomes": [], "service_levels": []
+                ]
+            ]])
+        }
+        await model.load()
+        let record = try #require(model.page?.items.first)
+        await model.show(record)
+        await model.load()
+        #expect(model.records[record.id]?.details?.fields["overview_summary"] == "Authorized summary")
+        summary = "Updated summary"
+        await model.show(record)
+        #expect(model.records[record.id]?.details?.fields["overview_summary"] == "Updated summary")
+    }
+
+}
+
+extension AtlasBusinessTests {
     @Test func forbiddenRecordLookupRevokesCachedDataAndCanRecover() async throws {
         var denied = false
         let item = """

@@ -4,7 +4,9 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.net.Uri
 import android.os.Build
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -57,9 +59,15 @@ class AtlasAIAccountsScreen(
     private var closed = false
     private var dialog: AlertDialog? = null
     private var tokenField: EditText? = null
+    private var descriptionField: EditText? = null
+    private var descriptionWatcher: TextWatcher? = null
     private var showingTokenHelp = false
     private var profile: AtlasProfileModel? = null
     private var appearance: AtlasAppearance? = null
+    private var connections: AtlasConnectionsModel? = null
+    private var coding: AtlasCodingRepositories? = null
+    private var pushStatus: (() -> String)? = null
+    private var pushToggle: (() -> Unit)? = null
     private var navigationChanged: () -> Unit = {}
     private val renderListener: () -> Unit = { render() }
 
@@ -93,13 +101,68 @@ class AtlasAIAccountsScreen(
         render()
     }
 
+    fun connections(model: AtlasConnectionsModel) {
+        connections = model
+        model.listener = renderListener
+        render()
+    }
+
+    fun coding(model: AtlasCodingRepositories) {
+        coding = model
+        model.listener = renderListener
+        render()
+    }
+
+    fun notifications(
+        status: () -> String,
+        toggle: () -> Unit,
+    ) {
+        pushStatus = status
+        pushToggle = toggle
+        render()
+    }
+
+    fun notificationsChanged() {
+        render()
+    }
+
     fun appearanceChanged() {
         if (appearance?.showingSettings == true) render()
     }
 
-    val isDetail: Boolean get() = appearance?.showingSettings == true || accounts.page != "settings"
+    val isDetail: Boolean get() =
+        profile?.draft != null || appearance?.showingSettings == true ||
+            connections?.showing == true || coding?.showing == true || accounts.page != "settings"
 
     fun back(): Boolean {
+        coding?.takeIf { it.showing }?.let { model ->
+            if (model.busy) return true
+            if (model.dirty) {
+                dialog =
+                    AlertDialog
+                        .Builder(activity)
+                        .setTitle("Discard repository settings?")
+                        .setNegativeButton("Keep editing", null)
+                        .setPositiveButton("Discard") { _, _ ->
+                            model.showing = false
+                            model.discard()
+                            render()
+                        }.show()
+            } else {
+                model.showing = false
+                render()
+            }
+            return true
+        }
+        if (connections?.showing == true) {
+            connections?.showing = false
+            render()
+            return true
+        }
+        if (profile?.draft != null) {
+            cancelDescription()
+            return true
+        }
         if (appearance?.showingSettings == true) {
             appearance?.showingSettings = false
             render()
@@ -120,17 +183,52 @@ class AtlasAIAccountsScreen(
         dialog?.dismiss()
         if (accounts.listener === renderListener) accounts.listener = null
         if (profile?.listener === renderListener) profile?.listener = null
+        if (connections?.listener === renderListener) connections?.listener = null
+        if (coding?.listener === renderListener) coding?.listener = null
         if (cancelPending) accounts.cancelLogin()
     }
 
     private fun render() {
         if (closed) return
         val focused = accounts.page == "claude" && tokenField?.hasFocus() == true
+        val descriptionFocused = descriptionField?.hasFocus() == true
         val position = scroll.scrollY
         content.removeAllViews()
+        if (profile?.draft != null) {
+            activity.title = "Your description"
+            toolbar.menu.clear()
+            renderDescription()
+            if (descriptionFocused) descriptionField?.requestFocus()
+            scroll.post { if (!closed) scroll.scrollTo(0, position) }
+            navigationChanged()
+            return
+        }
+        descriptionWatcher?.let { descriptionField?.removeTextChangedListener(it) }
+        descriptionWatcher = null
+        descriptionField = null
+        coding?.takeIf { it.showing }?.let { model ->
+            activity.title = "Coding"
+            toolbar.menu.clear()
+            content.addView(AtlasCodingSettingsScreen(activity, model) { dialog = it }.view)
+            scroll.post { if (!closed) scroll.scrollTo(0, position) }
+            navigationChanged()
+            return
+        }
         if (appearance?.showingSettings == true) {
             activity.title = "Appearance"
             renderAppearance()
+            scroll.post { if (!closed) scroll.scrollTo(0, position) }
+            navigationChanged()
+            return
+        }
+        connections?.takeIf { it.showing }?.let { model ->
+            activity.title = "Connections"
+            toolbar.menu.clear()
+            content.addView(AtlasConnectionsScreen(activity, model) { dialog = it }.view)
+            model.authorizationURL?.let { address ->
+                model.authorizationURL = null
+                openBrowser(Uri.parse(address))
+            }
             scroll.post { if (!closed) scroll.scrollTo(0, position) }
             navigationChanged()
             return
@@ -153,6 +251,16 @@ class AtlasAIAccountsScreen(
                         if (Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
                     }
                     row("Email", identity.email.ifBlank { "Not loaded" })
+                    heading("About you")
+                    if (identity.description.isNotBlank()) text(identity.description)
+                    text(
+                        "Share your company role, personality and communication preferences. Pip uses this only in private conversations, not shared threads. It is sent to the configured AI provider.",
+                    )
+                    button(
+                        if (identity.description.isBlank()) "Tell Pip about yourself" else "Edit description",
+                        enabled = identity.loaded && !identity.busy,
+                        primary = false,
+                    ) { identity.edit() }
                 } else {
                     heading("Account")
                 }
@@ -170,6 +278,31 @@ class AtlasAIAccountsScreen(
                         render()
                     }
                 }
+                if (identity?.pushAvailable == true && pushStatus != null) {
+                    heading("Notifications")
+                    row("Push notifications", pushStatus?.invoke().orEmpty()) { pushToggle?.invoke() }
+                    text(
+                        "Get notified when Pip finishes. Alerts include the thread title and a short reply preview. " +
+                            "Control lock-screen previews in Android notification settings.",
+                    )
+                }
+                connections?.let { model ->
+                    heading("Connected accounts")
+                    row("Connections", "GitHub, Slack and Google") {
+                        model.showing = true
+                        scroll.scrollTo(0, 0)
+                        render()
+                        model.load()
+                    }
+                }
+                coding?.let { model ->
+                    row("Coding", "GitHub installation and default repository") {
+                        model.showing = true
+                        scroll.scrollTo(0, 0)
+                        render()
+                        if (model.catalog == null) model.load()
+                    }
+                }
                 heading("AI accounts")
                 row("Claude", status("claude")) {
                     showingTokenHelp = false
@@ -181,7 +314,7 @@ class AtlasAIAccountsScreen(
                     scroll.scrollTo(0, 0)
                     accounts.open("chatgpt")
                 }
-                text("These accounts will power sessions you start. Sessions aren’t available yet.")
+                text("These accounts power conversations you start with Pip.")
                 heading("Session")
                 button("Sign out", enabled = true, primary = false) {
                     if (profile == null) {
@@ -209,6 +342,71 @@ class AtlasAIAccountsScreen(
         if (focused) tokenField?.requestFocus()
         scroll.post { if (!closed && !focused) scroll.scrollTo(0, position) }
         navigationChanged()
+    }
+
+    private fun cancelDescription() {
+        val model = profile ?: return
+        if (model.saving) return
+        if (!model.dirty) {
+            model.cancel()
+            return
+        }
+        dialog =
+            AlertDialog
+                .Builder(activity)
+                .setTitle("Discard changes?")
+                .setMessage("Your unsaved description will be discarded.")
+                .setPositiveButton("Discard") { _, _ -> model.cancel() }
+                .setNegativeButton("Keep editing", null)
+                .show()
+    }
+
+    private fun renderDescription() {
+        val model = profile ?: return
+        text("For example: I lead engineering at our company. I’m curious and direct; I prefer concise answers with trade-offs.")
+        text("Pip uses this only in private conversations, never shared threads. It is sent to the configured AI provider. Avoid secrets.")
+        val field =
+            descriptionField ?: EditText(activity)
+                .apply {
+                    hint = "Your role, personality and preferences"
+                    contentDescription = "About you"
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                    gravity = android.view.Gravity.TOP
+                    minLines = 6
+                    isSaveEnabled = false
+                    importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+                    setText(model.draft.orEmpty())
+                }.also { descriptionField = it }
+        field.isEnabled = !model.saving
+        content.addView(field, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val count = text("${model.draft.orEmpty().codePointCount(0, model.draft.orEmpty().length)} / 4000 characters")
+        model.error?.let { text(it).accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
+        val save = button(if (model.saving) "Saving…" else "Save", enabled = model.valid && !model.saving) { model.save() }
+        button("Cancel", enabled = !model.saving, primary = false) { cancelDescription() }
+        descriptionWatcher?.let(field::removeTextChangedListener)
+        descriptionWatcher =
+            object : TextWatcher {
+                override fun beforeTextChanged(
+                    value: CharSequence?,
+                    start: Int,
+                    count: Int,
+                    after: Int,
+                ) {}
+
+                override fun onTextChanged(
+                    value: CharSequence?,
+                    start: Int,
+                    before: Int,
+                    added: Int,
+                ) {
+                    model.change(value?.toString().orEmpty())
+                    val draft = model.draft.orEmpty()
+                    count.text = "${draft.codePointCount(0, draft.length)} / 4000 characters"
+                    save.isEnabled = model.valid && !model.saving
+                }
+
+                override fun afterTextChanged(value: Editable?) {}
+            }.also(field::addTextChangedListener)
     }
 
     private fun renderAppearance() {
@@ -429,18 +627,16 @@ class AtlasAIAccountsScreen(
         enabled: Boolean = !accounts.busy,
         primary: Boolean = true,
         action: () -> Unit,
-    ) {
-        content.addView(
-            Button(activity, null, if (primary) android.R.attr.buttonStyle else android.R.attr.borderlessButtonStyle).apply {
+    ): Button =
+        Button(activity, null, if (primary) android.R.attr.buttonStyle else android.R.attr.borderlessButtonStyle)
+            .apply {
                 text = label
                 setTag(R.id.atlas_primary_action, primary)
                 isAllCaps = false
                 minHeight = dp(48)
                 isEnabled = enabled
                 setOnClickListener { action() }
-            },
-        )
-    }
+            }.also(content::addView)
 
     private fun row(
         label: String,

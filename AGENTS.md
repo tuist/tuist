@@ -1,529 +1,75 @@
-# AGENTS.md
-
-This file provides guidance to AI agents when working with code in this repository. It serves as the root intent node and points to deeper context in subdirectories.
-
-## Repository Map
-- `.github/` - GitHub automation and community Slack notifications - see `.github/AGENTS.md`
-- `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
-- `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
-- `codebase-search/` - Bounded Rust service for hosted source-code search - see `codebase-search/AGENTS.md`
-- `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
-- `registry/` - Swift package registry service (Elixir/Phoenix) - see `registry/AGENTS.md`
-- `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
-- `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
-- `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
-- `tuist_ex/` - Elixir build and test instrumentation Hex package - see `tuist_ex/AGENTS.md`
-- `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
-- `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
-- `atlas-native/` - Native Atlas clients (shared Rust core, Rust CLI, Kotlin Android, SwiftUI iOS) built with Once - see `atlas-native/AGENTS.md`
-- `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
-- `gradle/` - Tuist Gradle plugin (Kotlin) - see `gradle/AGENTS.md`
-- `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
-- `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
-- `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
-- `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
-- `swifterpm/` - SwifterPM Swift package restoration tool and Bazel/Buck integration helpers - see `swifterpm/AGENTS.md`
-- `server/native/xcactivitylog_nif/` - Swift `xcactivitylog-parser` executable shipped in the server release and spawned per job, so a parser crash cannot take the BEAM down with it. The build processor is no longer a standalone Elixir app; it is the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to consume the independently sized `:process_build` and `:process_bazel_tests` Oban queues.
-- `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` scheduled onto a Mac mini node via tart-cri.
-- `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.
-- `infra/macos-xcode-image/` - Packer template that builds the in-house macOS + Xcode Tart image (Layer 1 base for `tuist-runner` and `tuist-xcresult-processor`). Drops the dependency on Cirrus Labs' `macos-tahoe-xcode:N` catalog. See `infra/macos-xcode-image/AGENTS.md`.
-- `infra/tart-cri/` - Container Runtime Interface (CRI) implementation that drives Tart on macOS, plus a CNI plugin. Lets a Mac mini join a Kubernetes cluster as a real node so macOS workloads schedule via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`. See `infra/tart-cri/AGENTS.md`.
-- `infra/cluster-api-provider-tuist/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-tuist/AGENTS.md`.
-- `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
-- `infra/egress-tree-agent/` - Go DaemonSet enforcing kura per-tenant egress floors/ceilings and the node box cap via a shared per-node HTB tree (tcx BPF veth trampoline that keeps Cilium's datapath applied to shaped traffic). Consumes the `tuist.dev/egress-class` pod annotation rendered by the kura-controller. See `infra/egress-tree-agent/AGENTS.md`.
-- `infra/rack-nodes/` - Install sticks for the BER1 rack's x86 Linux machines: unattended Ubuntu that joins the tailnet on first boot, after which the CAPI provider's `RackLinuxMachine` joins it to the cluster. See `infra/rack-nodes/AGENTS.md`.
-- `infra/rack-switch-controller/` - Go controller that adopts `RackSwitch` objects marked `managedBy: controller` into the Omada SDN controller and writes their configuration through its Open API, one switch at a time in the site's apply order. Owns the generated RackSwitch CRD. See `infra/rack-switch-controller/AGENTS.md`.
-- `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
-- `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
-- `grafana-datasource/` - Grafana data source plugin (Go backend + React) exposing Tuist build/test duration metrics. Thin client over the server's `/builds/metrics/duration` + `/tests/metrics/duration` API - see `grafana-datasource/AGENTS.md`
-- `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
-- `infra/cnpg/` - CloudNativePG bootstrap SQL for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`. See `infra/cnpg/README.md`.
-- `tuist-ops/` - Internal ops Phoenix app: Slack-driven JIT elevation bot (`/webhooks/slack/*`) plus the impersonation policy endpoint (`/api/v1/policy`) called by the kubectl gateway. Single-replica deploy in the production cluster, decoupled from `server/`. See `tuist-ops/AGENTS.md`.
-- `kube-impersonator/` - Tiny Go sidecar deployed alongside Pomerium in each env's `pomerium` namespace. Reads `X-Pomerium-Claim-Email` per kubectl request, calls `tuist-ops/api/v1/policy` over the tailnet to resolve the right `Impersonate-User` + `Impersonate-Group(s)`, attaches the pod SA bearer, reverse-proxies to the apiserver. Fails closed if the policy call fails. See `kube-impersonator/AGENTS.md`.
-
-- `.github/actions/cache-volume/` - Source and release package for the standalone cache volume action; see `.github/actions/cache-volume/AGENTS.md`.
-
-- `.github/actions/xcode-cache/` and `.github/actions/module-cache/` - Source packages for the `tuist/xcode-cache` and `tuist/module-cache` actions, which attach the managed Xcode and module cache volumes on macOS runners; see `.github/actions/xcode-cache/AGENTS.md`.
-
-- `.github/actions/gradle-cache/` - Source package for the `tuist/gradle-cache` action, a managed cache volume for Gradle's user home; see `.github/actions/gradle-cache/AGENTS.md`.
-
-- `ci/runner-caches/` - Buildkite plugins and GitLab snippets for the Xcode, module and Gradle caches; see `ci/runner-caches/AGENTS.md`.
-
-- `ci/cache-volume/` - Buildkite plugin and GitLab cache-volume template; see `ci/cache-volume/AGENTS.md`.
-
-## Global Guardrails
-- Do not modify `CHANGELOG.md` (auto-generated).
-- Do not edit translation `.po` files; only the `tuistit` bot should change them.
-- Do not modify content in languages other than English (source language).
-
-## Repository Build Configuration
-- Keep Swift project prefix mapping enabled. Tests must resolve fixture and snapshot locations through `TuistTestSupport` using the runtime checkout path (`TUIST_CONFIG_SRCROOT`), rather than accessing compiler-remapped `#file` or `#filePath` paths directly.
-
-## Intent Layer Maintenance
-When making changes in a directory with an `AGENTS.md`, keep that node up to date. If a new subsystem or boundary is introduced, add a new leaf `AGENTS.md` and link it from the nearest parent node.
-
-## Git and Pull Requests
-
-When creating commits and pull requests, use these conventional commit scopes:
-- `app` - Changes to the Tuist iOS and macOS app
-- `android` - Changes to the Tuist Android app
-- `server` - Changes to the Tuist server (Elixir/Phoenix)
-- `atlas` - Changes to the Atlas internal ops app (Elixir/Phoenix)
-- `atlas-native` - Changes to the Atlas native clients and shared Rust core
-- `codebase-search` - Changes to the bounded source-code search service
-- `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
-- `registry` - Changes to the Swift package registry service
-- `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
-- `kura` - Changes to the Kura distributed cache mesh service
-- `cli` - Changes to the Tuist CLI (Swift)
-- `tuist-ex` - Changes to the Elixir build and test integration
-- `noora` - Changes to the Noora web component library
-- `skills` - Changes to the Agent Skills package
-- `search` - Changes to the search infrastructure (TypeSense)
-- `status` - Changes to the public status page (Cloudflare Worker)
-- `grafana-datasource` - Changes to the Grafana data source plugin
-- `docs` - Changes to documentation
-- `handbook` - Changes to the handbook/guides
-
-
-Examples:
-- `feat(server): add new telemetry sanitizer module`
-- `feat(codebase-search): add bounded source file listing`
-- `fix(cli): resolve cache artifact upload issue`
-- `feat(cache): add new S3 transfer worker`
-- `feat(registry): add release sync allowlist`
-- `feat(kura): add peer discovery backoff handling`
-- `feat(skills): add new migration skill`
-- `docs(handbook): update project setup guide`
-
-When creating pull requests, write descriptions that preserve the reasoning from the implementation work, not just the surface diff.
-
-Pull request descriptions should cover:
-- What changed
-- Why it changed
-- The root cause when the change is a fix
-- Why the chosen solution was selected over the obvious alternatives when that context matters
-- User or developer impact
-- The concrete validation that was run
-
-Avoid minimal PR descriptions that only restate the code diff. The goal is that a reviewer can understand the problem, the reasoning, and the validation without reopening the full agent session.
-
-## Review Guidance
-
-When reviewing changes, keep the relevant Blick review skills in mind based on the languages modified:
-
-- [Tuist Elixir review](.blick/skills/tuist-elixir-review/SKILL.md) for Elixir, Phoenix, Noora, and shared service changes.
-- [Tuist Swift review](.blick/skills/tuist-swift-review/SKILL.md) for Swift changes, including Tuist command-line and SwifterPM changes.
-
-These files are review context for Claude, Codex, and other local coding agents. Only report findings whose cited line appears in the diff.
-
-# Tuist CLI (Swift)
-
-## Code style
-- Do not add one-line comments unless you think they are really useful.
-
-## Workflow
-- For faster builds, generate only the required targets before compiling or testing, for example `tuist generate tuist ProjectDescription --no-open`. If the target or test suite you need is not present in the current generated workspace, regenerate with that specific production target and test target instead of falling back to SwiftPM.
-- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`.
-- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` or `xcsiftbuild test` instead of `swift test`.
-- Prefer running test suites or individual test cases, and not the whole test target, for performance
-- Do not use `swift build` or `swift test` as a fallback for CLI work. Only use SwiftPM commands when the user explicitly asks for them or when changing package-resolution behavior; in those exceptional cases, always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution.
-
-## Testing
-- Use Swift Testing framework with custom traits for tests that need temporary directories
-- For tests requiring temporary directories, use `@Test(.inTemporaryDirectory)` and access the directory via `FileSystem.temporaryTestDirectory`
-- Import `FileSystemTesting` when using the `.inTemporaryDirectory` trait
-- Example pattern:
-  ```swift
-  import FileSystemTesting
-  import Testing
-
-  @Test(.inTemporaryDirectory) func test_example() async throws {
-      let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-      // Test implementation
-  }
-  ```
-- Do not modify CHANGELOG.md as it is auto-generated
-
-## OpenAPI Code Generation
-- The server's OpenAPI spec and CLI Swift client code are regenerated with: `mise run generate-api-cli-code` (run from the `server/` directory)
-- This exports the spec to `cli/Sources/TuistServer/OpenAPI/server.yml` and regenerates `Types.swift` and `Client.swift`
-- Do not edit `server.yml`, `Types.swift`, or `Client.swift` manually — update the controller schemas in the server and regenerate
-
-## Linting
-- To check for linting issues: `mise run lint`
-- To automatically fix fixable linting issues: `mise run lint --fix`
-
-# Tuist Server (Elixir/Phoenix)
-
-## Project Architecture
-
-Tuist Server is an Elixir/Phoenix web application that extends the functionality of the Tuist CLI for iOS/macOS development. It provides binary caching, app preview deployment, build analytics, and Swift package registry services.
-
-**Key Technologies:**
-- **Backend**: Elixir 1.19.5 with Phoenix 1.7.12 framework
-- **Databases**: 
-  - PostgreSQL (primary database)
-  - ClickHouse (analytics database, write-only through IngestRepo)
-- **Frontend**: Phoenix LiveView with JavaScript/TypeScript and esbuild
-- **Package Management**: aube for JavaScript dependencies
-
-**Core Architecture Components:**
-- `lib/tuist/` - Core business logic modules (accounts, billing, bundles, projects, registry, etc.)
-- `lib/tuist_web/` - Web interface (controllers, LiveView components, marketing site)
-- `priv/repo/migrations/` - PostgreSQL database schema migrations
-- `priv/ingest_repo/migrations/` - ClickHouse database schema migrations (analytics, write-only)
-- `assets/` - Frontend source files (JS/CSS)
-- `config/` - Application configuration
-
-**Main Business Domains:**
-- **Accounts** - User authentication, organizations, billing management
-- **Projects** - Project management, tokens, permissions
-- **Bundles** - Binary cache management for build optimization
-- **Previews** - iOS app preview generation and deployment
-- **Registry** - Swift package registry implementation
-- **Command Events** - CLI interaction tracking and analytics
-
-## Development Setup
-
-**Prerequisites:**
-- PostgreSQL 16
-- Mise development environment manager
-- Optional: 1Password access to the `Development` vault via fnox (`op signin` or `OP_SERVICE_ACCOUNT_TOKEN`), installed by `mise install`; the server boots without it with OAuth/Stripe/etc. disabled
-
-**Setup Commands:**
-```bash
-brew install postgresql@16      # Make sure `postgresql@16` is installed locally via Homebrew
-brew services start postgresql@16
-mise run clickhouse:start      # Start ClickHouse
-mise install                   # Install dependencies and bootstrap the local development database
-mise run dev                   # Start development server
-```
-
-**Test User Account:**
-- Email: `tuistrocks@tuist.dev`
-- Password: `tuistrocks`
-
-## Common Development Commands
-
-**Database Management:**
-- `mise run db:setup` - Complete database setup (create, migrate, seed)
-- `mise run db:reset` - Drop, recreate, and migrate database
-- `mix ecto.migrate` - Run pending migrations
-- `mix ecto.rollback` - Rollback last migration
-
-**Development Server:**
-- `mise run dev` - Start Phoenix development server
-- `mix phx.server` - Alternative way to start server
-- `iex -S mix phx.server` - Start server with interactive shell
-
-**Testing:**
-- `mix test` - Run full test suite (includes database setup)
-- `mix test test/path/to/specific_test.exs` - Run specific test file
-- `mix test test/path/to/test_file.exs:line_number_of_test` - Test single case
-- `mix test --only tag_name` - Run tests with specific tag
-
-**Code Quality:**
-- `mix credo` - Run code analysis and linting
-- `mix format` - Format Elixir code
-- `mise run format` - Format all code (Elixir + JS)
-- `mix sobelow` - Security analysis
-- `mise run security` - Run security static checks
-
-**Frontend Assets:**
-- `mix assets.setup` - Install esbuild
-- `mix assets.build` - Build all assets (app, marketing, apidocs)
-- `mix assets.deploy` - Build and minify assets for production
-
-**Database Utilities:**
-- `mix ecto.dump` - Export database structure
-- `mix ecto.load` - Import database structure
-- `mix excellent_migrations.check_safety` - Check migration safety
-
-## Key Configuration Files
-
-- `.mise.toml` - Development environment and tool versions
-- `mix.exs` - Elixir project configuration and dependencies
-- `package.json` - JavaScript dependencies managed by aube
-- `config/` directory - Phoenix application configuration
-- `server/fnox.toml` - Dev secrets sourced from 1Password (`Development` vault) at runtime via fnox
-
-## Testing Patterns
-
-The codebase uses ExUnit for testing. Test files follow the pattern `test/**/module_name_test.exs`. Tests automatically set up a clean database before running.
-
-**Running Specific Tests:**
-```bash
-mix test test/tuist/accounts_test.exs
-mix test test/tuist_web/live/dashboard_live_test.exs
-```
-
-**Testing Guidelines:**
-- **Never modify System environment variables** in tests as they are shared state and can cause flaky tests
-- Use mocks, stubs, or dependency injection to test environment-dependent behavior
-- If environment testing is absolutely necessary, use process-scoped alternatives or test tags to isolate tests
-
-## Code Style Guidelines (Elixir)
-- **Formatting:** Follow standard Elixir and Phoenix conventions. Consider using an Elixir formatter.
-- **Imports/Aliases:** Use `alias` for modules used multiple times. Avoid `import` unless for specific DSLs (e.g., Ecto.Query).
-- **Modules Aliases:** Always declare module aliases at the module level in files, not within individual functions. This improves readability and avoids repetition.
-- **Mocking:** Copy the modules for mocking in @server/test/test_helper.exs not in the individual functions.
-- **Types:** Do not add typespecs (`@spec`, `@type`, etc.) to functions or modules.
-- **Naming Conventions:**
-    - Modules: PascalCase (e.g., `MyModule`)
-    - Functions: snake_case (e.g., `my_function`)
-    - Variables: snake_case (e.g., `my_variable`)
-- **Error Handling:** Prefer tagged tuples `{:ok, value}` and `{:error, reason}` for functions that can fail. Use exceptions for unrecoverable errors.
-- **Credo:** Adhere to rules in `.credo.exs`.
-    - Timestamps in migrations should be `:timestamptz`.
-    - Timestamps in `lib/` should be `:utc_datetime`.
-- **Comments:** Add comments for complex logic or non-obvious code. Remove `TODO` comments once addressed.
-
-## Translation Management (Gettext)
-
-**Important:** The translation workflow uses `translate.exs` and the `tuistit` bot. Do not manually edit translation files. Catalog translation is incremental by source-message key. Each successful batch is written before the next request. Markdown translations are reused when their source and context hashes match.
-
-The workflow restores the unmerged `l10n/update-translations` branch with a three-way merge before spending tokens, then saves validated progress even if translation fails. Conflicts stop the run before model requests. Provider-wide failures stop queued batches across sources and locales; in-flight requests may finish. Keep the translation step's timeout below the job timeout so saving partial progress has time to complete. Run `elixir translate_test.exs` when changing this behavior; it covers translation logic and branch recovery in temporary local repositories.
-
-**Translation File Types:**
-- `.pot` files (templates) - **CAN be modified** by developers when adding/changing translatable strings
-- `.po` files (translations) - **MUST NOT be modified** by developers
-- Only the `tuistit` bot should modify `.po` files
-
-**Workflow:**
-1. Add translatable strings using `dgettext/2` in your code
-2. Run `mix gettext.extract` to update the `.pot` template files
-3. Commit only the `.pot` files (and your code changes)
-4. The translation workflow sends missing entries to the model and updates the translation pull request through the `tuistit` bot
-5. **Never run `mix gettext.extract --merge`** in your PRs as this modifies `.po` files
-
-**Key Principles:**
-- Currency symbols and monetary amounts should NOT be wrapped in `dgettext/2` - they must remain consistent across languages
-- Descriptive text around prices (like "and up", "per unit") SHOULD be translatable
-- Example: `"0€ " <> dgettext("marketing", "and up")` ✅
-- Anti-example: `dgettext("marketing", "0€ and up")` ❌
-
-**CI Protection:**
-The CI pipeline will fail if any `.po` files are modified by anyone other than `tuistit`.
-
-## Deployment
-
-The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
-
-- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests, runners acceptance and the Kura rollout gate → production (hotfix fast-path available). Runners acceptance dispatches jobs onto canary's runners and requires remote compilation-cache hits; production's runners and the BER1 rack are probed hourly by `.github/workflows/runners-acceptance.yml`.
-- Hosted Kura follows `main` too: canary and production pin the newest `kura@X.Y.0-canary.N` in the deployed commit, which the cascade publishes by calling `kura-release.yml` when `kura/` changed. Fresh staging deploys still build the Kura runtime from the deployed commit. Pass `kura_runtime_image_tag` to `server-deployment.yml` to pin another tag (e.g. a stable one) for a deploy.
-- Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
-- Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).
-
-## Important Notes
-
-- Always run `mix ecto.migrate` after pulling database migrations
-- Use `mise run install` after pulling dependency changes or when bootstrapping a fresh worktree
-- Local development connects to `http://localhost:8080` for Tuist CLI integration
-
-# Tuist Handbook
-
-## Overview
-
-The Tuist handbook is a VitePress-based documentation site that contains company policies, procedures, and guidelines. It's organized into several main sections:
-
-- **Company**: Mission, vision, principles, and leadership information
-- **Security**: Comprehensive security policies and procedures
-- **Engineering**: Technical standards, practices, and technologies
-- **People**: Benefits, values, code of conduct, and how we work
-- **Marketing**: Guidelines and case studies
-- **Product**: Product development processes
-- **Support**: Support processes and procedures
-- **Community**: Community-related content
-
-## Technical Details
-
-### Building and Testing
-
-- **Build command**: `mise run handbook:build` (can be run from any directory)
-  - This command also verifies that there are no dead links
-- **Development server**: `mise run handbook:dev` (from the handbook directory)
-- **Deployment**: The handbook is automatically deployed to Cloudflare Pages at handbook.tuist.io
-
-### Directory Structure
-
-```
-handbook/
-├── .vitepress/
-│   └── config.mjs    # Navigation and site configuration
-├── handbook/         # Content directory
-│   ├── company/
-│   ├── security/
-│   ├── engineering/
-│   ├── people/
-│   ├── marketing/
-│   ├── product/
-│   ├── support/
-│   └── community/
-└── package.json
-```
-
-## Working with Security Policies
-
-When creating or modifying security policies:
-
-1. **Follow the standard format**:
-   - Include frontmatter with title, titleTemplate, and description
-   - Start with policy owner and effective date
-   - Use consistent section structure
-
-2. **Standard policy sections**:
-   - Purpose
-   - Scope
-   - Policy Statement
-   - Requirements (numbered subsections)
-   - Roles and Responsibilities
-   - Exceptions
-   - Compliance Monitoring
-   - Policy Review
-   - Version History
-
-3. **Key considerations**:
-   - Keep policies practical for a 4-person company
-   - Reference the [shared responsibility model](/security/shared-responsibility-model) when discussing infrastructure
-   - Infrastructure providers (Hetzner, Tigris, Cloudflare) handle their own layer security
-   - Focus on application-layer responsibilities
-
-## Navigation Configuration
-
-The site navigation is configured in `.vitepress/config.mjs`:
-
-- The sidebar structure should match the directory structure
-- When adding new pages, ensure they're included in the navigation
-- Redirects for moved pages are handled in the buildEnd hook
-
-## Content Guidelines
-
-### Writing Style
-
-- Use clear, concise language
-- Write for a small, technical team
-- Avoid overly bureaucratic language
-- Focus on practical implementation
-
-### Frontmatter Format
-
-```yaml
----
-title: Page Title
-titleTemplate: :title | Section | Tuist Handbook
-description: Brief description of the page content
----
-```
-
-### Markdown Conventions
-
-- Use standard GitHub-flavored markdown
-- Include anchors for major sections
-- Use numbered lists for sequential steps
-- Use bullet points for non-sequential items
-
-## Handbook Important Reminders
-
-1. **Always verify builds**: Run `mise run handbook:build` before committing to ensure:
-   - The handbook builds successfully
-   - There are no broken links
-   - Navigation is properly configured
-
-2. **Security policy updates**: When updating security policies, consider:
-   - Impact on the small team size
-   - Alignment with shared responsibility model
-   - Practical implementation requirements
-
-3. **Infrastructure responsibilities**: Remember that Tuist relies on:
-   - Hetzner for compute (CAPI-managed Kubernetes clusters)
-   - CloudNativePG for in-cluster Postgres
-   - Tigris for data storage
-   - Cloudflare for CDN and edge services
-
-Each provider handles security at their infrastructure layer, while Tuist focuses on application-layer security.
-
-## Common Handbook Tasks
-
-### Adding a new page
-
-1. Create the markdown file in the appropriate directory
-2. Add proper frontmatter
-3. Update `.vitepress/config.mjs` to include it in navigation
-4. Run `mise run handbook:build` to verify
-5. Commit and create a PR with @tuist/company team as reviewer
-
-### Updating Existing Content
-
-1. Make changes to the markdown file
-2. Verify internal links are still valid
-3. Run `mise run handbook:build` to test
-4. Commit with a descriptive message
-5. Create a PR with @tuist/company team as reviewer
-
-### Moving or Renaming Pages
-
-1. Move/rename the file
-2. Update navigation in `.vitepress/config.mjs`
-3. Add a redirect in the buildEnd hook if needed
-4. Update any internal links to the page
-5. Run `mise run handbook:build` to verify all links
-6. Create a PR with @tuist/company team as reviewer
-
-# Data Export Documentation Maintenance
-
-## Important: Keep server/data-export.md Up to Date
-
-The `server/data-export.md` file documents all personal and organizational data that Tuist stores and can export for customers upon legal request. **This file must be kept current whenever database schema changes or new data storage is introduced.**
-
-### When to Update server/data-export.md
-
-You **MUST** update `server/data-export.md` when making any of the following changes:
-
-#### Database Schema Changes
-- Adding new tables to PostgreSQL or ClickHouse
-- Adding new columns that store customer/user data
-- Modifying data relationships between tables
-- Adding new Ecto schemas or models
-- Changes to data retention policies
-
-#### File Storage Changes
-- Adding new types of files stored in S3
-- Changing S3 storage path structures
-- Adding new file categories or storage buckets
-- Modifying file upload/download processes
-
-#### New Data Collection
-- Adding new user data fields
-- Implementing new analytics or tracking
-- Adding new integrations that store customer data
-- New features that generate customer-owned content
-
-### How to Update server/data-export.md
-
-When making qualifying changes:
-
-1. **Review the change**: Identify what new data is being stored or how existing data storage is modified
-2. **Update the documentation**: Add or modify the relevant sections in `server/data-export.md`
-3. **Be comprehensive**: Include:
-   - Data type and purpose
-   - Storage location (database table, S3 path structure, etc.)
-   - Data relationships
-   - Retention policies
-   - Export capabilities
-4. **Maintain format**: Follow the existing documentation structure and style
-5. **Test documentation**: Verify that the export process could actually retrieve the documented data
-
-### Legal Compliance
-
-This documentation is critical for:
-- GDPR Article 20 (Right to data portability)
-- CCPA data export requirements  
-- General customer data transparency
-- Incident response and data breach notifications
-
-**Failure to keep this documentation current could result in incomplete data exports for legal requests, potentially leading to compliance violations.**
-- Don't modify content in languages other than English (source language)
-
-- `infra/tart-kubelet/` — current macOS Pod-to-Tart runtime and APFS caches; see `infra/tart-kubelet/AGENTS.md`.
-- `infra/runner-cache/` — shared Linux/macOS custom-volume journal, image lifecycle and transfer; see `infra/runner-cache/AGENTS.md`.
+# Tuist
+
+Monorepo for the Tuist CLI, services, companion apps, and infrastructure. Read the
+nearest `AGENTS.md` before working in a subsystem. Paths below are repository-relative.
+
+## Subsystems
+
+| Directory | Scope |
+| --- | --- |
+| [.github/](.github/AGENTS.md) | Automation, actions, and community notifications |
+| ci/ | Buildkite plugins and GitLab cache templates; read the component guide |
+| [cli/](cli/AGENTS.md) | Swift CLI, project generation, caching, and server client |
+| [server/](server/AGENTS.md) | Phoenix application, analytics, and native build/test processors |
+| [codebase-search/](codebase-search/AGENTS.md) | Bounded hosted source-code search |
+| [cache/](cache/AGENTS.md) | Cache service |
+| [registry/](registry/AGENTS.md) | Stateless package registry read frontend |
+| [kura/](kura/AGENTS.md) | Rust distributed cache mesh |
+| [cas-plugin/](cas-plugin/AGENTS.md) | Xcode CAS plugin and per-machine proxy |
+| [tuist_ex/](tuist_ex/AGENTS.md) | Elixir build and test instrumentation |
+| [tuist_common/](tuist_common/AGENTS.md) | Shared Elixir utilities |
+| [atlas/](atlas/AGENTS.md) | Internal operations app |
+| [atlas-native/](atlas-native/AGENTS.md) | Once-based Rust, Android, and iOS Atlas clients |
+| [gradle/](gradle/AGENTS.md) | Gradle plugin |
+| [app/](app/AGENTS.md), [android/](android/AGENTS.md) | Companion apps |
+| [noora/](noora/AGENTS.md) | Phoenix component library and Storybook |
+| [slack/](slack/AGENTS.md) | Public Slack invitation app |
+| [tuist-ops/](tuist-ops/AGENTS.md) | Internal operations and access approvals |
+| [kube-impersonator/](kube-impersonator/AGENTS.md) | Kubernetes access policy sidecar |
+| [infra/](infra/AGENTS.md) | Helm charts, controllers, clusters, and VM images |
+| [search/](search/AGENTS.md) | Typesense and indexers |
+| [status/](status/AGENTS.md) | Cloudflare status-page worker |
+| [grafana-datasource/](grafana-datasource/AGENTS.md) | Go/React Grafana plugin |
+| [handbook/](handbook/AGENTS.md) | Company handbook (VitePress) |
+| [swifterpm/](swifterpm/AGENTS.md) | Swift package restoration and Bazel/Buck helpers |
+| skills/ | Agent skills published to `tuist/agent-skills` |
+
+## Guardrails
+
+- Do not edit generated `CHANGELOG.md` files.
+- Edit English source content only. Never edit translation `.po` files; the
+  Glossia GitHub App owns them. Gettext `.pot` templates may be updated.
+- Keep Swift project prefix mapping enabled. Resolve test fixtures and snapshots
+  through `TuistTestSupport` and the runtime checkout (`TUIST_CONFIG_SRCROOT`), not
+  compiler-remapped `#file` or `#filePath` paths.
+- When changing stored customer data (schemas, relationships, object-storage
+  layouts, collection, or retention), update `server/data-export.md`. See
+  `server/AGENTS.md` for the required export documentation details.
+- Before operating on shared infrastructure, read `infra/AGENTS.md`, including
+  its human-only elevation rules.
+
+## Commits and pull requests
+
+Use conventional commits with the affected subsystem as scope, for example
+`fix(cli): resolve cache artifact upload issue`. Established scopes are `app`,
+`android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`,
+`slack`, `kura`, `cli`, `tuist-ex`, `noora`, `skills`, `search`, `status`,
+`grafana-datasource`, `docs`, and `handbook`.
+
+PR descriptions must explain what changed, why, the root cause for fixes, relevant
+alternatives, user/developer impact, and validation actually run. Preserve the
+reasoning, not just a file list.
+
+For reviews, use the project-specific context in
+[Tuist Elixir review](.blick/skills/tuist-elixir-review/SKILL.md) or
+[Tuist Swift review](.blick/skills/tuist-swift-review/SKILL.md), as applicable.
+Only report findings whose cited line appears in the diff.
+
+## Maintaining guidance
+
+Keep instructions at the narrowest scope that needs them; children inherit parent
+rules. Add a nested `AGENTS.md` only for distinct commands, boundaries, or
+non-obvious constraints. Do not repeat parent rules, inventory source files, or
+record session history. Put architecture and operational procedures in existing
+READMEs/runbooks and link to them. Update guidance when its instructions change,
+not for every code edit. `CLAUDE.md` aliases should continue to point to `AGENTS.md`.

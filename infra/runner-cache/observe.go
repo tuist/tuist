@@ -70,7 +70,7 @@ func ManagedKey(key string) string {
 type Subject struct {
 	Scope string
 	Use   string
-	// Kind is custom, managed or checkout, or "" when the host cannot tell.
+	// Kind is custom, managed, checkout or docker, or "" when the host cannot tell.
 	Kind string
 	// Key is set only for a managed volume.
 	Key string
@@ -90,6 +90,8 @@ func SubjectOf(slot Slot) Subject {
 	switch {
 	case slot.Kind == KindCheckout:
 		kind, key = KindCheckout, ""
+	case slot.Kind == KindDocker:
+		kind, key = KindDocker, ""
 	case key != "":
 		kind = KindManaged
 	}
@@ -236,8 +238,13 @@ var ErrExecutionPending = errors.New("runner job not yet reported by GitHub")
 type RemoteError struct {
 	Operation  string
 	StatusCode int
+	// Code is the object store's error code, when its response named one.
+	Code string
 }
 
 func (e *RemoteError) Error() string {
+	if e.Code != "" {
+		return fmt.Sprintf("image %s status %d %s", e.Operation, e.StatusCode, e.Code)
+	}
 	return fmt.Sprintf("image %s status %d", e.Operation, e.StatusCode)
 }

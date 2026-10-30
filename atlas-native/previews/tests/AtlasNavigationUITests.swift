@@ -52,6 +52,10 @@ final class AtlasNavigationUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
+        app.tabBars.buttons["Browse"].tap()
+        let tasks = app.descendants(matching: .any)["workspace-section-tasks"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 5))
+        tasks.tap()
         XCTAssertTrue(app.staticTexts["Review onboarding"].waitForExistence(timeout: 5))
         XCUIDevice.shared.press(.home)
         app.activate()
@@ -99,7 +103,7 @@ final class AtlasNavigationUITests: XCTestCase {
             "This link belongs to a different Atlas server. Sign in to that server and open the link again."
         ].exists)
         app.alerts.buttons["OK"].tap()
-        XCTAssertTrue(app.navigationBars["Tasks"].exists)
+        XCTAssertTrue(app.navigationBars["Orbit"].exists)
     }
 
     @MainActor func testWarmRecordLinkReplacesAnExistingDetailAndBackReturnsToList() {
@@ -116,6 +120,10 @@ final class AtlasNavigationUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
+        app.tabBars.buttons["Browse"].tap()
+        let tasks = app.descendants(matching: .any)["workspace-section-tasks"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 5))
+        tasks.tap()
         let row = app.descendants(matching: .any)["business-item-task-1"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
@@ -128,7 +136,7 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 5))
     }
 
-    @MainActor func testWarmLinkCannotDiscardAISetupDraft() {
+    @MainActor func testWarmLinkCannotDiscardAISetupDraft() throws {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace", "--resume-destination",
                                "dev.tuist.atlas://navigate/accounts?server=https%3A%2F%2Fatlas.example.org"]
@@ -136,12 +144,12 @@ final class AtlasNavigationUITests: XCTestCase {
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
         app.tabBars.buttons["Profile"].tap()
-        app.buttons["ai-account-claude"].tap()
+        try app.visibleElement("ai-account-claude", type: .button).tap()
         let token = app.secureTextFields["claude-token"]
         XCTAssertTrue(token.waitForExistence(timeout: 5))
         token.tap()
         token.typeText("preview-only")
-        XCTAssertFalse(app.tabBars.buttons["Tasks"].isHittable)
+        XCTAssertFalse(app.tabBars.buttons["Orbit"].isHittable)
         XCUIDevice.shared.press(.home)
         app.activate()
         XCTAssertTrue(app.alerts["Atlas link"].waitForExistence(timeout: 5))
@@ -150,6 +158,10 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(token.exists)
         XCTAssertEqual((token.value as? String)?.count, "preview-only".count)
         XCTAssertTrue(app.navigationBars["Claude"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "ios-navigation-protected-ai-draft-preview"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor private func launch(path: String, server: String = "atlas.example.org", web: Bool = false) -> XCUIApplication {

@@ -74,10 +74,31 @@ the exact replacement pod and incarnation on another host. Crash promotion may
 lose acknowledged writes that had not yet replicated; clients must rebuild a
 cache miss rather than treating the asynchronous cache as durable storage.
 
+A **kubelet-verified container exit** is positive fencing for that process. At
+start the runtime writes `kura-incarnation=<incarnation>` to
+`/dev/termination-log`, so the terminated container's message names the exact
+process. When the holder pod's status reports that message, the controller
+moves to `Fencing` without waiting for grant expiry and records the evidence as
+`holder_exit` on the grant. A restarted container in the same pod (same pod
+UID and host) reports the inherited holder as `exit_resume`; the controller
+grants it the next epoch with an `exit_resume` binding to the exited holder,
+and the runtime reopens its own marked volume only for that grant. If no such
+restart is ready 60 seconds after the exit was recorded, the controller
+promotes a ready standby on another host whose initial backfill completed. A
+process holding an inherited volume reports not ready until its exit resume
+installs, so after a promotion the old ordinal stays unready and marked. The
+promoted grant records it as `exit_promoted_from`, and the controller submits
+the replica recovery below for it (ID `exit-<pod>-<incarnation>`, kubelet's
+exit report as fence evidence) unless another recovery is pending or in flight.
+A current operator `primaryPromotion` request takes precedence. Host loss,
+partitions and interrupted handovers report no exit and keep the manual path.
+
 An active primary fsyncs `.kura.primary-unclean` on its data volume. Only a
 successful planned revocation removes it. A crashed/expired primary's volume
 cannot restart into the peer plane, including after the feature flag is removed.
-Quarantine and rebuild it; do not manually erase the marker.
+The only reopening is an exit resume in the same pod, which rewrites the marker
+for the new holder. Otherwise quarantine and rebuild it; do not manually erase
+the marker.
 Every activated volume also fsyncs `.kura.serving-floor` with its instance UID.
 Compatible runtimes reject disabling authority or reusing that volume for another
 instance, including on a clean standby. Older binaries do not understand this
@@ -108,7 +129,15 @@ required to retry. Source expiry still requires positive fencing.
 Only a fresh completion report matching the exact intent, source epoch and both
 identities starts `Quiescing` with its original 300-second deadline. Preparation
 is not a retained-data receipt: live writes and eviction can change either corpus,
-so every existing barrier and revocation check still runs. Older destinations
+so every existing barrier and revocation check still runs. A destination that
+holds a strictly newer version of a retained record, such as a cross-region
+write the gateway standby applied while the frozen source refused it, passes
+verification for that record; readers after cutover get the newer write.
+A preparing destination also verifies retained content against the serving
+source after its repair walk, stopping 30 seconds before the intent deadline.
+The barrier then checks only metadata for record versions verified this way
+and verifies the rest, mostly writes accepted after preparation, in full. A
+same-version content mismatch fails preparation without pausing the primary. Older destinations
 retain the direct-quiescence path. Upgrade all controller replicas and the clean
 standby before requesting this flow; the source may remain on the earlier runtime.
 

@@ -311,6 +311,14 @@ fn internal_routes() -> Router<SharedState> {
         .route(ROUTE_INTERNAL_STATUS, get(internal_status))
         .route("/_internal/handover/verify", post(crate::handover::verify))
         .route(
+            "/_internal/handover/descriptors",
+            post(crate::handover::descriptors),
+        )
+        .route(
+            "/_internal/handover/verify-descriptors",
+            post(crate::handover::verify_descriptors),
+        )
+        .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
             get(internal_backfill_entries),
         )
@@ -1455,8 +1463,19 @@ async fn authorize_request(
     let authorization = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .map(ToOwned::to_owned);
+        .map(|value| {
+            if req
+                .headers()
+                .get_all(axum::http::header::AUTHORIZATION)
+                .iter()
+                .count()
+                == 1
+            {
+                value.to_str().unwrap_or_default().to_owned()
+            } else {
+                String::new()
+            }
+        });
     let context = request_context_from_http(
         &state,
         HttpRequestFacts {

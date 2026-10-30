@@ -14,9 +14,14 @@ defmodule TuistEx.Auth do
 
     credentials =
       cond do
-        email || password -> password_login(server_url, email, password, options)
-        continuous_integration?(environment) -> provider_login(server_url, environment, options)
-        true -> browser_login(server_url, options)
+        email || password ->
+          password_login(server_url, email, password, options)
+
+        continuous_integration?(environment) or not is_nil(environment.("TUIST_OIDC_TOKEN")) ->
+          provider_login(server_url, environment, options)
+
+        true ->
+          browser_login(server_url, options)
       end
 
     case Lock.with_lock(lock_path(server_url, environment), fn ->
@@ -117,7 +122,7 @@ defmodule TuistEx.Auth do
 
   defp oidc_supplied?(environment) do
     Enum.any?(
-      ~w(ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
+      ~w(TUIST_OIDC_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
                           CIRCLE_OIDC_TOKEN_V2 CIRCLE_OIDC_TOKEN BITRISE_OIDC_ID_TOKEN
                           BITRISE_IDENTITY_TOKEN),
       &(not is_nil(environment.(&1)))
@@ -225,15 +230,16 @@ defmodule TuistEx.Auth do
   end
 
   defp provider_login(server_url, environment, options) do
-    Mix.shell().info("Detected continuous integration, authenticating with OpenID Connect.")
+    Mix.shell().info("Authenticating with OpenID Connect.")
 
     result =
       case identity_token(environment, options) do
         {:ok, identity_token} ->
-          exchange(server_url, identity_token)
+          exchange(server_url, identity_token, environment)
 
         :unsupported ->
-          {:error, "OpenID Connect authentication supports GitHub Actions, CircleCI, and Bitrise"}
+          {:error,
+           "OpenID Connect authentication supports GitHub Actions, CircleCI, Bitrise, or a workload token supplied through TUIST_OIDC_TOKEN"}
 
         {:error, message} ->
           {:error, message}
@@ -246,30 +252,76 @@ defmodule TuistEx.Auth do
   end
 
   defp provider_token(server_url, environment, reason, options) do
-    key = {__MODULE__, :provider_token, server_url}
-    cached = :persistent_term.get(key, nil)
+    with {:ok, source} <- identity_source(environment, options) do
+      key = {__MODULE__, :provider_token, server_url, oidc_account(environment)}
 
-    if is_binary(cached) and not expired?(cached) do
-      {:ok, cached}
-    else
-      case identity_token(environment, options) do
-        {:ok, identity_token} ->
-          with {:ok, access} <- exchange(server_url, identity_token) do
-            :persistent_term.put(key, access)
-            {:ok, access}
-          end
+      cached =
+        case :persistent_term.get(key, nil) do
+          {^source, access} -> access
+          _ -> nil
+        end
 
-        :unsupported ->
-          {:error, reason}
+      if is_binary(cached) and not expired?(cached) do
+        {:ok, cached}
+      else
+        case identity_token(environment, options) do
+          {:ok, identity_token} ->
+            with {:ok, access} <- exchange(server_url, identity_token, environment) do
+              :persistent_term.put(key, {source, access})
+              {:ok, access}
+            end
 
-        {:error, message} ->
-          {:error, message}
+          :unsupported ->
+            {:error, reason}
+
+          {:error, message} ->
+            {:error, message}
+        end
       end
     end
   end
 
-  defp exchange(server_url, identity_token) do
-    case HTTP.request(:post, server_url <> "/api/auth/oidc/token", %{token: identity_token}) do
+  defp identity_source(environment, options) do
+    cond do
+      not is_nil(environment.("TUIST_OIDC_TOKEN")) ->
+        with {:ok, identity} <- identity_token(environment, options),
+             do: {:ok, {:supplied, :crypto.hash(:sha256, identity)}}
+
+      truthy?(environment.("GITHUB_ACTIONS")) ->
+        {:ok, :github_actions}
+
+      truthy?(environment.("CIRCLECI")) ->
+        {:ok, :circleci}
+
+      truthy?(environment.("BITRISE_IO")) ->
+        {:ok, :bitrise}
+
+      true ->
+        {:ok, :unsupported}
+    end
+  end
+
+  defp oidc_account(environment) do
+    case environment.("TUIST_OIDC_ACCOUNT") do
+      nil ->
+        nil
+
+      value ->
+        case String.trim(value) do
+          "" -> nil
+          account -> account
+        end
+    end
+  end
+
+  defp exchange(server_url, identity_token, environment) do
+    body =
+      case oidc_account(environment) do
+        nil -> %{token: identity_token}
+        account_handle -> %{token: identity_token, account_handle: account_handle}
+      end
+
+    case HTTP.request(:post, server_url <> "/api/auth/oidc/token", body) do
       {:ok, 200, %{"access_token" => access}} when is_binary(access) -> {:ok, access}
       response -> {:error, request_error("OpenID Connect authentication", response)}
     end
@@ -277,6 +329,11 @@ defmodule TuistEx.Auth do
 
   defp identity_token(environment, options) do
     cond do
+      not is_nil(environment.("TUIST_OIDC_TOKEN")) ->
+        environment.("TUIST_OIDC_TOKEN")
+        |> String.trim()
+        |> present("TUIST_OIDC_TOKEN is empty; fetch an identity token with audience 'tuist'")
+
       truthy?(environment.("GITHUB_ACTIONS")) ->
         github_identity_token(environment, Keyword.get(options, :sleep, &Process.sleep/1))
 

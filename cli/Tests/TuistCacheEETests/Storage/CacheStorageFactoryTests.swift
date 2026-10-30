@@ -104,6 +104,22 @@ struct CacheStorageFactoryTests {
         }
     }
 
+    @Test(.withMockedEnvironment())
+    func networkTrustEnablesModernModulesWithoutSelectiveTestAccess() async throws {
+        let serverURL = try #require(URL(string: "https://tuist.example"))
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(serverURL)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any, refreshIfNeeded: .any).willReturn(nil)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(nil)
+        given(cacheURLStore).getCacheURL(for: .any, accountHandle: .any)
+            .willReturn(try #require(URL(string: "http://127.0.0.1:1")))
+
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in true }) {
+            let storage = try await subject.cacheStorage(config: .test(fullHandle: "tuist/project", url: serverURL))
+            #expect(storage is BinaryCacheStorage)
+            #expect((await payloadStorage(storage))?.remoteStorage == nil)
+        }
+    }
+
     @Test
     func legacyModeKeepsLocalStorageOnExactHashes() async throws {
         try await withMockedEnvironment {

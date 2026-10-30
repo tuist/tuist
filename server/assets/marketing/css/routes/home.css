@@ -561,7 +561,7 @@
 
         /* The horizontal + vertical copies share all the styling here; the
            vertical one is a 340px-wide centered column, hidden on desktop and
-           swapped in below 1024px. */
+           tablets and swapped in below 640px. */
         &[data-orientation="vertical"] {
           display: none;
           align-items: center;
@@ -572,20 +572,42 @@
             align-self: stretch;
           }
 
+          /* The scene's size comes from the template (inline style), which
+             computes it from the row count and spacing; the stage hugs it. */
           & > [data-part="stage"] {
             flex: none;
             justify-content: center;
             width: 340px;
-            height: 921px;
-          }
-
-          & > [data-part="stage"] > [data-part="scene"] {
-            width: 340px;
-            height: 921px;
+            height: auto;
           }
         }
 
-        @media (max-width: 1023px) {
+        /* Tablets: the horizontal scene, scaled down to the illustration's
+           width instead of the tall stacked one. 1198px is the scene's
+           authored container width (its grid is centered on it, under the
+           stats bar's middle column), so scaling by width ÷ 1198 keeps that
+           alignment; tan(atan2(a, b)) is a ÷ b as a plain number, which
+           scale() needs. The stage shrinks to the scaled height (288px =
+           332 − stats − gap), and the scene scales from its left edge,
+           centered vertically in it as on desktop. */
+        @media (min-width: 640px) and (max-width: 1023px) {
+          &[data-orientation="horizontal"] {
+            container-type: inline-size;
+            height: auto;
+
+            & > [data-part="stage"] {
+              flex: none;
+              height: calc(100cqw * 288 / 1198);
+
+              & > [data-part="scene"] {
+                transform: scale(tan(atan2(100cqw, 1198px)));
+                transform-origin: left center;
+              }
+            }
+          }
+        }
+
+        @media (max-width: 639px) {
           &[data-orientation="horizontal"] {
             display: none;
           }
@@ -953,9 +975,9 @@
               width: 10px;
               height: 10px;
 
+              /* Outline only, like the grid's ran cells (data-selective). */
               &[data-state="ran"] {
                 border-color: var(--noora-purple-500);
-                background: var(--marketing-tint-purple);
               }
 
               /* Flaky cells are a yellow outline with an inset filled square;
@@ -1028,9 +1050,16 @@
             }
           }
 
+          /* Columns the TestGrid hook sheds per side on top of the fit, so
+             the grid keeps some air at the edges: 3 on tablets, 1 on phones. */
           & > [data-part="stage"] {
+            --test-grid-shed: 3;
             flex: none;
             height: 276px;
+
+            @media (max-width: 639px) {
+              --test-grid-shed: 1;
+            }
           }
         }
       }

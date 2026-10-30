@@ -6,11 +6,11 @@ name: tuist/tuist Coverage Backfill
 # lands; this is only for commits that missed it. Dispatch one at a time: each
 # holds two macOS runners for up to two hours.
 #
-# The runs read the binary cache's coverage variant (TUIST_COVERAGE_ENABLED in
-# mise.toml); a cached target is measured like one built from source, and what
+# The runs read the binary cache's coverage variant (Tuist.swift's `coverage`
+# option); a cached target is measured like one built from source, and what
 # the commit changed beyond the newest warm is built from source. The commit's
-# sources are tested with this workflow's tools (main's mise.toml), because an
-# older pin of the CLI may not upload coverage at all, but its .xcode-version is
+# sources are tested with this workflow's tools (main's mise.toml and
+# Tuist.swift), because an older pin of the CLI may not upload coverage at all, but its .xcode-version is
 # its own, so commits before the move to Xcode 27 (f834b57656) cannot run on
 # this image.
 on:
@@ -29,8 +29,6 @@ env:
   TUIST_ENABLE_CACHING: true
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
-  # Collects per-test evidence from the linked TestCoverageAttribution package.
-  TUIST_COVERAGE_EVIDENCE: "1"
 
 # A group per commit, so dispatching the same commit twice runs it once.
 concurrency:
@@ -89,13 +87,14 @@ jobs:
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
-        # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
-        # the older commit's, hidden from git: a run on a dirty checkout keeps
-        # its coverage off the commit. The scripts matter: an older
-        # cache_ee_env.sh turns the compilation cache back on.
+        # main's Tuist.swift, mise.toml and mise.lock, and the scripts mise.toml
+        # sources, over the older commit's, hidden from git: a run on a dirty
+        # checkout keeps its coverage off the commit. An older Tuist.swift may
+        # leave coverage off, and an older cache_ee_env.sh turns the compilation
+        # cache back on.
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
-          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          files="Tuist.swift mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
           for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
           # shellcheck disable=SC2086
           git update-index --skip-worktree $files
@@ -129,10 +128,12 @@ jobs:
           install_args: rust
           working_directory: cas-plugin
           cache: "false"
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       # Every test runs: selective testing would skip tests. The scheme leaves
-      # its test action's coverage unset and follows TUIST_COVERAGE_ENABLED; the
-      # CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`),
-      # and TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix mapping in coverage
+      # its test action's coverage unset and follows Tuist.swift's `coverage`
+      # option; the CLI makes the coverage counters atomic itself
+      # (`AtomicCoverageCounters`), and the option's `prefixMapping` keeps Xcode's prefix mapping in coverage
       # builds, which the CLI maps back.
       - name: Run tests with coverage
         run: tuist test TuistUnitTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 4
@@ -159,7 +160,7 @@ jobs:
         if: needs.commit.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
-          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          files="Tuist.swift mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
           for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
           # shellcheck disable=SC2086
           git update-index --skip-worktree $files
@@ -214,7 +215,7 @@ jobs:
         if: needs.commit.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
-          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          files="Tuist.swift mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
           for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
           # shellcheck disable=SC2086
           git update-index --skip-worktree $files

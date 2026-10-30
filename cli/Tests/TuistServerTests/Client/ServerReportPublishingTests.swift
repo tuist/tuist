@@ -10,6 +10,64 @@ import TuistHTTP
 
 struct ServerReportPublishingTests {
     @Test(arguments: [
+        (#"{"network_trusted_cache_access":true,"network_trusted_report_publishing":false}"#, true),
+        (#"{"network_trusted_report_publishing":true}"#, false),
+        (#"{"network_trusted_cache_access":false}"#, false),
+        (#"{"network_trusted_cache_access":"true"}"#, false),
+        (#"{"network_trusted_cache_access":null}"#, false),
+    ])
+    func cache_discovery_is_independent_of_reporting(body: String, allowed: Bool) async throws {
+        let url = try #require(URL(string: "https://tuist.example"))
+        let result = try await ServerReportPublishingMode.discover(url, capability: "network_trusted_cache_access") { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+            return (
+                Data(body.utf8),
+                try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            )
+        }
+        #expect(result == allowed)
+    }
+
+    @Test func cache_mode_requires_absent_credentials_and_its_own_policy() async throws {
+        let url = try #require(URL(string: "https://tuist.example"))
+        let authentication = MockServerAuthenticationControlling()
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in true }) {
+            let unsigned = try await ServerCacheAccessMode.usesNetworkTrust(
+                serverURL: url,
+                authenticationController: authentication
+            )
+            #expect(unsigned)
+            authentication.reset()
+            given(authentication).authenticationToken(serverURL: .any).willReturn(.project("present-token"))
+            let signed = try await ServerCacheAccessMode.usesNetworkTrust(
+                serverURL: url,
+                authenticationController: authentication
+            )
+            #expect(!signed)
+            authentication.reset()
+            given(authentication).authenticationToken(serverURL: .any).willReturn(.project(" "))
+            await #expect(throws: ServerReportPublishingError.invalidCredentials) {
+                try await ServerCacheAccessMode.usesNetworkTrust(serverURL: url, authenticationController: authentication)
+            }
+            authentication.reset()
+            given(authentication).authenticationToken(serverURL: .any).willThrow(URLError(.timedOut))
+            await #expect(throws: URLError.self) {
+                try await ServerCacheAccessMode.usesNetworkTrust(serverURL: url, authenticationController: authentication)
+            }
+        }
+        authentication.reset()
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in false }) {
+            let disabled = try await ServerCacheAccessMode.usesNetworkTrust(
+                serverURL: url,
+                authenticationController: authentication
+            )
+            #expect(!disabled)
+        }
+    }
+
+    @Test(arguments: [
         (200, #"{"network_trusted_report_publishing":true,"future":{"version":2,"capabilities":["unknown"]}}"#, true),
         (200, #"{"network_trusted_report_publishing":false}"#, false),
         (200, #"{"network_trusted_report_publishing":"true"}"#, false),
@@ -142,7 +200,7 @@ struct ServerReportPublishingTests {
             return true
         }) {
             for _ in 0 ..< 2 {
-                await #expect(throws: ServerReportPublishingError.invalidCredentials) {
+                let thrown = await #expect(throws: CredentialAcquisitionError.self) {
                     try await middleware.intercept(
                         HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/"),
                         body: nil, baseURL: url, operationID: "createTest"
@@ -151,7 +209,9 @@ struct ServerReportPublishingTests {
                         return (HTTPResponse(status: .ok), nil)
                     }
                 }
+                #expect(thrown?.underlyingError as? ServerReportPublishingError == .invalidCredentials)
             }
+            authentication.reset()
             given(authentication).authenticationToken(serverURL: .any, refreshIfNeeded: .value(true)).willReturn(.project(" "))
             await #expect(throws: ServerReportPublishingError.invalidCredentials) {
                 try await middleware.intercept(

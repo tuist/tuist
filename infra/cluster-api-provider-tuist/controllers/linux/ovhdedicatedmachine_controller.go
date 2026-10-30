@@ -103,6 +103,11 @@ type OVHDedicatedMachineReconciler struct {
 	DefaultOS                string
 	PrivateNetworkConfigName string
 	PrivateNetworkNamespace  string
+	RunnerEgressConfigName   string
+	RunnerEgressNamespace    string
+	runnerEgressMu           sync.Mutex
+	// RunnerEgressRunScript is the test seam for pinned, bounded host repairs.
+	RunnerEgressRunScript func(context.Context, *infrav1.OVHDedicatedMachine, string) error
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=ovhdedicatedmachines,verbs=get;list;watch;create;update;patch;delete
@@ -352,6 +357,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
+		egressErr := r.reconcileRunnerEgress(ctx, machine, node)
+		if egressErr != nil {
+			logger.Error(egressErr, "runner egress repair failed; will retry")
+		}
 		networkErr := r.reconcilePrivateNetwork(ctx, machine, node)
 		var pending *privateNetworkPending
 		if errors.As(networkErr, &pending) {
@@ -373,6 +382,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+			// Not a return path for its own failures: a host that cannot
+			// offer nested guests still serves every other Pod, and the
+			// drift checks after this one must keep running for it.
+			if requeue, kvmErr := reconcileLinuxKataKVM(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kvmErr != nil {
+				logger.Error(kvmErr, "kata nested virtualization repair failed; will retry")
+			} else if requeue {
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
 			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); quotaErr != nil {
 				logger.Error(quotaErr, "containerd quota lift failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
@@ -380,7 +397,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
 		}
-		if networkErr != nil {
+		if networkErr != nil || egressErr != nil {
 			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
@@ -454,6 +471,11 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 	if len(running) > 0 {
 		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
 		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+	}
+	// Withdraw the policy and remove the address before dropping SSH credentials
+	// or starting the asynchronous reinstall. Only then can the IP be reused.
+	if err := r.cleanupRunnerEgress(ctx, machine); err != nil {
+		return ctrl.Result{}, err
 	}
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)

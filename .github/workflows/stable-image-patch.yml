@@ -1,0 +1,34 @@
+name: Stable Image Patch Controls
+
+on:
+  pull_request:
+    paths:
+      - .github/scripts/stable-image-patch*
+      - .github/workflows/stable-image-patch.yml
+      - .github/workflows/server-backport.yml
+      - .github/workflows/server-build-publish.yml
+      - .github/workflows/kura-backport.yml
+      - .github/workflows/kura-build-publish.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/stable-image-patch*
+      - .github/workflows/stable-image-patch.yml
+      - .github/workflows/server-backport.yml
+      - .github/workflows/server-build-publish.yml
+      - .github/workflows/kura-backport.yml
+      - .github/workflows/kura-build-publish.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exercise real-Git patch planning and publication rejection
+        run: bash .github/scripts/stable-image-patch.test.sh

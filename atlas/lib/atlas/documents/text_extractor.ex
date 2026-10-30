@@ -4,10 +4,10 @@ defmodule Atlas.Documents.TextExtractor do
   @max_page_chars 12_000
   @xlsx_sample_rows 20
 
-  def extract_pages(path, content_type, filename) do
+  def extract_pages(path, content_type, filename, opts \\ []) do
     cond do
       pdf?(content_type, filename) ->
-        extract_pdf(path)
+        extract_pdf(path, opts)
 
       docx?(content_type, filename) ->
         extract_docx(path)
@@ -23,7 +23,7 @@ defmodule Atlas.Documents.TextExtractor do
     end
   end
 
-  defp extract_pdf(path) do
+  defp extract_pdf(path, opts) do
     case System.find_executable("pdftotext") do
       nil ->
         {:error, :pdftotext_not_found}
@@ -33,13 +33,38 @@ defmodule Atlas.Documents.TextExtractor do
         # manual cleanup. MuonTrap.cmd propagates kills to pdftotext if the
         # owning process dies mid-extraction.
         with {:ok, output_path} <- Briefly.create(),
-             {_output, 0} <- MuonTrap.cmd(executable, ["-layout", path, output_path]),
+             {_output, 0} <-
+               MuonTrap.cmd(
+                 executable,
+                 pdf_args(path, output_path, opts),
+                 Keyword.put(Keyword.take(opts, [:timeout]), :stderr_to_stdout, true)
+               ),
+             :ok <- check_pdf_text_size(output_path, opts),
              {:ok, text} <- File.read(output_path) do
           split_text({:ok, text})
         else
           {output, _exit_status} when is_binary(output) -> {:error, :pdf_text_extraction_failed}
           {:error, reason} -> {:error, reason}
         end
+    end
+  end
+
+  defp pdf_args(path, output_path, opts) do
+    pages =
+      case Keyword.get(opts, :max_pages) do
+        nil -> []
+        limit -> ["-f", "1", "-l", Integer.to_string(limit)]
+      end
+
+    ["-layout"] ++ pages ++ [path, output_path]
+  end
+
+  defp check_pdf_text_size(path, opts) do
+    with max when is_integer(max) <- Keyword.get(opts, :max_text_bytes),
+         {:ok, %{size: size}} when size > max <- File.stat(path) do
+      {:error, :pdf_text_too_large}
+    else
+      _ -> :ok
     end
   end
 

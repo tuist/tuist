@@ -580,13 +580,21 @@ extension UploadResultBundleService {
 
             // Test products built in another checkout carry that checkout: the compiler embedded its
             // paths, and only the build knows which blobs it compiled. The current checkout may be
-            // at other content, so its blobs are never used for those products.
+            // at other content, so its blobs are never used for those products. The build records
+            // its checkout as Git reports it, so the spelling the compiler used, when it went through a
+            // symlink, comes from the covered files as it does for the current checkout.
             let buildSources = await RunMetadataStorage.current.coverageBuildSources
             var rootSpellings = buildSources?.rootDirectories ?? []
-            for spelling in Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths)
-                where !rootSpellings.contains(spelling)
-            {
-                rootSpellings.append(spelling)
+            let buildRoots = rootSpellings.filter { $0 != XcodeCoverageManifest.sourceRootPlaceholder }
+                .compactMap { try? AbsolutePath(validating: $0) }
+            for root in [rootDirectory] + buildRoots {
+                // Resolving a path is a few syscalls, and an earlier root has tied most of them.
+                let untied = coveredFilePaths.filter { path in !rootSpellings.contains { path.hasPrefix($0 + "/") } }
+                for spelling in Self.rootSpellings(of: root, coveredFilePaths: untied)
+                    where !rootSpellings.contains(spelling)
+                {
+                    rootSpellings.append(spelling)
+                }
             }
             let coveredPaths = Set(coveredFilePaths.map { Self.relativize($0, to: rootSpellings) })
             if !coveredPaths.isEmpty, coveredPaths.allSatisfy({ $0.hasPrefix("/") }) {
@@ -612,10 +620,7 @@ extension UploadResultBundleService {
             // test target skipped because nothing it depends on changed.
             let selectiveTestingSkippedTargets = await RunMetadataStorage.current.selectiveTestingCacheItems.values
                 .contains { $0.values.contains { $0.source != .miss } }
-            let skippedQuarantinedTests = await RunMetadataStorage.current.skippedQuarantinedTestIdentifiers
-            let partial = !onlyTestIdentifiers.isEmpty
-                || skipTestIdentifiers.contains { !skippedQuarantinedTests.contains($0) }
-                || selectiveTestingSkippedTargets
+            let partial = !onlyTestIdentifiers.isEmpty || !skipTestIdentifiers.isEmpty || selectiveTestingSkippedTargets
 
             return XcodeCoverageManifest(
                 rootDirectories: rootSpellings,

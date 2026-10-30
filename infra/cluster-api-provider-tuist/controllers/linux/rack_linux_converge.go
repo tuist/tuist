@@ -60,7 +60,7 @@ type rackConvergeOptions struct {
 	NodeTaints   []corev1.Taint
 
 	// ManagementMAC is the management port's, the one AMT shares with the
-	// host: the host's boot MAC.
+	// host: the host's boot MAC on a host with AMT, empty on one without.
 	ManagementMAC string
 
 	// KubernetesAPI is the API server the kubelet uses, written to

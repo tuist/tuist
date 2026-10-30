@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/hetzner-robot-controller
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/syself/hrobot-go v0.2.6
@@ -65,3 +65,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+godebug default=go1.25

@@ -21,6 +21,7 @@ defmodule Tuist.BuildEntities.Identity do
     gradle: %{"task" => ["root_project_name", "build_path", "task_path", "task_type"]},
     xcode: %{"module" => ["project", "target"]},
     once: %{"action" => ["target_id", "capability", "action_index"]},
+    bazel: %{"action" => ["target_label", "mnemonic", "primary_output"]},
     mix: %{"file" => ["path"], "module" => ["module"]}
   }
 

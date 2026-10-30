@@ -5,6 +5,7 @@ defmodule Tuist.Builds do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
@@ -139,6 +140,7 @@ defmodule Tuist.Builds do
       create_build_issues(build_map, Map.get(attrs, :issues, []))
       create_build_files(build_map, Map.get(attrs, :files, []))
       create_build_targets(build_map, Map.get(attrs, :targets, []))
+
       create_cacheable_tasks(build_map, cacheable_tasks)
       create_cas_outputs(build_map, cas_outputs)
       create_machine_metrics(build_map, machine_metrics)
@@ -244,9 +246,13 @@ defmodule Tuist.Builds do
   end
 
   defp create_build_targets(build, targets) do
-    targets = Enum.map(targets, &BuildTarget.changeset(build.id, &1))
+    targets
+    |> Enum.map(&BuildTarget.changeset(build.id, &1))
+    |> BuildTarget.Buffer.insert_all()
 
-    BuildTarget.Buffer.insert_all(targets)
+    if targets != [] and BuildEntities.enabled?(build.project_id) do
+      BuildEntities.Producers.xcode_build(build, targets)
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

@@ -4,17 +4,17 @@ name: tuist/tuist Tests
 # the binary-cache warm they read and the signal that a commit's coverage is
 # complete. Builds, lint and the Linux suite stay in cli.yml and app.yml.
 #
-# Coverage is on for every run: mise.toml's [env] sets TUIST_FEATURE_FLAG_COVERAGE,
-# TUIST_COVERAGE_ENABLED and TUIST_COVERAGE_PREFIX_MAPPING, so every job reads
-# the binary cache's coverage variant, whose binaries carry coverage counters,
+# Coverage is on for every run: Tuist.swift's `coverage` option (behind
+# mise.toml's TUIST_FEATURE_FLAG_COVERAGE) makes every job read the binary
+# cache's coverage variant, whose binaries carry coverage counters,
 # and the schemes that leave their test action's coverage unset collect it
 # (the acceptance schemes set `coverage: false`).
 #
 # - Pull requests: unit and app tests run selectively, acceptance as before,
 #   and once the unit and app tests have finished, whatever their result,
 #   `tuist coverage complete` marks the run's commit complete. The server
-#   carries what selective testing skipped from main's full runs and the pull
-#   request's earlier runs (both record coverage evidence). A new push cancels
+#   carries the targets selective testing skipped from main's full runs and the
+#   pull request's earlier runs (both record per-target coverage evidence). A new push cancels
 #   the run in progress, so a superseded commit is never signalled.
 # - Pushes to main: `tuist cache` warms the coverage variant first, then the unit
 #   and app tests run in full (`--no-selective-testing`) against that warm, and
@@ -134,9 +134,21 @@ jobs:
         with:
           cache-key: cli-macos-workspace-cli-cache
       # The whole workspace, the app's targets included, as the coverage variant
-      # mise.toml's TUIST_COVERAGE_ENABLED selects.
+      # Tuist.swift's `coverage` option selects.
       - name: Cache
         run: tuist cache
+      # A crashed build service prints neither the compilation-cache plugin's
+      # errors (cas.log) nor the CLI's session log.
+      - name: Upload Tuist logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-tuist-logs-${{ github.run_attempt }}
+          path: |
+            ~/.local/state/tuist/cas.log
+            ~/.local/state/tuist/sessions/*/logs.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Selective on pull requests; in full on main, after the warm. A failed warm
   # doesn't stop the full run: it builds what the cache lacks from source.
@@ -153,13 +165,6 @@ jobs:
       (github.event_name == 'push' || github.event.pull_request.draft == false)
     env:
       TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
-      # Which files each test, suite and target executed, from the linked
-      # TestCoverageAttribution package: the server carries a later run's
-      # skipped tests only from a run that recorded it. Main's full runs are the
-      # sources for every selective run, and a pull request's own runs for its
-      # later pushes, which skip what an earlier push already executed. Forks
-      # upload nothing, so they skip it.
-      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
       SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -184,7 +189,9 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-cli-unit-tests
+          # SwiftPM 6.4 retains a restored registry version even when the pin changes.
+          # Retire the snapshot containing XCLogParser 0.2.49; keep forced installation.
+          cache-key: cli-macos-workspace-cli-unit-tests-v2
       - name: Install stable Rust for Cargo reporting fixtures
         uses: ./.github/actions/mise
         env:
@@ -198,10 +205,12 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       # The scheme leaves its test action's coverage unset, so it follows
-      # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself
+      # Tuist.swift's `coverage` option. The CLI makes the coverage counters atomic itself
       # (`AtomicCoverageCounters`): tests run in parallel in one process, and plain
-      # increments lose counts. TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix
+      # increments lose counts. The option's `prefixMapping` keeps Xcode's prefix
       # mapping in coverage builds, so the compilation cache replays across
       # runners; the CLI maps the covered paths back.
       - name: Run tests
@@ -222,7 +231,6 @@ jobs:
       (github.event_name == 'push' || github.event.pull_request.draft == false)
     env:
       MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
-      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
       SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -330,7 +338,8 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-cli-acceptance-tests
+          # Retire the same stale registry snapshot as the unit-test job.
+          cache-key: cli-macos-workspace-cli-acceptance-tests-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation

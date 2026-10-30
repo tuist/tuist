@@ -24,21 +24,26 @@ jobs:
           install_args: "--locked helm yq jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Validate agent execution boundary
+      - name: Validate deployment configuration and agent execution boundary
         run: |
           bash infra/helm/atlas/test-agent-boundary.sh
+          bash infra/helm/atlas/test-chatgpt-config.sh
+          bash infra/helm/atlas/test-connections-config.sh
           bash atlas/deploy/test-sandbox-retention.sh
+      - name: Test documentation capture bounds and diagnostics
+        # Headless runners lack a desktop session bus; avoid D-Bus discovery delays.
+        run: dbus-run-session -- node --test atlas/deploy/capture-docs.test.mjs
       - uses: helm/kind-action@v1.14.0
         with:
           install_only: true
       - name: Build standalone release image
         run: docker build --file atlas/Dockerfile --build-arg ATLAS_VERSION="$ATLAS_TEST_VERSION" --tag "ghcr.io/tuist/atlas:$ATLAS_TEST_VERSION" .
       - name: Validate Compose and Helm deployments
-        run: atlas/deploy/validate.sh
+        run: dbus-run-session -- atlas/deploy/validate.sh
       - name: Upload documentation verification screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: atlas-deployment-screenshots
-          path: atlas-deployment-screenshots/*.png
+          path: atlas-deployment-screenshots/
           if-no-files-found: ignore

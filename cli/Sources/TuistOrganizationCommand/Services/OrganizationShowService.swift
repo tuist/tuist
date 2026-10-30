@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TSCBasic
 import TuistConfigLoader
 import TuistEncodable
 import TuistEnvironment
@@ -52,7 +53,7 @@ struct OrganizationShowService: OrganizationShowServicing {
         )
 
         if json {
-            let json = try organization.toJSON()
+            let json = try jsonOutput(organization: organization, usage: organizationUsage)
             Logger.current.info(
                 .init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json
             )
@@ -98,8 +99,7 @@ struct OrganizationShowService: OrganizationShowServicing {
             """
             \(baseInfo.joined(separator: "\n"))
 
-            \("Usage".bold()) (current calendar month)
-            Remote cache hits: \(organizationUsage.currentMonthRemoteCacheHits)
+            \(usageSection(organizationUsage))
 
             \("Organization members".bold()) (total number: \(organization.members.count))
             \(membersTable)
@@ -107,6 +107,67 @@ struct OrganizationShowService: OrganizationShowServicing {
             \(invitationsString)
             """
         )
+    }
+
+    private func jsonOutput(organization: ServerOrganization, usage: ServerOrganizationUsage) throws -> JSON {
+        let organizationJSON = try organization.toJSON()
+        guard case var .dictionary(fields) = organizationJSON else { return organizationJSON }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        fields["usage"] = try JSON(data: encoder.encode(usage))
+        return .dictionary(fields)
+    }
+
+    private func usageSection(_ usage: ServerOrganizationUsage) -> String {
+        let period = formatPeriod(start: usage.periodStart, end: usage.periodEnd)
+        let cacheEgress = "\(formatGigabytes(usage.cacheEgress.used)) of \(formatGigabytes(usage.cacheEgress.included))"
+        let cacheRequests = "\(formatCount(usage.cacheRequests.used)) of \(formatCount(usage.cacheRequests.included))"
+        let passingTestCases =
+            "\(formatCount(usage.passingTestCases.used)) of \(formatCount(usage.passingTestCases.included))"
+        let runnerMinutes = "\(formatCount(usage.runnerMinutes.used)) of \(formatCount(usage.runnerMinutes.included))"
+
+        return """
+        \("Usage".bold()) (\(period))
+        Cache egress: \(cacheEgress) included
+        Cache requests: \(cacheRequests) included
+        Passing test cases: \(passingTestCases) included
+        Runner minutes: \(runnerMinutes) included
+        Estimated charge: \(formatDollars(cents: usage.estimatedChargeCents))
+        """
+    }
+
+    private func formatPeriod(start: Date, end: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "MMM d"
+        let startString = formatter.string(from: start)
+        formatter.dateFormat = "MMM d, yyyy"
+        return "\(startString) to \(formatter.string(from: end))"
+    }
+
+    private func formatGigabytes(_ bytes: Int) -> String {
+        let formatter = numberFormatter()
+        formatter.maximumFractionDigits = 1
+        return "\(formatter.string(from: NSNumber(value: Double(bytes) / 1_000_000_000)) ?? "0") GB"
+    }
+
+    private func formatCount(_ count: Int) -> String {
+        numberFormatter().string(from: NSNumber(value: count)) ?? String(count)
+    }
+
+    private func formatDollars(cents: Int) -> String {
+        let formatter = numberFormatter()
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return "$\(formatter.string(from: NSNumber(value: Double(cents) / 100)) ?? "0.00")"
+    }
+
+    private func numberFormatter() -> NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.numberStyle = .decimal
+        return formatter
     }
 
     private func formatDataToTable(_ data: [[String]]) -> String {

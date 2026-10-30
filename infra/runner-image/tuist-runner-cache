@@ -1,22 +1,21 @@
 #!/bin/bash
 # tuist-runner-cache activate <module|xcode> [--size NGB]
 #
-# Turns on one of the runner's built-in caches for the rest of the job. On
+# Turns on one of the runner's managed caches for the rest of the job. On
 # success it prints the cache's environment as NAME=VALUE lines on stdout for
 # the calling CI integration to export to later steps; messages go to stderr.
 #
 # dispatch-poll.sh stages the caches in RUNNER_CACHES_DIR (stage_runner_caches):
-# `mode` says whether the account gets them automatically or through this
-# command, and `<cache>.env` holds each mounted cache's environment. Activating
-# leaves `<cache>.used`, which lets teardown promote the job's changes.
+# `mode` says the runner provides them, `<cache>.volume` names each cache's
+# volume and `<cache>.env` its environment. Activating leaves `<cache>.used`,
+# which tells teardown the job used the cache.
 #
 # On managed cache volumes, `--size` sets the volume's capacity, a whole number
 # of GB from 1gb to 100gb, and the cache's size limit follows the capacity the
 # volume attached at.
 #
-# Exit status: 0 when the cache is active, either automatically or because this
-# activated it; 3 when the runner could not mount it, so the job runs on an
-# empty cache; 2 on a usage error.
+# Exit status: 0 when the cache is active; 3 when the runner could not attach
+# it, so the job runs on an empty cache; 2 on a usage error.
 set -uo pipefail
 
 RUNNER_CACHES_DIR="${TUIST_RUNNER_CACHES_DIR:-/Users/runner/.tuist-runner-caches}"
@@ -69,6 +68,13 @@ cache_limit_bytes() {
   awk -v capacity="$1" 'BEGIN { room = capacity / 5; if (room < 2e9) room = 2e9; if (room > capacity / 2) room = capacity / 2; printf "%.0f", capacity - room }'
 }
 
+# compilation_cache_limit_bytes halves that space: COMPILATION_CACHE_LIMIT_SIZE
+# bounds one generation of the store, and the store keeps two, the primary and
+# the upstream it rotated away from.
+compilation_cache_limit_bytes() {
+  awk -v space="$(cache_limit_bytes "$1")" 'BEGIN { printf "%.0f", space / 2 }'
+}
+
 # replace_line rewrites the line of a file that starts with a prefix.
 replace_line() {
   local file="$1" prefix="$2" value="$3" temporary
@@ -89,21 +95,20 @@ limit_to_volume() {
   local capacity limit
   capacity=$(volume_capacity_bytes "$1")
   [ -n "${capacity}" ] && [ "${capacity}" -gt 0 ] 2>/dev/null || return 0
-  limit=$(cache_limit_bytes "${capacity}")
   if [ "${cache}" = "module" ]; then
+    limit=$(cache_limit_bytes "${capacity}")
     replace_line "${env_file}" "TUIST_CACHE_MAX_BYTES=" "${limit}" || return 0
+    awk -v label="${label}" -v capacity="${capacity}" -v limit="${limit}" \
+      'BEGIN { printf "The %s volume holds %.1f GB; the cache is limited to %.1f GB.\n", label, capacity / 1e9, limit / 1e9 }' >&2
   else
+    limit=$(compilation_cache_limit_bytes "${capacity}")
     replace_line "$(sed -n 's/^XCODE_XCCONFIG_FILE=//p' "${env_file}")" "COMPILATION_CACHE_LIMIT_SIZE = " "${limit}" || return 0
+    awk -v label="${label}" -v capacity="${capacity}" -v limit="${limit}" \
+      'BEGIN { printf "The %s volume holds %.1f GB; the cache is limited to two generations of %.1f GB.\n", label, capacity / 1e9, limit / 1e9 }' >&2
   fi
-  awk -v label="${label}" -v capacity="${capacity}" -v limit="${limit}" \
-    'BEGIN { printf "The %s volume holds %.1f GB; the cache is limited to %.1f GB.\n", label, capacity / 1e9, limit / 1e9 }' >&2
 }
 
 case "$(cat "${RUNNER_CACHES_DIR}/mode" 2>/dev/null)" in
-  automatic)
-    echo "The ${label} is already enabled for every job on this runner." >&2
-    exit 0
-    ;;
   opt-in) ;;
   *)
     echo "This runner does not provide the ${label}; nothing to set up." >&2

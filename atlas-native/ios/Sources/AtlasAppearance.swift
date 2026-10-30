@@ -1,8 +1,15 @@
 import Foundation
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 enum AtlasSettingsStyle {
+    #if os(macOS)
+    static let tint = Color.accentColor
+    static let onTint = Color.white
+    static let highContrastTint = Color(nsColor: .systemBlue)
+    #else
     static let tint = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 102 / 255, green: 199 / 255, blue: 232 / 255, alpha: 1)
@@ -11,6 +18,8 @@ enum AtlasSettingsStyle {
     static let onTint = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark ? .black : .white
     })
+    static let highContrastTint = Color(uiColor: .systemBlue)
+    #endif
 }
 
 struct AtlasThemeCatalog: Codable {
@@ -192,7 +201,7 @@ struct AtlasThemeScope: ViewModifier {
         let active = server != nil && server == appearance.server
         let theme = active ? appearance.theme : nil
         let palette = theme?.palette(appearance.mode.scheme ?? scheme)
-        let tint = contrast == .increased ? Color(uiColor: .systemBlue)
+        let tint = contrast == .increased ? AtlasSettingsStyle.highContrastTint
             : palette.map { Color(atlasHex: $0.tint) } ?? AtlasSettingsStyle.tint
         content
             .environmentObject(appearance)
@@ -207,12 +216,9 @@ struct AtlasThemedContent: ViewModifier {
     @Environment(\.atlasTheme) private var theme
     @Environment(\.colorScheme) private var scheme
 
-    @ViewBuilder func body(content: Content) -> some View {
-        if let theme {
-            content.scrollContentBackground(.hidden)
-                .background(Color(atlasHex: theme.palette(scheme).background))
-        } else {
-            content
-        }
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(theme == nil ? .automatic : .hidden)
+            .background(theme.map { Color(atlasHex: $0.palette(scheme).background) } ?? .clear)
     }
 }

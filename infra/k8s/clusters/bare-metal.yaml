@@ -402,6 +402,22 @@ spec:
           owner: root:root
           path: /etc/systemd/system/tuist-kata-shared-memory.service
           permissions: "0644"
+        # Keep these in sync with controllers/linux/kata_virtiofs.go.
+        # virtiofsd's default file budget caps how many inodes a guest
+        # can keep cached; past it, guest opens fail with EMFILE.
+        # `sysctl --system` below applies the first file before
+        # containerd starts.
+        - content: |
+            fs.nr_open = 4194304
+          owner: root:root
+          path: /etc/sysctl.d/90-tuist-kata-virtiofs.conf
+          permissions: "0644"
+        - content: |
+            [hypervisor.qemu]
+            virtio_fs_extra_args = ["--thread-pool-size=1", "--announce-submounts", "--rlimit-nofile=4194304"]
+          owner: root:root
+          path: /opt/kata/share/defaults/kata-containers/config.d/50-tuist-virtiofs.toml
+          permissions: "0644"
         # containerd's GitHub-released tarball does NOT ship a
         # systemd unit (the older cri-containerd-cni- bundle did,
         # the plain `containerd-` tarball does not). Without this,

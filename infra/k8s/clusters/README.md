@@ -65,21 +65,23 @@ the tenant-repo copies are then retired to a pointer.
 | Cluster | CP | Workers |
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 3× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 
-Canary's third general-purpose worker reserves capacity for deployment hooks
-and rolling-update surge pods alongside its two CNPG instances. Two workers
-could run the steady-state workloads, but the 512Mi ClickHouse schema-clone
-hook remained unschedulable until Helm timed out and rolled back. After
+Canary's general-purpose pool runs its three CNPG instances and reserves
+capacity for deployment hooks and rolling-update surge pods. Without that
+headroom the 512Mi ClickHouse schema-clone hook stays unschedulable until Helm
+times out and rolls back. After
 changing this pool, wait for Flux to reconcile and the new worker to become
 Ready before retrying the deployment.
 
 `tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
 Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes
-the Cluster resource and its managed infrastructure. Delete the hand-made
-`pentest.tuist.dev` Cloudflare record afterwards (see `../onboarding.md` §9).
+the Cluster resource, its managed infrastructure and its ingress load balancer.
+Before running it, delete every DNS record pointing at the cluster's load
+balancers: the run frees their IPs, and a reassigned IP would take over the
+hostname (see `../onboarding.md` §9).
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active

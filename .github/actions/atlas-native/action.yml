@@ -3,7 +3,7 @@ description: Run a distinct build or test operation through Once.
 
 inputs:
   platform:
-    description: android, ios, ios-device, cli or core
+    description: android, ios, ios-device, macos, cli or core
     required: true
   operation:
     description: build or test
@@ -96,10 +96,21 @@ runs:
         mise run "build:$TARGET_SURFACE"
         if [ "$TARGET_SURFACE" = ios ]; then
           bash modules/check-sdk.sh iphonesimulator .once/out/AtlasIOS/Atlas.app/Atlas
+          bash modules/check-sdk.sh iphonesimulator .once/out/AtlasIOS/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
+          bash modules/check-widget.sh .once/out/AtlasIOS/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
           ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOS/Atlas.app Atlas-ios-simulator.zip
         elif [ "$TARGET_SURFACE" = ios-device ]; then
           bash modules/check-sdk.sh iphoneos .once/out/AtlasIOSDevice/Atlas.app/Atlas
+          bash modules/check-sdk.sh iphoneos .once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
+          bash modules/check-widget.sh .once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
           ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOSDevice/Atlas.app Atlas-ios-device.zip
+        elif [ "$TARGET_SURFACE" = macos ]; then
+          packaging=$(mktemp -d)
+          trap 'rm -rf "$packaging"' EXIT
+          bash macos/distribution/prepare.sh .once/out/AtlasMacOS/Atlas.app "$packaging/Atlas.app"
+          bash macos/distribution/test-framework-boundary.sh .once/out/AtlasSparkle/sdk/Sparkle.framework
+          bash macos/distribution/test-appcast.sh .once/out/AtlasSparkle/sdk "$packaging/Atlas.app"
+          ditto -c -k --sequesterRsrc --keepParent "$packaging/Atlas.app" Atlas-macos-unsigned.zip
         elif [ "$TARGET_SURFACE" = cli ]; then
           .once/out/AtlasCLI/atlas --help
           .once/out/AtlasCLI/atlas sections
@@ -121,7 +132,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.platform == 'cli' && format('atlas-native-cli-{0}-{1}', runner.os, runner.arch) || format('atlas-mobile-{0}', inputs.platform) }}
-        path: ${{ inputs.platform == 'android' && 'atlas-native/.once/out/AtlasAndroid/AtlasAndroid.apk' || inputs.platform == 'cli' && 'atlas-native/Atlas-cli.tar.gz' || inputs.platform == 'ios-device' && 'atlas-native/Atlas-ios-device.zip' || 'atlas-native/Atlas-ios-simulator.zip' }}
+        path: ${{ inputs.platform == 'android' && 'atlas-native/.once/out/AtlasAndroid/AtlasAndroid.apk' || inputs.platform == 'cli' && 'atlas-native/Atlas-cli.tar.gz' || inputs.platform == 'ios-device' && 'atlas-native/Atlas-ios-device.zip' || inputs.platform == 'macos' && 'atlas-native/Atlas-macos-unsigned.zip' || 'atlas-native/Atlas-ios-simulator.zip' }}
         if-no-files-found: error
         retention-days: 14
         include-hidden-files: true
@@ -136,6 +147,7 @@ runs:
           atlas-native/.once/out/AtlasAuthTests/test/
           atlas-native/.once/out/AtlasCLITests/test/
           atlas-native/.once/out/AtlasIOSTests/test/
+          atlas-native/.once/out/AtlasMacOSTests/test/
         if-no-files-found: ignore
         retention-days: 14
         include-hidden-files: true

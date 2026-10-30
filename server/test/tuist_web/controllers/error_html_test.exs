@@ -81,7 +81,9 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
       refute html |> Floki.find("link[rel='canonical']") |> List.first()
       refute html |> Floki.find("link[rel='alternate'][hreflang]") |> List.first()
       assert html |> Floki.find("meta[name='robots'][content='noindex, nofollow']") |> List.first()
-      assert html |> Floki.find("#footer-locale-dropdown-content-target a[data-value='en'][href='/']") |> List.first()
+
+      assert Floki.attribute(html, "#footer-locale-dropdown-content-target a[data-value='en']", "href") ==
+               ["/?set_locale=en"]
     end
 
     test "renders the marketing 404 for a request that went through the marketing pipeline" do

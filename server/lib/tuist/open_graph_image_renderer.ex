@@ -18,19 +18,29 @@ defmodule Tuist.OpenGraphImageRenderer do
   pool and lets `render/2` degrade to the fallback renderer, which is the right
   trade for a feature that only backs social cards.
 
-  This does not cover a missing Chrome. `BrowseChrome.BrowserPool` warms its
-  browsers eagerly, but NimblePool absorbs an `init_worker/1` raise and retries
-  it forever instead of failing `start_link/1`, so the pool must not be started
-  at all on a host without Chrome — see
-  `Tuist.Application.RuntimeChildren.open_graph_image_renderer/1`.
+  A missing Chrome never reaches that branch. `BrowseChrome.BrowserPool` warms
+  its browsers eagerly, but NimblePool absorbs an `init_worker/1` raise and
+  retries it forever with no backoff instead of failing `start_link/1`. So
+  `start_pool/1` resolves the Chrome executable first and returns `:ignore`
+  when there is none.
   """
   def child_spec(opts) do
     %{id: @pool, start: {__MODULE__, :start_pool, [opts]}, type: :worker}
   end
 
   def start_pool(opts \\ []) do
-    pool_opts = maybe_put_chrome_path([name: @pool, pool_size: pool_size(opts)], chrome_path(opts))
+    case find_chrome(chrome_path(opts)) do
+      nil ->
+        Logger.warning("Open Graph image browser pool not started, no Chrome executable found; falling back to libvips")
 
+        :ignore
+
+      chrome_path ->
+        start_browser_pool(name: @pool, pool_size: pool_size(opts), chrome_path: chrome_path)
+    end
+  end
+
+  defp start_browser_pool(pool_opts) do
     case BrowseChrome.BrowserPool.start_link(pool_opts) do
       {:ok, pid} ->
         {:ok, pid}
@@ -100,12 +110,33 @@ defmodule Tuist.OpenGraphImageRenderer do
     end
   end
 
-  defp maybe_put_chrome_path(pool_opts, nil), do: pool_opts
-  defp maybe_put_chrome_path(pool_opts, path), do: Keyword.put(pool_opts, :chrome_path, path)
+  defp find_chrome(nil), do: Enum.find(chrome_candidates(), &chrome_executable?/1)
+
+  defp find_chrome(path) do
+    if chrome_executable?(path), do: path
+  end
+
+  # Mirrors the private lookup in `BrowseChrome.Chrome`, which the pool would
+  # otherwise run in every worker init.
+  defp chrome_candidates do
+    case :os.type() do
+      {:unix, :darwin} ->
+        [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium",
+          "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
+        ]
+
+      _ ->
+        ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]
+    end
+  end
+
+  defp chrome_executable?(path), do: not is_nil(System.find_executable(path)) or File.exists?(path)
 
   # In the release image this points at the `og-chromium` wrapper, which gives
   # Chromium a writable HOME so `--headless=new` can bind its DevTools port.
-  # Unset in dev, where BrowseChrome auto-detects the local Chrome.
+  # Unset in dev, where `find_chrome/1` auto-detects the local Chrome.
   defp chrome_path(opts) do
     case Keyword.get(opts, :chrome_path) do
       nil -> chrome_path_from_environment()

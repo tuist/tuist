@@ -21,8 +21,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Only accepted publication becomes a master. Failed upload retries and restart
   recovery retain the same journal identity. Clear conflicts discard the branch.
 - Default custom capacity is 20 decimal GB; the server may choose 1 to 100 GB
-  per volume, up to the host maximum. Built-in Tuist/CAS macOS caches keep
-  their existing separate identities, capacity and retention policy.
+  per volume, up to the host maximum.
 - Unknown measurements remain unknown; never report unavailable usage as zero.
 - Run `go test -race ./...` here, the Linux agent/client suites, and macOS podagent
   suites. Real APFS and real ext4 tests complement mocked command tests.
@@ -46,6 +45,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+- Archive downloads, compression and both restoration formats flush every 16 MiB
+  written, in addition to their final sync. Dirty filesystem pages count toward
+  the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
+  with about 439 MiB dirty or in writeback and only 55 MiB anonymous memory.
+  Preserve this per-stream writeback bound, including across sparse extents;
+  never let `io.Copy` use a file's `ReadFrom` to bypass it. A resumed download
+  syncs its existing prefix before adding bytes. Write or sync errors stop the
+  stream and must prevent publication; this does not bound other processes' I/O.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
 
@@ -53,6 +60,21 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   30-second client timeout. Propagate cancellation through downloads, expansion,
   commands and shared-master/admission waits. Incomplete restores cannot publish;
   reclaim their journals only after the existing writer fences pass.
+- `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
+  GitHub to report its job, shared by its checkout and every volume; both the
+  Linux and macOS agents use it.
+- Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
+  goes through `DoServer`: up to four attempts on a connection failure or a
+  502/503/504, jittered backoff from 250 ms to 2 s, never past the request
+  context (an attach keeps its 25 s budget). The server keeps them idempotent:
+  an allocation returns the pod's existing use, a report restates a use, and an
+  `image` request reads a HEAD, signs another URL or returns the generation the
+  use already published. A new endpoint must stay idempotent before it uses
+  `DoServer`. Never retry the object-storage PUT this way; the Store retries
+  publication. Retries log `cache server request retried` and `recovered`.
+  Agents build their server clients with `NewServerClient`, which closes a
+  connection idle for `ServerIdleTimeout` (10 s), below Bandit's 15 s keep-alive
+  timeout, so a request never goes out on a connection the server is closing.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
   The Linux agent's phase log line carries a failure's `error` text, URLs replaced.
@@ -65,6 +87,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   account or repository names or a customer-chosen key: `Identity.ManagedKey`
   is set by the agent from the request through `ManagedKey`, which keeps only
   Tuist's managed keys.
+- Every branch deletion is one `delete` observation from the Store (`Store.Observe`,
+  which each agent wires to its phase log and metrics) with the slot's subject.
+  Its source is why: `server` (the report answered `delete`: the job did not
+  succeed, the use was discarded or the volume cleared), `poisoned` or
+  `withheld` (from `Seal`), `abandoned` (an allocation whose Pod ended before
+  attaching) or `pending` (a deletion that waited for its loop device; the
+  earlier pass reports `release_pending`). Attach never reports a delete.
 - Every master removal logs `cache master evicted` (`LocalImages.Log`) or
   `checkout master evicted` (`Checkouts.Log`) with `scope`, `generation` or
   `checkout_generation`, `bytes` (allocated; blocks shared with clones stay in
@@ -78,12 +107,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   names the master's `scope` and `generation`.
 - The Linux agent prefetches the assigned master after a warm acquisition that
   found no local copy of it (mounted older, started empty, or timed out; checked
-  with `HasMaster`), one at a time, bounded to two minutes with no queue and the
-  same disk reserve. It also restores, one at a time, the HEADs the server lists
+  with `HasMaster`), one at a time with a bounded 64-lineage FIFO and the same
+  disk reserve. Coalesce queued generations to the newest one per scope. Like
+  refreshes, a prefetch has no deadline: its download ends on a stall or after
+  its attempts. It also restores, one at a time, the HEADs the server lists
   for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/3`)
   through `PrefetchSpare`: free space above `MinFreeBytes` plus
-  `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS
-  queues prefetches (see tart-kubelet). Never create a private branch, publish, or extend
+  `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS queues
+  prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
 - `Attach` never downloads, on either host (`LocalImages.cloneLocal`). It clones
   the base master, else the newest older master of the same scope (recorded
@@ -153,15 +184,52 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Linux attach admission is `MinFreeBytes` plus whatever the expected size
   exceeds `SizeGB` by. APFS prefetch needs `Identity.RestoreBytes`: twice the head's used
   bytes, else twice the capacity.
+- Linux pressure eviction rechecks free space every 10 ms for up to 100 ms
+  (`ReclaimWait`) before removing another master. XFS queues inode reclamation
+  after unlink; `statfs` starts that work without waiting, and `syncfs` does not
+  reliably wait for it either. An immediate check can evict every master and
+  still report capacity exhausted. Keep the request deadline, physical-space
+  threshold and error propagation intact; live reflinks may retain the blocks.
+  APFS leaves the wait disabled.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
-  abandoned after two minutes without bytes, `DownloadClient` without a whole-
-  transfer timeout. A context that ends while bytes arrive returns
-  `ErrDownloadIncomplete` and keeps the partial; a complete archive that does not
-  restore is deleted. Callers resume only by passing the same path again.
+  abandoned after two minutes without bytes (response headers included),
+  `ObjectClient` (else `Client` with its timeout cleared) without a whole-transfer
+  timeout: never bound a transfer by a whole-request deadline. A context that ends while
+  bytes arrive returns `ErrDownloadIncomplete` and keeps the partial; a complete
+  archive that does not restore is deleted. Callers resume only by passing the
+  same path again.
+- `HTTPTransfer.Publish` (`upload.go`) retries inside the call, so a retry never
+  recompresses. An archive of at least two 128 MiB parts asks `upload` with
+  `multipart`; the server starts a multipart upload (S3-compatible storage only)
+  or answers with a single PUT link. Parts go eight at a time, links signed 16 at
+  a time by `upload_parts` for each part's `Content-MD5` (hashed before the links
+  are asked for); `complete` assembles them and answers once the object is
+  readable, and `publish` fast-forwards. One connection to Tigris carries about
+  55 to 110 MB/s from a rack host; 4, 8 and 16 parts carried 260, 417 and
+  582 MB/s (4 GiB, b07, 2026-10-22). Tigris answers a completion before the
+  object is readable (2 to over 30 s), so the server waits up to 20 s and
+  otherwise answers 503. A smaller archive, or an older server, is one
+  PUT carrying the server-signed SHA-256. A retried attempt resumes with the parts
+  storage does not hold; asking for links again returns `ErrConflict` once the
+  lineage advanced. Attempts that store nothing are bounded by four (one that
+  stores parts restarts the count), back off 10 s times the count, and a request
+  that sends nothing for two minutes is abandoned. Only transport errors, stalls
+  and 5xx/429/408 are retried; once storage holds the archive only `publish` is.
+  A call that gives up sends `abort`; the server also aborts every multipart
+  upload once its links expired (`AbortVolumeMasterUploadWorker`). Each retry
+  logs `cache upload retry` with `attempt`, `parts_stored`, `sent_bytes`,
+  `elapsed_ms` and `error`. Transport errors keep the network's own text
+  (`transport error: <cause>`) with URLs replaced, and a `RemoteError` carries
+  the object store's `<Code>` when it sent one. A restore verifies the whole
+  archive's SHA-256.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
+  background callers leave an active fetch alone. A Docker merge sets `wait`
+  to await its installation result or its own context ending. Canceling a
+  waiter does not cancel the download it joined. Only the installing caller
+  runs its installation callback.
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
@@ -180,7 +248,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   publishes it on the node heartbeat and the Linux agent merges it into its Node
   patch, removing labels of evicted lineages.
 - Linux refreshes a superseded master used in the last day to the new HEAD in
-  the background (one at a time, prefetch admission) before removing it. A job
+  the background (one at a time, prefetch admission, no deadline) before removing it. A job
   attaching that lineage meanwhile clones the stale master. Maintenance and
   admission skip the scope a refresh is downloading. Only a
   master the refresh installed under the scope lock inherits the stale master's
@@ -188,13 +256,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   not APFS reservations.
   Maintenance validates every master even when one lineage cannot be reached.
 
-- APFS admission records a reservation under the built-in lock, then releases it
+- APFS admission records a reservation under the shared admission lock, then releases it
   before downloads or formatting. Reserve remaining growth only for running VMs;
   retain journal recovery and bounded, separately reserved prefetch work.
   An attach needs its expected size; restoration and prefetch also need
   the archive budget. Keep the backend check and host reservation consistent.
   After local-master eviction, the optional shared-filesystem reclamation hook
-  may reclaim built-in macOS masters. Remeasure free space before admitting;
+  may reclaim idle macOS checkout copies. Remeasure free space before admitting;
   successful deletion alone does not prove that CoW blocks were freed. Linux
   has no shared reclaimer and retains its existing admission behavior.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.
@@ -228,6 +296,17 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
   free space covers the whole checkout image, since it holds the job's workspace.
   That check never evicts (`reserveSpare`); the usual reserve admission does.
+- Checkout Git commands and their children use one pack/indexing thread, a
+  32 MiB delta-search window, 16 MiB delta and base caches, a 16 MiB large-blob
+  streaming threshold, and 16 MiB pack mappings capped at 64 MiB. Keep these in
+  `gitEnv`, never in the master's `.git/config` that jobs inherit. An automatic
+  repack's Git process can otherwise consume the agent's 512 MiB cgroup budget
+  even with no dirty archive pages. These bound Git's tunable working sets, not
+  all allocations for arbitrary object counts or incoming delta chains; retain
+  strict pack validation and synchronous GC, and validate with real Git.
+  The inheritance test accepts Trace2 config events without `scope` on older
+  Git (including the runner's 2.34), retaining the last value per process/key
+  so repository settings cannot hide missing command overrides.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.
@@ -248,3 +327,38 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   CheckoutMasterEndToEnd .`; on Linux it runs as root with
   `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`
   in runners-controller provides one).
+- `KindDocker` (`docker.go`) is a repository's Docker data root. Overlay2 needs a
+  filesystem native to the guest kernel, so the guest loop-mounts the branch
+  image itself: `Attach` links the image into the pod's directory as
+  `docker.img` (`exposeDocker`) and never runs losetup or mount; `detach` is a
+  no-op. Never mount a Docker image on the host and never run a filesystem
+  parser on it: a privileged guest writes it at the block level. `Seal`
+  (`sealDocker`) requires the guest's `docker.json` (`ReadDockerReport`, read
+  without following links, bounded and validated) to say it unmounted cleanly,
+  the pod's link to still be the branch (`sameFile`), and the superblock's fixed
+  fields to show no journal to recover and no errors (`ext4Clean`); a report
+  saying unchanged is `ErrUnchanged` (it can only withhold), and a branch whose
+  blocks exceed `DockerPublishBytes` is `ErrFull`. Measurements are the image's
+  allocated bytes and logical size. `Delete` and `Keep` remove the pod directory
+  (guest-written files only) and the image. A Docker identity always has
+  `DockerVolumeBytes`, above the host maximum for other volumes
+  (`kindMaxVolumeBytes`, `HTTPTransfer.maxBytes`), and admission expects its saved
+  bytes plus `DockerGrowthBytes`. Empty images are formatted with
+  `dockerFormatArgs` so the guest's kernel has no background zeroing to do.
+- A Docker branch whose lineage another job saved since it was mounted is merged,
+  not lost: `ExposeDockerHead` clones that head (downloading it when this host
+  lacks it) next to the branch as `.merge`, records it in `.merge.json` and links
+  it into the pod's directory as `head.img`. If a prefetch or refresh is already
+  downloading the head, the offer waits for installation before cloning; it
+  must not treat an in-flight download as an available master. The guest loads
+  the images only one side keeps into the other. A report naming `merged_generation` and
+  `merged_into` (`sealDockerMerge`) must name the head this host offered; a
+  merge into `head` renames the clone over the branch after the same inode and
+  superblock checks, then the use is rebased on the server (`Rebaser`, the
+  `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
+  branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.
+
+- Replacement-image tests must keep the original inode allocated (rename it
+  aside before creating the replacement). Unlinking and immediately recreating
+  a file can reuse its inode on Linux, so it does not reliably exercise the
+  different-inode guard.

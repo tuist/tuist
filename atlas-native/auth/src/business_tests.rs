@@ -9,6 +9,7 @@ fn saved() -> Session {
         access_token: "atlas-access".into(),
         refresh_token: "atlas-refresh".into(),
         expires_at: now() + 3600,
+        cache_id: None,
     }
 }
 
@@ -360,7 +361,120 @@ fn invalid_resources_paths_and_write_fields_never_send_credentials() {
 }
 
 #[test]
-fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
+fn account_details_filter_nested_data_and_do_not_expand_mutation_permissions() {
+    let record = json!({"id":ID, "fields":{"name":"Customer", "contract_value":"1234.56", "contract_currency":"USD"},
+    "can_edit":false, "can_delete":false, "details":{
+        "fields":{"overview_summary":"Sales context", "secret":"must-not-forward"},
+        "billing":{"email":"billing@example.org", "secret":"must-not-forward"},
+        "contacts":[{"id":ID,"fields":{"full_name":"Taylor", "is_primary":"true", "secret":"must-not-forward"}}],
+        "documents":[{"id":ID,"fields":{"title":"Contract", "summary":"Authorized summary", "storage_key":"must-not-forward"}}],
+        "secret":"must-not-forward"
+    }});
+    for resource in [Resource::Accounts, Resource::Tasks, Resource::Invoices] {
+        let network = MockTransport::new(vec![json!({"item":record})]);
+        let output =
+            execute_using(&network, saved(), resource, Action::Show { id: ID.into() }).unwrap();
+        assert!(!output.to_string().contains("must-not-forward"));
+        if matches!(resource, Resource::Accounts) {
+            assert_eq!(output["item"]["fields"]["contract_value"], "1234.56");
+            assert_eq!(
+                output["item"]["details"]["contacts"][0]["fields"]["is_primary"],
+                "true"
+            );
+            assert_eq!(
+                output["item"]["details"]["documents"][0]["fields"]["summary"],
+                "Authorized summary"
+            );
+            assert_eq!(output["item"]["can_edit"], false);
+        } else {
+            assert!(output["item"].get("details").is_none());
+            assert!(output["item"]["fields"].get("contract_value").is_none());
+        }
+    }
+    let network = MockTransport::new(vec![]);
+    for field in [
+        "contract_value",
+        "contacts_count",
+        "overview_summary",
+        "billing",
+        "details",
+    ] {
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                Resource::Accounts,
+                Action::Update {
+                    id: ID.into(),
+                    fields: BTreeMap::from([(field.into(), Some("injected".into()))])
+                }
+            )
+            .is_err()
+        );
+    }
+    assert!(network.requests.borrow().is_empty());
+}
+
+#[test]
+fn finance_overview_preserves_exact_values_and_only_belongs_to_invoices() {
+    let overview = json!({"currency":"EUR", "as_of":"2026-10-22", "account_count":3,
+        "available_cash":"123456789.13", "monthly_burn":null, "runway_months":null,
+        "fx_published_on":"2026-10-21", "excluded_currencies":[],
+        "months":[{"month":"2026-10", "income":"7.91", "expense":"123.45"}]});
+    for resource in [Resource::Invoices, Resource::Tasks, Resource::Accounts] {
+        let network = MockTransport::new(vec![json!({"items":[], "page":1, "total_pages":1,
+            "total_count":0, "can_write":false, "finance_overview":overview})]);
+        let output = execute_using(
+            &network,
+            saved(),
+            resource,
+            Action::List {
+                page: 1,
+                query: String::new(),
+                filters: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+        if matches!(resource, Resource::Invoices) {
+            assert_eq!(output["finance_overview"], overview);
+        } else {
+            assert!(output.get("finance_overview").is_none());
+        }
+    }
+}
+
+#[test]
+fn profile_forwards_only_optional_push_capabilities_not_provider_configuration() {
+    for macos in [None, Some(false), Some(true)] {
+        let mut capabilities = json!({"ios":true,"android":false,"private_key":"never-forward"});
+        if let Some(enabled) = macos {
+            capabilities["macos"] = json!(enabled);
+        }
+        let network = MockTransport::new(vec![json!({
+            "server_version":"0.7.2", "user":{"name":"Taylor","email":"taylor@example.org"},
+            "push_notifications":capabilities
+        })]);
+        let output = execute_using(
+            &network,
+            saved(),
+            Resource::Profile,
+            Action::List {
+                page: 1,
+                query: String::new(),
+                filters: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            output["push_notifications"],
+            json!({"ios":true,"android":false,"macos":macos.unwrap_or(false)})
+        );
+        assert!(!output.to_string().contains("never-forward"));
+    }
+}
+
+#[test]
+fn profile_is_owner_scoped_and_filters_response_fields() {
     let network = MockTransport::new(vec![
         json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org","token":"private"}}),
     ]);
@@ -377,7 +491,7 @@ fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
     .unwrap();
     assert_eq!(
         output,
-        json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org"}})
+        json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org","description":""}})
     );
     assert_eq!(
         network.requests.borrow()[0].0,
@@ -394,4 +508,68 @@ fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
     let output: Value =
         serde_json::from_str(&crate::bridge::execute(&injected.to_string())).unwrap();
     assert_eq!(output["error"]["kind"], "invalid_response");
+}
+
+#[test]
+fn self_profile_update_has_no_selector_or_mass_assignment_and_bounds_unicode() {
+    for description in [
+        "Role\nPersonality".to_string(),
+        "🦀".repeat(4000),
+        String::new(),
+    ] {
+        let response = json!({"server_version":"1.0", "user":{
+            "name":"Taylor", "email":"taylor@example.org", "description":description, "roles":["admin"]
+        }});
+        let network = MockTransport::new(vec![response]);
+        let action: Action = serde_json::from_value(json!({
+            "action":"update_profile", "description":description
+        }))
+        .unwrap();
+        let output = execute_using(&network, saved(), Resource::Profile, action).unwrap();
+        assert_eq!(output["user"]["description"], description);
+        assert!(output["user"].get("roles").is_none());
+        let requests = network.requests.borrow();
+        assert_eq!(requests[0].0, "https://atlas.example/api/native/profile");
+        assert_eq!(requests[0].1["method"], "PATCH");
+        assert_eq!(requests[0].1["payload"], json!({"description":description}));
+    }
+    for value in [
+        "🦀".repeat(4001),
+        "e\u{301}".repeat(2001),
+        "null\0byte".into(),
+    ] {
+        let network = MockTransport::new(vec![]);
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                Resource::Profile,
+                Action::UpdateProfile { description: value }
+            )
+            .is_err()
+        );
+        assert!(network.requests.borrow().is_empty());
+    }
+    for args in [
+        json!({"action":"update_profile","description":"text","user_id":ID}),
+        json!({"action":"update_profile","description":"text","name":"Injected"}),
+        json!({"action":"update_profile","description":null}),
+    ] {
+        assert!(serde_json::from_value::<Action>(args).is_err());
+    }
+    for resource in [Resource::Tasks, Resource::Accounts, Resource::Invoices] {
+        let network = MockTransport::new(vec![]);
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                resource,
+                Action::UpdateProfile {
+                    description: "text".into()
+                }
+            )
+            .is_err()
+        );
+        assert!(network.requests.borrow().is_empty());
+    }
 }

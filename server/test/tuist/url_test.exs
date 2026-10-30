@@ -3,6 +3,7 @@ defmodule Tuist.URLTest do
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.URL
 
   describe "public_url?/1" do
@@ -110,6 +111,38 @@ defmodule Tuist.URLTest do
       refute URL.public_host_url?("http://bucket.example.com/x?sig=1")
       refute URL.public_host_url?("not-a-url")
       refute URL.public_host_url?(nil)
+    end
+  end
+
+  describe "embedded and reserved IP addresses" do
+    test "mapped, compatible and NAT64 IPv6 cannot bypass private IPv4 checks" do
+      for address <- [
+            "::ffff:127.0.0.1",
+            "::ffff:10.0.0.5",
+            "::ffff:169.254.169.254",
+            "::10.0.0.5",
+            "64:ff9b::a00:5",
+            "64:ff9b:1::1",
+            "ff02::1",
+            "fec0::1"
+          ] do
+        {:ok, ip} = :inet.parse_address(String.to_charlist(address))
+        refute URL.public_ip?(ip), address
+        assert {:error, _} = SSRFGuard.pin("https://[#{address}]/keys")
+      end
+    end
+
+    test "unspecified, multicast and reserved IPv4 ranges are not public" do
+      for ip <- [{0, 1, 2, 3}, {224, 0, 0, 1}, {239, 255, 255, 255}, {240, 1, 2, 3}, {255, 255, 255, 255}] do
+        refute URL.public_ip?(ip)
+      end
+    end
+
+    test "public embedded IPv4 addresses retain their public classification" do
+      for address <- ["::ffff:8.8.8.8", "::8.8.8.8", "64:ff9b::808:808"] do
+        {:ok, ip} = :inet.parse_address(String.to_charlist(address))
+        assert URL.public_ip?(ip)
+      end
     end
   end
 

@@ -829,6 +829,9 @@ func TestReconcile_StampsImageRolledAtOnFirstReconcile(t *testing.T) {
 	if updated.Status.ImageRolledAt.IsZero() {
 		t.Fatalf("ImageRolledAt is zero, expected stamp on first reconcile")
 	}
+	if updated.Status.PreviousImage != "" {
+		t.Fatalf("PreviousImage = %q, want empty for a pool that has run one image", updated.Status.PreviousImage)
+	}
 }
 
 // TestReconcile_BumpsImageRolledAtOnSpecImageChange covers the
@@ -870,6 +873,9 @@ func TestReconcile_BumpsImageRolledAtOnSpecImageChange(t *testing.T) {
 	}
 	if !updated.Status.ImageRolledAt.After(previousRoll.Time) {
 		t.Fatalf("ImageRolledAt = %v, expected to be after previous %v", updated.Status.ImageRolledAt, previousRoll)
+	}
+	if updated.Status.PreviousImage != oldImage {
+		t.Fatalf("PreviousImage = %q, want %q so hosts holding it follow the release", updated.Status.PreviousImage, oldImage)
 	}
 }
 

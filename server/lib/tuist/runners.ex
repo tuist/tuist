@@ -115,11 +115,14 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.LearnedWarmFloors
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.AbortVolumeMasterUploadWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.Storage
@@ -130,8 +133,6 @@ defmodule Tuist.Runners do
   @pool_label "tuist.dev/runner-pool"
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
-  # Keeps hosts that still create built-in cache images from creating one.
-  @cache_untrusted_label "tuist.dev/runner-cache-untrusted"
 
   # The owner label gates dispatch egress: the runners-namespace
   # NetworkPolicy admits only label-less (idle, polling) Pods to the
@@ -208,6 +209,16 @@ defmodule Tuist.Runners do
   # Presigned-URL lifetime for the cache-volume master archive. Comfortably
   # covers a job: the download is used at materialize, the upload at job end.
   @volume_master_url_ttl_seconds 6 * 60 * 60
+  # Each batch of part links is signed when a host is about to send it.
+  @volume_master_part_url_ttl_seconds 60 * 60
+  # How long a completion waits for the assembled object to become readable,
+  # within the host's 30-second request timeout.
+  @volume_master_readable_attempts 20
+  @volume_master_readable_interval_ms Application.compile_env(
+                                        :tuist,
+                                        [__MODULE__, :volume_master_readable_interval_ms],
+                                        1_000
+                                      )
 
   @doc """
   Mints a presigned PUT URL for the master object of `account_id`'s cache volume
@@ -281,6 +292,122 @@ defmodule Tuist.Runners do
 
   def track_volume_master_upload(account_id, volume_name, digest, content_digest) do
     reclaim_rejected_master_upload(account_id, volume_name, master_object_id(digest, content_digest))
+  end
+
+  @doc """
+  Starts a multipart upload of the master object `volume_master_upload_url/4`
+  would sign a single PUT for, so a host sends a large archive in parts and
+  retries only the parts that fail. Returns `{:ok, upload_id}`, `:unsupported`
+  when the account's storage does not answer part uploads with the ETags a host
+  completes the upload with (only S3-compatible storage does), or `:error`.
+
+  The object is tracked like a single upload's, and the upload is aborted once
+  its links expired, which is a no-op after completion: storage keeps the parts
+  of an upload nobody completed indefinitely, and object listings never see them.
+  """
+  def start_volume_master_upload(account_id, volume_name, tree_digest, content_digest) do
+    with {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest),
+         true <- Storage.supports_signed_upload_headers?(account) || :unsupported,
+         {:ok, upload_id} <- Storage.multipart_start(key, account) do
+      track_volume_master_upload(account_id, volume_name, tree_digest, content_digest)
+
+      %{account_id: account_id, object_key: key, upload_id: upload_id}
+      |> AbortVolumeMasterUploadWorker.new(schedule_in: @volume_master_url_ttl_seconds)
+      |> Oban.insert!()
+
+      {:ok, upload_id}
+    else
+      :unsupported -> :unsupported
+      _ -> :error
+    end
+  end
+
+  @doc """
+  Signs a PUT link for each `{part_number, content_md5}` of the multipart upload
+  `upload_id` of the master object. The part's base64 MD5 is signed into its link
+  as `Content-MD5`, so storage accepts only the bytes the host hashed; a restore
+  verifies the whole archive's SHA-256.
+  """
+  def volume_master_part_urls(account_id, volume_name, tree_digest, content_digest, upload_id, parts) do
+    with true <- valid_upload_id?(upload_id),
+         {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest) do
+      parts
+      |> Enum.reduce_while({:ok, []}, fn {part_number, content_md5}, {:ok, links} ->
+        url =
+          Storage.multipart_generate_url(key, upload_id, part_number, account,
+            expires_in: @volume_master_part_url_ttl_seconds,
+            signed_headers: [{"content-md5", content_md5}]
+          )
+
+        if is_binary(url) and Tuist.URL.public_host_url?(url),
+          do: {:cont, {:ok, [%{part_number: part_number, url: url} | links]}},
+          else: {:halt, :error}
+      end)
+      |> case do
+        {:ok, links} -> {:ok, Enum.reverse(links)}
+        :error -> :error
+      end
+    else
+      _ -> :error
+    end
+  end
+
+  @doc """
+  Assembles the master object from `parts` (`{part_number, etag}`) and returns
+  `:ok` once the object can be read. Tigris answers a completion before the
+  object is readable, by 2 to over 30 seconds for a 4 GiB object (2026-10-22),
+  and a HEAD fast-forwarded to an unreadable object fails every download. A
+  completion that is not readable within the wait is `:error`, which the host
+  retries; completing a completed upload succeeds, or finds the upload gone and
+  the object present.
+  """
+  def complete_volume_master_upload(account_id, volume_name, tree_digest, content_digest, upload_id, parts) do
+    with true <- valid_upload_id?(upload_id),
+         {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest),
+         result when result in [:ok, {:error, :multipart_upload_not_found}] <-
+           Storage.multipart_complete_upload(key, upload_id, parts, account),
+         true <- readable?(key, account, @volume_master_readable_attempts) do
+      :ok
+    else
+      _ -> :error
+    end
+  end
+
+  defp readable?(key, account, attempts) do
+    cond do
+      Storage.object_exists?(key, account) ->
+        true
+
+      attempts <= 1 ->
+        false
+
+      true ->
+        Process.sleep(@volume_master_readable_interval_ms)
+        readable?(key, account, attempts - 1)
+    end
+  end
+
+  def abort_volume_master_upload(account_id, volume_name, tree_digest, content_digest, upload_id) do
+    with true <- valid_upload_id?(upload_id),
+         {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest),
+         :ok <- Storage.multipart_abort(key, upload_id, account) do
+      :ok
+    else
+      _ -> :error
+    end
+  end
+
+  def valid_upload_id?(upload_id), do: is_binary(upload_id) and byte_size(upload_id) in 1..1024
+
+  defp volume_master_upload_key(account_id, volume_name, tree_digest, content_digest) do
+    with true <- is_integer(account_id) and is_binary(tree_digest) and valid_inventory_digest?(tree_digest),
+         true <- VolumeHeads.valid_storage_volume_name?(volume_name),
+         content when is_binary(content) <- reported_content_digest(content_digest),
+         {:ok, account} <- Accounts.get_account_by_id(account_id) do
+      {:ok, account, volume_master_object_key(account_id, volume_name, master_object_id(tree_digest, content))}
+    else
+      _ -> :error
+    end
   end
 
   def clear_volume_master(account_id, volume_name) do
@@ -552,6 +679,10 @@ defmodule Tuist.Runners do
       occupied runner sessions over active one-minute buckets in
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
+    * `learned_warm_floor` — the burst this fleet's jobs arrive in, or 0
+      when it had no job in the last day (`LearnedWarmFloors`). The
+      controller keeps up to that many runners idle above load, capped per
+      pool by `maxLearnedWarmPoolFloor`.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -577,6 +708,7 @@ defmodule Tuist.Runners do
       queued: queued,
       withheld: withheld,
       p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+      learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
       preferred_nodes: preferred_nodes(fleet_name)
     }
   end
@@ -651,6 +783,10 @@ defmodule Tuist.Runners do
   credential its provider needs to run it: a GitHub JIT config, or a
   Buildkite job acquisition token.
 
+  `guest` carries what the polling VM reports about itself. `:os_version`
+  (the guest's `sw_vers -productVersion`) goes into the name of the runner
+  a macOS job runs on; a VM that reports nothing gets a name without it.
+
   Returns `{:ok, %{credential, account, runner_name}}` on success, where
   `credential` carries a `:kind` of `:github` or `:buildkite`.
 
@@ -671,9 +807,9 @@ defmodule Tuist.Runners do
       image. In-flight customer jobs are unaffected because
       the check runs only on idle polls (before claim attempt).
   """
-  def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
+  def dispatch_for_sa(namespace, sa_name, guest \\ %{}) when is_binary(namespace) and is_binary(sa_name) do
     :telemetry.span(Telemetry.event_name_dispatch_request(), %{}, fn ->
-      {result, fleet_name} = do_dispatch_for_sa(namespace, sa_name)
+      {result, fleet_name} = do_dispatch_for_sa(namespace, sa_name, guest)
       {to_caller_result(result), %{outcome: dispatch_outcome(result), fleet: fleet_name || "unknown"}}
     end)
   end
@@ -687,12 +823,16 @@ defmodule Tuist.Runners do
   # when the SA / label lookup failed) so the dispatch metric is
   # sliceable per fleet. The web-facing collapse back to `:no_work_yet`
   # happens in `to_caller_result/1`.
-  defp do_dispatch_for_sa(namespace, sa_name) do
+  defp do_dispatch_for_sa(namespace, sa_name, guest) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa) do
       case check_not_stale(namespace, sa_name, fleet_name) do
-        {:ok, node_name} -> {claim_and_serve(namespace, sa_name, fleet_name, node_name), fleet_name}
-        {:error, reason} -> {{:error, reason}, fleet_name}
+        {:ok, node_name} ->
+          pod = %{node_name: node_name, guest: guest, site: Sites.claim_site(fleet_name, node_name)}
+          {claim_and_serve(namespace, sa_name, fleet_name, pod), fleet_name}
+
+        {:error, reason} ->
+          {{:error, reason}, fleet_name}
       end
     else
       {:error, reason} -> {{:error, reason}, nil}
@@ -704,12 +844,12 @@ defmodule Tuist.Runners do
   # it to `claimed`), so there is no cross-store lag to defend
   # against. It only accumulates jobs this poll already lost a claim
   # race for.
-  defp claim_and_serve(namespace, sa_name, fleet_name, node_name) do
+  defp claim_and_serve(namespace, sa_name, fleet_name, pod) do
     claim_and_serve(
       namespace,
       sa_name,
       fleet_name,
-      node_name,
+      pod,
       [],
       [],
       [],
@@ -721,7 +861,7 @@ defmodule Tuist.Runners do
          _namespace,
          sa_name,
          fleet_name,
-         _node_name,
+         _pod,
          _excluded_account_ids,
          _excluded_repositories,
          _excluded_workflow_job_ids,
@@ -739,7 +879,7 @@ defmodule Tuist.Runners do
          namespace,
          sa_name,
          fleet_name,
-         node_name,
+         pod,
          excluded_account_ids,
          excluded_repositories,
          excluded_workflow_job_ids,
@@ -747,7 +887,7 @@ defmodule Tuist.Runners do
        ) do
     case pick_affine_candidate(
            fleet_name,
-           node_name,
+           pod,
            excluded_account_ids,
            excluded_repositories,
            excluded_workflow_job_ids
@@ -757,7 +897,9 @@ defmodule Tuist.Runners do
           namespace: namespace,
           sa_name: sa_name,
           fleet_name: fleet_name,
-          node_name: node_name,
+          node_name: pod.node_name,
+          guest: pod.guest,
+          site: pod.site,
           candidate: candidate,
           affinity_outcome: affinity_outcome,
           retry_context: %{
@@ -789,7 +931,7 @@ defmodule Tuist.Runners do
     context = Map.put(context, :resources, resources)
 
     candidate.workflow_job_id
-    |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
+    |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources, context.site)
     |> handle_claim_attempt(context)
   end
 
@@ -878,6 +1020,8 @@ defmodule Tuist.Runners do
            sa_name: sa_name,
            fleet_name: fleet_name,
            node_name: node_name,
+           guest: guest,
+           site: site,
            retry_context: retry_context,
            candidate: candidate
          },
@@ -887,7 +1031,7 @@ defmodule Tuist.Runners do
       namespace,
       sa_name,
       fleet_name,
-      node_name,
+      %{node_name: node_name, guest: guest, site: site},
       retry_context,
       candidate,
       exclusion_scope
@@ -908,7 +1052,7 @@ defmodule Tuist.Runners do
          namespace,
          sa_name,
          fleet_name,
-         node_name,
+         pod,
          %{
            excluded_account_ids: excluded_account_ids,
            excluded_repositories: excluded_repositories,
@@ -922,7 +1066,7 @@ defmodule Tuist.Runners do
       namespace,
       sa_name,
       fleet_name,
-      node_name,
+      pod,
       excluded_account_ids,
       excluded_repositories,
       [candidate.workflow_job_id | excluded_workflow_job_ids],
@@ -934,7 +1078,7 @@ defmodule Tuist.Runners do
          namespace,
          sa_name,
          fleet_name,
-         node_name,
+         pod,
          %{
            excluded_account_ids: excluded_account_ids,
            excluded_repositories: excluded_repositories,
@@ -948,7 +1092,7 @@ defmodule Tuist.Runners do
       namespace,
       sa_name,
       fleet_name,
-      node_name,
+      pod,
       [candidate.account_id | excluded_account_ids],
       excluded_repositories,
       excluded_workflow_job_ids,
@@ -960,7 +1104,7 @@ defmodule Tuist.Runners do
          namespace,
          sa_name,
          fleet_name,
-         node_name,
+         pod,
          %{
            excluded_account_ids: excluded_account_ids,
            excluded_repositories: excluded_repositories,
@@ -974,7 +1118,7 @@ defmodule Tuist.Runners do
       namespace,
       sa_name,
       fleet_name,
-      node_name,
+      pod,
       excluded_account_ids,
       [candidate.repository | excluded_repositories],
       excluded_workflow_job_ids,
@@ -986,33 +1130,36 @@ defmodule Tuist.Runners do
   # pick the one to hand this node: the oldest candidate whose master this node
   # likely holds, unless the head has waited past the age tolerance, else the
   # head. With no node identity or no residency, this is exactly today's
-  # "oldest queued job".
+  # "oldest queued job". A runner at a rack site first passes over, for a short
+  # while, the jobs whose runner cache is warm at another site
+  # (`Sites.prefer_cache_site/3`).
   defp pick_affine_candidate(
          fleet_name,
-         node_name,
+         %{node_name: node_name, site: site},
          excluded_account_ids,
          excluded_repositories,
          excluded_workflow_job_ids
        ) do
-    case Jobs.pick_queued_top_k(
-           fleet_name,
-           excluded_account_ids,
-           excluded_repositories,
-           excluded_workflow_job_ids,
-           volume_affinity_top_k()
-         ) do
-      {:ok, candidates} ->
-        if volume_affinity_enabled?(fleet_name) do
-          select_affine_candidate(candidates, node_name)
-        else
-          # No volumes on this fleet: hand out the plain oldest-queued head, no
-          # affinity scoring or reordering. A nil outcome means "affinity never
-          # ran here", which is what suppresses the metric for this fleet.
-          {:ok, List.first(candidates), nil}
-        end
-
-      {:error, :empty} ->
-        {:error, :empty}
+    with {:ok, candidates} <-
+           Jobs.pick_queued_top_k(
+             fleet_name,
+             excluded_account_ids,
+             excluded_repositories,
+             excluded_workflow_job_ids,
+             volume_affinity_top_k()
+           ),
+         [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
+      if volume_affinity_enabled?(fleet_name) do
+        select_affine_candidate(candidates, node_name)
+      else
+        # No volumes on this fleet: hand out the plain oldest-queued head, no
+        # affinity scoring or reordering. A nil outcome means "affinity never
+        # ran here", which is what suppresses the metric for this fleet.
+        {:ok, List.first(candidates), nil}
+      end
+    else
+      {:error, :empty} -> {:error, :empty}
+      [] -> {:error, :empty}
     end
   end
 
@@ -1077,12 +1224,13 @@ defmodule Tuist.Runners do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
-        with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
+        with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels} = pool} <-
                Dispatch.pool_summary_by_name(fleet_name),
              dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
+             name_prefix = runner_name_prefix(sa_name, resources, pool, Map.get(context, :guest, %{})),
              :ok <- stamp_owner_label(namespace, pod_name, account),
              {:ok, credential, runner_name} <-
-               mint_credential(account, candidate, sa_name, dispatch_label, runner_labels),
+               mint_credential(account, candidate, name_prefix, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name, claim.claimed_at),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job gets the
@@ -1146,12 +1294,19 @@ defmodule Tuist.Runners do
              workflow_job_id: candidate.workflow_job_id,
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
              fleet_platform: Catalog.fleet_platform(fleet_name),
-             fleet_site: Catalog.fleet_site(fleet_name),
+             fleet_site: Map.get(context, :site),
              # Per-account cache-signing grant — trusted jobs only. nil for an
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
              # untrusted job's cache is never account-portable.
-             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id))
+             cache_signing_grant:
+               if(trusted,
+                 do:
+                   CacheGrant.mint(candidate.account_id,
+                     site: runner_grant_site(fleet_name, context),
+                     platform: Catalog.fleet_platform(fleet_name)
+                   )
+               )
            }}
         else
           {:error, reason} = err ->
@@ -1167,6 +1322,13 @@ defmodule Tuist.Runners do
 
         release_safely(candidate, claim, :unknown_account)
         {:error, :unknown_account}
+    end
+  end
+
+  defp runner_grant_site(fleet_name, context) do
+    case Catalog.fleet_platform(fleet_name) do
+      :linux -> Sites.shard_storage_site(Map.get(context, :node_name))
+      _ -> Map.get(context, :site)
     end
   end
 
@@ -1245,7 +1407,7 @@ defmodule Tuist.Runners do
   # after the stamp re-queues the job while the Pod keeps polling, and the label
   # would then mark a Pod that never ran a job. Best-effort.
   defp stamp_account_label(namespace, pod_name, account) do
-    labels = %{@account_label => Integer.to_string(account.id), @cache_untrusted_label => "true"}
+    labels = %{@account_label => Integer.to_string(account.id)}
     patch_pod_labels(namespace, pod_name, %{"metadata" => %{"labels" => labels}}, @owner_label_stamp_attempts)
   end
 
@@ -1340,35 +1502,35 @@ defmodule Tuist.Runners do
   # JIT config against a label set and then chooses the job itself, so the
   # runner may end up running something other than the candidate we
   # claimed. Buildkite mints a token against one job UUID, so it cannot.
-  defp mint_credential(account, candidate, sa_name, dispatch_label, runner_labels) do
+  defp mint_credential(account, candidate, name_prefix, dispatch_label, runner_labels) do
     case provider(candidate) do
       "gitlab" ->
-        mint_gitlab_acquisition(account, candidate, sa_name)
+        mint_gitlab_acquisition(account, candidate, name_prefix)
 
       "buildkite" ->
-        mint_buildkite_acquisition(account, candidate, sa_name)
+        mint_buildkite_acquisition(account, candidate, name_prefix)
 
       _github ->
         mint_github_jit(
           account,
           github_org_login(candidate, account),
           candidate,
-          sa_name,
+          name_prefix,
           dispatch_label,
           runner_labels
         )
     end
   end
 
-  defp mint_gitlab_acquisition(account, candidate, sa_name) do
+  defp mint_gitlab_acquisition(account, candidate, name_prefix) do
     case GitLab.mint_acquisition(account.id, candidate.workflow_job_id) do
-      {:ok, acquisition} -> {:ok, Map.put(acquisition, :kind, :gitlab), runner_name(sa_name)}
+      {:ok, acquisition} -> {:ok, Map.put(acquisition, :kind, :gitlab), runner_name(name_prefix)}
       {:error, reason} -> {:error, {:gitlab_mint_failed, mint_failure_scope(reason)}}
     end
   end
 
-  defp mint_buildkite_acquisition(account, candidate, sa_name) do
-    runner_name = runner_name(sa_name)
+  defp mint_buildkite_acquisition(account, candidate, name_prefix) do
+    runner_name = runner_name(name_prefix)
 
     case Buildkite.mint_acquisition(account.id, candidate.workflow_job_id) do
       {:ok, acquisition} ->
@@ -1393,18 +1555,8 @@ defmodule Tuist.Runners do
   defp mint_failure_scope(:unauthorized), do: :account
   defp mint_failure_scope(_reason), do: :workflow_job
 
-  defp mint_github_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels) do
-    # GitHub's `create JIT config` API caps `name` at 64 characters.
-    # Earlier versions prefixed `tuist-<account.name>-` — for macOS
-    # pools that fit, but the Linux pool name is longer
-    # (`<release>-tuist-runner-pool-linux-ubuntu-22-04`), so the
-    # combined string overshoots and GitHub returns 422. Use the
-    # polling Pod's SA name as the stable prefix, but add a fresh
-    # per-mint suffix. GitHub reserves the runner name as soon as it
-    # creates the JIT config; if the HTTP response or a later local
-    # state write fails before the Pod receives that JIT, retrying
-    # the same name loops forever on 409 "Already exists".
-    runner_name = runner_name(sa_name)
+  defp mint_github_jit(account, github_org, candidate, name_prefix, dispatch_label, runner_labels) do
+    runner_name = runner_name(name_prefix)
 
     # Resolve the full installation row (carries `installation_id`
     # AND `client_url`) instead of just the integer id. The JIT
@@ -1492,12 +1644,49 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp runner_name(sa_name) do
-    suffix = "-" <> (4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower))
-    prefix = String.slice(sa_name, 0, @runner_name_max_length - byte_size(suffix))
+  # GitHub's `create JIT config` API caps `name` at 64 characters and
+  # reserves the name as soon as it creates the config. If the HTTP
+  # response or a later local state write fails before the Pod receives
+  # that JIT, retrying the same name loops forever on 409 "Already
+  # exists", so every mint appends a fresh random suffix and truncates
+  # the prefix to fit.
+  defp runner_name({prefix, suffix_bytes}) do
+    suffix = "-" <> (suffix_bytes |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower))
 
-    prefix <> suffix
+    String.slice(prefix, 0, @runner_name_max_length - byte_size(suffix)) <> suffix
   end
+
+  # Customers read the runner name in GitHub's runner list and in a job's
+  # "Set up job" step, so a catalog macOS runner is named after what the
+  # job runs on: the guest's macOS version, the pool's Xcode version and
+  # the shape, e.g. `tuist-macos-26.6-xcode-27.0-6vcpu-14gb-<hex>`. The
+  # Pod name carries the Xcode version alone, as `27-0`, which reads as a
+  # macOS version. The macOS version is the one the guest reports, so an
+  # image on a newer macOS names itself; a guest that reports none gets
+  # `tuist-macos-xcode-27.0-…`.
+  #
+  # That prefix is shared by every runner of an account on the same Xcode
+  # and shape, and claims, sessions and the dashboard's runner link look a
+  # runner up by name within its account, so its suffix carries 48 random
+  # bits. Every other Pod keeps its own name as the prefix, which is
+  # unique per Pod, so 32 bits only have to keep one Pod's mints apart.
+  defp runner_name_prefix(
+         _sa_name,
+         %{platform: :macos, vcpus: vcpus, memory_gb: memory_gb},
+         %{xcode_version: xcode_version},
+         guest
+       )
+       when is_binary(xcode_version) and xcode_version != "" do
+    macos =
+      case Map.get(guest, :os_version) do
+        version when is_binary(version) and version != "" -> "macos-#{version}"
+        _ -> "macos"
+      end
+
+    {"tuist-#{macos}-xcode-#{xcode_version}-#{vcpus}vcpu-#{memory_gb}gb", 6}
+  end
+
+  defp runner_name_prefix(sa_name, _resources, _pool, _guest), do: {sa_name, 4}
 
   defp pool_label(%{"metadata" => %{"labels" => labels}}) when is_map(labels) do
     case Map.get(labels, @pool_label) do

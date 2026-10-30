@@ -12,6 +12,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Measurement
   alias Tuist.Runners.CacheVolumes.Query
+  alias Tuist.Runners.CacheVolumes.SavedSize
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
@@ -39,6 +40,132 @@ defmodule Tuist.Runners.CacheVolumesTest do
         repository: "org/repo"
       }
     }
+  end
+
+  describe "saved cache size history" do
+    test "records only the saved head, deduplicates retries and records clearing", %{job: job, account: account} do
+      now = ~U[2026-10-27 10:00:00.000000Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      complete(job)
+      publish_report("node", first.id, %{"size_bytes" => 1024})
+      publish_report("node", first.id, %{"size_bytes" => 1024})
+      id = volume(account).id
+
+      sizes = fn ->
+        Repo.all(from(s in SavedSize, where: s.volume_id == ^id, order_by: s.id, select: s.size_bytes))
+      end
+
+      assert sizes.() == [0, nil, 1024]
+
+      {:ok, clone} = CacheVolumes.allocate_for_job(job, identity(), attrs("clone"))
+      CacheVolumes.report("node", clone.id, Map.put(report(), "size_bytes", 8192))
+      assert sizes.() == [0, nil, 1024]
+      assert [%{used_bytes: 1024}] = CacheVolumes.saved_size_history(account.id, id, {now, now})
+
+      later = DateTime.add(now, 3600)
+      stub(DateTime, :utc_now, fn -> later end)
+      assert {:ok, _} = CacheVolumes.delete(account.id, id)
+      assert {:ok, _} = CacheVolumes.delete(account.id, id)
+      CacheVolumes.report("node", first.id, %{"state" => "deleted"})
+      assert sizes.() == [0, nil, 1024, 0]
+      assert Enum.map(CacheVolumes.saved_size_history(account.id, id, {now, later}), & &1.used_bytes) == [1024, 0]
+      assert [] == CacheVolumes.saved_size_history(AccountsFixtures.account_fixture().id, id, {now, later})
+    end
+
+    test "replacement changes the saved size while deleting the old copy does not", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+      complete(job)
+      publish_report("node", first.id)
+      {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+      CacheVolumes.report("node", next.id, Map.put(report(), "size_bytes", 8192))
+      publish_report("node", next.id, %{"size_bytes" => 8192})
+      CacheVolumes.report("node", first.id, %{"state" => "deleted"})
+      now = DateTime.utc_now()
+      assert [%{used_bytes: 8192}] = CacheVolumes.saved_size_history(account.id, volume(account).id, {now, now})
+    end
+
+    test "rolled-back allocation cannot leave saved-size observations", %{job: job, account: account} do
+      assert {:error, :cancelled} =
+               Repo.transaction(fn ->
+                 {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+                 Repo.rollback(:cancelled)
+               end)
+
+      refute Repo.exists?(
+               from(s in SavedSize, join: v in Volume, on: s.volume_id == v.id, where: v.account_id == ^account.id)
+             )
+    end
+
+    test "a stale publication cannot change saved-size history", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+      {:ok, stale} = CacheVolumes.allocate_for_job(job, identity(), attrs("stale"))
+      complete(job)
+      publish_report("node", first.id)
+      id = volume(account).id
+      before = Repo.all(from(s in SavedSize, where: s.volume_id == ^id))
+      CacheVolumes.report("node", stale.id, Map.put(report(), "size_bytes", 8192))
+      publish_report("node", stale.id, %{"size_bytes" => 8192})
+      assert Repo.all(from(s in SavedSize, where: s.volume_id == ^id)) == before
+    end
+
+    test "expiry and saved-head deletion record zero", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      complete(job)
+      publish_report("node", first.id)
+      saved = volume(account)
+      later = DateTime.add(DateTime.utc_now(), 8 * 86_400)
+      assert {:ok, 1} = CacheVolumes.expire_inactive(later)
+      assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, saved.id, {later, later})
+
+      {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("next"), :key, "second"))
+      publish_report("node", next.id)
+      CacheVolumes.report("node", next.id, %{"state" => "deleted"})
+      now = DateTime.utc_now()
+      id = Repo.get!(Usage, next.id).volume_id
+      assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, id, {now, now})
+    end
+
+    test "carries a baseline forward, preserves unknowns, and excludes future data", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      id = Repo.get!(Usage, first.id).volume_id
+      Repo.delete_all(from(s in SavedSize, where: s.volume_id == ^id))
+      start = ~U[2026-10-20 00:00:00.000000Z]
+
+      for {offset, size} <- [{-3600, 100}, {1800, nil}, {7200, 0}, {10_800, 200}] do
+        Repo.insert!(%SavedSize{volume_id: id, size_bytes: size, observed_at: DateTime.add(start, offset)})
+      end
+
+      finish = DateTime.add(start, 9000)
+      points = CacheVolumes.saved_size_history(account.id, id, {start, finish})
+      assert Enum.map(points, & &1.used_bytes) == [100, nil, 0, 0]
+      assert List.first(points).at == start
+      assert List.last(points).at == finish
+
+      assert CacheVolumes.saved_size_history(account.id, id, {DateTime.add(start, -7200), DateTime.add(start, -3601)}) ==
+               []
+    end
+
+    test "retention preserves the last old observation as the next range baseline", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      id = Repo.get!(Usage, first.id).volume_id
+      Repo.delete_all(from(s in SavedSize, where: s.volume_id == ^id))
+      now = DateTime.utc_now()
+
+      for {days, size} <- [{100, 100}, {95, 200}, {80, 300}] do
+        Repo.insert!(%SavedSize{volume_id: id, size_bytes: size, observed_at: DateTime.add(now, -days * 86_400)})
+      end
+
+      CacheVolumes.prune_history()
+
+      assert Repo.all(from(s in SavedSize, where: s.volume_id == ^id, order_by: s.observed_at, select: s.size_bytes)) == [
+               200,
+               300
+             ]
+
+      start = DateTime.add(now, -90 * 86_400)
+      assert [%{used_bytes: 200}] = CacheVolumes.saved_size_history(account.id, id, {start, start})
+    end
   end
 
   defp identity, do: %{repository_id: 123, trusted: true, same_repository: true}
@@ -875,6 +1002,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert fresh.base_generation == 0
     refute fresh.scope == full.scope
     assert is_nil(volume(account).head_id)
+    now = DateTime.utc_now()
+    assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, volume(account).id, {now, now})
     assert {:ok, %{action: "delete"}} = publish_report("node", running.id)
     assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", fresh.id, report())
   end
@@ -1200,6 +1329,54 @@ defmodule Tuist.Runners.CacheVolumesTest do
     complete(job)
     publish_report("node", next.id)
     assert volume(account).last_used_at == mounted
+  end
+
+  test "sweep retires copies their hosts stopped reporting, but never the saved head", %{job: job, account: account} do
+    now = DateTime.utc_now()
+    {:ok, superseded} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    publish_report("node", superseded.id)
+
+    next_job = %{job | workflow_job_id: System.unique_integer([:positive])}
+    {:ok, head} = CacheVolumes.allocate_for_job(next_job, identity(), attrs("head", "other"))
+    CacheVolumes.report("other", head.id, report("active", false))
+    complete(next_job)
+    publish_report("other", head.id)
+    assert volume(account).head_id == head.id
+
+    running_job = %{job | workflow_job_id: System.unique_integer([:positive])}
+    {:ok, running} = CacheVolumes.allocate_for_job(running_job, identity(), attrs("running", "gone"))
+    CacheVolumes.report("gone", running.id, report("active", false))
+
+    stale = DateTime.add(now, -2 * 86_400)
+
+    for id <- [superseded.id, head.id, running.id] do
+      Repo.update!(Ecto.Changeset.change(Repo.get!(Usage, id), last_reported_at: stale))
+    end
+
+    assert {:ok, 2} = CacheVolumes.retire_unreported(now)
+    assert Repo.get!(Usage, superseded.id).deleted_at == now
+    assert %{deleted_at: ^now, finished_at: ^now, status: "discarded"} = Repo.get!(Usage, running.id)
+    assert is_nil(Repo.get!(Usage, head.id).deleted_at)
+    assert volume(account).head_id == head.id
+    volume_id = Repo.get!(Usage, head.id).volume_id
+    assert %{retained_copies: 1, retained_bytes: 1024} = CacheVolumes.statistics([volume_id])[volume_id]
+    assert {:ok, 0} = CacheVolumes.retire_unreported(now)
+
+    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", superseded.id, report("sealed"))
+
+    assert {:ok, %{action: "forget"}} =
+             CacheVolumes.report("node", superseded.id, %{report("sealed") | "state" => "deleted"})
+  end
+
+  test "sweep keeps copies their hosts reported within the last day", %{job: job} do
+    now = DateTime.utc_now()
+    {:ok, copy} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    CacheVolumes.report("node", copy.id, report("active", false))
+    Repo.update!(Ecto.Changeset.change(Repo.get!(Usage, copy.id), last_reported_at: DateTime.add(now, -86_399)))
+
+    assert {:ok, 0} = CacheVolumes.retire_unreported(now)
+    assert is_nil(Repo.get!(Usage, copy.id).deleted_at)
   end
 
   test "sweep evicts at seven days and preserves volumes mounted within the window", %{job: job, account: account} do
@@ -2428,6 +2605,139 @@ defmodule Tuist.Runners.CacheVolumesTest do
       volume = Repo.get!(Volume, Repo.get!(Usage, cold.id).volume_id)
       assert volume.head_id == cold.id
       assert %{generation: 2} = VolumeHeads.get_head(account.id, CacheVolumes.storage_name(volume))
+    end
+  end
+
+  describe "multipart master uploads" do
+    @md5 Base.encode64(:crypto.hash(:md5, "part"))
+
+    setup %{job: job} do
+      {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      complete(job)
+
+      params = %{
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64),
+        "upload_id" => "upload-1"
+      }
+
+      %{use: use, params: params}
+    end
+
+    defp multipart(id, operation, params, extra \\ %{}),
+      do: CacheVolumes.image("node", id, params |> Map.merge(extra) |> Map.put("operation", operation))
+
+    defp sums(numbers), do: Enum.map(numbers, &%{"part_number" => &1, "content_md5" => @md5})
+
+    test "a host uploads its master in parts, completes it and publishes it", %{use: use, params: params} do
+      expect(Runners, :start_volume_master_upload, fn _, _, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", _ ->
+        {:ok, "upload-1"}
+      end)
+
+      expect(Runners, :volume_master_part_urls, fn _, _, _, _, "upload-1", [{1, @md5}, {2, @md5}] ->
+        {:ok, [%{part_number: 1, url: "https://1.1.1.1/1"}, %{part_number: 2, url: "https://1.1.1.1/2"}]}
+      end)
+
+      expect(Runners, :complete_volume_master_upload, fn _, _, _, _, "upload-1", parts ->
+        assert parts == [{1, ~s("a")}, {2, ~s("b")}]
+        :ok
+      end)
+
+      assert {:ok, %{upload_id: "upload-1"}} = multipart(use.id, "upload", params, %{"multipart" => true})
+
+      assert {:ok, %{parts: [%{part_number: 1}, %{part_number: 2}]}} =
+               multipart(use.id, "upload_parts", params, %{"parts" => sums([1, 2])})
+
+      parts = [%{"part_number" => 2, "etag" => ~s("b")}, %{"part_number" => 1, "etag" => ~s("a")}]
+      assert {:ok, %{}} = multipart(use.id, "complete", params, %{"parts" => parts})
+      assert {:ok, %{generation: 1}} = multipart(use.id, "publish", params)
+    end
+
+    test "a host that does not ask for parts, or storage that cannot take them, gets one PUT", %{
+      use: use,
+      params: params
+    } do
+      stub(Runners, :volume_master_upload_url, fn _, _, _, _ -> {:ok, "https://1.1.1.1/upload", "checksum"} end)
+      stub(Runners, :track_volume_master_upload, fn _, _, _, _ -> :ok end)
+      # Only the request that asks for parts may start a multipart upload.
+      expect(Runners, :start_volume_master_upload, fn _, _, _, _ -> :unsupported end)
+      assert {:ok, %{upload_url: "https://1.1.1.1/upload"}} = multipart(use.id, "upload", params)
+
+      assert {:ok, %{upload_url: "https://1.1.1.1/upload"}} =
+               multipart(use.id, "upload", params, %{"multipart" => true})
+    end
+
+    test "part links and completion stop once another job advanced the lineage", %{
+      use: use,
+      params: params,
+      job: job
+    } do
+      {:ok, other} = CacheVolumes.allocate_for_job(job, identity(), attrs("other"))
+      assert {:ok, %{action: "keep"}} = publish_report("node", other.id)
+      reject(&Runners.volume_master_part_urls/6)
+      reject(&Runners.complete_volume_master_upload/6)
+
+      assert {:error, :conflict} = multipart(use.id, "upload_parts", params, %{"parts" => sums([1])})
+
+      assert {:error, :conflict} =
+               multipart(use.id, "complete", params, %{"parts" => [%{"part_number" => 1, "etag" => "e"}]})
+    end
+
+    test "malformed part requests are refused", %{use: use, params: params} do
+      reject(&Runners.volume_master_part_urls/6)
+      reject(&Runners.complete_volume_master_upload/6)
+
+      for parts <- [
+            [],
+            sums([0]),
+            sums([10_001]),
+            sums([1, 1]),
+            sums(1..65),
+            [%{"part_number" => 1}],
+            [%{"part_number" => 1, "content_md5" => "not-base64-md5"}],
+            [%{"part_number" => "1", "content_md5" => @md5}],
+            nil
+          ] do
+        assert {:error, :invalid_request} = multipart(use.id, "upload_parts", params, %{"parts" => parts})
+      end
+
+      for parts <- [
+            [],
+            [%{"part_number" => 1}],
+            [%{"part_number" => 1, "etag" => ""}],
+            [%{"part_number" => 1, "etag" => "a"}, %{"part_number" => 1, "etag" => "b"}],
+            nil
+          ] do
+        assert {:error, :invalid_request} = multipart(use.id, "complete", params, %{"parts" => parts})
+      end
+
+      assert {:error, :invalid_request} =
+               multipart(use.id, "upload_parts", Map.delete(params, "upload_id"), %{"parts" => sums([1])})
+    end
+
+    test "storage failures are unavailable, so the host retries them", %{use: use, params: params} do
+      stub(Runners, :start_volume_master_upload, fn _, _, _, _ -> :error end)
+      stub(Runners, :volume_master_part_urls, fn _, _, _, _, _, _ -> :error end)
+      stub(Runners, :complete_volume_master_upload, fn _, _, _, _, _, _ -> :error end)
+
+      assert {:error, :unavailable} = multipart(use.id, "upload", params, %{"multipart" => true})
+      assert {:error, :unavailable} = multipart(use.id, "upload_parts", params, %{"parts" => sums([1])})
+
+      assert {:error, :unavailable} =
+               multipart(use.id, "complete", params, %{"parts" => [%{"part_number" => 1, "etag" => "e"}]})
+    end
+
+    test "the host that started an upload can abort it, even after a conflict", %{
+      use: use,
+      params: params,
+      job: job
+    } do
+      {:ok, other} = CacheVolumes.allocate_for_job(job, identity(), attrs("other"))
+      assert {:ok, %{action: "keep"}} = publish_report("node", other.id)
+      expect(Runners, :abort_volume_master_upload, fn _, _, _, _, "upload-1" -> :ok end)
+
+      assert {:ok, %{}} = multipart(use.id, "abort", params)
+      assert {:error, :not_found} = CacheVolumes.image("other-node", use.id, Map.put(params, "operation", "abort"))
     end
   end
 end

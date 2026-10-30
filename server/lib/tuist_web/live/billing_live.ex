@@ -6,7 +6,6 @@ defmodule TuistWeb.BillingLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
-  alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -34,19 +33,17 @@ defmodule TuistWeb.BillingLive do
     # disagree with each other.
     billing_period = Billing.current_billing_period(selected_account)
 
-    remote_cache_hits_count = remote_cache_hits_count(selected_account, subscription, billing_period)
-
     prepaid_runner_credit = Prepaid.balance(selected_account)
     runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit, billing_period)
 
     usage_pricing = usage_pricing(selected_account, billing_period)
 
-    # Runner time is billed alongside remote cache hits, so the headline
+    # Runner time is billed alongside the usage meters, so the headline
     # figure has to carry both or it understates the bill for anyone
     # using runners.
     estimated_next_payment =
       usage_pricing
-      |> usage_payment(remote_cache_hits_count)
+      |> usage_payment()
       |> Money.add(runner_usage.billed)
       |> format_money()
 
@@ -78,7 +75,6 @@ defmodule TuistWeb.BillingLive do
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
-      |> assign(:remote_cache_hits_count, remote_cache_hits_count)
       |> assign(:usage_pricing, usage_pricing)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
@@ -152,34 +148,11 @@ defmodule TuistWeb.BillingLive do
 
   defp usage_period(_billing_period, now), do: {%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, now}
 
-  # The denormalized counter on the account is the calendar month, which
-  # is both the window an Air free tier really resets on and the one the
-  # cache gate is enforced against, so Air reads it as it always has.
-  # A Pro subscription is invoiced on its own cycle instead, and usage
-  # from before that cycle opened was settled on an invoice already sent:
-  # counting it here prices a charge that is not coming, and contradicts
-  # the charge date printed beside it.
-  #
-  # Read the same way the meter reads it, so the figure shown and the
-  # figure reported to Stripe are one number rather than two that agree
-  # by coincidence.
-  defp remote_cache_hits_count(%{customer_id: customer_id}, %{plan: :pro}, {period_start, period_end})
-       when is_binary(customer_id) do
-    CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end) || 0
-  end
-
-  defp remote_cache_hits_count(account, _subscription, _billing_period),
-    do: account.current_month_remote_cache_hits_count || 0
-
   defp usage_pricing(account, billing_period) do
-    if FeatureFlags.usage_based_pricing_enabled?(account) do
-      UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
-    end
+    UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
   end
 
-  defp usage_payment(nil, remote_cache_hits_count), do: Billing.get_estimated_next_payment_money(remote_cache_hits_count)
-
-  defp usage_payment(%{cache: cache, tests: tests}, _remote_cache_hits_count) do
+  defp usage_payment(%{cache: cache, tests: tests}) do
     Money.add(cache.billed || Money.new(0, :USD), tests.billed || Money.new(0, :USD))
   end
 

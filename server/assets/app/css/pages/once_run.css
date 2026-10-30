@@ -1,4 +1,10 @@
 #once-run {
+  & > [data-part="overview"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
   & [data-part="cache-summary-section"].noora-card__section {
     flex-direction: row;
     gap: var(--noora-spacing-4);
@@ -467,20 +473,6 @@
       flex-wrap: wrap;
 
       & > [data-part="label"] {
-        overflow-wrap: anywhere;
-      }
-    }
-  }
-
-  & [data-part="build-details-section"] [data-part="metadata-grid"] [data-part="metadata-row"] {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
-
-    & > [data-part="metadata"] {
-      min-width: 0;
-
-      & > [data-part="label"],
-      & > [data-part="command-label"] {
         overflow-wrap: anywhere;
       }
     }

@@ -36,8 +36,7 @@ Tuist uses historical test timing data to intelligently balance the load across 
 />
   <.home_card
     title="Rust"
-    details="Understand test-sharding availability for plain Cargo test runs."
+    details="Distribute Cargo test targets across parallel CI workers."
     link="/guides/features/test-sharding/rust"
 />
 </.home_cards>
-

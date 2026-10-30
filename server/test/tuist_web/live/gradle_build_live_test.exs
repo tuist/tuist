@@ -578,6 +578,52 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute has_element?(view, "#requested-tasks")
   end
 
+  @tag :build_environment
+  test "build environment is collapsed below Build Details while custom metadata stays inside", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        tuist_version: "0.13.0-canary.2",
+        custom_values: %{"tuist.cpu.available_processors" => "28", "team" => "mobile"}
+      )
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#gradle-build > #build-environment", "Build environment")
+    assert has_element?(view, "#build-environment-content[hidden]", "Gradle Version")
+    assert has_element?(view, "#build-environment-content[hidden]", "Java Version")
+    assert has_element?(view, "#build-environment-content[hidden]", "Tuist Gradle plugin version")
+    assert has_element?(view, "#build-environment-content", "0.13.0-canary.2")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
+    refute has_element?(view, "[data-part=build-details]", "Java Version")
+    assert has_element?(view, "#build-environment button[aria-expanded=false]")
+    assert has_element?(view, "#build-environment-content[hidden]", "Available logical processors")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+    refute has_element?(view, "#build-environment #custom-metadata-table")
+  end
+
+  @tag :build_environment
+  test "legacy toolchain versions show the environment without new observations", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id = GradleFixtures.build_fixture(project_id: project.id, custom_values: %{"team" => "mobile"})
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#build-environment-content[hidden]", "8.5")
+    assert has_element?(view, "#build-environment-content[hidden]", "17.0.1")
+    refute has_element?(view, "#build-environment-content", "Tuist Gradle plugin version")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+  end
+
   test "build details distinguish absent, zero and recorded cache savings", %{
     conn: conn,
     project: project,

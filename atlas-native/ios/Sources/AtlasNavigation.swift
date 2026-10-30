@@ -48,7 +48,7 @@ struct AtlasDestination: Equatable, Hashable {
         components.fragment = nil
         guard let server = components.url, Self.origin(server.absoluteString) != nil else { return nil }
         let pages = AtlasCore.destinationPaths()
-        if let screen = pages.first(where: { $0.value == path })?.key {
+        if let screen = pages.first(where: { $0.value == path && path != "/" })?.key {
             self.init(screen: screen, server: server)
             return
         }
@@ -111,7 +111,7 @@ struct AtlasDestination: Equatable, Hashable {
 
 @MainActor
 final class AtlasNavigation: ObservableObject {
-    @Published var selection = "tasks"
+    @Published var selection = "orbit"
     @Published private(set) var destination: AtlasDestination?
     @Published private(set) var revision = UUID()
     @Published private(set) var destinations: [String: AtlasDestination] = [:]
@@ -150,14 +150,16 @@ final class AtlasNavigation: ObservableObject {
         }
         message = nil
         destination = pending
-        selection = ["tasks", "accounts", "invoices", "profile"].contains(pending.screen) ? pending.screen : "browse"
+        selection = ["orbit", "accounts", "invoices", "profile"].contains(pending.screen) ? pending.screen : "browse"
         destinations[selection] = pending
         revision = UUID()
         revisions[selection] = revision
     }
 
     func block(_ id: UUID, active: Bool, tab: String? = nil) {
-        if active { blockers[id] = tab ?? selection } else { blockers.removeValue(forKey: id) }
+        let value = active ? (tab ?? selection) : nil
+        guard blockers[id] != value else { return }
+        blockers[id] = value
     }
 
     func reset() {
@@ -166,7 +168,7 @@ final class AtlasNavigation: ObservableObject {
         destinations = [:]
         revisions = [:]
         blockers = [:]
-        selection = "tasks"
+        selection = "orbit"
         message = nil
         revision = UUID()
     }
@@ -224,5 +226,16 @@ extension View {
     // A protected view dismissed while its tab is hidden must first set active to false.
     func protectsAtlasNavigation(_ active: Bool = true) -> some View {
         modifier(AtlasNavigationProtection(active: active))
+    }
+}
+
+extension AtlasAuthentication {
+    func destination(_ url: URL) -> URL {
+        guard let server, var destination = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let origin = URLComponents(url: server, resolvingAgainstBaseURL: false) else { return url }
+        destination.scheme = origin.scheme
+        destination.host = origin.host
+        destination.port = origin.port
+        return destination.url ?? url
     }
 }

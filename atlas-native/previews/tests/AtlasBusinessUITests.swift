@@ -125,6 +125,10 @@ final class AtlasBusinessUITests: XCTestCase {
         app.buttons["Reset filters"].tap()
         let all = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "31 items")).firstMatch
         XCTAssertTrue(all.waitForExistence(timeout: 5))
+        // Native frames can differ by floating-point rounding at the same boundary.
+        XCTAssertGreaterThanOrEqual(all.frame.minY, app.navigationBars.firstMatch.frame.maxY - 0.001)
+        XCTAssertTrue(app.staticTexts["Tuist"].isHittable)
+        capture(app, "ios-accounts-filters-reset")
     }
 
     func testReminderGroupsAndOverdueFilterInLargeDarkText() throws {
@@ -157,6 +161,11 @@ final class AtlasBusinessUITests: XCTestCase {
         app.launchArguments = ["--workspace"] + arguments
         app.launch()
         XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.tabBars.buttons["Browse"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Browse"].tap()
+        let tasks = app.descendants(matching: .any)["workspace-section-tasks"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 5))
+        tasks.tap()
         XCTAssertTrue(app.buttons["business-create"].waitForExistence(timeout: 10))
         return app
     }

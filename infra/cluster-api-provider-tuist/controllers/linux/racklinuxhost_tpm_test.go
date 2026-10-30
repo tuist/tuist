@@ -147,3 +147,55 @@ var harnessEK = func() []byte {
 	}
 	return ek
 }()
+
+// A host declared with the check code from its vendor's acceptance report
+// takes no hardware and no TPM from a machine whose key lacks it, and takes
+// both from the one whose key has it.
+func TestRackLinuxHostPinsOnlyTheTPMWithItsCheckCode(t *testing.T) {
+	ek, other := testEK(t), testEK(t)
+	host := svcHost()
+	host.Spec.BootMAC = ""
+	host.Spec.TPMCheckCode = strings.ToUpper(strings.ReplaceAll(rackseed.CheckCode(ek), "-", ""))
+	announced := announcedSvc()
+	announced.Status.EK = base64.StdEncoding.EncodeToString(other)
+	h := newInstallHarness(t, host, announced)
+
+	got := h.reconcile(t, svcUUID)
+	if got.Status.TPM != nil || got.Status.Hardware != nil {
+		t.Fatalf("pinned another machine: tpm %+v hardware %+v", got.Status.TPM, got.Status.Hardware)
+	}
+	if c := conditions.Get(got, HardwarePinnedCondition); c == nil || c.Reason != "TPMCheckCodeMismatch" {
+		t.Fatalf("HardwarePinned %+v", c)
+	}
+
+	cand := &infrav1.RackLinuxCandidate{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: svcUUID}, cand); err != nil {
+		t.Fatal(err)
+	}
+	cand.Status.EK = base64.StdEncoding.EncodeToString(ek)
+	if err := h.c.Update(context.Background(), cand); err != nil {
+		t.Fatal(err)
+	}
+	got = h.reconcile(t, svcUUID)
+	if got.Status.TPM == nil || got.Status.TPM.Fingerprint != rackseed.Fingerprint(ek) || got.Status.Hardware == nil {
+		t.Fatalf("did not pin the machine with the check code: tpm %+v hardware %+v", got.Status.TPM, got.Status.Hardware)
+	}
+}
+
+// A running host whose key lacks the declared check code is not pinned over
+// SSH either.
+func TestRackLinuxHostDoesNotReadInATPMWithoutItsCheckCode(t *testing.T) {
+	host := svcHost()
+	host.Spec.TPMCheckCode = rackseed.CheckCode(testEK(t))
+	h := newInstallHarness(t, host)
+	h.api.devices = []tailnet.Device{svcDevice("dev-1", "2026-09-01T00:00:00Z", true)}
+	h.r.ReadHostEK = func(context.Context, *infrav1.RackLinuxHost) ([]byte, error) { return testEK(t), nil }
+	got := h.reconcile(t, svcUUID)
+	got = h.reconcile(t, svcUUID)
+	if got.Status.TPM != nil {
+		t.Fatalf("pinned %+v", got.Status.TPM)
+	}
+	if c := conditions.Get(got, TPMPinnedCondition); c == nil || c.Reason != "TPMCheckCodeMismatch" {
+		t.Fatalf("TPMPinned %+v", c)
+	}
+}

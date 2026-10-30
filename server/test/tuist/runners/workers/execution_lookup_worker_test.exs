@@ -65,7 +65,9 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
     )
   end
 
-  defp perform(%RunnerSession{id: id}), do: perform_job(ExecutionLookupWorker, %{session_id: id})
+  defp perform(%RunnerSession{id: id}, opts \\ []), do: perform_job(ExecutionLookupWorker, %{session_id: id}, opts)
+
+  defp seconds_ago(seconds), do: DateTime.add(DateTime.utc_now(), -seconds, :second)
 
   test "binds the minted job GitHub reports running on the session's runner", %{account: account} do
     minted = workflow_job(account, %{})
@@ -104,7 +106,57 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
     assert Repo.reload!(session).executed_workflow_job_id == executed.workflow_job_id
   end
 
-  test "leaves the session unbound when no run has a job running on its runner", %{account: account} do
+  test "binds a job GitHub placed on the runner while it still reports the job queued", %{account: account} do
+    Logger.put_module_level(ExecutionLookupWorker, :info)
+    on_exit(fn -> Logger.delete_module_level(ExecutionLookupWorker) end)
+    minted = workflow_job(account, %{})
+    executed = workflow_job(account, %{repository: "org/other", status: "queued"})
+    session = session(account, minted)
+
+    expect(Client, :list_workflow_run_jobs, 2, fn
+      _installation, "org/repo", _run_id ->
+        {:ok, [%{id: minted.workflow_job_id, status: "queued", runner_name: nil}]}
+
+      _installation, "org/other", _run_id ->
+        {:ok, [%{id: executed.workflow_job_id, status: "queued", runner_name: "pod-runner"}]}
+    end)
+
+    log = capture_log([level: :info], fn -> assert :ok = perform(session) end)
+
+    assert Repo.reload!(session).executed_workflow_job_id == executed.workflow_job_id
+    assert log =~ "recorded execution from GitHub API"
+    assert log =~ "GitHub status queued"
+  end
+
+  test "asks GitHub again shortly when no run names the runner yet", %{account: account} do
+    Logger.put_module_level(ExecutionLookupWorker, :info)
+    on_exit(fn -> Logger.delete_module_level(ExecutionLookupWorker) end)
+    minted = workflow_job(account, %{})
+    session = session(account, minted)
+
+    expect(Client, :list_workflow_run_jobs, fn _installation, _repository, _run_id ->
+      {:ok, [%{id: minted.workflow_job_id, status: "queued", runner_name: nil}]}
+    end)
+
+    log = capture_log([level: :info], fn -> assert {:snooze, 2} = perform(session, inserted_at: seconds_ago(18)) end)
+
+    refute log =~ "execution lookup found no job"
+    assert is_nil(Repo.reload!(session).executed_workflow_job_id)
+  end
+
+  test "binds on a retry once GitHub names the runner", %{account: account} do
+    minted = workflow_job(account, %{})
+    session = session(account, minted)
+
+    expect(Client, :list_workflow_run_jobs, fn _installation, _repository, _run_id ->
+      {:ok, [%{id: minted.workflow_job_id, status: "in_progress", runner_name: "pod-runner"}]}
+    end)
+
+    assert :ok = perform(session, inserted_at: seconds_ago(6))
+    assert Repo.reload!(session).executed_workflow_job_id == minted.workflow_job_id
+  end
+
+  test "stops asking once the host agent has stopped waiting", %{account: account} do
     Logger.put_module_level(ExecutionLookupWorker, :info)
     on_exit(fn -> Logger.delete_module_level(ExecutionLookupWorker) end)
     minted = workflow_job(account, %{})
@@ -114,10 +166,19 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
       {:ok, [%{id: minted.workflow_job_id, status: "completed", runner_name: "pod-runner"}]}
     end)
 
-    log = capture_log([level: :info], fn -> assert :ok = perform(session) end)
+    log = capture_log([level: :info], fn -> assert :ok = perform(session, inserted_at: seconds_ago(20)) end)
 
     assert log =~ "execution lookup found no job GitHub reports running on this runner"
     assert is_nil(Repo.reload!(session).executed_workflow_job_id)
+  end
+
+  test "stops retrying once the session is bound by an in_progress delivery", %{account: account} do
+    reject(&Client.list_workflow_run_jobs/3)
+    minted = workflow_job(account, %{})
+
+    session = session(account, minted, %{executed_workflow_job_id: minted.workflow_job_id})
+
+    assert :ok = perform(session, inserted_at: seconds_ago(4))
   end
 
   test "never reads another account's runs in the same fleet", %{account: account} do
@@ -130,7 +191,7 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
       {:ok, [%{id: minted.workflow_job_id, status: "queued", runner_name: nil}]}
     end)
 
-    assert :ok = perform(session)
+    assert {:snooze, 2} = perform(session)
     assert is_nil(Repo.reload!(session).executed_workflow_job_id)
   end
 

@@ -1,5 +1,5 @@
 [tools]
-"github:tuist/once" = "0.68.2"
+"github:tuist/once" = "0.71.2"
 rust = "1.96.0"
 kotlin = "2.4.10"
 "github:ktlint/ktlint" = { version = "1.7.1", asset_pattern = "ktlint-*.zip" }
@@ -27,8 +27,16 @@ depends = ["prepare:rust"]
 description = "Test CLI commands against the shared Rust catalog"
 run = "once test AtlasCLITests"
 
+[tasks."prepare:android"]
+description = "Verify and materialize the locked official Firebase Android SDK"
+run = ["python3 android/push/dependencies.py prepare", "python3 android/push/manifest.py"]
+
+[tasks."lock:android"]
+description = "Update the Firebase Maven dependency lock (review all artifact and manifest changes)"
+run = "python3 android/push/dependencies.py lock"
+
 [tasks."build:android"]
-depends = ["prepare:rust"]
+depends = ["prepare:rust", "prepare:android"]
 description = "Build the arm64 Android preview APK"
 run = '''
 set -eu
@@ -40,12 +48,23 @@ mkdir -p .once/android-tools
 ln -sf "$ndk_tools/aarch64-linux-android26-clang" .once/android-tools/aarch64-linux-android-clang
 export PATH="$PWD/.once/android-tools:$ndk_tools:$PATH"
 once build AtlasAndroid
+python3 android/push/resources.py verify "$ANDROID_HOME/build-tools/35.0.0/aapt2" .once/out/AtlasFirebase/R.txt .once/out/AtlasAndroid/AtlasAndroid.apk
 '''
 
 [tasks."build:ios"]
 depends = ["prepare:rust"]
 description = "Build the arm64 iOS simulator app"
 run = "once build AtlasIOS"
+
+[tasks."build:macos"]
+depends = ["prepare:rust"]
+description = "Build the native macOS app from the shared SwiftUI sources"
+run = ["once build AtlasMacOS", "rm -rf .once/macos/Atlas.app && bash macos/distribution/prepare.sh .once/out/AtlasMacOS/Atlas.app .once/macos/Atlas.app"]
+
+[tasks."test:macos"]
+depends = ["prepare:rust"]
+description = "Test the shared Swift adapters on macOS"
+run = "once test AtlasMacOSTests"
 
 [tasks."build:ios-device"]
 depends = ["prepare:rust"]

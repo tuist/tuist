@@ -35,7 +35,7 @@ struct AtlasCatalog {
 
     var workspaceSections: [AtlasSection] {
         sections.filter { section in
-            ["tasks", "accounts", "invoices", "time-off", "people"].contains(section.screen)
+            ["tasks", "accounts", "invoices", "time-off", "people", "automation"].contains(section.screen)
                 && groups.contains { $0.id == section.group && $0.placement == "workspace" }
         }
     }

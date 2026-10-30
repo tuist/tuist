@@ -8,6 +8,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URI
@@ -93,7 +94,7 @@ class TuistTestQuarantineService(
         val result = try {
             fetchQuarantinedTests()
         } catch (e: Exception) {
-            logger.warn("Tuist: Failed to fetch quarantined tests: ${e.message}")
+            logger.warn("Tuist: Failed to fetch quarantined tests, so none are muted or skipped in this build: ${e.message}")
             QuarantinedTests.EMPTY
         }
 
@@ -107,33 +108,34 @@ class TuistTestQuarantineService(
             val url = URI(baseUrl.trimEnd('/')).resolve(
                 "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/test-cases?quarantined=true&page_size=500"
             )
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "GET"
-                connection.setRequestProperty("Accept", "application/json")
+            httpClient.retrying("Fetching quarantined tests", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "GET"
+                    connection.setRequestProperty("Accept", "application/json")
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_OK -> {
-                        val response = BufferedReader(
-                            InputStreamReader(connection.inputStream, Charsets.UTF_8)
-                        ).use { reader ->
-                            Gson().fromJson(reader, QuarantinedTestCasesResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_OK -> {
+                            val response = BufferedReader(
+                                InputStreamReader(connection.inputStream, Charsets.UTF_8)
+                            ).use { reader ->
+                                Gson().fromJson(reader, QuarantinedTestCasesResponse::class.java)
+                            }
+                            splitByMode(response.testCases)
                         }
-                        splitByMode(response.testCases)
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            throw TuistRetry.statusFailure(connection, status) {
+                                IOException("the quarantine request failed with HTTP $status: ${errorBody ?: "(no response body)"}")
+                            }
+                        }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn(
-                            "Tuist: Quarantine request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}"
-                        )
-                        QuarantinedTests.EMPTY
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
     }

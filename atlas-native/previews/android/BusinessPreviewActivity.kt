@@ -12,6 +12,7 @@ import dev.tuist.atlas.AtlasAIAccountsModel
 import dev.tuist.atlas.AtlasAIAccountsScreen
 import dev.tuist.atlas.AtlasBusinessModel
 import dev.tuist.atlas.AtlasBusinessScreen
+import dev.tuist.atlas.AtlasCodingRepositories
 import dev.tuist.atlas.AtlasCore
 import dev.tuist.atlas.AtlasDestination
 import dev.tuist.atlas.AtlasDestinationRouter
@@ -39,6 +40,8 @@ class BusinessPreviewActivity : Activity() {
         var navigation: AtlasWorkspaceModel? = null
         var profile: AtlasProfileModel? = null
         var accounts: AtlasAIAccountsModel? = null
+        private val environments = AtlasEnvironmentFixtures()
+        val coding = AtlasCodingRepositories { action, done -> done(runCatching { environments.execute(action) }) }
         val router = AtlasDestinationRouter()
         private var sequence = 1L
         private var waiting: ((Result<JSONObject>) -> Unit)? = null
@@ -127,7 +130,9 @@ class BusinessPreviewActivity : Activity() {
         super.onCreate(savedInstanceState)
         checkBusinessModels()
         checkPresenceModel()
+        checkOrbitModel()
         checkDestinations()
+        checkCodingRepositorySettings()
         val retained = lastNonConfigurationInstance as? State
         state = retained ?: State(
             intent.getBooleanExtra("fail-save", false),
@@ -255,6 +260,7 @@ class BusinessPreviewActivity : Activity() {
                     val screen = AtlasAIAccountsScreen(this, "https://atlas.example.org", accounts, {}, { back() }, signOut = { finish() })
                     profile = screen
                     screen.profile(identity, ::updateNavigation)
+                    screen.coding(state.coding)
                     screen.view
                 }
                 else -> {

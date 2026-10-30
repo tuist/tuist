@@ -6,6 +6,7 @@ import dev.tuist.gradle.api.model.ShardPlan
 import dev.tuist.gradle.api.model.ShardPlanShardsInner
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -38,7 +39,8 @@ class TuistTestShardingTest {
             baseUrl = baseUrl,
             token = "test-token",
             accountHandle = "test-account",
-            projectHandle = "test-project"
+            projectHandle = "test-project",
+            httpClients = TuistHttpClients(retryPolicy = RetryPolicy(sleeper = {}))
         )
     }
 
@@ -163,6 +165,46 @@ class TuistTestShardingTest {
         assertThrows<org.gradle.api.GradleException> {
             service.getShard("nonexistent", 0)
         }
+    }
+
+    @Test
+    fun `createShardPlan retries a 503 and a dropped connection`() {
+        val plan = Gson().toJson(shardPlan())
+        mockWebServer.enqueue(MockResponse().setResponseCode(503))
+        repeat(2) { mockWebServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(plan))
+
+        val result = createService().createShardPlan(
+            reference = "test-ref",
+            modules = listOf(":app"),
+            gitBranch = null,
+            shardMax = 2,
+            shardMin = null,
+            shardMaxDuration = null
+        )
+
+        assertEquals(2, result.shardCount)
+        assertEquals(4, mockWebServer.requestCount)
+    }
+
+    @Test
+    fun `getShard retries a dropped connection and a 503`() {
+        val shard = Gson().toJson(
+            Shard(
+                modules = listOf("AppModule"),
+                shardPlanId = java.util.UUID.randomUUID(),
+                suites = mapOf("AppModule" to listOf("com.example.LoginTest")),
+                downloadUrls = emptyList()
+            )
+        )
+        repeat(2) { mockWebServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+        mockWebServer.enqueue(MockResponse().setResponseCode(503))
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(shard))
+
+        val result = createService().getShard("plan-1", 0)
+
+        assertEquals(listOf("AppModule"), result.modules)
+        assertEquals(4, mockWebServer.requestCount)
     }
 
     // MARK: - deriveReference

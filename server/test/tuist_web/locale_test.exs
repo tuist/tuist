@@ -49,6 +49,23 @@ defmodule TuistWeb.LocaleTest do
     test "skips malformed tokens and keeps searching" do
       assert Locale.locale_from_accept_language("-,_,es-ES;q=0.7") == "es"
     end
+
+    test "honors quality weights and excludes unacceptable or invalid preferences" do
+      for {header, expected} <- [
+            {"ja;q=0.1,en;q=0.9", "en"},
+            {"ja;q=0,en;q=1", "en"},
+            {"ja;q=0", nil},
+            {"ja;q=1.,en;q=0.5", "ja"},
+            {"ja;q=0.,es;q=0.5", "es"},
+            {"ja;q=2,es;q=0.5", "es"},
+            {"ja;q=bad,es;q=0.5", "es"},
+            {"ja;q=-0.1,es;q=0.5", "es"},
+            {"zh-TW;q=0.9,zh-CN;q=1.0", "zh_Hans"},
+            {"ja;q=0.5,es;q=0.5", "ja"}
+          ] do
+        assert Locale.locale_from_accept_language(header) == expected, header
+      end
+    end
   end
 
   describe "on_mount :assign_locale" do

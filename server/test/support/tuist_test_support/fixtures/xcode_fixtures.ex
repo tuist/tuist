@@ -29,7 +29,9 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
         id: id,
         name: name,
         command_event_id: command_event_id,
+        project_id: Keyword.get(opts, :project_id, 0),
         binary_build_duration: binary_build_duration,
+        modules_count: Keyword.get(opts, :modules_count),
         inserted_at: NaiveDateTime.truncate(inserted_at, :second)
       }
 

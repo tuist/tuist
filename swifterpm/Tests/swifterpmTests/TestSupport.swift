@@ -62,6 +62,12 @@ func fixtureURL(_ components: [String]) async throws -> URL {
             .appendingPathComponents(relative),
     ]
 
+    if let root = env["TUIST_CONFIG_SRCROOT"] {
+        candidates.append(
+            URL(fileURLWithPath: root).appendingPathComponent("swifterpm")
+                .appendingPathComponents(relative))
+    }
+
     if let testSrcDir = env["TEST_SRCDIR"] {
         let srcDir = URL(fileURLWithPath: testSrcDir)
         if let workspace = env["TEST_WORKSPACE"] {

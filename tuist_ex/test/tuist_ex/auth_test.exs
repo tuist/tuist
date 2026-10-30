@@ -14,8 +14,12 @@ defmodule TuistEx.AuthTest do
       Path.join(System.tmp_dir!(), "tuist-ex-auth-#{System.unique_integer([:positive])}")
 
     on_exit(fn -> File.rm_rf(directory) end)
-    :persistent_term.erase({Auth, :provider_token, "https://tuist.example"})
-    on_exit(fn -> :persistent_term.erase({Auth, :provider_token, "https://tuist.example"}) end)
+
+    for account <- [nil, "first-account", "second-account"] do
+      key = {Auth, :provider_token, "https://tuist.example", account}
+      :persistent_term.erase(key)
+      on_exit(fn -> :persistent_term.erase(key) end)
+    end
 
     environment = fn
       "XDG_CONFIG_HOME" -> Path.join(directory, "config")
@@ -152,6 +156,222 @@ defmodule TuistEx.AuthTest do
 
     assert :ok = Auth.login(url: "https://tuist.example", environment: environment)
     assert credentials(context.directory) == %{"accessToken" => "access"}
+  end
+
+  test "prefers a supplied workload token over provider detection", context do
+    environment = fn
+      "TUIST_OIDC_TOKEN" -> "  fly-identity-token\n"
+      "GITHUB_ACTIONS" -> "true"
+      key -> context.environment.(key)
+    end
+
+    expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+      assert body == %{token: "fly-identity-token"}
+      {:ok, 200, %{"access_token" => "access"}}
+    end)
+
+    assert :ok = Auth.login(url: "https://tuist.example", environment: environment)
+    assert credentials(context.directory) == %{"accessToken" => "access"}
+  end
+
+  test "logs in with a supplied workload token without CI provider variables", context do
+    environment = fn
+      "TUIST_OIDC_TOKEN" -> "fly-identity-token"
+      key -> context.environment.(key)
+    end
+
+    expect(HTTP, :request, fn :post,
+                              "https://tuist.example/api/auth/oidc/token",
+                              %{token: "fly-identity-token"} ->
+      {:ok, 200, %{"access_token" => "access"}}
+    end)
+
+    assert :ok = Auth.login(url: "https://tuist.example", environment: environment)
+    assert credentials(context.directory) == %{"accessToken" => "access"}
+  end
+
+  test "supplied workload login forwards the target Tuist account", context do
+    environment = fn
+      "TUIST_OIDC_TOKEN" -> "fly-identity-token"
+      "TUIST_OIDC_ACCOUNT" -> " first-account \n"
+      key -> context.environment.(key)
+    end
+
+    expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+      assert body == %{token: "fly-identity-token", account_handle: "first-account"}
+      {:ok, 200, %{"access_token" => "access"}}
+    end)
+
+    assert :ok = Auth.login(url: "https://tuist.example", environment: environment)
+  end
+
+  test "blank account selectors do not break existing CI authentication", context do
+    for account <- ["", " \n "] do
+      environment = fn
+        "TUIST_OIDC_ACCOUNT" -> account
+        "CIRCLECI" -> "true"
+        "CIRCLE_OIDC_TOKEN_V2" -> "identity"
+        key -> context.environment.(key)
+      end
+
+      expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+        assert body == %{token: "identity"}
+        {:ok, 200, %{"access_token" => "access"}}
+      end)
+
+      assert :ok = Auth.login(url: "https://tuist.example", environment: environment)
+    end
+  end
+
+  test "a warm workload session does not hide an explicitly blank identity", context do
+    access = jwt(System.os_time(:second) + 3600)
+
+    expect(HTTP, :request, fn :post, _url, %{token: "first-identity"} ->
+      {:ok, 200, %{"access_token" => access}}
+    end)
+
+    assert {:ok, ^access} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "first-identity"}))
+
+    for blank <- ["", " \n\t"] do
+      assert {:error, message} =
+               Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => blank}))
+
+      assert message =~ "TUIST_OIDC_TOKEN is empty"
+    end
+  end
+
+  test "changing a supplied identity replaces the single cached session", context do
+    expiration = System.os_time(:second) + 3600
+    tokens = %{"first-identity" => jwt(expiration), "second-identity" => jwt(expiration + 1)}
+
+    expect(HTTP, :request, 3, fn :post, _url, %{token: identity} ->
+      {:ok, 200, %{"access_token" => Map.fetch!(tokens, identity)}}
+    end)
+
+    for identity <- ["first-identity", "second-identity", " second-identity\n", "first-identity"] do
+      access = tokens[String.trim(identity)]
+
+      assert {:ok, ^access} =
+               Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => identity}))
+
+      assert {{:supplied, fingerprint}, ^access} =
+               :persistent_term.get({Auth, :provider_token, "https://tuist.example", nil})
+
+      assert fingerprint == :crypto.hash(:sha256, String.trim(identity))
+    end
+  end
+
+  test "a rejected identity cannot reuse an earlier workload session", context do
+    access = jwt(System.os_time(:second) + 3600)
+
+    expect(HTTP, :request, 2, fn :post, _url, %{token: identity} ->
+      if identity == "valid-identity",
+        do: {:ok, 200, %{"access_token" => access}},
+        else: {:ok, 401, %{"message" => "Rejected identity"}}
+    end)
+
+    assert {:ok, ^access} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "valid-identity"}))
+
+    assert {:error, message} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "rejected-identity"}))
+
+    assert message =~ "Rejected identity"
+
+    assert {:ok, ^access} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "valid-identity"}))
+  end
+
+  test "switching identity sources exchanges again but reuses an unchanged GitHub session",
+       context do
+    expiration = System.os_time(:second) + 3600
+    tokens = %{"workload-identity" => jwt(expiration), "github-identity" => jwt(expiration + 1)}
+
+    expect(HTTP, :request, fn :get,
+                              "https://github.example/token?audience=tuist",
+                              nil,
+                              [{"authorization", "Bearer github-request"}] ->
+      {:ok, 200, %{"value" => "github-identity"}}
+    end)
+
+    expect(HTTP, :request, 3, fn :post, _url, %{token: identity} ->
+      {:ok, 200, %{"access_token" => Map.fetch!(tokens, identity)}}
+    end)
+
+    for source <- [:supplied, :github, :github, :supplied, :supplied] do
+      values = %{
+        "TUIST_OIDC_TOKEN" => if(source == :supplied, do: "workload-identity"),
+        "GITHUB_ACTIONS" => "true",
+        "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://github.example/token",
+        "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "github-request"
+      }
+
+      access = tokens[if(source == :supplied, do: "workload-identity", else: "github-identity")]
+      assert {:ok, ^access} = Auth.token(automatic_options(context, values))
+    end
+  end
+
+  test "automatic workload exchanges and caches are scoped to the selected account", context do
+    expiration = System.os_time(:second) + 3600
+    tokens = %{"first-account" => jwt(expiration), "second-account" => jwt(expiration + 1)}
+
+    expect(HTTP, :request, 2, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+      assert body.token == "fly-identity-token"
+      {:ok, 200, %{"access_token" => Map.fetch!(tokens, body.account_handle)}}
+    end)
+
+    for account <- ["first-account", "second-account", "first-account"] do
+      environment = fn
+        "TUIST_OIDC_TOKEN" -> "fly-identity-token"
+        "TUIST_OIDC_ACCOUNT" -> account
+        key -> context.environment.(key)
+      end
+
+      expected = Map.fetch!(tokens, account)
+      assert {:ok, ^expected} = Auth.token(url: "https://tuist.example", environment: environment)
+    end
+  end
+
+  test "automatic token exchange accepts workload identities without persisting them", context do
+    environment = fn
+      "TUIST_OIDC_TOKEN" -> "fly-identity-token"
+      key -> context.environment.(key)
+    end
+
+    expect(HTTP, :request, fn :post,
+                              "https://tuist.example/api/auth/oidc/token",
+                              %{token: "fly-identity-token"} ->
+      {:ok, 200, %{"access_token" => "access"}}
+    end)
+
+    assert {:ok, "access"} = Auth.token(url: "https://tuist.example", environment: environment)
+
+    refute File.exists?(
+             Path.join(context.directory, "config/tuist/credentials/tuist.example.json")
+           )
+  end
+
+  test "rejects empty supplied tokens without falling back to browser or provider authentication",
+       context do
+    reject(HTTP, :request, 3)
+
+    for value <- ["", " \n\t"] do
+      environment = fn
+        "TUIST_OIDC_TOKEN" -> value
+        "CIRCLECI" -> "true"
+        key -> context.environment.(key)
+      end
+
+      assert_raise Mix.Error, ~r/TUIST_OIDC_TOKEN is empty/, fn ->
+        Auth.login(url: "https://tuist.example", environment: environment)
+      end
+
+      assert {:error, message} =
+               Auth.token(url: "https://tuist.example", environment: environment)
+
+      assert message =~ "TUIST_OIDC_TOKEN is empty"
+    end
   end
 
   test "requests a GitHub Actions identity token for the Tuist audience", context do
@@ -412,6 +632,13 @@ defmodule TuistEx.AuthTest do
       "ACTIONS_ID_TOKEN_REQUEST_TOKEN" -> "request-token"
       key -> context.environment.(key)
     end
+  end
+
+  defp automatic_options(context, values) do
+    [
+      url: "https://tuist.example",
+      environment: fn key -> Map.get(values, key, context.environment.(key)) end
+    ]
   end
 
   defp jwt(expiration) do

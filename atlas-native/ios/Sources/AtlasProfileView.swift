@@ -5,9 +5,18 @@ struct AtlasSettingsView: View {
     @ObservedObject var accounts: AtlasAIAccounts
     var signOut: () -> Void
     var profileRequest: (([String: Any]) async throws -> Data)?
-    @State private var profile: AtlasNativeProfile?
-    @State private var profileError: String?
+    @ObservedObject var profileModel: AtlasProfile
+    var notifications: AtlasPushNotifications?
+    #if os(iOS)
+    var sharedItems: AtlasSharedItems?
+    #endif
+    var connections: AtlasConnections?
+    @State private var editor: AtlasProfileEditorModel?
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
+    @Environment(\.atlasEnvironmentRequest) private var environmentRequest
+
+    private var profile: AtlasNativeProfile? { profileModel.profile }
 
     var body: some View {
         Form {
@@ -19,8 +28,26 @@ struct AtlasSettingsView: View {
                         Text(profile?.user.name ?? "Your profile").font(.headline)
                     }.frame(maxWidth: .infinity).padding(.vertical, 12)
                 }.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                if let profile {
-                    Section { LabeledContent("Email", value: profile.user.email).textSelection(.enabled) }
+                Section {
+                    LabeledContent("Email", value: profile?.user.email ?? (profileModel.errorMessage == nil ? "Loading…" : "Unavailable"))
+                        .textSelection(.enabled)
+                }
+                Section {
+                    if let description = profile?.user.description, !description.isEmpty {
+                        Text(description).textSelection(.enabled)
+                    }
+                    Button((profile?.user.description ?? "").isEmpty ? "Tell Pip about yourself" : "Edit description") {
+                        if let profile, let profileRequest {
+                            profileModel.beginEditing()
+                            editor = AtlasProfileEditorModel(description: profile.user.description, request: profileRequest)
+                        }
+                    }
+                    .disabled(profile == nil || profile?.cached == true)
+                    .accessibilityIdentifier("profile-edit-description")
+                } header: { Text("About you") } footer: {
+                    Text("Share your company role, personality and communication preferences. " +
+                         "Pip uses this only in your private conversations, not shared threads. " +
+                         "It is sent to the configured AI provider with those conversations.")
                 }
             }
             Section("Account") {
@@ -43,7 +70,7 @@ struct AtlasSettingsView: View {
                     LabeledContent("Server version", value: profile?.serverVersion ?? "Unavailable")
                     LabeledContent("App version", value: appVersion)
                 }
-                if let profileError {
+                if let profileError = profileModel.errorMessage {
                     Text(profileError).font(.footnote).foregroundStyle(.red)
                     Button("Retry profile") { Task { await loadProfile() } }
                 }
@@ -56,13 +83,44 @@ struct AtlasSettingsView: View {
                 }
                 .accessibilityIdentifier("profile-appearance")
             }
+            #if os(iOS)
+            if let sharedItems {
+                Section {
+                    Button { sharedItems.reload(); sharedItems.presented = true } label: {
+                        Label("Shared items", systemImage: "square.and.arrow.down")
+                    }.accessibilityIdentifier("profile-shared-items")
+                } footer: { Text("Review items shared from other apps before adding them to Moodboard.") }
+            }
+            #endif
+            if let notifications, profile?.pushNotifications?.supportsCurrentPlatform == true {
+                AtlasPushSettingsView(notifications: notifications)
+            }
+            if let connections {
+                Section {
+                    NavigationLink {
+                        AtlasConnectionsView(model: connections)
+                    } label: {
+                        Label("Connections", systemImage: "link")
+                    }
+                    .accessibilityIdentifier("profile-connections")
+                }
+            }
+            if let environmentRequest {
+                Section {
+                    NavigationLink {
+                        AtlasCodingSettingsView(request: environmentRequest)
+                    } label: {
+                        Label("Coding", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }.accessibilityIdentifier("profile-coding")
+                }
+            }
             Section {
                 accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }
                 accountLink(.chatgpt) { AtlasChatGPTAccountView(accounts: accounts) }
             } header: {
                 Text("AI accounts")
             } footer: {
-                Text("These accounts will power sessions you start. Sessions aren’t available yet.")
+                Text("These accounts power conversations you start with Pip.")
             }
             if let message = accounts.errorMessage {
                 Section {
@@ -77,27 +135,40 @@ struct AtlasSettingsView: View {
                 .tint(.red)
             }
         }
+        .defaultScrollAnchor(.top)
         .navigationTitle(profileRequest == nil ? "Settings" : "Profile")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "profile") } }
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.large)
+        #else
+        .formStyle(.grouped)
+        #endif
+        .toolbar {
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: "profile") }
+        }
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show(resource: "profile") }
-        .task { await accounts.load(); await loadProfile() }
-        .refreshable { await accounts.load(); await loadProfile() }
+        .task { await load() }
+        .refreshable { await load() }
+        .sheet(item: $editor) { editor in
+            AtlasProfileEditor(model: editor) { profileModel.accept($0) }
+        }
+        .protectsAtlasNavigation(editor != nil)
     }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
+    private func load() async {
+        async let metadata: Void = accounts.load()
+        await loadProfile()
+        await metadata
+    }
+
     private func loadProfile() async {
-        guard let profileRequest else { return }
-        do {
-            let data = try await profileRequest(["resource": "profile", "action": "list"])
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            profile = try decoder.decode(AtlasNativeProfile.self, from: data)
-            profileError = nil
-        } catch is CancellationError {} catch { profileError = error.localizedDescription }
+        guard let profileRequest, editor == nil else { return }
+        await profileModel.load(request: profileRequest, cachedRead: cachedRead)
     }
 
     private func accountLink<Destination: View>(
@@ -133,11 +204,77 @@ struct AtlasSettingsView: View {
     }
 }
 
-private struct AtlasNativeProfile: Decodable {
-    struct User: Decodable {
-        let name: String
-        let email: String
+private struct AtlasProfileEditor: View {
+    @ObservedObject var model: AtlasProfileEditorModel
+    let saved: (AtlasNativeProfile) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var discarding = false
+    @FocusState private var editingDescription: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let error = model.errorMessage { Section { Text(error).foregroundStyle(.red) } }
+                Section {
+                    TextEditor(text: $model.draft)
+                        .frame(minHeight: 180)
+                        .focused($editingDescription)
+                        .accessibilityLabel("About you")
+                        .accessibilityIdentifier("profile-description")
+                    Text("\(model.draft.unicodeScalars.count) / 4000 characters")
+                        .font(.footnote).foregroundStyle(model.valid ? Color.secondary : .red)
+                } header: { Text("About you") } footer: {
+                    Text("For example: I lead engineering at our company. I’m curious and direct; " +
+                         "I prefer concise answers with trade-offs.\n\n" +
+                         "Pip uses this only in private conversations, never shared threads. " +
+                         "It is sent to the configured AI provider. Avoid secrets.")
+                }
+                if model.saving { Section { ProgressView("Saving…") } }
+            }
+            .disabled(model.saving)
+            .navigationTitle("Your description")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #else
+            .formStyle(.grouped)
+            .frame(width: 540, height: 420)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { if model.dirty { discarding = true } else { dismiss() } }
+                        .disabled(model.saving)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        editingDescription = false
+                        Task { if let profile = await model.save() { saved(profile); dismiss() } }
+                    }
+                    .disabled(!model.valid || model.saving)
+                    .accessibilityIdentifier("profile-save")
+                }
+            }
+            .interactiveDismissDisabled(model.dirty || model.saving)
+            .confirmationDialog("Discard changes?", isPresented: $discarding, titleVisibility: .visible) {
+                Button("Discard changes", role: .destructive) { dismiss() }
+            }
+        }
+        .protectsAtlasNavigation()
     }
-    let user: User
-    let serverVersion: String
+}
+
+struct AtlasPushSettingsView: View {
+    @ObservedObject var notifications: AtlasPushNotifications
+
+    var body: some View {
+        Section {
+            Toggle("Push notifications", isOn: Binding(
+                get: { notifications.enabled },
+                set: { enabled in Task { if enabled { await notifications.enable() } else { await notifications.disable() } } }
+            )).disabled(notifications.busy)
+            if let message = notifications.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+        } footer: {
+            Text("Get notified when Pip finishes. Alerts include the thread title and a short reply preview. "
+                 + "Control lock-screen previews in \(AtlasPushSystem.settingsName).")
+        }
+    }
 }

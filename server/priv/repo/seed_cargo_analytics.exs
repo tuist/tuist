@@ -1,4 +1,4 @@
-# Synthetic Cargo and nextest demo data for local development.
+# Synthetic Cargo demo data for local development.
 # Run with `mix run priv/repo/seed_cargo_analytics.exs` in an isolated development database.
 
 import Ecto.Query
@@ -183,14 +183,14 @@ if existing == 0 do
         project_id: project.id,
         account_id: account.id,
         build_system: "cargo",
-        scheme: "nextest",
+        scheme: "ci",
         execution_mode: "parallel",
         status: if(failed, do: "failure", else: "success"),
         duration: Enum.max(Enum.map(modules, & &1.duration)) + 100,
         is_ci: true,
         ci_provider: "github",
         git_branch: "main",
-        git_commit_sha: :sha |> :crypto.hash("nextest-demo-#{day}-#{attempt}") |> Base.encode16(case: :lower),
+        git_commit_sha: :sha |> :crypto.hash("cargo-demo-#{day}-#{attempt}") |> Base.encode16(case: :lower),
         ran_at: now |> DateTime.add(-(day * 86_400 + (3 - attempt) * 3600), :second) |> DateTime.to_naive(),
         test_modules: modules,
         enumerated_tests:
@@ -246,7 +246,7 @@ base = Tuist.Environment.app_url(route_type: :app)
 root = "#{base}/#{account.name}/#{project.name}"
 
 IO.puts("""
-Cargo demo ready (synthetic data): 36 builds, 42 nextest runs, 3 binaries, one two-shard plan.
+Cargo demo ready (synthetic data): 36 builds, 42 test runs, 3 binaries, one two-shard plan.
 Login: #{base}/users/log_in (tuistrocks@tuist.dev / tuistrocks)
 Overview: #{root}
 Builds: #{root}/builds/build-runs

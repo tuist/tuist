@@ -1,8 +1,10 @@
 # Browser RUM quality and surface-specific LCP
 
 This is the staged replacement for the mixed-population six-hour LCP alert.
-The gateway is opt-in and the new rules are paused. Nothing in this change
-updates the running Grafana rules or Cloudflare filters.
+The gateway is enabled in managed production. Nine corrected rules were installed
+in Grafana, paused, on October 27 after the initial audit. See the
+[seven-day validation and delivery plan](browser-rum-validation-2026-10-27.md)
+before enabling them. Subsequent repository edits do not update live Grafana rules.
 
 ## Why this changes
 
@@ -43,8 +45,9 @@ user token through the normal account lookup (including expiry, revocation
 and inactive users). It forwards JSON to the configured internal Alloy
 receiver with no browser headers, cookies or authorization, no redirects,
 no gateway retries, a one-second connection timeout and a two-second response
-timeout. It returns 202 only when Alloy returns 2xx; failures return 503.
-Browser-side retries and ambiguous delivery can still duplicate samples.
+timeout. It returns 202 only when Alloy returns 2xx and new replay receipts are
+completed; failures or busy receipts return 503. No database transaction is
+held across the receiver request.
 The receiver URL is operator configuration, never a field in the payload.
 
 Every measurement receives reserved context, overwriting browser-supplied
@@ -57,6 +60,7 @@ values for these keys:
 | `context_rum_authentication` | `authenticated` or `anonymous`, verified at collector request time |
 | `context_rum_ray_id` | Validated `CF-Ray` of the collector POST, or empty when the ingress trust chain is absent |
 | `context_rum_automation` | Always `unknown` in this version |
+| `context_rum_deduplication` | `unique`, `duplicate`, or `untracked`; server-owned replay classification |
 | `context_rum_quality` | `eligible`, `invalid_lcp`, `missing_session`, `missing_navigation`, `unknown_surface`, or `not_lcp` |
 
 Surface classification uses the reported same-origin URL and server router
@@ -67,7 +71,7 @@ does not prove that the earlier buffered navigation was authenticated.
 Authenticated automation remains possible.
 
 `eligible` means a non-negative numeric LCP with a known surface and bounded,
-nonempty session/navigation identifiers. It does **not** mean verified human.
+nonempty session/navigation identifiers other than the `unknown` sentinel. It does **not** mean verified human.
 The gateway preserves the measurement value, attribution, timestamps and
 reported identifiers, including slow and incomplete samples. It fixes the
 app name/environment to the server's configuration and removes optional
@@ -80,9 +84,30 @@ Ingress hop checks in `RemoteIp`, with the ingress-overwritten
 and session/navigation identifiers in log fields, never as Loki stream labels.
 All new rules still parse `kind` out of the line.
 
+## Replay classification
+
+PostgreSQL receipts coordinate all gateway replicas using a SHA-256 fingerprint
+of session ID, navigation ID, Faro measurement ID and LCP value. Collector Ray
+IDs, batch composition and timestamps do not change that identity. Changed LCP
+values remain distinct. Missing/blank/`unknown` or overlong identifiers produce
+`untracked`, never a shared placeholder key. A forged classification is overwritten.
+
+New deliveries acquire a 30-second lease in a short transaction. Overlapping
+in-flight batches return 503 and roll back new claims. Confirmed deliveries are
+remembered for 48 hours; the five-minute pruning worker deletes expired rows in
+batches of 5,000. Only the owning lease can complete/release a claim, and expired
+leases permit recovery after a process dies. Reports, including duplicates, still
+reach Loki; performance queries select `unique`, while coverage and quality
+queries retain the raw population. An event-only batch has no receipt work.
+
+This is bounded replay classification, not exactly-once ingestion. If Alloy
+accepts a batch but its acknowledgment or the receipt completion is lost, a
+retry can still be marked unique. Likewise, a retry after retention expiry is
+new. Do not drop a potentially undelivered report to hide that ambiguity.
+
 ## Alert definitions
 
-[`browser-rum-alert-rules.json`](browser-rum-alert-rules.json) contains six
+[`browser-rum-alert-rules.json`](browser-rum-alert-rules.json) contains nine
 paused Grafana-managed rule objects for the alert provisioning HTTP API.
 Replace `REPLACE_WITH_LOKI_DATASOURCE_UID` and
 `REPLACE_WITH_ALERTS_FOLDER_UID` with the existing stack's identifiers.
@@ -93,29 +118,40 @@ provisioning format, which Grafana Cloud does not support. Set the new
 and verify notification routing before unpausing. See the
 [Grafana provisioning API](https://grafana.com/docs/grafana/latest/developer-resources/api-reference/http-api/alerting_provisioning/).
 
+The managed stack already has these UIDs in `Browser RUM quality` with a one-minute
+interval. For subsequent changes, read each existing rule and update its complete
+definition rather than creating a duplicate. Keep `isPaused: true` until the
+post-deployment gates below pass.
+
 | Rule | Condition over six hours unless stated otherwise |
 | --- | --- |
-| LCP p75 above target by surface | p75 >2.5s, >100 eligible samples, at least 50 distinct reported sessions |
+| LCP p75 above target for auth/authenticated dashboards | p75 >2.5s, >100 eligible unique samples, at least 50 distinct reported sessions |
+| LCP p75 above target for marketing | Same floors, over **24h** |
+| LCP p75 above target for docs | Same floors, over **24h** |
 | Gateway coverage low | >5% of all raw LCP samples lack schema 1, >100 samples |
 | Metadata incomplete by surface | >5% of enriched LCP samples are ineligible, >100 samples |
 | Cloudflare correlation coverage low | >10% of enriched LCP samples lack a trusted Ray ID, >100 samples |
-| Sample concentration by surface | >100 eligible samples from fewer than 50 reported sessions |
+| Sample concentration by surface | >100 eligible unique samples from fewer than 50 reported sessions |
 | Enriched LCP missing | No enriched LCP in two hours, pending for 15 minutes |
+| Deduplication coverage low | >5% raw LCP reports lack usable replay classification, >100 samples |
 
-The first five rules have a 30-minute pending period. Query errors use
+All rules except ingestion liveness have a 30-minute pending period. Query errors use
 Grafana's Error state. Zero-filled ratios prevent an empty numerator from
 becoming No Data when the denominator exists. Ingestion liveness is checked
 independently of quality; retain the existing raw-ingestion missing-data rule.
 Low-volume individual surfaces may have no percentile alert at all.
 
-The p75 rule creates a distinct alert instance per surface and environment;
+The p75 rules create distinct alert instances per surface and environment;
 auth and challenge traffic no longer changes marketing's percentile.
 The 2.5s value is an operational target. The 100-sample/50-session floors and
-quality thresholds are **provisional**: the old sample floor was derived
-from pooled traffic, not each new surface. Backtest volume and baselines
-before enabling, and split rules or lengthen windows for surfaces that need
-different thresholds. Browser-created session IDs are not independent humans
-and this version does not deduplicate navigation reports.
+quality thresholds remain interruption policies, not proof of statistical
+confidence. The October 20–27 backtest supports 24h for marketing/docs and retains
+6h for auth/authenticated dashboards. Some windows remain below the floors;
+api_docs, challenge and dashboard_anonymous lack enough volume for these
+performance rules. They remain visible in raw/quality queries. Browser-created
+session IDs are not independent humans. Repeat the baseline after deploying
+replay classification, since historical raw measurements include duplicates and
+the previously accepted `unknown` navigation sentinel.
 
 Keep the raw and eligible distributions side by side. For example, raw
 per-surface p75 (milliseconds) is:
@@ -128,12 +164,20 @@ quantile_over_time(0.75,
 ) by (app_environment, context_rum_surface)
 ```
 
-Add `| context_rum_quality="eligible"` before `unwrap` for the performance
+Add `| context_rum_quality="eligible" | context_rum_deduplication="unique"`
+before `unwrap` for the performance
 rule's population. Count by `context_rum_quality` to explain every exclusion.
 Retain the unversioned/global query while measuring gateway coverage.
 Do not exclude `rum_automation="unknown"` from either distribution.
 
 ## Rollout and rollback
+
+For an existing gateway, first migrate `browser_telemetry_receipts`, then deploy
+all gateway replicas. The following steps also describe a first-time gateway
+rollout. Leave performance/deduplication-coverage rules paused until a full 24h
+of classified reports is available. Verify repeated same-navigation/value
+reports become duplicates across replicas and failed forwarding remains
+retryable; check raw/unique ratios, placeholder IDs and database/503 rates.
 
 1. Deploy the application and receiver environment variable while keeping
    `server.faro.gateway.enabled: false` (the default). Wait until **all**
@@ -155,7 +199,10 @@ Do not exclude `rum_automation="unknown"` from either distribution.
    joins against actual Loki data, and backtest at least a full traffic cycle
    per surface. Collect enough history to select windows/sample floors and
    compare raw/eligible p75, sample count, distinct sessions, repeated
-   session/navigation pairs, metadata coverage and Ray-ID coverage.
+   session/navigation/measurement/value tuples, replay classification coverage,
+   metadata coverage and Ray-ID coverage. Use instant queries or bounded
+   per-surface/day batches for distinct-session backtests; a seven-day range
+   union can exceed Loki's 500-series limit even when each evaluation is valid.
 5. Enable quality and liveness rules, then performance rules. Keep existing
    percentile alerts until coverage and baselines are verified, then retire
    the mixed-population alerts. Rename any retained six-hour p75 alert to
@@ -167,7 +214,10 @@ Rollback by setting `server.faro.gateway.enabled: false`. This restores the
 ExternalName backend and `/collect` rewrite without a receiver restart.
 Pause the schema-dependent rules, keep the old raw rules, and wait for the
 six-hour coverage window to clear before evaluating a subsequent rollout.
-There is no data migration or new storage service.
+On application rollback, keep the receipt table until all new gateway replicas
+are gone; only then roll back its migration. Old applications can ignore the
+table. Pause unique-only rules before rollback and retain raw legacy alerts.
+The receipt table adds no new storage service.
 
 ## Follow-up boundary
 
@@ -180,6 +230,6 @@ not the original document's Ray ID and cannot establish navigation timing.
 
 Do not add fingerprint, browser-version or ASN exclusions based solely on
 the September cohorts. Preserve raw measurements and expose excluded/unknown
-fractions for any future classification policy. Navigation deduplication,
-server-backed navigation provenance, automatic Cloudflare reconciliation and
-a CrUX integration are separate follow-ups, not implemented by this draft.
+fractions for any future classification policy. Server-backed navigation provenance, automatic Cloudflare reconciliation and
+a CrUX integration remain separate follow-ups. Replay classification does not
+authenticate a reported navigation or resolve ambiguous receiver delivery.

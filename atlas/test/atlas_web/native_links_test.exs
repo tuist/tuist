@@ -18,6 +18,8 @@ defmodule AtlasWeb.NativeLinksTest do
       assert NativeLinks.for_page("/people/time-off") == {"time-off", nil}
       assert NativeLinks.for_page("/people") == {"people", nil}
       assert NativeLinks.for_page("/settings") == {"profile", nil}
+      assert NativeLinks.for_page("/orbit") == {"orbit", nil}
+      assert NativeLinks.for_page("/orbit/#{@id}") == {"orbit", @id}
     end
 
     test "never maps children, actions, or non-canonical record IDs" do
@@ -34,6 +36,8 @@ defmodule AtlasWeb.NativeLinksTest do
             "/commercial/finance/vendors",
             "/people/time-off/settings",
             "/settings/llm-providers",
+            "/orbit/new",
+            "/orbit/#{@id}/edit",
             "/open/tasks",
             nil
           ] do
@@ -43,12 +47,12 @@ defmodule AtlasWeb.NativeLinksTest do
   end
 
   describe "for_open/1" do
-    test "accepts the six screens and records for tasks, accounts, and invoices" do
-      for screen <- ~w(tasks accounts invoices time-off people profile) do
+    test "accepts the seven screens and records for tasks, accounts, invoices, and Orbit" do
+      for screen <- ~w(tasks accounts invoices time-off people profile orbit) do
         assert NativeLinks.for_open([screen]) == {screen, nil}
       end
 
-      for screen <- ~w(tasks accounts invoices) do
+      for screen <- ~w(tasks accounts invoices orbit) do
         assert NativeLinks.for_open([screen, @id]) == {screen, @id}
       end
     end
@@ -64,6 +68,9 @@ defmodule AtlasWeb.NativeLinksTest do
             ["tasks", String.upcase(@id)],
             ["tasks", "1-1-1-1-1"],
             ["tasks", @id, "edit"],
+            ["orbit", String.upcase(@id)],
+            ["orbit", "not-a-uuid"],
+            ["orbit", @id, "edit"],
             ["tasks/#{@id}"],
             ["tasks", ["x"]],
             [["tasks"]],
@@ -85,6 +92,9 @@ defmodule AtlasWeb.NativeLinksTest do
 
       assert NativeLinks.native_url({"time-off", nil}) ==
                "dev.tuist.atlas://navigate/time-off?server=https%3A%2F%2Fatlas.example.org"
+
+      assert NativeLinks.native_url({"orbit", @id}) ==
+               "dev.tuist.atlas://navigate/orbit/#{@id}?server=https%3A%2F%2Fatlas.example.org"
     end
 
     test "keeps nondefault ports in the server origin" do
@@ -106,6 +116,8 @@ defmodule AtlasWeb.NativeLinksTest do
     assert NativeLinks.browser_path({"accounts", nil}) == "/commercial/sales/accounts"
     assert NativeLinks.browser_path({"invoices", @id}) == "/commercial/finance"
     assert NativeLinks.browser_path({"profile", nil}) == "/settings"
+    assert NativeLinks.browser_path({"orbit", @id}) == "/orbit/#{@id}"
+    assert NativeLinks.browser_path({"orbit", nil}) == "/orbit"
   end
 
   test "claimed_paths/0 lists exact pages and UUID-shaped records, never finance" do
@@ -124,9 +136,11 @@ defmodule AtlasWeb.NativeLinksTest do
              "/open/time-off",
              "/open/people",
              "/open/profile",
+             "/open/orbit",
              "/open/tasks/#{uuid}",
              "/open/accounts/#{uuid}",
-             "/open/invoices/#{uuid}"
+             "/open/invoices/#{uuid}",
+             "/open/orbit/#{uuid}"
            ]
   end
 

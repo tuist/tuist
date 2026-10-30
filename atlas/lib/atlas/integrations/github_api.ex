@@ -10,6 +10,81 @@ defmodule Atlas.Integrations.GitHubAPI do
 
   @github_api_url "https://api.github.com"
 
+  # These endpoints use the person's GitHub App user grant. An installation
+  # token alone would disclose repositories that person cannot access.
+  def accessible_installations(token) do
+    with {:ok, installations} <- user_pages(token, "/user/installations", "installations") do
+      {:ok,
+       installations
+       |> Enum.filter(&(is_integer(&1["id"]) and &1["id"] > 0 and is_nil(&1["suspended_at"])))
+       |> Enum.map(&%{id: to_string(&1["id"]), name: get_in(&1, ["account", "login"])})
+       |> Enum.filter(&(is_binary(&1.name) and byte_size(&1.name) <= 100))
+       |> Enum.sort_by(& &1.name)}
+    end
+  end
+
+  def accessible_repositories(token, installation_id) do
+    if Atlas.CodingRepositories.installation_id?(installation_id) do
+      with {:ok, repositories} <-
+             user_pages(token, "/user/installations/#{installation_id}/repositories", "repositories") do
+        {:ok,
+         repositories
+         |> Enum.filter(&Atlas.CodingRepositories.repository?(&1["full_name"]))
+         |> Enum.map(&%{full_name: String.downcase(&1["full_name"])})
+         |> Enum.uniq()
+         |> Enum.sort_by(& &1.full_name)}
+      end
+    else
+      {:error, :invalid_params}
+    end
+  end
+
+  defp user_pages(token, path, key, page \\ 1, pages \\ []) do
+    # Fixed-origin requests only: never follow a Link URL or redirect with a
+    # personal token. Fail rather than silently returning a partial catalogue.
+    case Req.get(github_url(path),
+           auth: {:bearer, token},
+           headers: [{"accept", "application/vnd.github+json"}, {"x-github-api-version", "2022-11-28"}],
+           params: [per_page: 100, page: page],
+           redirect: false,
+           retry: false,
+           receive_timeout: 10_000
+         ) do
+      {:ok, %{status: 200, body: %{"total_count" => total} = body}} when is_integer(total) and total >= 0 ->
+        collect_user_page(token, path, key, body, page, pages)
+
+      {:ok, %{status: 401}} ->
+        {:error, :github_connection_required}
+
+      _ ->
+        {:error, :github_catalog_unavailable}
+    end
+  end
+
+  defp collect_user_page(token, path, key, body, page, pages) do
+    entries = body[key]
+    total = body["total_count"]
+
+    cond do
+      not valid_page?(entries) ->
+        {:error, :github_catalog_unavailable}
+
+      total > 5_000 ->
+        {:error, :github_catalog_limit}
+
+      page * 100 >= total ->
+        {:ok, pages |> Enum.reverse() |> List.flatten() |> Enum.concat(entries)}
+
+      page >= 50 or entries == [] ->
+        {:error, :github_catalog_unavailable}
+
+      true ->
+        user_pages(token, path, key, page + 1, [entries | pages])
+    end
+  end
+
+  defp valid_page?(entries), do: is_list(entries) and length(entries) <= 100 and Enum.all?(entries, &is_map/1)
+
   def find_installation_id(%GitHubApp{} = app, account_login) when is_binary(account_login) do
     with {:ok, jwt} <- generate_jwt(app),
          {:ok, installations} <- list_installations(jwt) do

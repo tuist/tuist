@@ -1132,7 +1132,9 @@ struct TreeShakePrunedTargetsGraphMapperEmptiedProjectSchemesTests {
                                 path: try AbsolutePath(validating: "/App/Derived/TestPlans/AllUnitTests.xctestplan"),
                                 testTargets: [.test(target: .init(projectPath: featureProjectPath, name: featureTests.name))],
                                 isDefault: true,
-                                kind: .generated
+                                kind: .generated,
+                                language: "fr",
+                                region: "NZ"
                             ),
                         ]
                     ),
@@ -1162,6 +1164,9 @@ struct TreeShakePrunedTargetsGraphMapperEmptiedProjectSchemesTests {
             gotScheme.testAction?.preActions.first?.target
                 == TargetReference(projectPath: featureProjectPath, name: featureTests.name)
         )
+        let gotPlan = try #require(gotScheme.testAction?.testPlans?.first)
+        #expect(gotPlan.language == "fr")
+        #expect(gotPlan.region == "NZ")
     }
 
     @Test func map_removes_an_emptied_project_when_none_of_its_schemes_survive() throws {
@@ -1306,5 +1311,134 @@ struct TreeShakePrunedTargetsGraphMapperBuildForTests {
         let gotBuildAction = try #require(gotScheme.buildAction)
         #expect(gotBuildAction.targets == [keptTargetReference])
         #expect(gotBuildAction.buildFor == [keptTargetReference: [.running]])
+    }
+}
+
+struct TreeShakePrunedTargetsGraphMapperExecutableTests {
+    private let subject = TreeShakePrunedTargetsGraphMapper()
+    private let path = AbsolutePath.root.appending(component: "project")
+
+    @Test(arguments: [false, true])
+    func map_clears_pruned_executables_without_changing_surviving_actions(isWorkspaceScheme: Bool) throws {
+        let demo = TargetReference(projectPath: path, name: "Demo")
+        let library = TargetReference(projectPath: path, name: "Library")
+        let unitTests = TargetReference(projectPath: path, name: "LibraryUnitTests")
+        let scheme = Scheme(
+            name: "Library",
+            shared: true,
+            hidden: true,
+            buildAction: .test(targets: [library]),
+            testAction: .test(targets: [TestableTarget(target: unitTests)]),
+            runAction: .test(executable: demo),
+            profileAction: .test(executable: demo)
+        )
+        let graph = graph(scheme: scheme, isWorkspaceScheme: isWorkspaceScheme)
+
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        let gotScheme = try #require(
+            isWorkspaceScheme ? gotGraph.workspace.schemes.first : gotGraph.projects[path]?.schemes.first
+        )
+        var expectedScheme = scheme
+        expectedScheme.runAction?.executable = nil
+        expectedScheme.profileAction?.executable = nil
+        #expect(gotScheme == expectedScheme)
+        let gotProject = try #require(gotGraph.projects[path])
+        #expect(Set(gotProject.targets.keys) == ["Library", "LibraryUnitTests"])
+    }
+
+    @Test(arguments: [false, true], ["Library", "Missing", nil] as [String?])
+    func map_keeps_executables_that_were_not_pruned(isWorkspaceScheme: Bool, executableName: String?) throws {
+        let executable = executableName.map { TargetReference(projectPath: path, name: $0) }
+        let scheme = Scheme(
+            name: "Library",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: "Library")]),
+            runAction: .test(executable: executable),
+            profileAction: .test(executable: executable)
+        )
+        let graph = graph(scheme: scheme, isWorkspaceScheme: isWorkspaceScheme)
+
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        let gotScheme = try #require(
+            isWorkspaceScheme ? gotGraph.workspace.schemes.first : gotGraph.projects[path]?.schemes.first
+        )
+        #expect(gotScheme == scheme)
+    }
+
+    @Test(arguments: [false, true])
+    func map_keeps_a_file_path_scheme_after_pruning_its_target_executable(isWorkspaceScheme: Bool) throws {
+        let filePath = path.appending(component: "runner")
+        let scheme = Scheme(
+            name: "Runner",
+            runAction: .test(executable: TargetReference(projectPath: path, name: "Demo"), filePath: filePath)
+        )
+        let graph = graph(scheme: scheme, isWorkspaceScheme: isWorkspaceScheme)
+
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        let gotScheme = try #require(
+            isWorkspaceScheme ? gotGraph.workspace.schemes.first : gotGraph.projects[path]?.schemes.first
+        )
+        var expectedScheme = scheme
+        expectedScheme.runAction?.executable = nil
+        #expect(gotScheme == expectedScheme)
+    }
+
+    private func graph(scheme: Scheme, isWorkspaceScheme: Bool) -> Graph {
+        let project = Project.test(
+            path: path,
+            targets: [
+                .test(name: "Demo", product: .app, metadata: .metadata(tags: ["tuist:prunable"])),
+                .test(name: "Library", product: .framework),
+                .test(name: "LibraryUnitTests", product: .unitTests),
+            ],
+            schemes: isWorkspaceScheme ? [] : [scheme]
+        )
+        return Graph.test(
+            path: path,
+            workspace: .test(projects: [path], schemes: isWorkspaceScheme ? [scheme] : []),
+            projects: [path: project],
+            dependencies: [:]
+        )
+    }
+}
+
+struct GeneratedTestPlanCoveragePruningTests {
+    @Test(arguments: [([], true, []), (["Cached"], false, []), (["Cached", "Source"], true, ["Source"])])
+    func pruning_does_not_broaden_coverage(
+        selection: [String], expectedCoverage: Bool, expectedSelection: [String]
+    ) throws {
+        let path = try AbsolutePath(validating: "/Project")
+        let cached = Target.test(name: "Cached", metadata: .metadata(tags: ["tuist:prunable"]))
+        let source = Target.test(name: "Source")
+        let tests = Target.test(name: "Tests", product: .unitTests)
+        let plan = TestPlan(
+            path: path.appending(component: "Plan.xctestplan"),
+            testTargets: [.init(target: .init(projectPath: path, name: "Tests"))],
+            isDefault: true,
+            kind: .generated,
+            coverage: true,
+            codeCoverageTargets: selection.map { .init(projectPath: path, name: $0) },
+            language: "fr",
+            region: "NZ"
+        )
+        let project = Project.test(
+            path: path,
+            targets: [cached, source, tests],
+            schemes: [Scheme(name: "Scheme", testAction: .test(testPlans: [plan]))]
+        )
+
+        let (graph, _, _) = try TreeShakePrunedTargetsGraphMapper().map(
+            graph: .test(projects: [path: project]), environment: MapperEnvironment()
+        )
+
+        let survivingPlan = try #require(graph.projects[path]?.schemes.first?.testAction?.testPlans?.first)
+        #expect(survivingPlan.testTargets.map(\.target.name) == ["Tests"])
+        #expect(survivingPlan.kind == .generated)
+        #expect(survivingPlan.coverage == expectedCoverage)
+        #expect(survivingPlan.codeCoverageTargets.map(\.name) == expectedSelection)
+        #expect(survivingPlan.language == "fr")
+        #expect(survivingPlan.region == "NZ")
     }
 }

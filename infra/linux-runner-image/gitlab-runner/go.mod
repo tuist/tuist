@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/linux-runner-image/gitlab-runner
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/urfave/cli v1.22.17
@@ -198,3 +198,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+godebug default=go1.25

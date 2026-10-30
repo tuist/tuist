@@ -19,7 +19,13 @@
   <%!-- ============================================================ --%>
   <%!-- Single Sign-On                                                --%>
   <%!-- ============================================================ --%>
-  <.form for={@form} id="sso-form" phx-submit="save_sso" phx-change="validate_sso">
+  <.form
+    :if={@organization}
+    for={@form}
+    id="sso-form"
+    phx-submit="save_sso"
+    phx-change="validate_sso"
+  >
     <.card_section data-part="sso-card">
       <div data-part="header">
         <span data-part="title">
@@ -286,6 +292,10 @@
             </span>
             <%= if domain_verification_shown?(@organization, @form) do %>
               <%= cond do %>
+                <% @login_domain_trust == :instance -> %>
+                  <span data-part="domain-verification-status" data-status="instance">
+                    {dgettext("dashboard_account", "Trusted by instance configuration")}
+                  </span>
                 <% Accounts.sso_login_domain_expiring?(@organization) -> %>
                   <span data-part="domain-verification-status" data-status="expiring">
                     {dngettext(
@@ -307,7 +317,7 @@
             <% end %>
           </div>
           <span data-part="description">
-            <%= if @organization.sso_login_domain_verified_at do %>
+            <%= if @login_domain_trust in [:instance, :dns_verified] do %>
               {dgettext(
                 "dashboard_account",
                 "Used to find your provider and to decide which email addresses to trust."
@@ -318,7 +328,9 @@
                 "Once verified, used to find your provider and to decide which email addresses to trust."
               )}
             <% end %>
-            {domain_record_instruction(@organization, @form)}
+            <%= if @login_domain_trust != :instance or @login_domain_shared do %>
+              {domain_record_instruction(@organization, @form)}
+            <% end %>
           </span>
         </div>
         <div data-part="field">
@@ -330,7 +342,8 @@
           />
           <.button
             :if={
-              domain_verification_shown?(@organization, @form) and
+              (@login_domain_trust != :instance or @login_domain_shared) and
+                domain_verification_shown?(@organization, @form) and
                 Accounts.sso_login_domain_awaiting_record?(@organization)
             }
             id="verify-sso-login-domain-button"
@@ -347,7 +360,8 @@
         </div>
         <div
           :if={
-            domain_verification_shown?(@organization, @form) and
+            (@login_domain_trust != :instance or @login_domain_shared) and
+              domain_verification_shown?(@organization, @form) and
               (Accounts.sso_login_domain_awaiting_record?(@organization) or
                  not is_nil(@domain_verification_error))
           }
@@ -398,6 +412,20 @@
           </div>
         </div>
       </div>
+
+      <.alert
+        :if={@login_domain_shared}
+        id="sso-shared-login-domain"
+        status="warning"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_account",
+            "Another organization uses this login domain. Email lookup prefers a DNS-verified organization; otherwise, use your organization's SSO sign-in link."
+          )
+        }
+      />
 
       <%!-- Okta domain field --%>
       <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
@@ -582,7 +610,7 @@
         <div data-part="toggle-label">
           <.toggle
             id={
-              "sso-automatic-enrollment-toggle-#{@selected_provider}-#{@sso_automatic_enrollment}-#{automatic_enrollment_toggle_disabled?(@selected_provider, @organization, @current_form_params, @sso_automatic_enrollment)}"
+              "sso-automatic-enrollment-toggle-#{@selected_provider}-#{@sso_automatic_enrollment}-#{automatic_enrollment_toggle_disabled?(@selected_provider, @organization, @login_domain_trust, @sso_automatic_enrollment)}"
             }
             data-testid="sso-automatic-enrollment-toggle"
             checked={@sso_automatic_enrollment}
@@ -590,7 +618,7 @@
               automatic_enrollment_toggle_disabled?(
                 @selected_provider,
                 @organization,
-                @current_form_params,
+                @login_domain_trust,
                 @sso_automatic_enrollment
               )
             }
@@ -607,15 +635,15 @@
                     "dashboard_account",
                     "When enabled, users whose Google Workspace domain matches can join this organization automatically. Other users need an invitation."
                   )}
-                <% @organization.sso_login_domain_verified_at -> %>
+                <% @login_domain_trust == :instance -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users from the login email domain trusted by this instance can join this organization automatically. Other users need an invitation."
+                  )}
+                <% @login_domain_trust == :dns_verified -> %>
                   {dgettext(
                     "dashboard_account",
                     "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
-                  )}
-                <% @organization.sso_legacy_email_domain_fallback && @sso_automatic_enrollment -> %>
-                  {dgettext(
-                    "dashboard_account",
-                    "This existing configuration allows any email address reported by the provider to join automatically. Add and verify a login email domain to restrict enrollment."
                   )}
                 <% @sso_automatic_enrollment -> %>
                   {dgettext(
@@ -663,7 +691,7 @@
         <div data-part="toggle-label">
           <.toggle
             id={
-              "sso-enforced-toggle-#{@selected_provider}-#{@sso_enforced}-#{sso_enforcement_toggle_disabled?(@selected_provider, @organization, @current_form_params, @sso_enforced)}"
+              "sso-enforced-toggle-#{@selected_provider}-#{@sso_enforced}-#{sso_enforcement_toggle_disabled?(@selected_provider, @organization, @login_domain_trust, @sso_enforced)}"
             }
             data-testid="sso-enforced-toggle"
             checked={@sso_enforced}
@@ -671,7 +699,7 @@
               sso_enforcement_toggle_disabled?(
                 @selected_provider,
                 @organization,
-                @current_form_params,
+                @login_domain_trust,
                 @sso_enforced
               )
             }
@@ -683,8 +711,7 @@
             </span>
             <span data-part="description">
               <%= if oauth2_form_provider?(@selected_provider) and
-                       is_nil(@organization.sso_login_domain_verified_at) and
-                       not @organization.sso_legacy_email_domain_fallback and
+                       @login_domain_trust not in [:instance, :dns_verified] and
                        not @sso_enforced do %>
                 {dgettext(
                   "dashboard_account",
@@ -716,7 +743,7 @@
   <%!-- ============================================================ --%>
   <%!-- SCIM provisioning                                             --%>
   <%!-- ============================================================ --%>
-  <.card_section data-part="scim-card">
+  <.card_section :if={@organization} data-part="scim-card">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_account", "SCIM provisioning")}
@@ -912,4 +939,6 @@
       </div>
     </div>
   </.card_section>
+
+  <WorkloadIdentities.workload_identities {assigns} />
 </div>
