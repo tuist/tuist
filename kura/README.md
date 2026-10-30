@@ -641,8 +641,10 @@ The hot path increments bounded in-memory counters keyed by tenant, namespace, n
 
 The usage pipeline caps bucket count and delivery batch size, and applies a soft durable outbox depth threshold; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
 
-The server admits one complete batch per replica, with a three-second budget
-shared by attribution and all usage/storage inserts. It returns 202 only after
+The server writes one complete batch at a time per replica, with a three-second
+budget shared by attribution and all usage/storage inserts. Up to two
+overlapping batches wait at most one second for that slot, inside the same
+budget; any further batch is rejected immediately. It returns 202 only after
 the required ClickHouse inserts complete; overload, timeout, and write failure
 return 503 with Retry-After. Kura retains the durable rows until a 2xx response
 and owns retries, including partial or ambiguous commits. Server ingestion has
