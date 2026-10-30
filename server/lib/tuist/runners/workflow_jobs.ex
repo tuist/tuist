@@ -45,6 +45,7 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   alias Tuist.Repo
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
@@ -616,28 +617,70 @@ defmodule Tuist.Runners.WorkflowJobs do
       )
 
     if executor_claimed_at do
-      {:ok, :ok} =
+      job =
+        from(j in WorkflowJob,
+          where: j.workflow_job_id == ^executed_workflow_job_id and j.account_id == ^account_id
+        )
+
+      {:ok, first_stamped} =
         Repo.transaction(fn ->
-          {_count, rows} =
-            Repo.update_all(
-              from(j in WorkflowJob,
-                where:
-                  j.workflow_job_id == ^executed_workflow_job_id and j.account_id == ^account_id and
-                    (is_nil(j.executor_claimed_at) or j.executor_claimed_at != ^executor_claimed_at),
-                select: j
+          first_stamped =
+            stamp_executor_claimed_at(from(j in job, where: is_nil(j.executor_claimed_at)), executor_claimed_at)
+
+          restamped =
+            stamp_executor_claimed_at(
+              from(j in job,
+                where: not is_nil(j.executor_claimed_at) and j.executor_claimed_at != ^executor_claimed_at
               ),
-              set: [
-                executor_claimed_at: executor_claimed_at,
-                updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-              ]
+              executor_claimed_at
             )
 
-          emit_transition_events(rows)
+          :ok = emit_transition_events(first_stamped ++ restamped)
+          first_stamped
         end)
+
+      Enum.each(first_stamped, &emit_executed/1)
     end
 
     :ok
   end
+
+  defp stamp_executor_claimed_at(query, executor_claimed_at) do
+    {_count, rows} =
+      Repo.update_all(from(j in query, select: j),
+        set: [executor_claimed_at: executor_claimed_at, updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
+      )
+
+    rows
+  end
+
+  # Observes each job's queue time once, when GitHub first names the runner
+  # it ran on. `limit_held` sets apart the jobs that waited for their own
+  # account's concurrency limit, at enqueue or 15 s before the claim, about
+  # one runner boot earlier, when a runner would have had to start for it.
+  defp emit_executed(%WorkflowJob{enqueued_at: %DateTime{} = enqueued_at, executor_claimed_at: claimed_at} = row) do
+    limit_held =
+      case row.platform do
+        platform when platform in ["linux", "macos"] ->
+          Concurrency.limit_held?(
+            row.account_id,
+            String.to_existing_atom(platform),
+            %{vcpus: row.vcpus, memory_gb: row.memory_gb},
+            [enqueued_at, DateTime.add(claimed_at, -15, :second)]
+          )
+
+        _ ->
+          false
+      end
+
+    :telemetry.execute(
+      Telemetry.event_name_job_executed(),
+      %{queue_time_ms: max(DateTime.diff(claimed_at, enqueued_at, :millisecond), 0)},
+      %{fleet: row.fleet_name || "", platform: row.platform, limit_held: to_string(limit_held)}
+    )
+  end
+
+  defp emit_executed(_row), do: :ok
 
   @doc """
   Postgres twin of `Tuist.Runners.Jobs.pick_queued_top_k/5`, returning
