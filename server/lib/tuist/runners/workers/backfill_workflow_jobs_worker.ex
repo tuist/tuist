@@ -22,9 +22,7 @@ defmodule Tuist.Runners.Workers.BackfillWorkflowJobsWorker do
   def perform(_job) do
     %{inserted: inserted, archive_markers: archive_markers} = backfill(@batch_size)
 
-    Logger.info(
-      "runners: backfilled #{inserted} lifecycle rows and #{archive_markers} archive markers from ClickHouse"
-    )
+    Logger.info("runners: backfilled #{inserted} lifecycle rows and #{archive_markers} archive markers from ClickHouse")
 
     :ok
   end
