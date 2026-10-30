@@ -903,20 +903,34 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Returns the merged current state for a single `workflow_job_id`
-  belonging to `account_id`. Used by the detail page so the URL
-  can't be tampered with to view another customer's run.
+  Returns the current state for a single `workflow_job_id` belonging
+  to `account_id`. Used by the detail page so the URL can't be
+  tampered with to view another customer's run.
+
+  The Postgres lifecycle row answers when it exists, so a job is
+  visible from its first transition rather than after the outbox
+  replays it into ClickHouse. ClickHouse answers for jobs that have no
+  lifecycle row, and supplies `log_archived_at` for archives whose
+  marker predates the Postgres column (see `archive_available?/1`).
   """
   def get_for_account(account_id, workflow_job_id) when is_integer(account_id) and is_integer(workflow_job_id) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.account_id == ^account_id and j.workflow_job_id == ^workflow_job_id)
-    |> limit(1)
-    |> ClickHouseRepo.one()
-    |> case do
-      nil -> {:error, :not_found}
-      job -> {:ok, job}
+    replica =
+      Job
+      |> from(hints: ["FINAL"])
+      |> where([j], j.account_id == ^account_id and j.workflow_job_id == ^workflow_job_id)
+      |> limit(1)
+      |> ClickHouseRepo.one()
+
+    case {WorkflowJobs.get_for_account(account_id, workflow_job_id), replica} do
+      {nil, nil} -> {:error, :not_found}
+      {nil, %Job{} = job} -> {:ok, job}
+      {%WorkflowJob{} = row, replica} -> {:ok, lifecycle_job(row, replica)}
     end
+  end
+
+  defp lifecycle_job(%WorkflowJob{} = row, replica) do
+    job = struct(Job, WorkflowJobs.replica_row(row))
+    %{job | log_archived_at: row.log_archived_at || (replica && replica.log_archived_at)}
   end
 
   @doc """
