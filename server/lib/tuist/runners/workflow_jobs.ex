@@ -501,6 +501,14 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  `account_id`'s lifecycle row for `workflow_job_id`, or `nil` when the
+  account has no such row.
+  """
+  def get_for_account(account_id, workflow_job_id) when is_integer(account_id) and is_integer(workflow_job_id) do
+    Repo.one(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id and j.account_id == ^account_id))
+  end
+
+  @doc """
   Terminal upsert for the completion choke point. Existing rows CAS
   from any non-terminal status; a missing row (completed delivered
   before queued, or the job predates this table) is inserted terminal
