@@ -456,6 +456,11 @@ sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
 cold booting. Whatever is still running at the deadline takes the cold-boot
 path on recovery.
 
+Server deployments publish the daemon image as `sha-<commit>` of the last
+commit that changed `infra/sandboxd` (outside its Markdown) or its publisher,
+so other deploys leave the DaemonSet untouched; a server-only re-promotion
+keeps the live daemon. The values-file tags only seed a first install.
+
 Lifecycle commands (`create`, `resume`, `pause`, `delete`) run detached
 from the WebSocket that delivered them, with their own timeouts, so a
 dropped connection cannot abort a snapshot half-way; `exec` is cancelled
