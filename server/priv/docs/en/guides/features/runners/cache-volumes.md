@@ -310,6 +310,8 @@ snapshot like an `actions/cache` key.
   still valid.
 - **No partial matches.** There are no restore keys. A key that hasn't been
   saved yet starts empty.
+- **Keys starting with `tuist-` are reserved** for Tuist's own caches and are
+  rejected before the volume attaches.
 - **Start over on purpose.** Change the key, or clear the volume in the
   dashboard, when you want a job to start empty.
 - **Leave `tuist-` keys to Tuist.** The managed caches use keys that start
