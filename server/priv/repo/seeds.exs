@@ -50,6 +50,10 @@ alias Tuist.Xcode.XcodeGraph
 alias Tuist.Xcode.XcodeProject
 alias Tuist.Xcode.XcodeTarget
 
+if Logger.compare_levels(Logger.level(), :info) == :lt do
+  Logger.configure(level: :info)
+end
+
 # CI seeds with MIX_ENV=test, where both repos use the SQL sandbox pool. Its
 # implicit checkout drops this script's connection after the default 120s
 # ownership timeout, which a full seed now exceeds.
