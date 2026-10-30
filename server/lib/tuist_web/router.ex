@@ -14,6 +14,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.LiveHooks.PublicPageChallenge
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.AtlasRateLimitPlug
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
@@ -298,10 +299,16 @@ defmodule TuistWeb.Router do
     plug :put_request_kind, "atlas_internal_api"
     plug :accepts, ["json"]
     plug TuistWeb.WarningsHeaderPlug
-    plug TuistWeb.Plugs.AtlasRateLimitPlug
+    plug AtlasRateLimitPlug
     plug TuistWeb.Plugs.InternalAtlasAuthPlug
     plug SentryContextPlug
     plug ObservabilityContextPlug
+  end
+
+  pipeline :environment_provider_api do
+    plug :put_request_kind, "environment_provider_api"
+    plug :accepts, ["json"]
+    plug AtlasRateLimitPlug
   end
 
   pipeline :api_catalog do
@@ -339,6 +346,15 @@ defmodule TuistWeb.Router do
     plug :accepts, ["json"]
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.Plugs.ReportPublishingAuthPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
+  pipeline :cache_endpoint_api do
+    plug :put_request_kind, "api"
+    plug :accepts, ["json"]
+    plug TuistWeb.WarningsHeaderPlug
+    plug TuistWeb.Plugs.CacheEndpointAuthPlug
     plug SentryContextPlug
     plug ObservabilityContextPlug
   end
@@ -739,6 +755,11 @@ defmodule TuistWeb.Router do
     post "/projects/:account_handle/:project_handle/bazel/publishing", BazelPublishingController, :create
   end
 
+  scope "/api", TuistWeb.API, assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
+    pipe_through [:open_api, :cache_endpoint_api, :on_premise_api]
+    get "/cache/endpoint", CacheController, :endpoint
+  end
+
   scope path: "/api",
         alias: TuistWeb.API,
         assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
@@ -788,6 +809,7 @@ defmodule TuistWeb.Router do
       # The literal agent-environments and agent-sessions routes must
       # precede `/:sandbox_id`.
       scope "/sandboxes" do
+        post "/amp-orbs/:orb_id", SandboxesController, :dispatch_amp_orb
         post "/agent-environments", SandboxesController, :create_agent_environment
         get "/agent-environments", SandboxesController, :index_agent_environments
         patch "/agent-environments/:agent_environment_id", SandboxesController, :update_agent_environment
@@ -1058,7 +1080,6 @@ defmodule TuistWeb.Router do
 
     scope "/cache" do
       get "/access", CacheController, :access
-      get "/endpoint", CacheController, :endpoint
       get "/endpoints", CacheController, :endpoints
       post "/token", CacheController, :token
       get "/", CacheController, :download
@@ -1144,8 +1165,18 @@ defmodule TuistWeb.Router do
     post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
     post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
     post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
+    post "/amp-orbs/:orb_id", AmpOrbsController, :dispatch
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
     post "/sandboxes/allocation", SandboxAllocationsController, :update
+  end
+
+  scope "/api/environment-providers/atlas/:account_handle/:environment_id", TuistWeb do
+    pipe_through :environment_provider_api
+
+    put "/", AtlasEnvironmentsController, :start, log: false
+    post "/exec", AtlasEnvironmentsController, :exec, log: false
+    post "/pause", AtlasEnvironmentsController, :pause, log: false
+    delete "/", AtlasEnvironmentsController, :delete, log: false
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -1170,6 +1201,7 @@ defmodule TuistWeb.Router do
 
     post "/kura/activate", KuraActivationController, :create
     post "/kura/usage", KuraUsageController, :create
+    get "/kura/cache-policy", KuraMeshController, :cache_policy
     post "/kura/mesh/enroll", KuraMeshController, :enroll
     post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
     get "/kura/mesh/peers", KuraMeshController, :peers
@@ -1670,6 +1702,7 @@ defmodule TuistWeb.Router do
           :download
 
       live "/settings", ProjectSettingsLive
+      live "/settings/integrations", ProjectIntegrationsLive
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/automations/:automation_id", ProjectAutomationLive
       live "/settings/bundles", ProjectBundleSettingsLive

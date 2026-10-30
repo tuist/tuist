@@ -1,5 +1,6 @@
 defmodule Atlas.Environments.CommandsTest do
   use Atlas.DataCase, async: true
+  use Mimic
 
   import Atlas.EnvironmentFixtures
   import Atlas.OrbitFixtures
@@ -7,6 +8,9 @@ defmodule Atlas.Environments.CommandsTest do
   alias Atlas.Environments
   alias Atlas.Environments.Command
   alias Atlas.Environments.Commands
+  alias Atlas.Environments.Provider
+  alias Atlas.Environments.ProviderWorker
+  alias Atlas.Environments.Tuist
   alias Atlas.Orbit
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Tools
@@ -14,6 +18,35 @@ defmodule Atlas.Environments.CommandsTest do
 
   setup do
     environment_fixture()
+  end
+
+  test "hosted terminal results use the durable ledger and ambiguous dispatches are never repeated", c do
+    stub(Provider, :configurations, fn -> %{"tuist" => %{module: Tuist, name: "Tuist"}} end)
+    c.environment |> Ecto.Changeset.change(provider: "tuist", provider_state: "ready") |> Repo.update!()
+    command = command_fixture(c, "environment_terminal", %{"command" => "git clone https://example.org/project.git"})
+    assert command.execution_timeout_seconds == 600
+
+    expect(Tuist, :execute, fn _config, identity, payload ->
+      assert identity.environment_id == c.environment.id
+      refute Map.has_key?(payload, :claim_token)
+      {:ok, %{success: true, output: "Cloned into project"}}
+    end)
+
+    job = %Oban.Job{args: %{"environment_id" => c.environment.id, "command_id" => command.id}}
+    assert :ok = ProviderWorker.perform(job)
+    assert :ok = ProviderWorker.perform(job)
+    assert Repo.reload!(command).status == "settled"
+    assert Message.tool_output(Repo.get!(Message, command.message_id)) =~ "Cloned into project"
+
+    uncertain = command_fixture(c, "environment_terminal", %{"command" => "make test"})
+    expect(Tuist, :execute, fn _config, _identity, _payload -> {:error, :environment_provider_unavailable} end)
+    job = %Oban.Job{args: %{"environment_id" => c.environment.id, "command_id" => uncertain.id}}
+    assert :ok = ProviderWorker.perform(job)
+    assert :ok = ProviderWorker.perform(job)
+    assert Repo.reload!(uncertain).status == "claimed"
+    uncertain |> Ecto.Changeset.change(result_deadline: DateTime.add(DateTime.utc_now(), -1)) |> Repo.update!()
+    Commands.sweep()
+    assert Repo.reload!(uncertain).status == "unknown"
   end
 
   test "only the bound native client and owner see, claim or complete commands", c do
@@ -43,6 +76,67 @@ defmodule Atlas.Environments.CommandsTest do
 
     assert {:error, :not_found} =
              Commands.complete(c.user, Ecto.UUID.generate(), c.environment.id, command.id, result(claimed))
+  end
+
+  test "coding freezes worktree identity, replays known writes and fences all mutations after an unknown edit", c do
+    params = %{registration(c.project_id) | "projects" => [%{"id" => c.project_id, "name" => "Code", "coding" => true}]}
+    {:ok, _} = Environments.register(c.user, c.client_id, c.environment.id, params)
+    {:ok, _} = Environments.renew(c.user, c.client_id, c.environment.id, Ecto.UUID.generate())
+    args = %{"path" => "file", "content" => "new contents"}
+    command = command_fixture(c, "write", args)
+
+    assert JSON.decode!(command.arguments) ==
+             Map.merge(args, %{"project_id" => c.project_id, "thread_id" => c.thread.id, "title" => c.thread.title})
+
+    claimed = claim_fixture(c, command)
+    assert {:ok, _} = Commands.complete(c.user, c.client_id, c.environment.id, command.id, result(claimed))
+    assert {:ok, "known result"} = Tools.call(c.run.id, 0, "write", args)
+    assert {:ok, "known result"} = Tools.call(c.run.id, 0, "write", args)
+    assert Repo.aggregate(Command, :count) == 1
+    assert {:ok, []} = Commands.queued(c.user, c.client_id, c.environment.id)
+
+    edit = command_fixture(c, "edit", %{"path" => "file", "edits" => [%{"oldText" => "new", "newText" => "changed"}]})
+    _ = claim_fixture(c, edit)
+    edit |> Ecto.Changeset.change(expires_at: DateTime.add(DateTime.utc_now(), -1)) |> Repo.update!()
+    Commands.sweep()
+    assert Repo.reload!(edit).status == "unknown"
+    assert {:error, _} = Tools.call(c.run.id, 0, "write", %{"path" => "other", "content" => "unsafe retry"})
+    assert {:error, _} = Tools.call(c.run.id, 0, "bash", %{"command" => "echo unsafe > other"})
+    assert Repo.aggregate(Command, :count) == 2
+  end
+
+  test "bash uses durable tickets, owner progress and cancellation just like terminal", c do
+    params = %{registration(c.project_id) | "projects" => [%{"id" => c.project_id, "name" => "Code", "coding" => true}]}
+    {:ok, _} = Environments.register(c.user, c.client_id, c.environment.id, params)
+    {:ok, _} = Environments.renew(c.user, c.client_id, c.environment.id, Ecto.UUID.generate())
+    assert {:ok, ticket} = Tools.call(c.run.id, 0, "bash", %{"command" => "make test", "timeout" => 90})
+    assert {:ok, ^ticket} = Tools.call(c.run.id, 0, "bash", %{"command" => "make test", "timeout" => 90})
+    assert {:ok, [envelope]} = Commands.queued(c.user, c.client_id, c.environment.id)
+    assert envelope.arguments["thread_id"] == c.thread.id
+    assert envelope.arguments["timeout"] == 90
+    claimed = claim_fixture(c, Repo.get!(Command, envelope.id))
+
+    assert {:ok, %{received: true, cancel_requested: false}} =
+             Commands.progress(c.user, c.client_id, c.environment.id, envelope.id, %{
+               "claim_token" => claimed.claim_token,
+               "sequence" => 1,
+               "output" => "tests running"
+             })
+
+    assert {:ok, %{commands: [job]}} = Commands.list(c.user, c.thread.id)
+    assert job.output == "tests running"
+    assert {:ok, _} = Commands.cancel(c.user, c.thread.id, envelope.id, %{"digest" => envelope.digest})
+
+    assert {:ok, _} =
+             Commands.complete(c.user, c.client_id, c.environment.id, envelope.id, %{
+               "claim_token" => claimed.claim_token,
+               "success" => false,
+               "output" => "stopped"
+             })
+
+    assert {:ok, %{commands: [job]}} = Commands.list(c.user, c.thread.id)
+    assert job.status == "settled" and job.success == false and job.cancel_requested
+    assert Repo.aggregate(Command, :count) == 1
   end
 
   test "opted-in terminal commands are immediately claimable only by their exact immutable digest", c do

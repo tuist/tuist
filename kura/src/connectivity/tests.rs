@@ -12,6 +12,14 @@ fn private_address() -> SocketAddr {
     "10.96.0.20:80".parse().unwrap()
 }
 
+fn server_target(host: &str) -> Target {
+    Target {
+        host: host.into(),
+        port: 80,
+        path: "/ready",
+    }
+}
+
 #[test]
 fn profiles_are_fixed_and_include_absolute_names() {
     for (environment, namespace) in [
@@ -25,12 +33,29 @@ fn profiles_are_fixed_and_include_absolute_names() {
             format!("tuist-tuist-server.{namespace}.svc.cluster.local")
         );
         assert_eq!(
-            profile_samples(host),
+            profile_samples(host).map(|(target, budget)| (
+                target.host,
+                target.port,
+                target.path,
+                budget.as_secs()
+            )),
             [
-                (host.into(), Duration::from_secs(1)),
-                (host.into(), Duration::from_secs(3)),
-                (format!("{host}."), Duration::from_secs(1)),
-                (format!("{host}."), Duration::from_secs(3)),
+                (host.into(), 80, "/ready", 1),
+                (host.into(), 80, "/ready", 3),
+                (format!("{host}."), 80, "/ready", 1),
+                (format!("{host}."), 80, "/ready", 3),
+                (
+                    "k8s-monitoring-alloy-receiver.observability.svc.cluster.local".into(),
+                    4318,
+                    "/v1/traces",
+                    3
+                ),
+                (
+                    "k8s-monitoring-alloy-receiver.observability.svc.cluster.local.".into(),
+                    4318,
+                    "/v1/traces",
+                    3
+                ),
             ]
         );
     }
@@ -119,10 +144,17 @@ async fn cancelled_dns_cannot_accumulate_blocking_workers() {
     );
 }
 
-async fn exchange(host: &str, response: String, overall: Duration) -> Sample {
+async fn exchange(target: &Target, response: String, overall: Duration) -> Sample {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
-    let expected_host = host.to_owned();
+    let expected_host = if target.port == 80 {
+        target.host.clone()
+    } else {
+        format!("{}:{}", target.host, target.port)
+    };
+    let expected_path = target.path;
+    let mut resolved = private_address();
+    resolved.set_port(target.port);
     let server = tokio::spawn(async move {
         let (mut socket, _) = listener.accept().await.unwrap();
         let mut request = Vec::new();
@@ -131,7 +163,7 @@ async fn exchange(host: &str, response: String, overall: Duration) -> Sample {
             assert!(request.len() < 8192);
         }
         let request = String::from_utf8(request).unwrap().to_lowercase();
-        assert!(request.starts_with("get /ready http/1.1\r\n"));
+        assert!(request.starts_with(&format!("get {expected_path} http/1.1\r\n")));
         assert!(request.contains(&format!("host: {expected_host}\r\n")));
         for forbidden in [
             "authorization:",
@@ -149,12 +181,12 @@ async fn exchange(host: &str, response: String, overall: Duration) -> Sample {
         }
     });
     let result = measure(
-        host,
+        target,
         Duration::from_secs(1),
         overall,
-        |_| async { Ok(vec![private_address()]) },
+        |_| async { Ok(vec![resolved]) },
         move |target| {
-            assert_eq!(target, private_address());
+            assert_eq!(target, resolved);
             TcpStream::connect(address)
         },
     )
@@ -168,22 +200,41 @@ async fn exchange(host: &str, response: String, overall: Duration) -> Sample {
 
 #[tokio::test]
 async fn http_bounds_and_absolute_host_are_preserved() {
-    for host in [
-        "tuist-tuist-server.tuist.svc.cluster.local",
-        "tuist-tuist-server.tuist.svc.cluster.local.",
+    for (host, port, path) in [
+        ("tuist-tuist-server.tuist.svc.cluster.local", 80, "/ready"),
+        ("tuist-tuist-server.tuist.svc.cluster.local.", 80, "/ready"),
+        (
+            "k8s-monitoring-alloy-receiver.observability.svc.cluster.local",
+            4318,
+            "/v1/traces",
+        ),
+        (
+            "k8s-monitoring-alloy-receiver.observability.svc.cluster.local.",
+            4318,
+            "/v1/traces",
+        ),
     ] {
+        let target = Target {
+            host: host.into(),
+            port,
+            path,
+        };
         for (response, status, outcome) in [
             ("HTTP/1.1 100 Continue\r\n\r\n".into(), Some(100), "informational_response"),
             ("HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nsecret".into(), Some(200), "ok"),
             ("HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data/\r\nContent-Length: 0\r\n\r\n".into(), Some(302), "ok"),
+            ("HTTP/1.1 405 Method Not Allowed\r\nAllow: POST\r\nContent-Length: 0\r\n\r\n".into(), Some(405), "ok"),
             (format!("HTTP/1.1 200 OK\r\nContent-Length: 6000\r\n\r\n{}", "x".repeat(6000)), Some(200), "ok"),
             ("HTTP/1.1 200 OK\r\nContent-Length: 99\r\n\r\nx".into(), Some(200), "ok"),
             (format!("HTTP/1.1 200 OK\r\nX-Large: {}\r\n\r\n", "x".repeat(16384)), None, "http_error"),
             ("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nsecret\r\n0\r\n\r\n".into(), Some(200), "ok"),
         ] {
-            let sample = exchange(host, response, Duration::from_secs(2)).await;
+            let sample = exchange(&target, response, Duration::from_secs(2)).await;
             assert_eq!(sample.status, status);
             assert_eq!(sample.outcome, outcome);
+            assert_eq!(sample.target, host);
+            assert_eq!(sample.port, port);
+            assert_eq!(sample.path, path);
             assert!(sample.connect_ms.unwrap() >= sample.dns_ms.unwrap());
             assert!(sample.total_ms >= sample.connect_ms.unwrap());
             let json = serde_json::to_string(&sample).unwrap();
@@ -207,7 +258,7 @@ async fn invalid_addresses_fail_before_dial_including_mixed_answers() {
     ] {
         let forbidden = address.parse().unwrap();
         let sample = measure(
-            "fixed",
+            &server_target("fixed"),
             Duration::from_secs(1),
             Duration::from_secs(1),
             move |_| async move { Ok(vec![private_address(), forbidden]) },
@@ -220,6 +271,30 @@ async fn invalid_addresses_fail_before_dial_including_mixed_answers() {
         .await;
         assert_eq!(sample.outcome, "address_error");
     }
+
+    for (port, wrong_port) in [(80, 4318), (4318, 80)] {
+        for forbidden in [
+            SocketAddr::new("169.254.169.254".parse().unwrap(), port),
+            SocketAddr::new(private_address().ip(), wrong_port),
+        ] {
+            let valid = SocketAddr::new(private_address().ip(), port);
+            let target = Target {
+                host: "fixed".into(),
+                port,
+                path: if port == 80 { "/ready" } else { "/v1/traces" },
+            };
+            let sample = measure(
+                &target,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                move |_| async move { Ok(vec![valid, forbidden]) },
+                |_| async { panic!("dialed an unsafe address or mismatched target port") },
+            )
+            .await;
+            assert_eq!(sample.outcome, "address_error");
+            assert!(sample.connect_ms.is_none());
+        }
+    }
 }
 
 #[tokio::test(start_paused = true)]
@@ -227,7 +302,7 @@ async fn dns_and_tcp_share_the_budget() {
     let dials = Arc::new(AtomicUsize::new(0));
     let started = tokio::time::Instant::now();
     let sample = measure(
-        "fixed",
+        &server_target("fixed"),
         Duration::from_secs(1),
         Duration::from_secs(5),
         |_| async {
@@ -253,7 +328,7 @@ async fn dns_and_tcp_share_the_budget() {
 #[tokio::test(start_paused = true)]
 async fn stuck_dns_stops_without_dial() {
     let sample = measure(
-        "fixed",
+        &server_target("fixed"),
         Duration::from_secs(1),
         Duration::from_secs(5),
         |_| pending(),
@@ -269,15 +344,22 @@ async fn stuck_dns_stops_without_dial() {
 
 #[tokio::test]
 async fn overall_timeout_closes_stalled_http() {
-    let sample = exchange("fixed", String::new(), Duration::from_millis(30)).await;
-    assert_eq!(sample.outcome, "http_error");
-    assert_eq!(sample.status, None);
+    for port in [80, 4318] {
+        let target = Target {
+            host: "fixed".into(),
+            port,
+            path: "/v1/traces",
+        };
+        let sample = exchange(&target, String::new(), Duration::from_millis(30)).await;
+        assert_eq!(sample.outcome, "http_error");
+        assert_eq!(sample.status, None);
+    }
 }
 
 #[tokio::test]
 async fn malformed_host_is_a_diagnostic_error_not_a_panic() {
     let sample = measure(
-        "bad\r\nhost",
+        &server_target("bad\r\nhost"),
         Duration::from_secs(1),
         Duration::from_secs(1),
         |_| pending(),

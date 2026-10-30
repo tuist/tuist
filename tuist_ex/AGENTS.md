@@ -166,6 +166,7 @@ dashboard presentation belong in `server/`.
 - Options resolved by `TuistEx.Analytics.Config` mirror `TuistEx.Auth`: env
   overrides beat runtime options beat `Mix.Project.config()[:tuist]`.
 
+- `CertificateTrust` ships the twelve-key eMudhra SPKI policy in the Hex package. HTTP JSON/auth/upload/download and gRPC/Mint REAPI use its TLS options by default. Filter blocked anchors and reject blocked peer/intermediate keys without overriding native hostname, signature, validity or extension failures. Preserve complete `{:bad_cert, reason}` callback failures so OTP can repair alternate/cross-signed paths. Mint can anchor a matching trusted key before OTP's repair branch; do not require its legacy-callback negative to fail. Never mutate the host CA cache or retry failed TLS over plaintext. Keep all real-key fixtures and transport tests inside this package, with no shared-harness dependency.
 - Keep dated full-graph performance measurements and limitations in the pull request description, not a committed investigation report. Use the actual locked `server` graph for performance conclusions; distinguish keyed restores, bootstrap compilation, misses, intentional opt-outs and local projects. Keep dependency preparation separate from server compilation, and report host contention and sample counts rather than extrapolating fixture speedups.
 - Quokka runs through `mix format`; use `mix format --check-formatted` for checks.
 - Use Mimic for mocks. Register copied modules in `test/test_helper.exs`.

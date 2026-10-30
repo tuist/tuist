@@ -282,6 +282,13 @@ defmodule Tuist.Environment do
     not hosted and enabled == true
   end
 
+  def network_trusted_cache_access_enabled?(
+        hosted \\ tuist_hosted?(),
+        enabled \\ Application.get_env(:tuist, :network_trusted_cache_access, false)
+      ) do
+    not hosted and enabled == true
+  end
+
   def sso_require_login_domain_verification?(
         enabled \\ Application.get_env(:tuist, :sso_require_login_domain_verification, false)
       ) do
@@ -2014,6 +2021,15 @@ defmodule Tuist.Environment do
   """
   def sandboxes_namespace do
     System.get_env("TUIST_SANDBOXES_NAMESPACE", "tuist-sandboxes")
+  end
+
+  def amp_provider_config do
+    %{
+      image: System.get_env("TUIST_AMP_PROVIDER_IMAGE"),
+      namespace: System.get_env("TUIST_AMP_PROVIDER_NAMESPACE", "tuist-amp-orbs"),
+      url: System.get_env("TUIST_AMP_PROVIDER_URL"),
+      node_selector: "TUIST_AMP_PROVIDER_NODE_SELECTOR" |> System.get_env("{}") |> JSON.decode!()
+    }
   end
 
   @doc """

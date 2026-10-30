@@ -1081,3 +1081,7 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxReplicas: 2
+
+ampOrbProvider:
+  enabled: true
+  url: https://staging.tuist.dev

@@ -133,7 +133,20 @@ serialization are specified in [`fleet-sharing.md`](../../../../infra/sandboxd/f
 Shared-node idle pauses have zero grace and enqueue shrink work; active
 residencies and daemon worker/exec guards remain authoritative.
 
+Account compute admission is independent of CI: `Tuist.Sandboxes.Concurrency`
+charges creating, resuming and running rows against account vCPU/RAM limits.
+Create and resume must reserve quota in the same transaction as their state
+transition, under the account row lock. Never hold that lock across node or
+Kubernetes calls. Ops can adjust the limits; public account changesets must not
+cast them. Pauses release compute quota, not the existing live-sandbox/disk limit.
+
 ## Multiple replicas
+
+Managed Amp Orbs use account-owned integrations and a workload-authenticated internal dispatch endpoint; standalone providers retain the account-admin endpoint. Both use the `AmpOrbs` context;
+[`infra/amp-orbs/README.md`](../../../../infra/amp-orbs/README.md) specifies
+the provider contract and rollout. Preserve their active residency while
+bootstrap is detached, and exclude non-null `amp_orb_id` rows from inactivity
+retention: Amp owns their pause/delete lifecycle.
 
 Web replicas form an Erlang cluster, and nothing here assumes the
 socket, the poller and the caller share a replica:

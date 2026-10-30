@@ -145,7 +145,7 @@ msgstr "掃描 QR 碼"
 #: lib/tuist_web/live/preview_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "掃描此 QR 碼以在 iOS 裝置上安裝此版本的應用程式"
+msgstr "在 iOS 裝置上掃描此 QR 碼以安裝此版本的應用程式"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,12 +160,12 @@ msgstr "支援的平台"
 #: lib/tuist_web/live/preview_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "此預覽僅支援模擬器，無法安裝至實體裝置"
+msgstr "此預覽僅支援模擬器，無法安裝在實體裝置上"
 
 #: lib/tuist_web/live/preview_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "此預覽不支援安裝至裝置"
+msgstr "此預覽不支援裝置安裝"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "套件名稱"
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "在 Android 裝置上掃描此 QR Code，以下載並安裝此版本的應用程式"
+msgstr "在 Android 裝置上掃描此 QR 碼，以下載並安裝此版本的應用程式"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format

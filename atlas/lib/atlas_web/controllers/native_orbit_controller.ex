@@ -9,6 +9,7 @@ defmodule AtlasWeb.NativeOrbitController do
   alias Atlas.Environments
   alias Atlas.Orbit
   alias Atlas.Orbit.Attachments
+  alias Atlas.Orbit.Classification
   alias Atlas.Orbit.Components
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Progress
@@ -26,17 +27,19 @@ defmodule AtlasWeb.NativeOrbitController do
   end
 
   def index(conn, params) do
-    case {page(params), Map.get(params, "kind"), Map.get(params, "status", "active")} do
-      {{:ok, page}, kind, status} when kind in [nil, "private", "shared"] and status in ["active", "archived"] ->
+    case {page(params), Map.get(params, "kind"), Map.get(params, "status", "active"), inbox_filters_valid?(params)} do
+      {{:ok, page}, kind, status, true} when kind in [nil, "private", "shared"] and status in ["active", "archived"] ->
         user = conn.assigns.current_user
-        {items, meta} = Orbit.list_for_user(user, page, kind, status)
+        {items, meta} = Orbit.list_for_user(user, page, kind, status, Map.take(params, ["query", "domain"]))
 
         json(conn, %{
           assistant: %{
             name: Orbit.agent_name(),
             configured: Orbit.agent_configured?(user),
             can_create_private: true,
-            environments: true
+            environments: true,
+            searchable: true,
+            domains: Classification.domains()
           },
           threads: Map.put(meta, :items, Enum.map(items, &thread/1))
         })
@@ -51,6 +54,21 @@ defmodule AtlasWeb.NativeOrbitController do
       {:ok, thread, :created} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
       {:ok, thread, :existing} -> json(conn, %{thread: thread(thread)})
       {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def models(conn, _params), do: json(conn, Orbit.models_for(conn.assigns.current_user))
+
+  def model(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+
+    with %{"model" => model} when map_size(conn.body_params) == 1 <- conn.body_params,
+         {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, selected} <- Orbit.set_model(user, thread, model) do
+      json(conn, %{thread: thread(selected)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+      _ -> respond_error(conn, :invalid_params)
     end
   end
 
@@ -94,7 +112,7 @@ defmodule AtlasWeb.NativeOrbitController do
   def messages(conn, %{"id" => id} = params) do
     with {:ok, page} <- page(params),
          {:ok, thread} <- Orbit.fetch(conn.assigns.current_user, id) do
-      {items, meta} = Orbit.list_messages(thread, page)
+      {items, meta} = Orbit.list_messages(thread, page, conn.assigns.current_user)
 
       json(conn, %{
         thread: thread(thread),
@@ -210,10 +228,14 @@ defmodule AtlasWeb.NativeOrbitController do
       status: thread.status,
       summary: thread.summary || "",
       origin: thread.origin,
+      priority: thread.priority,
+      domain: thread.domain,
       owner_id: thread.owner_id,
+      model: thread.model,
       environment_id: thread.environment_id,
       environment_name: thread.environment_name,
       project_id: thread.project_id,
+      repository: thread.repository,
       participants:
         Enum.map(thread.participants, fn participant ->
           %{id: participant.user_id, name: Orbit.display_name(participant.user)}
@@ -234,6 +256,7 @@ defmodule AtlasWeb.NativeOrbitController do
       id: message.id,
       kind: message.kind,
       body: message.body,
+      suggestions: message.suggestions,
       notice_kind: message.notice_kind,
       mentioned_user_ids: message.mentioned_user_ids,
       author_id: if(message.kind == "human", do: message.author_id),
@@ -256,6 +279,15 @@ defmodule AtlasWeb.NativeOrbitController do
   defp author_name(%Message{kind: "human"} = message), do: message.author_name
   defp author_name(%Message{kind: kind}) when kind in ["agent", "tool"], do: Orbit.agent_name()
   defp author_name(_message), do: ""
+
+  defp inbox_filters_valid?(params) do
+    query = Map.get(params, "query", "")
+    domain = Map.get(params, "domain", "")
+
+    Enum.all?(Map.keys(params), &(&1 in ~w(page kind status query domain))) and
+      is_binary(query) and byte_size(query) <= 200 and not Regex.match?(~r/[\p{Cc}]/u, query) and
+      (domain in ["", "unclassified"] or Classification.valid_domain?(domain))
+  end
 
   defp page(params) do
     case Map.get(params, "page", "1") do
@@ -294,6 +326,7 @@ defmodule AtlasWeb.NativeOrbitController do
        when reason in [
               :personal_environment_history,
               :private_environment_required,
+              :model_run_active,
               :environment_run_active,
               :environment_disabled,
               :environment_project_unavailable

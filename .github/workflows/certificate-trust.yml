@@ -3,13 +3,45 @@ name: Certificate Trust
 on:
   pull_request:
     paths:
+      - infra/runner-image/cmd/runner-shell-agent/**
+      - infra/linux-runner-image/cmd/runner-shell-agent/**
+      - infra/runner-image/go.*
+      - infra/linux-runner-image/go.*
       - infra/certificate-trust/**
+      - go.work
+      - infra/**/go.mod
+      - kube-impersonator/go.mod
+      - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/workflows/certificate-trust.yml
+      - infra/macos-log-shipper/**
+      - server/config/runtime.exs
+      - server/lib/tuist/application.ex
+      - server/lib/tuist/application/certificate_trust.ex
+      - server/test/tuist/application/certificate_trust_test.exs
+      - server/test/tuist/application/fixtures/**
+      - .github/workflows/server-deployment.yml
+      - .github/scripts/xcresult-processor-rollout.test.mjs
   push:
     branches: [main]
     paths:
+      - infra/runner-image/cmd/runner-shell-agent/**
+      - infra/linux-runner-image/cmd/runner-shell-agent/**
+      - infra/runner-image/go.*
+      - infra/linux-runner-image/go.*
       - infra/certificate-trust/**
+      - go.work
+      - infra/**/go.mod
+      - kube-impersonator/go.mod
+      - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/workflows/certificate-trust.yml
+      - infra/macos-log-shipper/**
+      - server/config/runtime.exs
+      - server/lib/tuist/application.ex
+      - server/lib/tuist/application/certificate_trust.ex
+      - server/test/tuist/application/certificate_trust_test.exs
+      - server/test/tuist/application/fixtures/**
+      - .github/workflows/server-deployment.yml
+      - .github/scripts/xcresult-processor-rollout.test.mjs
   workflow_dispatch:
 
 permissions:
@@ -20,8 +52,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  xcresult-runtime:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: erlang elixir node
+      - name: Test processor trust without starting the server or modifying host trust
+        working-directory: server
+        run: elixir -r lib/tuist/application/certificate_trust.ex -e 'ExUnit.start(); Code.require_file("test/tuist/application/certificate_trust_test.exs")'
+      - run: npm ci --ignore-scripts
+      - name: Test the canary processor readiness gate without cluster access
+        run: node --test .github/scripts/xcresult-processor-rollout.test.mjs
   test:
-    runs-on: tuist-linux
+    # Cache-volume filesystem regressions need user xattrs, absent on fleet /tmp.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       GOWORK: 'off'
@@ -42,9 +91,26 @@ jobs:
         with:
           go-version: '1.26.10'
           cache: false
+      - name: Race-test both runner shell discovery and WSS clients
+        run: |
+          go -C ../runner-image test -race -count=1 ./cmd/runner-shell-agent
+          go -C ../linux-runner-image test -race -count=1 ./cmd/runner-shell-agent
       - name: Test policy evidence and public store contracts
         run: go test -count=1 ./...
-      - name: Qualify explicit-root Go verifier against eight intermediate keys
-        run: go run .
+      - name: Race-test cache-volume HTTPS clients and wire controls
+        run: go -C ../linux-runner-image test -race -count=1 ./cmd/tuist-cache-volume
       - name: Check shell syntax
         run: bash -n pem-store.sh && bash -n java-store.sh
+      - name: Qualify compiler distrust with retained runtime defaults
+        run: |
+          for baseline in go1.25 go1.23; do
+            echo "Qualifying default=$baseline"
+            go mod edit -godebug=default="$baseline"
+            go run .
+          done
+      - name: Race-test standalone log shipper HTTPS clients and wire controls
+        run: go -C ../macos-log-shipper test -race -count=1 ./...
+      - name: Test static log shipper build configuration
+        env:
+          CGO_ENABLED: '0'
+        run: go -C ../macos-log-shipper test -count=1 ./...

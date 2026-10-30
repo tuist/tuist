@@ -55,7 +55,7 @@ defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
       |> Map.put("type", ["object", "null"])
 
     build = build()
-    object(Map.put(build["properties"], "cache", cache))
+    %{build | "properties" => Map.put(build["properties"], "cache", cache), "required" => ["cache" | build["required"]]}
   end
 
   defp build do
@@ -76,6 +76,10 @@ defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
       "inserted_at" => %{"type" => "string"}
     })
     |> object()
+    |> Map.update!(
+      "properties",
+      &Map.put(&1, "tuist_version", Map.put(@nullable_string, "description", "The reporting Tuist CLI version."))
+    )
   end
 
   defp object(properties) do

@@ -41,6 +41,7 @@ defmodule TuistWeb.API.Schemas.CargoBuild do
           }
         },
         command: nullable_string("The Cargo subcommand, for example build or check."),
+        tuist_version: nullable_string("The reporting Tuist CLI version."),
         rust_version: nullable_string("The rustc version."),
         status: %Schema{type: :string, enum: ["success", "failure"]},
         duration_ms: %Schema{type: :integer},

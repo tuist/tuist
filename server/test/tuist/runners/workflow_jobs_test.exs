@@ -7,6 +7,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
   alias Tuist.Runners.WorkflowJobTransitionEvent
@@ -532,6 +533,39 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert claim_row.executed_workflow_job_id == 910_051
       assert executed_row.runner_name == "runner-x"
       assert executed_row.executed_workflow_job_id == 910_051
+    end
+
+    test "stamps the claim time of the runner's session on the executed job and replicates it once" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_053))
+      runner_claimed_at = ~U[2026-10-28 15:37:38.431474Z]
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: 910_054,
+        fleet_name: "fleet-a",
+        pod_name: "pod-1",
+        runner_name: "runner-x",
+        started_at: runner_claimed_at
+      })
+
+      Repo.delete_all(WorkflowJobTransitionEvent)
+
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_053, account.id)
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_053, account.id)
+
+      assert get_row!(910_053).executor_claimed_at == runner_claimed_at
+      assert [%WorkflowJobTransitionEvent{payload: payload}] = Repo.all(WorkflowJobTransitionEvent)
+      assert WorkflowJobs.decode_transition_payload(payload).executor_claimed_at == runner_claimed_at
+    end
+
+    test "leaves the claim time unset for a runner with no session" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_055))
+
+      assert :ok = WorkflowJobs.record_execution("runner-x", 910_055, account.id)
+
+      assert get_row!(910_055).executor_claimed_at == nil
     end
 
     test "is scoped to the webhook's account" do

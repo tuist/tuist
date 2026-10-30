@@ -588,6 +588,43 @@ struct SetupCacheCommandServiceTests {
             .called(0)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [false, true])
+    func setupCache_networkTrustPreservesUploadPolicy(allowed: Bool) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = "/usr/local/bin/tuist"
+        environment.variables["CI"] = "1"
+        let registry = try #require(FileSystem.temporaryTestDirectory).appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let serverURL = try #require(URL(string: "https://tuist.example"))
+        serverEnvironmentService.reset()
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(serverURL)
+        serverAuthenticationController.reset()
+        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(nil)
+        configLoader.reset()
+        given(configLoader).loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "acme/ios", xcodeCache: Tuist.XcodeCache(upload: false)))
+
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in allowed }) {
+            if allowed {
+                try await subject.run(path: nil)
+            } else {
+                await #expect(throws: SetupCacheCommandServiceError.notAuthenticated) {
+                    try await subject.run(path: nil)
+                }
+            }
+        }
+        let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        if allowed {
+            let sources = try await FileSystem().readTextFile(at: sourcesPath)
+            let entries = try #require(JSONSerialization.jsonObject(with: Data(sources.utf8)) as? [String: [String: Any]])
+            #expect(entries["acme/ios"]?["upload"] as? Bool == false)
+            #expect(entries["acme/ios"]?["branch"] as? String == "feature/tags")
+            #expect(entries["acme/ios"]?["trunk"] == nil)
+        } else {
+            #expect(try await !FileSystem().exists(sourcesPath))
+        }
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_includesEnvironmentToken() async throws {
         // Given
         let environment = try #require(Environment.mocked)

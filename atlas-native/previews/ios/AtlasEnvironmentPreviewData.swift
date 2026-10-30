@@ -8,7 +8,10 @@ final class AtlasEnvironmentPreviewData: ObservableObject {
     private let environment = "00000000-0000-4000-8000-000000000002"
     private let project = "00000000-0000-4000-8000-000000000003"
     private var selected = false
+    private var hosted = ProcessInfo.processInfo.arguments.contains("--hosted-environment")
     private var stopping = false
+    private var repository: String?
+    private var settings: [String: Any] = ["installation_id": "42", "default_repository": "acme/mobile"]
 
     #if os(macOS)
     lazy var workstation: AtlasWorkstation = {
@@ -25,16 +28,39 @@ final class AtlasEnvironmentPreviewData: ObservableObject {
     func request(_ action: [String: Any]) async throws -> Data {
         let value: [String: Any]
         switch action["action"] as? String {
+        case "repositories":
+            value = ["settings": settings, "installations": [["id": "42", "name": "Acme"], ["id": "73", "name": "Example Labs"]],
+                     "repositories": (action["installation_id"] as? String ?? settings["installation_id"] as? String) == "73"
+                        ? [["full_name": "example/api"]] : [["full_name": "acme/mobile"], ["full_name": "acme/server"]]]
+        case "update_repositories":
+            if ProcessInfo.processInfo.arguments.contains("--fail-repository-save") {
+                throw AtlasAuthenticationError(kind: "preview", message: "Preview save failed. Your selection is kept.")
+            }
+            settings = ["installation_id": action["installation_id"] ?? NSNull(),
+                        "default_repository": action["default_repository"] ?? NSNull()]
+            value = settings
         case "list":
-            value = ["owner_id": owner, "environments": [[
+            var environments: [[String: Any]] = [[
                 "id": environment, "name": "Demo Mac", "enabled": true, "online": true,
-                "terminal": true, "display": false, "projects": [["id": project, "name": "Example project"]]
-            ]]]
-        case "selection", "select":
-            if action["action"] as? String == "select" { selected = action["environment_id"] as? String == environment }
-            value = ["thread": ["id": action["thread_id"] as? String ?? "", "environment_id": selected ? environment as Any : NSNull(),
-                                "environment_name": selected ? "Demo Mac" as Any : NSNull(),
-                                "project_id": selected ? project as Any : NSNull()]]
+                "terminal": true, "display": false, "projects": [["id": project, "name": "Example project",
+                                                                 "coding": true, "repository": "acme/mobile"]]
+            ]].filter { _ in !ProcessInfo.processInfo.arguments.contains("--empty-environments") }
+            if hosted {
+                environments.append(["id": owner, "name": "Tuist", "enabled": true, "online": true,
+                                     "terminal": true, "display": false, "provider": "tuist", "provider_state": "ready",
+                                     "projects": [["id": project, "name": "Workspace"]]])
+            }
+            value = ["owner_id": owner, "providers": [["id": "tuist", "name": "Tuist"]], "environments": environments]
+        case "selection", "select", "start_provider":
+            if action["action"] as? String == "select" {
+                selected = action["environment_id"] as? String == environment
+                hosted = false
+                repository = action["repository"] as? String
+            }
+            if action["action"] as? String == "start_provider" { hosted = true; selected = false; repository = nil }
+            value = ["thread": ["id": action["thread_id"] as? String ?? "", "environment_id": hosted ? owner : selected ? environment as Any : NSNull(),
+                                "environment_name": hosted ? "Tuist" : selected ? "Demo Mac" as Any : NSNull(),
+                                "project_id": selected || hosted ? project as Any : NSNull(), "repository": repository as Any? ?? NSNull()]]
         case "thread_commands":
             value = ["commands": ProcessInfo.processInfo.arguments.contains("--environment-jobs") ? [job()] : []]
         case "cancel_command":

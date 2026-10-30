@@ -1,26 +1,37 @@
 name: Sandbox Template Image
 
-# PR validation + on-demand build of the sandbox guest template image
-# (infra/sandbox-image/): the Firecracker kernel + rootfs that the sandboxd
-# DaemonSet's init container copies onto each node, consumed by
-# `sandboxes.templateImage` in the helm chart.
-#
-# PR: builds without pushing.
-# workflow_dispatch: builds and pushes a `:sha-<git-sha>` tag; pin it in
-#     `sandboxes.templateImage.tag` of the env values file.
-#
-# Mirrors .github/workflows/linux-runner-image.yml.
+# PR validation and the reusable publisher used by server deployments.
+# The source-derived immutable tag is reused across unrelated server changes.
+# The production cascade builds once and promotes it through canary/production;
+# staging builds through server-deployment.yml. Manual dispatch remains available.
 
 on:
   pull_request:
     paths:
       - infra/sandbox-image/**
+      - infra/amp-orbs/**
+      - infra/helm/tuist/**
       - .github/workflows/sandbox-image.yml
+      - .github/scripts/sandbox-image-*.sh
+      - .github/scripts/sandbox-template-tag.sh
+      - .github/scripts/sandbox-deployment.test.mjs
+      - .github/workflows/server-deployment.yml
+      - .github/workflows/server-production-deployment.yml
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      commit_sha:
+        description: Source commit to build (defaults to the caller SHA)
+        required: false
+        type: string
+    outputs:
+      image_tag:
+        description: Published immutable sandbox template tag
+        value: ${{ jobs.build.outputs.image_tag }}
 
 permissions:
   contents: read
-  packages: write
+  packages: read
 
 env:
   REGISTRY: ghcr.io
@@ -30,8 +41,23 @@ jobs:
   test:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     runs-on: tuist-linux
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: ./.github/actions/mise
+        with:
+          install_args: --locked helm yq
+          env: false
+      - name: Test provider runtime and chart
+        run: node --test infra/amp-orbs/provider.test.mjs
+      - name: Test sandbox deployment
+        run: node --test .github/scripts/sandbox-deployment.test.mjs
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/sandbox-image/go.mod
@@ -42,37 +68,97 @@ jobs:
       - name: Vet
         working-directory: infra/sandbox-image
         run: go vet ./...
-
-  build:
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    needs: test
-    runs-on: tuist-linux
-    steps:
-      - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        if: github.event_name != 'pull_request'
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Compute tags
-        id: tags
-        run: |
-          set -euo pipefail
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          GIT_SHA="${GITHUB_SHA::12}"
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "tags=${IMAGE}:pr-${GIT_SHA}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tags=${IMAGE}:sha-${GIT_SHA}" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: docker/build-push-action@v6
+      # The template builds without a layer cache: importing and exporting its
+      # multi-GiB rootfs layers takes longer than rebuilding them.
+      - name: Validate template build
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
         with:
           context: infra/sandbox-image
           file: infra/sandbox-image/Dockerfile
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha,scope=sandbox-image
-          cache-to: type=gha,mode=max,scope=sandbox-image
+          push: false
+      - name: Validate provider build
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/amp-orbs
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: amp-orb-provider:test
+          cache-from: type=gha,scope=amp-orb-provider
+          cache-to: type=gha,mode=max,scope=amp-orb-provider
+
+      - name: Exercise provider runtime
+        run: |
+          docker run --rm --read-only --tmpfs /tmp:rw,exec,size=64m --tmpfs /state:rw,exec,uid=10001,gid=10001 --entrypoint bash amp-orb-provider:test -ec 'mkdir -p "$HOME"; amp --version; bash -n /opt/tuist-amp-orbs/*.sh'
+          docker run --rm --read-only --tmpfs /tmp:rw,exec,size=64m --entrypoint bash -v "$PWD/infra/amp-orbs:/tests:ro" amp-orb-provider:test /tests/run-provider.test.sh
+
+  build:
+    if: github.event_name != 'pull_request'
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    # Serialize publication so concurrent deployments cannot overwrite a tag.
+    concurrency:
+      group: sandbox-template-publish
+      cancel-in-progress: false
+    timeout-minutes: 45
+    outputs:
+      image_tag: ${{ steps.version.outputs.image_tag }}
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve template version
+        id: version
+        run: |
+          set -euo pipefail
+          image_tag=$(bash .github/scripts/sandbox-image-version.sh)
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
+      - name: Reuse published template
+        id: existing
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          exists=$(bash .github/scripts/sandbox-image-exists.sh "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG")
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        if: steps.existing.outputs.exists != 'true'
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}
+      - name: Reuse published provider
+        id: existing-provider
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          exists=$(bash .github/scripts/sandbox-image-exists.sh "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG-provider")
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      - name: Publish provider
+        if: steps.existing-provider.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/amp-orbs
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}-provider
+          cache-from: type=gha,scope=amp-orb-provider
+          cache-to: type=gha,mode=max,scope=amp-orb-provider

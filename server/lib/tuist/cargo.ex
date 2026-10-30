@@ -8,7 +8,7 @@ defmodule Tuist.Cargo do
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Analytics, as: BuildAnalytics
 
-  @strings ~w(command rust_version contract_version git_branch git_commit_sha git_ref git_remote_url_origin ci_provider ci_run_id ci_project_handle ci_host)a
+  @strings ~w(command rust_version tuist_version contract_version git_branch git_commit_sha git_ref git_remote_url_origin ci_provider ci_run_id ci_project_handle ci_host)a
   @list_fields Build.__schema__(:fields) -- [:cache_metrics]
 
   def create_build(attrs) do

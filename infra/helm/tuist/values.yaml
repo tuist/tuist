@@ -1891,6 +1891,12 @@ rackFleet:
     # stacked image but not boot it. An Xcode without a stacked digest, or with
     # an `imageTag` override, keeps its standalone image.
     stackedImages: false
+    # How many runner images each host keeps. Every host stages the catalog
+    # pools' images up to it, warm floors first and then by the pools'
+    # `status.lastDemandAt`, and reaps the lowest-ranked beyond it. Empty
+    # leaves hosts staging only the releases of the images they hold and
+    # dropping an unused one after a day.
+    goldenBudget: ~
     # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
     # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
     # guestCapacity); the allocator caps the pools' joint sum.
@@ -1901,9 +1907,11 @@ rackFleet:
     # rollout:
     #   maxConcurrentPercent: 5
     # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
-    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
-    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
-    # from `guestShapes` below.
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`, and
+    # `shapes.<vcpus>vcpu-<gb>gb.autoscaling`, which replaces `shapes` below
+    # for that Xcode's pool of the shape. The image, runner labels and pod
+    # sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart from
+    # `guestShapes` below.
     xcodeOverrides: {}
     # A bigger guest on this fleet for a catalog shape, keyed
     # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
@@ -2550,8 +2558,9 @@ macosFleet:
 sandboxes:
   enabled: false
   namespace: tuist-sandboxes
-  # Both tags are `sha-<git-sha>` tags pushed by sandboxd-image.yml and
-  # sandbox-image.yml (workflow_dispatch). Empty is a render-time failure.
+  # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
+  # server deploys publish/select the guest template automatically; sandboxd
+  # remains explicitly pinned. Empty tags are a render-time failure.
   image:
     repository: ghcr.io/tuist/sandboxd
     tag: ""
@@ -2843,8 +2852,9 @@ runnersFleet:
       memoryGb: 14
       default: true
     # A non-default entry may carry its own `autoscaling` block, which
-    # is the only place a shape's scaling is configured (`xcodeOverrides`
-    # tunes the default shape's pools). Without one the pool renders
+    # scales every Xcode's pool of the shape. An Xcode's
+    # `xcodeOverrides.<xcode>.shapes.<vcpus>vcpu-<gb>gb.autoscaling`
+    # replaces it for that Xcode's pool. Without either the pool renders
     # static at replicas 0.
     #
     # - vcpus: 12
@@ -4150,3 +4160,13 @@ kuraActivation:
     production: https://tuist.dev
     canary: https://canary.tuist.dev
     staging: https://staging.tuist.dev
+
+# Account integrations provision isolated provider workloads in this namespace.
+# No shared provider token or human Tuist login is required.
+ampOrbProvider:
+  enabled: false
+  namespace: tuist-amp-orbs
+  url: ""
+  image:
+    repository: ghcr.io/tuist/tuist-sandbox-template
+  nodeSelector: {}

@@ -1495,6 +1495,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - actor
@@ -4371,6 +4377,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - cache
         - id
@@ -6369,6 +6381,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - cache
         - id
@@ -7011,6 +7029,65 @@ components:
         - upload_id
         - parts
       title: CompleteShardUploadParams
+      type: object
+      x-struct:
+      x-validate:
+    DispatchAmpOrb:
+      properties:
+        amp_url:
+          format: uri
+          maxLength: 2048
+          pattern: ^https://
+          type: string
+          x-struct:
+          x-validate:
+        memory_mb:
+          enum:
+            - 4096
+            - 8192
+            - 16384
+          type: integer
+          x-struct:
+          x-validate:
+        operation:
+          enum:
+            - spawn
+            - pause
+            - delete
+          type: string
+          x-struct:
+          x-validate:
+        orb_token:
+          maxLength: 16384
+          minLength: 1
+          type: string
+          writeOnly: true
+          x-struct:
+          x-validate:
+        template:
+          description: Sandbox template name.
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          enum:
+            - 2
+            - 4
+            - 8
+          type: integer
+          x-struct:
+          x-validate:
+        workspace_gb:
+          maximum: 100
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - operation
+      title: DispatchAmpOrb
       type: object
       x-struct:
       x-validate:
@@ -11867,6 +11944,11 @@ components:
           type: integer
           x-struct:
           x-validate:
+        amp_orb_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         anthropic_session_id:
           nullable: true
           type: string
@@ -12680,6 +12762,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - actor
@@ -13380,6 +13468,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              tuist_version:
+                description: The reporting Tuist CLI version.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
             required:
               - id
               - actor
@@ -13641,6 +13735,12 @@ components:
                 enum:
                   - success
                   - failure
+                type: string
+                x-struct:
+                x-validate:
+              tuist_version:
+                description: The reporting tuist_ex library version.
+                nullable: true
                 type: string
                 x-struct:
                 x-validate:
@@ -16163,6 +16263,11 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        amp_orb_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         anthropic_session_id:
                           nullable: true
                           type: string
@@ -16362,6 +16467,11 @@ paths:
                   agent_environment_id:
                     nullable: true
                     type: integer
+                    x-struct:
+                    x-validate:
+                  amp_orb_id:
+                    nullable: true
+                    type: string
                     x-struct:
                     x-validate:
                   anthropic_session_id:
@@ -17060,6 +17170,158 @@ paths:
       summary: It completes a multi-part upload.
       tags:
         - Analytics
+  /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}:
+    post:
+      callbacks: {}
+      description: Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+      operationId: dispatchAmpOrb
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: orb_id
+          required: true
+          schema:
+            maxLength: 255
+            minLength: 1
+            pattern: ^[a-zA-Z0-9_-]+$
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                amp_url:
+                  format: uri
+                  maxLength: 2048
+                  pattern: ^https://
+                  type: string
+                  x-struct:
+                  x-validate:
+                memory_mb:
+                  enum:
+                    - 4096
+                    - 8192
+                    - 16384
+                  type: integer
+                  x-struct:
+                  x-validate:
+                operation:
+                  enum:
+                    - spawn
+                    - pause
+                    - delete
+                  type: string
+                  x-struct:
+                  x-validate:
+                orb_token:
+                  maxLength: 16384
+                  minLength: 1
+                  type: string
+                  writeOnly: true
+                  x-struct:
+                  x-validate:
+                template:
+                  description: Sandbox template name.
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
+                  x-struct:
+                  x-validate:
+                vcpus:
+                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  enum:
+                    - 2
+                    - 4
+                    - 8
+                  type: integer
+                  x-struct:
+                  x-validate:
+                workspace_gb:
+                  maximum: 100
+                  minimum: 1
+                  type: integer
+                  x-struct:
+                  x-validate:
+              required:
+                - operation
+              title: DispatchAmpOrb
+              type: object
+              x-struct:
+              x-validate:
+        description: Orb job
+        required: false
+      responses:
+        '204':
+          description: The Orb operation completed
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid job
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox is not in a state that allows the operation
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node rejected the operation
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No sandbox node is available
+        '504':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node did not answer in time
+      summary: Dispatch a self-hosted Amp Orb lifecycle job.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}:
     delete:
       callbacks: {}
@@ -19971,6 +20233,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -20723,6 +20997,11 @@ paths:
                   agent_environment_id:
                     nullable: true
                     type: integer
+                    x-struct:
+                    x-validate:
+                  amp_orb_id:
+                    nullable: true
+                    type: string
                     x-struct:
                     x-validate:
                   anthropic_session_id:
@@ -25171,6 +25450,11 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  amp_orb_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   anthropic_session_id:
                     nullable: true
                     type: string
@@ -25949,6 +26233,12 @@ paths:
                           enum:
                             - success
                             - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting tuist_ex library version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -26837,6 +27127,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -27565,6 +27867,12 @@ paths:
                     enum:
                       - success
                       - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting tuist_ex library version.
+                    nullable: true
                     type: string
                     x-struct:
                     x-validate:
@@ -31159,6 +31467,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                       required:
                         - id
                         - actor
@@ -32075,6 +32389,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -38404,6 +38730,11 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  amp_orb_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   anthropic_session_id:
                     nullable: true
                     type: string
@@ -39489,6 +39820,12 @@ paths:
                     enum:
                       - success
                       - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
                     type: string
                     x-struct:
                     x-validate:
@@ -40670,6 +41007,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -48474,6 +48823,12 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting Tuist Gradle plugin version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 type: object
                 x-struct:
                 x-validate:
@@ -51378,6 +51733,12 @@ paths:
                           x-validate:
                         tasks_up_to_date_count:
                           type: integer
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist Gradle plugin version.
+                          nullable: true
+                          type: string
                           x-struct:
                           x-validate:
                       type: object

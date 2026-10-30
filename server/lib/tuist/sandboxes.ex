@@ -18,6 +18,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
@@ -44,6 +45,8 @@ defmodule Tuist.Sandboxes do
 
   def default_template, do: @default_template
   def default_shape, do: @default_shape
+
+  defdelegate dispatch_amp_orb(account, orb_id, params), to: Tuist.Sandboxes.AmpOrbs, as: :dispatch
 
   # ----- Agent environments -----
 
@@ -138,6 +141,7 @@ defmodule Tuist.Sandboxes do
   def list_sandboxes_idle_before(%DateTime{} = cutoff) do
     Repo.all(
       from s in Sandbox,
+        where: is_nil(s.amp_orb_id),
         where:
           (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
             (s.state == :error and s.updated_at < ^cutoff),
@@ -185,8 +189,15 @@ defmodule Tuist.Sandboxes do
       |> Map.merge(attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
       |> Map.put(:account_id, account_id)
 
-    with :ok <- check_sandbox_limit(account_id),
-         {:ok, sandbox} <- %Sandbox{} |> Sandbox.create_changeset(attrs) |> Repo.insert() do
+    changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
+
+    with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
+         {:ok, sandbox} <-
+           Concurrency.admit(account_id, requested, fn ->
+             with :ok <- check_sandbox_limit(account_id) do
+               Repo.insert(changeset)
+             end
+           end) do
       boot(sandbox)
     end
   end

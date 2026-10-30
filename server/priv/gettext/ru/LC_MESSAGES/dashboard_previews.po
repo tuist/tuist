@@ -62,7 +62,7 @@ msgstr "Подробности"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "Приложение Tuist не установлено?"
+msgstr "У вас не установлено приложение Tuist?"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:89
@@ -78,7 +78,7 @@ msgstr "Установить приложение"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "Последние превью приложений"
+msgstr "Последние предварительные сборки приложений"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -108,7 +108,7 @@ msgstr "Платформы"
 #: lib/tuist_web/live/previews_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "Previews"
+msgstr "Превью"
 
 #: lib/tuist_web/live/preview_live.html.heex:215
 #: lib/tuist_web/live/preview_live.html.heex:261
@@ -134,7 +134,7 @@ msgstr "Запуск"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "Выполните следующую команду, чтобы поделиться предварительным просмотром приложения."
+msgstr "Выполните следующую команду, чтобы поделиться превью приложения."
 
 #: lib/tuist_web/live/preview_live.html.heex:202
 #: lib/tuist_web/live/preview_live.html.heex:248
@@ -192,7 +192,7 @@ msgstr "Поиск..."
 #: lib/tuist_web/live/previews_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Track"
-msgstr "Отслеживать"
+msgstr "Отследить"
 
 #: lib/tuist_web/live/preview_live.html.heex:133
 #, elixir-autogen, elixir-format

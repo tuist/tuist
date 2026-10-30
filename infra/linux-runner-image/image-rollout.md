@@ -43,8 +43,17 @@ the same rendered pools that Helm will install. That render is the desired-image
 announcement, including explicit pools, fleets, and runtime classes. This avoids
 another writer sharing the macOS `tuist-upcoming-runner-images` ConfigMap, and
 also covers manual pins and rollback releases without relying on a prior release
-announcement. Pulling starts during deployment, rather than immediately on
-publication; normal jobs continue using the existing pools during preparation.
+announcement. Normal jobs continue using the existing pools during preparation.
+
+Releases run in `linux-runner-image-release.yml`, outside the deploy cascade,
+like macOS's `runner-image-release.yml`. After tagging, its `announce` job runs
+`linux-runner-image-stage.sh` on canary and production: it retargets the
+release's live Linux pools that run a released image by digest (tag-pinned
+pools are left alone) and waits up to an hour for the same helpers the deploy's
+check creates. Only then does it dispatch Server Production Deployment, which
+finds them ready and moves the pools. A deploy that runs first, for another
+change, holds and stages as below. The job only warns on failure or timeout and
+dispatches the deploy anyway, as macOS does.
 
 One temporary DaemonSet per unique namespace/fleet/preparation-runtime/image starts only
 `/bin/sleep`, with no dispatch token, host mounts, or job registration. Managed
@@ -58,7 +67,7 @@ temporary pool-reservation taints. It uses the default priority, with no priorit
 elevation over runner jobs. A completely full host can still wait for its small
 CPU and memory request to fit.
 
-The gate checks readiness once, without waiting or polling. It requires a
+Outside canary, the gate checks readiness once, without waiting or polling. It requires a
 running container for the exact image, runtime and DaemonSet UID on every Ready,
 schedulable host. Pools whose target is still preparing retain their own current
 image through a deployment-only `runnersFleetLinux.imageHolds` values overlay.
@@ -74,6 +83,16 @@ deployments do not reset it. Kubernetes read/write errors produce a warning and
 proceed with the requested images. These fallbacks can cause cold pulls, but
 image preparation cannot delay the deployment with its own waiting loop. The
 existing 125-minute job and 70-minute Helm-step ceilings remain unchanged.
+
+Canary is different: the cascade must qualify the intended candidate before
+production promotion. Its deployment sets `LINUX_IMAGE_STAGING_WAIT_SECONDS=300`
+and polls readiness within that shared allowance before the Helm upgrade. It
+checks every rendered Linux target, including already-selected images and new
+pools. No serving hosts, incomplete preparation, or Kubernetes read/apply errors
+fail qualification; neither the one-hour fallback nor old-image holds apply.
+This adds up to five minutes of preparation polling under the existing step
+ceiling, plus bounded API calls. A fresh canary fleet needs a Ready host before
+qualification. Other environments keep the background policy above.
 
 Helpers survive deployment completion and cancellation so pulls continue in
 the background. They are scoped by a hash of the Helm release namespace/name
@@ -103,13 +122,25 @@ checkout, the forwarded cache endpoint, and environment-file round trips.
 The gate rejects missing, skipped, or failed Linux probes, and the dispatch
 watchdog bounds pickup for both jobs. The hourly production run uses the same
 coverage. The existing hotfix path bypasses this normal acceptance gate.
-Acceptance exercises the image actually selected for the pool; if staging holds
-the previous image, that run does not validate the pending image. Validate it
-after a later deployment promotes it or use the candidate staging smoke workflow.
+Canary's Docker probes require the exact intended runner digest and an actually
+mounted cache before building. The server enables Docker cache authorization by
+default in canary, so qualification does not depend on an out-of-band database
+flag. Pool configuration still limits caching to the acceptance pool, and profile
+opt-outs, execution binding and repository authorization still apply. Production
+retains its `runner_docker_cache` flag and currently has pool caching disabled.
+
+The five sequential Docker phases cover both `docker` and `docker-container`
+drivers: cold, warm layers, changed source, same-size write and final verification.
+The next job's layer and mutable-cache assertions establish persistence; a sleep
+or successful teardown handoff alone does not. An authorization denial or missing
+mount fails the gate before building. Do not retry assertions or accept fallback
+as a warm pass. Canary's single-host fixture does not establish fleet-wide
+freshness or production cache reliability.
 
 `bash .github/scripts/linux-runner-image-prepare.test.sh` exercises readiness,
 immediate holds, later promotion, one-hour expiry, failure, release-scoped cleanup,
-duplicate pools, runtime selection, and first installation using a fake kubectl.
+duplicate pools, runtime selection, first installation, bounded canary waiting,
+and refusal of expired/wrong-image readiness evidence using a fake kubectl.
 `bash infra/mise/tasks/helm/linux-image-staging.sh` verifies independent image
 holds for explicit and shape pools in all managed environments, preserving every
 other pool field and macOS images. Helm CI also tests the adjacent KVM gate.

@@ -92,3 +92,12 @@ Run root Mise Android build and Kotlin lint tasks. Keep new activities non-expor
 unless a deliberately validated deep-link contract is added; MainActivity exports only
 the validated OAuth/navigation/App-Link entry points. Do not persist drafts in
 saved-instance bundles or backups.
+
+Favicon connections must use `AtlasCertificateTrust.openConnection` on every
+HTTPS redirect. Keep the original contextual native trust manager and hostname
+checks before denying keys across the constructed chain, including anchors;
+do not substitute Rust's bundled roots or modify global socket defaults.
+Preserve the bounded image executor, cancellation and initials fallback.
+The actual-APK test harness and platform/release gates are in `tests/AGENTS.md`.
+Keep the preview's explicit source list aligned and preserve the trust manager's
+reflective methods if introducing minification.

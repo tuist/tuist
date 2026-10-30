@@ -46,6 +46,23 @@ workflow code runs in the guest. Never expose host credentials or masters.
   to retention and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
   goldens, 1 or 2 of them current, because runner images are released several
   times a day and every catalog image shares one repository.
+- A fleet with a golden budget (`internal/podagent/budget.go`; ConfigMaps
+  labelled `tuist.dev/runner-golden-budgets=true`, keyed by fleet, valued in
+  images, rendered from `rackFleet.runners.goldenBudget`) keeps the same images
+  on every host. The catalog pools' images (pools with a
+  `tuist.dev/xcode-version` label, so not the smoke pool or a pinned image) are
+  ranked by warm floor, then by the pools' `status.lastDemandAt` (stamped by the
+  runners-controller's autoscaler) to the day, then whether the host holds
+  them. Staging pulls what the top `budget` lines run next that the host lacks;
+  the GC keeps their goldens, reaps the rest of the catalog's goldens and
+  cached images unless a Pod on the Node runs them, and follows only releases
+  inside the budget. A pinned image keeps the retention above. Each Xcode's
+  image has its own base, about 73 GB on a rack host; a release of the same
+  Xcode adds about 2 GB. Without a budget, staging and the GC keep the rules
+  below. Evidence: from 2026-10-24 to 10-28 every rack runner Pod Pending for
+  over a minute with most slots free waited 3 to 29 minutes on a pull, on a host
+  that had dropped its pool's image a day after its last Pod of it or had never
+  staged it.
 - A release is followed, not re-pulled (`internal/podagent/follow.go`). While
   a host holds the golden of a pool's `status.previousImage` (or of
   `status.observedImage` before the runners-controller has seen the new
@@ -106,7 +123,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the same before it dispatches the release's deploy. Both give up an hour
   after the announcement (`tuist.dev/runner-image-announced-at`), and a
   release dispatched with `skip_staging` moves the pools at once
-  (`tuist.dev/runner-image-staging: skip`). A pool is
+  (`tuist.dev/runner-image-staging: skip`). Canary's deploy instead waits up
+  to 30 minutes for staging, ignoring the hour, and fails closed, so runners
+  acceptance qualifies the images production moves to. A pool is
   matched by its `tuist.dev/xcode-version` and `tuist.dev/runner-image-variant`
   (`standalone` or `stacked`) labels, which the chart renders only on catalog
   pools that follow releases; an entry outside the pool's repository is

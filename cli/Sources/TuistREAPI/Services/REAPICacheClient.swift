@@ -40,7 +40,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     private let fileSystem: FileSysteming
-    private let token: @Sendable () async throws -> String
+    private let token: @Sendable () async throws -> String?
     private let guards: TransferGuards
     private let metadataTimeout: Duration
     private let stats: REAPIStats?
@@ -67,7 +67,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
         environment: [String: String] = Environment.current.variables,
         chunkCacheDirectory: URL? = nil,
-        token: @escaping @Sendable () async throws -> String
+        token: @escaping @Sendable () async throws -> String?
     ) async throws {
         var guards = guards
         if let raw = environment["TUIST_CACHE_CONCURRENCY_LIMIT"], let value = Int(raw), value > 0 {
@@ -125,7 +125,9 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     private func metadata(presenceLookup: Bool = false) async throws -> Metadata {
         var result = Metadata()
-        result.addString("Bearer \(try await token())", forKey: "authorization")
+        if let token = try await token() {
+            result.addString("Bearer \(token)", forKey: "authorization")
+        }
         result.addString(accountHandle, forKey: "x-tuist-account-handle")
         result.addString("module", forKey: "x-tuist-artifact-kind")
         if presenceLookup {
@@ -393,7 +395,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 // The refused connection cools in `withClient`, so the retry goes out on another one.
                 if REAPIDrainRetryLadder.isDrainRefusal(error) {
                     guard let delay = drain.nextDelay() else { throw error }
-                    try await Task.sleep(for: delay)
+                    try await REAPIDrainRetryLadder.timing.sleep(delay)
                     continue
                 }
                 if let uploadBudget, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
@@ -1302,7 +1304,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         guard let delay = drain.nextDelay() else { throw error }
                         // Time spent waiting out a drain is not time the link was slow.
                         startedReading += delay
-                        try await Task.sleep(for: delay)
+                        try await REAPIDrainRetryLadder.timing.sleep(delay)
                         continue
                     }
                     guard Self.isResumable(error) else { throw error }

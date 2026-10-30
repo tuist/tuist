@@ -91,7 +91,7 @@ msgstr "キャンセル済み"
 #: lib/tuist_web/live/runners_live.ex:709
 #, elixir-autogen, elixir-format
 msgid "Claimed"
-msgstr "取得済み"
+msgstr "利用済み"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:629
 #: lib/tuist_web/live/runner_workflow_live.html.heex:352
@@ -109,7 +109,7 @@ msgstr "完了"
 #: lib/tuist_web/live/runner_jobs_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "Compute minutes"
-msgstr "コンピューティング時間（分）"
+msgstr "計算時間（分）"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:80
 #: lib/tuist_web/live/runner_volumes_live.ex:270
@@ -172,7 +172,7 @@ msgstr "フィルター"
 #: lib/tuist_web/live/runner_jobs_live.ex:560
 #: lib/tuist_web/live/runner_jobs_live.html.heex:537
 #: lib/tuist_web/live/runner_jobs_live.html.heex:580
-#: lib/tuist_web/live/runner_volumes_live.html.heex:531
+#: lib/tuist_web/live/runner_volumes_live.html.heex:529
 #: lib/tuist_web/live/runner_workflow_live.ex:265
 #: lib/tuist_web/live/runner_workflow_live.html.heex:289
 #: lib/tuist_web/live/runner_workflow_live.html.heex:324
@@ -187,7 +187,7 @@ msgstr "ジョブ"
 #: lib/tuist_web/live/runner_jobs_live.ex:43
 #: lib/tuist_web/live/runner_jobs_live.html.heex:467
 #: lib/tuist_web/live/runner_volumes_live.html.heex:360
-#: lib/tuist_web/live/runner_volumes_live.html.heex:507
+#: lib/tuist_web/live/runner_volumes_live.html.heex:505
 #: lib/tuist_web/live/runner_workflow_live.html.heex:181
 #: lib/tuist_web/live/runner_workflow_live.html.heex:250
 #: lib/tuist_web/live/runner_workflows_live.ex:271
@@ -211,7 +211,7 @@ msgstr "ランナープールが現在実行中のジョブ。"
 #: lib/tuist_web/live/runner_jobs_live.html.heex:493
 #, elixir-autogen, elixir-format
 msgid "Jobs waiting for a runner to pick them up."
-msgstr "ランナーに割り当てられるのを待機しているジョブ。"
+msgstr "ランナーによって処理されるのを待機しているジョブ。"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:77
 #: lib/tuist_web/live/runner_workflows_live.html.heex:77
@@ -247,7 +247,7 @@ msgstr "過去7日間"
 #: lib/tuist_web/live/runner_workflows_live.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "Last run"
-msgstr "前回の実行"
+msgstr "最後の実行"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:350
 #, elixir-autogen, elixir-format
@@ -261,7 +261,7 @@ msgstr "分"
 #: lib/tuist_web/live/runner_workflows_live.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "Next"
-msgstr "次へ"
+msgstr "次"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:688
 #: lib/tuist_web/live/runner_workflow_live.html.heex:404
@@ -278,7 +278,7 @@ msgstr "まだジョブがありません"
 #: lib/tuist_web/live/runner_workflow_live.html.heex:402
 #, elixir-autogen, elixir-format
 msgid "No jobs yet for this workflow"
-msgstr "このワークフローにはまだジョブがありません"
+msgstr "このワークフローのジョブはまだありません"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:427
 #, elixir-autogen, elixir-format
@@ -303,9 +303,9 @@ msgstr "前"
 #: lib/tuist_web/live/runners_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "Queued"
-msgstr "キュー済み"
+msgstr "キュー待ち"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:506
+#: lib/tuist_web/live/runner_volumes_live.html.heex:504
 #: lib/tuist_web/live/runners_live.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "Recent jobs"
@@ -420,13 +420,13 @@ msgstr "各ジョブの開始から完了までにかかる時間。"
 #: lib/tuist_web/live/runners_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Total jobs"
-msgstr "ジョブの合計数"
+msgstr "ジョブ総数"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:166
 #: lib/tuist_web/live/runners_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Total wall-clock time from the first job start to the last job completion in a workflow run."
-msgstr "ワークフロー実行における最初のジョブ開始から最後のジョブ完了までの総経過時間。"
+msgstr "ワークフロー実行における最初のジョブ開始から最後のジョブ完了までの合計実時間。"
 
 #: lib/tuist/runners/analytics.ex:906
 #: lib/tuist/runners/analytics.ex:907
@@ -445,7 +445,7 @@ msgstr "ワークフロー実行における最初のジョブ開始から最後
 #: lib/tuist_web/live/runner_jobs_live.html.heex:594
 #: lib/tuist_web/live/runner_jobs_live.html.heex:602
 #: lib/tuist_web/live/runner_jobs_live.html.heex:623
-#: lib/tuist_web/live/runner_volumes_live.ex:683
+#: lib/tuist_web/live/runner_volumes_live.ex:691
 #: lib/tuist_web/live/runner_workflow_live.ex:303
 #: lib/tuist_web/live/runner_workflow_live.ex:304
 #: lib/tuist_web/live/runner_workflow_live.ex:311
@@ -464,12 +464,12 @@ msgid "Unknown"
 msgstr "不明"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:27
-#: lib/tuist_web/live/runner_volumes_live.html.heex:515
+#: lib/tuist_web/live/runner_volumes_live.html.heex:513
 #: lib/tuist_web/live/runners_live.html.heex:384
 #: lib/tuist_web/live/runners_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "詳細を表示"
+msgstr "さらに表示"
 
 #: lib/tuist/runners/analytics.ex:943
 #: lib/tuist_web/components/runs/ci_context_card.ex:35
@@ -477,7 +477,7 @@ msgstr "詳細を表示"
 #: lib/tuist_web/live/runner_jobs_live.ex:561
 #: lib/tuist_web/live/runner_jobs_live.html.heex:545
 #: lib/tuist_web/live/runner_jobs_live.html.heex:588
-#: lib/tuist_web/live/runner_volumes_live.html.heex:534
+#: lib/tuist_web/live/runner_volumes_live.html.heex:532
 #: lib/tuist_web/live/runner_workflows_live.ex:274
 #: lib/tuist_web/live/runner_workflows_live.html.heex:309
 #: lib/tuist_web/live/runner_workflows_live.html.heex:352
@@ -510,39 +510,39 @@ msgstr "ワークフロー"
 #: lib/tuist_web/live/runners_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "p50 job duration"
-msgstr "p50 ジョブ期間"
+msgstr "p50 ジョブ継続時間"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:161
 #: lib/tuist_web/live/runners_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "p50 workflow duration"
-msgstr "p50 ワークフロー期間"
+msgstr "p50 ワークフロー継続時間"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:211
 #: lib/tuist_web/live/runner_workflow_live.html.heex:124
 #: lib/tuist_web/live/runners_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "p90 job duration"
-msgstr "p90 ジョブ期間"
+msgstr "p90 ジョブ継続時間"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:160
 #: lib/tuist_web/live/runners_live.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "p90 workflow duration"
-msgstr "p90 ワークフロー期間"
+msgstr "p90 ワークフロー継続時間"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:210
 #: lib/tuist_web/live/runner_workflow_live.html.heex:123
 #: lib/tuist_web/live/runners_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "p99 job duration"
-msgstr "p99 ジョブ期間"
+msgstr "p99 ジョブ継続時間"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:159
 #: lib/tuist_web/live/runners_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "p99 workflow duration"
-msgstr "p99 ワークフロー期間"
+msgstr "p99 ワークフロー継続時間"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:257
 #: lib/tuist_web/live/runner_workflow_live.html.heex:56
@@ -553,70 +553,70 @@ msgstr "p99 ワークフロー期間"
 #: lib/tuist_web/live/runners_live.ex:410
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "先月以降"
+msgstr "先月から"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:256
 #: lib/tuist_web/live/runner_volumes_live.ex:315
 #: lib/tuist_web/live/runner_volumes_live.ex:325
 #: lib/tuist_web/live/runner_volumes_live.ex:335
-#: lib/tuist_web/live/runner_volumes_live.ex:420
-#: lib/tuist_web/live/runner_volumes_live.ex:649
+#: lib/tuist_web/live/runner_volumes_live.ex:421
+#: lib/tuist_web/live/runner_volumes_live.ex:657
 #: lib/tuist_web/live/runner_workflows_live.ex:282
 #: lib/tuist_web/live/runners_live.ex:409
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "前回の期間以降"
+msgstr "前回の期間から"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:254
 #: lib/tuist_web/live/runner_workflows_live.ex:280
 #: lib/tuist_web/live/runners_live.ex:407
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "先週以降"
+msgstr "先週から"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:255
 #: lib/tuist_web/live/runner_workflows_live.ex:281
 #: lib/tuist_web/live/runners_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "去年以降"
+msgstr "去年から"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:253
 #: lib/tuist_web/live/runner_workflows_live.ex:279
 #: lib/tuist_web/live/runners_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "昨日以降"
+msgstr "昨日から"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:255
 #: lib/tuist_web/live/runner_workflow_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
-msgstr "平均キュー時間"
+msgstr "平均キュー待ち時間"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:259
 #: lib/tuist_web/live/runner_workflow_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Time each job spends waiting before a runner picks it up."
-msgstr "ジョブがランナーに割り当てられるまでの待ち時間。"
+msgstr "各ジョブがランナーにピックアップされるまで待機する時間。"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:254
 #: lib/tuist_web/live/runner_workflow_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "p50 queue time"
-msgstr "p50 キュー時間"
+msgstr "p50 キュー待ち時間"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:253
 #: lib/tuist_web/live/runner_workflow_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "p90 queue time"
-msgstr "p90 キュー時間"
+msgstr "p90 キュー待ち時間"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:252
 #: lib/tuist_web/live/runner_workflow_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "p99 queue time"
-msgstr "p99 キュー時間"
+msgstr "p99 キュー待ち時間"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:122
 #, elixir-autogen, elixir-format
@@ -705,12 +705,12 @@ msgstr "ワークフロー実行"
 #: lib/tuist_web/live/runner_jobs_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Total compute time consumed by completed jobs in the window."
-msgstr "この期間中に完了したジョブが消費した合計計算時間。"
+msgstr "ウィンドウ期間内に完了したジョブが消費した合計コンピューティング時間。"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Workflow jobs received in the window, broken down by outcome."
-msgstr "この期間中に受信したワークフローのジョブ（結果別）。"
+msgstr "ウィンドウ期間内に受信したワークフロージョブを結果別に内訳。"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:654
 #, elixir-autogen, elixir-format
@@ -760,7 +760,7 @@ msgstr "Linux"
 #: lib/tuist_web/live/runner_jobs_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "N/A"
-msgstr "N/A"
+msgstr "該当なし"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:6
 #: lib/tuist_web/live/runner_workflows_live.html.heex:6
@@ -817,7 +817,7 @@ msgstr "CIの詳細"
 #: lib/tuist_web/live/runner_job_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "CI duration"
-msgstr "CIの実行時間"
+msgstr "CI期間"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:187
 #, elixir-autogen, elixir-format
@@ -895,22 +895,22 @@ msgstr "新しいプロファイル"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "No profiles yet"
-msgstr "プロファイルはまだありません"
+msgstr "まだプロファイルがありません"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:304
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} created."
-msgstr "プロファイル %{name} を作成しました。"
+msgstr "プロファイル「%{name}」を作成しました。"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} deleted."
-msgstr "プロファイル %{name} を削除しました。"
+msgstr "プロファイル「%{name}」を削除しました。"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} updated."
-msgstr "プロファイル %{name} を更新しました。"
+msgstr "プロファイル「%{name}」を更新しました。"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:294
 #, elixir-autogen, elixir-format
@@ -970,7 +970,7 @@ msgstr "リソースを選択"
 #: lib/tuist_web/live/runner_volumes_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Last used"
-msgstr "最終使用"
+msgstr "最終使用日"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:402
 #, elixir-autogen, elixir-format
@@ -980,17 +980,17 @@ msgstr "なし"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: %{prefix}<name>."
-msgstr "vCPUとRAMの命名済みバンドル。ワークフローで runs-on: %{prefix}<name> として参照します。"
+msgstr "vCPUとRAMの名前付きバンドル。ワークフローから runs-on: %{prefix}<name> として参照できます。"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "e.g. \"default\", \"large\", \"ci\""
-msgstr "例：\"default\"、\"large\"、\"ci\""
+msgstr "例: \"default\", \"large\", \"ci\""
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Becomes part of your runs-on label, so it can't be renamed later."
-msgstr "runs-on ラベルの一部となるため、後から名前を変更することはできません。"
+msgstr "runs-on ラベルの一部となるため、後で名前を変更することはできません。"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:496
 #, elixir-autogen, elixir-format
@@ -1006,7 +1006,7 @@ msgstr "プロファイルを削除"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:459
 #, elixir-autogen, elixir-format
 msgid "Delete profile %{name}? This can't be undone."
-msgstr "プロファイル %{name} を削除しますか？この操作は元に戻せません。"
+msgstr "プロファイル %{name} を削除しますか？この操作は取り消せません。"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:451
 #, elixir-autogen, elixir-format
@@ -1026,7 +1026,7 @@ msgstr "ログをダウンロード"
 #: lib/tuist_web/live/runner_job_live.html.heex:720
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
-msgstr "以前のログを読み込む"
+msgstr "古いログを読み込む"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:84
 #: lib/tuist_web/live/runner_job_live.html.heex:637
@@ -1106,12 +1106,12 @@ msgstr "Xcode %{version}"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Xcode version"
-msgstr "Xcode バージョン"
+msgstr "Xcodeバージョン"
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:62
 #, elixir-autogen, elixir-format
 msgid "CPU I/O Wait"
-msgstr "CPU I/O ウェイト"
+msgstr "CPU I/O待機"
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:53
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:112
@@ -1122,7 +1122,7 @@ msgstr "受信"
 #: lib/tuist_web/live/runner_job_live.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Machine metrics will appear here once the job has run on a Tuist runner."
-msgstr "Tuist ランナーでジョブが実行されると、マシンメトリクスがここに表示されます。"
+msgstr "Tuistランナーでジョブが実行されると、ここにマシンメトリクスが表示されます。"
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:31
 #: lib/tuist_web/live/runner_job_live.html.heex:89
@@ -1155,37 +1155,37 @@ msgstr "使用量"
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:103
 #, elixir-autogen, elixir-format
 msgid "Used"
-msgstr "使用済み"
+msgstr "使用中"
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:63
 #, elixir-autogen, elixir-format
 msgid "Wait"
-msgstr "待機"
+msgstr "待機中"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:870
 #, elixir-autogen, elixir-format
 msgid "Start VNC"
-msgstr "VNCを開始"
+msgstr "VNC を開始"
 
 #: lib/tuist_web/live/runner_job_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "The runner pod is not available for this job."
-msgstr "このジョブではランナーPodが利用できません。"
+msgstr "このジョブではランナー Pod は利用できません。"
 
 #: lib/tuist_web/live/runner_job_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "VNC can be requested while the macOS runner job is claimed or running."
-msgstr "macOSランナージョブが割り当てられているか実行中の間、VNCをリクエストできます。"
+msgstr "macOS ランナーのジョブが確保された状態または実行中の間は、VNC をリクエストできます。"
 
 #: lib/tuist_web/live/runner_job_live.ex:794
 #, elixir-autogen, elixir-format
 msgid "VNC is available for macOS runner jobs."
-msgstr "VNCはmacOSランナージョブで利用可能です。"
+msgstr "VNC は macOS ランナーのジョブで利用可能です。"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:911
 #, elixir-autogen, elixir-format
 msgid "VNC session idle"
-msgstr "VNCセッションがアイドル状態"
+msgstr "VNCセッションがアイドル状態です"
 
 #: lib/tuist_web/live/runner_job_live.ex:791
 #, elixir-autogen, elixir-format
@@ -1207,7 +1207,7 @@ msgstr "全画面表示"
 #: lib/tuist_web/live/runner_job_live.html.heex:920
 #, elixir-autogen, elixir-format
 msgid "VNC session active"
-msgstr "VNCセッションがアクティブ"
+msgstr "VNCセッションがアクティブです"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:917
 #, elixir-autogen, elixir-format
@@ -1246,7 +1246,7 @@ msgid "Insights"
 msgstr "インサイト"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:263
-#: lib/tuist_web/live/runner_volumes_live.ex:522
+#: lib/tuist_web/live/runner_volumes_live.ex:527
 #, elixir-autogen, elixir-format
 msgid "Module cache"
 msgstr "モジュールキャッシュ"
@@ -1254,7 +1254,7 @@ msgstr "モジュールキャッシュ"
 #: lib/tuist_web/live/runner_job_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "No build runs have reported insights for this runner job yet."
-msgstr "このランナージョブでは、まだインサイトが報告されたビルド実行はありません。"
+msgstr "このランナージョブに関するインサイトはまだ報告されていません。"
 
 #: lib/tuist_web/live/runner_job_live.ex:491
 #: lib/tuist_web/live/runner_job_live.ex:503
@@ -1265,7 +1265,7 @@ msgstr "キャッシュデータなし"
 #: lib/tuist_web/live/runner_job_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "No test runs have reported insights for this runner job yet."
-msgstr "このランナージョブでは、まだインサイトが報告されたテスト実行はありません。"
+msgstr "このランナージョブに関するテスト実行のインサイトはまだ報告されていません。"
 
 #: lib/tuist_web/live/runner_job_live.ex:570
 #, elixir-autogen, elixir-format
@@ -1305,7 +1305,7 @@ msgid "Unknown scheme"
 msgstr "不明なスキーム"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:254
-#: lib/tuist_web/live/runner_volumes_live.ex:521
+#: lib/tuist_web/live/runner_volumes_live.ex:526
 #, elixir-autogen, elixir-format
 msgid "Xcode cache"
 msgstr "Xcode キャッシュ"
@@ -1375,7 +1375,7 @@ msgstr "ランナーシェルの待機中"
 #: lib/tuist_web/live/runners_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Concurrency"
-msgstr "並行処理"
+msgstr "同時実行数"
 
 #: lib/tuist_web/live/runners_live.ex:540
 #, elixir-autogen, elixir-format
@@ -1405,22 +1405,22 @@ msgstr "%{platform} vCPU"
 #: lib/tuist_web/live/runners_live.ex:543
 #, elixir-autogen, elixir-format
 msgid "Peak CPU"
-msgstr "ピーク CPU"
+msgstr "ピークCPU使用率"
 
 #: lib/tuist_web/live/runners_live.ex:544
 #, elixir-autogen, elixir-format
 msgid "Peak memory"
-msgstr "ピークメモリ"
+msgstr "ピークメモリ使用量"
 
 #: lib/tuist_web/live/runners_live.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "Every recent job was skipped or cancelled"
-msgstr "最近のジョブはすべてスキップまたはキャンセルされました"
+msgstr "最近のすべてのジョブがスキップまたはキャンセルされました"
 
 #: lib/tuist_web/live/runners_live.html.heex:506
 #, elixir-autogen, elixir-format
 msgid "Every recent workflow run was skipped or cancelled"
-msgstr "最近のワークフロー実行はすべてスキップまたはキャンセルされました"
+msgstr "最近のすべてのワークフロー実行がスキップまたはキャンセルされました"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:478
 #, elixir-autogen, elixir-format
@@ -1438,14 +1438,14 @@ msgid "GitLab"
 msgstr "GitLab"
 
 #: lib/tuist_web/live/runner_job_live.ex:204
-#: lib/tuist_web/live/runner_volumes_live.html.heex:537
+#: lib/tuist_web/live/runner_volumes_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "キャッシュ"
 
 #: lib/tuist_web/live/runner_job_live.ex:228
 #: lib/tuist_web/live/runner_volumes_live.ex:225
-#: lib/tuist_web/live/runner_volumes_live.ex:569
+#: lib/tuist_web/live/runner_volumes_live.ex:577
 #: lib/tuist_web/live/runner_volumes_live.html.heex:237
 #: lib/tuist_web/live/runner_volumes_live.html.heex:346
 #: lib/tuist_web/live/runner_volumes_live.html.heex:560
@@ -1461,31 +1461,32 @@ msgstr "ボリュームを読み込めませんでした。自動的に再試行
 #: lib/tuist_web/live/runner_volumes_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Could not update volume. Please retry."
-msgstr "ボリュームを更新できませんでした。もう一度お試しください。"
+msgstr "ボリュームを更新できませんでした。再試行してください。"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:709
+#: lib/tuist_web/live/runner_volumes_live.ex:717
 #, elixir-autogen, elixir-format
 msgid "Deleted"
 msgstr "削除済み"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:708
+#: lib/tuist_web/live/runner_volumes_live.ex:716
 #, elixir-autogen, elixir-format
 msgid "Deletion pending"
-msgstr "削除待ち"
+msgstr "削除保留中"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:711
+#: lib/tuist_web/live/runner_volumes_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr "空"
 
 #: lib/tuist_web/live/runner_job_live.ex:210
-#: lib/tuist_web/live/runner_volumes_live.html.heex:542
+#: lib/tuist_web/live/runner_volumes_live.html.heex:541
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "ヒット"
 
 #: lib/tuist_web/live/runner_job_live.ex:211
-#: lib/tuist_web/live/runner_volumes_live.html.heex:543
+#: lib/tuist_web/live/runner_volumes_live.html.heex:540
+#: lib/tuist_web/live/runner_volumes_live.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Miss"
 msgstr "ミス"
@@ -1493,9 +1494,9 @@ msgstr "ミス"
 #: lib/tuist_web/live/runner_volumes_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "No recorded uses"
-msgstr "記録された使用なし"
+msgstr "記録された使用はありません"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:710
+#: lib/tuist_web/live/runner_volumes_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Ready"
 msgstr "準備完了"
@@ -1510,7 +1511,7 @@ msgstr "ボリューム"
 #: lib/tuist_web/components/app_layout_components.ex:509
 #: lib/tuist_web/live/runner_job_live.ex:171
 #: lib/tuist_web/live/runner_volumes_live.ex:31
-#: lib/tuist_web/live/runner_volumes_live.ex:567
+#: lib/tuist_web/live/runner_volumes_live.ex:575
 #: lib/tuist_web/live/runner_volumes_live.html.heex:7
 #: lib/tuist_web/live/runner_volumes_live.html.heex:32
 #: lib/tuist_web/live/runner_volumes_live.html.heex:44
@@ -1520,31 +1521,31 @@ msgstr "ボリューム"
 msgid "Volumes"
 msgstr "ボリューム"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:557
+#: lib/tuist_web/live/runner_volumes_live.ex:565
 #, elixir-autogen, elixir-format
 msgid "%{count} copy unmeasured"
 msgid_plural "%{count} copies unmeasured"
-msgstr[0] "%{count} コピー未測定"
+msgstr[0] "%{count} 件の未測定コピー"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Total used space"
-msgstr "使用済み容量の合計"
+msgstr "使用済みスペースの合計"
 
 #: lib/tuist_web/live/runner_job_live.ex:225
 #: lib/tuist_web/live/runner_volumes_live.ex:224
-#: lib/tuist_web/live/runner_volumes_live.ex:568
+#: lib/tuist_web/live/runner_volumes_live.ex:576
 #: lib/tuist_web/live/runner_volumes_live.html.heex:226
-#: lib/tuist_web/live/runner_volumes_live.html.heex:398
+#: lib/tuist_web/live/runner_volumes_live.html.heex:400
 #: lib/tuist_web/live/runner_volumes_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Used space"
-msgstr "使用済み容量"
+msgstr "使用済みスペース"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Attach a volume in your workflow or try a different search."
-msgstr "ワークフローでボリュームをアタッチするか、別の検索を試してください。"
+msgstr "ワークフローにボリュームをアタッチするか、別の検索を試してください。"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:576
 #, elixir-autogen, elixir-format
@@ -1566,10 +1567,10 @@ msgstr "ボリュームが見つかりません"
 msgid "Search volumes or repositories"
 msgstr "ボリュームまたはリポジトリを検索"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:687
+#: lib/tuist_web/live/runner_volumes_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Summed across saved snapshots and job copies, including copies awaiting deletion. Shared data may be counted more than once; these are not unique physical bytes or a billing amount."
-msgstr "保存されたスナップショットとジョブコピー（削除待ちのコピーを含む）の合計値です。共有データは複数回カウントされる可能性があり、これらは一意の物理バイト数や請求額ではありません。"
+msgstr "保存されたスナップショットとジョブコピー（削除待ちのコピーを含む）の合計値です。共有データは複数回カウントされる場合があり、これは一意の物理バイト数や請求額ではありません。"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:318
 #, elixir-autogen, elixir-format
@@ -1589,26 +1590,26 @@ msgstr "ストレージ測定値はまだありません"
 #: lib/tuist_web/live/runner_volumes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Storage history will appear after a volume reports its size."
-msgstr "ボリュームがサイズを報告すると、ストレージ履歴が表示されます。"
+msgstr "ストレージ履歴は、ボリュームがサイズを報告した後に表示されます。"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Volumes with stored copies at the end of the selected period, regardless of search. Trends compare with the end of the previous period."
-msgstr "選択した期間の終了時点でコピーが保存されているボリューム（検索条件に関係なく）。トレンドは前の期間の終了時と比較されます。"
+msgstr "検索に関係なく、選択した期間の終わりに保存されたコピーを持つボリューム。トレンドは前の期間の終わりとの比較です。"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:439
-#: lib/tuist_web/live/runner_volumes_live.html.heex:414
+#: lib/tuist_web/live/runner_volumes_live.ex:444
+#: lib/tuist_web/live/runner_volumes_live.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
 msgstr "ヒット率"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:144
-#: lib/tuist_web/live/runner_volumes_live.html.heex:498
+#: lib/tuist_web/live/runner_volumes_live.html.heex:496
 #, elixir-autogen, elixir-format
 msgid "No data in this period"
 msgstr "この期間にデータはありません"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:421
+#: lib/tuist_web/live/runner_volumes_live.html.heex:419
 #, elixir-autogen, elixir-format
 msgid "Share of mounts with a known cache result that reused a saved cache in the selected period."
 msgstr "選択した期間中に保存されたキャッシュを再利用した、既知のキャッシュ結果を持つマウントの割合。"
@@ -1618,13 +1619,13 @@ msgstr "選択した期間中に保存されたキャッシュを再利用した
 msgid "Clears the saved cache for future jobs. Running jobs can finish."
 msgstr "将来のジョブのために保存されたキャッシュをクリアします。実行中のジョブは完了できます。"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:438
-#: lib/tuist_web/live/runner_volumes_live.html.heex:469
+#: lib/tuist_web/live/runner_volumes_live.ex:443
+#: lib/tuist_web/live/runner_volumes_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "Job runs"
 msgstr "ジョブ実行回数"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:476
+#: lib/tuist_web/live/runner_volumes_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Number of job runs that mounted this volume during the selected period."
 msgstr "選択した期間中にこのボリュームをマウントしたジョブの実行回数。"
@@ -1654,7 +1655,7 @@ msgstr "キャッシュヒット率"
 #: lib/tuist_web/live/runner_volumes_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate will appear after a volume mount reports its cache result."
-msgstr "ボリュームマウントがキャッシュ結果を報告すると、キャッシュヒット率が表示されます。"
+msgstr "キャッシュヒット率は、ボリュームマウントがキャッシュ結果を報告した後に表示されます。"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:124
 #, elixir-autogen, elixir-format
@@ -1662,13 +1663,13 @@ msgid "Percentage of volume mounts that reused saved data during the selected pe
 msgstr "選択した期間中に、保存されたデータを再利用したボリュームマウントの割合。"
 
 #: lib/tuist_web/live/runner_volumes_live.ex:319
-#: lib/tuist_web/live/runner_volumes_live.ex:411
+#: lib/tuist_web/live/runner_volumes_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "データなし"
 
 #: lib/tuist_web/live/runner_volumes_live.ex:322
-#: lib/tuist_web/live/runner_volumes_live.ex:414
+#: lib/tuist_web/live/runner_volumes_live.ex:415
 #, elixir-autogen, elixir-format
 msgid "No previous data"
 msgstr "以前のデータなし"
@@ -1676,22 +1677,22 @@ msgstr "以前のデータなし"
 #: lib/tuist_web/live/runner_job_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "%{volume} ran out of space"
-msgstr "%{volume} の空き容量が不足しています"
+msgstr "%{volume} の容量が不足しています"
 
 #: lib/tuist_web/live/runner_job_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job."
-msgstr "このジョブはボリュームの %{capacity} のうち %{used} を使用しました。フルのボリュームへの書き込みは、「デバイスに空き領域がありません」などのエラーで失敗し、ジョブが失敗する可能性があります。"
+msgstr "このジョブはボリュームの %{capacity} のうち %{used} を使用しました。フルボリュームへの書き込みは「デバイスに空き領域がありません」などのエラーで失敗し、ジョブが失敗する可能性があります。"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "This volume is almost full"
 msgstr "このボリュームはほぼ満杯です"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:497
+#: lib/tuist_web/live/runner_volumes_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot."
-msgstr "保存されたスナップショットは %{capacity} のうち %{used} を使用しています。ジョブがこの上で空き容量を使い果たした場合、次のジョブは空のボリュームから開始され、新しいスナップショットを保存します。"
+msgstr "保存されたスナップショットは %{capacity} のうち %{used} を使用しています。ジョブがこのスナップショットで容量不足になると、次のジョブは空のボリュームから開始され、新しいスナップショットを保存します。"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:409
 #: lib/tuist_web/live/runner_profiles_live.ex:416
@@ -1702,7 +1703,7 @@ msgstr "すべてのブランチ"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Save cache from"
-msgstr "キャッシュを保存"
+msgstr "キャッシュを保存元"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:427
 #, elixir-autogen, elixir-format
@@ -1718,7 +1719,7 @@ msgstr "追加"
 #: lib/tuist_web/live/runner_profiles_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "Use a branch name, optionally with * to match any characters."
-msgstr "ブランチ名を入力してください。任意の文字にマッチさせるには * を使用できます。"
+msgstr "ブランチ名を入力してください。任意の文字にマッチさせるために * を使用できます。"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:412
 #: lib/tuist_web/live/runner_profiles_live.html.heex:269
@@ -1739,7 +1740,7 @@ msgstr "これらのブランチからのジョブとプルリクエストも変
 #: lib/tuist_web/live/runner_profiles_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Jobs on each repository's default branch save their changes."
-msgstr "各リポジトリのデフォルトブランチでのジョブは、変更を保存します。"
+msgstr "各リポジトリのデフォルトブランチ上のジョブは、変更を保存します。"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:419
 #, elixir-autogen, elixir-format
@@ -1752,7 +1753,7 @@ msgid "e.g. develop, release/* or *"
 msgstr "例: develop, release/* または *"
 
 #: lib/tuist_web/live/runner_job_live.ex:209
-#: lib/tuist_web/live/runner_volumes_live.html.heex:541
+#: lib/tuist_web/live/runner_volumes_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Older copy"
 msgstr "古いコピー"
@@ -1767,7 +1768,7 @@ msgstr "このステップの出力は、ジョブのログの残りの部分か
 msgid "View the full log"
 msgstr "完全なログを表示"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:523
+#: lib/tuist_web/live/runner_volumes_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "Gradle cache"
 msgstr "Gradle キャッシュ"
@@ -1775,7 +1776,7 @@ msgstr "Gradle キャッシュ"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Every successful job from the repository saves its changes, including pull requests. Forks never save."
-msgstr "リポジトリからのすべての成功したジョブ（プルリクエストを含む）は変更を保存します。フォークは決して保存しません。"
+msgstr "プルリクエストを含む、リポジトリからのすべての成功したジョブが変更を保存します。フォークは決して保存しません。"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:249
 #, elixir-autogen, elixir-format
@@ -1795,7 +1796,7 @@ msgstr "キャッシュされたチェックアウト"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Keeps each repository checked out on a \"checkout\" cache volume, so actions/checkout only fetches what changed."
-msgstr "各リポジトリを「チェックアウト」キャッシュボリュームでチェックアウト状態に保ち、actions/checkout が変更分のみを取得するようにします。"
+msgstr "各リポジトリを「チェックアウト」キャッシュボリュームに保持し、actions/checkout が変更部分のみを取得するようにします。"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:621
 #, elixir-autogen, elixir-format
@@ -1820,12 +1821,12 @@ msgstr "このステップのログを読み込めませんでした。ステッ
 #: lib/tuist_web/live/runner_volumes_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "A smaller size was requested"
-msgstr "より小さいサイズがリクエストされました"
+msgstr "より小さなサイズがリクエストされました"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:512
+#: lib/tuist_web/live/runner_volumes_live.ex:517
 #, elixir-autogen, elixir-format
 msgid "Saved at %{capacity}. New contents will use %{pending} after the next clear."
-msgstr "%{capacity} で保存済み。次回クリア後、新しいコンテンツは %{pending} を使用します。"
+msgstr "%{capacity} で保存されました。次のクリア後、新しいコンテンツは %{pending} を使用します。"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:201
 #, elixir-autogen, elixir-format
@@ -1846,12 +1847,12 @@ msgstr "イメージ"
 #: lib/tuist_web/live/runner_volumes_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Images appear after a job that may save this repository's caches finishes and its data root is saved."
-msgstr "イメージは、このリポジトリのキャッシュを保存する可能性のあるジョブが完了し、そのデータルートが保存された後に表示されます。"
+msgstr "このリポジトリのキャッシュを保存する可能性のあるジョブが完了し、そのデータルートが保存されると、イメージが表示されます。"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:622
 #, elixir-autogen, elixir-format
 msgid "No images saved yet"
-msgstr "まだ保存されたイメージはありません"
+msgstr "まだイメージは保存されていません"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:611
 #, elixir-autogen, elixir-format
@@ -1859,7 +1860,7 @@ msgid "Size"
 msgstr "サイズ"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:205
-#: lib/tuist_web/live/runner_volumes_live.ex:524
+#: lib/tuist_web/live/runner_volumes_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "Image cache"
 msgstr "イメージキャッシュ"
@@ -1867,34 +1868,39 @@ msgstr "イメージキャッシュ"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Starts each job with the container images and build cache its repository's earlier jobs pulled and built, for job containers, services and Docker commands in steps."
-msgstr "各ジョブを、リポジトリの以前のジョブがプルおよびビルドしたコンテナイメージとビルドキャッシュで開始します。これは、ステップ内のジョブコンテナ、サービス、およびDockerコマンドに適用されます。"
+msgstr "各ジョブは、そのリポジトリの以前のジョブがプルしてビルドしたコンテナイメージとビルドキャッシュで開始されます。これは、ステップ内のジョブコンテナ、サービス、およびDockerコマンドに適用されます。"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:428
+#: lib/tuist_web/live/runner_volumes_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Avg. Initialize containers"
-msgstr "平均コンテナ初期化時間"
+msgstr "平均 コンテナ初期化時間"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:450
+#: lib/tuist_web/live/runner_volumes_live.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Initialize containers step of jobs that started from saved images. For jobs that pulled every layer, the same statistic was %{cold}."
-msgstr "保存されたイメージから開始されたジョブのコンテナ初期化ステップ。すべてのレイヤーをプルしたジョブの場合、同じ統計は %{cold} です。"
-
-#: lib/tuist_web/live/runner_volumes_live.ex:425
-#, elixir-autogen, elixir-format
-msgid "p50 Initialize containers"
-msgstr "p50 コンテナの初期化"
+msgstr "保存されたイメージから開始されたジョブの「コンテナ初期化」ステップの統計です。すべてのレイヤーをプルしたジョブの場合、同じ統計は%{cold}となります。"
 
 #: lib/tuist_web/live/runner_volumes_live.ex:426
 #, elixir-autogen, elixir-format
-msgid "p90 Initialize containers"
-msgstr "p90 コンテナの初期化"
+msgid "p50 Initialize containers"
+msgstr "p50 コンテナ初期化時間"
 
 #: lib/tuist_web/live/runner_volumes_live.ex:427
 #, elixir-autogen, elixir-format
-msgid "p99 Initialize containers"
-msgstr "p99 コンテナの初期化"
+msgid "p90 Initialize containers"
+msgstr "p90 コンテナ初期化時間"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:358
+#: lib/tuist_web/live/runner_volumes_live.ex:428
+#, elixir-autogen, elixir-format
+msgid "p99 Initialize containers"
+msgstr "p99 コンテナ初期化時間"
+
+#: lib/tuist_web/live/runner_volumes_live.ex:359
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "平均"
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:403
+#, elixir-autogen, elixir-format
+msgid "Size of the current saved cache, independent of the selected date range."
+msgstr "選択された日付範囲に関係なく、現在保存されているキャッシュのサイズ。"
