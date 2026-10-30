@@ -31277,7 +31277,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/cargo/builds:
     get:
       callbacks: {}
-      description: Cargo test runs reported as nextest are listed with test runs, not builds.
+      description: Cargo test execution results are listed with test runs, not builds.
       operationId: listCargoBuilds
       parameters:
         - description: The handle of the account.

@@ -59,14 +59,7 @@ defmodule TuistWeb.Helpers.TestLabels do
 
   def test_run_label(%Project{build_system: :mix}, _scheme), do: "mix test"
 
-  def test_run_label(%Project{build_system: :cargo}, "cargo test"), do: "cargo test"
-  def test_run_label(%Project{build_system: :cargo}, "cargo test · " <> label), do: "cargo test · #{label}"
-  def test_run_label(%Project{build_system: :cargo}, "cargo nextest run · " <> label), do: "cargo nextest run · #{label}"
-
-  def test_run_label(%Project{build_system: :cargo}, scheme)
-      when scheme in [nil, "", "nextest", "nextest run", "cargo nextest run"], do: "cargo nextest run"
-
-  def test_run_label(%Project{build_system: :cargo}, scheme), do: "cargo nextest run · #{scheme}"
+  def test_run_label(%Project{build_system: :cargo}, scheme), do: Tuist.Cargo.test_run_label(scheme)
   def test_run_label(_project, scheme) when scheme not in [nil, ""], do: scheme
   def test_run_label(_project, _scheme), do: dgettext("dashboard_tests", "Unknown")
 

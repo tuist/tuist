@@ -13,6 +13,7 @@ defmodule Tuist.VCS do
   alias Tuist.Builds
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
+  alias Tuist.Cargo
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
@@ -1065,7 +1066,7 @@ defmodule Tuist.VCS do
 
     links =
       Enum.map_join(test_runs, "<br/>", fn test_run ->
-        name = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        name = test_run_name(test_run)
         "[#{name}](#{test_run_url.(%{project: project, test_run: test_run})})"
       end)
 
@@ -1073,6 +1074,10 @@ defmodule Tuist.VCS do
       "|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
       "| #{links} | #{rollup_status_text(test_runs, counts)} | #{counts.passed} | #{counts.failed} | #{counts.skipped} | #{commit_link(latest.git_commit_sha, git_remote_url_origin)} |\n"
   end
+
+  defp test_run_name(%{build_system: "cargo", scheme: scheme}), do: Cargo.test_run_label(scheme)
+  defp test_run_name(%{scheme: scheme}) when scheme in [nil, ""], do: "Unknown"
+  defp test_run_name(%{scheme: scheme}), do: scheme
 
   defp rollup_status_text(test_runs, counts) do
     statuses = Enum.map(test_runs, & &1.status)
@@ -1130,7 +1135,7 @@ defmodule Tuist.VCS do
       runs_summary =
         Enum.map_join(flaky_tests_by_run, "", fn {test_run, flaky_tests} ->
           flaky_count = length(flaky_tests)
-          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+          scheme = test_run_name(test_run)
 
           flaky_runs_url =
             Environment.app_url(
@@ -1219,7 +1224,7 @@ defmodule Tuist.VCS do
 
       runs_summary =
         Enum.map_join(failed_runs_with_counts, "", fn {test_run, _runs, failed_count} ->
-          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+          scheme = test_run_name(test_run)
 
           failures_url =
             Environment.app_url(

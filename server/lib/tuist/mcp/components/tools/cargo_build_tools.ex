@@ -108,7 +108,7 @@ defmodule Tuist.MCP.Components.Tools.ListCargoBuilds do
   @impl EMCP.Tool
   def description,
     do:
-      "List Cargo builds for a project, newest first. Cargo test runs reported as nextest are not builds and are not listed."
+      "List Cargo builds for a project, newest first. Cargo test execution results are listed with test runs, not builds."
 
   def execute(_conn, args, project) do
     {:ok,

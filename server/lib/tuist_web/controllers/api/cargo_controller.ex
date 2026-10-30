@@ -130,7 +130,7 @@ defmodule TuistWeb.API.CargoController do
 
   operation :list_builds,
     summary: "List Cargo builds for a project, newest first.",
-    description: "Cargo test runs reported as nextest are listed with test runs, not builds.",
+    description: "Cargo test execution results are listed with test runs, not builds.",
     operation_id: "listCargoBuilds",
     parameters: [
       account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
