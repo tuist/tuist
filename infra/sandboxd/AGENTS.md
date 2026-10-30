@@ -54,7 +54,12 @@ reflink, so rootfs clones are instant copy-on-write):
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
   firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
-  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation}
+  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, disks_synced}
+/data/sandboxes/snapshots/<snapshot_id>/
+  vmlinux             hard link to the kernel the source sandbox booted
+  rootfs.ext4         reflink clone of the source sandbox's rootfs
+  workspace.ext4      reflink clone of the source sandbox's workspace
+  disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
 ```
 
 The jail directory is the jailer's chroot, so every sandbox sees the same
@@ -107,6 +112,24 @@ resolve both cluster Services and public names through the pod's NAT.
   `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
   sandbox that is already running succeeds without doing anything, so a
   retried resume whose first answer was lost is harmless.
+- `pause {sandbox_id, sync_disks: true}` first runs `/bin/sync` in the
+  guest and records `disks_synced` in the metadata (cleared by the next
+  resume), so the disks alone hold everything written. A failed sync still
+  pauses and leaves the flag unset.
+- `save_disks {sandbox_id, snapshot_id}`: refuse unless the sandbox is
+  paused with `disks_synced`; hard link its kernel and reflink its rootfs
+  and workspace into `snapshots/.tmp-<id>`, write `disk-snapshot.json`,
+  fsync, and rename over `snapshots/<id>`. No memory is kept. Startup
+  removes `.tmp-*` leftovers. `delete_disks {snapshot_id}` removes the
+  directory and succeeds when it is absent. `hello` and `report` list the
+  snapshots under `disk_snapshots`; the disk report counts their exclusive
+  bytes as `snapshots_bytes`.
+- `create {..., from_disk_snapshot}`: link the snapshot's kernel and
+  reflink its disks into the jail instead of the template's (the template
+  name and workspace size must match the snapshot), then cold boot like a
+  `cold_boot` resume. No template shape snapshot is needed, and the guest
+  keeps its workspace. The first pause writes the sandbox's own memory
+  image.
 - `delete {sandbox_id}`: kill the VM if running, tear down the netns, remove
   the jail dir. Deleting an id the node does not hold succeeds and removes
   whatever is left on disk under it.

@@ -96,7 +96,7 @@ public protocol APIProtocol: Sendable {
     func completeAnalyticsArtifactMultipartUpload(_ input: Operations.completeAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output
     /// Dispatch a self-hosted Amp Orb lifecycle job.
     ///
-    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)`.
@@ -1533,7 +1533,7 @@ extension APIProtocol {
     }
     /// Dispatch a self-hosted Amp Orb lifecycle job.
     ///
-    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)`.
@@ -14905,6 +14905,10 @@ public enum Components {
             public var operation: Components.Schemas.DispatchAmpOrb.operationPayload
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/orb_token`.
             public var orb_token: Swift.String?
+            /// Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+            ///
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/snapshot_id`.
+            public var snapshot_id: Swift.String?
             /// Sandbox template name.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/template`.
@@ -14930,6 +14934,7 @@ public enum Components {
             ///   - memory_mb:
             ///   - operation:
             ///   - orb_token:
+            ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
             ///   - template: Sandbox template name.
             ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///   - workspace_gb:
@@ -14938,6 +14943,7 @@ public enum Components {
                 memory_mb: Components.Schemas.DispatchAmpOrb.memory_mbPayload? = nil,
                 operation: Components.Schemas.DispatchAmpOrb.operationPayload,
                 orb_token: Swift.String? = nil,
+                snapshot_id: Swift.String? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload? = nil,
                 workspace_gb: Swift.Int? = nil
@@ -14946,6 +14952,7 @@ public enum Components {
                 self.memory_mb = memory_mb
                 self.operation = operation
                 self.orb_token = orb_token
+                self.snapshot_id = snapshot_id
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
@@ -14955,6 +14962,7 @@ public enum Components {
                 case memory_mb
                 case operation
                 case orb_token
+                case snapshot_id
                 case template
                 case vcpus
                 case workspace_gb
@@ -31891,7 +31899,7 @@ public enum Operations {
     }
     /// Dispatch a self-hosted Amp Orb lifecycle job.
     ///
-    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+    /// Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)`.
@@ -31958,6 +31966,10 @@ public enum Operations {
                     public var operation: Operations.dispatchAmpOrb.Input.Body.jsonPayload.operationPayload
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/orb_token`.
                     public var orb_token: Swift.String?
+                    /// Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/snapshot_id`.
+                    public var snapshot_id: Swift.String?
                     /// Sandbox template name.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/template`.
@@ -31983,6 +31995,7 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - operation:
                     ///   - orb_token:
+                    ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
                     ///   - template: Sandbox template name.
                     ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///   - workspace_gb:
@@ -31991,6 +32004,7 @@ public enum Operations {
                         memory_mb: Operations.dispatchAmpOrb.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         operation: Operations.dispatchAmpOrb.Input.Body.jsonPayload.operationPayload,
                         orb_token: Swift.String? = nil,
+                        snapshot_id: Swift.String? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload? = nil,
                         workspace_gb: Swift.Int? = nil
@@ -31999,6 +32013,7 @@ public enum Operations {
                         self.memory_mb = memory_mb
                         self.operation = operation
                         self.orb_token = orb_token
+                        self.snapshot_id = snapshot_id
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
@@ -32008,6 +32023,7 @@ public enum Operations {
                         case memory_mb
                         case operation
                         case orb_token
+                        case snapshot_id
                         case template
                         case vcpus
                         case workspace_gb

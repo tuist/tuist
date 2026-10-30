@@ -26,6 +26,9 @@ case "$ORB_OPERATION" in
     pause|delete) ;;
     *) echo 'Unsupported Orb operation.' >&2; exit 1 ;;
 esac
+if [[ -n "${ORB_SNAPSHOT_ID:-}" && ! "$ORB_SNAPSHOT_ID" =~ ^[A-Za-z0-9._:-]{1,255}$ ]]; then
+    echo 'Invalid Orb snapshot ID.' >&2; exit 1
+fi
 
 # ORB_IMAGE is a template name, not an OCI image: sandboxd only boots
 # installed Firecracker templates. Never silently substitute another image.
@@ -57,7 +60,11 @@ umask 077
 request=$(mktemp)
 headers=$(mktemp)
 trap 'rm -f "$request" "$headers"' EXIT
+# ORB_SNAPSHOT_ID names Amp's project snapshot: a pause saves the Orb's disks
+# under it, and a spawn of a new Orb starts from it when Tuist holds one.
 jq -n '{operation: env.ORB_OPERATION} +
+    (if (env.ORB_SNAPSHOT_ID // "") != "" and env.ORB_OPERATION != "delete"
+        then {snapshot_id: env.ORB_SNAPSHOT_ID} else {} end) +
     (if env.ORB_OPERATION == "spawn" then {
         orb_token: env.ORB_TOKEN,
         template: (env.TUIST_ORB_TEMPLATE // "default"),
