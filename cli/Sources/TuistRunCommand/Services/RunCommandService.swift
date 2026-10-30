@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Noora
@@ -8,6 +7,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 import TuistServer
 import TuistSupport
 
