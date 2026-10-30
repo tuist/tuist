@@ -6,6 +6,7 @@
     import Path
     import Synchronization
     import Testing
+    import TuistAlert
     import TuistAutomation
     import TuistCache
     import TuistConfig
@@ -687,6 +688,29 @@
                 .called(1)
         }
 
+        @Test(.inTemporaryDirectory, .withScopedAlertController())
+        func run_warnsOnceAboutBuiltTargetsItDidNotStore() async throws {
+            stubFrameworkBuilds()
+            stubXCFrameworkCreation()
+            let source = try #require(FileSystem.temporaryTestDirectory).appending(components: "Sources", "Fixtures.swift")
+            try await fileSystem.makeDirectory(at: source.parentDirectory)
+            try await fileSystem.writeText("public let value = 42", at: source)
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { _, _, _ in
+                AsyncThrowingStream { $0.finish() }
+            }
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                targetSources: [SourceFile(path: source)]
+            )
+
+            let warnings = AlertController.current.warnings().map(\.message).map { $0.plain() }
+            #expect(warnings.contains("1 of 1 built targets were not stored and keep building from source: Fixtures"))
+        }
+
         @Test(.inTemporaryDirectory)
         func metadataUsesTheCustomXcodeProjectNameAndIsolatesUnsupportedTargets() async throws {
             let root = try #require(FileSystem.temporaryTestDirectory)
@@ -715,6 +739,27 @@
             #expect(try await !fileSystem.exists(unsupported.artifact.appending(
                 components: "macos-arm64", CachedModuleDebuggingMetadata.fileName
             )))
+        }
+
+        @Test(.inTemporaryDirectory)
+        func linkedSymbolsWithoutTheModulesCodePublishNothingToRelocate() async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let fixture = try await debuggingInput(at: root)
+            let dwarf = fixture.artifact.appending(
+                components: "macos-arm64", "dSYMs", "Feature.framework.dSYM", "Contents", "Resources", "DWARF", "Feature"
+            )
+            try await fileSystem.makeDirectory(at: dwarf.parentDirectory)
+            try await fileSystem.touch(dwarf)
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { _, _, _ in
+                AsyncThrowingStream { $0.finish() }
+            }
+            #expect(try await subject.writeDebuggingMetadata(
+                fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products]
+            ))
+            let path = fixture.artifact.appending(components: "macos-arm64", CachedModuleDebuggingMetadata.fileName)
+            let recorded = try JSONDecoder().decode(CachedModuleDebuggingMetadata.self, from: await fileSystem.readFile(at: path))
+            #expect(recorded.debugPaths.isEmpty)
+            #expect(recorded.sources == fixture.metadata.sources)
         }
 
         @Test(.inTemporaryDirectory, arguments: ["prefix-map", "info-plist", "empty-slices"])
@@ -946,7 +991,8 @@
             cachedTarget: Bool = false,
             republishError: Error? = nil,
             coverageVariable: String? = nil,
-            coverageOption: Bool = false
+            coverageOption: Bool = false,
+            targetSources: [SourceFile] = []
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let config = coverageOption
@@ -959,7 +1005,7 @@
                 given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
             }
             let resolvedConfiguration = configuration ?? "Debug"
-            let target = Target.test(name: "Fixtures", product: targetProduct, foreignBuild: foreignBuild)
+            let target = Target.test(name: "Fixtures", product: targetProduct, sources: targetSources, foreignBuild: foreignBuild)
             let cached = Target.test(name: "Cached", product: .bundle)
             let project = Project.test(
                 path: temporaryDirectory,
