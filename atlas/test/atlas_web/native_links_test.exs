@@ -18,6 +18,8 @@ defmodule AtlasWeb.NativeLinksTest do
       assert NativeLinks.for_page("/people/time-off") == {"time-off", nil}
       assert NativeLinks.for_page("/people") == {"people", nil}
       assert NativeLinks.for_page("/settings") == {"profile", nil}
+      assert NativeLinks.for_page("/orbit") == {"orbit", nil}
+      assert NativeLinks.for_page("/orbit/#{@id}") == {"orbit", @id}
     end
 
     test "never maps children, actions, or non-canonical record IDs" do
@@ -34,8 +36,8 @@ defmodule AtlasWeb.NativeLinksTest do
             "/commercial/finance/vendors",
             "/people/time-off/settings",
             "/settings/llm-providers",
-            "/orbit",
-            "/orbit/#{@id}",
+            "/orbit/new",
+            "/orbit/#{@id}/edit",
             "/open/tasks",
             nil
           ] do
@@ -114,8 +116,8 @@ defmodule AtlasWeb.NativeLinksTest do
     assert NativeLinks.browser_path({"accounts", nil}) == "/commercial/sales/accounts"
     assert NativeLinks.browser_path({"invoices", @id}) == "/commercial/finance"
     assert NativeLinks.browser_path({"profile", nil}) == "/settings"
-    assert NativeLinks.browser_path({"orbit", @id}) == "/"
-    assert NativeLinks.browser_path({"orbit", nil}) == "/"
+    assert NativeLinks.browser_path({"orbit", @id}) == "/orbit/#{@id}"
+    assert NativeLinks.browser_path({"orbit", nil}) == "/orbit"
   end
 
   test "claimed_paths/0 lists exact pages and UUID-shaped records, never finance" do

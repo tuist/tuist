@@ -20,10 +20,21 @@ struct AtlasWorkstationConfiguration: Codable, Equatable {
 }
 
 struct AtlasWorkstationCommand: Decodable, Equatable {
+    struct Edit: Decodable, Equatable {
+        let oldText: String
+        let newText: String
+    }
     struct Arguments: Decodable, Equatable {
         let projectId: String
         let path: String?
         let command: String?
+        var threadId: String?
+        var title: String?
+        var offset: Int?
+        var limit: Int?
+        var timeout: Int?
+        var content: String?
+        var edits: [Edit]?
     }
     let id: String
     let tool: String
@@ -31,6 +42,9 @@ struct AtlasWorkstationCommand: Decodable, Equatable {
     var executionTimeoutSeconds = 0
     let digest: String
     let claimToken: String?
+
+    var coding: Bool { ["read", "bash", "edit", "write"].contains(tool) }
+    var terminal: Bool { ["bash", "environment_terminal"].contains(tool) }
 
     func matches(_ other: Self) -> Bool {
         id == other.id && tool == other.tool && arguments == other.arguments

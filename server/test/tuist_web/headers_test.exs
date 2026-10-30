@@ -3,6 +3,27 @@ defmodule TuistWeb.HeadersTest do
 
   alias TuistWeb.Headers
 
+  describe "get_build_integration_version/2" do
+    test "optional malformed metadata never rejects reporting", %{conn: conn} do
+      for headers <- [
+            [],
+            [{"x-tuist-ex-version", ""}],
+            [{"x-tuist-ex-version", "1"}, {"x-tuist-ex-version", "2"}],
+            [{"x-tuist-ex-version", String.duplicate("v", 257)}],
+            [{"x-tuist-ex-version", <<255>>}]
+          ] do
+        assert Headers.get_build_integration_version(%{conn | req_headers: headers}, :mix) == ""
+      end
+    end
+
+    test "keeps future formats and the exact size boundary", %{conn: conn} do
+      for version <- ["2027/future+build", String.duplicate("v", 256)] do
+        conn = Plug.Conn.put_req_header(conn, "x-tuist-ex-version", version)
+        assert Headers.get_build_integration_version(conn, :mix) == version
+      end
+    end
+  end
+
   describe "get_cli_version/1" do
     test "when the x-tuist-cloud-cli-version header is not passed", %{conn: conn} do
       assert Headers.get_cli_version(conn) == nil

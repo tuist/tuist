@@ -185,7 +185,7 @@ struct AtlasThreadDetail: View {
             NavigationStack {
                 if let environmentRequest { AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest) }
             }
-            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.height(360), .large])
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             .presentationBackground(Color(uiColor: .systemGroupedBackground))
         }

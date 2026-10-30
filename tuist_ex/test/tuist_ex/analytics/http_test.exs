@@ -52,7 +52,13 @@ defmodule TuistEx.Analytics.HTTPTest do
 
     expect(HTTP, :request, 2, fn :post, _url, body, headers ->
       assert body == %{id: "report-id"}
-      assert headers == [{"authorization", "Bearer existing-token"}]
+
+      assert Enum.sort(headers) ==
+               Enum.sort([
+                 {"authorization", "Bearer existing-token"},
+                 {"x-tuist-ex-version", to_string(Application.spec(:tuist_ex, :vsn))}
+               ])
+
       {:ok, 200, %{"id" => "report-id"}}
     end)
 
@@ -400,6 +406,7 @@ defmodule TuistEx.Analytics.HTTPTest do
     expect(HTTP, :request, fn :post, url, body, headers ->
       assert url == "https://tuist.example/api/projects/acme/widgets/mix/builds"
       assert body == %{id: "build-id"}
+      assert {"x-tuist-ex-version", to_string(Application.spec(:tuist_ex, :vsn))} in headers
       assert {"authorization", "Bearer token"} in headers
       assert {"x-tuist-actor-id", "developer-123"} in headers
       {:ok, 201, %{"id" => "build-id"}}
