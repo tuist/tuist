@@ -222,51 +222,57 @@ protects it, which for Kura page cache is the **Page cache by node** panel in
 aggregated series answers. Plain `sum` stores the sum of the raw values, which
 drops whenever a source restarts, and `rate()` or `increase()` over it return
 an empty result rather than an error. `sum:counter` stores a counter-aware sum
-that `rate()` reads. The `tuist_` prefix rule (drops `pod`, `instance`,
-`pod_template_hash`; stores `sum`, `count`, `max`) catches every `tuist_*`
-metric without an exact rule, so a new counter under that prefix cannot be
-rated until it gets an exact rule with `sum:counter`. An exact rule takes
-precedence over a prefix rule, as `tuist_runners_dispatch_request_count`
-shows. Samples stored before a rule took effect still cannot be rated.
+that `rate()` reads. Samples stored before a rule gained it still cannot be
+rated.
 
-**An exact rule needs an exemption to last.** The recommender treats a metric
-that any alerting rule reads, Grafana-managed ones included, as not a candidate
-for aggregation, so it recommends no exact rule for it, and auto-apply deletes
-the one you add. It does not consider prefix rules, so the metric falls back to
-the `tuist_` prefix rule's plain `sum`, and the alert's `rate()` returns an
-empty result. The alert stays Normal rather than NoData. Any change to the rules
-triggers a new recommendation run, so this happens within about twenty
-minutes: the queue-time rules added at 16:41 UTC on 2026-10-30 were gone by
-17:02. Metrics no alert reads are not safe either. Their aggregations follow
-the last 30 days of queries, which turned the 2026-10-22 cache volume rules
-back into plain `sum`.
+The `tuist_` prefix rule drops `pod`, `instance` and `pod_template_hash` and
+stores `sum`, `count`, `max` and, since 2026-10-30 at 18:16 UTC, `sum:counter`.
+It catches every `tuist_*` metric without an exact rule, so any `tuist_*`
+counter can be rated. An exact rule takes precedence over it, as
+`tuist_runners_dispatch_request_count` shows, and then only that rule's
+aggregations count.
 
-So create an exact exemption for the metric first, then add its rule. An
-exemption keeps the metric out of recommendations without removing an applied
-rule:
+**Fix rates on the prefix rule, not with an exact rule.** Auto-apply makes the
+rule set match the recommendations, and deletes any exact rule they leave out:
 
-```bash
-curl -s -u "1774467:$TOKEN" -X POST -H 'Content-Type: application/json' \
-  --data '{"metric": "<name>", "match_type": "exact", "reason": "<what rates it>"}' \
-  $BASE/v1/recommendations/exemptions
-curl -s -u "1774467:$TOKEN" $BASE/v1/recommendations/exemptions  # list
-```
+- The recommender treats a metric that any alerting rule reads,
+  Grafana-managed ones included, as not a candidate for aggregation, so it
+  recommends no exact rule for it.
+- An exemption leaves the metric out of the recommendations too, so its exact
+  rule is deleted all the same.
+- Prefix rules are kept as they are.
 
-Exempted, with exact `sum:counter` rules dropping `instance`, `pod` and
-`pod_template_hash` (applied 2026-10-30 at 17:33 UTC):
+Any change to the rules triggers a new recommendation run, so an exact rule
+added by hand lasts about twenty minutes. On 2026-10-30, queue-time rules added
+at 16:41 UTC were gone by 17:02, and exempted ones added at 17:33 were gone by
+18:02. A metric no alert reads keeps an exact rule only in the shape its last
+30 days of queries call for, which is how the 2026-10-22 cache volume rules
+went back to plain `sum`. When several prefix rules match a metric, the first
+in the list wins, and the live list is in alphabetical order, so a narrower
+`tuist_...` prefix rule would never take effect.
 
-- `tuist_runners_job_executor_queue_time_milliseconds_{bucket,count,sum}`
-  (plus `max`), read by the `runner-queue-time-p90-over-target` alert
-- `tuist_runners_job_queue_time_milliseconds_{bucket,count,sum}` (plus `max`),
-  read by the Runners dashboard's queue-time panels
+An exemption still stops the recommender from aggregating a metric further
+than the prefix rule does. These are exempted, which keeps the labels their
+alert and panels filter on:
+
+- `tuist_runners_job_executor_queue_time_milliseconds_{bucket,count,sum}`,
+  read by the `runner-queue-time-p90-over-target` alert (the recommender had
+  dropped `platform` and `limit_held` from `_sum`)
+- `tuist_runners_job_queue_time_milliseconds_{bucket,count,sum}`, read by the
+  Runners dashboard's queue-time panels
 - `tuist_runner_cache_volume_operations_total` and
   `tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}`
 
-Other alerts still `rate()` a `tuist_*` metric that only the prefix rule
-covers, so they evaluate an empty result: the HTTP request duration alerts, the
-Oban build and XCResult processing and queue duration alerts, Kura admission
-refusals, and egress jobs on an unusable fleet. To find more, list the metrics
-the alert rules read that have no exact rule and match a prefix rule.
+```bash
+curl -s -u "1774467:$TOKEN" $BASE/v1/recommendations/exemptions
+curl -s -u "1774467:$TOKEN" -X POST -H 'Content-Type: application/json' \
+  --data '{"metric": "<name>", "match_type": "exact", "reason": "<what reads it>"}' \
+  $BASE/v1/recommendations/exemptions
+```
+
+The prefix rule still drops `instance`, so a matcher on it matches nothing. The
+Build queue duration and XCResult queue duration alerts filter
+`tuist_oban_job_queue_time_milliseconds_bucket` on `instance="production"`.
 
 `sum:counter` cannot count an increment it never saw. A counter series a
 source creates on its first increment (a label combination the code does not
