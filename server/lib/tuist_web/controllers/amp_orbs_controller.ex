@@ -85,16 +85,34 @@ defmodule TuistWeb.AmpOrbsController do
   defp job(orb_id, params) when byte_size(orb_id) in 1..255 do
     operation = params["operation"]
     token = params["orb_token"]
+    snapshot_id = params["snapshot_id"]
 
     if Regex.match?(~r/^[a-zA-Z0-9_-]+$/, orb_id) and operation in ["spawn", "pause", "delete"] and
-         (operation != "spawn" or (is_binary(token) and byte_size(token) in 1..16_384)) do
+         (operation != "spawn" or (is_binary(token) and byte_size(token) in 1..16_384)) and
+         valid_snapshot_id?(snapshot_id) do
       # Managed connections have a server-selected template/shape and Amp origin.
       # Neither workload credentials nor client params grant arbitrary guest exec.
-      {:ok, %{operation: operation, orb_token: token, template: "default", vcpus: 2, memory_mb: 4096, workspace_gb: 10}}
+      {:ok,
+       %{
+         operation: operation,
+         orb_token: token,
+         snapshot_id: snapshot_id,
+         template: "default",
+         vcpus: 2,
+         memory_mb: 4096,
+         workspace_gb: 10
+       }}
     else
       {:error, :invalid_job}
     end
   end
 
   defp job(_, _), do: {:error, :invalid_job}
+
+  defp valid_snapshot_id?(nil), do: true
+
+  defp valid_snapshot_id?(snapshot_id) when is_binary(snapshot_id),
+    do: Regex.match?(~r/^[A-Za-z0-9._:-]{1,255}$/, snapshot_id)
+
+  defp valid_snapshot_id?(_snapshot_id), do: false
 end

@@ -416,7 +416,6 @@ jobs:
             TUIST_HOSTED=1
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
-            APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
       - name: Export production project builds
         id: project-export
         if: steps.project-cache.outcome == 'success'

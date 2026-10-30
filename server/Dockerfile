@@ -244,9 +244,10 @@ RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
 # ========================================
 FROM ${RUNNER_IMAGE} AS runner-base
 
-# APT_CACHE_BUST is passed from CI (e.g. the commit SHA) to invalidate the
-# apt layer so `apt-get upgrade` picks up the latest security patches instead
-# of reusing a stale cached layer.
+# Builds that pass APT_CACHE_BUST rebuild the apt layer so `apt-get upgrade`
+# picks up the latest security patches. Deployed images don't pass it: their
+# apt layer is rebuilt when RUNNER_IMAGE changes, so consecutive deploys share
+# it and nodes pull it once.
 ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \

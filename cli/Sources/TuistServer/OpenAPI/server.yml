@@ -7081,6 +7081,12 @@ components:
           writeOnly: true
           x-struct:
           x-validate:
+        snapshot_id:
+          description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          type: string
+          x-struct:
+          x-validate:
         template:
           description: Sandbox template name.
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -17204,7 +17210,7 @@ paths:
   /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}:
     post:
       callbacks: {}
-      description: Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+      description: "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it."
       operationId: dispatchAmpOrb
       parameters:
         - description: The account handle.
@@ -17259,6 +17265,12 @@ paths:
                   minLength: 1
                   type: string
                   writeOnly: true
+                  x-struct:
+                  x-validate:
+                snapshot_id:
+                  description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+                  pattern: ^[A-Za-z0-9._:-]{1,255}$
+                  type: string
                   x-struct:
                   x-validate:
                 template:

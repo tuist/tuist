@@ -2,6 +2,7 @@ package podagent
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -41,10 +42,21 @@ func (s *unavailableUntil) CacheMasters(context.Context) ([]PrefetchMaster, erro
 	return nil, nil
 }
 
-type recordingCustomPrefetch struct{ identities []cachevolumes.Identity }
+type recordingCustomPrefetch struct {
+	identities []cachevolumes.Identity
+	reasons    []string
+}
 
-func (r *recordingCustomPrefetch) PrefetchMaster(identity cachevolumes.Identity) bool {
+func (r *recordingCustomPrefetch) PrefetchMaster(identity cachevolumes.Identity, reason string) bool {
 	r.identities = append(r.identities, identity)
+	r.reasons = append(r.reasons, reason)
+	return true
+}
+
+type recordingCheckoutPrefetch struct{ tasks []cachevolumes.CheckoutTask }
+
+func (r *recordingCheckoutPrefetch) PrefetchCheckout(task cachevolumes.CheckoutTask) bool {
+	r.tasks = append(r.tasks, task)
 	return true
 }
 
@@ -135,6 +147,7 @@ func TestPrefetchHandsCustomHeadsToTheCustomAgent(t *testing.T) {
 		{
 			Kind: "custom", ID: "11111111-1111-4111-8111-111111111111", AccountID: 42, Scope: scope, Generation: 3,
 			ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), VolumeBytes: 50_000_000_000, HeadSizeBytes: 4_000_000_000,
+			Reason: "prewarm",
 		},
 	}}
 	custom := &recordingCustomPrefetch{}
@@ -146,8 +159,8 @@ func TestPrefetchHandsCustomHeadsToTheCustomAgent(t *testing.T) {
 		ID: "11111111-1111-4111-8111-111111111111", Account: 42, Scope: scope, BaseGeneration: 3,
 		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), VolumeBytes: 50_000_000_000, HeadSizeBytes: 4_000_000_000,
 	}
-	if len(custom.identities) != 1 || custom.identities[0] != want {
-		t.Fatalf("custom prefetches = %+v", custom.identities)
+	if len(custom.identities) != 1 || custom.identities[0] != want || custom.reasons[0] != "prewarm" {
+		t.Fatalf("custom prefetches = %+v, reasons = %v", custom.identities, custom.reasons)
 	}
 
 	now = now.Add(prefetchRefreshInterval)
@@ -161,5 +174,31 @@ func TestPrefetchServerClientDropsIdleConnectionsBeforeTheServer(t *testing.T) {
 	transport, ok := prefetchHTTPClient.Transport.(*http.Transport)
 	if !ok || transport.IdleConnTimeout != cachevolumes.ServerIdleTimeout {
 		t.Fatalf("prefetch client transport = %#v, want idle timeout %s", prefetchHTTPClient.Transport, cachevolumes.ServerIdleTimeout)
+	}
+}
+
+func TestPrefetchHandsCheckoutHeadsToTheCheckouts(t *testing.T) {
+	scope, key := strings.Repeat("a", 64), strings.Repeat("d", 64)
+	var masters []PrefetchMaster
+	body := `[{"kind":"checkout","id":"11111111-1111-4111-8111-111111111111","account_id":42,"scope":"` + scope + `","generation":3,` +
+		`"image_digest":"` + strings.Repeat("b", 40) + `","content_digest":"` + strings.Repeat("c", 64) + `","volume_bytes":20000000000,` +
+		`"checkout_generation":2,"clone_url":"https://github.com/org/repo","default_branch":"main","uid":502,"volume_key":"` + key + `"}]`
+	if err := json.Unmarshal([]byte(body), &masters); err != nil {
+		t.Fatal(err)
+	}
+	custom, checkouts := &recordingCustomPrefetch{}, &recordingCheckoutPrefetch{}
+	p := &PrefetchPoller{Source: &stubPrefetch{masters: masters}, Custom: custom, Checkouts: checkouts}
+
+	p.refresh(context.Background())
+	want := cachevolumes.CheckoutTask{
+		Scope: scope, Generation: 2, CloneURL: "https://github.com/org/repo", DefaultBranch: "main",
+		Use: "11111111-1111-4111-8111-111111111111", BaseGeneration: 3, ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64),
+		UID: 502, VolumeKey: key, Spare: true,
+	}
+	if len(checkouts.tasks) != 1 || checkouts.tasks[0] != want {
+		t.Fatalf("checkout prefetches = %+v", checkouts.tasks)
+	}
+	if len(custom.identities) != 0 {
+		t.Fatalf("a checkout HEAD went to the custom agent: %+v", custom.identities)
 	}
 }

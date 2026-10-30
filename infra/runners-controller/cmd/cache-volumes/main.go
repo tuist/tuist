@@ -277,7 +277,7 @@ func main() {
 		// Checkout images are larger than custom ones, so their archives get their own bound.
 		Transfer: &imageTransfer{URL: transfer.URL, Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Log: metrics.logger}}
 	space := &checkoutSpace{root: *root, reserve: backend.MinFreeBytes, checkouts: checkouts}
-	checkouts.Room = space.room
+	checkouts.Room, checkouts.Spare = space.room, space.spare
 	backend.Seed, backend.FreeBytesContext, backend.Reclaim = checkouts.Seed, space.free, space.reclaim
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
@@ -301,7 +301,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -317,6 +317,10 @@ func main() {
 	// Without git and git-lfs the worker logs why and retries; the host answers
 	// denied meanwhile, so runners export nothing.
 	go checkouts.Start(context.Background())
+	// Separate from the job prefetcher, so a missed master never waits behind a
+	// listed one: at most one download of each kind at a time.
+	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HasMaster, restore: backend.PrefetchSpare, checkout: prefetchCheckout(checkouts), observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
+	go listed.run(context.Background())
 	go func() {
 		for {
 			start := time.Now()

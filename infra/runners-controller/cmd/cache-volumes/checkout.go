@@ -258,6 +258,15 @@ func (s *checkoutSpace) free(context.Context, string) (uint64, error) {
 // room holds disk for a master build above the job reserve, evicting other
 // checkout masters only when that can make the room.
 func (s *checkoutSpace) room(_ context.Context, bytes uint64) (func(), error) {
+	return s.hold(bytes, true)
+}
+
+// spare holds disk for a restore the server listed from free space only.
+func (s *checkoutSpace) spare(_ context.Context, bytes uint64) (func(), error) {
+	return s.hold(bytes, false)
+}
+
+func (s *checkoutSpace) hold(bytes uint64, evict bool) (func(), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	need := s.reserve + s.reserved + bytes
@@ -265,7 +274,7 @@ func (s *checkoutSpace) room(_ context.Context, bytes uint64) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	if free < need && free+s.checkouts.Evictable(allocatedBytes) >= need {
+	if evict && free < need && free+s.checkouts.Evictable(allocatedBytes) >= need {
 		s.checkouts.Evict(func() bool {
 			free, err = s.rawFree()
 			return err == nil && free >= need
@@ -283,6 +292,19 @@ func (s *checkoutSpace) room(_ context.Context, bytes uint64) (func(), error) {
 		defer s.mu.Unlock()
 		s.reserved -= bytes
 	}, nil
+}
+
+// prefetchCheckout restores a checkout HEAD the server listed for this node
+// before any job asks for it here, so the node's first job of the repository
+// clones a master instead of running cold. It reports whether a restore was queued.
+func prefetchCheckout(checkouts *cachevolumes.Checkouts) func(cachevolumes.CheckoutTask) bool {
+	return func(task cachevolumes.CheckoutTask) bool {
+		if !checkouts.Ready() || checkouts.Master(task.Scope, task.Generation) != "" {
+			return false
+		}
+		checkouts.Track(task)
+		return checkouts.Enqueue(task)
+	}
 }
 
 // reclaim evicts idle checkout masters for a job's volume, after custom-volume
