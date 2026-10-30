@@ -23,6 +23,7 @@ setup() {
   MANAGED_XCCONFIG="$work/managed.xcconfig"
   MANAGED_XCODE_CACHE_LIMIT_BYTES=12000000000
   MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
+  MANAGED_SWIFT_BATCH_COUNT=6
   unset TUIST_XDG_CACHE_HOME TUIST_CACHE_MAX_BYTES XCODE_XCCONFIG_FILE \
     TUIST_COMPILATION_CACHE_CAS_PATH TUIST_CAS_DRAINED_STORE VOLUME_BLOCKS
   # A stand-in for the volume client: records each attach and creates the path,
@@ -62,6 +63,8 @@ test_caches_stage_their_volumes() {
   grep -qx "TUIST_CAS_DRAINED_STORE=$MANAGED_XCODE_CACHE" "$RUNNER_CACHES_DIR/xcode.env" || fail 'drained store not staged'
   grep -qx "COMPILATION_CACHE_CAS_PATH = $MANAGED_XCODE_CACHE" "$MANAGED_XCCONFIG" || fail 'xcconfig does not point at the volume'
   grep -qx "COMPILATION_CACHE_LIMIT_SIZE = 12000000000" "$MANAGED_XCCONFIG" || fail 'xcconfig does not bound the store'
+  grep -qx 'TUIST_SWIFT_BATCH_FLAGS_YES = -driver-batch-count 6' "$MANAGED_XCCONFIG" || fail 'xcconfig does not pin the batch count'
+  grep -qxF 'OTHER_SWIFT_FLAGS = $(inherited) $(TUIST_SWIFT_BATCH_FLAGS_$(COMPILATION_CACHE_ENABLE_CACHING))' "$MANAGED_XCCONFIG" || fail 'xcconfig does not pin the batch count of caching builds'
   for name in TUIST_XDG_CACHE_HOME TUIST_CACHE_MAX_BYTES XCODE_XCCONFIG_FILE TUIST_COMPILATION_CACHE_CAS_PATH TUIST_CAS_DRAINED_STORE; do
     [ -z "${!name:-}" ] || fail "$name reaches the runner"
   done
