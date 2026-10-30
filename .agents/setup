@@ -127,22 +127,12 @@ cd "$repo_root/server"
 step "Starting ClickHouse"
 mise run --no-deps clickhouse:start
 
-dev_db="$(mise exec -- printenv TUIST_SERVER_POSTGRES_DB)"
-if psql -h localhost -d "$dev_db" -Atqc "SELECT to_regclass('public.users') IS NOT NULL" 2>/dev/null | grep -qx t; then
-  # Stale snapshot: the databases are seeded already, so sync dependencies
-  # and migrate without rerunning the seeds.
-  step "Updating server dependencies and migrating $dev_db"
-  time mix deps.get
-  time aube install
-  (cd ../noora && time aube install && time aube run build)
-  time mise run --no-deps db:migrate
-else
-  # Fresh orb: deps.get, aube installs, Noora build, dev compile, database
-  # create/migrate and seed (about 11 minutes cold). The test build is left
-  # to the first `mix test`; compiling it here would exceed setup's limit.
-  step "Bootstrapping server dependencies and databases"
-  time mise run --no-deps install
-fi
+# deps.get, aube installs, Noora build, dev compile, and database
+# create/migrate; on a stale snapshot only what changed. The dev database is
+# seeded on the first server start (.agents/server), since most threads never
+# start the server and the seed takes minutes.
+step "Bootstrapping server dependencies and databases"
+time mise run --no-deps install --no-seed
 
 # Stop ClickHouse cleanly so its data directory is consistent in the
 # snapshot; .agents/resume starts it again.
@@ -156,20 +146,27 @@ step "Writing orb agent guidance"
 guidance="$HOME/.config/amp/AGENTS.md"
 guidance_marker="# Tuist orb environment"
 mkdir -p "$(dirname "$guidance")"
-if ! grep -Fqx "$guidance_marker" "$guidance" 2>/dev/null; then
-  cat >>"$guidance" <<'EOF'
-
+# Replace the section rather than keep it: a rerun on a stale snapshot would
+# otherwise carry an older setup's guidance forward.
+other_guidance=""
+[[ -f "$guidance" ]] && other_guidance="$(sed "/^$guidance_marker\$/,\$d" "$guidance")"
+{
+  [[ -z "$other_guidance" ]] || printf '%s\n\n' "$other_guidance"
+  cat <<'EOF'
 # Tuist orb environment
 
 - `.agents/setup` installed the root and `server/` mise toolchains (shims on PATH),
-  PostgreSQL 16 (systemd, trust auth) and bootstrapped the server databases.
+  PostgreSQL 16 (systemd, trust auth), compiled the server and created and migrated its databases.
 - `.agents/resume` starts ClickHouse; rerun `mise run clickhouse:start` from `server/` if it is down.
 - This checkout's dev instance is 100: server on port 8180, databases `tuist_development_100`.
-- Start the server with `amp orb services ensure` (service `server`).
-  Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
+- Start the server with `amp orb services ensure` (service `server`). The dev database is not seeded
+  until the first server start: the server comes up first and the seed then fills the database for
+  about 4 minutes (`amp orb service logs server`). Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
+  To seed without the server, run `mise run db:seed` from `server/`.
 - The server test build is not precompiled: the first `MIX_ENV=test` compile or `mix test` takes about 8 minutes.
 - macOS-only work (Xcode, `tuist generate`, Swift app targets) is not possible in this orb.
 EOF
-fi
+} >"$guidance.tmp"
+mv "$guidance.tmp" "$guidance"
 
 step "Setup finished"

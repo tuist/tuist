@@ -63,4 +63,8 @@ if ! clickhouse_database_exists; then
 fi
 
 mise run db:migrate
-mise run db:seed
+
+# Amp orbs seed on the first server start instead (.agents/server).
+if [ "${1:-}" != "--no-seed" ]; then
+  mise run db:seed
+fi
