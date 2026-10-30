@@ -643,9 +643,10 @@ struct RunCommandServiceTests {
 
     @Test(
         .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        arguments: [false, true]
     )
-    func run_preview_link_android_app() async throws {
+    func run_preview_link_android_app(rawAPK: Bool) async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let androidDevice = AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator)
@@ -670,6 +671,8 @@ struct RunCommandServiceTests {
             .willReturn([androidDevice])
 
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
+        let apkBytes = Data("signed APK payload".utf8)
+        try apkBytes.write(to: URL(fileURLWithPath: downloadedArchive.pathString))
         given(remoteArtifactDownloader)
             .download(url: .any)
             .willReturn(downloadedArchive)
@@ -685,11 +688,19 @@ struct RunCommandServiceTests {
             .willReturn(unarchivedPath)
 
         try await fileSystem.makeDirectory(at: unarchivedPath)
-        try await fileSystem.touch(unarchivedPath.appending(component: "app.apk"))
+        let installedAPK = unarchivedPath.appending(component: rawAPK ? "application.apk" : "app.apk")
+        if rawAPK {
+            try await fileSystem.touch(unarchivedPath.appending(component: "AndroidManifest.xml"))
+        } else {
+            try apkBytes.write(to: URL(fileURLWithPath: installedAPK.pathString))
+        }
 
         given(adbController)
-            .installApp(at: .any, device: .value(androidDevice))
-            .willReturn()
+            .installApp(at: .value(installedAPK), device: .value(androidDevice))
+            .willProduce { path, _ in
+                #expect(try await fileSystem.exists(path))
+                #expect(try Data(contentsOf: URL(fileURLWithPath: path.pathString)) == apkBytes)
+            }
 
         given(adbController)
             .launchApp(packageName: .value("com.example.app"), device: .value(androidDevice))
@@ -703,12 +714,14 @@ struct RunCommandServiceTests {
 
         // Then
         verify(adbController)
-            .installApp(at: .any, device: .value(androidDevice))
+            .installApp(at: .value(installedAPK), device: .value(androidDevice))
             .called(1)
 
         verify(adbController)
             .launchApp(packageName: .value("com.example.app"), device: .value(androidDevice))
             .called(1)
+        #expect(try await !fileSystem.exists(downloadedArchive))
+        #expect(try await !fileSystem.exists(unarchivedPath))
     }
 
     @Test(
