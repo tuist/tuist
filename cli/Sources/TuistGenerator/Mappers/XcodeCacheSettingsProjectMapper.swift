@@ -79,7 +79,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 tuist.project.generatedProject?.generationOptions.coverage.prefixMapping == true ? "YES" : "NO"
         }
 
-        var casPluginOptions: [String] = []
+        var swiftFlags: [String] = []
         if let fullHandle = tuist.fullHandle {
             // Route Xcode's compilation caching through the Tuist CAS plugin,
             // which owns remote (Kura) read/write-through via the per-machine
@@ -94,12 +94,12 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 // no CLI environment — so the proxy can route (and honor the upload
                 // policy) without the CLI. These reach Swift only; the setting below
                 // is what brings clang in.
-                casPluginOptions = Self.casPluginOptionFlags(
+                swiftFlags = Self.casPluginOptionFlags(
                     fullHandle: fullHandle,
                     upload: tuist.xcodeCache.upload
-                )
+                ) + Self.swiftBatchCountFlags
                 baseSettings["OTHER_SWIFT_FLAGS"] = Self.appending(
-                    casPluginOptions,
+                    swiftFlags,
                     to: baseSettings["OTHER_SWIFT_FLAGS"]
                 )
                 // This is what makes C/ObjC, precompiled modules and PCHs shareable.
@@ -154,14 +154,18 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // and `-cas-plugin-path` with `cannot setup CAS due to conflicting '-cas-*'
         // options`. Mirror the pattern in `ModuleMapMapper` and patch each shadowing
         // level with the same flags.
-        if !casPluginOptions.isEmpty {
+        if !swiftFlags.isEmpty {
             project.targets = project.targets.mapValues { target in
-                Self.applyingCASPluginOptions(casPluginOptions, to: target)
+                Self.applyingSwiftFlags(swiftFlags, to: target)
             }
         }
 
         return (project, [])
     }
+
+    /// Swift batch compiles otherwise follow the core count, and a batch's cache key names its files.
+    /// Tuist Runners pin the same count.
+    public static let swiftBatchCountFlags = ["-driver-batch-count", "6"]
 
     private static let prefixMappingForCoverageSetting = "TUIST_PREFIX_MAPPING_FOR_COVERAGE"
     private static let prefixMappingUnlessCoverage: SettingValue =
@@ -229,15 +233,15 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         }
     }
 
-    /// Patches any shadowing `OTHER_SWIFT_FLAGS` on the target with the CAS plugin
-    /// options. Only levels that actually shadow the project base need the fix:
+    /// Patches any shadowing `OTHER_SWIFT_FLAGS` on the target with the compilation cache
+    /// Swift flags. Only levels that actually shadow the project base need the fix:
     /// - the target's `settings.base` when it defines `OTHER_SWIFT_FLAGS` without
     ///   `$(inherited)`
     /// - each configuration whose own `OTHER_SWIFT_FLAGS` lacks `$(inherited)`
     ///
     /// A value that already contains `$(inherited)` pulls the project base in and
-    /// would land the plugin options twice if we appended again.
-    private static func applyingCASPluginOptions(
+    /// would land the flags twice if we appended again.
+    private static func applyingSwiftFlags(
         _ flags: [String],
         to target: Target
     ) -> Target {

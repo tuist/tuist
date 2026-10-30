@@ -9,6 +9,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistGenerator
 import TuistGit
 import TuistLaunchctl
 import TuistLoader
@@ -406,6 +407,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             // which can't await.
             let prefixMapping = await prefixMappingInstructions()
             let (pluginPath, missingPluginNote) = pluginPathInstructions(casPlugin)
+            let batchCountFlags = XcodeCacheSettingsProjectMapper.swiftBatchCountFlags.joined(separator: " ")
             Logger.current.info(
                 """
                 Xcode Cache setup is almost complete!
@@ -417,7 +419,9 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
                 COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(proxySocketPath)
                 COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
-                OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)\(prefixMapping)
+                OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle) \(batchCountFlags)\(prefixMapping)
+
+                `-driver-batch-count` gives machines with different CPU core counts the same Swift cache keys. Use the same value on every machine that shares the cache.
 
                 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what lets C, Objective-C and precompiled modules be shared too. Without it only Swift is shared, and a machine with a cold cache recompiles the rest.
 
