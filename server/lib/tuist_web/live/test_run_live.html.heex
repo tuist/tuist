@@ -1070,7 +1070,7 @@
                           }
                           data-part="test-run-link"
                         >
-                          {run.scheme}
+                          {test_run_label(@selected_project, run.scheme)}
                           <.link_icon />
                         </.link>
                       </div>
@@ -2161,7 +2161,7 @@
                       }
                       data-part="test-run-link"
                     >
-                      {run.scheme}
+                      {test_run_label(@selected_project, run.scheme)}
                       <.link_icon />
                     </.link>
                   </div>

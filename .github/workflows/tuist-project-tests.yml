@@ -4,9 +4,9 @@ name: tuist/tuist Tests
 # the binary-cache warm they read and the signal that a commit's coverage is
 # complete. Builds, lint and the Linux suite stay in cli.yml and app.yml.
 #
-# Coverage is on for every run: mise.toml's [env] sets TUIST_FEATURE_FLAG_COVERAGE,
-# TUIST_COVERAGE_ENABLED and TUIST_COVERAGE_PREFIX_MAPPING, so every job reads
-# the binary cache's coverage variant, whose binaries carry coverage counters,
+# Coverage is on for every run: Tuist.swift's `coverage` option (behind
+# mise.toml's TUIST_FEATURE_FLAG_COVERAGE) makes every job read the binary
+# cache's coverage variant, whose binaries carry coverage counters,
 # and the schemes that leave their test action's coverage unset collect it
 # (the acceptance schemes set `coverage: false`).
 #
@@ -134,7 +134,7 @@ jobs:
         with:
           cache-key: cli-macos-workspace-cli-cache
       # The whole workspace, the app's targets included, as the coverage variant
-      # mise.toml's TUIST_COVERAGE_ENABLED selects.
+      # Tuist.swift's `coverage` option selects.
       - name: Cache
         run: tuist cache
       # A crashed build service prints neither the compilation-cache plugin's
@@ -205,10 +205,12 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       # The scheme leaves its test action's coverage unset, so it follows
-      # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself
+      # Tuist.swift's `coverage` option. The CLI makes the coverage counters atomic itself
       # (`AtomicCoverageCounters`): tests run in parallel in one process, and plain
-      # increments lose counts. TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix
+      # increments lose counts. The option's `prefixMapping` keeps Xcode's prefix
       # mapping in coverage builds, so the compilation cache replays across
       # runners; the CLI maps the covered paths back.
       - name: Run tests

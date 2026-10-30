@@ -6,6 +6,7 @@ defmodule AtlasWeb.EnvironmentsControllerTest do
   import Atlas.PushFixtures, only: [native_access_token: 1]
 
   alias Atlas.Environments
+  alias Atlas.Orbit.Tools
   alias Atlas.Repo
 
   setup do
@@ -22,14 +23,20 @@ defmodule AtlasWeb.EnvironmentsControllerTest do
 
     assert get(c.api, "/api/me/environments") |> json_response(200) |> Map.keys() |> Enum.sort() == [
              "environments",
-             "owner_id"
+             "owner_id",
+             "providers"
            ]
   end
 
   test "registration, deletion and result success envelopes are stable", c do
     response = put(c.api, path(c), registration(c.project_id))
     assert %{"environment" => environment} = json_response(response, 200)
-    assert Map.keys(environment) |> Enum.sort() == ~w(display enabled id name online projects terminal)
+
+    assert Map.keys(environment) |> Enum.sort() ==
+             ~w(display enabled id name online projects provider provider_state terminal)
+
+    assert environment["provider"] == "native"
+    assert is_nil(environment["provider_state"])
     assert get_resp_header(response, "cache-control") == ["no-store"]
     command = command_fixture(c)
     claimed = claim_fixture(c, command)
@@ -64,6 +71,60 @@ defmodule AtlasWeb.EnvironmentsControllerTest do
     assert post(c.api, claim_path, %{"digest" => command.digest}) |> json_response(409) == %{
              "error" => "command_claimed_or_settled"
            }
+  end
+
+  test "an HTTP-only executor can complete a coding command without desktop or socket dependencies", c do
+    # Use today's native enrollment grant, not a new remote-provider authorization bypass.
+    registration = %{
+      registration(c.project_id)
+      | "name" => "Remote runner",
+        "projects" => [%{"id" => c.project_id, "name" => "parser", "coding" => true}]
+    }
+
+    assert put(c.api, path(c), registration) |> json_response(200)
+    assert get(c.api, "#{path(c)}/commands") |> json_response(200) == %{"commands" => []}
+    assert {:ok, _ticket} = Tools.call(c.run.id, 0, "bash", %{"command" => "uname -s", "timeout" => 20})
+
+    assert %{"commands" => [command]} = get(c.api, "#{path(c)}/commands") |> json_response(200)
+
+    assert command["tool"] == "bash"
+    assert command["execution_timeout_seconds"] == 1_800
+
+    assert command["arguments"] == %{
+             "command" => "uname -s",
+             "timeout" => 20,
+             "project_id" => c.project_id,
+             "thread_id" => c.thread.id,
+             "title" => c.thread.title
+           }
+
+    command_path = "#{path(c)}/commands/#{command["id"]}"
+    claim_body = %{"digest" => command["digest"]}
+    assert %{"command" => claimed} = post(c.api, "#{command_path}/claim", claim_body) |> json_response(200)
+    assert Map.delete(claimed, "claim_token") == command
+
+    assert post(c.api, "#{command_path}/claim", claim_body) |> json_response(409) == %{
+             "error" => "command_claimed_or_settled"
+           }
+
+    progress = %{"claim_token" => claimed["claim_token"], "sequence" => 1, "output" => "probe running"}
+
+    assert post(c.api, "#{command_path}/progress", progress) |> json_response(200) == %{
+             "received" => true,
+             "cancel_requested" => false
+           }
+
+    result = %{"claim_token" => claimed["claim_token"], "success" => true, "output" => "Linux\n"}
+    assert post(c.api, "#{command_path}/result", result) |> json_response(200) == %{"received" => true}
+    assert post(c.api, "#{command_path}/result", result) |> json_response(200) == %{"received" => true}
+    assert get(c.api, "#{path(c)}/commands") |> json_response(200) == %{"commands" => []}
+
+    activity_path = "/api/native/orbit/threads/#{c.thread.id}/environment-commands"
+    assert %{"commands" => [activity]} = get(c.api, activity_path) |> json_response(200)
+    assert activity["environment_name"] == "Remote runner"
+    assert activity["status"] == "settled"
+    assert activity["output"] == "Linux\n"
+    assert activity["success"]
   end
 
   test "Orbit selection and metadata are additive, exact and owner-private", c do

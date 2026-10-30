@@ -30,6 +30,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
           "supported_platforms" => ["ios", "ios_simulator"],
           "version" => "1.0.0",
           "type" => "app",
+          "custom_metadata" => %{"tags" => ["paid", "release-candidate"], "future_field" => "ignored"},
           "artifacts" => [
             %{
               "artifact_type" => "file",
@@ -75,6 +76,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
       assert bundle.git_branch == git_branch
       assert bundle.git_commit_sha == git_commit_sha
       assert bundle.git_ref == git_ref
+      assert bundle.custom_tags == ["paid", "release-candidate"]
+      assert json_response(conn, :ok)["custom_metadata"] == %{"tags" => ["paid", "release-candidate"]}
       assert Enum.map(bundle.artifacts, & &1.size) == [1024]
     end
 
@@ -110,6 +113,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
       # CH cutover bumped the column to `DateTime64(6)`.
       assert %{"inserted_at" => inserted_at} = json_response(conn, :ok)
       assert inserted_at =~ ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
+      assert json_response(conn, :ok)["custom_metadata"] == %{"tags" => []}
     end
 
     test "creates a bundle with git metadata", %{conn: conn, user: user, project: project} do
@@ -373,6 +377,43 @@ defmodule TuistWeb.API.BundlesControllerTest do
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/bundles" do
+    for {label, query} <- [
+          {"list-shaped", "tags[]=paid"},
+          {"map-shaped", "tags[key]=paid"},
+          {"blank", "tags=%20"},
+          {"mixed blank", "tags=paid,%20"},
+          {"too long", "tags=" <> String.duplicate("a", 51)},
+          {"too many", "tags=" <> Enum.map_join(1..11, ",", &"tag#{&1}")}
+        ] do
+      @query query
+      test "rejects #{label} tag filters", %{conn: conn, user: user, project: project} do
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> get("/api/projects/#{project.account.name}/#{project.name}/bundles?" <> @query)
+
+        assert %{"message" => _} = json_response(conn, :bad_request)
+      end
+    end
+
+    test "requires every tag and preserves branch and project scoping", %{conn: conn, user: user, project: project} do
+      matching = BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid", "release"])
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid"])
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: [])
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid-extra", "release"])
+      BundlesFixtures.bundle_fixture(project: project, git_branch: "feature", custom_tags: ["paid", "release"])
+      BundlesFixtures.bundle_fixture(custom_tags: ["paid", "release"])
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/bundles?tags=paid,release&git_branch=main")
+
+      assert %{"bundles" => [bundle], "meta" => %{"total_count" => 1}} = json_response(conn, :ok)
+      assert bundle["id"] == matching.id
+      assert bundle["custom_metadata"] == %{"tags" => ["paid", "release"]}
+    end
+
     test "returns a list of bundles sorted by inserted_at desc", %{
       conn: conn,
       user: user,
@@ -417,6 +458,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                  "git_branch" => bundle2.git_branch,
                  "git_commit_sha" => bundle2.git_commit_sha,
                  "git_ref" => bundle2.git_ref,
+                 "custom_metadata" => %{"tags" => []},
                  "id" => bundle2.id,
                  "inserted_at" => DateTime.to_iso8601(bundle2.inserted_at),
                  "install_size" => bundle2.install_size,
@@ -433,6 +475,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                  "git_branch" => bundle1.git_branch,
                  "git_commit_sha" => bundle1.git_commit_sha,
                  "git_ref" => bundle1.git_ref,
+                 "custom_metadata" => %{"tags" => []},
                  "id" => bundle1.id,
                  "inserted_at" => DateTime.to_iso8601(bundle1.inserted_at),
                  "install_size" => bundle1.install_size,
@@ -489,6 +532,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                  "git_branch" => bundle_feature.git_branch,
                  "git_commit_sha" => bundle_feature.git_commit_sha,
                  "git_ref" => bundle_feature.git_ref,
+                 "custom_metadata" => %{"tags" => []},
                  "id" => bundle_feature.id,
                  "inserted_at" => DateTime.to_iso8601(bundle_feature.inserted_at),
                  "install_size" => bundle_feature.install_size,
@@ -617,6 +661,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "git_branch" => bundle.git_branch,
                "git_commit_sha" => bundle.git_commit_sha,
                "git_ref" => bundle.git_ref,
+               "custom_metadata" => %{"tags" => []},
                "id" => bundle.id,
                "inserted_at" => DateTime.to_iso8601(bundle.inserted_at),
                "install_size" => bundle.install_size,
@@ -672,6 +717,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "git_branch" => bundle.git_branch,
                "git_commit_sha" => bundle.git_commit_sha,
                "git_ref" => bundle.git_ref,
+               "custom_metadata" => %{"tags" => []},
                "id" => bundle.id,
                "inserted_at" => DateTime.to_iso8601(bundle.inserted_at),
                "install_size" => bundle.install_size,

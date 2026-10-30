@@ -76,9 +76,16 @@ defmodule Tuist.AppBuilds do
   def app_build_by_id(id, opts \\ []) do
     if Tuist.UUIDv7.valid?(id) do
       preload = Keyword.get(opts, :preload, [])
-      app_build = Repo.get(AppBuild, id)
+      project_id = Keyword.get(opts, :project_id)
 
-      case app_build do
+      query = from(a in AppBuild, where: a.id == ^id)
+
+      query =
+        if is_nil(project_id),
+          do: query,
+          else: from(a in query, join: p in assoc(a, :preview), where: p.project_id == ^project_id)
+
+      case Repo.one(query) do
         nil -> {:error, :not_found}
         %AppBuild{} = app_build -> {:ok, Repo.preload(app_build, preload)}
       end
@@ -97,6 +104,7 @@ defmodule Tuist.AppBuilds do
   """
   def latest_preview_for_binary_id_and_build_version(binary_id, build_version, %Project{} = project, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
+    supported_types = Keyword.get(opts, :supported_types, Ecto.Enum.values(AppBuild, :type))
 
     with {:ok, app_build} <-
            app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
@@ -105,10 +113,9 @@ defmodule Tuist.AppBuilds do
       normalized_track = track || ""
 
       supported_platforms_as_integers =
-        Enum.map(
-          app_build.supported_platforms,
-          &Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1]
-        )
+        app_build.supported_platforms
+        |> Enum.filter(&(&1 in Keyword.get(opts, :supported_platforms, app_build.supported_platforms)))
+        |> Enum.map(&Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1])
 
       git_branch_filter =
         if is_nil(git_branch),
@@ -124,6 +131,7 @@ defmodule Tuist.AppBuilds do
             where: p.bundle_identifier == ^bundle_identifier,
             where: ^git_branch_filter,
             where: p.track == ^normalized_track,
+            where: ab.type in ^supported_types,
             where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
             order_by: [desc: p.inserted_at],
             limit: 1,
@@ -341,6 +349,12 @@ defmodule Tuist.AppBuilds do
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{preview_id}/icon.png"
   end
 
+  def desktop_preview?(%Preview{supported_platforms: [_ | _] = platforms}) do
+    Enum.all?(platforms, &(&1 in [:macos, :linux]))
+  end
+
+  def desktop_preview?(_preview), do: false
+
   def supported_platforms_case_values(%Preview{supported_platforms: supported_platforms}) do
     if is_nil(supported_platforms) do
       []
@@ -362,6 +376,7 @@ defmodule Tuist.AppBuilds do
       :visionos_simulator -> "visionOS Simulator"
       :macos -> "macOS"
       :android -> "Android"
+      :linux -> "Linux"
     end
   end
 

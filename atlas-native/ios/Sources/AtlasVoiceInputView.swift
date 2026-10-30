@@ -19,40 +19,71 @@ private enum AtlasComposerColors {
     #endif
 }
 
+struct AtlasComposerSurface<Surface: InsettableShape>: ViewModifier {
+    let shape: Surface
+    var interactive = false
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var opaque: Bool { reduceTransparency || contrast == .increased }
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            content
+                .background { if opaque { opaqueSurface } }
+                .glassEffect(opaque ? .identity : .regular.interactive(interactive), in: shape)
+        } else {
+            content.background {
+                if opaque {
+                    opaqueSurface
+                } else {
+                    shape.fill(.regularMaterial)
+                        .overlay { shape.strokeBorder(AtlasComposerColors.separator.opacity(0.4), lineWidth: 0.5) }
+                }
+            }
+        }
+    }
+
+    private var opaqueSurface: some View {
+        shape.fill(AtlasComposerColors.surface)
+            .overlay { shape.strokeBorder(AtlasComposerColors.separator, lineWidth: 1) }
+    }
+}
+
 struct AtlasThreadSuggestions: View {
+    let suggestions: [AtlasThreadSuggestion]
     let prompt: (String) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private let suggestions = ["What needs my attention?", "Summarize my open tasks", "Find an account"]
-
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 6) { buttons }
-            } else {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) { buttons }
-                }.scrollIndicators(.hidden)
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(suggestions, id: \.text) { suggestion in
+                    Button { prompt(suggestion.text) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: suggestion.icon).foregroundStyle(.blue).accessibilityHidden(true)
+                            Text(suggestion.text).foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? 240 : nil, alignment: .leading)
+                                .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: true)
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 16).padding(.vertical, 8).frame(minHeight: 44)
+                        .modifier(AtlasComposerSurface(shape: Capsule(), interactive: true))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(suggestion.text)
+                    .accessibilityHint("Adds this suggestion to your draft. Does not send a message.")
+                }
             }
+            .padding(.vertical, 8)
         }
+        .scrollIndicators(.hidden)
+        .contentMargins(.horizontal, 16, for: .scrollContent)
+        .padding(.horizontal, -16)
+        .accessibilityLabel("Suggested prompts")
         .accessibilityIdentifier("thread-suggestions")
-    }
-
-    private var buttons: some View {
-        ForEach(suggestions, id: \.self) { suggestion in
-            Button { prompt(suggestion) } label: {
-                Text(suggestion)
-                    .font(.subheadline)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .frame(minHeight: 44)
-                    .background(.regularMaterial, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Adds this suggestion to your draft. Does not send a message.")
-        }
     }
 }
 
@@ -62,6 +93,7 @@ struct AtlasThreadComposer: View {
     let saving: Bool
     let phase: AtlasVoiceInput.Phase
     let levels: [CGFloat]
+    @FocusState.Binding var editing: Bool
     var hasAttachments = false
     var addPhotos: (() -> Void)?
     var addFiles: (() -> Void)?
@@ -70,8 +102,6 @@ struct AtlasThreadComposer: View {
     let cancel: () -> Void
     let send: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var recording: Bool { phase != .idle }
@@ -116,7 +146,10 @@ struct AtlasThreadComposer: View {
                         .accessibilityIdentifier("thread-voice-recording")
                     } else {
                         TextField(placeholder, text: $draft, axis: .vertical)
-                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 3 : 6))
+                            // Keep conversation context above the keyboard at accessibility sizes.
+                            // The native editor scrolls through the complete multiline draft.
+                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 2 : 4))
+                            .focused($editing)
                             .textFieldStyle(.plain).padding(.vertical, 11)
                             .padding(.leading, addPhotos != nil && addFiles != nil ? 0 : 12)
                             .accessibilityIdentifier("thread-composer")
@@ -158,23 +191,9 @@ struct AtlasThreadComposer: View {
             }
             .padding(4)
             .foregroundStyle(.primary)
-            .background { surface }
+            .modifier(AtlasComposerSurface(shape: RoundedRectangle(cornerRadius: 28)))
         }
         .accessibilityElement(children: .contain)
-    }
-
-    @ViewBuilder private var surface: some View {
-        let shape = RoundedRectangle(cornerRadius: 28)
-        if reduceTransparency || contrast == .increased {
-            shape.fill(AtlasComposerColors.surface)
-                .overlay { shape.strokeBorder(AtlasComposerColors.separator, lineWidth: 1) }
-        } else if #available(iOS 26.0, macOS 26.0, *) {
-            shape.fill(.clear).glassEffect(.regular, in: shape)
-        } else {
-            shape.fill(.regularMaterial)
-                .overlay { shape.strokeBorder(AtlasComposerColors.separator.opacity(0.4), lineWidth: 0.5) }
-                .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
-        }
     }
 }
 

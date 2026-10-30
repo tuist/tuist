@@ -211,7 +211,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:108
+#: lib/tuist_web/live/create_project_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""

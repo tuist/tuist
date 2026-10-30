@@ -14,12 +14,12 @@ msgstr "Language: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/user_confirmation_live.ex:23
 #, elixir-autogen, elixir-format
 msgid "Account confirmed!"
-msgstr "アカウントが確認されました！"
+msgstr "アカウントを確認しました！"
 
 #: lib/tuist_web/live/user_registration_live.ex:442
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
-msgstr "アカウントが正常に作成されました！ログインしてください。"
+msgstr "アカウントが正常に作成されました。ログインしてください。"
 
 #: lib/tuist_web/live/user_registration_live.ex:456
 #, elixir-autogen, elixir-format
@@ -34,7 +34,7 @@ msgstr "すでにアカウントをお持ちですか？"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "Tuistプロジェクトの設定は完了していますか？セットアップをスキップしてダッシュボードへ移動します。"
+msgstr "Tuistプロジェクトのセットアップは完了していますか？セットアップをスキップしてダッシュボードへ移動します。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:71
@@ -45,7 +45,7 @@ msgstr "ログインに戻る"
 #: lib/tuist_web/live/user_registration_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Binary caching"
-msgstr "バイナリキャッシュ"
+msgstr "バイナリキャッシング"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:30
 #, elixir-autogen, elixir-format
@@ -61,7 +61,7 @@ msgstr "メールを確認してください"
 #: lib/tuist_web/live/user_registration_live.ex:250
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "確認用メールを受信トレイで確認し、リンクをクリックして続行してください。"
+msgstr "確認メールを受信し、リンクをクリックして続行してください。"
 
 #: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
@@ -98,14 +98,14 @@ msgstr "プロジェクトを接続"
 #: lib/tuist_web/live/connect_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Connect your project to the dashboard"
-msgstr "プロジェクトをダッシュボードに接続する"
+msgstr "プロジェクトをダッシュボードに接続"
 
 #: lib/tuist_web/live/connect_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Connection successful"
-msgstr "接続が成功しました"
+msgstr "接続が完了しました"
 
-#: lib/tuist_web/live/sso_login_live.ex:101
+#: lib/tuist_web/live/sso_login_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr "お問い合わせ"
@@ -114,7 +114,7 @@ msgstr "お問い合わせ"
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Continue"
-msgstr "続行"
+msgstr "続ける"
 
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
 #: lib/tuist_web/live/device_codes_success_live.ex:57
@@ -130,9 +130,9 @@ msgstr "選択的テストがいかにテスト時間を短縮しているかを
 #: lib/tuist_web/live/user_login_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
-msgstr "アカウントをお持ちでないですか?"
+msgstr "アカウントをお持ちでない場合"
 
-#: lib/tuist_web/live/sso_login_live.ex:84
+#: lib/tuist_web/live/sso_login_live.ex:95
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
 #: lib/tuist_web/live/user_forgot_password_live.ex:51
 #: lib/tuist_web/live/user_login_live.ex:144
@@ -144,17 +144,17 @@ msgstr "メールアドレス"
 #: lib/tuist_web/live/user_registration_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
-msgstr "メールアドレスはすでに使用されています"
+msgstr "このメールアドレスはすでに使用されています"
 
 #: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "バイナリキャッシュや選択的テストなどのTuistの機能を活用して、開発を加速しましょう。"
+msgstr "バイナリキャッシングや選択的テストなど、Tuistの機能を活用して開発を加速しましょう。"
 
 #: lib/tuist_web/live/user_registration_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "バイナリキャッシュがビルド時間をどのように短縮しているかをご覧ください。"
+msgstr "バイナリキャッシングがビルド時間をどのように短縮しているかを確認してください。"
 
 #: lib/tuist_web/live/user_login_live.ex:176
 #, elixir-autogen, elixir-format
@@ -169,7 +169,7 @@ msgstr "パスワードをお忘れですか？"
 #: lib/tuist_web/live/user_forgot_password_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "入力されたメールアドレスが当社に登録されている場合、まもなくリセット手順をご案内します。"
+msgstr "登録済みのメールアドレスであれば、まもなくリセット手順をご案内します。"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #: lib/tuist_web/live/connect_live.ex:166
@@ -180,19 +180,19 @@ msgstr "Tuist CLIをインストール"
 #: lib/tuist_web/live/user_registration_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
-msgstr "URLを使ってアプリを即座に共有"
+msgstr "URLを使ってアプリをすぐに共有できます。"
 
-#: lib/tuist_web/live/sso_login_live.ex:96
+#: lib/tuist_web/live/sso_login_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
-msgstr "SSOに興味がありますか？"
+msgstr "SSOに関心がありますか？"
 
 #: lib/tuist_web/live/user_login_live.ex:169
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr "ログイン状態を保持する"
 
-#: lib/tuist_web/live/sso_login_live.ex:92
+#: lib/tuist_web/live/sso_login_live.ex:103
 #: lib/tuist_web/live/user_login_live.ex:20
 #: lib/tuist_web/live/user_login_live.ex:192
 #: lib/tuist_web/live/user_registration_live.ex:226
@@ -200,13 +200,13 @@ msgstr "ログイン状態を保持する"
 msgid "Log in"
 msgstr "ログイン"
 
-#: lib/tuist_web/live/sso_login_live.ex:67
+#: lib/tuist_web/live/sso_login_live.ex:78
 #: lib/tuist_web/live/user_login_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr "Tuistにログイン"
 
-#: lib/tuist_web/live/sso_login_live.ex:69
+#: lib/tuist_web/live/sso_login_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
 msgstr "SSO経由でエンタープライズアカウントにログイン"
@@ -279,12 +279,12 @@ msgstr "サインアップ"
 #: lib/tuist_web/live/user_registration_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Sign up for Tuist"
-msgstr "Tuist にサインアップする"
+msgstr "Tuist にサインアップ"
 
 #: lib/tuist_web/live/choose_username_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "This username has already been taken"
-msgstr "このユーザー名は既に使用されています"
+msgstr "このユーザー名はすでに使用されています"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:37
 #, elixir-autogen, elixir-format
@@ -294,7 +294,7 @@ msgstr "Tuist CLI が接続されました！"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:26
-#: lib/tuist_web/live/sso_login_live.ex:61
+#: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
 #: lib/tuist_web/live/user_forgot_password_live.ex:22
@@ -326,7 +326,7 @@ msgstr "Tuist ドキュメント"
 #: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
-msgstr "Tuistに接続しました！"
+msgstr "Tuist に接続しました！"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:53
 #, elixir-autogen, elixir-format
@@ -343,7 +343,7 @@ msgstr "ユーザー名"
 #: lib/tuist_web/live/user_registration_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
-msgstr "ユーザー名には英数字のみを使用できます"
+msgstr "ユーザー名には英数字のみ使用できます"
 
 #: lib/tuist_web/live/connect_live.ex:38
 #, elixir-autogen, elixir-format
@@ -398,7 +398,7 @@ msgstr "アカウントが確認されました。まもなくリダイレクト
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
-msgstr "新しいパスワードは以前使用したパスワードと異なる必要があります。"
+msgstr "新しいパスワードは以前使用したパスワードとは異なる必要があります。"
 
 #: lib/tuist_web/live/connect_live.ex:116
 #: lib/tuist_web/live/connect_live.ex:134
@@ -420,7 +420,7 @@ msgstr "CLIを使用"
 #: lib/tuist_web/components/app_auth_components.ex:13
 #, elixir-autogen, elixir-format
 msgid "By continuing, you agree to Tuist's"
-msgstr "続行することで、あなたはTuistの"
+msgstr "続行することで、Tuistの"
 
 #: lib/tuist_web/components/app_auth_components.ex:19
 #, elixir-autogen, elixir-format
@@ -452,12 +452,12 @@ msgstr "アカウントのユーザー名を選択"
 msgid "Log in with SSO"
 msgstr "SSOでログイン"
 
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr "このメールアドレスにはSSO組織が設定されていません。アドレスを確認し、組織の管理者にSSOドメインの設定を確認してもらってください。"
 
-#: lib/tuist_web/controllers/auth_controller.ex:581
+#: lib/tuist_web/controllers/auth_controller.ex:576
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr "このメールアドレスのアカウントはすでに存在します。代わりにログインしてください。"
@@ -465,17 +465,17 @@ msgstr "このメールアドレスのアカウントはすでに存在します
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr "メールアドレスの確認"
+msgstr "メールの確認"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Confirm your email address to finish signing in"
-msgstr "サインインを完了するにはメールアドレスを確認してください"
+msgstr "サインインを完了するには、メールアドレスを確認してください"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
-msgstr "メールアドレスが登録済みでまだ確認されていない場合、まもなく確認リンクが届きます。"
+msgstr "登録済みで未確認のメールアドレスの場合、まもなく確認リンクが届きます。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:60
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:81
@@ -486,7 +486,7 @@ msgstr "確認メールを再送信"
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "We'll send a new confirmation link to %{email}."
-msgstr "%{email}に新しい確認リンクを送信します。"
+msgstr "%{email} に新しい確認リンクを送信します。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
 #, elixir-autogen, elixir-format
@@ -504,7 +504,7 @@ msgstr "セキュリティチェックを完了して、もう一度お試しく
 #: lib/tuist_web/live/user_registration_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
-msgstr "セキュリティチェックを読み込めませんでした。challenges.cloudflare.com のブロッカーを確認し、ページを再読み込みしてください。"
+msgstr "セキュリティチェックを読み込めませんでした。challenges.cloudflare.com のブロック設定を確認し、ページを再読み込みしてください。"
 
 #: lib/tuist_web/live/choose_username_live.ex:191
 #: lib/tuist_web/live/user_registration_live.ex:402
@@ -535,12 +535,12 @@ msgstr "問題が発生しました。もう一度お試しください。"
 #: lib/tuist_web/live/user_registration_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Verifying, one moment..."
-msgstr "確認中、少々お待ちください..."
+msgstr "確認中、しばらくお待ちください..."
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:87
 #, elixir-autogen, elixir-format
 msgid "Just a quick check"
-msgstr "簡単な確認です"
+msgstr "簡単な確認"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
@@ -555,7 +555,7 @@ msgstr "試行回数が多すぎます。しばらく待ってからもう一度
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:110
 #, elixir-autogen, elixir-format
 msgid "Turnstile is unavailable. Please try again shortly."
-msgstr "Turnstileが利用できません。しばらくしてからもう一度お試しください。"
+msgstr "Turnstileを利用できません。しばらくしてからもう一度お試しください。"
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:152
 #, elixir-autogen, elixir-format
@@ -565,12 +565,12 @@ msgstr "認証に失敗しました。もう一度お試しください。"
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:26
 #, elixir-autogen, elixir-format
 msgid "Verify you're human"
-msgstr "あなたが人間であることを確認してください"
+msgstr "あなたが人間であることを確認"
 
 #: lib/tuist_web/controllers/auth_controller.ex:80
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
-msgstr "Googleでのサインインを完了できませんでした。もう一度ログインをお試しください。"
+msgstr "Googleサインインを完了できませんでした。もう一度ログインをお試しください。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:57
 #, elixir-autogen, elixir-format
@@ -586,7 +586,7 @@ msgstr "キャンセル"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Link account"
-msgstr "アカウントをリンク"
+msgstr "アカウントを連携"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:120
 #, elixir-autogen, elixir-format
@@ -596,27 +596,27 @@ msgstr "リンクの有効期限が切れています"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
-msgstr "%{organization} があなたの組織である場合にのみリンクしてください。この ID プロバイダーのアカウントにサインインできる人は誰でも、Tuist アカウント全体にサインインできます。"
+msgstr "%{organization} があなたの組織である場合にのみ連携してください。この ID プロバイダーのアカウントにサインインできる人は、Tuist アカウント全体にサインインできます。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:128
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
-msgstr "シングルサインオンをリンク · Tuist"
+msgstr "シングルサインオンの連携 · Tuist"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on?"
-msgstr "シングルサインオンをリンクしますか？"
+msgstr "シングルサインオンを連携しますか？"
 
-#: lib/tuist_web/controllers/auth_controller.ex:440
+#: lib/tuist_web/controllers/auth_controller.ex:435
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
-msgstr "組織のシングルサインオンにリンクするには、Tuist アカウントにログインしてください。"
+msgstr "組織のシングルサインオンと連携するには、Tuist アカウントにログインしてください。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
-msgstr "アカウントをリンクするには、再度シングルサインオンでサインインしてください。"
+msgstr "アカウントを連携するには、再度シングルサインオンでサインインしてください。"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #, elixir-autogen, elixir-format
@@ -626,12 +626,12 @@ msgstr "%{email} として Tuist にサインインしました"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
-msgstr "Tuist アカウントへのサインインに使用される %{organization} の ID プロバイダー アカウント。"
+msgstr "Tuist アカウントへのサインインに使用される %{organization} の ID プロバイダーアカウントです。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:59
 #, elixir-autogen, elixir-format
 msgid "This identity provider account is already linked to another Tuist account."
-msgstr "この ID プロバイダー アカウントはすでに別の Tuist アカウントにリンクされています。"
+msgstr "この ID プロバイダーアカウントはすでに別の Tuist アカウントにリンクされています。"
 
 #: lib/tuist_web/controllers/sso_link_html.ex:19
 #, elixir-autogen, elixir-format
@@ -646,34 +646,34 @@ msgstr "%{organization} の ID プロバイダーを使用して、Tuist アカ�
 #: lib/tuist_web/live/connect_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Add it to the dependencies in your mix.exs, then run mix deps.get."
-msgstr "mix.exs の dependencies に追加し、その後 mix deps.get を実行してください。"
+msgstr "mix.exs の dependencies に追加し、mix deps.get を実行してください。"
 
 #: lib/tuist_web/live/connect_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Add the Tuist package"
-msgstr "Tuist パッケージを追加する"
+msgstr "Tuist パッケージを追加"
 
 #: lib/tuist_web/live/connect_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Add this to the project options in the same file."
-msgstr "同じファイルのプロジェクト オプションにこれを追加してください。"
+msgstr "同じファイルのプロジェクトオプションにこれを追加してください。"
 
 #: lib/tuist_web/live/connect_live.ex:182
 #: lib/tuist_web/live/connect_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Log in and run your tests"
-msgstr "ログインしてテストを実行する"
+msgstr "ログインしてテストを実行"
 
 #: lib/tuist_web/live/connect_live.ex:172
 #: lib/tuist_web/live/connect_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Point it at this project"
-msgstr "このプロジェクトを指定する"
+msgstr "このプロジェクトを指定"
 
 #: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
-msgstr "ビルドをレポートし、不安定なテストを検出し、テストを複数のマシンに分散させる。"
+msgstr "ビルドを報告し、不安定なテストを検出し、テストを複数のマシンで分散実行。"
 
 #: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
@@ -683,17 +683,17 @@ msgstr "テスト実行が完了すると、ダッシュボードに表示され
 #: lib/tuist_web/live/connect_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "using Mix"
-msgstr "Mixを使用する"
+msgstr "Mixを使用"
 
 #: lib/tuist_web/live/connect_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Add a tuist.toml file at your repository root."
-msgstr "リポジトリのルートにtuist.tomlファイルを追加します。"
+msgstr "リポジトリのルートにtuist.tomlファイルを追加。"
 
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "using Cargo"
-msgstr "Cargoを使用する"
+msgstr "Cargoを使用"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:10
 #, elixir-autogen, elixir-format
@@ -723,4 +723,9 @@ msgstr "%{provider} に接続する Tuist 組織を選択してください。"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
-msgstr "統合を接続するには管理者アクセス権が必要です。"
+msgstr "統合を接続するには管理者権限が必要です。"
+
+#: lib/tuist_web/live/sso_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
+msgstr "複数の組織がこのログインドメインを使用しています。組織の SSO サインインリンクを使用するか、管理者に依頼して DNS でドメインを確認してください。"

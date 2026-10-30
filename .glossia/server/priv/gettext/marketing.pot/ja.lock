@@ -1,12 +1,23 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e4daad95f0bff26c596bca60dd4e9f8b2c06a7445d4434423a295f33be4bda22",
+  "hash": "ea94acf797078b69c43a8fd35a5c9855ddf8ae382e763c875f292577c8ec1505",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "27fcbb672a31e6992a53a0a74ce2eafe880c9399a5777c5c3c805065ebd72fd6",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:13": {
+                  "content_hash": "9dbc530e0a80095fcfb89ed8abd70df70baae017079e84959173d2672f11ad44"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "b1fed75ca4b29df4d9f65c721f32ff9cfac5f249805140212f6572b9d09b99d3",
           "kind": "source",
           "label": "server/priv/gettext/marketing.pot",
           "metadata": {
@@ -15,7 +26,15 @@
         },
         {
           "children": [],
-          "hash": "f7b762b7d03c89d4863c46c25ae70d784b917f0e8fe2b193ecf1a3fa3b212f18",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "a51f2401f3bc9c7208ef3b4eba5eb52ec2820b56c5c1a95ffa54fc1eb390c2c0",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
@@ -31,34 +50,108 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "00e0cd97c8c4aaf6e83d3e5200dc6652cc1753062e1b504dc7c47ba18e305f19",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "293df82c434ab8c15ea40d68dcdceb96fe887f53d9e64f006aa6248fe08889a0",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "9579643f45897a82884d1b30480694e6029202260f47529196bebbf4a44d9065"
+                "content_hash": "ef99d79203262e719f50d8f921dc666b5d11e73fbc4a17dd73331879b156d9a1"
               }
             },
             {
               "children": [],
-              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "details": {
+                "content_hash": {
+                  "server/L10N/ja.md": {
+                    "content_hash": "5629fcbb0285e1f0faefc3d6f44b4735e0b6c6eaac295c464f3d90e91d526076",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "17e737112f8411f4f09ba7f107a21fbd25b81df631a52ec5bc5bdb7a0c220cc2"
+                      },
+                      "## Japanese-specific translation rules": {
+                        "content_hash": "352bb35133b9575cbef564f18a2bbbe5ffa8f7cc7da672d2682f2b7c9f60182e"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "aa8a8c4c5b73b38b5d3b55095c374b5eb949d9c6a558300126fb51673dc3d37f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "99818e8be9753aacbc770998555826317dc931970415e6f431ba43402fb5b7c4",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                "content_hash": "6b5810aaba6807ba4bf866c12bb0d4dbf3dd7e031c37e39529e9c61325b9bbf2"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,15 +160,56 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "cefc8f720ca2e7c42bb4de2ebd8a95ad94de89aff7eb55a6b9b32b429fd72589"
+                      },
+                      "entry:3b51d63ccbd9cb0f30f7122a3b6e4e2de542eb64f8c66c336eeb30a2a5e68ee6": {
+                        "case_sensitive": false,
+                        "definition_hash": "5bfbcbe7115309c7054f4ae731dc8cd026280eceb239c69c75cadc7aa2512479",
+                        "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
+                        "translation_hash": "0e2074d7eb587f68e408d286f8e1e7bd1d6a598a1a94c021cc9b53ae5a956238"
+                      },
+                      "entry:4d6732f147755858d10ddfac34b5c1a5bc141561149e435b4882a14d62293f0f": {
+                        "case_sensitive": false,
+                        "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
+                        "term_hash": "4037494891a78d3446771726a340742ed3140da6174c837a00621eda15527faa",
+                        "translation_hash": "7b9d9ce0f562f0854f7e75e6a9be135b97b5567d794013439880586e5fac074f"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "b15339e8f3da2fcfff52e8c218f6de0c24cddb7b08b5d4d19045e491b96da6eb"
+                      },
+                      "entry:f62132c6f65234d7723d00af7da7844ea4be17735ae97c8c81542d1a3c7124cb": {
+                        "case_sensitive": false,
+                        "definition_hash": "b34d6f2265704075c9f2d7555824d65602d7ab02302a028b9c7e2a4f850faffc",
+                        "term_hash": "b792c1896e8d0a8070db2b6fb633a4e82d21621dffc66dc8354ff941bac35e5f",
+                        "translation_hash": "87d2e21b4aea2d39205896d77b7bc9e2a637ece22893b9c7d711baece6a973f5"
+                      },
+                      "entry:f6977d4134bbe756e3aef4854d9ae407992551711ab5839ab61f114d6812132c": {
+                        "case_sensitive": false,
+                        "definition_hash": "9aac3cff7abfbe0b8aeea38965ad9095c891253fe2e76e7e584ee6ba8218a4c7",
+                        "term_hash": "c03dac40bf52cb692381200e184b33074a9b26e2fe0985463bd31f00c52a52c6",
+                        "translation_hash": "870b52e91e2bf947b7e80cb43b9764fac099a289850685e671c5cf1338e00328"
+                      }
+                    }
+                  },
+                  "hash": "2fcd7aef3b7bbf52bbbdd231f4d632b91893b58bc8e3cb9fa63b697f191cc87b",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                    "content_hash": "0ad658c85579d8490d2e15ffd895b3756bc2687f3ffa747cf6a87343afe0fb39"
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "a6484fbc678f6269a91c3c172efba2b119e5295c01690d43ac3a83bf6be95504",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,20 +218,22 @@
               }
             }
           ],
-          "hash": "c2a0e9efd4591e0fb5bcd477749419ee31b73918154459e2e7722fd0c9bb20c4",
+          "details": {},
+          "hash": "330055834d5be7586d0ec6e2b9d6dec15001eff6f69d4e5f4e6749a232c90063",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "e4daad95f0bff26c596bca60dd4e9f8b2c06a7445d4434423a295f33be4bda22",
+      "details": {},
+      "hash": "ea94acf797078b69c43a8fd35a5c9855ddf8ae382e763c875f292577c8ec1505",
       "kind": "translation_input",
       "label": "server/priv/gettext/marketing.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "74073f30500b7b4a6153bf01205ce35598a14180ecd48ef01fa3566140f1351b",
+  "output_hash": "d6649a0d7884614071dd7546a3f9e7d46da263e63ef7f0348b34d63435eed89b",
   "output_path": "server/priv/gettext/ja/LC_MESSAGES/marketing.po",
   "po_units": {
     "010b2dbbcc3f0e943f31b5728f385c55f0f22b2e9ac121d22eefc3629786efec": "ea29a07df50365cee66112f2b4a9be28aeff8b7da9d246b1099651ebd353fa65",
@@ -623,8 +759,15 @@
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [],
-      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "applied": [
+        "repo:cache-hit",
+        "repo:features",
+        "repo:flaky-tests",
+        "repo:selective-testing",
+        "repo:test-run",
+        "repo:tests"
+      ],
+      "content_hash": "0ad658c85579d8490d2e15ffd895b3756bc2687f3ffa747cf6a87343afe0fb39",
       "shadowed": [],
       "version": null
     },
@@ -634,8 +777,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ba79a8544ddcba25ee2ffb317d138b3983cc2b2d",
+  "source_commit_sha": "9010aaf8b4b736cbf26c9bbc91eea56480079f20",
   "source_path": "server/priv/gettext/marketing.pot",
-  "translated_at": "2026-10-26T18:39:15.426744Z",
-  "translation_session_id": "01a17979-a883-7ab5-a4b0-d16d3fd5c7ed"
+  "translated_at": "2026-10-29T20:42:45.711258Z",
+  "translation_session_id": "01a18965-1ed0-7368-97f0-887f7a8ea99f"
 }

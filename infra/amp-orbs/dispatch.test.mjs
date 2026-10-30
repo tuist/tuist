@@ -46,12 +46,12 @@ async function dispatch(overrides = {}, status = 204, executable = script) {
   }
 }
 
-test('spawn translates the contract without forwarding provider credentials or snapshot IDs', async () => {
+test('spawn translates the contract without forwarding provider credentials', async () => {
   const { code, requests } = await dispatch({ AMP_URL: 'https://amp.example.com', ORB_SNAPSHOT_ID: 'snapshot-id', AMP_ORB_PROVIDER_TOKEN: 'provider-secret' });
   assert.equal(code, 0);
   assert.deepEqual(requests, [{
     path: '/api/accounts/test-team/sandboxes/amp-orbs/amp-thread', auth: 'Bearer api-secret',
-    body: { operation: 'spawn', orb_token: 'orb-secret', template: 'default', vcpus: 2, memory_mb: 4096, workspace_gb: 10, amp_url: 'https://amp.example.com' },
+    body: { operation: 'spawn', snapshot_id: 'snapshot-id', orb_token: 'orb-secret', template: 'default', vcpus: 2, memory_mb: 4096, workspace_gb: 10, amp_url: 'https://amp.example.com' },
   }]);
 });
 
@@ -61,6 +61,15 @@ test('pause and delete require no per-Orb token or image', async () => {
     assert.equal(code, 0);
     assert.deepEqual(requests[0].body, { operation });
   }
+});
+
+test('pause forwards the project snapshot to save; delete never does', async () => {
+  const pause = await dispatch({ ORB_OPERATION: 'pause', ORB_TOKEN: '', ORB_IMAGE: '', ORB_SNAPSHOT_ID: 'proj_01:a.b-c' });
+  assert.equal(pause.code, 0);
+  assert.deepEqual(pause.requests[0].body, { operation: 'pause', snapshot_id: 'proj_01:a.b-c' });
+  const remove = await dispatch({ ORB_OPERATION: 'delete', ORB_TOKEN: '', ORB_IMAGE: '', ORB_SNAPSHOT_ID: 'snapshot-id' });
+  assert.equal(remove.code, 0);
+  assert.deepEqual(remove.requests[0].body, { operation: 'delete' });
 });
 
 test('live observer works without inheriting any provider AMP_* variables', async () => {
@@ -87,7 +96,7 @@ test('live observer works without inheriting any provider AMP_* variables', asyn
 });
 
 test('refuses unsafe path components, missing tokens, unsupported images and unknown operations before HTTP', async () => {
-  for (const overrides of [{ ORB_ID: '../other' }, { TUIST_ACCOUNT: 'a/b' }, { ORB_TOKEN: '' }, { ORB_IMAGE: 'arbitrary:latest' }, { ORB_OPERATION: 'unknown' }]) {
+  for (const overrides of [{ ORB_ID: '../other' }, { TUIST_ACCOUNT: 'a/b' }, { ORB_TOKEN: '' }, { ORB_IMAGE: 'arbitrary:latest' }, { ORB_OPERATION: 'unknown' }, { ORB_SNAPSHOT_ID: '../other' }]) {
     const { code, requests } = await dispatch(overrides);
     assert.notEqual(code, 0);
     assert.equal(requests.length, 0);

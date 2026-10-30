@@ -545,7 +545,8 @@ fn splice_refusals_keep_write_backoff_and_never_fall_back_to_whole_uploads() {
     for (code, first, second) in [
         (tonic::Code::ResourceExhausted, 3, 4),
         (tonic::Code::Unavailable, 3, 6),
-        (tonic::Code::PermissionDenied, 1, 2),
+        // A refused credential is not sent again within its pause window.
+        (tonic::Code::PermissionDenied, 1, 1),
     ] {
         let (remote, calls, _stop) = server(Mode::DeclinedSplice(code as i32));
         let bytes = vec![1; 3 * 1024 * 1024];

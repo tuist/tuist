@@ -392,7 +392,9 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 isDefault: testPlan.isDefault,
                 kind: testPlan.kind,
                 coverage: coverage,
-                codeCoverageTargets: codeCoverageTargets
+                codeCoverageTargets: codeCoverageTargets,
+                language: testPlan.language,
+                region: testPlan.region
             )
         }
     }

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
+# Vault credentials must never enter inherited shell tracing or verbose output.
+set +x +v
 set -euo pipefail
 umask 077
 
 [[ $# = 3 && $3 =~ ^[1-9][0-9]{9,}$ ]] || { echo 'Usage: bundle.sh <Atlas.app> <new output directory> <epoch build number>' >&2; exit 2; }
+fail() { echo "$*" >&2; exit 1; }
 scripts=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=../../ios/distribution/keychain.sh
 source "$scripts/../../ios/distribution/keychain.sh"
@@ -17,7 +20,10 @@ tmp=$(mktemp -d)
 keychain="$tmp/signing.keychain-db"
 cleanup() {
     local status=$?
-    delete_signing_keychain "$keychain" || status=1
+    delete_signing_keychain "$keychain" > "$tmp/keychain.log" 2>&1 || {
+        echo 'Could not clean up the temporary signing keychain (private diagnostics withheld)' >&2
+        status=1
+    }
     rm -rf "$tmp"
     exit "$status"
 }
@@ -26,17 +32,18 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # All credentials stay in this temporary directory/keychain, outside Once.
-op read 'op://tuist/Atlas macOS Developer ID/Atlas_macOS_Developer_ID.provisionprofile' --out-file "$tmp/profile.provisionprofile"
-security cms -D -i "$tmp/profile.provisionprofile" > "$tmp/profile.plist"
+# Provider diagnostics may echo credentials; never forward them to public logs.
+op read 'op://tuist/Atlas macOS Developer ID/Atlas_macOS_Developer_ID.provisionprofile' --out-file "$tmp/profile.provisionprofile" > "$tmp/vault.log" 2>&1 || fail 'Could not read the macOS provisioning profile'
+security cms -D -i "$tmp/profile.provisionprofile" > "$tmp/profile.plist" 2> "$tmp/profile.log" || fail 'Could not decode the macOS provisioning profile'
 # Reject missing/old/non-Push profiles before reading the private certificate.
 validate_macos_push_profile "$tmp/profile.plist"
-op read 'op://tuist/Developer ID Application Certificate/certificate.p12' --out-file "$tmp/certificate.p12"
-certificate_password=$(op read 'op://tuist/Developer ID Application Certificate/password')
+op read 'op://tuist/Developer ID Application Certificate/certificate.p12' --out-file "$tmp/certificate.p12" > "$tmp/vault.log" 2>&1 || fail 'Could not read the Developer ID certificate'
+certificate_password=$(op read 'op://tuist/Developer ID Application Certificate/password' 2> "$tmp/vault.log") || fail 'Could not read the Developer ID certificate password'
 keychain_password=$(uuidgen)
-create_signing_keychain "$keychain" "$keychain_password"
-security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign >/dev/null
-unset certificate_password
-security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+create_signing_keychain "$keychain" "$keychain_password" > "$tmp/keychain.log" 2>&1 || fail 'Could not initialize the temporary signing keychain'
+security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign > "$tmp/keychain.log" 2>&1 || fail 'Could not import the Developer ID certificate'
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > "$tmp/keychain.log" 2>&1 || fail 'Could not authorize the signing key'
+unset certificate_password keychain_password
 identity=$(macos_push_signing_identity "$tmp/profile.plist" "$keychain")
 
 ditto "$source_app" "$tmp/Atlas.app"
@@ -46,11 +53,13 @@ environment=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.develope
 /usr/libexec/PlistBuddy -c "Add :AtlasPushEnvironment string $environment" "$tmp/Atlas.app/Contents/Info.plist"
 bash "$scripts/sign.sh" "$tmp/Atlas.app" "$identity" "$keychain"
 ditto -c -k --sequesterRsrc --keepParent "$tmp/Atlas.app" "$tmp/notarization.zip"
+apple_id=$(op read 'op://tuist/App Specific Password/username' 2> "$tmp/vault.log") || fail 'Could not read the Apple notarization account'
+notarization_password=$(op read 'op://tuist/App Specific Password/password' 2> "$tmp/vault.log") || fail 'Could not read the Apple notarization password'
 xcrun notarytool submit "$tmp/notarization.zip" --wait --timeout 20m \
-    --apple-id "$(op read 'op://tuist/App Specific Password/username')" \
-    --team-id U6LC622NKF --password "$(op read 'op://tuist/App Specific Password/password')" \
-    --output-format json > "$tmp/notarization.json"
-[[ "$(plutil -extract status raw -o - "$tmp/notarization.json")" = Accepted ]] || { echo 'Notarization was not accepted' >&2; exit 1; }
+    --apple-id "$apple_id" --team-id U6LC622NKF --password "$notarization_password" \
+    --output-format json > "$tmp/notarization.json" 2> "$tmp/notarization.log" || fail 'Apple notarization submission failed (private diagnostics withheld)'
+unset apple_id notarization_password
+[[ "$(plutil -extract status raw -o - "$tmp/notarization.json" 2>/dev/null)" = Accepted ]] || fail 'Notarization was not accepted'
 xcrun stapler staple "$tmp/Atlas.app"
 xcrun stapler validate "$tmp/Atlas.app"
 codesign --verify --deep --strict "$tmp/Atlas.app"

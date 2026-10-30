@@ -18,7 +18,7 @@ enum AtlasMacOSCapture {
                                          height: settings ? 640 : (updates ? 220 : 800)))
             window.center()
             if arguments.contains("orbit-environment"), let screen = window.screen {
-                // Keep the popover over this window, not uncaptured desktop pixels.
+                // Keep the menu over this window, not uncaptured desktop pixels.
                 window.setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - window.frame.width, y: window.frame.minY))
             }
             NSApplication.shared.setActivationPolicy(.regular)
@@ -32,8 +32,10 @@ enum AtlasMacOSCapture {
             if let index = arguments.firstIndex(of: "--measure-interactions"), arguments.indices.contains(index + 1) {
                 try await measureInteractions(window: window, output: arguments[index + 1])
             }
-            window.makeKeyAndOrderFront(nil)
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            if !arguments.contains("orbit-environment") {
+                window.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
             try await Task.sleep(for: .milliseconds(300))
             guard #available(macOS 14.4, *),
                   let target = try await SCShareableContent.currentProcess.windows.first(where: {
@@ -142,6 +144,20 @@ enum AtlasMacOSCapture {
             try await Task.sleep(for: .seconds(1))
             guard let root = window.contentView, let inbox = findInbox(in: root), inbox !== sidebar,
                   inbox.numberOfRows > 1 else { fatalError("Orbit lost its loaded conversations on section return") }
+        case "workspace-profile-round-trip":
+            guard let root = window.contentView,
+                  let sidebar = findSidebar(in: root), window.makeFirstResponder(sidebar) else {
+                fatalError("Open the loaded Profile fixture before testing its section return")
+            }
+            let row = sidebar.selectedRow
+            window.sendEvent(key("\u{f700}", code: 126, window: window))
+            try await Task.sleep(for: .seconds(1))
+            guard sidebar.selectedRow != row else { fatalError("Profile did not navigate away") }
+            guard window.makeFirstResponder(sidebar) else { fatalError("Could not refocus workspace sidebar") }
+            window.sendEvent(key("\u{f701}", code: 125, window: window))
+            try await Task.sleep(for: .milliseconds(100))
+            guard sidebar.selectedRow == row else { fatalError("Profile did not reopen") }
+            return true
         case "orbit-archived":
             guard let root = window.contentView?.superview, let picker = findStatusPicker(in: root) else {
                 fatalError("The fixture conversation status picker was not available")

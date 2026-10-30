@@ -12,9 +12,15 @@
 
 ## Source restore
 
-- Prefer provider archives, then shallow Git fetches. If Git reports that the server does not support shallow clients, retry the same location and pinned revision without `--depth`; do not retry unrelated fetch failures or switch transports.
+- Prefer provider archives, then shallow Git fetches, except that HTTP TLS failures and cancellation must escape without a Git/native fallback. If Git reports that the server does not support shallow clients, retry the same location and pinned revision without `--depth`; do not retry unrelated fetch failures or switch transports.
 - `RestoreTests` exercises this fallback offline using a loopback smart-HTTP Git fixture without the `shallow` capability.
 - Unit tests evaluating fixture manifests through the loader, package-info writer, or restorer must pass `disableSandbox: true`: Bazel's macOS test sandbox cannot launch a nested `sandbox-exec`. Keep the production sandbox default unchanged.
+
+## Certificate trust
+
+- Standalone SwifterPM embeds its SPKI deny policy in `CertificateTrust.swift` without a CLI or runtime policy-file dependency. Preserve native/enterprise trust, hostname verification and complete evaluated-chain checks; test denies are add-only. See [certificate trust](CERTIFICATE-TRUST.md) for provenance, isolated qualification commands and remaining platform/release gates.
+- Use `HTTPClient.requireFallbackAllowed` before archive/metadata fallbacks or best-effort suppression. Native registry checksum seeding fails on TLS/cancellation even after native resolution succeeds; preserve the native download without publishing an unchecked cache entry.
+- The loopback TLS tests require Homebrew OpenSSL 3. Public production HTTP controls are opt-in with `SWIFTERPM_TRUST_LIVE=1`; native rejection alone does not prove application enforcement. Never change host trust or global Xcode selection for tests.
 
 ## End-to-end tests
 
@@ -53,4 +59,5 @@
 
 ## CI
 
+- The manual Bazel test entry point creates HOME/XDG_CACHE_HOME beneath TEST_TMPDIR before parallel test discovery/execution. Keep this owned-process bootstrap; do not mutate global environment variables in individual tests or depend on personal credentials/cache. Multi-Xcode framework selection remains a separate host qualification concern.
 - CI runs the mise test tasks with `-- --config=ci`. The `ci` config in `.bazelrc` points Bazel's repository cache at the directory the workflow persists with `tuist/cache-volume` and widens Bazel's download retry window. Keep both paths in sync, and keep CI-only Bazel settings under `ci` so local runs are unaffected.

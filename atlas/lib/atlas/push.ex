@@ -32,7 +32,13 @@ defmodule Atlas.Push do
 
   # Kind => seconds before an undelivered notification is no longer useful.
   # Orbit source-backed kinds reauthorize the exact message at send time.
-  @kinds %{"activity" => 86_400, "self_test" => 600, "orbit_completed" => 3600, "orbit_mentioned" => 3600}
+  @kinds %{
+    "activity" => 86_400,
+    "self_test" => 600,
+    "orbit_completed" => 3600,
+    "orbit_mentioned" => 3600,
+    "orbit_signal" => 3600
+  }
 
   def kinds, do: Map.keys(@kinds)
 
@@ -173,11 +179,20 @@ defmodule Atlas.Push do
 
   @doc "Whether queued job arguments still describe an allowed kind and destination."
   def valid_notification?(kind, {"orbit", record_id} = destination)
-      when kind in ["orbit_completed", "orbit_mentioned"] and is_binary(record_id), do: valid_destination?(destination)
+      when kind in ["orbit_completed", "orbit_mentioned", "orbit_signal"] and is_binary(record_id),
+      do: valid_destination?(destination)
 
-  def valid_notification?(kind, _destination) when kind in ["orbit_completed", "orbit_mentioned"], do: false
+  def valid_notification?(kind, _destination) when kind in ["orbit_completed", "orbit_mentioned", "orbit_signal"],
+    do: false
 
   def valid_notification?(kind, destination), do: Map.has_key?(@kinds, kind) and valid_destination?(destination)
+
+  defp notification_source("orbit_signal", opts) do
+    case Ecto.UUID.cast(Keyword.get(opts, :signal_id)) do
+      {:ok, signal_id} -> {:ok, %{signal_id: signal_id}}
+      :error -> :error
+    end
+  end
 
   defp notification_source(kind, opts) when kind in ["orbit_completed", "orbit_mentioned"] do
     case Ecto.UUID.cast(Keyword.get(opts, :message_id)) do

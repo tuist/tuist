@@ -45,7 +45,8 @@ defmodule TuistWeb.ConnectLiveTest do
     assert html =~ "using Cargo"
     assert html =~ "tuist.toml"
     assert html =~ "#{account.name}/#{project.name}"
-    assert html =~ "tuist cargo nextest run"
+    assert html =~ "tuist cargo test"
+    refute html =~ ~r/nextest|nexttest|nexte\.st/i
     assert html =~ "https://tuist.dev/en/docs/guides/get-started/rust-project"
     refute html =~ "mix tuist.login"
   end

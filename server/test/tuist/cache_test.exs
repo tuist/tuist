@@ -240,18 +240,22 @@ defmodule Tuist.CacheTest do
         )
 
       BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro, status: "unpaid")
-      ProjectsFixtures.project_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      # When
-      handles = Cache.accessible_handles(user)
-      {:ok, _token, claims} = Cache.issue_cache_token(user, origin: "SG")
+      for subject <- [user, project] do
+        # When
+        handles = Cache.accessible_handles(subject)
+        {:ok, _token, claims} = Cache.issue_cache_token(subject, origin: "SG")
 
-      # Then
-      assert handles.payment_required == [user.account.name]
-      assert handles.payment_failed == [user.account.name]
-      assert claims["cache_origin"] == "SG"
-      assert claims["cache_payment_required"] == [user.account.name]
-      assert claims["cache_payment_failed"] == [user.account.name]
+        # Then
+        assert handles.payment_required == [user.account.name]
+        assert handles.payment_failed == [user.account.name]
+        assert claims["cache_origin"] == "SG"
+        assert claims["cache_payment_required"] == [user.account.name]
+        assert claims["cache_payment_failed"] == [user.account.name]
+        assert claims["cache_grants"]["account"] == %{"read" => [], "write" => []}
+        assert claims["cache_grants"]["project"] == %{"read" => [], "write" => []}
+      end
     end
 
     test "keeps granting an account whose renewal payment is being retried" do

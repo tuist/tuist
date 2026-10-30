@@ -1,0 +1,334 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "4a26920b7ac598608ee1a97191f79d4708cdc038c2da7372f5669a2057d30175",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Dependencies {#dependencies}": {
+                  "content_hash": "b52956ee91e4b5ef53549d0c9e8b78de93fcb994bd360675e1614c97cf2eed7b"
+                },
+                "# Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}": {
+                  "content_hash": "5c4d527548089ed564c5742c75a47a5b59f57195192a64580ff8e38cd638a2d3"
+                },
+                "# Resolving and fetching dependencies. {#resolving-and-fetching-dependencies}": {
+                  "content_hash": "2679cdaa35b8bd438c8d52d6e1c1bc6af3760b0e0f66b013092c26922e2f7c8d"
+                },
+                "## External dependencies {#external-dependencies}": {
+                  "content_hash": "f4b3a07badf6f70bfa89878bb0c2235620b122e929a61b9e630f0636682c8dac"
+                },
+                "## Local dependencies {#local-dependencies}": {
+                  "content_hash": "8cc88d1ab2996b0c6068a90d2326e5b8179c2a7e35153d39a83e31816e6797e0"
+                },
+                "## Static or dynamic {#static-or-dynamic}": {
+                  "content_hash": "8ad8485aaedfde96e7bd28a41ae9b49f0a4d1e1d6f1c132b8f3ec66067600954"
+                },
+                "## Swift Macros {#swift-macros}": {
+                  "content_hash": "19d6800725769f617e8c7aded282d1e0bfe5e5525253f80a074e18291b303f04"
+                },
+                "## Troubleshooting {#troubleshooting}": {
+                  "content_hash": "8aaf5c9abf7b8885bbf50c115f609fb241f85145e2d4cc9ee125b3c522b1c1b5"
+                },
+                "## XcodeProj-codified graphs {#xcodeprojcodified-graphs}": {
+                  "content_hash": "7dc6a7381127b675b0821cb69ba3becd640cfeb7adadacee87bfaeffedb56d47"
+                },
+                "### Binary Target Signatures": {
+                  "content_hash": "7ee140a9260b106ffa4cad1c4995015ab80cd11d6aa38752fd1ea6616057c478"
+                },
+                "### Carthage {#carthage}": {
+                  "content_hash": "c6275824fbff37554535fbf98a51f6f227be22306cd72913583db932e7d906ca"
+                },
+                "### CocoaPods {#cocoapods}": {
+                  "content_hash": "aaef4539401cb2aea529103a63da172fcfb34177d3730a00b95f7134f7dde8ea"
+                },
+                "### Defining your own macro {#defining-your-own-macro}": {
+                  "content_hash": "cbb270c23111921b0b34a628195df86a00da68703e39fa34711708f5e22238bf"
+                },
+                "### Firebase & Other Google Libraries {#firebase-other-google-libraries}": {
+                  "content_hash": "66968bcf5cf1c10e9b6f4a9b40098af7fab85696378b85a2b09a7ce04914a86e"
+                },
+                "### Objective-C Dependencies {#objectivec-dependencies}": {
+                  "content_hash": "f8903f33209f307782b8377b863eca6e230614c5789543d71b365aef175b3e5f"
+                },
+                "### Scenarios {#scenarios}": {
+                  "content_hash": "a6666fad705922bbb3b4d7146d3c0d562384ec2074ee39a58dd70a66d7c86aa2"
+                },
+                "### Swift Packages {#swift-packages}": {
+                  "content_hash": "93d6c8e1c29e08aa24730f5da59988e863cac1e58803acc198df18c41b812609"
+                },
+                "### The Composable Architecture {#the-composable-architecture}": {
+                  "content_hash": "7b17ee5bdd9c8c06ce527469ffb1370f1e09af86714b1c1bee04fac4a56c25b1"
+                },
+                "### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}": {
+                  "content_hash": "6803e37940936f3313014ff13adec2a3a2de413eca220a2bcfd3f07352393ae4"
+                },
+                "#### Ensure `-ObjC` is added to `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}": {
+                  "content_hash": "15926ff84ecf44ee090bc70742d491ca0928e146c6814d1fea4a4b84e28f8288"
+                },
+                "#### Set the product type for `FBLPromises` to dynamic framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}": {
+                  "content_hash": "807e6074afbddef3dc24e716dabafc8e8f43d2e478b3d67501366f9e9e624180"
+                },
+                "#### Tuist's XcodeProj-based integration {#tuists-xcodeprojbased-integration}": {
+                  "content_hash": "7fdd0b9d4b533b72b69d84e89e25bc1ad2304dfe81b4ba074ccdb1945e2295e1"
+                },
+                "#### Xcode's default integration {#xcodes-default-integration}": {
+                  "content_hash": "9402fbcb106158af332cad6bdb3bf9d0587c88190372238d01b418fd16c7d891"
+                },
+                "Preamble": {
+                  "content_hash": "b14aa1b0b150bb69a75028ef6522544f9367e205e2a0ea9d1fffa1b78cc8197b"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "1b5a7d73c7fc060572a6d99370387df904da995f184e6e002406fbd0d13a2088",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/features/projects/dependencies.md",
+          "metadata": {
+            "content_hash": "18f84e2fcc86b739da9dea192a4a7502a23bb4d3d4336664241448e00bf2aff3"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "614555da8db82e589f1c5dd888ea43679f1b7dbd40fdc69d356f14f7c450fe6d",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Korean",
+            "locale": "ko",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/ko.md": {
+                    "content_hash": "cbb32b4b9b9fbafdceb05de50df78e36578c8d35da11979aae773268db02e2cc",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# 한국어 번역 규칙": {
+                        "content_hash": "6a7b29b6ed314aa3018cfe2c25f605438bb2a0904da023dee09044a75553e18f"
+                      },
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "40e3300913a85d2a91e405b6e27e52e45aed3870b94a91e588eae0ed4a85974e"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "c6832ce85be2ceed678c19744bc581bebbe0a9b21281ae273895097a5ca4169d"
+                      },
+                      "## 마케팅(Marketing) 페이지 전용 규칙": {
+                        "content_hash": "cebc2acd1bc3ebc7f133faf9604eef40c89efe14518e17bddafe8cd572af248d"
+                      },
+                      "## 모든 페이지 대상 규칙": {
+                        "content_hash": "a36730726d1504cd1f05e3620f775b985ce171391de57f1d3bce5bf2a214848c"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "50c087c61c19324ce7983d60f0aa4f08170ef5f11c3f3a9c06673c1fbc8f6de0",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "e4557cb5bea4262fa93f24fc553b77c729ab0098c3baa5fc48f30ffb9731563d"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {
+                      "entry:4d6732f147755858d10ddfac34b5c1a5bc141561149e435b4882a14d62293f0f": {
+                        "case_sensitive": false,
+                        "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
+                        "term_hash": "4037494891a78d3446771726a340742ed3140da6174c837a00621eda15527faa",
+                        "translation_hash": "ec491469b083ae433f0f4518e4de6cbecfa32b7828d96a72afa46095685455ba"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "60588e84943d7d6e9a6cfa7cd9e7214a74f00d7b394c2e8680eebce228afd518"
+                      }
+                    }
+                  },
+                  "hash": "e6159f3da90df4e4f0c8214350ae3c7e874ff489e2fe14365f6dc1278ab07c19",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "7d49534184f9fed25aa92930326cc110f2231ab689450177e85421af99057279"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "e7369e3ed667ac086867c9938dbdbfae15710df923ba029674944b2948d037b3",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "ed7c97f4ec00bb33aecd33f37a19232b0425fd6e242462f669efa8abbcd26071",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "4a26920b7ac598608ee1a97191f79d4708cdc038c2da7372f5669a2057d30175",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/features/projects/dependencies.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "c7d58a4aa9f6f37b5a1d3e473b07a5d0db2571b493fea6c52fe31f537416557e",
+  "output_path": "server/priv/docs/ko/guides/features/projects/dependencies.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [
+        "repo:features",
+        "repo:selective-testing"
+      ],
+      "content_hash": "7d49534184f9fed25aa92930326cc110f2231ab689450177e85421af99057279",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "15a89a610a8edd3147c02896a36d8ab83d1a8acb",
+  "source_path": "server/priv/docs/en/guides/features/projects/dependencies.md",
+  "translated_at": "2026-10-30T15:23:50.588058Z",
+  "translation_session_id": "01a18d60-f30c-7244-8c6f-5f8badf6f7ee"
+}

@@ -154,4 +154,8 @@ func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
 		in.LastScaleDownAt.DeepCopyInto(out.LastScaleDownAt)
 	}
 	in.ImageRolledAt.DeepCopyInto(&out.ImageRolledAt)
+	if in.LastDemandAt != nil {
+		out.LastDemandAt = new(metav1.Time)
+		in.LastDemandAt.DeepCopyInto(out.LastDemandAt)
+	}
 }

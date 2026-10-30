@@ -36,6 +36,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /" do
+    test "marketing responses do not advertise server software", %{conn: conn} do
+      for method <- [:get, :head], path <- ["/", "/about", "/customers/delivery-hero"] do
+        response = dispatch(conn, @endpoint, method, path)
+
+        assert response.status == if(path == "/customers/delivery-hero", do: 302, else: 200)
+        assert get_resp_header(response, "server") == []
+        assert get_resp_header(response, "x-powered-by") == []
+      end
+    end
+
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
       conn = get(conn, "/")
 

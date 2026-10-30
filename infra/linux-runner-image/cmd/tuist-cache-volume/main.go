@@ -208,7 +208,6 @@ func attach(key string, targets []string, size int64) error {
 	if targets = withoutCheckoutPaths(targets, statePath); len(targets) == 0 {
 		return writeOutput(false)
 	}
-	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
 	if runtime.GOOS == "darwin" {
 		root = macMountRoot
@@ -219,13 +218,14 @@ func attach(key string, targets []string, size int64) error {
 	if runtime.GOOS == "darwin" {
 		return attachMac(key, targets, root, size)
 	}
-	return attachWithClient(key, targets, root, size, client)
-}
-func attachWithClient(key string, targets []string, root string, size int64, client *http.Client) error {
-	return attachWithMounter(key, targets, root, size, client, bindDirectory)
-}
-func attachWithMounter(key string, targets []string, root string, size int64, client *http.Client, mount func(string, string, string) error) error {
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key, size) }, mount)
+	return attachUsing(key, targets, root, func() (string, string, bool, error) {
+		client, err := newCacheHTTPClient(30 * time.Second)
+		if err != nil {
+			return "", "", false, err
+		}
+		defer client.CloseIdleConnections()
+		return acquire(client, key, size)
+	}, bindDirectory)
 }
 func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
@@ -361,7 +361,7 @@ func acquire(client *http.Client, key string, size int64) (string, string, bool,
 	body, _ := json.Marshal(request)
 	req, err := http.NewRequest("POST", endpoint+"/acquire", bytes.NewReader(body))
 	if err != nil {
-		return "", "", false, err
+		return "", "", false, cacheRequestError{err}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	var result struct {
@@ -375,7 +375,7 @@ func acquire(client *http.Client, key string, size int64) (string, string, bool,
 func requestJSON(client *http.Client, req *http.Request, result any) error {
 	response, err := client.Do(req)
 	if err != nil {
-		return err
+		return cacheRequestError{err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusTooEarly {
@@ -384,7 +384,10 @@ func requestJSON(client *http.Client, req *http.Request, result any) error {
 	if response.StatusCode != 200 {
 		return fmt.Errorf("cache service returned %d", response.StatusCode)
 	}
-	return json.NewDecoder(io.LimitReader(response.Body, 32768)).Decode(result)
+	if err := json.NewDecoder(io.LimitReader(response.Body, 32768)).Decode(result); err != nil {
+		return cacheResponseError{err}
+	}
+	return nil
 }
 
 // contentHashedKey reports a key with a component that looks like a lockfile or
