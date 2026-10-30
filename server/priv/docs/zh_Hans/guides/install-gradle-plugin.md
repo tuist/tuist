@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Install the Gradle plugin",
-  "titleTemplate": ":title · Guides · Tuist",
-  "description": "Learn how to install and configure Tuist's Gradle plugin in your project."
+  "title": "安装 Gradle 插件",
+  "titleTemplate": ":title · 指南 · Tuist",
+  "description": "了解如何在项目中安装和配置 Tuist 的 Gradle 插件。"
 }
 ---
 # 安装 Gradle 插件 {#install-the-gradle-plugin}
@@ -27,11 +27,11 @@ tuist init
 <!-- -->
 :::
 
-该命令将引导你完成身份验证、创建或选择 Tuist 项目，以及为你的 Gradle 项目生成配置。
+该命令将引导你完成身份验证、创建或选择 Tuist 项目，并为你的 Gradle 项目生成配置。
 
 ## 2. 应用插件 {#apply-the-plugin}
 
-运行 `tuist init` 后，你需要按照命令输出的指示将 Tuist 插件添加到 `settings.gradle.kts` 中：
+运行 `tuist init` 后，你需要按照命令输出的指示，将 Tuist 插件添加到 `settings.gradle.kts` 中：
 
 ```kotlin
 plugins {
@@ -62,9 +62,9 @@ tuist auth whoami --url http://localhost:8080
 
 ## 配置缓存和隔离项目 {#configuration-cache-and-isolated-projects}
 
-该插件支持 Gradle 的配置缓存和[隔离项目](https://docs.gradle.org/current/userguide/isolated_projects.html)。将插件保留在 `settings.gradle.kts` 中；你无需将其单独应用到每个子项目。
+该插件支持 Gradle 的配置缓存和[隔离项目](https://docs.gradle.org/current/userguide/isolated_projects.html)。将插件保留在 `settings.gradle.kts` 中；你无需在每个子项目中单独应用它。
 
-Tuist 不会自动启用任一功能。要 opting in，请将以下内容添加到 `gradle.properties`：
+Tuist 不会自动启用任一功能。要 opting in，请将以下内容添加到 `gradle.properties` 中：
 
 ```properties
 org.gradle.configuration-cache=true
@@ -81,8 +81,8 @@ org.gradle.unsafe.isolated-projects=true
 | --- | --- | --- | --- |
 | `project` | `String?` | `null`（可选） | 采用 `account/project` 格式的项目标识符。如果未设置，插件将从 `tuist.toml` 中读取。 |
 | `url` | `String?` | `null` | Tuist 服务器的基础 URL。如果未设置，则默认为 `"https://tuist.dev"` 或 `tuist.toml` 中定义的值。 |
-| `uploadInBackground` | `Boolean?` | `null` | 是否在后台上传构建和测试洞察。当为 `null`（默认值）时，上传将在本地构建的后台运行，并在持续集成运行器的前台运行。 |
-| `stressNewTests.mode` | `String?` | `null` | `"report"` 或 `"enforce"`。重新运行构建添加的测试用例，并标记任何证明不稳定的用例；请参阅<.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">对新测试进行压力测试</.localized_link>。未设置时关闭。 |
+| `uploadInBackground` | `Boolean?` | `null` | 是否在后台上传构建和测试洞察。当为 `null`（默认值）时，上传在本地构建时在后台运行，在持续集成运行器上在前台运行。 |
+| `stressNewTests.mode` | `String?` | `null` | `"report"` 或 `"enforce"`。重新运行构建添加的测试用例，并标记任何证明为不稳定的用例；请参阅 <.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">对新测试进行压力测试</.localized_link>。未设置时关闭。 |
 
 对于使用 `http://` URL 的本地服务器，仅在该本地配置中允许不安全协议：
 
@@ -115,6 +115,6 @@ url = "https://tuist.dev"
 安装并配置插件后，你可以启用：
 
 - <.localized_link href="/guides/features/cache/gradle-cache">远程构建缓存</.localized_link>，以便在你的团队和持续集成运行器之间共享构建产物。
-- <.localized_link href="/guides/features/build-insights/gradle">构建洞察</.localized_link>，以便在 Tuist 仪表板中跟踪任务耗时和缓存行为。
-- <.localized_link href="/guides/features/test-insights/gradle">测试洞察</.localized_link>，以便跟踪测试性能并检测不稳定测试。
-- <.localized_link href="/guides/features/test-insights/flaky-tests">不稳定测试</.localized_link>，以便自动检测、跟踪和隔离不稳定测试。
+- <.localized_link href="/guides/features/build-insights/gradle">构建洞察</.localized_link>，用于在 Tuist 仪表板中跟踪任务耗时和缓存行为。
+- <.localized_link href="/guides/features/test-insights/gradle">测试洞察</.localized_link>，用于跟踪测试性能并检测不稳定测试。
+- <.localized_link href="/guides/features/test-insights/flaky-tests">不稳定测试</.localized_link>，用于自动检测、跟踪和隔离不稳定测试。

@@ -81,6 +81,35 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "abcdef1"
   end
 
+  test "renders a running job before the outbox has replayed it to ClickHouse", %{conn: conn, account: account} do
+    fleet_name = Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_051,
+        account_id: account.id,
+        fleet_name: fleet_name,
+        repository: "tuist/cli",
+        workflow_run_id: 310_510,
+        workflow_name: "CLI",
+        run_attempt: 2,
+        job_name: "Unit Tests",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued(fleet_name, [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_051, "tuist-runner-x", claimed_at)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310510/jobs/31051")
+
+    assert html =~ "CLI · Unit Tests"
+    assert html =~ "tuist-runner-x"
+    assert html =~ "Running"
+  end
+
   test "renders timeline durations once a job has run", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{

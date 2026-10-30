@@ -55,7 +55,7 @@ msgstr "분석"
 #: lib/tuist_web/live/tests_live.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Any"
-msgstr "모두"
+msgstr "전체"
 
 #: lib/tuist_web/live/coverage/components.ex:721
 #: lib/tuist_web/live/flaky_tests_live.html.heex:75
@@ -78,7 +78,7 @@ msgstr "첨부 파일"
 #: lib/tuist_web/live/test_case_live.ex:857
 #, elixir-autogen, elixir-format
 msgid "Automatically by Tuist"
-msgstr "Tuist에 의해 자동"
+msgstr "Tuist에서 자동"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:233
 #: lib/tuist_web/live/shards_live.html.heex:352
@@ -237,7 +237,7 @@ msgstr "명령어"
 #: lib/tuist_web/live/test_run_live.html.heex:453
 #, elixir-autogen, elixir-format
 msgid "Command duration"
-msgstr "명령어 실행 시간"
+msgstr "명령어 소요 시간"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:421
 #: lib/tuist_web/live/coverage_live.html.heex:76
@@ -433,7 +433,7 @@ msgstr "실패한 테스트 케이스 실행"
 #: lib/tuist_web/live/test_cases_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
-msgstr "실패한 테스트 케이스 실행은 특정 기간 동안 실패한 개별 테스트 케이스 실행의 총 횟수를 나타냅니다."
+msgstr "실패한 테스트 케이스 실행은 특정 기간 동안 실패한 개별 테스트 케이스 실행의 횟수를 나타냅니다."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:150
 #: lib/tuist_web/live/test_run_live.html.heex:401
@@ -447,7 +447,7 @@ msgstr "실패한 테스트 케이스"
 #: lib/tuist_web/live/tests_live.html.heex:621
 #, elixir-autogen, elixir-format
 msgid "Failed test runs"
-msgstr "테스트 실행 실패"
+msgstr "실패한 테스트 실행"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:61
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:145
@@ -573,17 +573,17 @@ msgstr "이슈 기록됨"
 #: lib/tuist_web/helpers/failure_message.ex:70
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}"
-msgstr "%{location}에서 이슈 기록됨"
+msgstr "%{location}에서 기록된 이슈"
 
 #: lib/tuist_web/helpers/failure_message.ex:73
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}: %{message}"
-msgstr "%{location}에서 이슈 기록됨: %{message}"
+msgstr "%{location}에서 기록된 이슈: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:43
 #, elixir-autogen, elixir-format
 msgid "Issue recorded: %{message}"
-msgstr "이슈 기록됨: %{message}"
+msgstr "기록된 이슈: %{message}"
 
 #: lib/tuist_web/live/coverage/components.ex:704
 #: lib/tuist_web/live/flaky_tests_live.html.heex:54
@@ -639,7 +639,7 @@ msgstr "지난 7일"
 #: lib/tuist_web/live/test_cases_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Last Status"
-msgstr "마지막 상태"
+msgstr "최근 상태"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:373
 #: lib/tuist_web/live/flaky_tests_live.html.heex:398
@@ -671,7 +671,7 @@ msgstr "마지막 상태"
 #: lib/tuist_web/live/test_case_live.html.heex:1129
 #, elixir-autogen, elixir-format
 msgid "Load more"
-msgstr "더 불러오기"
+msgstr "더 보기"
 
 #: lib/tuist_web/live/test_case_run_live.ex:251
 #: lib/tuist_web/live/test_run_live.ex:1602
@@ -707,23 +707,23 @@ msgstr "Mac 장치"
 #: lib/tuist_web/live/test_case_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Manually by @%{name}"
-msgstr "@%{name}님이 수동으로"
+msgstr "@%{name}이(가) 수동으로"
 
 #: lib/tuist_web/live/test_case_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Mark as flaky"
-msgstr "불안정함으로 표시"
+msgstr "불안정한 테스트로 표시"
 
 #: lib/tuist_web/live/test_case_live.ex:844
 #, elixir-autogen, elixir-format
 msgid "Marked as flaky"
-msgstr "불안정함으로 표시됨"
+msgstr "불안정한 테스트로 표시됨"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:154
 #: lib/tuist_web/live/test_run_live.ex:1443
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "누락됨"
+msgstr "미스"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:128
 #: lib/tuist_web/helpers/test_labels.ex:17
@@ -746,14 +746,14 @@ msgstr "모듈"
 #: lib/tuist_web/live/tests_live.html.heex:1152
 #, elixir-autogen, elixir-format
 msgid "Most occurring flaky tests"
-msgstr "가장 자주 발생하는 불안정한 테스트"
+msgstr "가장 많이 발생하는 불안정한 테스트"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:51
 #: lib/tuist_web/live/test_run_live.ex:1265
 #: lib/tuist_web/live/test_run_live.html.heex:1238
 #, elixir-autogen, elixir-format
 msgid "New"
-msgstr "새로움"
+msgstr "새로 추가됨"
 
 #: lib/tuist_web/live/shards_live.html.heex:141
 #: lib/tuist_web/live/shards_live.html.heex:201
@@ -779,7 +779,7 @@ msgstr "데이터 없음"
 #: lib/tuist_web/live/tests_live.html.heex:1030
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "아직 데이터 없음"
+msgstr "아직 데이터가 없습니다"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:157
 #: lib/tuist_web/live/test_case_run_live.html.heex:1171
@@ -796,12 +796,12 @@ msgstr "불안정한 테스트 없음"
 #: lib/tuist_web/live/test_case_live.html.heex:1117
 #, elixir-autogen, elixir-format
 msgid "No history available"
-msgstr "사용 가능한 기록 없음"
+msgstr "이용 가능한 기록 없음"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:174
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "모듈을 찾을 수 없음"
+msgstr "모듈을 찾을 수 없습니다"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:457
 #, elixir-autogen, elixir-format
@@ -811,33 +811,33 @@ msgstr "격리된 테스트 없음"
 #: lib/tuist_web/live/test_case_live.html.heex:1064
 #, elixir-autogen, elixir-format
 msgid "No test case runs found"
-msgstr "테스트 케이스 실행 기록을 찾을 수 없습니다"
+msgstr "테스트 케이스 실행 기록 없음"
 
 #: lib/tuist_web/live/test_run_live.html.heex:1325
 #, elixir-autogen, elixir-format
 msgid "No test cases found"
-msgstr "테스트 케이스를 찾을 수 없습니다"
+msgstr "테스트 케이스 없음"
 
 #: lib/tuist_web/live/tests_live.html.heex:1207
 #, elixir-autogen, elixir-format
 msgid "No test cases yet"
-msgstr "아직 테스트 케이스가 없습니다"
+msgstr "등록된 테스트 케이스 없음"
 
 #: lib/tuist_web/live/test_run_live.html.heex:1752
 #, elixir-autogen, elixir-format
 msgid "No test modules found"
-msgstr "테스트 모듈을 찾을 수 없습니다"
+msgstr "테스트 모듈 없음"
 
 #: lib/tuist_web/live/test_run_live.html.heex:1530
 #, elixir-autogen, elixir-format
 msgid "No test suites found"
-msgstr "테스트 스위트(Test Suite)를 찾을 수 없습니다"
+msgstr "테스트 스위트 없음"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:151
 #: lib/tuist_web/live/test_run_live.html.heex:402
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that failed."
-msgstr "실패한 테스트 케이스의 수입니다."
+msgstr "실패한 테스트 케이스 수입니다."
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:703
 #, elixir-autogen, elixir-format
@@ -936,7 +936,7 @@ msgstr "격리된 테스트"
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Quarantined by"
-msgstr "격리 기준"
+msgstr "격리 처리자"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:217
@@ -1024,37 +1024,37 @@ msgstr "검색..."
 #: lib/tuist_web/live/tests_live.html.heex:659
 #, elixir-autogen, elixir-format
 msgid "Selective Testing"
-msgstr "선택적 테스트"
+msgstr "선택적 테스팅"
 
 #: lib/tuist_web/live/tests_live.html.heex:681
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness"
-msgstr "선택적 테스트 효과"
+msgstr "선택적 테스팅 효과"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:49
 #, elixir-autogen, elixir-format
 msgid "Selective test hits"
-msgstr "선택적 테스트 히트"
+msgstr "선택적 테스팅 히트"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:51
 #, elixir-autogen, elixir-format
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-msgstr "선택적 테스트 히트는 선택적 테스트 덕분에 건너뛴 테스트 모듈의 수를 나타냅니다."
+msgstr "선택적 테스팅 히트는 선택적 테스팅 덕분에 건너뛴 테스트 모듈 수를 나타냅니다."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:63
 #, elixir-autogen, elixir-format
 msgid "Selective test misses"
-msgstr "선택적 테스트 미스"
+msgstr "선택적 테스팅 미스"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:65
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "선택적 테스트 미스는 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈의 수를 나타냅니다."
+msgstr "선택적 테스팅 미스는 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈 수를 나타냅니다."
 
 #: lib/tuist_web/live/tests_live.html.heex:854
 #, elixir-autogen, elixir-format
 msgid "Selective testing: no data yet"
-msgstr "선택적 테스트: 아직 데이터 없음"
+msgstr "선택적 테스팅: 데이터 없음"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:541
 #: lib/tuist_web/live/test_run_live.html.heex:890
@@ -1302,13 +1302,13 @@ msgstr "테스트 케이스"
 #: lib/tuist_web/live/test_case_live.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "Test history"
-msgstr "테스트 기록"
+msgstr "테스트 히스토리"
 
 #: lib/tuist_web/live/test_case_live.ex:209
 #: lib/tuist_web/live/test_case_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Test reliability"
-msgstr "테스트 신뢰성"
+msgstr "테스트 신뢰도"
 
 #: lib/tuist_web/live/once_runs_live.ex:416
 #: lib/tuist_web/live/test_runs_live.ex:327
@@ -1320,7 +1320,7 @@ msgstr "테스트 실행 횟수"
 #: lib/tuist_web/live/test_runs_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "테스트 실행 횟수는 특정 기간 동안 실행된 테스트 실행의 총 횟수를 나타냅니다. 테스트 실행은 'tuist test' 또는 'tuist xcodebuild test'를 실행하여 수행됩니다."
+msgstr "테스트 실행 횟수는 특정 기간 동안 수행된 테스트 실행의 총 횟수를 나타냅니다. 테스트 실행은 'tuist test' 또는 'tuist xcodebuild test'를 실행하여 수행됩니다."
 
 #: lib/tuist_web/live/test_run_live.ex:60
 #: lib/tuist_web/live/test_run_live.ex:64
@@ -1375,17 +1375,17 @@ msgstr "불안정한 테스트가 포함된 테스트 실행 횟수입니다."
 #: lib/tuist_web/live/tests_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "The total number of test runs."
-msgstr "총 테스트 실행 횟수입니다."
+msgstr "테스트 실행 총 횟수입니다."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:38
 #, elixir-autogen, elixir-format
 msgid "Total modules"
-msgstr "총 모듈 수"
+msgstr "모듈 총계"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:40
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
-msgstr "총 모듈 수는 테스트 가능한 모듈의 총 개수를 나타냅니다."
+msgstr "모듈 총계는 테스트 가능한 모듈의 총 개수를 나타냅니다."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:145
 #: lib/tuist_web/live/test_run_live.html.heex:396
@@ -1455,7 +1455,7 @@ msgstr "불안정한 테스트 표시 해제"
 #: lib/tuist_web/live/test_case_live.ex:845
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
-msgstr "불안정한 테스트 표시가 해제되었습니다"
+msgstr "불안정한 테스트 표시가 해제됨"
 
 #: lib/tuist_web/live/coverage/components.ex:115
 #: lib/tuist_web/live/coverage_live.html.heex:30
@@ -1585,7 +1585,7 @@ msgstr "지난달 이후"
 #: lib/tuist_web/live/tests_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "이전 기간 이후"
+msgstr "지난 기간 이후"
 
 #: lib/tuist_web/live/flaky_tests_live.ex:286
 #: lib/tuist_web/live/quarantined_tests_live.ex:284
@@ -1648,7 +1648,7 @@ msgstr "세분화 수준"
 #: lib/tuist_web/live/shards_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
-msgstr "테스트 실행 시간이 샤드 간에 얼마나 균등하게 분배되었는지 나타냅니다. 100%는 완벽하게 균형 잡힌 상태를 의미합니다."
+msgstr "테스트 실행 시간이 샤드에 얼마나 균등하게 분산되었는지 나타냅니다. 100%는 완벽하게 균형 잡힌 상태를 의미합니다."
 
 #: lib/tuist_web/live/coverage/components.ex:416
 #: lib/tuist_web/live/coverage_detail_live.ex:341
@@ -1776,7 +1776,7 @@ msgstr "새로 고침"
 #: lib/tuist_web/live/test_run_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "보통 몇 초 정도 소요됩니다. 페이지가 자동으로 업데이트되지 않으면 새로 고침 버튼을 클릭하세요."
+msgstr "일반적으로 몇 초가 소요됩니다. 페이지가 자동으로 업데이트되지 않으면 새로 고침 버튼을 클릭하세요."
 
 #: lib/tuist_web/live/test_run_live.html.heex:190
 #, elixir-autogen, elixir-format
@@ -1817,17 +1817,17 @@ msgstr "환경"
 #: lib/tuist_web/live/tests_live.ex:516
 #, elixir-autogen, elixir-format
 msgid "Passed (flaky)"
-msgstr "통과됨 (불안정)"
+msgstr "통과(불안정)"
 
 #: lib/tuist_web/live/tests_live.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset."
-msgstr "10,000개 항목 제한에 도달했으며, 데이터는 %{date}까지만 포함됩니다. 스키마나 다른 속성으로 필터링하여 데이터 세트를 좁혀보세요."
+msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지만 포함됩니다. 스키마 또는 다른 속성으로 필터링하여 데이터 세트를 좁혀보세요."
 
 #: lib/tuist_web/live/tests_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "10,000개 항목 제한에 도달했으며, 데이터는 %{date}까지만 포함됩니다. 필터링을 통해 데이터 세트를 좁혀보세요."
+msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지만 포함됩니다. 필터링을 통해 데이터 세트를 좁혀보세요."
 
 #: lib/tuist_web/live/test_case_live.ex:815
 #: lib/tuist_web/live/test_case_live.ex:847
@@ -1840,7 +1840,7 @@ msgstr "활성화됨"
 #: lib/tuist_web/live/test_cases_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Number of distinct test cases with at least one run in the 14 days ending on each date."
-msgstr "각 날짜로 끝나는 14일 동안 최소 한 번 실행된 고유 테스트 케이스 수입니다."
+msgstr "각 날짜를 기준으로 끝나는 14일 동안 최소 한 번 이상 실행된 고유 테스트 케이스 수입니다."
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:362
@@ -1869,17 +1869,17 @@ msgstr "불안정한 테스트 케이스 실행"
 #: lib/tuist_web/live/flaky_tests_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
-msgstr "적어도 하나의 불안정한 테스트 케이스를 포함한 테스트 실행(빌드 수준 테스트 호출) 횟수입니다. 여러 불안정한 실행이 포함되더라도 각 테스트 실행은 한 번만 계산됩니다."
+msgstr "불안정한 테스트 케이스가 하나 이상 포함된 테스트 실행(빌드 수준 테스트 호출) 횟수입니다. 여러 번 불안정하게 실패했더라도 각 테스트 실행은 한 번만 계산됩니다."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
-msgstr "기간 종료 시점에 불안정하다고 표시된 고유 테스트 케이스 수입니다. 불안정 발생 빈도와 관계없이 각 테스트 케이스는 최대 한 번만 계산됩니다."
+msgstr "해당 기간 종료 시점에서 불안정한 것으로 표시된 고유 테스트 케이스 수입니다. 불안정하게 실패한 빈도와 관계없이 각 테스트 케이스는 최대 한 번만 계산됩니다."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
-msgstr "기간 동안 불안정하다고 표시된 개별 테스트 케이스 실행의 총 횟수입니다. 단일 테스트 케이스가 여러 실행에서 불안정하게 동작하면 여러 번 계산될 수 있습니다."
+msgstr "해당 기간 동안 불안정한 것으로 표시된 개별 테스트 케이스 실행의 총 횟수입니다. 단일 테스트 케이스도 여러 실행에서 불안정하게 실패하면 여러 번 계산될 수 있습니다."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:102
 #: lib/tuist_web/live/flaky_tests_live.html.heex:307
@@ -1912,17 +1912,17 @@ msgstr "음소거된 테스트"
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Number of muted test cases at the end of the period. Muted tests still execute but their failures are ignored."
-msgstr "기간 종료 시 음소거된 테스트 케이스 수. 음소거된 테스트는 여전히 실행되지만 실패는 무시됩니다."
+msgstr "기간 종료 시 음소거된 테스트 케이스 수입니다. 음소거된 테스트는 계속 실행되지만 실패는 무시됩니다."
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Number of skipped test cases at the end of the period. Skipped tests are not executed at all."
-msgstr "기간 종료 시 건너뛴 테스트 케이스 수. 건너뛴 테스트는 전혀 실행되지 않습니다."
+msgstr "기간 종료 시 건너뛴 테스트 케이스 수입니다. 건너뛴 테스트는 전혀 실행되지 않습니다."
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Number of test cases currently quarantined at the end of the period. Combines both muted and skipped tests."
-msgstr "기간 종료 시 현재 격리된 테스트 케이스 수. 음소거된 테스트와 건너뛴 테스트를 모두 포함합니다."
+msgstr "기간 종료 시 현재 격리된 테스트 케이스 수입니다. 음소거된 테스트와 건너뛴 테스트를 모두 포함합니다."
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:114
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:219
@@ -1976,12 +1976,12 @@ msgstr "선택한 기간 동안 이 테스트 케이스가 실행된 횟수입�
 #: lib/tuist_web/live/test_case_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Percentage of test runs that were flaky in the selected period."
-msgstr "선택한 기간 동안 불안정했던 테스트 실행의 비율입니다."
+msgstr "선택한 기간 동안 불안정한 테스트 실행의 비율입니다."
 
 #: lib/tuist_web/live/test_case_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Success rate in the selected period, based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
-msgstr "%{branch} 브랜치의 실행을 기반으로 한 선택 기간의 성공률입니다. %{branch}에 실행 기록이 없으면 모든 브랜치를 기준으로 합니다."
+msgstr "%{branch} 브랜치의 실행을 기반으로 한 선택한 기간의 성공률입니다. %{branch}에 실행 기록이 없으면 모든 브랜치를 기준으로 합니다."
 
 #: lib/tuist_web/live/test_case_live.html.heex:298
 #: lib/tuist_web/live/test_case_live.html.heex:315
@@ -2000,12 +2000,12 @@ msgstr "실행 횟수 부족"
 #: lib/tuist_web/live/test_cases_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}."
-msgstr "테스트 케이스가 지난 %{days}일 동안 최소 %{count}회 실행되었을 때 표시됩니다. 현재 실행 횟수는 %{runs}회입니다."
+msgstr "지난 %{days}일 동안 테스트 케이스가 최소 %{count}회 실행되면 표시됩니다. 현재 실행 횟수는 %{runs}회입니다."
 
 #: lib/tuist_web/live/test_case_live.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "Duration of this test case across the runs in the selected period."
-msgstr "선택한 기간 동안 실행된 이 테스트 케이스의 총 소요 시간입니다."
+msgstr "선택한 기간 동안의 실행에서 이 테스트 케이스의 지속 시간입니다."
 
 #: lib/tuist_web/live/test_cases_live.ex:490
 #, elixir-autogen, elixir-format
@@ -2015,7 +2015,7 @@ msgstr "평균"
 #: lib/tuist_web/live/test_case_live.html.heex:741
 #, elixir-autogen, elixir-format
 msgid "No runs in this period"
-msgstr "이 기간 동안 실행 기록이 없습니다"
+msgstr "이 기간에 실행 없음"
 
 #: lib/tuist_web/live/test_case_live.ex:264
 #, elixir-autogen, elixir-format
@@ -2051,7 +2051,7 @@ msgstr "이 Bazel 호출에 대한 로그가 캡처되지 않았습니다."
 #: lib/tuist_web/helpers/test_labels.ex:15
 #, elixir-autogen, elixir-format
 msgid "Test target"
-msgstr "테스트 대상"
+msgstr "테스트 타겟"
 
 #: lib/tuist_web/helpers/test_labels.ex:19
 #: lib/tuist_web/helpers/test_labels.ex:23
@@ -2060,7 +2060,7 @@ msgstr "테스트 대상"
 #: lib/tuist_web/live/once_test_run_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Test Targets"
-msgstr "테스트 대상"
+msgstr "테스트 타겟"
 
 #: lib/tuist_web/helpers/test_labels.ex:40
 #, elixir-autogen, elixir-format
@@ -2082,12 +2082,12 @@ msgstr[0] "%{count}회 반복 통과"
 #: lib/tuist_web/live/test_run_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "%{failed} of %{total} repetitions failed"
-msgstr "%{total}회 중 %{failed}회 반복 실패"
+msgstr "총 %{total}회 중 %{failed}회 반복 실패"
 
 #: lib/tuist_web/live/test_run_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Beyond the candidate cap"
-msgstr "후보 제한 초과"
+msgstr "후보 상한 초과"
 
 #: lib/tuist_web/live/test_run_live.ex:205
 #, elixir-autogen, elixir-format
@@ -2097,7 +2097,7 @@ msgstr "스트레스 없음"
 #: lib/tuist_web/live/test_run_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
-msgstr "재시도 또는 스트레스 게이트의 반복 테스트에서 통과 및 실패한 테스트 케이스 수입니다."
+msgstr "재시도 또는 스트레스 게이트의 반복 실행에서 통과와 실패가 모두 발생한 테스트 케이스 수입니다."
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:280
 #, elixir-autogen, elixir-format
@@ -2107,17 +2107,17 @@ msgstr "반복 %{number}"
 #: lib/tuist_web/live/test_case_run_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Repetitions"
-msgstr "반복"
+msgstr "반복 횟수"
 
 #: lib/tuist_web/live/test_run_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Too slow to stress"
-msgstr "스트레스 테스트 속도 저하"
+msgstr "스트레스 테스트 불가(너무 느림)"
 
 #: lib/tuist_web/live/test_case_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Skips the entire target, including healthy tests."
-msgstr "정상적인 테스트를 포함한 전체 대상을 건너뜁니다."
+msgstr "정상적인 테스트를 포함한 전체 타겟을 건너뜁니다."
 
 #: lib/tuist_web/live/test_cases_live.html.heex:642
 #, elixir-autogen, elixir-format
@@ -2127,7 +2127,7 @@ msgstr "Bazel 타겟"
 #: lib/tuist_web/live/test_cases_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Bazel target, no JUnit report"
-msgstr "Bazel 타겟, JUnit 보고서 없음"
+msgstr "Bazel 타겟, JUnit 리포트 없음"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:633
 #, elixir-autogen, elixir-format
@@ -2174,18 +2174,18 @@ msgstr "커버된 라인"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Executable lines"
-msgstr "실행 가능한 라인"
+msgstr "실행 가능 라인"
 
 #: lib/tuist_web/live/coverage/components.ex:568
 #, elixir-autogen, elixir-format
 msgid "Executable lines the tests ran at least once."
-msgstr "테스트에서 최소 한 번 이상 실행된 실행 가능한 라인"
+msgstr "테스트에서 한 번 이상 실행된 실행 가능 라인"
 
 #: lib/tuist_web/live/coverage_file_live.ex:204
 #: lib/tuist_web/live/coverage_file_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Executions"
-msgstr "실행"
+msgstr "실행 횟수"
 
 #: lib/tuist_web/live/coverage/components.ex:103
 #: lib/tuist_web/live/coverage_detail_live.ex:431
@@ -2227,7 +2227,7 @@ msgstr "라인 커버리지"
 #: lib/tuist_web/live/coverage/components.ex:556
 #, elixir-autogen, elixir-format
 msgid "Share of the file's executable lines the tests ran at least once."
-msgstr "테스트가 최소 한 번 이상 실행한 파일의 실행 가능 라인 비율입니다."
+msgstr "테스트가 한 번 이상 실행된 파일의 실행 가능 라인 비율입니다."
 
 #: lib/tuist_web/helpers/test_labels.ex:16
 #: lib/tuist_web/helpers/test_labels.ex:50
@@ -2235,13 +2235,13 @@ msgstr "테스트가 최소 한 번 이상 실행한 파일의 실행 가능 라
 #: lib/tuist_web/live/once_test_run_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Target"
-msgstr "대상"
+msgstr "타겟"
 
 #: lib/tuist_web/helpers/test_labels.ex:20
 #: lib/tuist_web/helpers/test_labels.ex:53
 #, elixir-autogen, elixir-format
 msgid "Targets"
-msgstr "대상"
+msgstr "타겟"
 
 #: lib/tuist_web/live/coverage_file_live.html.heex:186
 #, elixir-autogen, elixir-format
@@ -2278,22 +2278,22 @@ msgstr "호스트"
 #: lib/tuist_web/live/once_test_run_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "No test cases reported for this run"
-msgstr "이번 실행에서 보고된 테스트 케이스가 없습니다"
+msgstr "이 실행에 대한 테스트 케이스가 보고되지 않았습니다"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "No test targets reported for this run"
-msgstr "이번 실행에서 보고된 테스트 타겟이 없습니다"
+msgstr "이 실행에 대한 테스트 타겟이 보고되지 않았습니다"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that both passed and failed."
-msgstr "통과 및 실패한 테스트 케이스의 수입니다."
+msgstr "통과와 실패가 모두 발생한 테스트 케이스 수입니다."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Once version"
-msgstr "한 번 버전"
+msgstr "한 번만"
 
 #: lib/tuist_web/helpers/test_labels.ex:44
 #: lib/tuist_web/live/coverage_detail_live.ex:515
@@ -2356,7 +2356,7 @@ msgstr "변경"
 #: lib/tuist_web/live/coverage_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Code coverage is not enabled for this account."
-msgstr "이 계정에서는 코드 커버리지가 활성화되어 있지 않습니다."
+msgstr "이 계정에서는 코드 커버리지가 활성화되지 않았습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:341
 #: lib/tuist_web/live/coverage_detail_live.ex:571
@@ -2368,7 +2368,7 @@ msgstr "커밋 %{name}"
 #: lib/tuist_web/live/coverage_file_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Commit %{sha} has no coverage for this file"
-msgstr "커밋 %{sha}는 이 파일에 대한 커버리지가 없습니다"
+msgstr "커밋 %{sha}에는 이 파일에 대한 커버리지가 없습니다"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:580
 #: lib/tuist_web/live/coverage_detail_live.html.heex:335
@@ -2396,12 +2396,12 @@ msgstr "커밋 SHA 복사"
 #: lib/tuist_web/live/coverage/components.ex:98
 #, elixir-autogen, elixir-format
 msgid "Coverage Changes"
-msgstr "커버리지 변경"
+msgstr "커버리지 변경 사항"
 
 #: lib/tuist_web/live/coverage/components.ex:286
 #, elixir-autogen, elixir-format
 msgid "Every test of the run's scheme ran, so it measured the scheme in full."
-msgstr "실행 스킴의 모든 테스트가 실행되어 스킴 전체를 측정했습니다."
+msgstr "실행의 스킴에 포함된 모든 테스트가 실행되어 스킴 전체를 측정했습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:662
 #: lib/tuist_web/live/coverage_detail_live.ex:465
@@ -2418,13 +2418,13 @@ msgstr "파일: %{name}"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
-msgstr "커밋의 테스트가 한 번 이상 실행된 줄 수입니다."
+msgstr "커밋의 테스트가 한 번 이상 실행된 줄입니다."
 
 #: lib/tuist_web/live/coverage/components.ex:801
 #: lib/tuist_web/live/coverage_detail_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
-msgstr "해당 커밋에서 커버리지를 위해 컴파일러가 계측한 줄 수입니다."
+msgstr "해당 커밋에서 커버리지를 위해 컴파일러가 계측한 줄입니다."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:467
 #, elixir-autogen, elixir-format
@@ -2444,62 +2444,62 @@ msgstr "이 기간 동안 %{branch}에 완료된 커밋이 없습니다"
 #: lib/tuist_web/live/coverage/components.ex:143
 #, elixir-autogen, elixir-format
 msgid "No coverage change"
-msgstr "커버리지 변화 없음"
+msgstr "커버리지 변경 없음"
 
 #: lib/tuist_web/live/coverage_live.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "No coverage changed on %{branch} in this period"
-msgstr "이 기간 동안 %{branch}에서 변경된 커버리지 없음"
+msgstr "이번 기간 동안 %{branch}에서 변경된 커버리지가 없습니다"
 
 #: lib/tuist_web/live/coverage/components.ex:671
 #, elixir-autogen, elixir-format
 msgid "No file matches this search"
-msgstr "이 검색과 일치하는 파일 없음"
+msgstr "이 검색과 일치하는 파일이 없습니다"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "No file was measured at this commit"
-msgstr "이 커밋에서 측정된 파일 없음"
+msgstr "이 커밋에서 측정된 파일이 없습니다"
 
 #: lib/tuist_web/live/coverage_file_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "No function matches this search"
-msgstr "이 검색과 일치하는 함수 없음"
+msgstr "이 검색과 일치하는 함수가 없습니다"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage here"
-msgstr "여기서 커버리지를 수집한 실행 없음"
+msgstr "여기서 커버리지를 수집한 실행이 없습니다"
 
 #: lib/tuist_web/live/coverage_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage on %{branch} in this period"
-msgstr "이 기간 동안 %{branch}에서 커버리지를 수집한 실행 없음"
+msgstr "이번 기간 동안 %{branch}에서 커버리지를 수집한 실행이 없습니다"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "No run matches these filters"
-msgstr "이 필터와 일치하는 실행 없음"
+msgstr "이 필터와 일치하는 실행이 없습니다"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "No run of commit %{sha} gathered coverage."
-msgstr "커밋 %{sha}의 실행에서 커버리지를 수집하지 않음."
+msgstr "커밋 %{sha}의 실행에서 커버리지를 수집하지 않았습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:426
 #, elixir-autogen, elixir-format
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
-msgstr "이 커밋의 실행에서는 커버리지가 수집되지 않아 자체 수치가 없습니다."
+msgstr "이 커밋의 실행에서 커버리지가 수집되지 않아 자체 수치가 없습니다."
 
 #: lib/tuist_web/live/coverage_detail_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "No run on branch %{branch} gathered coverage."
-msgstr "브랜치 %{branch}에서의 실행에서는 커버리지가 수집되지 않았습니다."
+msgstr "브랜치 %{branch}의 실행에서 커버리지가 수집되지 않았습니다."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "No target matches these filters"
-msgstr "이 필터와 일치하는 타겟이 없습니다"
+msgstr "필터와 일치하는 타겟이 없습니다"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:262
 #, elixir-autogen, elixir-format
@@ -2521,17 +2521,17 @@ msgstr "최근 커밋"
 #: lib/tuist_web/live/coverage/components.ex:281
 #, elixir-autogen, elixir-format
 msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
-msgstr "선택적 테스트 또는 필터로 인해 일부 테스트가 제외되어 스킴의 일부만 측정되었습니다."
+msgstr "선택적 테스팅이나 필터로 인해 일부 테스트가 제외되어 스키마의 일부만 측정되었습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:765
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
-msgstr "%{branch}, %{sha}의 최신 측정 커밟에서 측정된 스킴을 기준으로 집계한 실행 가능 라인의 커버리지 비율입니다."
+msgstr "%{branch}, %{sha}의 최신 측정 커밋에서 측정된 스키마를 종합한 실행 가능 라인의 커버리지 비율입니다."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines some run's tests ran at least once, across %{schemes}."
-msgstr "%{schemes}에서 일부 실행의 테스트가 한 번 이상 실행된 실행 가능 라인의 비율"
+msgstr "%{schemes} 스킴에서 일부 테스트 실행이 한 번 이상 실행한 실행 가능 라인의 비율"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:389
 #, elixir-autogen, elixir-format
@@ -2546,22 +2546,22 @@ msgstr "타겟 이름"
 #: lib/tuist_web/live/coverage_file_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "The latest complete commit on %{branch} in this period has no coverage for this file"
-msgstr "이 기간 중 %{branch}의 최신 완료 커밋은 이 파일에 대한 커버리지가 없습니다."
+msgstr "이번 기간 중 %{branch} 브랜치의 최신 완료 커밋은 이 파일에 대한 커버리지가 없습니다."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
-msgstr "이러한 커밋은 저장소 기록상의 순서가 아닌 측정된 순서대로 나열됩니다."
+msgstr "이 커밋들은 저장소 기록상의 순서가 아닌, 측정된 순서대로 나열됩니다."
 
 #: lib/tuist_web/live/coverage/components.ex:429
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
-msgstr "이 커밋의 커버리지 파이프라인이 아직 완료를 신호하지 않았으므로 더 많은 실행이 추가될 수 있으며 게이트가 대기 중입니다."
+msgstr "이 커밋의 커버리지 파이프라인이 아직 완료를 신호하지 않았으므로 추가 실행이 반영될 수 있으며 게이트는 대기 중입니다."
 
 #: lib/tuist_web/live/coverage/components.ex:438
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
-msgstr "이 커밋의 커버리지 파이프라인이 완료를 신호했으므로 수치는 최종이며 게이트가 결정되었습니다."
+msgstr "이 커밋의 커버리지 파이프라인이 완료를 신호했으므로 수치는 확정되었으며 게이트도 결정되었습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:775
 #: lib/tuist_web/live/coverage/components.ex:792
@@ -2574,18 +2574,18 @@ msgstr "기간 동안"
 #: lib/tuist_web/live/coverage_detail_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Incomplete"
-msgstr "미완료"
+msgstr "불완전"
 
 #: lib/tuist_web/live/coverage/components.ex:393
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgid_plural "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
-msgstr[0] "일부 테스트가 건너뛰어져 %{count}개 테스트의 커버리지를 확인할 수 없으므로 실제 커버리지는 더 높을 수 있습니다."
+msgstr[0] "일부 테스트가 건너뛰어졌으며, 그중 %{count}개의 커버리지를 확인할 수 없어 실제 커버리지는 더 높을 수 있습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:404
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
-msgstr "일부 테스트가 건너뛰어져 해당 테스트의 커버리지를 완전히 확인할 수 없으므로 실제 커버리지는 더 높을 수 있습니다."
+msgstr "일부 테스트가 건너뛰어졌으며 전체 커버리지를 완전히 확인할 수 없어 실제 커버리지는 더 높을 수 있습니다."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:76
 #, elixir-autogen, elixir-format
@@ -2595,7 +2595,7 @@ msgstr "중단됨"
 #: lib/tuist_web/live/once_test_run_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Once stopped reporting before this run finished"
-msgstr "이번 실행이 완료되기 전에 보고가 중단되었습니다"
+msgstr "이 실행이 완료되기 전에 보고가 중단되었습니다."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:69
 #, elixir-autogen, elixir-format
@@ -2605,12 +2605,12 @@ msgstr "취소됨"
 #: lib/tuist_web/live/once_test_run_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "The run was cancelled before it reported any test cases"
-msgstr "테스트 케이스를 보고하기 전에 실행이 취소되었습니다"
+msgstr "테스트 케이스를 보고하기 전에 실행이 취소되었습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:375
 #, elixir-autogen, elixir-format
 msgid "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
-msgstr "커밋되지 않은 변경 사항이 있는 체크아웃에서 실행된 경우만 일부 커버리지가 제공되었으며, 이는 집계되지 않으므로 실제 커버리지는 더 높을 수 있습니다."
+msgstr "커밋되지 않은 변경 사항이 있는 체크아웃에서 실행된 경우만 일부 커버리지가 제공되었는데, 이는 계산에 포함되지 않으므로 실제 커버리지는 더 높을 수 있습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:260
 #, elixir-autogen, elixir-format
@@ -2620,7 +2620,7 @@ msgstr "제외됨"
 #: lib/tuist_web/live/coverage/components.ex:263
 #, elixir-autogen, elixir-format
 msgid "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
-msgstr "실행이 커밋되지 않은 변경 사항이 있는 체크아웃에서 발생했으므로 해당 커밋의 코드가 아닌 코드를 측정했으며, 이에 따라 커버리지가 제외되었습니다."
+msgstr "실행이 커밋되지 않은 변경 사항이 있는 체크아웃에서 발생했으므로 해당 커밋의 코드가 아닌 코드를 측정했으며 커버리지가 제외되었습니다."
 
 #: lib/tuist_web/helpers/test_labels.ex:49
 #, elixir-autogen, elixir-format
@@ -2641,22 +2641,22 @@ msgstr "애플리케이션"
 #, elixir-autogen, elixir-format
 msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
-msgstr[0] "%{count}개는 매크로가 생성한 코드와 같이 함수에 속하지 않습니다."
+msgstr[0] "%{count}개는 매크로가 생성한 코드와 같이 어떤 함수에도 속하지 않습니다."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
-msgstr "이 대상의 테스트를 실행한 모든 실행은 커버리지 카운터 없이 빌드된 바이너리를 바이너리 캐시에서 가져왔으므로, 어떤 부분을 커버했는지 알 수 없습니다."
+msgstr "이 타겟의 테스트를 실행한 모든 러너는 바이너리 캐시에서 커버리지 카운터 없이 빌드된 바이너리를 가져왔으므로, 어떤 코드가 커버되었는지 알 수 없습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:381
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
-msgstr "테스트가 실행한 코드의 일부는 커버리지 카운터 없이 빌드된 바이너리로 바이너리 캐시에서 가져온 것이므로, 어떤 부분을 커버했는지 알 수 없으며 실제 커버리지는 더 높을 수 있습니다. 대상 탭에서는 이를 측정되지 않은 것으로 표시합니다."
+msgstr "테스트가 실행한 코드 중 일부는 바이너리 캐시에서 커버리지 카운터 없이 빌드된 바이너리로 제공되었으므로, 어떤 코드가 커버되었는지 알 수 없으며 실제 커버리지는 더 높을 수 있습니다. 타겟 탭에서는 이를 측정되지 않은 것으로 표시합니다."
 
 #: lib/tuist_web/live/coverage/components.ex:833
 #, elixir-autogen, elixir-format
 msgid "No complete commit on %{branch} in this period"
-msgstr "이 기간 동안 %{branch}에 완전한 커밋이 없습니다"
+msgstr "이 기간 동안 %{branch}에 완전한 커밋이 없습니다."
 
 #: lib/tuist_web/live/test_case_live.ex:317
 #: lib/tuist_web/live/test_runs_live.ex:59

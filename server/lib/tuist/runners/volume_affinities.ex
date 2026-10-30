@@ -52,6 +52,14 @@ defmodule Tuist.Runners.VolumeAffinities do
   (an attach keeps it from eviction), which keeps the node advertising it, which
   keeps the volume's jobs going there. The fleet settles into a stable partition
   of volumes over hosts without anything scheduling it.
+
+  The prefetch listing places each repository's volumes on a few hosts
+  (`VolumePlacement`), so the host that polls first is often not a holder. A
+  poll that finds no work marks its Node idle for its pool (`note_idle/2`), and
+  one that is handed a job marks it busy. A non-holder then leaves a young job
+  to a holder with an idle runner, which takes it on its next poll, two seconds
+  later at most. With no idle holder the job goes out at once, so this never
+  makes a job wait for a busy host.
   """
   alias Tuist.Environment
   alias Tuist.KeyValueStore
@@ -76,6 +84,10 @@ defmodule Tuist.Runners.VolumeAffinities do
   # keeps the apiserver read off the per-poll path: nine hosts polling every 2s
   # would otherwise be ~4.5 Node GETs/s, on the latency-sensitive dispatch path.
   @residency_cache_ttl to_timeout(second: 10)
+
+  # A waiting runner polls every two seconds, so a Node that has not polled for
+  # two polls has no runner waiting.
+  @idle_seconds 5
 
   defp node_cache_volumes(node_name) when is_binary(node_name) and node_name != "" do
     KeyValueStore.get_or_update(
@@ -157,7 +169,12 @@ defmodule Tuist.Runners.VolumeAffinities do
   the head for far longer than the tolerance. Bounding head age from now caps
   the head's worst-case delay at `:tolerance_seconds`.
 
-  Returns `nil` for an empty list, else `{candidate, outcome}`. The outcome is
+  With `:fleet_name`, a job younger than the tolerance whose volumes this Node
+  holds none of is first left out while another Node of the pool that holds them
+  has an idle runner (`note_idle/2`), which takes it on its next poll.
+
+  Returns `nil` for an empty list or when every job was left out, else
+  `{candidate, outcome}`. The outcome is
   why that candidate was picked, so dispatch can report whether the preference
   is discriminating at all:
 
@@ -176,15 +193,81 @@ defmodule Tuist.Runners.VolumeAffinities do
   ## Options
 
     * `:tolerance_seconds` — the starvation bound. Required.
+    * `:fleet_name` — the polling runner's pool, whose idle holders get their
+      jobs first. Without it nothing is left out.
   """
   def select_candidate(candidates, node_name, opts)
 
   def select_candidate([], _node_name, _opts), do: nil
 
-  def select_candidate([head | _] = candidates, node_name, opts) do
+  def select_candidate(candidates, node_name, opts) do
     tolerance_seconds = Keyword.fetch!(opts, :tolerance_seconds)
     node = node_cache_volumes(node_name)
 
+    case leave_to_idle_holders(candidates, node_name, node.custom, Keyword.get(opts, :fleet_name), tolerance_seconds) do
+      [] -> nil
+      candidates -> select_from(candidates, node_name, node, tolerance_seconds)
+    end
+  end
+
+  @doc """
+  Records that a runner of `fleet_name` on `node_name` polled and found no work,
+  so for the next #{@idle_seconds} seconds (two polls) `select_candidate/3` on
+  other Nodes leaves it the young jobs whose volumes it holds.
+  """
+  def note_idle(fleet_name, node_name), do: note_poll(fleet_name, node_name, true)
+
+  @doc "Records that a runner of `fleet_name` on `node_name` was handed a job."
+  def note_busy(fleet_name, node_name), do: note_poll(fleet_name, node_name, false)
+
+  defp note_poll(fleet_name, node_name, idle) when is_binary(fleet_name) and is_binary(node_name) and node_name != "" do
+    KeyValueStore.put(idle_key(fleet_name, node_name), idle,
+      ttl: to_timeout(second: @idle_seconds),
+      persist_across_deployments: true
+    )
+
+    :ok
+  end
+
+  defp note_poll(_fleet_name, _node_name, _idle), do: :ok
+
+  defp idle?(fleet_name, node_name),
+    do: KeyValueStore.get(idle_key(fleet_name, node_name), persist_across_deployments: true) == true
+
+  defp idle_key(fleet_name, node_name), do: [:runner_idle_node, fleet_name, node_name]
+
+  # Drops the jobs, younger than the tolerance, that this Node holds none of the
+  # volumes of while another Node of the pool that does has an idle runner: that
+  # runner takes them on its next poll, warm.
+  defp leave_to_idle_holders(candidates, _node_name, _custom, nil, _tolerance_seconds), do: candidates
+
+  defp leave_to_idle_holders(candidates, node_name, custom, fleet_name, tolerance_seconds) do
+    {kept, _idle_holders} =
+      Enum.flat_map_reduce(candidates, nil, fn candidate, idle_holders ->
+        if head_overdue?(candidate, tolerance_seconds) or custom_resident?(custom, candidate) or
+             predicted_label_scopes(candidate) == [] do
+          {[candidate], idle_holders}
+        else
+          idle_holders = idle_holders || idle_holders(fleet_name, node_name)
+
+          if Enum.any?(idle_holders, &custom_resident?(&1, candidate)),
+            do: {[], idle_holders},
+            else: {[candidate], idle_holders}
+        end
+      end)
+
+    kept
+  end
+
+  defp idle_holders(fleet_name, node_name) do
+    for node <- fleet_nodes(fleet_name),
+        node.name != node_name,
+        MapSet.size(node.custom) > 0,
+        idle?(fleet_name, node.name),
+        do: node.custom
+  end
+
+  defp select_from([head | _] = candidates, node_name, node, tolerance_seconds) do
     if MapSet.size(node.custom) == 0 do
       {head, :no_residency}
     else

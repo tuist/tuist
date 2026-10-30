@@ -25,9 +25,9 @@ msgstr "%{inviter} 邀請你加入 %{organization} 組織"
 #: lib/tuist_web/live/billing_live.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "%{month}/%{year}"
-msgstr "%{year}年%{month}月"
+msgstr "%{month}/%{year}"
 
-#: lib/tuist/accounts/user_notifier.ex:359
+#: lib/tuist/accounts/user_notifier.ex:363
 #: lib/tuist_web/live/accept_invitation_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -55,7 +55,7 @@ msgstr "Air"
 #: lib/tuist_web/live/billing_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr "所有功能，無需信用卡"
+msgstr "所有功能，無需提供信用卡"
 
 #: lib/tuist_web/live/members_live.ex:96
 #, elixir-autogen, elixir-format
@@ -76,7 +76,7 @@ msgstr "你確定要刪除此項目嗎？"
 #: lib/tuist_web/live/members_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove %{name} from this organization?"
-msgstr "你確定要從這個組織中移除 %{name} 嗎？"
+msgstr "你確定要將 %{name} 從此組織中移除嗎？"
 
 #: lib/tuist_web/live/billing_live.ex:79
 #: lib/tuist_web/live/billing_live.html.heex:3
@@ -87,7 +87,7 @@ msgstr "帳單"
 #: lib/tuist_web/live/billing_live.html.heex:405
 #, elixir-autogen, elixir-format
 msgid "Billing email"
-msgstr "帳單電郵"
+msgstr "帳單電郵地址"
 
 #: lib/tuist_web/live/account_settings_live.ex:378
 #: lib/tuist_web/live/account_settings_live.ex:465
@@ -114,17 +114,17 @@ msgstr "取消"
 #: lib/tuist_web/live/billing_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Change subscription plan"
-msgstr "變更訂閱方案"
+msgstr "更改訂閱方案"
 
 #: lib/tuist_web/live/billing_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Change your subscription to fit your needs."
-msgstr "更改你的訂閱方案以切合你的需求。"
+msgstr "調整訂閱方案以切合你嘅需要。"
 
 #: lib/tuist_web/live/account_settings_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
-msgstr "選擇儲存構件（例如模組快取二進位檔）的位置，以符合法律合規要求。"
+msgstr "選擇儲存構件（例如模組快取二進制檔案）嘅位置，以符合法律合規要求。"
 
 #: lib/tuist/billing.ex:54
 #, elixir-autogen, elixir-format
@@ -144,12 +144,12 @@ msgstr "社區支援：透過社區論壇提供支援"
 #: lib/tuist_web/live/billing_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Completely free for open source projects"
-msgstr "開源專案完全免費"
+msgstr "開源項目完全免費"
 
 #: lib/tuist/accounts/user_notifier.ex:279
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr "確認你的電子郵件"
+msgstr "確認你嘅電郵地址"
 
 #: lib/tuist/accounts/user_notifier.ex:275
 #, elixir-autogen, elixir-format
@@ -170,13 +170,13 @@ msgstr "建立組織"
 #: lib/tuist_web/live/billing_live.ex:418
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
-msgstr "建立你的方案或自行託管實例"
+msgstr "制定你的方案或自行託管實例"
 
 #: lib/tuist/billing.ex:84
 #: lib/tuist_web/live/billing_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
-msgstr "建立你的方案或自行託管實例。"
+msgstr "制定你的方案或自行託管實例。"
 
 #: lib/tuist_web/live/billing_live.ex:373
 #: lib/tuist_web/live/billing_live.ex:402
@@ -202,7 +202,7 @@ msgstr "自訂條款"
 #: lib/tuist_web/live/billing_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Custom terms: Tailored agreements to meet your specific needs"
-msgstr "自訂條款：為滿足你特定需求而量身打造的協議"
+msgstr "自訂條款：度身訂造的協議，配合你的特定需求"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:191
 #, elixir-autogen, elixir-format
@@ -232,27 +232,27 @@ msgstr "OAuth2 應用程式用戶端 ID"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Configure your OAuth2 provider to redirect users back to Tuist after authentication."
-msgstr "設定你的 OAuth2 提供者，讓使用者在驗證後重新導向回 Tuist。"
+msgstr "設定你的 OAuth2 供應商，讓使用者在驗證後重新導向回 Tuist。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Create an OAuth2 application in your identity provider."
-msgstr "在你的身分識別提供者中建立 OAuth2 應用程式。"
+msgstr "在你的身分識別供應商中建立 OAuth2 應用程式。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Copy the provider URL, authorize URL, token URL, user info URL, client ID, and client secret into the fields below."
-msgstr "將提供者 URL、授權 URL、權杖 URL、使用者資訊 URL、用戶端 ID 和用戶端密鑰複製到下方的欄位中。"
+msgstr "將供應商 URL、授權 URL、權杖 URL、使用者資訊 URL、用戶端 ID 和用戶端金鑰複製到下方欄位。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:480
 #, elixir-autogen, elixir-format
 msgid "Provider URL"
-msgstr "提供者 URL"
+msgstr "供應商 URL"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:483
 #, elixir-autogen, elixir-format
 msgid "The base URL of your identity provider, for example https://auth.example.com."
-msgstr "您身份提供者的基本 URL，例如 https://auth.example.com。"
+msgstr "你身份提供者嘅基本 URL，例如 https://auth.example.com。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:502
 #, elixir-autogen, elixir-format
@@ -262,7 +262,7 @@ msgstr "授權 URL"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:505
 #, elixir-autogen, elixir-format
 msgid "The full authorization endpoint URL used to start the OAuth2 flow."
-msgstr "用於啟動 OAuth2 流程的完整授權端點 URL。"
+msgstr "用於啟動 OAuth2 流程嘅完整授權端點 URL。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:524
 #, elixir-autogen, elixir-format
@@ -272,7 +272,7 @@ msgstr "令牌 URL"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "The full token endpoint URL used to exchange the authorization code."
-msgstr "用於交換授權代碼的完整令牌端點 URL。"
+msgstr "用於交換授權代碼嘅完整令牌端點 URL。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:546
 #, elixir-autogen, elixir-format
@@ -282,17 +282,17 @@ msgstr "用戶資訊 URL"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "The full user info endpoint URL that returns the authenticated user profile."
-msgstr "返回已驗證用戶個人資料的完整用戶資訊端點 URL。"
+msgstr "返回已驗證用戶個人資料嘅完整用戶資訊端點 URL。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "The client ID from your OAuth2 application."
-msgstr "來自您 OAuth2 應用程式的客戶端 ID。"
+msgstr "你 OAuth2 應用程式嘅客戶端 ID。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:590
 #, elixir-autogen, elixir-format
 msgid "The client secret from your OAuth2 application."
-msgstr "來自你 OAuth2 應用程式的客戶端密鑰。"
+msgstr "你嘅 OAuth2 應用程式嘅客戶端密鑰。"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:96
 #: lib/tuist_web/live/account_settings_live.html.heex:117
@@ -303,17 +303,17 @@ msgstr "刪除組織"
 #: lib/tuist_web/live/account_settings_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Deleting the organization will delete all of its projects"
-msgstr "刪除組織將會刪除其所有專案"
+msgstr "刪除組織會一併刪除其所有專案"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Deleting your account will also delete all the projects that belong to it"
-msgstr "刪除你的帳戶亦會刪除屬於該帳戶的所有專案"
+msgstr "刪除你嘅帳戶亦會刪除所有屬於該帳戶嘅專案"
 
 #: lib/tuist/accounts/user_notifier.ex:297
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
-msgstr "你是否要求重設密碼？"
+msgstr "你係咪請求重設密碼？"
 
 #: lib/tuist_web/live/billing_live.ex:379
 #, elixir-autogen, elixir-format
@@ -323,17 +323,17 @@ msgstr "降級"
 #: lib/tuist_web/live/members_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "E-mail"
-msgstr "電子郵件"
+msgstr "電郵"
 
 #: lib/tuist_web/live/members_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Email"
-msgstr "電子郵件"
+msgstr "電郵"
 
 #: lib/tuist_web/live/members_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Email address"
-msgstr "電子郵件地址"
+msgstr "電郵地址"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:137
 #, elixir-autogen, elixir-format
@@ -343,14 +343,14 @@ msgstr "輸入此組織的名稱以確認"
 #: lib/tuist_web/live/account_settings_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "Enter your username to confirm"
-msgstr "輸入您的用戶名以確認"
+msgstr "輸入你的用戶名以確認"
 
 #: lib/tuist/billing.ex:82
 #: lib/tuist_web/live/billing_live.ex:417
 #: lib/tuist_web/live/billing_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
-msgstr "企業版"
+msgstr "Enterprise"
 
 #: lib/tuist_web/live/account_settings_live.ex:307
 #, elixir-autogen, elixir-format
@@ -373,27 +373,27 @@ msgstr "已超出免費方案限額"
 #: lib/tuist_web/live/billing_live.ex:365
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
-msgstr "在免費方案限額內"
+msgstr "未達免費方案限額"
 
 #: lib/tuist/billing.ex:70
 #, elixir-autogen, elixir-format
 msgid "Generous base price"
-msgstr "優惠的基本價格"
+msgstr "優惠基本價格"
 
 #: lib/tuist_web/live/billing_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Generous base price: Pay nothing if below free tier limits"
-msgstr "優惠的基本價格：低於免費方案限額時無需付款"
+msgstr "優惠基本價格：用量低於免費方案上限時無需付款"
 
 #: lib/tuist/billing.ex:50
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
-msgstr "慷慨的每月免費方案"
+msgstr "慷慨嘅免費月度方案"
 
 #: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier: Usage capped at free tier limits"
-msgstr "慷慨的每月免費方案：用量以免費方案限額為上限"
+msgstr "慷慨嘅免費月度方案：用量以免費方案上限為限"
 
 #: lib/tuist/billing.ex:48
 #: lib/tuist/billing.ex:68
@@ -404,36 +404,36 @@ msgstr "立即開始"
 #: lib/tuist_web/live/billing_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
-msgstr "無需信用卡即可開始使用"
+msgstr "無需信用卡即可開始"
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
-msgstr "無需信用卡即可開始使用—無承諾試用。"
+msgstr "無需信用卡即可開始，無須承擔任何責任。"
 
-#: lib/tuist/accounts/user_notifier.ex:353
+#: lib/tuist/accounts/user_notifier.ex:357
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
-msgstr "Hola %{invitee_email}，你可以點擊下方按鈕加入組織："
+msgstr "Hola %{invitee_email}，你可以點擊下面嘅按鈕加入組織："
 
 #: lib/tuist/accounts/user_notifier.ex:299
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
-msgstr "你好 %{name}，你可以點擊下方按鈕重設密碼："
+msgstr "%{name}，你好，你可以點擊下方按鈕重設密碼："
 
 #: lib/tuist/accounts/user_notifier.ex:282
 #: lib/tuist/accounts/user_notifier.ex:309
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
-msgstr "如果你沒有提出此請求，請忽略此電郵。"
+msgstr "如果你冇提出呢個請求，可以忽略呢封電郵。"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
 msgstr "找不到邀請"
 
-#: lib/tuist/accounts/user_notifier.ex:343
+#: lib/tuist/accounts/user_notifier.ex:347
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr "加入 %{organization_name} 的邀請"
@@ -511,7 +511,7 @@ msgstr "無需信用卡"
 #: lib/tuist_web/live/members_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
-msgstr "尚未建立邀請"
+msgstr "未建立邀請"
 
 #: lib/tuist_web/live/members_live.ex:308
 #, elixir-autogen, elixir-format
@@ -527,7 +527,7 @@ msgstr "內部部署"
 #: lib/tuist_web/live/billing_live.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "On-premise: Self-host your instance of Tuist"
-msgstr "內部部署：自行託管您的 Tuist 實例"
+msgstr "內部部署：自行託管 Tuist 實例"
 
 #: lib/tuist_web/live/billing_live.html.heex:132
 #, elixir-autogen, elixir-format
@@ -543,13 +543,13 @@ msgstr "組織名稱"
 #: lib/tuist/accounts/user.ex:112
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
-msgstr "密碼不符"
+msgstr "密碼不相符"
 
 #: lib/tuist/billing.ex:71
 #: lib/tuist_web/live/billing_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
-msgstr "若未超出免費方案限額，則無需付費"
+msgstr "若用量低於免費方案上限，則無需付費"
 
 #: lib/tuist/billing.ex:73
 #: lib/tuist_web/live/billing_live.ex:395
@@ -565,7 +565,7 @@ msgstr "付款方式"
 #: lib/tuist_web/live/billing_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "Payments for your subscription are made using the default card."
-msgstr "訂閱費用將使用預設信用卡支付。"
+msgstr "訂閱費用會使用預設信用卡支付。"
 
 #: lib/tuist_web/live/members_live.ex:817
 #, elixir-autogen, elixir-format
@@ -636,18 +636,18 @@ msgstr "重新命名組織"
 #: lib/tuist_web/live/account_settings_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Rename your organization?"
-msgstr "要重新命名您的組織嗎？"
+msgstr "要重新命名你的組織嗎？"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:61
 #: lib/tuist_web/live/account_settings_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
-msgstr "重新命名可能會帶來意想不到的後果"
+msgstr "重新命名可能帶來意外後果"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Renaming your organization can have unintended side effects."
-msgstr "重新命名您的組織可能會產生非預期的副作用。"
+msgstr "重新命名你的組織可能會產生非預期影響。"
 
 #: lib/tuist/accounts/user_notifier.ex:295
 #, elixir-autogen, elixir-format
@@ -657,7 +657,7 @@ msgstr "重設密碼指示"
 #: lib/tuist/accounts/user_notifier.ex:303
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
-msgstr "重設您的密碼"
+msgstr "重設你的密碼"
 
 #: lib/tuist_web/live/members_live.ex:364
 #, elixir-autogen, elixir-format
@@ -739,7 +739,7 @@ msgstr "透過社區論壇獲得支援"
 #: lib/tuist/billing.ex:89
 #, elixir-autogen, elixir-format
 msgid "Tailored agreements to meet your specific needs"
-msgstr "量身訂製的協議以滿足您的特定需求"
+msgstr "量身定制協議以滿足您的特定需求"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:99
 #: lib/tuist_web/live/account_settings_live.html.heex:255
@@ -750,7 +750,7 @@ msgstr "此操作無法撤銷。"
 #: lib/tuist/accounts/user_notifier.ex:278
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
-msgstr "要開始使用 Tuist，請驗證您的電子郵件，然後就可以開始了："
+msgstr "要開始使用 Tuist，請驗證您的電子郵件即可："
 
 #: lib/tuist_web/live/billing_live.html.heex:302
 #: lib/tuist_web/live/webhook_live.html.heex:138
@@ -763,7 +763,7 @@ msgstr "總計"
 #: lib/tuist_web/live/members_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "嘗試更改您的搜尋詞彙"
+msgstr "嘗試更改您的搜索詞"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:112
 #: lib/tuist_web/live/create_organization_live.ex:37
@@ -776,7 +776,7 @@ msgstr "Tuist 標誌"
 msgid "United States"
 msgstr "美國"
 
-#: lib/tuist/vcs.ex:889
+#: lib/tuist/vcs.ex:890
 #: lib/tuist_web/live/account_token_helpers.ex:96
 #, elixir-autogen, elixir-format
 msgid "Unknown"
@@ -796,17 +796,17 @@ msgstr "更新付款方式"
 #: lib/tuist_web/live/account_settings_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Update username"
-msgstr "更新用戶名稱"
+msgstr "更新用戶名"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "Update your username?"
-msgstr "要更新您的用戶名稱嗎？"
+msgstr "要更新用戶名嗎？"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Updating your username can have unintended consequences."
-msgstr "更新用戶名稱可能會帶來意想不到的後果。"
+msgstr "更新用戶名可能會帶來意想不到的後果。"
 
 #: lib/tuist_web/live/billing_live.ex:408
 #, elixir-autogen, elixir-format
@@ -827,7 +827,7 @@ msgstr "用量"
 #: lib/tuist/billing.ex:51
 #, elixir-autogen, elixir-format
 msgid "Usage capped at free tier limits"
-msgstr "用量受免費方案上限限制"
+msgstr "用量已達免費方案上限"
 
 #: lib/tuist_web/live/billing_live.html.heex:49
 #, elixir-autogen, elixir-format
@@ -847,18 +847,18 @@ msgstr "按用量定價"
 #: lib/tuist_web/live/billing_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
-msgstr "超過免費方案後按用量定價"
+msgstr "超過免費方案後按用量計費"
 
 #: lib/tuist/billing.ex:65
 #: lib/tuist_web/live/billing_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
-msgstr "超過免費方案後按用量定價。"
+msgstr "超過免費方案後，將按用量計費。"
 
 #: lib/tuist_web/live/billing_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing: Pay only for what you use per feature"
-msgstr "按用量定價：每項功能只按實際使用量付費"
+msgstr "按用量定價：每項功能只為實際使用量付費"
 
 #: lib/tuist_web/live/billing_live.html.heex:164
 #, elixir-autogen, elixir-format
@@ -881,12 +881,12 @@ msgstr "用戶名稱"
 #: lib/tuist/billing.ex:74
 #, elixir-autogen, elixir-format
 msgid "Via Slack and email"
-msgstr "透過 Slack 和電子郵件"
+msgstr "透過 Slack 和電郵"
 
 #: lib/tuist/billing.ex:92
 #, elixir-autogen, elixir-format
 msgid "Via shared Slack channel"
-msgstr "透過共享的 Slack 頻道"
+msgstr "透過共享 Slack 頻道"
 
 #: lib/tuist_web/components/workload_identities.ex:289
 #: lib/tuist_web/live/account_settings_live.ex:19
@@ -912,17 +912,17 @@ msgstr "你已獲邀請"
 #: lib/tuist/accounts/user_notifier.ex:281
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
-msgstr "你收到這封電子郵件是因為你最近註冊了 Tuist 帳戶。"
+msgstr "你收到這封電郵，是因為你最近註冊了 Tuist 帳戶。"
 
 #: lib/tuist/accounts/user_notifier.ex:305
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
-msgstr "您收到此電郵是因為您要求重設 Tuist 帳戶的密碼。"
+msgstr "你收到這封電郵，是因為你要求重設 Tuist 帳戶密碼。"
 
-#: lib/tuist/accounts/user_notifier.ex:346
+#: lib/tuist/accounts/user_notifier.ex:350
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
-msgstr "%{inviter_email} 邀請您加入 %{organization_name} Tuist 組織"
+msgstr "%{inviter_email} 邀請你加入 %{organization_name} Tuist 組織"
 
 #: lib/tuist/accounts/user_notifier.ex:277
 #, elixir-autogen, elixir-format
@@ -932,13 +932,13 @@ msgstr "即將完成！"
 #: lib/tuist_web/live/billing_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
-msgstr "您已超出免費層級配額，額外使用量將產生費用。"
+msgstr "你已超出免費方案配額，額外用量將產生費用。"
 
 #: lib/tuist/billing.ex:67
 #: lib/tuist_web/live/billing_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "and up"
-msgstr "及以上"
+msgstr "起"
 
 #: lib/tuist_web/live/billing_live.ex:201
 #, elixir-autogen, elixir-format
@@ -992,7 +992,7 @@ msgstr "刪除最後一個快取端點？"
 #: lib/tuist_web/live/account_settings_live.ex:452
 #, elixir-autogen, elixir-format
 msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
-msgstr "移除最後一個自訂快取端點將會將你的組織切換回由 Tuist 託管的快取。這會影響你組織內的所有建構。"
+msgstr "移除最後一個自訂快取端點後，你嘅組織會轉返使用 Tuist 託管嘅快取服務。此變更會影響你組織內所有構建。"
 
 #: lib/tuist_web/live/account_settings_live.ex:330
 #, elixir-autogen, elixir-format
@@ -1002,7 +1002,7 @@ msgstr "快取端點"
 #: lib/tuist_web/live/account_settings_live.ex:334
 #, elixir-autogen, elixir-format
 msgid "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
-msgstr "為自行託管的快取設定配置自訂快取端點。啟用後，Tuist 將從這些端點讀取並寫入資料，而非使用預設的 Tuist 託管快取。"
+msgstr "為自託管快取設定自訂快取端點。啟用後，Tuist 會讀取並寫入這些端點，而非預設的 Tuist 託管快取。"
 
 #: lib/tuist_web/live/account_settings_live.ex:402
 #, elixir-autogen, elixir-format
@@ -1012,7 +1012,7 @@ msgstr "自訂快取端點已停用。Tuist 將使用預設的 Tuist 託管快�
 #: lib/tuist_web/live/account_settings_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
-msgstr "尚未配置自訂快取端點。在新增端點之前，Tuist 將使用預設的 Tuist 託管快取。"
+msgstr "未設定自訂快取端點。在新增端點之前，Tuist 將使用預設的 Tuist 託管快取。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:568
 #: lib/tuist_web/live/cache_live.ex:308
@@ -1030,7 +1030,7 @@ msgstr "用戶端密鑰"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Copy the Client ID and Client Secret from the application settings"
-msgstr "從應用程式設定中複製用戶端 ID 和用戶端密鑰"
+msgstr "從應用程式設定複製用戶端 ID 和用戶端密鑰"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:120
 #, elixir-autogen, elixir-format
@@ -1050,32 +1050,32 @@ msgstr "Okta 網域"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Provider"
-msgstr "供應商"
+msgstr "提供者"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
-msgstr "選擇「OIDC - OpenID Connect」和「Web Application」"
+msgstr "選取「OIDC - OpenID Connect」同「Web Application」"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Single Sign-On"
-msgstr "單一登入 (SSO)"
+msgstr "單一登入"
 
 #: lib/tuist_web/live/authentication_settings_live.ex:629
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
-msgstr "您必須使用與此網域關聯的電子郵件透過 Google 進行驗證。請先使用 Google 登入。"
+msgstr "你必須使用與此網域綁定嘅電子郵件透過 Google 進行身份驗證。請先透過 Google 登入。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Create an OIDC Web Application in your Okta admin dashboard before configuring the fields below."
-msgstr "在設定以下欄位之前，請先在您的 Okta 管理儀表板中建立 OIDC Web Application。"
+msgstr "喺配置以下欄位之前，請先喺你嘅 Okta 管理儀表板中建立一個 OIDC Web Application。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "SSO provider"
-msgstr "SSO 供應商"
+msgstr "SSO 提供者"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:734
 #: lib/tuist_web/live/webhook_live.html.heex:350
@@ -1093,12 +1093,12 @@ msgstr "設定說明"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Users signing in with a Google account from this domain will be automatically added to this organization."
-msgstr "從這個網域使用 Google 帳戶登入的使用者將自動加入此組織。"
+msgstr "使用此網域 Google 帳戶登入嘅用戶會自動加入呢個組織。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:437
 #, elixir-autogen, elixir-format
 msgid "Your Okta organization URL without the https:// prefix."
-msgstr "您的 Okta 組織 URL，不含 https:// 前綴。"
+msgstr "你嘅 Okta 組織 URL，唔好加 https:// 前綴。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:50
 #, elixir-autogen, elixir-format
@@ -1108,7 +1108,7 @@ msgstr "啟用單一登入 (SSO)"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Enable and configure SSO for your organization."
-msgstr "為您的組織啟用並設定 SSO。"
+msgstr "為你嘅組織啟用同設定 SSO。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:146
 #: lib/tuist_web/live/authentication_settings_live.html.heex:267
@@ -1120,17 +1120,17 @@ msgstr "將啟動登入 URI 設為："
 #: lib/tuist_web/live/authentication_settings_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Set the sign-in redirect URI to:"
-msgstr "將登入重新導向 URI 設為："
+msgstr "將登入重定向 URI 設為："
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:710
 #, elixir-autogen, elixir-format
 msgid "Enforce SSO"
-msgstr "強制使用 SSO"
+msgstr "強制執行 SSO"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:721
 #, elixir-autogen, elixir-format
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
-msgstr "啟用後，組織成員將無法使用電子郵件和密碼登入。他們必須改用 SSO。"
+msgstr "啟用後，組織成員將無法使用電郵和密碼登入。他們必須改用 SSO。"
 
 #: lib/tuist_web/live/authentication_settings_live.ex:610
 #, elixir-autogen, elixir-format
@@ -1145,22 +1145,22 @@ msgstr "繼續"
 #: lib/tuist_web/live/create_organization_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Create an organization to continue. Organizations let you group related projects"
-msgstr "建立組織以繼續。組織可讓你將相關專案分組"
+msgstr "建立組織以繼續。組織可讓你將相關項目分組"
 
 #: lib/tuist_web/live/create_organization_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
-msgstr "你的公司或團隊名稱是什麼？你稍後可以在設定中更改此名稱"
+msgstr "你嘅公司或團隊叫咩名？你可以之後喺設定入面更改"
 
 #: lib/tuist_web/live/account_settings_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Browser default"
-msgstr "瀏覽器預設"
+msgstr "瀏覽器預設值"
 
 #: lib/tuist_web/live/account_settings_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Choose your preferred dashboard language."
-msgstr "選擇你偏好的儀表板語言。"
+msgstr "揀選你偏好嘅儀表板語言。"
 
 #: lib/tuist_web/live/account_settings_live.ex:249
 #, elixir-autogen, elixir-format
@@ -1186,7 +1186,7 @@ msgstr "此邀請函是發給 %{email} 的。請登出並使用該帳戶登入�
 #: lib/tuist_web/live/accept_invitation_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
-msgstr "我們找不到您嘗試接受的邀請。請邀請者發送新的邀請。"
+msgstr "我們找不到您嘗試接受的邀請函。請邀請者重新發送邀請。"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:198
 #, elixir-autogen, elixir-format
@@ -1196,7 +1196,7 @@ msgstr "帳戶錯誤"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Allow members to sign in to Tuist through your identity provider."
-msgstr "允許成員透過您的身份提供者登入 Tuist。"
+msgstr "允許成員透過你的身份提供者登入 Tuist。"
 
 #: lib/tuist_web/live/authentication_settings_live.ex:36
 #: lib/tuist_web/live/authentication_settings_live.ex:66
@@ -1213,13 +1213,13 @@ msgstr "SCIM 端點 URL"
 #: lib/tuist_web/live/webhook_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Copy it now — it will not be shown again after you close this dialog."
-msgstr "立即複製 — 關閉此對話框後將不會再次顯示。"
+msgstr "立即複製 — 關閉此對話框後將不再顯示。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:79
 #: lib/tuist_web/live/authentication_settings_live.html.heex:828
 #, elixir-autogen, elixir-format
 msgid "Copy token"
-msgstr "複製權杖"
+msgstr "複製令牌"
 
 #: lib/tuist_web/live/account_token_live.html.heex:92
 #: lib/tuist_web/live/account_tokens_live.html.heex:286
@@ -1254,12 +1254,12 @@ msgstr "產生"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:789
 #, elixir-autogen, elixir-format
 msgid "Generate SCIM token"
-msgstr "產生 SCIM 權杖"
+msgstr "產生 SCIM 令牌"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:931
 #, elixir-autogen, elixir-format
 msgid "Generate one above to start provisioning from your IdP."
-msgstr "在上方產生一個以開始從你的 IdP 進行佈建。"
+msgstr "請產生上方令牌，以開始從你的 IdP 進行佈建。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:47
 #: lib/tuist_web/live/authentication_settings_live.html.heex:795
@@ -1280,19 +1280,19 @@ msgstr "已拒絕邀請"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:780
 #, elixir-autogen, elixir-format
 msgid "Issue one bearer token per IdP. Revoke a token if it leaks or is no longer needed."
-msgstr "每個身份提供者 (IdP) 簽發一個 bearer token。如果權杖洩漏或不再需要，請撤銷該權杖。"
+msgstr "每個 IdP 只簽發一個 bearer token。如果權杖外洩或不再需要，請撤銷該權杖。"
 
 #: lib/tuist_web/live/account_token_live.html.heex:88
 #: lib/tuist_web/live/account_tokens_live.html.heex:283
 #: lib/tuist_web/live/authentication_settings_live.html.heex:898
 #, elixir-autogen, elixir-format
 msgid "Last used"
-msgstr "最後使用時間"
+msgstr "上次使用時間"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the SCIM endpoint URL below using a bearer token."
-msgstr "讓您的 IdP（Okta、Azure AD/Entra、JumpCloud 等）使用下方的 SCIM 端點 URL 和 bearer token 將使用者佈建到此組織中。"
+msgstr "讓你的 IdP（Okta、Azure AD/Entra、JumpCloud 等）使用 bearer token，透過下方的 SCIM 端點 URL 將使用者配置到此組織中。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:846
 #, elixir-autogen, elixir-format
@@ -1359,17 +1359,17 @@ msgstr "未命名"
 #: lib/tuist_web/live/accept_invitation_live.ex:136
 #, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
-msgstr "你現在已成為 %{organization} 組織的一員"
+msgstr "你已加入 %{organization} 組織"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "You have accepted the invite to join the organization"
-msgstr "你已接受加入該組織的邀請"
+msgstr "你已接受邀請，加入該組織"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "You have rejected the invite to join the organization"
-msgstr "你已拒絕加入該組織的邀請"
+msgstr "你已拒絕邀請，沒有加入該組織"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:161
 #, elixir-autogen, elixir-format
@@ -1379,7 +1379,7 @@ msgstr "除非再次獲邀，否則你將無法存取此組織。"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:851
 #, elixir-autogen, elixir-format
 msgid "e.g. Okta"
-msgstr "例如：Okta"
+msgstr "例如 Okta"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:914
 #, elixir-autogen, elixir-format
@@ -1426,12 +1426,12 @@ msgstr "內文"
 #: lib/tuist_web/live/webhooks_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Configure HTTPS endpoints that receive events from projects in this account."
-msgstr "設定 HTTPS 端點，以接收此帳戶中專案的事件。"
+msgstr "設定接收此帳戶中專案事件的 HTTPS 端點。"
 
 #: lib/tuist_web/live/webhooks_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Copy it now — it will not be shown again after you close this dialog. Use it to verify the Tuist-Signature header on incoming webhooks."
-msgstr "立即複製 — 關閉此對話框後將不會再次顯示。用它來驗證傳入 Webhook 的 Tuist-Signature 標頭。"
+msgstr "立即複製 — 關閉此對話框後將不再顯示。用它來驗證傳入 Webhook 的 Tuist-Signature 標頭。"
 
 #: lib/tuist_web/live/webhook_live.html.heex:391
 #: lib/tuist_web/live/webhooks_live.html.heex:70
@@ -1454,7 +1454,7 @@ msgstr "刪除端點"
 #: lib/tuist_web/live/webhooks_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Delete this endpoint? It will stop receiving events."
-msgstr "確定要刪除此端點嗎？它將停止接收事件。"
+msgstr "要刪除此端點嗎？此舉將停止接收事件。"
 
 #: lib/tuist_web/live/webhook_live.ex:232
 #: lib/tuist_web/live/webhook_live.ex:269
@@ -1497,7 +1497,7 @@ msgstr "事件 ID"
 #: lib/tuist_web/live/webhook_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Event deliveries"
-msgstr "事件交付"
+msgstr "事件傳遞"
 
 #: lib/tuist_web/live/webhook_live.html.heex:234
 #, elixir-autogen, elixir-format
@@ -1517,7 +1517,7 @@ msgstr "篩選"
 #: lib/tuist_web/live/webhook_endpoint_form.ex:77
 #, elixir-autogen, elixir-format
 msgid "HTTPS only. Tuist will POST signed JSON envelopes here."
-msgstr "僅限 HTTPS。Tuist 會在此處 POST 已簽署的 JSON 信封。"
+msgstr "僅限 HTTPS。Tuist 會將簽署的 JSON 信封 POST 至此處。"
 
 #: lib/tuist_web/live/webhook_event_live.html.heex:99
 #: lib/tuist_web/live/webhook_event_live.html.heex:135
@@ -1528,7 +1528,7 @@ msgstr "標頭"
 #: lib/tuist_web/live/webhook_endpoint_form.ex:65
 #, elixir-autogen, elixir-format
 msgid "How this endpoint will be listed in the table."
-msgstr "此端點在表格中的顯示方式。"
+msgstr "此端點在表格中的顯示名稱。"
 
 #: lib/tuist_web/live/webhook_live.ex:250
 #, elixir-autogen, elixir-format
@@ -1548,27 +1548,27 @@ msgstr "過去 7 天"
 #: lib/tuist_web/live/webhooks_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Listening to"
-msgstr "監聽中"
+msgstr "監聽"
 
 #: lib/tuist_web/live/webhook_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "No deliveries yet"
-msgstr "尚無交付記錄"
+msgstr "暫無傳送記錄"
 
 #: lib/tuist_web/live/webhooks_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "No webhook endpoints yet"
-msgstr "尚無 Webhook 端點"
+msgstr "暫無 Webhook 端點"
 
 #: lib/tuist_web/live/webhook_live.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Once a matching event fires, attempts will show up here."
-msgstr "一旦觸發相符的事件，嘗試記錄將會顯示在此處。"
+msgstr "一旦觸發符合條件的事件，嘗試記錄將顯示於此。"
 
 #: lib/tuist_web/live/webhook_endpoint_form.ex:87
 #, elixir-autogen, elixir-format
 msgid "Only the selected events trigger a delivery to this endpoint."
-msgstr "只有已選取的事件才會觸發傳送至此端點。"
+msgstr "只有選定的事件會觸發向此端點的傳送。"
 
 #: lib/tuist_web/live/webhook_event_live.html.heex:82
 #, elixir-autogen, elixir-format
@@ -1595,7 +1595,7 @@ msgstr "輪換密鑰"
 #: lib/tuist_web/live/webhooks_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
-msgstr "輪換會替換簽章密鑰。現有用戶在更新之前將無法通過驗證。"
+msgstr "輪換會替換簽名密鑰。現有用戶在更新前將無法通過驗證。"
 
 #: lib/tuist_web/live/webhook_live.html.heex:243
 #, elixir-autogen, elixir-format
@@ -1605,13 +1605,13 @@ msgstr "按事件 ID 搜尋..."
 #: lib/tuist_web/live/webhook_endpoint_form.ex:108
 #, elixir-autogen, elixir-format
 msgid "Select all %{group} events"
-msgstr "選擇所有 %{group} 事件"
+msgstr "選取所有 %{group} 事件"
 
 #: lib/tuist_web/live/webhook_live.html.heex:83
 #: lib/tuist_web/live/webhook_live.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Selected events"
-msgstr "已選取的事件"
+msgstr "已選取事件"
 
 #: lib/tuist_web/live/webhook_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -1646,17 +1646,17 @@ msgstr "摘要"
 #: lib/tuist_web/live/webhook_event_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "The request didn't reach the destination."
-msgstr "請求未能到達目的地。"
+msgstr "請求未送達目的地。"
 
 #: lib/tuist_web/live/webhooks_live.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Tuist will POST signed JSON envelopes to each enabled endpoint. The signing secret is shown once when an endpoint is created or rotated."
-msgstr "Tuist 會將已簽署的 JSON 信封 POST 至每個已啟用的端點。簽署密鑰僅在建立或輪換端點時顯示一次。"
+msgstr "Tuist 會向每個已啟用的端點 POST 簽署的 JSON 信封。簽署密鑰只會在建立或輪換端點時顯示一次。"
 
 #: lib/tuist_web/live/webhook_event_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Webhook delivery attempt not found."
-msgstr "找不到 Webhook 傳送嘗試記錄。"
+msgstr "找不到 Webhook 遞送嘗試記錄。"
 
 #: lib/tuist_web/live/webhooks_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -1696,32 +1696,32 @@ msgstr "複製內文"
 #: lib/tuist_web/live/webhook_event_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Copy payload"
-msgstr "複製負載"
+msgstr "複製 payload"
 
-#: lib/tuist/accounts/user_notifier.ex:389
+#: lib/tuist/accounts/user_notifier.ex:393
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
-msgstr "您好 %{user_email}，您的帳戶已由身分識別供應商的自動化使用者佈建 (SCIM) 新增至 %{organization_name}。"
+msgstr "你好 %{user_email}，你的帳戶已由身份供應商的自動用戶配置 (SCIM) 加入 %{organization_name}。"
 
-#: lib/tuist/accounts/user_notifier.ex:404
+#: lib/tuist/accounts/user_notifier.ex:408
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
-msgstr "如果這並非預期，請聯絡您的身分識別供應商管理員（負責管理單一登入的團隊）以移除此佈建。Tuist 中的組織管理員也可以將您從 %{organization_name} 中移除。"
+msgstr "如果這不是你所預期的，請聯絡你的身份供應商管理員（負責管理單一登入的團隊）以移除此配置。Tuist 的組織管理員也可以將你從 %{organization_name} 中移除。"
 
-#: lib/tuist/accounts/user_notifier.ex:395
+#: lib/tuist/accounts/user_notifier.ex:399
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
-msgstr "如果這是預期的，則無需採取任何行動。您可以在此處開啟組織："
+msgstr "如果這是你所預期的，則無需採取任何行動。你可以在此處開啟組織："
 
-#: lib/tuist/accounts/user_notifier.ex:401
+#: lib/tuist/accounts/user_notifier.ex:405
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr "開啟 %{organization_name}"
 
-#: lib/tuist/accounts/user_notifier.ex:381
+#: lib/tuist/accounts/user_notifier.ex:385
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
-msgstr "您已加入 %{organization_name} Tuist 組織"
+msgstr "你已被加入 Tuist 組織 %{organization_name}"
 
 #: lib/tuist_web/live/members_live.ex:377
 #, elixir-autogen, elixir-format
@@ -1773,12 +1773,12 @@ msgstr "端點"
 #: lib/tuist_web/live/cache_live.ex:282
 #, elixir-autogen, elixir-format
 msgid "Generate credential"
-msgstr "產生憑證"
+msgstr "生成憑證"
 
 #: lib/tuist_web/live/cache_live.ex:466
 #, elixir-autogen, elixir-format
 msgid "Generate one to authorize your self-hosted nodes."
-msgstr "產生一個以授權你的自託管節點。"
+msgstr "產生一個以授權你嘅自託管節點。"
 
 #: lib/tuist_web/live/members_live.ex:439
 #, elixir-autogen, elixir-format
@@ -1793,12 +1793,12 @@ msgstr "邀請"
 #: lib/tuist_web/live/cache_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "Last heartbeat"
-msgstr "上次心跳時間"
+msgstr "最後心跳時間"
 
 #: lib/tuist_web/live/cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Manage where build artifacts are cached for this account."
-msgstr "管理此帳戶的構建產物緩存位置。"
+msgstr "管理此帳戶嘅構建產物緩存位置。"
 
 #: lib/tuist_web/live/cache_live.ex:464
 #, elixir-autogen, elixir-format
@@ -1808,7 +1808,7 @@ msgstr "尚未有憑證"
 #: lib/tuist_web/live/cache_live.ex:507
 #, elixir-autogen, elixir-format
 msgid "No registered nodes"
-msgstr "沒有已註冊的節點"
+msgstr "未註冊節點"
 
 #: lib/tuist_web/live/cache_live.ex:486
 #, elixir-autogen, elixir-format
@@ -1850,7 +1850,7 @@ msgstr "撤銷"
 #: lib/tuist_web/live/cache_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "Revoke %{name}? Self-hosted nodes using it will stop authenticating."
-msgstr "要撤銷 %{name} 嗎？使用它的自託管節點將停止驗證。"
+msgstr "要撤銷 %{name} 嗎？使用此憑證的自託管節點將停止驗證。"
 
 #: lib/tuist_web/live/cache_live.ex:409
 #: lib/tuist_web/live/cache_live.ex:420
@@ -1861,7 +1861,7 @@ msgstr "撤銷憑證"
 #: lib/tuist_web/live/cache_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Run your own cache nodes. Generate a credential they authenticate with, and they register themselves so the CLI can reach them directly."
-msgstr "自行運行快取節點。產生用於驗證的憑證，讓節點自行註冊，以便 CLI 可以直接連線至它們。"
+msgstr "自行運行快取節點。生成一組認證憑證供節點使用，節點會自行註冊，讓 CLI 可以直接連接。"
 
 #: lib/tuist_web/live/cache_live.ex:401
 #, elixir-autogen, elixir-format
@@ -1871,27 +1871,27 @@ msgstr "密鑰"
 #: lib/tuist_web/live/cache_live.ex:509
 #, elixir-autogen, elixir-format
 msgid "Self-hosted nodes appear here once they start sending registration heartbeats."
-msgstr "自託管節點在開始傳送註冊心跳訊號後，會顯示在此處。"
+msgstr "自託管節點開始發送註冊心跳後，就會在此顯示。"
 
 #: lib/tuist_web/live/cache_live.ex:478
 #, elixir-autogen, elixir-format
 msgid "Self-hosted nodes reporting in via registration heartbeats. The CLI routes cache traffic to each node's endpoint, and a node drops off this list when it stops heartbeating."
-msgstr "透過註冊心跳訊號回報的自託管節點。CLI 會將快取流量導向各節點的端點，當節點停止發送心跳訊號時，就會從此清單中移除。"
+msgstr "透過註冊心跳回報的自託管節點。CLI 會將快取流量路由至各節點的端點；當節點停止發送心跳時，就會從列表中移除。"
 
 #: lib/tuist_web/live/members_live.ex:449
 #, elixir-autogen, elixir-format
 msgid "Share this link with %{email} so they can join. You'll also find it in the invitations list."
-msgstr "分享此連結給 %{email}，讓他們加入。你也可以在邀請清單中找到此連結。"
+msgstr "分享此連結給 %{email} 以邀請加入。你也可以在邀請列表中找到此連結。"
 
 #: lib/tuist_web/live/cache_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Tenant-scoped credentials your nodes present to Tuist. A credential only authorizes this account's traffic."
-msgstr "你的節點向 Tuist 出示的租戶範圍憑證。該憑證僅授權此帳戶的流量。"
+msgstr "供你的節點向 Tuist 出示的租戶範圍憑證。該憑證僅授權此帳戶的流量。"
 
 #: lib/tuist_web/live/members_live.ex:443
 #, elixir-autogen, elixir-format
 msgid "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list."
-msgstr "我們已將此邀請電郵寄送至 %{email}。你也可以直接分享連結。它會保留在邀請清單中。"
+msgstr "我們已將邀請電郵發送至 %{email}。你也可以直接分享連結。它會保留在邀請列表中。"
 
 #: lib/tuist_web/live/members_live.ex:815
 #, elixir-autogen, elixir-format
@@ -1921,17 +1921,17 @@ msgstr "僅限 CI 和帳戶令牌"
 #: lib/tuist_web/live/cache_live.ex:156
 #, elixir-autogen, elixir-format
 msgid "Choose whether members can upload or CI is the trusted cache writer."
-msgstr "選擇成員是否可以上傳，或 CI 是否為受信任的快取寫入者。"
+msgstr "選擇成員是否可以上傳，或僅由 CI 作為受信任的快取寫入者。"
 
 #: lib/tuist_web/live/cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Members can download, but uploads require CI OIDC tokens or account tokens with cache write scopes."
-msgstr "成員可以下載，但上傳需要 CI OIDC 令牌或具有快取寫入範圍的帳戶令牌。"
+msgstr "成員可以下載，但上傳需要 CI OIDC 令牌或具有快取寫入權限的帳戶令牌。"
 
 #: lib/tuist_web/live/cache_live.ex:195
 #, elixir-autogen, elixir-format
 msgid "Members using login sessions, CI OIDC tokens, and account tokens with cache write scopes can upload."
-msgstr "使用登入工作階段、CI OIDC 令牌和具有快取寫入範圍的帳戶令牌的成員可以上傳。"
+msgstr "使用登入會話、CI OIDC 令牌及具有快取寫入權限的帳戶令牌的成員可以上傳。"
 
 #: lib/tuist_web/live/account_tokens_live.ex:140
 #, elixir-autogen, elixir-format
@@ -1947,12 +1947,12 @@ msgstr "帳戶權杖"
 #: lib/tuist_web/live/account_tokens_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Choose the scopes, optional expiration, and optional project restrictions for this token."
-msgstr "選擇此權杖的範圍、可選的過期時間，以及可選的專案限制。"
+msgstr "選擇此權杖的範圍、可選的過期時間，以及可選的項目限制。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Copy it now. It will not be shown again after you close this dialog."
-msgstr "請立即複製。關閉此對話框後將不再顯示。"
+msgstr "立即複製。關閉此對話框後將不再顯示。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:107
 #, elixir-autogen, elixir-format
@@ -1967,7 +1967,7 @@ msgstr "過期時間必須使用持續時間格式，例如 30d、6m 或 1y。"
 #: lib/tuist_web/live/account_token_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Expires"
-msgstr "過期於"
+msgstr "過期"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:35
 #, elixir-autogen, elixir-format
@@ -1977,7 +1977,7 @@ msgstr "產生帳戶權杖"
 #: lib/tuist_web/live/account_tokens_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Generate one above to authenticate CI, automation, or integrations without using a user session."
-msgstr "在上方產生一個權杖，以便在不使用使用者工作階段的情況下驗證 CI、自動化或整合。"
+msgstr "在上面產生一個權杖，以便在不使用使用者工作階段的情況下驗證 CI、自動化或整合。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:291
 #, elixir-autogen, elixir-format
@@ -1987,7 +1987,7 @@ msgstr "尚未有帳戶權杖"
 #: lib/tuist_web/live/account_tokens_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Optional. Use 30d, 6m, or 1y. Leave empty for a token that never expires."
-msgstr "可選。使用 30d、6m 或 1y。留空以建立永不過期的權杖。"
+msgstr "選填。可使用 30d、6m 或 1y。留空則建立永不過期的權杖。"
 
 #: lib/tuist_web/live/account_token_live.html.heex:37
 #, elixir-autogen, elixir-format
@@ -1997,17 +1997,17 @@ msgstr "要撤銷 %{name} 嗎？此操作無法復原。"
 #: lib/tuist_web/live/account_tokens_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Scopes"
-msgstr "範圍"
+msgstr "權限範圍"
 
 #: lib/tuist_web/live/account_tokens_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Select at least one scope."
-msgstr "請至少選擇一個範圍。"
+msgstr "請至少選擇一個權限範圍。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Select one or more scopes. Presets expand to several fine-grained permissions when the token is used."
-msgstr "選擇一個或多個範圍。預設會在權杖使用時展開為多個細粒度權限。"
+msgstr "選擇一個或多個權限範圍。預設集會在使用權杖時展開為多個細粒度權限。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -2017,7 +2017,7 @@ msgstr "使用穩定的名稱，以便日後撤銷或輪換此權杖。"
 #: lib/tuist_web/live/account_tokens_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to create account tokens."
-msgstr "您無權建立帳戶權杖。"
+msgstr "你無權建立帳戶權杖。"
 
 #: lib/tuist_web/live/account_token_live.ex:56
 #, elixir-autogen, elixir-format
@@ -2077,7 +2077,7 @@ msgstr "快取寫入"
 #: lib/tuist_web/live/account_token_helpers.ex:116
 #, elixir-autogen, elixir-format
 msgid "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
-msgstr "為 CI 工作進行快取寫入、預覽、捆綁、測試、建置和執行。"
+msgstr "為 CI 工作進行快取寫入、預覽、捆綁包、測試、構建和運行。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:212
 #, elixir-autogen, elixir-format
@@ -2087,7 +2087,7 @@ msgstr "建立和管理預覽。"
 #: lib/tuist_web/live/account_token_helpers.ex:244
 #, elixir-autogen, elixir-format
 msgid "Create and manage runs."
-msgstr "建立和管理執行。"
+msgstr "建立和管理運行。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:172
 #, elixir-autogen, elixir-format
@@ -2102,12 +2102,12 @@ msgstr "管理專案管理資料。"
 #: lib/tuist_web/live/account_token_helpers.ex:145
 #, elixir-autogen, elixir-format
 msgid "Members read"
-msgstr "成員讀取權限"
+msgstr "成員讀取"
 
 #: lib/tuist_web/live/account_token_helpers.ex:146
 #, elixir-autogen, elixir-format
 msgid "Members write"
-msgstr "成員寫入權限"
+msgstr "成員寫入"
 
 #: lib/tuist_web/live/account_token_helpers.ex:17
 #, elixir-autogen, elixir-format
@@ -2117,12 +2117,12 @@ msgstr "預設值"
 #: lib/tuist_web/live/account_token_helpers.ex:147
 #, elixir-autogen, elixir-format
 msgid "Previews read"
-msgstr "預覽讀取權限"
+msgstr "預覽讀取"
 
 #: lib/tuist_web/live/account_token_helpers.ex:148
 #, elixir-autogen, elixir-format
 msgid "Previews write"
-msgstr "預覽寫入權限"
+msgstr "預覽寫入"
 
 #: lib/tuist_web/live/account_token_helpers.ex:30
 #: lib/tuist_web/live/account_token_live.html.heex:157
@@ -2133,7 +2133,7 @@ msgstr "專案"
 #: lib/tuist_web/live/account_token_helpers.ex:180
 #, elixir-autogen, elixir-format
 msgid "Publish packages to the account registry."
-msgstr "將套件發佈至帳戶註冊表。"
+msgstr "將套件發布至帳戶註冊表。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:160
 #, elixir-autogen, elixir-format
@@ -2153,12 +2153,12 @@ msgstr "讀取和寫入專案快取項目。"
 #: lib/tuist_web/live/account_token_helpers.ex:232
 #, elixir-autogen, elixir-format
 msgid "Read build analytics."
-msgstr "讀取建置分析數據。"
+msgstr "讀取建構分析資料。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:216
 #, elixir-autogen, elixir-format
 msgid "Read bundle analytics."
-msgstr "讀取套件分析數據。"
+msgstr "讀取套件分析資料。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:168
 #, elixir-autogen, elixir-format
@@ -2188,37 +2188,37 @@ msgstr "讀取項目快取項目。"
 #: lib/tuist_web/live/account_token_helpers.ex:240
 #, elixir-autogen, elixir-format
 msgid "Read runs."
-msgstr "讀取運行。"
+msgstr "讀取執行記錄。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:224
 #, elixir-autogen, elixir-format
 msgid "Read test analytics."
-msgstr "讀取測試分析。"
+msgstr "讀取測試分析數據。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:149
 #, elixir-autogen, elixir-format
 msgid "Registry read"
-msgstr "Registry 讀取"
+msgstr "註冊表讀取"
 
 #: lib/tuist_web/live/account_token_helpers.ex:150
 #, elixir-autogen, elixir-format
 msgid "Registry write"
-msgstr "Registry 寫入"
+msgstr "註冊表寫入"
 
 #: lib/tuist_web/live/account_token_helpers.ex:151
 #, elixir-autogen, elixir-format
 msgid "Runs read"
-msgstr "Runs 讀取"
+msgstr "執行記錄讀取"
 
 #: lib/tuist_web/live/account_token_helpers.ex:152
 #, elixir-autogen, elixir-format
 msgid "Runs write"
-msgstr "Runs 寫入"
+msgstr "執行記錄寫入"
 
 #: lib/tuist_web/live/account_token_helpers.ex:155
 #, elixir-autogen, elixir-format
 msgid "Tests read"
-msgstr "Tests 讀取"
+msgstr "測試讀取"
 
 #: lib/tuist_web/live/account_token_helpers.ex:156
 #, elixir-autogen, elixir-format
@@ -2228,17 +2228,17 @@ msgstr "測試寫入"
 #: lib/tuist_web/live/account_token_helpers.ex:236
 #, elixir-autogen, elixir-format
 msgid "Upload and manage build data."
-msgstr "上傳及管理建構資料。"
+msgstr "上傳並管理構建數據。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:220
 #, elixir-autogen, elixir-format
 msgid "Upload and manage bundle data."
-msgstr "上傳及管理套件資料。"
+msgstr "上傳並管理套件數據。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:228
 #, elixir-autogen, elixir-format
 msgid "Upload and manage test data."
-msgstr "上傳及管理測試資料。"
+msgstr "上傳並管理測試數據。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:26
 #, elixir-autogen, elixir-format
@@ -2270,7 +2270,7 @@ msgstr "項目存取權限"
 #: lib/tuist_web/live/account_token_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "This token does not have access to any projects."
-msgstr "此令牌無法存取任何項目。"
+msgstr "此令牌無任何項目的存取權限。"
 
 #: lib/tuist_web/live/account_token_live.html.heex:137
 #, elixir-autogen, elixir-format
@@ -2280,7 +2280,7 @@ msgstr "此令牌可存取此帳戶中的所有項目。"
 #: lib/tuist_web/live/account_token_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "%{name} was revoked."
-msgstr "%{name} 已被撤銷。"
+msgstr "%{name} 已撤銷。"
 
 #: lib/tuist_web/live/account_token_live.ex:38
 #, elixir-autogen, elixir-format
@@ -2300,7 +2300,7 @@ msgstr "無法撤銷令牌。"
 #: lib/tuist_web/live/account_token_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Handle"
-msgstr "帳號"
+msgstr "處理方式"
 
 #: lib/tuist_web/live/account_token_live.html.heex:116
 #, elixir-autogen, elixir-format
@@ -2320,7 +2320,7 @@ msgstr "選擇所有項目"
 #: lib/tuist_web/live/account_tokens_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "Select at least one project or select all projects."
-msgstr "請至少選擇一個項目或選擇所有項目。"
+msgstr "請至少選擇一個項目，或選擇所有項目。"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:121
 #, elixir-autogen, elixir-format
@@ -2330,7 +2330,7 @@ msgstr "選擇此令牌可以訪問的項目。保持全部選中以包含此帳
 #: lib/tuist_web/live/account_tokens_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "This account does not have projects yet. The token will apply to all projects in this account."
-msgstr "此帳戶尚未有項目。該令牌將應用於此帳戶中的所有項目。"
+msgstr "此帳戶尚未有項目。此令牌將應用於此帳戶中的所有項目。"
 
 #: lib/tuist_web/live/account_tokens_live.ex:360
 #, elixir-autogen, elixir-format
@@ -2345,7 +2345,7 @@ msgstr "選擇所有項目範圍"
 #: lib/tuist_web/live/account_token_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Revoke account token?"
-msgstr "撤銷帳戶令牌？"
+msgstr "撤銷帳戶權杖？"
 
 #: lib/tuist_web/live/billing_live.html.heex:382
 #, elixir-autogen, elixir-format
@@ -2375,7 +2375,7 @@ msgstr "請先設定並儲存登入網域。"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "Login email domain"
-msgstr "登入電郵網域"
+msgstr "登入電子郵件網域"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:314
 #, elixir-autogen, elixir-format
@@ -2395,12 +2395,12 @@ msgstr "記錄值"
 #: lib/tuist_web/live/authentication_settings_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "Save the login domain before verifying it."
-msgstr "在驗證登入網域之前，請先儲存。"
+msgstr "驗證前先儲存登入網域。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Select the identity provider that authenticates your organization members."
-msgstr "選擇用於驗證貴組織成員的身分提供者。"
+msgstr "選擇用於驗證你機構成員的身分提供者。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:310
 #, elixir-autogen, elixir-format
@@ -2415,27 +2415,27 @@ msgstr "驗證網域"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
-msgstr "啟用後，來自已驗證登入電郵網域的用戶可以自動加入此組織。其他用戶則需要邀請。"
+msgstr "啟用後，來自已驗證登入電郵網域的用戶可以自動加入此機構。其他用戶需要邀請。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:634
 #, elixir-autogen, elixir-format
 msgid "When enabled, users whose Google Workspace domain matches can join this organization automatically. Other users need an invitation."
-msgstr "啟用後，Google Workspace 網域相符的用戶可以自動加入此組織。其他用戶則需要邀請。"
+msgstr "啟用後，Google Workspace 網域相符的用戶可以自動加入此機構。其他用戶需要邀請。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "Verify a login email domain before enforcing single sign-on for this provider."
-msgstr "在為此供應商強制執行單一登入之前，先驗證登入電子郵件網域。"
+msgstr "在為此供應商強制執行單一登入之前，先驗證登入電郵域名。"
 
 #: lib/tuist_web/live/cache_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Learn how to authenticate CI"
-msgstr "了解如何驗證 CI"
+msgstr "了解如何對 CI 進行身份驗證"
 
 #: lib/tuist_web/live/cache_live.ex:192
 #, elixir-autogen, elixir-format
 msgid "Members, CI and account tokens"
-msgstr "成員、CI 及帳戶權杖"
+msgstr "成員、CI 及帳戶令牌"
 
 #: lib/tuist_web/live/cache_live.ex:70
 #, elixir-autogen, elixir-format
@@ -2446,22 +2446,22 @@ msgstr "輸入名稱以識別此憑證。"
 #: lib/tuist_web/live/cache_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Upload access"
-msgstr "上傳存取權限"
+msgstr "上傳權限"
 
 #: lib/tuist_web/live/cache_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Self-hosted servers"
-msgstr "自行託管伺服器"
+msgstr "自託管伺服器"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Copy the Directory (tenant) ID and Application (client) ID from the application overview"
-msgstr "從應用程式概覽複製目錄 (租用戶) ID 和應用程式 (用戶端) ID"
+msgstr "從應用程式概覽複製目錄（租戶）ID 和應用程式（客戶端）ID"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Create a client secret under Certificates & secrets and copy its value"
-msgstr "在「證書與密碼」下建立用戶端密碼並複製其值"
+msgstr "在「憑證與密碼」下建立用戶端密碼並複製其值"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:457
 #, elixir-autogen, elixir-format
@@ -2476,7 +2476,7 @@ msgstr "前往 [身分識別] > [應用程式] > [應用程式註冊] > [新註�
 #: lib/tuist_web/live/authentication_settings_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Register an application in your Microsoft Entra admin center before configuring the fields below."
-msgstr "在設定以下欄位之前，請先在 Microsoft Entra 系統管理中心註冊應用程式。"
+msgstr "請先在 Microsoft Entra 系統管理中心註冊應用程式，再設定以下欄位。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:185
 #, elixir-autogen, elixir-format
@@ -2491,12 +2491,12 @@ msgstr "將首頁 URL 設為："
 #: lib/tuist_web/live/authentication_settings_live.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "The directory (tenant) ID of your Entra application. Tuist derives the authorize, token, and user info endpoints from it."
-msgstr "Entra 應用程式的目錄 (租戶) ID。Tuist 會由此衍生出授權、權杖及使用者資訊端點。"
+msgstr "你的 Entra 應用程式的目錄 (租戶) ID。Tuist 會據此推導出授權、權杖及使用者資訊端點。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Under API permissions, grant the delegated openid, profile, and email permissions"
-msgstr "在 API 權限下，授予委派的 openid、profile 和 email 權限"
+msgstr "在 API 權限下，授予 openid、profile 和 email 委派權限"
 
 #: lib/tuist_web/live/billing_live.ex:270
 #, elixir-autogen, elixir-format
@@ -2520,17 +2520,17 @@ msgstr "試用期內免費"
 #: lib/tuist_web/live/billing_live.ex:291
 #, elixir-autogen, elixir-format
 msgid "no paid plan to bill against"
-msgstr "沒有可扣款的付費方案"
+msgstr "沒有可計費的付費方案"
 
 #: lib/tuist_web/live/billing_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "on your next invoice"
-msgstr "於你的下一張發票"
+msgstr "於下一張發票中"
 
 #: lib/tuist_web/live/billing_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "within your %{count} free minutes"
-msgstr "於你的 %{count} 分鐘免費額度內"
+msgstr "喺你 %{count} 分鐘免費額度內"
 
 #: lib/tuist_web/live/billing_live.html.heex:93
 #, elixir-autogen, elixir-format
@@ -2558,115 +2558,115 @@ msgstr "已註冊成員的角色"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:670
 #, elixir-autogen, elixir-format
 msgid "The role members get when they join through automatic enrollment."
-msgstr "成員透過自動註冊加入時所獲得的角色。"
+msgstr "成員透過自動註冊加入時獲得的角色。"
 
-#: lib/tuist/accounts/user_notifier.ex:473
+#: lib/tuist/accounts/user_notifier.ex:477
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
-msgstr "Pro 方案包含相同的免費額度，超出部分按用量計費。"
+msgstr "Pro 計劃包含相同的免費額度，超出部分按用量計費。"
 
-#: lib/tuist/accounts/user_notifier.ex:654
+#: lib/tuist/accounts/user_notifier.ex:658
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr "此帳戶的遠端快取存取已暫停。升級至 Pro 以繼續使用快取，或等待免費額度重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:470
+#: lib/tuist/accounts/user_notifier.ex:474
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
 msgstr "檢視用量並升級"
 
-#: lib/tuist/accounts/user_notifier.ex:663
+#: lib/tuist/accounts/user_notifier.ex:667
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
-msgstr "你即將達到 Air 用量上限"
+msgstr "你即將達到 Air 計劃的限制"
 
-#: lib/tuist/accounts/user_notifier.ex:664
+#: lib/tuist/accounts/user_notifier.ex:668
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
-msgstr "你即將用盡每月的免費額度。請在達到上限前升級至 Pro，以確保遠端快取存取不會中斷。"
+msgstr "你即將用完每月免費額度。請在達到上限前升級至 Pro，以確保遠端快取存取不會中斷。"
 
-#: lib/tuist/accounts/user_notifier.ex:476
-#: lib/tuist/accounts/user_notifier.ex:563
-#: lib/tuist/accounts/user_notifier.ex:601
+#: lib/tuist/accounts/user_notifier.ex:480
+#: lib/tuist/accounts/user_notifier.ex:567
+#: lib/tuist/accounts/user_notifier.ex:605
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
-msgstr "你收到這封電郵是因為你管理此 Tuist 帳戶。"
+msgstr "你收到此電郵是因為你管理此 Tuist 帳戶。"
 
-#: lib/tuist/accounts/user_notifier.ex:653
+#: lib/tuist/accounts/user_notifier.ex:657
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
-msgstr "你已達到 Air 限制"
+msgstr "你已達到 Air 上限"
 
-#: lib/tuist/accounts/user_notifier.ex:463
+#: lib/tuist/accounts/user_notifier.ex:467
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr "你的免費額度將於 %{date}（UTC）重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:607
+#: lib/tuist/accounts/user_notifier.ex:611
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} baseline runner minutes used"
-msgstr "已使用 %{usage} / %{limit} 基本執行器分鐘數"
+msgstr "已使用 %{usage} / %{limit} 基準執行器分鐘數"
 
-#: lib/tuist/accounts/user_notifier.ex:634
+#: lib/tuist/accounts/user_notifier.ex:638
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr "此帳戶的新執行器工作已暫停。升級至 Pro 以繼續執行工作，或等待你的免費執行器額度重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:633
+#: lib/tuist/accounts/user_notifier.ex:637
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
-msgstr "你已達到 Air 執行器限制"
+msgstr "你已達到 Air 執行器上限"
 
-#: lib/tuist/accounts/user_notifier.ex:644
+#: lib/tuist/accounts/user_notifier.ex:648
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
-msgstr "你即將用盡每月的免費執行器額度。請在達到上限前升級至 Pro，以繼續使用執行器。"
+msgstr "你即將用完每月免費執行器額度。請在達到上限前升級至 Pro，以繼續使用執行器。"
 
-#: lib/tuist/accounts/user_notifier.ex:643
+#: lib/tuist/accounts/user_notifier.ex:647
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
-msgstr "你即將達到 Air runner 的限制"
+msgstr "你快將達到 Air Runner 限額"
 
-#: lib/tuist/accounts/user_notifier.ex:446
+#: lib/tuist/accounts/user_notifier.ex:450
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air limit"
-msgstr "%{account_name} 已達到其 Air 限制的 %{percentage}%"
+msgstr "%{account_name} 已使用 %{percentage}% 嘅 Air 限額"
 
-#: lib/tuist/accounts/user_notifier.ex:441
+#: lib/tuist/accounts/user_notifier.ex:445
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
-msgstr "%{account_name} 已達到其 Air runner 限制的 %{percentage}%"
+msgstr "%{account_name} 已使用 %{percentage}% 嘅 Air Runner 限額"
 
 #: lib/tuist/accounts/user_notifier.ex:229
 #, elixir-autogen, elixir-format
 msgid "All rights reserved."
 msgstr "版權所有。"
 
-#: lib/tuist/accounts/user_notifier.ex:681
+#: lib/tuist/accounts/user_notifier.ex:685
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
-msgstr "你好 %{email}，你可以點擊下面的按鈕更改你的電郵地址："
+msgstr "%{email}，你好，你可以點擊下面嘅按鈕更改電郵地址："
 
-#: lib/tuist/accounts/user_notifier.ex:686
+#: lib/tuist/accounts/user_notifier.ex:690
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
-msgstr "如果你沒有要求此更改，請忽略此電郵。"
+msgstr "如果你冇要求進行此更改，請忽略此電郵。"
 
 #: lib/tuist/accounts/user_notifier.ex:226
 #, elixir-autogen, elixir-format
 msgid "This email was sent by Tuist. By using our services, you agree to our"
-msgstr "此電郵由 Tuist 發送。使用我們的服務即表示你同意我們的"
+msgstr "此電郵由 Tuist 發出。使用我哋嘅服務即表示你同意我哋嘅"
 
-#: lib/tuist/accounts/user_notifier.ex:677
+#: lib/tuist/accounts/user_notifier.ex:681
 #, elixir-autogen, elixir-format
 msgid "Update email instructions"
-msgstr "更新電郵地址指示"
+msgstr "更新電郵地址指引"
 
-#: lib/tuist/accounts/user_notifier.ex:679
-#: lib/tuist/accounts/user_notifier.ex:685
+#: lib/tuist/accounts/user_notifier.ex:683
+#: lib/tuist/accounts/user_notifier.ex:689
 #, elixir-autogen, elixir-format
 msgid "Update your email"
-msgstr "更新你的電子郵件"
+msgstr "更新你的電郵"
 
 #: lib/tuist/accounts/user_notifier.ex:227
 #, elixir-autogen, elixir-format
@@ -2676,7 +2676,7 @@ msgstr "服務條款"
 #: lib/tuist_web/live/billing_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "%{quantity} above free tier"
-msgstr "超出免費層級 %{quantity} 個"
+msgstr "超出免費方案 %{quantity}"
 
 #: lib/tuist_web/live/billing_live.ex:178
 #, elixir-autogen, elixir-format
@@ -2701,43 +2701,43 @@ msgstr "通過的測試案例："
 #: lib/tuist_web/live/billing_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Cache egress"
-msgstr "快取流出"
+msgstr "快取流出量"
 
 #: lib/tuist_web/live/billing_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Cache egress:"
-msgstr "快取流出："
+msgstr "快取流出量："
 
 #: lib/tuist_web/live/billing_live.ex:277
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "of your usage"
-msgstr "佔您用量"
+msgstr "佔你用量嘅"
 
 #: lib/tuist_web/live/billing_live.ex:281
 #, elixir-autogen, elixir-format
 msgid "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)"
-msgstr "佔您用量（%{free} 分鐘免費執行器時間加上 %{prepaid} 預付）"
+msgstr "佔你用量（%{free} 分鐘免費執行器時間加 %{prepaid} 預付）"
 
-#: lib/tuist/accounts/user_notifier.ex:617
+#: lib/tuist/accounts/user_notifier.ex:621
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
-msgstr "已使用 %{usage} / %{limit} 次快取請求"
+msgstr "已用 %{usage} / %{limit} 次快取請求"
 
-#: lib/tuist/accounts/user_notifier.ex:610
+#: lib/tuist/accounts/user_notifier.ex:614
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
-msgstr "已使用 %{usage} / %{limit} 快取流出量"
+msgstr "已用 %{usage} / %{limit} 快取流出量"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:654
 #, elixir-autogen, elixir-format
 msgid "Add and verify a login email domain before enabling automatic enrollment. Until then, the provider cannot create accounts, and members link their existing account after logging in. Existing linked users can continue signing in."
-msgstr "請先新增並驗證登入電郵網域，再啟用自動註冊。在此之前，供應商無法建立帳戶，成員需在登入後連結其現有帳戶。已連結的用戶可以繼續登入。"
+msgstr "啟用自動註冊前，請先新增並驗證登入電郵域名。在此之前，供應商無法建立帳戶，成員需於登入後連結現有帳戶。已連結用戶可繼續登入。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:649
 #, elixir-autogen, elixir-format
 msgid "Automatic enrollment is paused until the login email domain is verified. Existing linked users can continue signing in."
-msgstr "在驗證登入電郵網域之前，自動註冊已暫停。已連結的用戶可以繼續登入。"
+msgstr "登入電郵域名未經驗證，自動註冊已暫停。已連結用戶可繼續登入。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:769
 #, elixir-autogen, elixir-format
@@ -2747,13 +2747,13 @@ msgstr "複製 SCIM 端點 URL"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Copy home page URL"
-msgstr "複製首頁網址"
+msgstr "複製主頁網址"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:154
 #: lib/tuist_web/live/authentication_settings_live.html.heex:275
 #, elixir-autogen, elixir-format
 msgid "Copy initiate login URI"
-msgstr "複製啟動登入 URI"
+msgstr "複製發起登入 URI"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:399
 #, elixir-autogen, elixir-format
@@ -2770,12 +2770,12 @@ msgstr "複製記錄值"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Copy redirect URI"
-msgstr "複製重新導向 URI"
+msgstr "複製重定向 URI"
 
 #: lib/tuist_web/live/authentication_settings_live.ex:314
 #, elixir-autogen, elixir-format
 msgid "No TXT record with the verification value was found at %{record_name}. DNS changes can take a while to propagate, so try again in a few minutes."
-msgstr "在 %{record_name} 找不到包含驗證值的 TXT 記錄。DNS 變更可能需要一段時間才能生效，請稍後幾分鐘再試一次。"
+msgstr "在 %{record_name} 找不到包含驗證值的 TXT 記錄。DNS 變更可能需要一段時間才能生效，請幾分鐘後再試一次。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:386
 #, elixir-autogen, elixir-format
@@ -2785,7 +2785,7 @@ msgstr "記錄類型"
 #: lib/tuist_web/live/authentication_settings_live.ex:914
 #, elixir-autogen, elixir-format
 msgid "Add the TXT record below at your DNS provider, then click Verify domain."
-msgstr "請在你的 DNS 供應商處新增下方的 TXT 記錄，然後點擊「驗證網域」。"
+msgstr "請向你的 DNS 供應商添加下方的 TXT 記錄，然後點擊「驗證網域」。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:301
 #, elixir-autogen, elixir-format
@@ -2797,7 +2797,7 @@ msgstr[1] "%{count} 日後過期"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:326
 #, elixir-autogen, elixir-format
 msgid "Once verified, used to find your provider and to decide which email addresses to trust."
-msgstr "驗證後用於尋找你的供應商，並決定信任哪些電郵地址。"
+msgstr "驗證後，用於識別你的供應商並決定信任哪些電郵地址。"
 
 #: lib/tuist_web/live/authentication_settings_live.ex:908
 #, elixir-autogen, elixir-format
@@ -2807,20 +2807,20 @@ msgstr "下方的 TXT 記錄已無法解析。請在你的 DNS 供應商處重�
 #: lib/tuist_web/live/authentication_settings_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Used to find your provider and to decide which email addresses to trust."
-msgstr "用於尋找你的供應商，並決定信任哪些電郵地址。"
+msgstr "用於識別你的供應商並決定信任哪些電郵地址。"
 
 #: lib/tuist_web/plugs/api/authorization/billing_plug.ex:128
 #, elixir-autogen, elixir-format
 msgid "A payment for the subscription of the account '%{account}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice at %{url} to restore access."
-msgstr "帳戶「%{account}」的訂閱付款失敗，因此該帳戶已受限於「Tuist Air」方案的免費層級，且額度已用盡。請在 %{url} 更新付款方式並支付未結發票以恢復存取權限。"
+msgstr "帳號「%{account}」的訂閱付款失敗，因此該帳號已受限於「Tuist Air」方案的免費層級，且額度已用盡。請在 %{url} 更新付款方式並支付未結發票，以恢復存取權限。"
 
 #: lib/tuist_web/live/billing_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "A payment for your subscription failed"
 msgstr "你的訂閱付款失敗"
 
-#: lib/tuist/accounts/user_notifier.ex:562
-#: lib/tuist/accounts/user_notifier.ex:600
+#: lib/tuist/accounts/user_notifier.ex:566
+#: lib/tuist/accounts/user_notifier.ex:604
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
@@ -2829,82 +2829,82 @@ msgstr "支付未結發票"
 #: lib/tuist_web/live/billing_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Your plan is limited to the free tier of the Air plan until the open invoice is paid."
-msgstr "在付清未結發票之前，你的方案僅限於 Air 方案的免費層級。"
+msgstr "在結清未付發票之前，你的方案將受限於 Air 方案的免費層級。"
 
 #: lib/tuist_web/live/billing_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
-msgstr "在重新嘗試付款期間，你的方案會保持活躍狀態。請付清未結發票或更新你的付款方式以維持方案。"
+msgstr "在重試付款期間，你的方案會保持活躍。請支付未付發票或更新付款方式以維持方案。"
 
-#: lib/tuist/accounts/user_notifier.ex:543
+#: lib/tuist/accounts/user_notifier.ex:547
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
 msgstr "%{account_name} 的 Tuist 訂閱付款失敗"
 
-#: lib/tuist/accounts/user_notifier.ex:560
+#: lib/tuist/accounts/user_notifier.ex:564
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
-msgstr "請付清未結發票或更新你的付款方式以維持你的方案："
+msgstr "請支付未付發票或更新付款方式以維持你的方案："
 
-#: lib/tuist/accounts/user_notifier.ex:550
+#: lib/tuist/accounts/user_notifier.ex:554
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
-msgstr "我們無法對 %{account_name} 訂閱項目中已記錄的付款方式進行扣款。系統將自動重新嘗試付款。"
+msgstr "我們無法從 %{account_name} 訂閱的已存付款方式扣款。系統會自動重試付款。"
 
-#: lib/tuist/accounts/user_notifier.ex:548
+#: lib/tuist/accounts/user_notifier.ex:552
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
 msgstr "你的訂閱付款失敗"
 
-#: lib/tuist/accounts/user_notifier.ex:555
+#: lib/tuist/accounts/user_notifier.ex:559
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
-msgstr "在重新嘗試付款期間，你的方案會保持活躍狀態。如果在重試結束後仍未成功，%{account_name} 將僅限使用 Air 方案的免費層級，直到發票付清為止。"
+msgstr "在重試付款期間，你的方案會保持活躍。如果重試結束後仍未成功，%{account_name} 將受限於 Air 方案的免費層級，直到付清發票為止。"
 
-#: lib/tuist/accounts/user_notifier.ex:582
+#: lib/tuist/accounts/user_notifier.ex:586
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
 msgstr "由於訂閱付款失敗，%{account_name} 已轉至 Air 方案"
 
-#: lib/tuist/accounts/user_notifier.ex:594
+#: lib/tuist/accounts/user_notifier.ex:598
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
-msgstr "繳付未結算的發票即可恢復你的方案。你亦可以在付款前更新付款方式："
+msgstr "繳付未結清發票即可恢復你的方案。你亦可在付款前更新付款方式："
 
-#: lib/tuist/accounts/user_notifier.ex:589
+#: lib/tuist/accounts/user_notifier.ex:593
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
-msgstr "我們無法為 %{account_name} 的訂閱收取款項，且重試次數已用盡。%{account_name} 現已限制使用 Air 方案的免費層級。"
+msgstr "我們無法收取 %{account_name} 訂閱的款項，且重試已結束。%{account_name} 現時僅限使用 Air 方案的免費層級。"
 
-#: lib/tuist/accounts/user_notifier.ex:587
+#: lib/tuist/accounts/user_notifier.ex:591
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
-msgstr "你的帳戶已轉至 Air 方案"
+msgstr "你的帳戶已轉為 Air 方案"
 
 #: lib/tuist_web/live/account_token_helpers.ex:188
 #, elixir-autogen, elixir-format
 msgid "Manage runner profiles and clear runner volumes."
-msgstr "管理 Runner 設定檔並清除 Runner 儲存空間。"
+msgstr "管理執行器設定檔並清除執行器儲存空間。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:184
 #, elixir-autogen, elixir-format
 msgid "Read runner jobs, workflows, profiles, and volumes."
-msgstr "讀取 Runner 工作、工作流程、設定檔和儲存空間。"
+msgstr "讀取執行器工作、工作流程、設定檔及儲存空間。"
 
 #: lib/tuist_web/live/account_token_helpers.ex:153
 #, elixir-autogen, elixir-format
 msgid "Runners read"
-msgstr "Runner 讀取權限"
+msgstr "執行器讀取權限"
 
 #: lib/tuist_web/live/account_token_helpers.ex:154
 #, elixir-autogen, elixir-format
 msgid "Runners write"
-msgstr "Runner 寫入權限"
+msgstr "執行器寫入權限"
 
 #: lib/tuist_web/components/workload_identities.ex:138
 #, elixir-autogen, elixir-format
 msgid "A JSON object with 1 to 10 claims. Values must be strings, integers, or booleans and match exactly."
-msgstr "包含 1 至 10 個聲明的 JSON 物件。值必須為字串、整數或布林值，且需完全匹配。"
+msgstr "包含 1 至 10 個聲明（claims）的 JSON 物件。值必須為字串、整數或布林值，且需完全相符。"
 
 #: lib/tuist_web/components/workload_identities.html.heex:149
 #, elixir-autogen, elixir-format
@@ -2931,22 +2931,22 @@ msgstr "受眾"
 #: lib/tuist_web/components/workload_identities.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Claims"
-msgstr "聲明"
+msgstr "宣告"
 
 #: lib/tuist_web/components/workload_identities.ex:155
 #, elixir-autogen, elixir-format
 msgid "Claims must be a JSON object."
-msgstr "聲明必須是 JSON 物件。"
+msgstr "宣告必須是 JSON 物件。"
 
 #: lib/tuist_web/components/workload_identities.ex:163
 #, elixir-autogen, elixir-format
 msgid "Claims must be valid JSON of at most 8 KiB."
-msgstr "聲明必須是有效的 JSON，大小最多為 8 KiB。"
+msgstr "宣告必須是有效的 JSON，大小最多為 8 KiB。"
 
 #: lib/tuist_web/components/workload_identities.ex:158
 #, elixir-autogen, elixir-format
 msgid "Claims must be valid JSON."
-msgstr "聲明必須是有效的 JSON。"
+msgstr "宣告必須是有效的 JSON。"
 
 #: lib/tuist_web/components/workload_identities.html.heex:69
 #, elixir-autogen, elixir-format
@@ -2962,7 +2962,7 @@ msgstr "請輸入有效的 Fly.io 組織 slug，以及數字的組織和應用�
 #: lib/tuist_web/components/workload_identities.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Issuer URL"
-msgstr "發行者 URL"
+msgstr "簽發者 URL"
 
 #: lib/tuist_web/components/workload_identities.ex:125
 #: lib/tuist_web/components/workload_identities.html.heex:186
@@ -3019,7 +3019,7 @@ msgstr "工作負載身分"
 #: lib/tuist_web/components/workload_identities.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Your manual changes override this template. Review the advanced configuration."
-msgstr "你的手動變更會覆寫此範本。請檢視進階設定。"
+msgstr "你嘅手動變更會覆蓋此範本。請檢視進階設定。"
 
 #: lib/tuist_web/components/workload_identities.html.heex:23
 #, elixir-autogen, elixir-format
@@ -3029,12 +3029,12 @@ msgstr "顯示設定"
 #: lib/tuist_web/components/workload_identities.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Access: all current and future projects in this account."
-msgstr "存取權限：此帳戶中的所有現有及未來專案。"
+msgstr "存取權：此帳戶中所有現有及未來專案。"
 
 #: lib/tuist_web/components/workload_identities.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Allow trusted workloads to access all current and future projects in this account without long-lived tokens."
-msgstr "允許受信任的工作負載存取此帳戶中的所有現有及未來專案，而無需長期有效的權杖。"
+msgstr "允許受信任的工作負載存取此帳戶中所有現有及未來的項目，無需長期有效的權杖。"
 
 #: lib/tuist_web/components/workload_identities.html.heex:175
 #, elixir-autogen, elixir-format
@@ -3054,7 +3054,7 @@ msgstr "建立於 %{time}"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:423
 #, elixir-autogen, elixir-format
 msgid "Another organization uses this login domain. Email lookup prefers a DNS-verified organization; otherwise, use your organization's SSO sign-in link."
-msgstr "另一個組織使用此登入網域。電子郵件查詢會優先選擇已透過 DNS 驗證的組織；否則，請使用您組織的 SSO 登入連結。"
+msgstr "另一個組織使用此登入網域。電子郵件查詢會優先選擇經 DNS 驗證的組織；否則，請使用貴組織的 SSO 登入連結。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:297
 #, elixir-autogen, elixir-format
@@ -3064,4 +3064,4 @@ msgstr "受執行個體設定信任"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:639
 #, elixir-autogen, elixir-format
 msgid "When enabled, users from the login email domain trusted by this instance can join this organization automatically. Other users need an invitation."
-msgstr "啟用後，來自此執行個體信任之登入電子郵件網域的用戶可以自動加入此組織。其他用戶則需要邀請。"
+msgstr "啟用後，來自此執行個體所信任之登入電子郵件網域的用戶可自動加入此組織。其他用戶則需要邀請。"

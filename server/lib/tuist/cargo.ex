@@ -1,5 +1,7 @@
 defmodule Tuist.Cargo do
   @moduledoc "Cargo build insights. Test results use the shared Tests context."
+  use Gettext, backend: TuistWeb.Gettext
+
   import Ecto.Query
 
   alias Tuist.Cargo.Build
@@ -8,8 +10,20 @@ defmodule Tuist.Cargo do
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Analytics, as: BuildAnalytics
 
-  @strings ~w(command rust_version contract_version git_branch git_commit_sha git_ref git_remote_url_origin ci_provider ci_run_id ci_project_handle ci_host)a
+  @strings ~w(command rust_version tuist_version contract_version git_branch git_commit_sha git_ref git_remote_url_origin ci_provider ci_run_id ci_project_handle ci_host)a
   @list_fields Build.__schema__(:fields) -- [:cache_metrics]
+
+  # Normalize legacy runner names only for display. Stored schemes distinguish
+  # measured case timings from plain Cargo's unmeasured timing placeholders.
+  def test_run_label("cargo test"), do: "cargo test"
+  def test_run_label("cargo test · " <> label), do: "cargo test · #{label}"
+
+  def test_run_label("cargo nextest run · " <> label), do: dgettext("dashboard_tests", "Cargo tests") <> " · #{label}"
+
+  def test_run_label(scheme) when scheme in [nil, "", "nextest", "nextest run", "cargo nextest run"],
+    do: dgettext("dashboard_tests", "Cargo tests")
+
+  def test_run_label(scheme), do: dgettext("dashboard_tests", "Cargo tests") <> " · #{scheme}"
 
   def create_build(attrs) do
     with {:ok, id} <- Ecto.UUID.cast(attrs[:id]),

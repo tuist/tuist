@@ -1495,6 +1495,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - actor
@@ -4371,6 +4377,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - cache
         - id
@@ -5343,6 +5355,23 @@ components:
               items:
                 $ref: '#/components/schemas/BundleArtifact'
               type: array
+              x-struct:
+              x-validate:
+            custom_metadata:
+              properties:
+                tags:
+                  description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                  items:
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 10
+                  type: array
+                  x-struct:
+                  x-validate:
+              type: object
               x-struct:
               x-validate:
             download_size:
@@ -6369,6 +6398,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - cache
         - id
@@ -7044,6 +7079,12 @@ components:
           minLength: 1
           type: string
           writeOnly: true
+          x-struct:
+          x-validate:
+        snapshot_id:
+          description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          type: string
           x-struct:
           x-validate:
         template:
@@ -9836,6 +9877,20 @@ components:
           items:
             $ref: '#/components/schemas/BundleArtifact'
           type: array
+          x-struct:
+          x-validate:
+        custom_metadata:
+          properties:
+            tags:
+              description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          type: object
           x-struct:
           x-validate:
         download_size:
@@ -12744,6 +12799,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - actor
@@ -13444,6 +13505,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              tuist_version:
+                description: The reporting Tuist CLI version.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
             required:
               - id
               - actor
@@ -13705,6 +13772,12 @@ components:
                 enum:
                   - success
                   - failure
+                type: string
+                x-struct:
+                x-validate:
+              tuist_version:
+                description: The reporting tuist_ex library version.
+                nullable: true
                 type: string
                 x-struct:
                 x-validate:
@@ -17137,7 +17210,7 @@ paths:
   /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}:
     post:
       callbacks: {}
-      description: Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+      description: "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it."
       operationId: dispatchAmpOrb
       parameters:
         - description: The account handle.
@@ -17192,6 +17265,12 @@ paths:
                   minLength: 1
                   type: string
                   writeOnly: true
+                  x-struct:
+                  x-validate:
+                snapshot_id:
+                  description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+                  pattern: ^[A-Za-z0-9._:-]{1,255}$
+                  type: string
                   x-struct:
                   x-validate:
                 template:
@@ -20197,6 +20276,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -21471,6 +21562,23 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by tags. Returns bundles containing ALL specified tags.
+          explode: false
+          in: query
+          name: tags
+          required: false
+          schema:
+            items:
+              maxLength: 50
+              pattern: ^[a-zA-Z0-9_-]+$
+              type: string
+              x-struct:
+              x-validate:
+            maxItems: 10
+            type: array
+            x-struct:
+            x-validate:
+          style: form
         - description: Page number for pagination.
           in: query
           name: page
@@ -21516,6 +21624,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of bundles
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid bundle filters
         '401':
           content:
             application/json:
@@ -21590,6 +21704,23 @@ paths:
                       items:
                         $ref: '#/components/schemas/BundleArtifact'
                       type: array
+                      x-struct:
+                      x-validate:
+                    custom_metadata:
+                      properties:
+                        tags:
+                          description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                          items:
+                            maxLength: 50
+                            pattern: ^[a-zA-Z0-9_-]+$
+                            type: string
+                            x-struct:
+                            x-validate:
+                          maxItems: 10
+                          type: array
+                          x-struct:
+                          x-validate:
+                      type: object
                       x-struct:
                       x-validate:
                     download_size:
@@ -26188,6 +26319,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        tuist_version:
+                          description: The reporting tuist_ex library version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                       required:
                         - id
                         - actor
@@ -27073,6 +27210,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -27801,6 +27950,12 @@ paths:
                     enum:
                       - success
                       - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting tuist_ex library version.
+                    nullable: true
                     type: string
                     x-struct:
                     x-validate:
@@ -31205,7 +31360,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/cargo/builds:
     get:
       callbacks: {}
-      description: Cargo test runs reported as nextest are listed with test runs, not builds.
+      description: Cargo test execution results are listed with test runs, not builds.
       operationId: listCargoBuilds
       parameters:
         - description: The handle of the account.
@@ -31392,6 +31547,12 @@ paths:
                           enum:
                             - success
                             - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -32311,6 +32472,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -39733,6 +39906,12 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - cache
                   - id
@@ -40911,6 +41090,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -48715,6 +48906,12 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting Tuist Gradle plugin version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 type: object
                 x-struct:
                 x-validate:
@@ -51619,6 +51816,12 @@ paths:
                           x-validate:
                         tasks_up_to_date_count:
                           type: integer
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist Gradle plugin version.
+                          nullable: true
+                          type: string
                           x-struct:
                           x-validate:
                       type: object

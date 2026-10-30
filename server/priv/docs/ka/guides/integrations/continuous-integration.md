@@ -1,17 +1,17 @@
 ---
 {
-  "title": "Continuous Integration (CI)",
-  "titleTemplate": ":title · Automate · Guides · Tuist",
-  "description": "Learn how to use Tuist in your CI workflows."
+  "title": "უწყვეტი ინტეგრაცია (CI)",
+  "titleTemplate": ":title · ავტომატიზაცია · სახელმძღვანელოები · Tuist",
+  "description": "შეიტყვეთ, როგორ გამოიყენოთ Tuist თქვენს CI სამუშაო ნაკადებში."
 }
 ---
 # უწყვეტი ინტეგრაცია (CI) {#continuous-integration-ci}
 
-იმისათვის, რომ Tuist-ის ბრძანებები შეასრულოთ თქვენს [უწყვეტი ინტეგრაციის](https://en.wikipedia.org/wiki/Continuous_integration) სამუშაო ნაკადებში, საჭიროა მისი დაყენება თქვენს CI გარემოში. 
+იმისათვის, რომ Tuist-ის ბრძანებები შეასრულოთ თქვენს [უწყვეტი ინტეგრაციის](https://en.wikipedia.org/wiki/Continuous_integration) სამუშაო პროცესებში, ის უნდა დააინსტალიროთ თქვენს CI გარემოში. 
 
-ავტორიზაცია არის სავალდებულო მხოლოდ იმ შემთხვევაში, თუ გსურთ გამოიყენოთ სერვერის მხარეს განთავსებული ფუნქციები, როგორიცაა <.localized_link href="/guides/features/cache">cache</.localized_link>. 
+ავტორიზაცია არასავალდებულოა, მაგრამ აუცილებელია, თუ გსურთ სერვერის მხარეს არსებული ფუნქციების გამოყენება, როგორიცაა <.localized_link href="/guides/features/cache">კეში</.localized_link>. 
 
-შემდეგი სექციები წარმოადგენს მაგალითებს, თუ როგორ უნდა გააკეთოთ ეს სხვადასხვა CI პლატფორმაზე.
+შემდეგ სექციებში მოცემულია მაგალითები იმისა, თუ როგორ გააკეთოთ ეს სხვადასხვა CI პლატფორმაზე.
 
 ## მაგალითები {#examples}
 
@@ -112,18 +112,18 @@ jobs:
 :::
 
 > [!NOTE]
-> **Oidc Setup**
+> **Oidc-ის კონფიგურაცია**
 >
-> OIDC ავტორიზაციის გამოყენებამდე, თქვენ უნდა <.localized_link href="/guides/integrations/gitforge/github">მიუერთოთ თქვენი GitHub რეპოზიტორია</.localized_link> თქვენს Tuist პროექტს. `permissions: id-token: write` აუცილებელია OIDC-ის მუშაობისთვის. ალტერნატიულად, შეგიძლიათ გამოიყენოთ <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> `TUIST_TOKEN` საიდუმლოსთან ერთად.
+> OIDC ავტორიზაციის გამოყენებამდე უნდა <.localized_link href="/guides/integrations/gitforge/github">დააკავშიროთ თქვენი GitHub რეპოზიტორია</.localized_link> თქვენს Tuist პროექტთან. OIDC-ის მუშაობისთვის აუცილებელია `permissions: id-token: write`. ალტერნატიულად, შეგიძლიათ გამოიყენოთ <.localized_link href="/guides/server/authentication#account-tokens">ანგარიშის ტოკენი</.localized_link> `TUIST_TOKEN` საიდუმლოებით.
 
 
 > [!TIP]
-> ჩვენ გირჩევთ გამოიყენოთ `mise use --pin` თქვენს Tuist პროექტებში, რათა დააფიქსიროთ Tuist-ის ვერსია ყველა გარემოში. ეს ბრძანება შექმნის `.tool-versions` ფაილს, რომელიც შეიცავს Tuist-ის ვერსიას.
+> ჩვენ გირჩევთ გამოიყენოთ `mise use --pin` თქვენს Tuist პროექტებში, რათა დააფიქსიროთ Tuist-ის ვერსია ყველა გარემოში. ბრძანება შექმნის `.tool-versions` ფაილს, რომელიც შეიცავს Tuist-ის ვერსიას.
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-[Xcode Cloud](https://developer.apple.com/xcode-cloud/)-ში, რომელიც იყენებს Xcode პროექტებს როგორც ჭეშმარიტების წყაროს, თქვენ უნდა დაამატოთ [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) სკრიპტი Tuist-ის დასაყენებლად და საჭირო ბრძანებების შესასრულებლად, მაგალითად `tuist generate`:
+[Xcode Cloud](https://developer.apple.com/xcode-cloud/)-ში, რომელიც Xcode პროექტებს იყენებს როგორც ჭეშმარიტების წყაროს, უნდა დაამატოთ [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) სკრიპტი Tuist-ის დასაინსტალირებლად და საჭირო ბრძანებების შესასრულებლად, მაგალითად `tuist generate`:
 
 ::: code-group
 
@@ -150,9 +150,9 @@ tuist generate
 :::
 
 > [!NOTE]
-> **Authentication**
+> **ავტორიზაცია**
 >
-> გამოიყენეთ <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>, `TUIST_TOKEN` გარემოს ცვლადის დაყენებით თქვენს Xcode Cloud სამუშაო ნაკადის პარამეტრებში.
+> გამოიყენეთ <.localized_link href="/guides/server/authentication#account-tokens">ანგარიშის ტოკენი</.localized_link> `TUIST_TOKEN` გარემოს ცვლადის დაყენებით თქვენს Xcode Cloud სამუშაო პროცესის პარამეტრებში.
 
 
 ### CircleCI {#circleci}
@@ -209,9 +209,9 @@ jobs:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **ავტორიზაცია**
 >
-> OIDC ავტორიზაციის გამოყენებამდე, თქვენ უნდა <.localized_link href="/guides/integrations/gitforge/github">მიუერთოთ თქვენი GitHub რეპოზიტორია</.localized_link> თქვენს Tuist პროექტს. CircleCI OIDC ტოკენები მოიცავს თქვენს მიერთებულ GitHub რეპოზიტორიას, რომელსაც Tuist იყენებს თქვენს პროექტებზე წვდომის ავტორიზაციისთვის. ალტერნატიულად, შეგიძლიათ გამოიყენოთ <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> `TUIST_TOKEN` გარემოს ცვლადთან ერთად.
+> OIDC ავტორიზაციის გამოყენებამდე უნდა <.localized_link href="/guides/integrations/gitforge/github">დააკავშიროთ თქვენი GitHub რეპოზიტორია</.localized_link> თქვენს Tuist პროექტთან. CircleCI OIDC ტოკენები შეიცავენ თქვენს დაკავშირებულ GitHub რეპოზიტორიას, რომელსაც Tuist იყენებს თქვენს პროექტებზე წვდომის ავტორიზაციისთვის. ალტერნატიულად, შეგიძლიათ გამოიყენოთ <.localized_link href="/guides/server/authentication#account-tokens">ანგარიშის ტოკენი</.localized_link> `TUIST_TOKEN` გარემოს ცვლადით.
 
 
 ### Bitrise {#bitrise}
@@ -270,14 +270,14 @@ workflows:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **ავტორიზაცია**
 >
-> OIDC ავტორიზაციის გამოყენებამდე, თქვენ უნდა <.localized_link href="/guides/integrations/gitforge/github">მიუერთოთ თქვენი GitHub რეპოზიტორია</.localized_link> თქვენს Tuist პროექტს. Bitrise OIDC ტოკენები მოიცავს თქვენს მიერთებულ GitHub რეპოზიტორიას, რომელსაც Tuist იყენებს თქვენს პროექტებზე წვდომის ავტორიზაციისთვის. ალტერნატიულად, შეგიძლიათ გამოიყენოთ <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> `TUIST_TOKEN` გარემოს ცვლადთან ერთად.
+> OIDC ავტორიზაციის გამოყენებამდე უნდა <.localized_link href="/guides/integrations/gitforge/github">დააკავშიროთ თქვენი GitHub რეპოზიტორია</.localized_link> თქვენს Tuist პროექტთან. Bitrise OIDC ტოკენები შეიცავენ თქვენს დაკავშირებულ GitHub რეპოზიტორიას, რომელსაც Tuist იყენებს თქვენს პროექტებზე წვდომის ავტორიზაციისთვის. ალტერნატიულად, შეგიძლიათ გამოიყენოთ <.localized_link href="/guides/server/authentication#account-tokens">ანგარიშის ტოკენი</.localized_link> `TUIST_TOKEN` გარემოს ცვლადით.
 
 
 ### Codemagic {#codemagic}
 
-[Codemagic](https://codemagic.io)-ში, შეგიძლიათ დაამატოთ დამატებითი ნაბიჯი თქვენს სამუშაო ნაკადში Tuist-ის დასაყენებლად:
+[Codemagic](https://codemagic.io)-ში, შეგიძლიათ დაამატოთ დამატებითი ნაბიჯი თქვენს სამუშაო პროცესში Tuist-ის დასაინსტალირებლად:
 
 ::: code-group
 ```yaml [Mise]
@@ -317,13 +317,13 @@ workflows:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **ავტორიზაცია**
 >
-> შექმენით <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> და დაამატეთ ის როგორც საიდუმლო გარემოს ცვლადი სახელით `TUIST_TOKEN`.
+> შექმენით <.localized_link href="/guides/server/authentication#account-tokens">ანგარიშის ტოკენი</.localized_link> და დაამატეთ ის როგორც საიდუმლო გარემოს ცვლადი სახელით `TUIST_TOKEN`.
 
 ### Appcircle {#appcircle}
 
-[Appcircle](https://appcircle.io)-ში, შეგიძლიათ გამოიყენოთ ჩაშენებული [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) და [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) სამუშაო ნაკადის ნაბიჯები, ან დაამატოთ **Custom Script** ნაბიჯი **Git Clone** ნაბიჯის შემდეგ, რათა თავად დააყენოთ Tuist:
+[Appcircle](https://appcircle.io)-ში, შეგიძლიათ გამოიყენოთ ჩაშენებული [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) და [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) სამუშაო პროცესის ნაბიჯები, ან დაამატოთ **Custom Script** ნაბიჯი **Git Clone** ნაბიჯის შემდეგ Tuist-ის თავად დასაინსტალირებლად:
 
 ::: code-group
 ```bash [Mise]
@@ -342,18 +342,18 @@ tuist setup cache
 :::
 
 > [!NOTE]
-> **Workflow steps**
+> **სამუშაო პროცესის ნაბიჯები**
 >
-> Tuist Install ნაბიჯი აყენებს Tuist-ს Homebrew-ით და ასრულებს `tuist generate`. დააყენეთ **Tuist Version** შეყვანა ვერსიის დასაფიქსირებლად, შემდეგ დაამატეთ Tuist Commands ნაბიჯი ისეთი ბრძანებების შესასრულებლად, როგორიცაა `tuist test` ან `tuist build`.
+> Tuist Install ნაბიჯი აინსტალირებს Tuist-ს Homebrew-ით და ასრულებს `tuist generate`. დააყენეთ **Tuist Version** შეყვანა ვერსიის დასაფიქსირებლად, შემდეგ დაამატეთ Tuist Commands ნაბიჯი ისეთი ბრძანებების შესასრულებლად, როგორიცაა `tuist test` ან `tuist build`.
 
 > [!NOTE]
-> **Authentication**
+> **ავტორიზაცია**
 >
-> შექმენით <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>, დაამატეთ ის როგორც ცვლადი სახელით `TUIST_TOKEN` [environment variable group](https://docs.appcircle.io/build/build-environment-variables)-ში და აირჩიეთ ეს ჯგუფი თქვენს build კონფიგურაციაში. მონიშნეთ ცვლადი როგორც საიდუმლო ჩაკეტვის ხატულით.
+> შექმენით <.localized_link href="/guides/server/authentication#account-tokens">ანგარიშის ტოკენი</.localized_link>, დაამატეთ ის როგორც ცვლადი სახელით `TUIST_TOKEN` [გარემოს ცვლადების ჯგუფში](https://docs.appcircle.io/build/build-environment-variables) და აირჩიეთ ეს ჯგუფი თქვენს აგების კონფიგურაციაში. მონიშნეთ ცვლადი როგორც საიდუმლო ჩაკეტვის ხატულით.
 
-## Run report {#run-report}
+## გაშვების ანგარიში {#run-report}
 
-როდესაც Tuist ატვირთავს run-ს, მისი dashboard URL-ები იბეჭდება ლოგებში. მათ მისაღებად ლოგების სკრეპინგის გარეშე - მაგალითად, Slack-ში ტესტის ანგარიშის ბმულის გასაზიარებლად, როდესაც სამუშაო ვერ ხერხდება, ან run-ის თქვენს საკუთარ ინსტრუმენტებში გადასაცემად - გადაეცით `--run-report-path` (ან დააყენეთ `TUIST_RUN_REPORT_PATH`) `tuist test`-ს, `tuist xcodebuild test`-ს ან `tuist xcodebuild build`-ს. Tuist წერს JSON ანგარიშს ამ გზაზე, როგორც კი run აიტვირთება:
+როდესაც Tuist ატვირთავს გაშვებას, მისი დაფის URL-ები იბეჭდება ლოგებში. მათ მიღება ლოგების სკრაპინგის გარეშე — მაგალითად, ტესტის ანგარიშის ბმულის Slack-ში გასაგზავნად სამუშაოს ჩავარდნისას, ან გაშვების თქვენს ინსტრუმენტებში გადასაცემად — შეგიძლიათ გადასცეთ `--run-report-path` (ან დააყენოთ `TUIST_RUN_REPORT_PATH`) `tuist test`-ს, `tuist xcodebuild test`-ს ან `tuist xcodebuild build`-ს. Tuist წერს JSON ანგარიშს ამ გზაზე გაშვების ატვირთვის შემდეგ:
 
 ```json
 {
@@ -382,22 +382,22 @@ tuist setup cache
 
 | ველი | ტიპი | აღწერა |
 | - | - | - |
-| `runId` | სტრიქონი | run-ის უნიკალური იდენტიფიკატორი. |
+| `runId` | სტრიქონი | გაშვების უნიკალური იდენტიფიკატორი. |
 | `status` | სტრიქონი | `"success"` ან `"failure"`. |
-| `runURL` | სტრიქონი | dashboard URL run-ისთვის. ყოველთვის არსებობს. |
-| `testRunURL` | სტრიქონი? | dashboard URL ტესტის run-ისთვის, არსებობს, როდესაც ბრძანებამ გაუშვა ტესტები. |
-| `buildRunURL` | სტრიქონი? | dashboard URL build run-ისთვის, არსებობს, როდესაც ბრძანებამ შეასრულა build. |
-| `testRuns` | მასივი | ტესტის შედეგები სქემის მიხედვით: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` და `skippedTestModules`. ტესტების რაოდენობა ეხება სატესტო შემთხვევებს, ხოლო `skippedTests` ითვლის მათ, რომლებიც შედეგების კომპლექტში აღნიშნულია როგორც გამოტოვებული. `skippedTestModules` ითვლის სატესტო მოდულებს, რომლებიც <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>-მა გამოტოვა და გამოტოვებულია, როდესაც selective testing არ გამოყენებულა ან run არის ტესტის ნაწილი (shard). |
-| `buildRuns` | მასივი | build-ის შედეგები სქემის მიხედვით: `scheme`, `succeeded`, `durationInSeconds`. |
+| `runURL` | სტრიქონი | დაფის URL გაშვებისთვის. ყოველთვის არსებობს. |
+| `testRunURL` | სტრიქონი? | დაფის URL ტესტების გაშვებისთვის, არსებობს, როცა ბრძანებამ ტესტები გაუშვა. |
+| `buildRunURL` | სტრიქონი? | დაფის URL აგების გაშვებისთვის, არსებობს, როცა ბრძანებამ ააგო. |
+| `testRuns` | მასივი | თითოეული სქემის ტესტის შედეგები: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` და `skippedTestModules`. ტესტების რაოდენობა ეხება სატესტო შემთხვევებს, ხოლო `skippedTests` ითვლის მათ, რომლებიც შედეგების კრებული გამოტოვებულად მიიჩნია. `skippedTestModules` ითვლის სატესტო მოდულებს, რომლებიც <.localized_link href="/guides/features/selective-testing">შერჩევითმა ტესტირებამ</.localized_link> გამოტოვა, და ის გამოტოვებულია, როცა შერჩევითი ტესტირება არ გამოყენებულა ან გაშვება არის ტესტის ნაწილი. |
+| `buildRuns` | მასივი | თითოეული სქემის აგების შედეგები: `scheme`, `succeeded`, `durationInSeconds`. |
 
-`testRunURL` და `buildRunURL` დამოუკიდებელია: ბრძანება, რომელიც ასრულებს build-საც და ტესტსაც, წერს ორივეს, რასაც ლოგები ვერ აკეთებენ — ისინი მხოლოდ ერთ URL-ს ბეჭდავენ თითოეული run-ისთვის.
+`testRunURL` და `buildRunURL` დამოუკიდებელია: ბრძანება, რომელიც ერთდროულად აგებს და ასრულებს ტესტებს, წერს ორივეს, რაც ლოგებს არ შეუძლიათ — ისინი მხოლოდ ერთ URL-ს ბეჭდავენ თითოეული გაშვებისთვის.
 
 > [!NOTE]
-> **როდესაც იწერება ანგარიში**
+> **როდის იწერება ანგარიში**
 >
-> ანგარიში იწერება მხოლოდ იმ run-ებისთვის, რომლებიც აიტვირთება სერვერზე, რაც მოითხოვს ავთენტიკაციას და ავტომატურად ხდება CI-ზე. გზა იშლება ყოველი run-ის დასაწყისში, ამიტომ run, რომელიც არ ქმნის ანგარიშს, არაფერს ტოვებს, ვიდრე ძველ ანგარიშს წინა run-დან.
+> ანგარიში იწერება მხოლოდ იმ გაშვებებისთვის, რომლებიც აიტვირთება სერვერზე, რაც მოითხოვს ავტორიზაციას და ავტომატურად ხდება CI-ზე. გზა იშლება ყოველი გაშვების დასაწყისში, ამიტომ გაშვება, რომელიც არ ქმნის ანგარიშს, არაფერს ტოვებს, ვიდრე ძველ ანგარიშს წინა გაშვებიდან.
 
-GitLab CI-ზე, ჩვეულებრივი გამოყენებაა URL-ის გამოჩენა მოგვიანებითი სამუშაოებისთვის [`dotenv` report](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv)-ის მეშვეობით:
+GitLab CI-ზე, გავრცელებული გამოყენებაა URL-ის გახსნა მომდევნო სამუშაოებისთვის [`dotenv` ანგარიშის](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv) მეშვეობით:
 
 ```yaml
 test:

@@ -30,6 +30,7 @@ defmodule Atlas.Orbit.Thread do
     field :environment_id, Ecto.UUID
     field :environment_name, :string
     field :project_id, Ecto.UUID
+    field :repository, :string
     field :personal_environment_dispatched, :boolean, default: false
 
     belongs_to :owner, User

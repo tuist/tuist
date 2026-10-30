@@ -399,6 +399,44 @@ added to catch that failed on `admin`'s unwritable cache instead.
   lane into the volume, so without a binary here nothing on the machine could
   ever bound it. It is only ever invoked as `--prune`/`--drain`; the image runs
   no CAS daemon of its own.
+- `/opt/tuist/logd-watchdog.sh`, run as root from boot by
+  `/Library/LaunchDaemons/dev.tuist.logd-watchdog.plist` — restarts a wedged
+  `logd`. A wedged logd stops draining log buffers, and a process whose
+  buffer fills blocks in `os_log`: syspolicyd stalls holding the lock Xcode's
+  execution-policy registrations wait on, and the build stops with no
+  compiler running. Wedged is either of:
+  - logd using 50% of a core in each of four 30-second samples; a healthy
+    guest's logd stays near 1%, including under a heavy build.
+  - a 1000-line info-level `logger` write blocking for 10 s in two samples in
+    a row, which catches a logd that stops draining without spinning. Keep
+    the probe bigger than a fresh process's log buffer: on staging, writes of
+    100 lines or fewer, a single `logger` line, `log config --status` and
+    `spctl --status` all still returned while logd was stopped.
+
+  The watchdog SIGKILLs it, launchd starts a new one, and the blocked writers
+  carry on. Rules the incident and the staging reproduction set:
+  - SIGKILL, never SIGTERM: SIGTERM leaves logd running and still not
+    draining.
+  - Run as root from boot, never through `sudo` or `launchctl` after the
+    fact: minutes into a stall both block, while `kill` from a process that
+    is already running works.
+  - Never create `/var/log/tuist-runner/poll.log`: it belongs to `runner`.
+    The watchdog appends to it once `dispatch-poll.sh` has created it, so
+    restarts appear in the runner log as `logd-watchdog:` lines.
+  - At most one kill per 5 minutes, so a misread probe cannot turn into a
+    restart loop. Do not add an escalation that stops the VM after repeated
+    successful restarts: a logd that keeps coming back still lets the job
+    finish.
+  - `log stream` clients survive a restart: on staging, `stream_tcc_log`'s
+    stream kept its PID across a logd SIGKILL and received messages written
+    after it. Do not add restart loops around them.
+
+  A logd that does not come back is reported by writing `logd-wedged` into
+  the status share: tart-kubelet stops the VM (see
+  `infra/tart-kubelet/AGENTS.md`), and a warm VM exits instead of polling.
+  Evidence: on 2026-10-30 a 12 vCPU rack VM stopped compiling 10 minutes
+  into a build and sat until the job ended 60 minutes later, a SIGTERM did
+  not release it, and the VM never halted.
 - `/opt/tuist/runner-shell-agent` — interactive shell bridge.
   `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
   at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are
@@ -497,14 +535,18 @@ CI:
      (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
      carried profile's pools, warm Pods and host goldens stay as they
      were. A profile tag that cannot be resolved fails the deploy.
-  5. `announce` writes each profile's standalone and stacked digest into
-     the `tuist-upcoming-runner-images` ConfigMap of canary and
-     production, so their macOS hosts pull the images their pools move
-     to, and waits until they hold them (see "stages" in
-     `infra/tart-kubelet/AGENTS.md`). Every deploy holds a pool on its
-     current image until then, for up to an hour; dispatch the release
-     with `skip_staging` to move the pools at once. A failure in
-     `announce` does not hold the deploy.
+  5. `announce` runs alongside the builds. It writes each profile's
+     standalone and stacked digest into the
+     `tuist-upcoming-runner-images` ConfigMap of canary and production
+     as soon as its tag is published, so their macOS hosts pull the
+     images their pools move to while the other builds run, and once
+     every image is named it waits until the hosts hold them (see
+     "stages" in `infra/tart-kubelet/AGENTS.md`). Every deploy holds a
+     pool on its current image until then, for up to an hour after the
+     latest announcement; dispatch the release with `skip_staging` to
+     move the pools at once. A failed or cancelled build fails
+     `announce`, and a failure in `announce` does not hold the deploy.
+     Hosts can stage images of a release that then fails to publish.
   6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
@@ -594,7 +636,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the

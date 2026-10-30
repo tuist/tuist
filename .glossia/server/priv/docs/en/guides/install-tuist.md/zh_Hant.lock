@@ -1,12 +1,35 @@
 {
   "baseline_schema_version": 1,
-  "hash": "c74e5a84d4256818a756dd83665ad8e80ec043e88313af51664a2342728c0c0f",
+  "hash": "a1e3d0e5b16ca551065ad694daffb7565737587a5c786d7da98954905d059e18",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "e748c6f9a0c0f1b69c1f2400dfa57dca54d049e7bf4d05981e5b69d272c3e88b",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Install Tuist {#install-tuist}": {
+                  "content_hash": "f951cef67502b7f10faba5ab417daafb607e3a6968aab5ea18a1675233acfd65"
+                },
+                "## HTTP proxy {#http-proxy}": {
+                  "content_hash": "67c49bf83213233221b66b0ba48e2b7425a711209c63c04ac64fb68b5a150244"
+                },
+                "### <a href=\"https://brew.sh\">Homebrew</a> (macOS only) {#recommended-homebrew}": {
+                  "content_hash": "71fb5b506b20e2659e4b8668dab903c8f9e44db78f8aab5e3ee54c8fe0a26c60"
+                },
+                "### <a href=\"https://github.com/jdx/mise\">Mise</a> {#recommended-mise}": {
+                  "content_hash": "11c82553b76c04f9c5b2dc3c688aef9b9a73b554923ab2561d16547636787dea"
+                },
+                "Preamble": {
+                  "content_hash": "cbeb4f338e3e03c8b81a620c2dd6785c4ec90061c5766a93358b21f2818539c4"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "314cc759bb4302352555ca0b86174fb736ab1770d472356bfba5e42252637ca1",
           "kind": "source",
           "label": "server/priv/docs/en/guides/install-tuist.md",
           "metadata": {
@@ -15,13 +38,21 @@
         },
         {
           "children": [],
-          "hash": "c574f652823167b851728bd96d871b079c9cf5daab02b78cfa66ce561ab5004b",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "34fbc886036c44584f1467e56cc33fec0418265fb599ec57e64217fc04840705",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
             "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "format": "markdown",
-            "frontmatter_mode": "preserve",
+            "frontmatter_mode": "translate",
             "language": "Chinese (Traditional)",
             "locale": "zh_Hant",
             "model": "",
@@ -31,34 +62,130 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
               }
             },
             {
               "children": [],
-              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "details": {
+                "content_hash": {
+                  "server/L10N/zh_Hant.md": {
+                    "content_hash": "1853f49f232339ec2e594ae04cf5b616adede350f3b02fd405c053607603d370",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "fad412617ac76543872063dd9584f3cbef95ee6fd56edcb2269685d416301c81"
+                      },
+                      "## Traditional Chinese-specific translation rules": {
+                        "content_hash": "747c5d54042ff5b45632281c6e67c2b24510e46589c6ab17645e76450403f39a"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "ee002b0734d5a8cc0080f2d2a0533be7cf9d2d05d4cd57f00c125ed0e710652e"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "5082b8d3d72368330a485ec595c3772153b38d8128780ca922de885edc7603c2",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                "content_hash": "4255b70a76f4e6518b6086bca190e8d26e97d706998d074f9ecb6ea66e1465f6"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,7 +194,10 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "aaaa323144d0aa263b3c3b320f63fa40d6f277ca8e12bac4001fb8a508c0d17f",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
@@ -75,7 +205,8 @@
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "c18f36f445e3f1b1119032b90a7907097b5bb97f568b020c7a5a8333447a8658",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,20 +215,22 @@
               }
             }
           ],
-          "hash": "b74fa45a0097171fdb2584d5a433da09c1ce902e92abf102a94a11dfeb9bd077",
+          "details": {},
+          "hash": "b9e87dfebaf56edb6aa832baf1cae147324b246588fc6b94721d00acdca10159",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "c74e5a84d4256818a756dd83665ad8e80ec043e88313af51664a2342728c0c0f",
+      "details": {},
+      "hash": "a1e3d0e5b16ca551065ad694daffb7565737587a5c786d7da98954905d059e18",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/install-tuist.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b33b83d634c9b895b5a2321c14878e4a271c3722755e140791c058934430be0e",
+  "output_hash": "ecbc2c340c8c77673d33bd763d1ad1941c60a520fece43bbb6642396c30e1d6d",
   "output_path": "server/priv/docs/zh_Hant/guides/install-tuist.md",
   "protection_state": "recorded",
   "provider": "",
@@ -115,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "a341b43cd8ffe0d4f30bc492fbdde41215d99451",
+  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
   "source_path": "server/priv/docs/en/guides/install-tuist.md",
-  "translated_at": "2026-10-28T11:13:43.952939Z",
-  "translation_session_id": "01a18206-c5b9-7fa7-8475-f16a8b4263cd"
+  "translated_at": "2026-10-29T16:31:26.390853Z",
+  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
 }

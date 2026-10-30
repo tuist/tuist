@@ -1,52 +1,52 @@
 ---
 {
-  "title": "Gradle Test Sharding",
-  "titleTemplate": ":title · Test Sharding · Features · Guides · Tuist",
-  "description": "Distribute Gradle tests across multiple CI runners with Tuist Test Sharding."
+  "title": "Gradle テストシャーディング",
+  "titleTemplate": ":title · テストシャーディング · 機能 · ガイド · Tuist",
+  "description": "Tuist テストシャーディングを使用して、複数の CI ランナーに Gradle テストを分散します。"
 }
 ---
 # Gradle テストシャーディング {#gradle-test-sharding}
 
-Tuist Gradle プラグインには、テストシャーディングの組み込みサポートが含まれています。プロジェクトのテストタスクの以前の CI 実行で Tuist が記録したテストスイートを計画し、Tuist サーバーを使用して過去のタイミングデータに基づいてバランスの取れたシャードプランを作成します。
+Tuist Gradle プラグインには、テストシャーディングの組み込みサポートが含まれています。プロジェクトのテストタスクの過去の CI 実行で Tuist が記録したテストスイートを計画し、Tuist サーバーを使用して履歴のタイミングデータに基づいてバランスの取れたシャードプランを作成します。
 
 > [!IMPORTANT] REQUIREMENTS
 > - <.localized_link href="/guides/features/test-insights/gradle">テストインサイト</.localized_link> を構成する必要があります
 
 ## 動作原理 {#how-it-works}
 
-テストシャーディングは 2 段階のワークフローに従います：
+テストシャーディングは 2 つのフェーズからなるワークフローに従います:
 
-1. **ビルドフェーズ：** Tuist は、プロジェクト用に記録されたテストスイートからサーバー上で **シャードプラン** を作成します。サーバーは過去 30 日間のテストタイミングデータを使用して、各シャードがほぼ同じ時間になるようにテストをシャード間で分散させます。ビルドフェーズは、CI システムが並列ランナーを生成するために使用する **シャードマトリックス** を出力します。
-2. **テストフェーズ：** 各 CI ランナーは **シャードインデックス** を受け取り、そのシャードに割り当てられたテストのみを実行します。最後のシャードは、他のシャードに割り当てられていないすべてのテストスイートも実行します。
+1. **ビルドフェーズ:** Tuist は、プロジェクト用に記録されたテストスイートからサーバー上で **シャードプラン** を作成します。サーバーは過去 30 日間の履歴テストタイミングデータを使用して、各シャードがほぼ同じ時間になるようにテストをシャード間で分散させます。ビルドフェーズは、CI システムが並列ランナーを生成するために使用する **シャードマトリックス** を出力します。
+2. **テストフェーズ:** 各 CI ランナーは **シャードインデックス** を受け取り、そのシャードに割り当てられたテストのみを実行します。最後のシャードは、他のシャードに割り当てられていないすべてのテストスイートも実行します。
 
 ## ビルドフェーズ {#build-phase}
 
-`tuistPrepareTestShards` タスクを使用してテストシャードを準備します：
+`tuistPrepareTestShards` タスクを使用してテストシャードを準備します:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
   -PtuistShardMax=5
 ```
 
-このタスクは：
+このタスクは以下の処理を行います:
 1. コンパイルせずに、シャーディング対象のテストタスクを持つプロジェクトを検出します
-2. 過去 30 日間にそれらのプロジェクトに対して記録されたテストスイートとタイミングから、Tuist サーバー上でシャードプランを作成します
+2. 過去 30 日間にそれらのプロジェクト用に記録されたテストスイートとタイミングから、Tuist サーバー上でシャードプランを作成します
 3. CI システム用のシャードマトリックスを出力します
 
-テストスイートがまだ記録されていない場合（例：初回実行時）、プランにはすべてのテストを実行する単一のシャードが含まれます。
+テストスイートがまだ記録されていない場合（例: 初回実行時）、プランはすべてのテストを実行する単一のシャードになります。
 
 ### ビルドオプション {#build-options}
 
-Gradle プロジェクトプロパティを通じてシャーディングを構成します：
+Gradle プロジェクトプロパティを通じてシャーディングを設定します:
 
 | プロパティ | 説明 |
 |----------|-------------|
-| `-PtuistShardMax=<N>` | 最大シャード数（デフォルト：2） |
+| `-PtuistShardMax=<N>` | 最大シャード数（デフォルト: 2） |
 | `-PtuistShardMin=<N>` | 最小シャード数 |
-| `-PtuistShardMaxDuration=<MS>` | シャードあたりの目標最大期間（ミリ秒単位） |
-| `-PtuistShardTestTask=<NAME>` | テストがシャーディングされるテストタスク（例：`testDebugUnitTest`）。デフォルトではビルド内のすべてのテストタスクが対象です |
+| `-PtuistShardMaxDuration=<MS>` | シャードあたりの目標最大継続時間（ミリ秒単位） |
+| `-PtuistShardTestTask=<NAME>` | テストをシャーディングするテストタスク（例: `testDebugUnitTest`）。デフォルトではビルド内のすべてのテストタスクが対象です |
 
-複数のビルドバリアントを持つ Android プロジェクトでは、バリアントごとに 1 つのユニットテストタスクがあります。シャードが実行するバリアントに `-PtuistShardTestTask` を設定し、そのバリアントを持つプロジェクトのみが計画されるようにします：
+複数のビルドバリアントを持つ Android プロジェクトでは、バリアントごとに 1 つのユニットテストタスクがあります。シャードが実行するバリアントに合わせて `-PtuistShardTestTask` を設定し、そのバリアントを持つプロジェクトのみが計画されるようにします:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -58,19 +58,19 @@ Gradle プロジェクトプロパティを通じてシャーディングを構�
 
 ## テストフェーズ {#test-phase}
 
-各シャードランナーは標準の `test` タスクを使用して割り当てられたテストを実行します。`TUIST_SHARD_INDEX` が設定されている場合、プラグインはサーバーからシャード割り当てを自動的に取得し、割り当てられたテストスイートのみを含むようにテスト実行をフィルタリングします。シャードに割り当てられたスイートがないプロジェクトのテストタスクはスキップされます。
+各シャードランナーは、標準の `test` タスクを使用して割り当てられたテストを実行します。`TUIST_SHARD_INDEX` が設定されている場合、プラグインはサーバーからシャード割り当てを自動的に取得し、割り当てられたテストスイートのみを含むようにテスト実行をフィルタリングします。シャードに割り当てられたスイートがないプロジェクトのテストタスクはスキップされます。
 
-最後のシャードはすべてのテストタスクを実行し、他のシャードに割り当てられたスイートを除外するため、新規追加されたものなど、まだ実行が記録されていないスイートも実行されます。
+最後のシャードはすべてのテストタスクを実行し、他のシャードに割り当てられたスイートを除外するため、新しく追加されたものなど、まだ実行が記録されていないスイートも実行されます。
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
 
-ビルドフェーズで `-PtuistShardTestTask` を設定した場合、各シャードで同じタスクを実行します（例：`./gradlew testDebugUnitTest`）。
+ビルドフェーズで `-PtuistShardTestTask` を設定した場合、各シャードで同じタスクを実行してください（例: `./gradlew testDebugUnitTest`）。
 
 ## 継続的インテグレーション {#continuous-integration}
 
-Tuist は以下の CI プロバイダーを自動的に検出します：
+Tuist は以下の CI プロバイダーを自動的に検出します:
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)
@@ -79,11 +79,11 @@ Tuist は以下の CI プロバイダーを自動的に検出します：
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-他のプロバイダーの場合は、`.tuist-shard-matrix.json` ファイルを参照して並列ジョブを設定してください。
+その他のプロバイダーの場合は、`.tuist-shard-matrix.json` ファイルを参照して並列ジョブを設定してください。
 
 ### GitHub Actions {#github-actions}
 
-マトリックス戦略を使用してシャードを並列に実行します：
+マトリックス戦略を使用してシャードを並列に実行します:
 
 ```yaml
 name: Tests
@@ -129,7 +129,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist は `.tuist-shard-child-pipeline.yml` を生成し、これを [子パイプライン](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines) としてトリガーします。生成されたシャードジョブが拡張する `.tuist-shard` テンプレートジョブを定義します：
+Tuist は `.tuist-shard-child-pipeline.yml` を生成し、これを [子パイプライン](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines) としてトリガーできます。生成されたシャードジョブが継承する `.tuist-shard` テンプレートジョブを定義します:
 
 ```yaml
 # .gitlab-ci.yml
@@ -156,7 +156,7 @@ test-shards:
     strategy: depend
 ```
 
-子パイプラインには `.tuist-shard` ジョブテンプレートが必要です：
+子パイプラインには `.tuist-shard` ジョブテンプレートが必要です:
 
 ```yaml
 # .gitlab/shard-template.yml
@@ -168,7 +168,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist は [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 用のパラメーターを含む `.tuist-shard-continuation.json` を生成します：
+Tuist は [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 用のパラメータを含む `.tuist-shard-continuation.json` を生成します:
 
 ```yaml
 # .circleci/config.yml
@@ -238,7 +238,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist はシャードごとに 1 つのステップを含む `.tuist-shard-pipeline.yml` を生成します。`buildkite-agent pipeline upload` でアップロードしてください：
+Tuist はシャードごとに 1 つのステップを含む `.tuist-shard-pipeline.yml` を生成します。`buildkite-agent pipeline upload` でアップロードしてください:
 
 ```yaml
 # pipeline.yml
@@ -250,7 +250,7 @@ steps:
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
 
-生成された各ステップには環境に `TUIST_SHARD_INDEX` が設定されています。共有スクリプトを使用して、各シャードステップにテストコマンドを追加します：
+生成された各ステップの環境には `TUIST_SHARD_INDEX` が設定されています。共有スクリプトを使用して、各シャードステップにテストコマンドを追加します:
 
 ```bash
 # .buildkite/shard-step.sh
@@ -261,7 +261,7 @@ tuist auth login
 
 ### Codemagic {#codemagic}
 
-Codemagic は動的なマトリックスジョブをサポートしていないため、シャードごとに個別のワークフローを定義します。Tuist は各ワークフロー内で使用するために `TUIST_SHARD_MATRIX` と `TUIST_SHARD_COUNT` を `CM_ENV` ファイルに書き込みます：
+Codemagic は動的なマトリックスジョブをサポートしていないため、シャードごとに個別のワークフローを定義します。Tuist は `TUIST_SHARD_MATRIX` と `TUIST_SHARD_COUNT` を `CM_ENV` ファイルに書き込み、各ワークフロー内で使用できるようにします:
 
 ```yaml
 # codemagic.yaml
@@ -325,7 +325,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-Bitrise では、Tuist は `.tuist-shard-matrix.json` を `BITRISE_DEPLOY_DIR` に書き込み、下流のパイプラインステージでビルド成果物として利用できるようにします。事前定義された並列ワークフローを持つ Bitrise Pipelines を使用します：
+Bitrise では、Tuist は `.tuist-shard-matrix.json` を `BITRISE_DEPLOY_DIR` に書き込み、下流のパイプラインステージでビルドアーティファクトとして利用できるようにします。事前定義された並列ワークフローを持つ Bitrise Pipelines を使用します:
 
 ```yaml
 # bitrise.yml
@@ -386,4 +386,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise は実行時に動的な並列ジョブ作成をサポートしていません。パイプラインステージで固定数のシャードワークフローを定義してください。ステージ内のワークフローは自動的に並列で実行されます。
+> Bitrise は実行時の動的な並列ジョブ作成をサポートしていません。パイプラインステージで固定数のシャードワークフローを定義してください。ステージ内のワークフローは自動的に並列で実行されます。

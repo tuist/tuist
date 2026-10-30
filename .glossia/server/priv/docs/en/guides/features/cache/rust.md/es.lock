@@ -1,12 +1,44 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7941e3de6405d76fcc666867cf527d260cb01c92e356e3960eeba1d237bc3959",
+  "hash": "de6e8ba1c2f0c0622d2d163d1661e4bcac46433ea7d4451b2a14123ca88b2a8c",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "0252ca8a1242c54a9dcaec221a459eedf819115846f8a4eb98904c40ecc52d66",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Rust cache {#rust-cache}": {
+                  "content_hash": "d5e92567e4b98181b4d6cdf76500099fc4c1f6e2d67edb86e956e069ba6169f3"
+                },
+                "## Enable caching {#enable-caching}": {
+                  "content_hash": "9c6a6331a94cbd464ce12df19a703fc662bc0cbb29941128ebce816d596e8baf"
+                },
+                "## How it works {#how-it-works}": {
+                  "content_hash": "c6f301becfa2fd19103700949395e581b56f4784da8013eeda180e3e86591d21"
+                },
+                "## Inspect cache activity {#inspect-cache-activity}": {
+                  "content_hash": "4515e623764ad725403538f9d2317ca2976cbd55be8ecc83bfddf8bf7775df4b"
+                },
+                "## Troubleshooting {#troubleshooting}": {
+                  "content_hash": "00ce04b7d4245f29fc06215aa8a4d9845f5585ac186d529daea27722035ded05"
+                },
+                "## Verify reuse {#verify-reuse}": {
+                  "content_hash": "47e78f266efa3b3a2ed256340264d9482c804088c6268080acf443b6d8ba3d0c"
+                },
+                "## What can be cached {#what-can-be-cached}": {
+                  "content_hash": "2944d99d426a74746cd127ddc0f08c39f3bd8b9da85b9b77d23945d2f6b46d76"
+                },
+                "Preamble": {
+                  "content_hash": "3e34cb1c09f6da9094362aa29426c50ea8d2bae9447c10c911e66b7f3063b9d2"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "86ef9b7bd69ee47fc6d081583d494fae19f863a2c94216952de1affbf0a0fd92",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/rust.md",
           "metadata": {
@@ -15,13 +47,21 @@
         },
         {
           "children": [],
-          "hash": "22cd7e3fb3c54e6b2e71ee7021ec4c3bf3b349eeaab1593ccb4d416fe8217862",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "79815b2f4ad3cc097204ee1bf3d7efaa85585bfa0620a23740987cbf790050ae",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
             "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "format": "markdown",
-            "frontmatter_mode": "preserve",
+            "frontmatter_mode": "translate",
             "language": "Spanish",
             "locale": "es",
             "model": "",
@@ -31,34 +71,133 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
               "children": [],
-              "hash": "971bd2e703d1808e563b5e080e6cc74676f8b07f109adfbddc4c3a51ba93297c",
+              "details": {
+                "content_hash": {
+                  "server/L10N/es.md": {
+                    "content_hash": "487bd0a18ae3e47c6148f0a1e059a8ef8561e3d32ba847b41692bbfc67a7934b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary": {
+                        "content_hash": "784f5b0ddff93daad20d035509759e3f1f1fc7d63cb4633261b1cf8cf1a7d028"
+                      },
+                      "## Marketing Examples": {
+                        "content_hash": "bc21a65f069378dd36a873ccfe5b05a6a9f046d106dbe9a5ca894e964eff4795"
+                      },
+                      "## Spanish-specific translation rules": {
+                        "content_hash": "cb5583247a9cac69c52f1436818f606f9baae065935cb65d13bbb166fe7c83b1"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "3200904bdb5c2626fd50b8dc160fe5a501830cc090ac4458ff2c77894cec2555"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "35588b7a6f115fd323bcc695abbc1428cb784c51207ae39f8efa639a5e512f3d",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "ab0896980525bb1cce34defdf4a74be1c02f8790addfd3363a65949f46eeccbb"
+                "content_hash": "4c263295ab639bd2c3ec791e95336abdf1c3147fcc5ca687ae633b2cfba2f6c8"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,15 +206,38 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {
+                      "entry:61cba325808f246cb69e17257499295905bdc2fb8f2b5fcc6b94649684486765": {
+                        "case_sensitive": false,
+                        "definition_hash": "aa943a65009e7182c07996468da25c6df3d24c9a45a138359fc9bbace1e730e0",
+                        "term_hash": "d7c2808d6e69361a06d1c0cb229281f3bf9ee0fd281a1a205b8b855adf513a41",
+                        "translation_hash": "f5b47f7ea6684eda8d2203d8521f8cd92549265ac1300b4743152ae2d437835b"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "1c84c8fd7892baf8d2db0da4729e3804f9867a3bf1dd1a114a5005c615e0b198"
+                      },
+                      "entry:f6977d4134bbe756e3aef4854d9ae407992551711ab5839ab61f114d6812132c": {
+                        "case_sensitive": false,
+                        "definition_hash": "9aac3cff7abfbe0b8aeea38965ad9095c891253fe2e76e7e584ee6ba8218a4c7",
+                        "term_hash": "c03dac40bf52cb692381200e184b33074a9b26e2fe0985463bd31f00c52a52c6",
+                        "translation_hash": "639c6e1724a32ccd9aa883018b24696399a9485c8dfa9d57487eb38dc8b998c4"
+                      }
+                    }
+                  },
+                  "hash": "92af33d7ffdf26e91f25d5d815555ab52c2c71e6cd70b13854187803945f73ce",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                    "content_hash": "a83d33a2792878235792a0bf029747e4002b56a80973041fff0b6bea58264d32"
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "20dc61dee170ca533c97f9b7ef576a2f62f2a9bf4f27a6f1a0a76d2f9d50d2a5",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,28 +246,34 @@
               }
             }
           ],
-          "hash": "3fecda6a7ac862b4314b2c9effe680ffda22ec113c48be0dcc732364a0a54802",
+          "details": {},
+          "hash": "0b6c1a4a730feed2c821103af6e45437b5008755bd3ac96a02fe34b1441ceb23",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "7941e3de6405d76fcc666867cf527d260cb01c92e356e3960eeba1d237bc3959",
+      "details": {},
+      "hash": "de6e8ba1c2f0c0622d2d163d1661e4bcac46433ea7d4451b2a14123ca88b2a8c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8ec4521e1ff04ed78e1af72e95c46273680a5b24e1e55ade9d7b7bf3f7de131c",
+  "output_hash": "10365922ccd728073e0bacd3eb316735fbd899e6a898b03067ce2835f5d4647d",
   "output_path": "server/priv/docs/es/guides/features/cache/rust.md",
   "protection_state": "recorded",
   "provider": "",
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [],
-      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "applied": [
+        "repo:cache-hit",
+        "repo:cache-miss",
+        "repo:features"
+      ],
+      "content_hash": "a83d33a2792878235792a0bf029747e4002b56a80973041fff0b6bea58264d32",
       "shadowed": [],
       "version": null
     },
@@ -115,8 +283,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ac5621d6fc381019e365d14d8a4ad0f1f71d5d1b",
+  "source_commit_sha": "fcd9fc91d24711de14b6fc01ac0714760da9256e",
   "source_path": "server/priv/docs/en/guides/features/cache/rust.md",
-  "translated_at": "2026-10-27T18:01:10.889401Z",
-  "translation_session_id": "01a17e82-ed11-7ef4-8bba-9f2a3d22f8ab"
+  "translated_at": "2026-10-30T14:09:01.665252Z",
+  "translation_session_id": "01a18d22-b04d-7570-990d-070f52539940"
 }

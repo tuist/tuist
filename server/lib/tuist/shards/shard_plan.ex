@@ -18,6 +18,7 @@ defmodule Tuist.Shards.ShardPlan do
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :reporting_version, Ch, type: "UInt8", default: 0
     field :assignments, Ch, type: "String", default: ""
+    field :storage_target, Ch, type: "LowCardinality(String)", default: ""
 
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
@@ -38,7 +39,8 @@ defmodule Tuist.Shards.ShardPlan do
       :gradle_build_id,
       :inserted_at,
       :reporting_version,
-      :assignments
+      :assignments,
+      :storage_target
     ])
     |> validate_required([
       :id,

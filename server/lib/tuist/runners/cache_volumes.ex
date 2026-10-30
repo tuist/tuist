@@ -25,6 +25,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumePlacement
   alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.VCS
@@ -39,6 +40,13 @@ defmodule Tuist.Runners.CacheVolumes do
   @publication_operations ["upload", "upload_parts", "complete", "publish"]
   @max_parts 10_000
   @max_part_links 64
+  @prefetch_history_days 7
+  @prewarm_runs 2
+  @prewarm_idle_seconds 4 * 60 * 60
+  @prewarm_limit 32
+  @recent_use_seconds 24 * 60 * 60
+  @recent_limit 8
+  @checkout_limit 16
   @checkout_reserved_bytes 8_000_000_000
   @docker_growth_reserved_bytes 20_000_000_000
   @unmeasured_reserved_bytes 5_000_000_000
@@ -153,8 +161,7 @@ defmodule Tuist.Runners.CacheVolumes do
          # A pull request from a branch or fork named like the default branch is not one.
          default_branch_job: identity.trusted,
          may_start_master: may_start_master?(identity, profile),
-         # Stable across clears, so a host can drop the copies of a cleared generation.
-         volume_key: :sha256 |> :crypto.hash(usage.volume_id) |> Base.encode16(case: :lower)
+         volume_key: checkout_volume_key(usage.volume_id)
        })}
     else
       {:error, :pending} -> {:error, :pending}
@@ -1051,27 +1058,199 @@ defmodule Tuist.Runners.CacheVolumes do
   defp reserved_bytes(_key, volume_bytes, _head_size_bytes), do: min(volume_bytes, @unmeasured_reserved_bytes)
 
   @doc """
-  The saved HEADs of the macOS custom volumes jobs used on `node_names` since
-  `since`, most recently used first. Each is the identity a host restores and
-  then retains its master under: the use that published the HEAD.
-  """
-  def recent_macos_heads(node_names, %DateTime{} = since, limit) do
-    since = DateTime.truncate(since, :second)
+  The saved HEADs of the `platform` custom volumes jobs used on `node_names` in
+  the week before `now`, most wanted first. Each is the identity a host restores and
+  then retains its master under (the use that published the HEAD), with the
+  `reason` it is listed for:
 
-    from(u in Usage,
-      join: v in Volume,
-      on: v.id == u.volume_id,
-      where:
-        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.deleted_at) and
-          v.key != ^@checkout_key,
-      group_by: v.id,
-      order_by: [desc: max(u.inserted_at)],
-      limit: ^limit,
-      select: v
+    * `"prewarm"`: used by at least two workflow runs in the last seven days and
+      not for four hours, which leaves out keys a single run made for itself. Its HEAD cannot change before its next job, so a host that
+      downloads it while the account is idle still holds the right copy when
+      the account's next working day starts.
+    * `"recent"`: used in the last day, and not listed to prewarm.
+
+  Each list takes the accounts in turn, most recently active first, and each
+  account's volumes most recently used first, so the volumes of one busy account
+  never crowd out another account's.
+
+  Checkout volumes follow the same two rules in a list of their own, after the
+  others, so they never take a custom volume's place. A host restores a checkout
+  master once per lineage and then keeps it current from jobs' exports, so each
+  costs one download per host. Their entries (`kind: "checkout"`) also carry what
+  the host restores the master with, as `allocate_checkout/1` does.
+
+  With `node:`, the lists are those of that one of `node_names`: only the
+  repositories `VolumePlacement` places on it, every volume of a repository on
+  the same Nodes, and the caps apply to that Node's lists. A repository is held
+  by one more Node than its jobs ran on at once over the week
+  (`VolumePlacement.replicas/2`), chosen by `weights` (Node name to weight,
+  equal when absent).
+  """
+  def prefetch_heads(platform, node_names, %DateTime{} = now, opts \\ []) when platform in ["macos", "linux"] do
+    now = DateTime.truncate(now, :second)
+    since = DateTime.add(now, -@prefetch_history_days * 24 * 60 * 60, :second)
+    idle_since = DateTime.add(now, -@prewarm_idle_seconds, :second)
+    recent_since = DateTime.add(now, -@recent_use_seconds, :second)
+
+    candidates =
+      Repo.all(
+        from(u in Usage,
+          join: v in Volume,
+          on: v.id == u.volume_id,
+          where:
+            u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == ^platform and
+              is_nil(v.deleted_at),
+          group_by: v.id,
+          select: %{
+            volume: v,
+            last_used_at: max(u.inserted_at),
+            runs: count(u.workflow_run_id, :distinct)
+          }
+        )
+      )
+
+    candidates =
+      case Keyword.fetch(opts, :node) do
+        {:ok, node} ->
+          weights = Keyword.get_lazy(opts, :weights, fn -> Map.new(node_names, &{&1, 1}) end)
+          placed_on(candidates, node, weights, peak_concurrency(platform, node_names, since, now))
+
+        :error ->
+          candidates
+      end
+
+    {checkouts, custom} = Enum.split_with(candidates, &(&1.volume.key == @checkout_key))
+    {prewarm, recent} = prefetch_reasons(custom, idle_since, recent_since)
+    {checkout_prewarm, checkout_recent} = prefetch_reasons(checkouts, idle_since, recent_since)
+
+    listed_heads(prewarm, "prewarm", @prewarm_limit) ++
+      listed_heads(recent, "recent", @recent_limit) ++
+      Enum.take(
+        listed_heads(checkout_prewarm, "prewarm", @checkout_limit) ++
+          listed_heads(checkout_recent, "recent", @checkout_limit),
+        @checkout_limit
+      )
+  end
+
+  defp placed_on(candidates, node, weights, peaks) do
+    Enum.filter(candidates, fn %{volume: volume} ->
+      group = {volume.account_id, volume.repository}
+      count = VolumePlacement.replicas(Map.get(peaks, group, 0), map_size(weights))
+      node in VolumePlacement.holders(placement_key(group), weights, count)
+    end)
+  end
+
+  @doc "The key `VolumePlacement` places an account's repository by."
+  def placement_key({account_id, repository}), do: "#{account_id}/#{repository}"
+
+  # The most jobs of each account's repository that held a volume use on
+  # `node_names` at the same time over the week: a sweep over every job's span,
+  # from its first use's allocation to its last use's end.
+  defp peak_concurrency(platform, node_names, since, now) do
+    jobs =
+      from(u in Usage,
+        join: v in Volume,
+        on: v.id == u.volume_id,
+        where:
+          u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == ^platform and
+            is_nil(v.deleted_at),
+        group_by: [v.account_id, v.repository, u.workflow_job_id],
+        select: %{
+          account_id: v.account_id,
+          repository: v.repository,
+          started_at: type(min(u.inserted_at), :utc_datetime),
+          ended_at:
+            type(
+              max(
+                coalesce(
+                  u.finished_at,
+                  coalesce(u.deleted_at, coalesce(u.last_reported_at, type(u.inserted_at, :utc_datetime_usec)))
+                )
+              ),
+              :utc_datetime_usec
+            )
+        }
+      )
+
+    starts =
+      from(j in subquery(jobs),
+        select: %{
+          account_id: j.account_id,
+          repository: j.repository,
+          at: type(j.started_at, :utc_datetime_usec),
+          delta: 1
+        }
+      )
+
+    ends =
+      from(j in subquery(jobs), select: %{account_id: j.account_id, repository: j.repository, at: j.ended_at, delta: -1})
+
+    levels =
+      from(e in subquery(union_all(starts, ^ends)),
+        select: %{
+          account_id: e.account_id,
+          repository: e.repository,
+          level:
+            over(sum(e.delta),
+              partition_by: [e.account_id, e.repository],
+              order_by: [asc: e.at, desc: e.delta]
+            )
+        }
+      )
+
+    from(l in subquery(levels),
+      group_by: [l.account_id, l.repository],
+      select: {{l.account_id, l.repository}, type(max(l.level), :integer)}
     )
     |> Repo.all()
-    |> Enum.flat_map(&head_identity/1)
+    |> Map.new()
   end
+
+  defp prefetch_reasons(candidates, idle_since, recent_since) do
+    {prewarm, rest} =
+      Enum.split_with(candidates, fn candidate ->
+        candidate.runs >= @prewarm_runs and DateTime.compare(candidate.last_used_at, idle_since) != :gt
+      end)
+
+    {prewarm, Enum.filter(rest, &(DateTime.compare(&1.last_used_at, recent_since) != :lt))}
+  end
+
+  # Each account's most recently used volume first: those are the keys its next
+  # jobs attach, ahead of keys it stopped using.
+  defp listed_heads(candidates, reason, limit) do
+    candidates
+    |> Enum.group_by(& &1.volume.account_id)
+    |> Enum.map(fn {_account_id, volumes} -> Enum.sort_by(volumes, &DateTime.to_unix(&1.last_used_at), :desc) end)
+    |> Enum.sort_by(fn [latest | _] -> {-DateTime.to_unix(latest.last_used_at), latest.volume.account_id} end)
+    |> take_turns()
+    |> Stream.flat_map(&prefetch_head(&1.volume))
+    |> Stream.map(&Map.put(&1, :reason, reason))
+    |> Enum.take(limit)
+  end
+
+  defp prefetch_head(%Volume{key: @checkout_key, provider: "github", default_branch: branch} = volume)
+       when is_binary(branch) do
+    for head <- head_identity(volume) do
+      Map.merge(head, %{
+        kind: @checkout_key,
+        checkout_generation: volume.generation,
+        clone_url: "https://github.com/" <> volume.repository,
+        default_branch: branch,
+        uid: volume.uid,
+        volume_key: checkout_volume_key(volume.id)
+      })
+    end
+  end
+
+  defp prefetch_head(%Volume{key: @checkout_key}), do: []
+  defp prefetch_head(volume), do: head_identity(volume)
+
+  # Stable across clears, so a host can drop the copies of a cleared generation.
+  defp checkout_volume_key(volume_id), do: :sha256 |> :crypto.hash(volume_id) |> Base.encode16(case: :lower)
+
+  defp take_turns([]), do: []
+
+  defp take_turns(lists), do: Enum.map(lists, &hd/1) ++ take_turns(for [_ | rest] <- lists, rest != [], do: rest)
 
   defp head_identity(volume) do
     with %{generation: generation, tree_digest: digest, content_digest: content}

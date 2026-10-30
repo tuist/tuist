@@ -101,12 +101,12 @@ msgstr "متوسط مدة جميع حالات الاختبار."
 #: lib/tuist_web/live/test_cases_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Average duration of individual test case executions during a given period."
-msgstr "متوسط مدة تنفيذ كل حالة اختبار خلال فترة زمنية محددة."
+msgstr "متوسط مدة عمليات تنفيذ حالة اختبار فردية خلال فترة معينة."
 
 #: lib/tuist_web/live/test_runs_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Average duration of test runs during a given period."
-msgstr "متوسط مدة تشغيلات الاختبارات خلال فترة زمنية محددة."
+msgstr "متوسط مدة تشغيلات الاختبارات خلال فترة معينة."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:164
 #: lib/tuist_web/live/test_run_live.ex:1293
@@ -181,7 +181,7 @@ msgstr "بناء: %{scheme}"
 #: lib/tuist_web/live/tests_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "CI"
-msgstr "التكامل المستمر (CI)"
+msgstr "CI"
 
 #: lib/tuist_web/live/test_run_live.html.heex:154
 #: lib/tuist_web/live/test_run_live.html.heex:163
@@ -205,34 +205,34 @@ msgstr "إلغاء"
 #: lib/tuist_web/helpers/failure_message.ex:35
 #, elixir-autogen, elixir-format
 msgid "Caught error"
-msgstr "تم اكتشاف خطأ"
+msgstr "تم رصد خطأ"
 
 #: lib/tuist_web/helpers/failure_message.ex:60
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}"
-msgstr "تم اكتشاف خطأ في %{location}"
+msgstr "تم رصد خطأ في %{location}"
 
 #: lib/tuist_web/helpers/failure_message.ex:63
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}: %{message}"
-msgstr "تم اكتشاف خطأ في %{location}: %{message}"
+msgstr "تم رصد خطأ في %{location}: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:38
 #, elixir-autogen, elixir-format
 msgid "Caught error: %{message}"
-msgstr "تم اكتشاف خطأ: %{message}"
+msgstr "خطأ تم اكتشافه: %{message}"
 
 #: lib/tuist_web/helpers/test_labels.ex:27
 #, elixir-autogen, elixir-format
 msgid "Class"
-msgstr "الفئة"
+msgstr "فئة"
 
 #: lib/tuist_web/helpers/test_labels.ex:38
 #: lib/tuist_web/helpers/test_labels.ex:39
 #: lib/tuist_web/live/test_run_live.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Command"
-msgstr "الأمر"
+msgstr "أمر"
 
 #: lib/tuist_web/live/test_run_live.html.heex:453
 #, elixir-autogen, elixir-format
@@ -246,7 +246,7 @@ msgstr "مدة تنفيذ الأمر"
 #: lib/tuist_web/live/test_run_live.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Commit"
-msgstr "الالتزام"
+msgstr "التزام"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:28
 #: lib/tuist_web/live/test_case_run_live.html.heex:511
@@ -254,7 +254,7 @@ msgstr "الالتزام"
 #: lib/tuist_web/live/test_run_live.html.heex:1951
 #, elixir-autogen, elixir-format
 msgid "Crash Report"
-msgstr "تقرير التعطل"
+msgstr "تقرير تعطل"
 
 #: lib/tuist_web/live/coverage/components.ex:707
 #: lib/tuist_web/live/flaky_tests_live.html.heex:57
@@ -350,7 +350,7 @@ msgstr "فشل التوقع في %{location}: %{message}"
 #: lib/tuist_web/helpers/failure_message.ex:33
 #, elixir-autogen, elixir-format
 msgid "Expectation failed: %{message}"
-msgstr "فشل التوقع: %{message}"
+msgstr "فشل التحقق من التوقع: %{message}"
 
 #: lib/tuist_web/live/once_test_case_run_live.ex:80
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:88
@@ -415,7 +415,7 @@ msgstr "عدد عمليات التشغيل الفاشلة"
 #: lib/tuist_web/live/test_runs_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "يمثل عدد عمليات التشغيل الفاشلة عدد مرات فشل اختبارات التشغيل خلال فترة زمنية محددة. يتم تنفيذ اختبار التشغيل إما عن طريق تشغيل 'tuist test' أو 'tuist xcodebuild test'."
+msgstr "يمثل عدد عمليات التشغيل الفاشلة عدد مرات فشل تشغيل الاختبارات خلال فترة زمنية محددة. يتم تنفيذ تشغيل الاختبار إما عن طريق تشغيل 'tuist test' أو 'tuist xcodebuild test'."
 
 #: lib/tuist_web/live/once_tests_live.html.heex:450
 #: lib/tuist_web/live/tests_live.html.heex:917
@@ -447,7 +447,7 @@ msgstr "حالات الاختبار الفاشلة"
 #: lib/tuist_web/live/tests_live.html.heex:621
 #, elixir-autogen, elixir-format
 msgid "Failed test runs"
-msgstr "اختبارات التشغيل الفاشلة"
+msgstr "عمليات تشغيل الاختبارات الفاشلة"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:61
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:145
@@ -456,14 +456,14 @@ msgstr "اختبارات التشغيل الفاشلة"
 #: lib/tuist_web/live/test_case_run_live.html.heex:932
 #, elixir-autogen, elixir-format
 msgid "Failures"
-msgstr "الأخطاء"
+msgstr "أعطال"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
 #: lib/tuist_web/live/coverage/components.ex:651
 #: lib/tuist_web/live/coverage_detail_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "File"
-msgstr "الملف"
+msgstr "ملف"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:108
 #: lib/tuist_web/live/coverage_detail_live.html.heex:190
@@ -484,13 +484,13 @@ msgstr "تصفية"
 #: lib/tuist_web/live/test_case_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "First run of this test"
-msgstr "أول تشغيل لهذا الاختبار"
+msgstr "التشغيل الأول لهذا الاختبار"
 
 #: lib/tuist_web/live/test_case_live.ex:199
 #: lib/tuist_web/live/test_case_live.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Flakiness rate"
-msgstr "معدل التقلب"
+msgstr "معدل عدم الاستقرار"
 
 #: lib/tuist_web/live/test_case_live.ex:274
 #: lib/tuist_web/live/test_case_live.html.heex:70
@@ -506,7 +506,7 @@ msgstr "معدل التقلب"
 #: lib/tuist_web/live/test_run_live.html.heex:1659
 #, elixir-autogen, elixir-format
 msgid "Flaky"
-msgstr "متقلب"
+msgstr "غير مستقر"
 
 #: lib/tuist_web/live/test_case_live.html.heex:161
 #: lib/tuist_web/live/test_case_live.html.heex:786
@@ -518,27 +518,27 @@ msgstr "متقلب"
 #: lib/tuist_web/live/test_run_live.html.heex:2050
 #, elixir-autogen, elixir-format
 msgid "Flaky Runs"
-msgstr "عمليات التشغيل المتقلبة"
+msgstr "عمليات التشغيل غير المستقرة"
 
 #: lib/tuist_web/live/flaky_tests_live.ex:23
 #: lib/tuist_web/live/flaky_tests_live.ex:26
 #: lib/tuist_web/live/flaky_tests_live.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
-msgstr "الاختبارات غير المستقرة"
+msgstr "اختبارات غير مستقرة"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:375
 #: lib/tuist_web/live/flaky_tests_live.html.heex:382
 #: lib/tuist_web/live/flaky_tests_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Flaky runs"
-msgstr "التشغيلات غير المستقرة"
+msgstr "تشغيلات غير مستقرة"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:156
 #: lib/tuist_web/live/test_run_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Flaky test cases"
-msgstr "حالات الاختبار غير المستقرة"
+msgstr "حالات اختبار غير مستقرة"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:163
 #: lib/tuist_web/live/flaky_tests_live.html.heex:313
@@ -547,12 +547,12 @@ msgstr "حالات الاختبار غير المستقرة"
 #: lib/tuist_web/live/tests_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Flaky test runs"
-msgstr "تشغيلات الاختبار غير المستقرة"
+msgstr "تشغيلات اختبار غير مستقرة"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:159
 #, elixir-autogen, elixir-format
 msgid "Hash"
-msgstr "التجزئة"
+msgstr "تجزئة"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:139
 #: lib/tuist_web/live/test_run_live.ex:1437
@@ -563,7 +563,7 @@ msgstr "إصابة"
 #: lib/tuist_web/helpers/attachment_helpers.ex:22
 #, elixir-autogen, elixir-format
 msgid "Image"
-msgstr "الصورة"
+msgstr "صورة"
 
 #: lib/tuist_web/helpers/failure_message.ex:40
 #, elixir-autogen, elixir-format
@@ -712,18 +712,18 @@ msgstr "يدويًا بواسطة @%{name}"
 #: lib/tuist_web/live/test_case_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Mark as flaky"
-msgstr "وضع علامة على أنه غير مستقر"
+msgstr "وضع علامة كغير مستقر"
 
 #: lib/tuist_web/live/test_case_live.ex:844
 #, elixir-autogen, elixir-format
 msgid "Marked as flaky"
-msgstr "تم وضع علامة عليه على أنه غير مستقر"
+msgstr "مُعلَّم كغير مستقر"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:154
 #: lib/tuist_web/live/test_run_live.ex:1443
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "مفقود"
+msgstr "فقدان في الذاكرة المؤقتة"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:128
 #: lib/tuist_web/helpers/test_labels.ex:17
@@ -735,7 +735,7 @@ msgstr "وحدة نمطية"
 #: lib/tuist_web/live/test_run_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
-msgstr "ذاكرة التخزين المؤقت للوحدة النمطية"
+msgstr "الذاكرة المؤقتة للوحدات النمطية"
 
 #: lib/tuist_web/helpers/test_labels.ex:21
 #: lib/tuist_web/live/test_run_live.html.heex:524
@@ -806,7 +806,7 @@ msgstr "لم يتم العثور على وحدات نمطية"
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "No quarantined tests"
-msgstr "لا توجد اختبارات معزولة"
+msgstr "لا توجد اختبارات في العزل"
 
 #: lib/tuist_web/live/test_case_live.html.heex:1064
 #, elixir-autogen, elixir-format
@@ -907,7 +907,7 @@ msgstr "ناجح"
 #: lib/tuist_web/live/tests_live.html.heex:912
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "عمليات التشغيل الناجحة"
+msgstr "التشغيلات الناجحة"
 
 #: lib/tuist_web/helpers/test_labels.ex:41
 #, elixir-autogen, elixir-format
@@ -923,20 +923,20 @@ msgstr "المشروع"
 #: lib/tuist_web/live/test_run_live.html.heex:2080
 #, elixir-autogen, elixir-format
 msgid "Quarantined"
-msgstr "مُحجر"
+msgstr "مُحجور"
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:26
 #: lib/tuist_web/live/quarantined_tests_live.ex:29
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
-msgstr "الاختبارات المُحجرة"
+msgstr "الاختبارات المحجورة"
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:82
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Quarantined by"
-msgstr "تم الحجر بواسطة"
+msgstr "حُجر بواسطة"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:217
@@ -978,7 +978,7 @@ msgstr "تم التشغيل بواسطة"
 #: lib/tuist_web/live/tests_live.html.heex:883
 #, elixir-autogen, elixir-format
 msgid "Recent Test Runs"
-msgstr "عمليات الاختبار الأخيرة"
+msgstr "عمليات تشغيل الاختبارات الأخيرة"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:142
 #: lib/tuist_web/live/test_run_live.ex:1441
@@ -1044,12 +1044,12 @@ msgstr "تمثل إصابات الاختبار الانتقائي عدد وحد�
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:63
 #, elixir-autogen, elixir-format
 msgid "Selective test misses"
-msgstr "فقدان الاختبار الانتقائي"
+msgstr "فوات الاختبار الانتقائي"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:65
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "يمثل فقدان الاختبار الانتقائي عدد وحدات الاختبار التي تم تشغيلها لأنها لم تُشغَّل بنجاح من قبل."
+msgstr "تمثل فوات الاختبار الانتقائي عدد وحدات الاختبار التي تم تشغيلها لأنها لم تُشغَّل بنجاح من قبل."
 
 #: lib/tuist_web/live/tests_live.html.heex:854
 #, elixir-autogen, elixir-format
@@ -1061,7 +1061,7 @@ msgstr "الاختبار الانتقائي: لا توجد بيانات بعد"
 #: lib/tuist_web/live/test_run_live.html.heex:1978
 #, elixir-autogen, elixir-format
 msgid "Signal"
-msgstr "الإشارة"
+msgstr "إشارة"
 
 #: lib/tuist_web/live/once_test_case_run_live.ex:81
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:95
@@ -1091,7 +1091,7 @@ msgstr "الإشارة"
 #: lib/tuist_web/live/tests_live.html.heex:998
 #, elixir-autogen, elixir-format
 msgid "Skipped"
-msgstr "تم التخطي"
+msgstr "متجاهل"
 
 #: lib/tuist_web/live/tests_live.html.heex:1085
 #, elixir-autogen, elixir-format
@@ -1146,7 +1146,7 @@ msgstr "النوع الفرعي"
 #: lib/tuist_web/helpers/test_labels.ex:28
 #, elixir-autogen, elixir-format
 msgid "Suite"
-msgstr "المجموعة"
+msgstr "مجموعة الاختبارات"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:32
 #, elixir-autogen, elixir-format
@@ -1175,7 +1175,7 @@ msgstr "عمليات تشغيل حالة الاختبار"
 #: lib/tuist_web/live/test_case_run_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Test Case: %{name}"
-msgstr "حالة الاختبار: %{name}"
+msgstr "حالة اختبار: %{name}"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:175
 #: lib/tuist_web/live/once_test_run_live.html.heex:190
@@ -1224,7 +1224,7 @@ msgstr "وحدات الاختبار"
 #: lib/tuist_web/live/test_run_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "Test Run"
-msgstr "تشغيل الاختبار"
+msgstr "تشغيل الاختبارات"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:583
 #: lib/tuist_web/live/coverage_detail_live.html.heex:477
@@ -1235,7 +1235,7 @@ msgstr "تشغيل الاختبار"
 #: lib/tuist_web/live/test_runs_live.html.heex:443
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
-msgstr "عمليات الاختبار"
+msgstr "تشغيل الاختبارات"
 
 #: lib/tuist_web/helpers/test_labels.ex:31
 #, elixir-autogen, elixir-format
@@ -1246,7 +1246,7 @@ msgstr "مجموعة اختبارات"
 #: lib/tuist_web/live/test_run_live.html.heex:521
 #, elixir-autogen, elixir-format
 msgid "Test Suites"
-msgstr "مجموعات الاختبارات"
+msgstr "مجموعات اختبارات"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:206
 #: lib/tuist_web/live/test_cases_live.ex:75
@@ -1274,12 +1274,12 @@ msgstr "لم يتم العثور على تشغيل حالة الاختبار."
 #: lib/tuist_web/live/test_cases_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Test case runs"
-msgstr "تشغيلات حالات الاختبار"
+msgstr "عمليات تشغيل حالات الاختبار"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Test case runs represents the total number of individual test case executions during a given period."
-msgstr "تمثل تشغيلات حالات الاختبار العدد الإجمالي لتنفيذ كل حالة اختبار بشكل فردي خلال فترة زمنية معينة."
+msgstr "تمثل عمليات تشغيل حالات الاختبار العدد الإجمالي لتنفيذ حالات الاختبار الفردية خلال فترة زمنية معينة."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:144
 #: lib/tuist_web/live/once_test_run_live.html.heex:289
@@ -1308,25 +1308,25 @@ msgstr "سجل الاختبارات"
 #: lib/tuist_web/live/test_case_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Test reliability"
-msgstr "موثوقية الاختبار"
+msgstr "موثوقية الاختبارات"
 
 #: lib/tuist_web/live/once_runs_live.ex:416
 #: lib/tuist_web/live/test_runs_live.ex:327
 #: lib/tuist_web/live/test_runs_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Test run count"
-msgstr "عدد مرات تشغيل الاختبار"
+msgstr "عدد تشغيلات الاختبارات"
 
 #: lib/tuist_web/live/test_runs_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "يمثل عدد مرات تشغيل الاختبار عدد المرات التي تم فيها تنفيذ اختبارات خلال فترة زمنية محددة. يتم تنفيذ عملية الاختبار إما عن طريق تشغيل 'tuist test' أو 'tuist xcodebuild test'."
+msgstr "يمثل عدد تشغيلات الاختبارات عدد مرات تنفيذ تشغيلات الاختبارات خلال فترة معينة. يتم تنفيذ تشغيل الاختبار إما عبر الأمر 'tuist test' أو 'tuist xcodebuild test'."
 
 #: lib/tuist_web/live/test_run_live.ex:60
 #: lib/tuist_web/live/test_run_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Test run not found."
-msgstr "لم يتم العثور على عملية اختبار."
+msgstr "لم يُعثر على تشغيل الاختبار."
 
 #: lib/tuist_web/live/once_tests_live.html.heex:72
 #: lib/tuist_web/live/once_tests_live.html.heex:323
@@ -1334,7 +1334,7 @@ msgstr "لم يتم العثور على عملية اختبار."
 #: lib/tuist_web/live/tests_live.html.heex:493
 #, elixir-autogen, elixir-format
 msgid "Test runs"
-msgstr "عمليات تشغيل الاختبار"
+msgstr "تشغيلات الاختبارات"
 
 #: lib/tuist_web/live/once_tests_live.ex:29
 #: lib/tuist_web/live/quarantined_tests_live.ex:30
@@ -1343,7 +1343,7 @@ msgstr "عمليات تشغيل الاختبار"
 #: lib/tuist_web/live/tests_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Tests"
-msgstr "الاختبارات"
+msgstr "اختبارات"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:23
 #, elixir-autogen, elixir-format
@@ -1362,20 +1362,20 @@ msgstr "متوسط مدة تشغيل الاختبار مع فترات النسب
 #: lib/tuist_web/live/tests_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "The number of test runs that failed."
-msgstr "عدد عمليات تشغيل الاختبار التي فشلت."
+msgstr "عدد عمليات تشغيل الاختبارات التي فشلت."
 
 #: lib/tuist_web/live/once_tests_live.html.heex:89
 #: lib/tuist_web/live/tests_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "The number of test runs with flaky tests."
-msgstr "عدد عمليات تشغيل الاختبار التي تحتوي على اختبارات غير مستقرة."
+msgstr "عدد عمليات تشغيل الاختبارات التي تحتوي على اختبارات غير مستقرة."
 
 #: lib/tuist_web/live/once_runs_live.ex:422
 #: lib/tuist_web/live/once_tests_live.html.heex:74
 #: lib/tuist_web/live/tests_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "The total number of test runs."
-msgstr "إجمالي عدد عمليات تشغيل الاختبار."
+msgstr "إجمالي عدد عمليات تشغيل الاختبارات."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:38
 #, elixir-autogen, elixir-format
@@ -1385,18 +1385,18 @@ msgstr "إجمالي الوحدات النمطية"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:40
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
-msgstr "يمثل إجمالي الوحدات النمطية العدد الإجمالي للوحدات النمطية القابلة للاختبار."
+msgstr "يمثل إجمالي الوحدات النمطية العدد الكلي للوحدات النمطية القابلة للاختبار."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:145
 #: lib/tuist_web/live/test_run_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Total number of test cases executed."
-msgstr "إجمالي عدد حالات الاختبار المنفذة."
+msgstr "إجمالي عدد حالات الاختبار التي تم تنفيذها."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:175
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "حاول تغيير مصطلح البحث الخاص بك"
+msgstr "حاول تغيير مصطلح البحث"
 
 #: lib/tuist_web/live/coverage/components.ex:672
 #: lib/tuist_web/live/coverage_detail_live.html.heex:248
@@ -1450,12 +1450,12 @@ msgstr "خطأ غير معروف"
 #: lib/tuist_web/live/test_case_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Unmark as flaky"
-msgstr "إلغاء تحديد كمتقلب"
+msgstr "إزالة علامة عدم الاستقرار"
 
 #: lib/tuist_web/live/test_case_live.ex:845
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
-msgstr "تم إلغاء التحديد كمتقلب"
+msgstr "تمت إزالة علامة عدم الاستقرار"
 
 #: lib/tuist_web/live/coverage/components.ex:115
 #: lib/tuist_web/live/coverage_live.html.heex:30
@@ -1505,7 +1505,7 @@ msgstr "مدة تشغيل حالة الاختبار p50"
 #: lib/tuist_web/live/tests_live.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "p50 test run duration"
-msgstr "مدة تشغيل الاختبار p50"
+msgstr "مدة تشغيل الاختبارات p50"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:259
 #: lib/tuist_web/live/shards_live.html.heex:378
@@ -1534,7 +1534,7 @@ msgstr "مدة تشغيل حالة الاختبار p90"
 #: lib/tuist_web/live/tests_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "p90 test run duration"
-msgstr "مدة تشغيل الاختبار p90"
+msgstr "مدة تشغيل الاختبارات p90"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:246
 #: lib/tuist_web/live/shards_live.html.heex:365
@@ -1563,7 +1563,7 @@ msgstr "مدة تشغيل حالة الاختبار p99"
 #: lib/tuist_web/live/tests_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "p99 test run duration"
-msgstr "مدة تشغيل الاختبار p99"
+msgstr "مدة تشغيل الاختبارات p99"
 
 #: lib/tuist_web/live/flaky_tests_live.ex:289
 #: lib/tuist_web/live/quarantined_tests_live.ex:287
@@ -1632,13 +1632,13 @@ msgstr "•"
 #: lib/tuist_web/live/shards_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Avg. shard balance"
-msgstr "متوسط توازن الشرائح"
+msgstr "متوسط توازن الشظايا"
 
 #: lib/tuist_web/live/shards_live.ex:307
 #: lib/tuist_web/live/shards_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Avg. shard count"
-msgstr "متوسط عدد الشرائح"
+msgstr "متوسط عدد الشظايا"
 
 #: lib/tuist_web/live/shards_live.html.heex:569
 #, elixir-autogen, elixir-format
@@ -1648,7 +1648,7 @@ msgstr "مستوى التفصيل"
 #: lib/tuist_web/live/shards_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
-msgstr "مدى التوزيع المتساوي لمدة الاختبار عبر الشرائح. تعني نسبة 100% توازناً مثالياً."
+msgstr "مدى التوزيع المتساوي لمدة الاختبارات عبر الشظايا. تعني 100% توازناً مثالياً."
 
 #: lib/tuist_web/live/coverage/components.ex:416
 #: lib/tuist_web/live/coverage_detail_live.ex:341
@@ -1676,7 +1676,7 @@ msgstr "لا توجد عمليات تشغيل مجزأة"
 #: lib/tuist_web/live/shards_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Number of shards used per sharded run during a given period."
-msgstr "عدد الشاردات المستخدمة لكل تشغيل مقسم خلال فترة معينة."
+msgstr "عدد الشظايا المستخدمة لكل تشغيل مجزأ خلال فترة معينة."
 
 #: lib/tuist_web/live/test_run_live.html.heex:559
 #, elixir-autogen, elixir-format
@@ -1691,7 +1691,7 @@ msgstr "قيد الانتظار"
 #: lib/tuist_web/live/test_run_live.html.heex:1671
 #, elixir-autogen, elixir-format
 msgid "Shard"
-msgstr "شاردة"
+msgstr "شظية"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:205
 #: lib/tuist_web/live/test_run_live.ex:1398
@@ -1701,12 +1701,12 @@ msgstr "شاردة"
 #: lib/tuist_web/live/test_run_live.html.heex:1674
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
-msgstr "الشاردة %{index}"
+msgstr "الشظية %{index}"
 
 #: lib/tuist_web/live/shards_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Sharded run count"
-msgstr "عدد التشغيلات المقسمة"
+msgstr "عدد التشغيلات المجزأة"
 
 #: lib/tuist_web/live/shards_live.ex:24
 #: lib/tuist_web/live/shards_live.ex:27
@@ -1715,53 +1715,53 @@ msgstr "عدد التشغيلات المقسمة"
 #: lib/tuist_web/live/test_run_live.html.heex:483
 #, elixir-autogen, elixir-format
 msgid "Shards"
-msgstr "الشاردات"
+msgstr "الشظايا"
 
 #: lib/tuist_web/live/test_run_live.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "The shards are in progress..."
-msgstr "الشاردات قيد التقدم..."
+msgstr "الشظايا قيد التنفيذ..."
 
 #: lib/tuist_web/live/shards_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Total sharded runs"
-msgstr "إجمالي التشغيلات المقسمة"
+msgstr "إجمالي التشغيلات المجزأة"
 
 #: lib/tuist_web/live/shards_live.ex:327
 #: lib/tuist_web/live/shards_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "p50 shard balance"
-msgstr "توازن شريحة p50"
+msgstr "توازن الشرائح p50"
 
 #: lib/tuist_web/live/shards_live.ex:304
 #: lib/tuist_web/live/shards_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "p50 shard count"
-msgstr "عدد شرائح p50"
+msgstr "عدد الشرائح p50"
 
 #: lib/tuist_web/live/shards_live.ex:324
 #: lib/tuist_web/live/shards_live.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "p90 shard balance"
-msgstr "توازن شريحة p90"
+msgstr "توازن الشرائح p90"
 
 #: lib/tuist_web/live/shards_live.ex:301
 #: lib/tuist_web/live/shards_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "p90 shard count"
-msgstr "عدد شرائح p90"
+msgstr "عدد الشرائح p90"
 
 #: lib/tuist_web/live/shards_live.ex:321
 #: lib/tuist_web/live/shards_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "p99 shard balance"
-msgstr "توازن شريحة p99"
+msgstr "توازن الشرائح p99"
 
 #: lib/tuist_web/live/shards_live.ex:298
 #: lib/tuist_web/live/shards_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "p99 shard count"
-msgstr "عدد شرائح p99"
+msgstr "عدد الشرائح p99"
 
 #: lib/tuist_web/live/test_runs_live.html.heex:506
 #, elixir-autogen, elixir-format
@@ -1776,12 +1776,12 @@ msgstr "تحديث"
 #: lib/tuist_web/live/test_run_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "عادةً ما يستغرق هذا بضع ثوانٍ. إذا لم يتم تحديث الصفحة تلقائيًا، فانقر فوق زر التحديث."
+msgstr "يستغرق هذا عادةً بضع ثوانٍ. إذا لم تُحدَّث الصفحة تلقائياً، انقر على زر التحديث."
 
 #: lib/tuist_web/live/test_run_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Your test results are being processed"
-msgstr "يتم الآن معالجة نتائج الاختبار الخاصة بك"
+msgstr "تجري معالجة نتائج الاختبارات الخاصة بك"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:910
 #, elixir-autogen, elixir-format
@@ -1799,7 +1799,7 @@ msgstr "الوسائط"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "The average test run duration."
-msgstr "متوسط مدة تشغيل الاختبار."
+msgstr "متوسط مدة تشغيل الاختبارات."
 
 #: lib/tuist_web/live/test_run_live.html.heex:370
 #, elixir-autogen, elixir-format
@@ -1822,17 +1822,17 @@ msgstr "البيئة"
 #: lib/tuist_web/live/tests_live.ex:516
 #, elixir-autogen, elixir-format
 msgid "Passed (flaky)"
-msgstr "تم بنجاح (متقلب)"
+msgstr "نجح (غير مستقر)"
 
 #: lib/tuist_web/live/tests_live.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset."
-msgstr "تم الوصول إلى حد 10,000 إدخال، يتم تضمين البيانات حتى %{date} فقط. حاول التصفية حسب المخطط أو خصائص أخرى لتضييق نطاق مجموعة البيانات."
+msgstr "تم الوصول إلى حد 10,000 سجل، والبيانات مشمولة فقط حتى %{date}. جرّب التصفية حسب المخطط أو خصائص أخرى لتضييق نطاق مجموعة البيانات."
 
 #: lib/tuist_web/live/tests_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "تم الوصول إلى حد 10,000 إدخال، يتم تضمين البيانات حتى %{date} فقط. حاول التصفية لتضييق نطاق مجموعة البيانات."
+msgstr "تم الوصول إلى حد 10,000 سجل، والبيانات مشمولة فقط حتى %{date}. جرّب التصفية لتضييق نطاق مجموعة البيانات."
 
 #: lib/tuist_web/live/test_case_live.ex:815
 #: lib/tuist_web/live/test_case_live.ex:847
@@ -1845,7 +1845,7 @@ msgstr "مفعّل"
 #: lib/tuist_web/live/test_cases_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Number of distinct test cases with at least one run in the 14 days ending on each date."
-msgstr "عدد حالات الاختبار المميزة التي تم تشغيلها مرة واحدة على الأقل خلال الـ 14 يومًا المنتهية في كل تاريخ."
+msgstr "عدد حالات الاختبار المميزة التي لديها تشغيل واحد على الأقل خلال الـ 14 يوماً المنتهية في كل تاريخ."
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:362
@@ -1869,22 +1869,22 @@ msgstr "صامت"
 #: lib/tuist_web/live/test_case_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Flaky test case runs"
-msgstr "تشغيلات حالات الاختبار المتقلبة"
+msgstr "تشغيلات حالات الاختبار غير المستقرة"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
-msgstr "عدد عمليات تشغيل الاختبارات (استدعاءات الاختبار على مستوى البناء) التي احتوت على حالة اختبار واحدة غير مستقرة على الأقل. يتم احتساب كل عملية تشغيل اختبار مرة واحدة حتى لو احتوت على العديد من التنفيذات غير المستقرة."
+msgstr "عدد تشغيلات الاختبارات (استدعاءات الاختبار على مستوى البناء) التي احتوت على حالة اختبار غير مستقرة واحدة على الأقل. يُحتسب كل تشغيل اختبار مرة واحدة حتى لو احتوى على العديد من التنفيذات غير المستقرة."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
-msgstr "عدد حالات الاختبار الفريدة المُعلَّمة حالياً كغير مستقرة في نهاية الفترة. يتم احتساب كل حالة اختبار مرة واحدة على الأكثر، بغض النظر عن عدد مرات عدم استقرارها."
+msgstr "عدد حالات الاختبار الفريدة المُعلَّمة حاليًا كغير مستقرة في نهاية الفترة. تُحتسب كل حالة اختبار مرة واحدة على الأكثر، بغض النظر عن عدد مرات عدم استقرارها."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
-msgstr "إجمالي عدد تنفيذات حالات الاختبار الفردية المُعلَّمة كغير مستقرة خلال الفترة. يمكن احتساب حالة اختبار واحدة عدة مرات إذا كانت غير مستقرة عبر عمليات تشغيل متعددة."
+msgstr "إجمالي عدد التنفيذات الفردية لحالات الاختبار المُعلَّمة كغير مستقرة خلال الفترة. يمكن احتساب حالة اختبار واحدة عدة مرات إذا كانت غير مستقرة عبر عمليات تشغيل متعددة."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:102
 #: lib/tuist_web/live/flaky_tests_live.html.heex:307
@@ -1912,7 +1912,7 @@ msgstr "تنزيل الجلسة"
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Muted tests"
-msgstr "الاختبارات الصامتة"
+msgstr "الاختبارات المكتومة"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:92
 #, elixir-autogen, elixir-format
@@ -1922,18 +1922,18 @@ msgstr "عدد حالات الاختبار المكتومة في نهاية ال
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Number of skipped test cases at the end of the period. Skipped tests are not executed at all."
-msgstr "عدد حالات الاختبار المتجاوزة في نهاية الفترة. لا تُنفَّذ الاختبارات المتجاوزة على الإطلاق."
+msgstr "عدد حالات الاختبار المتخطاة في نهاية الفترة. لا تُنفَّذ الاختبارات المتخطاة على الإطلاق."
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Number of test cases currently quarantined at the end of the period. Combines both muted and skipped tests."
-msgstr "عدد حالات الاختبار المعزولة حالياً في نهاية الفترة. يجمع بين الاختبارات المكتومة والمتجاوزة."
+msgstr "عدد حالات الاختبار المعزولة حاليًا في نهاية الفترة. يجمع بين الاختبارات المكتومة والمتخطاة."
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:114
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Skipped tests"
-msgstr "الاختبارات المتجاوزة"
+msgstr "الاختبارات المتخطاة"
 
 #: lib/tuist_web/live/test_case_live.ex:855
 #, elixir-autogen, elixir-format
@@ -1948,7 +1948,7 @@ msgstr "أخطاء"
 #: lib/tuist_web/live/test_run_live.html.heex:589
 #, elixir-autogen, elixir-format
 msgid "Run error"
-msgstr "خطأ في التشغيل"
+msgstr "خطأ التشغيل"
 
 #: lib/tuist_web/live/test_run_live.html.heex:234
 #: lib/tuist_web/live/test_run_live.html.heex:602
@@ -1957,21 +1957,21 @@ msgstr "خطأ في التشغيل"
 #: lib/tuist_web/live/test_run_live.html.heex:1815
 #, elixir-autogen, elixir-format
 msgid "Test Failures"
-msgstr "إخفاقات الاختبار"
+msgstr "إخفاقات الاختبارات"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:374
 #: lib/tuist_web/live/flaky_tests_live.html.heex:406
 #: lib/tuist_web/live/flaky_tests_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Marked flaky at"
-msgstr "تم وضع علامة غير مستقر في"
+msgstr "تم تصنيفها على أنها غير مستقرة في"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:283
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:307
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Quarantined at"
-msgstr "معزول في"
+msgstr "مُعلّقة في"
 
 #: lib/tuist_web/live/test_case_live.html.heex:251
 #, elixir-autogen, elixir-format
@@ -1981,12 +1981,12 @@ msgstr "عدد المرات التي تم فيها تنفيذ حالة الاخ�
 #: lib/tuist_web/live/test_case_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Percentage of test runs that were flaky in the selected period."
-msgstr "نسبة عمليات التشغيل غير المستقرة للاختبار خلال الفترة المحددة."
+msgstr "نسبة عمليات تشغيل الاختبارات التي كانت غير مستقرة خلال الفترة المحددة."
 
 #: lib/tuist_web/live/test_case_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Success rate in the selected period, based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
-msgstr "معدل النجاح خلال الفترة المحددة، استنادًا إلى عمليات التشغيل من فرع %{branch}. يعود إلى جميع الفروع إذا لم تكن هناك عمليات تشغيل على %{branch}."
+msgstr "معدل النجاح خلال الفترة المحددة، بناءً على عمليات التشغيل من الفرع %{branch}. يعود إلى جميع الفروع إذا لم تكن هناك عمليات تشغيل على الفرع %{branch}."
 
 #: lib/tuist_web/live/test_case_live.html.heex:298
 #: lib/tuist_web/live/test_case_live.html.heex:315
@@ -2005,7 +2005,7 @@ msgstr "لا توجد عمليات تشغيل كافية"
 #: lib/tuist_web/live/test_cases_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}."
-msgstr "يُعرض بعد أن يتم تشغيل حالة الاختبار مرة واحدة على الأقل %{count} مرات في آخر %{days} أيام. هذا الاختبار لديه %{runs}."
+msgstr "يظهر بعد أن يتم تشغيل حالة الاختبار مرة واحدة على الأقل %{count} مرات في آخر %{days} أيام. هذا واحد لديه %{runs}."
 
 #: lib/tuist_web/live/test_case_live.html.heex:416
 #, elixir-autogen, elixir-format
@@ -2035,13 +2035,13 @@ msgstr "الكل"
 #: lib/tuist_web/live/test_run_live.html.heex:564
 #, elixir-autogen, elixir-format
 msgid "Not reported"
-msgstr "غير مُبلغ"
+msgstr "غير مُبلَّغ عنه"
 
 #: lib/tuist_web/live/test_case_live.ex:91
 #: lib/tuist_web/live/test_case_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to update this test case."
-msgstr "أنت غير مخوّل لتحديث حالة الاختبار هذه."
+msgstr "ليس لديك صلاحية لتحديث حالة الاختبار هذه."
 
 #: lib/tuist_web/live/test_run_live.html.heex:248
 #, elixir-autogen, elixir-format
@@ -2051,7 +2051,7 @@ msgstr "السجلات"
 #: lib/tuist_web/live/test_run_live.html.heex:2232
 #, elixir-autogen, elixir-format
 msgid "No logs were captured for this Bazel invocation."
-msgstr "لم يتم التقاط أي سجلات لاستدعاء Bazel هذا."
+msgstr "لم يتم التقاط أي سجلات لهذا الاستدعاء لـ Bazel."
 
 #: lib/tuist_web/helpers/test_labels.ex:15
 #, elixir-autogen, elixir-format
@@ -2097,7 +2097,7 @@ msgstr[5] "نجحت جميع التكرارات البالغ عددها %{count}
 #: lib/tuist_web/live/test_run_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "%{failed} of %{total} repetitions failed"
-msgstr "فشل %{failed} من إجمالي %{total} تكرارًا"
+msgstr "فشل %{failed} من أصل %{total} تكرارًا"
 
 #: lib/tuist_web/live/test_run_live.ex:203
 #, elixir-autogen, elixir-format
@@ -2107,7 +2107,7 @@ msgstr "تجاوز الحد الأقصى للمرشحين"
 #: lib/tuist_web/live/test_run_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Not stressed"
-msgstr "غير مُجهَد"
+msgstr "غير مُختبر تحت الضغط"
 
 #: lib/tuist_web/live/test_run_live.html.heex:409
 #, elixir-autogen, elixir-format
@@ -2127,12 +2127,12 @@ msgstr "التكرارات"
 #: lib/tuist_web/live/test_run_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Too slow to stress"
-msgstr "بطيء جدًا لإجراء اختبار الإجهاد"
+msgstr "بطيء جدًا للاختبار تحت الضغط"
 
 #: lib/tuist_web/live/test_case_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Skips the entire target, including healthy tests."
-msgstr "يتخطى الهدف بأكمله، بما في ذلك الاختبارات السليمة."
+msgstr "يتخطى الهدف بالكامل، بما في ذلك الاختبارات السليمة."
 
 #: lib/tuist_web/live/test_cases_live.html.heex:642
 #, elixir-autogen, elixir-format
@@ -2142,12 +2142,12 @@ msgstr "هدف Bazel"
 #: lib/tuist_web/live/test_cases_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Bazel target, no JUnit report"
-msgstr "هدف Bazel، بدون تقرير JUnit"
+msgstr "هدف Bazel، لا يوجد تقرير JUnit"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "The runner for this target didn't emit test.xml, so per-case detail isn't available. Open a recent run to view the raw test.log."
-msgstr "لم يُصدر المُشغّل الخاص بهذا الهدف ملف test.xml، لذا فإن التفاصيل لكل حالة غير متاحة. افتح عملية تشغيل حديثة لعرض سجل الاختبار الخام."
+msgstr "لم يُصدِر مشغّل هذا الهدف الملف test.xml، لذا فإن التفاصيل لكل حالة غير متاحة. افتح تشغيلًا حديثًا لعرض سجل الاختبار الخام test.log."
 
 #: lib/tuist_web/live/coverage/components.ex:342
 #: lib/tuist_web/live/coverage/components.ex:554
@@ -2160,7 +2160,7 @@ msgstr "لم يُصدر المُشغّل الخاص بهذا الهدف ملف t
 #: lib/tuist_web/live/coverage_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
-msgstr "تغطية الشفرة البرمجية"
+msgstr "تغطية الشيفرة البرمجية"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:430
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
@@ -2215,7 +2215,7 @@ msgstr "الملفات"
 #: lib/tuist_web/live/coverage_file_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Function"
-msgstr "الدالة"
+msgstr "دالة"
 
 #: lib/tuist_web/live/coverage/components.ex:577
 #: lib/tuist_web/live/coverage_file_live.html.heex:92
@@ -2226,13 +2226,13 @@ msgstr "الدوال"
 #: lib/tuist_web/live/coverage/components.ex:579
 #, elixir-autogen, elixir-format
 msgid "Functions the compiler instrumented in the file."
-msgstr "الدوال التي قام المترجم بتتبعها في الملف."
+msgstr "الدوال التي قام المُصرّف بتتبعها في الملف."
 
 #: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Line"
-msgstr "السطر"
+msgstr "سطر"
 
 #: lib/tuist_web/live/once_runs_live.ex:480
 #, elixir-autogen, elixir-format
@@ -2242,7 +2242,7 @@ msgstr "تغطية الأسطر"
 #: lib/tuist_web/live/coverage/components.ex:556
 #, elixir-autogen, elixir-format
 msgid "Share of the file's executable lines the tests ran at least once."
-msgstr "نسبة الأسطر القابلة للتنفيذ في الملف التي تم تشغيلها بواسطة الاختبارات مرة واحدة على الأقل."
+msgstr "نسبة الأسطر القابلة للتنفيذ في الملف التي نفذتها الاختبارات مرة واحدة على الأقل."
 
 #: lib/tuist_web/helpers/test_labels.ex:16
 #: lib/tuist_web/helpers/test_labels.ex:50
@@ -2293,17 +2293,17 @@ msgstr "المضيف"
 #: lib/tuist_web/live/once_test_run_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "No test cases reported for this run"
-msgstr "لم يتم الإبلاغ عن أي حالات اختبار لهذه العملية"
+msgstr "لم يتم الإبلاغ عن أي حالات اختبار لهذا التشغيل"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "No test targets reported for this run"
-msgstr "لم يتم الإبلاغ عن أي أهداف اختبار لهذه العملية"
+msgstr "لم يتم الإبلاغ عن أي أهداف اختبار لهذا التشغيل"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that both passed and failed."
-msgstr "عدد حالات الاختبار التي نجحت وفشلت."
+msgstr "عدد حالات الاختبار التي نجحت وفشلت معًا."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:90
 #, elixir-autogen, elixir-format
@@ -2331,17 +2331,17 @@ msgstr "قيد التشغيل"
 #: lib/tuist_web/live/once_runs_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "Test coverage isn't reported yet."
-msgstr "لم يتم الإبلاغ عن تغطية الاختبار بعد."
+msgstr "لم يتم الإبلاغ عن تغطية الاختبارات بعد."
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Test run"
-msgstr "تشغيل الاختبار"
+msgstr "تشغيل الاختبارات"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Test suites"
-msgstr "مجموعات الاختبار"
+msgstr "أجنحة الاختبار"
 
 #: lib/tuist_web/live/coverage_live.ex:199
 #, elixir-autogen, elixir-format
@@ -2376,19 +2376,19 @@ msgstr "تغيير"
 #: lib/tuist_web/live/coverage_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Code coverage is not enabled for this account."
-msgstr "تغطية الشيفرة غير مفعّلة لهذا الحساب."
+msgstr "تغطية الشفرة غير مفعّلة لهذا الحساب."
 
 #: lib/tuist_web/live/coverage/components.ex:341
 #: lib/tuist_web/live/coverage_detail_live.ex:571
 #: lib/tuist_web/live/coverage_file_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
-msgstr "الالتزام %{name}"
+msgstr "التزام %{name}"
 
 #: lib/tuist_web/live/coverage_file_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Commit %{sha} has no coverage for this file"
-msgstr "الالتزام %{sha} لا يحتوي على تغطية لهذا الملف"
+msgstr "لا يحتوي الالتزام %{sha} على تغطية لهذا الملف"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:580
 #: lib/tuist_web/live/coverage_detail_live.html.heex:335
@@ -2438,18 +2438,18 @@ msgstr "الملف: %{name}"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
-msgstr "الأسطر التي نفذتها اختبارات الإلتزام مرة واحدة على الأقل."
+msgstr "الأسطر التي نفذتها اختبارات الالتزام مرة واحدة على الأقل."
 
 #: lib/tuist_web/live/coverage/components.ex:801
 #: lib/tuist_web/live/coverage_detail_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
-msgstr "الأسطر التي قام المترجم بتجهيزها للتغطية في ذلك الإلتزام."
+msgstr "الأسطر التي راقبها المترجم للتغطية في ذلك الالتزام."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "No commit gathered coverage in this period"
-msgstr "لم يجمع أي التزام تغطية خلال هذه الفترة"
+msgstr "لم يجمع أي التزام بيانات التغطية خلال هذه الفترة"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:461
 #, elixir-autogen, elixir-format
@@ -2459,12 +2459,12 @@ msgstr "لا توجد التزامات تطابق هذه الفلاتر"
 #: lib/tuist_web/live/coverage_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "No complete commits on %{branch} in this period"
-msgstr "لا توجد التزامات مكتملة على %{branch} خلال هذه الفترة"
+msgstr "لا توجد التزامات مكتملة على الفرع %{branch} خلال هذه الفترة"
 
 #: lib/tuist_web/live/coverage/components.ex:143
 #, elixir-autogen, elixir-format
 msgid "No coverage change"
-msgstr "لا يوجد تغيير في التغطية"
+msgstr "لا تغيير في التغطية"
 
 #: lib/tuist_web/live/coverage_live.html.heex:46
 #, elixir-autogen, elixir-format
@@ -2479,59 +2479,59 @@ msgstr "لا توجد ملفات تطابق هذا البحث"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "No file was measured at this commit"
-msgstr "لم يتم قياس أي ملف في هذا الالتزام"
+msgstr "لم يتم قياس أي ملف عند هذا الالتزام"
 
 #: lib/tuist_web/live/coverage_file_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "No function matches this search"
-msgstr "لا توجد دوال تطابق هذا البحث"
+msgstr "لا توجد دالة تطابق هذا البحث"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage here"
-msgstr "لم تجمع أي عملية تشغيل تغطية هنا"
+msgstr "لم يجمع أي تشغيل تغطية هنا"
 
 #: lib/tuist_web/live/coverage_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage on %{branch} in this period"
-msgstr "لم تجمع أي عملية تشغيل تغطية على %{branch} خلال هذه الفترة"
+msgstr "لم يجمع أي تشغيل تغطية على %{branch} خلال هذه الفترة"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "No run matches these filters"
-msgstr "لا توجد عمليات تشغيل تطابق هذه الفلاتر"
+msgstr "لا يوجد تشغيل يطابق هذه الفلاتر"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "No run of commit %{sha} gathered coverage."
-msgstr "لم تجمع أي عملية تشغيل من الالتزام %{sha} تغطية."
+msgstr "لم يجمع أي تشغيل للالتزام %{sha} تغطية."
 
 #: lib/tuist_web/live/coverage/components.ex:426
 #, elixir-autogen, elixir-format
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
-msgstr "لم تجمع أي عملية تنفيذ لهذا الالتزام تغطية، لذا لا توجد قيمة خاصة بها."
+msgstr "لم يجمع أي تشغيل لهذا الالتزام تغطية، لذا لا توجد له قيمة خاصة."
 
 #: lib/tuist_web/live/coverage_detail_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "No run on branch %{branch} gathered coverage."
-msgstr "لم تجمع أي عملية تنفيذ على الفرع %{branch} تغطية."
+msgstr "لم يجمع أي تشغيل على الفرع %{branch} تغطية."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "No target matches these filters"
-msgstr "لا تتطابق أي أهداف مع هذه الفلاتر"
+msgstr "لا تتطابق أي أهداف مع هذه المرشحات"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "No target was measured at this commit"
-msgstr "لم يتم قياس أي هدف في هذا الالتزام"
+msgstr "لم يُقاس أي هدف عند هذا الالتزام"
 
 #: lib/tuist_web/live/coverage/components.ex:415
 #: lib/tuist_web/live/coverage_detail_live.ex:342
 #: lib/tuist_web/live/coverage_detail_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Not measured"
-msgstr "غير مقاس"
+msgstr "غير مُقاس"
 
 #: lib/tuist_web/live/coverage_live.html.heex:55
 #, elixir-autogen, elixir-format
@@ -2541,17 +2541,17 @@ msgstr "الالتزامات الأخيرة"
 #: lib/tuist_web/live/coverage/components.ex:281
 #, elixir-autogen, elixir-format
 msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
-msgstr "أدى الاختبار الانتقائي أو أحد الفلاتر إلى استبعاد بعض اختبارات العملية التنفيذية، وبالتالي تم قياس جزء فقط من المخطط."
+msgstr "ترك الاختبار الانتقائي، أو أحد المرشحات، بعض اختبارات التشغيل خارج النطاق، لذا قاس جزءاً فقط من المخطط."
 
 #: lib/tuist_web/live/coverage/components.ex:765
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
-msgstr "نسبة الأسطر القابلة للتنفيذ التي تمت تغطيتها في أحدث التزام مقاس للفرع %{branch}، %{sha}، مجمعة عبر المخططات التي قاستها."
+msgstr "نسبة الأسطر التنفيذية المُغطاة في أحدث التزام مُقاس للفرع %{branch}، %{sha}، مجمَّعة عبر المخططات التي قاستها."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines some run's tests ran at least once, across %{schemes}."
-msgstr "نسبة الأسطر القابلة للتنفيذ التي تم تشغيل اختبارات بعضها مرة واحدة على الأقل، عبر %{schemes}."
+msgstr "نسبة الأسطر القابلة للتنفيذ التي نفذتها اختبارات تشغيل واحد على الأقل مرة واحدة، عبر %{schemes}."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:389
 #, elixir-autogen, elixir-format
@@ -2566,22 +2566,22 @@ msgstr "اسم الهدف"
 #: lib/tuist_web/live/coverage_file_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "The latest complete commit on %{branch} in this period has no coverage for this file"
-msgstr "لا يحتوي أحدث اكتمال الالتزام في %{branch} خلال هذه الفترة على تغطية لهذا الملف"
+msgstr "أحدث اكتمال للالتزام على %{branch} في هذه الفترة لا يغطي هذا الملف"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
-msgstr "تُسرَد هذه الالتزامات بالترتيب الذي قُيسَت فيه، وليس بالترتيب الذي يضعها فيه سجل المستودع."
+msgstr "هذه الالتزامات مرتبة حسب ترتيب قياسها، وليس حسب ترتيب سجل المستودع."
 
 #: lib/tuist_web/live/coverage/components.ex:429
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
-msgstr "لم تُشير قناة تغطية هذا الالتزام إلى اكتمالها بعد، لذا قد تصل المزيد من عمليات التشغيل ولا تزال البوابات قيد الانتظار."
+msgstr "لم تُشير قناة تغطية هذا الالتزام إلى اكتمالها بعد، لذا قد تصل عمليات تشغيل أخرى وتظل بواباتها معلقة."
 
 #: lib/tuist_web/live/coverage/components.ex:438
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
-msgstr "أشارت قناة تغطية هذا الالتزام إلى انتهائها، لذا فإن رقمها نهائي وتم اتخاذ قرار بشأن بواباتها."
+msgstr "أشارت قناة تغطية هذا الالتزام إلى انتهائها، لذا فإن رقمها نهائي وقرارات بواباتها محسومة."
 
 #: lib/tuist_web/live/coverage/components.ex:775
 #: lib/tuist_web/live/coverage/components.ex:792
@@ -2620,7 +2620,7 @@ msgstr "مُقاطَع"
 #: lib/tuist_web/live/once_test_run_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Once stopped reporting before this run finished"
-msgstr "توقّف الإبلاغ مرةً واحدة قبل انتهاء هذه الجلسة"
+msgstr "توقّف الإبلاغ قبل انتهاء هذا التشغيل"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:69
 #, elixir-autogen, elixir-format
@@ -2630,22 +2630,22 @@ msgstr "ملغى"
 #: lib/tuist_web/live/once_test_run_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "The run was cancelled before it reported any test cases"
-msgstr "تم إلغاء الجلسة قبل الإبلاغ عن أي حالات اختبار"
+msgstr "أُلغي التشغيل قبل الإبلاغ عن أي حالات اختبار"
 
 #: lib/tuist_web/live/coverage/components.ex:375
 #, elixir-autogen, elixir-format
 msgid "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
-msgstr "ظهرت بعض التغطية فقط من عمليات التنفيذ على نسخة مسحوبة تحتوي على تغييرات غير ملتزمة، والتي لا تُحتسب، لذا قد تكون التغطية الفعلية أعلى."
+msgstr "ظهرت بعض التغطية فقط من عمليات التشغيل على نسخة بها تغييرات غير مُلتزمة، ولا تُحتسب هذه التغييرات، لذا قد تكون التغطية الفعلية أعلى."
 
 #: lib/tuist_web/live/coverage/components.ex:260
 #, elixir-autogen, elixir-format
 msgid "Discarded"
-msgstr "تم تجاهله"
+msgstr "مستبعد"
 
 #: lib/tuist_web/live/coverage/components.ex:263
 #, elixir-autogen, elixir-format
 msgid "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
-msgstr "جاءت عملية التنفيذ من نسخة مسحوبة تحتوي على تغييرات غير ملتزمة، لذلك قاست كودًا لا ينتمي إلى الالتزام وتم تجاهل تغطيته."
+msgstr "نشأت عملية التشغيل من نسخة تحتوي على تغييرات غير مُلتزمة، لذلك قاست شيفرة لا تنتمي إلى الالتزام، وتم استبعاد تغطيتها."
 
 #: lib/tuist_web/helpers/test_labels.ex:49
 #, elixir-autogen, elixir-format
@@ -2666,33 +2666,33 @@ msgstr "التطبيقات"
 #, elixir-autogen, elixir-format
 msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
-msgstr[0] "%{count} منها لا تنتمي إلى أي دالة، مثل الكود الذي تولّده الماكرو."
-msgstr[1] "%{count} منها لا تنتمي إلى أي دالة، مثل الكود الذي تولّده الماكرو."
-msgstr[2] "%{count} منها لا تنتمي إلى أي دالة، مثل الكود الذي تولّده الماكرو."
-msgstr[3] "%{count} منها لا تنتمي إلى أي دالة، مثل الكود الذي تولّده الماكرو."
-msgstr[4] "%{count} منها لا تنتمي إلى أي دالة، مثل الكود الذي تولّده الماكرو."
-msgstr[5] "%{count} منها لا تنتمي إلى أي دالة، مثل الكود الذي تولّده الماكرو."
+msgstr[0] "%{count} منها لا ينتمي إلى أي دالة، مثل الشيفرة التي تولّدها الماكرو."
+msgstr[1] "%{count} منها لا تنتمي إلى أي دالة، مثل الشيفرة التي تولّدها الماكرو."
+msgstr[2] "%{count} منها لا تنتمي إلى أي دالة، مثل الشيفرة التي تولّدها الماكرو."
+msgstr[3] "%{count} منها لا تنتمي إلى أي دالة، مثل الشيفرة التي تولّدها الماكرو."
+msgstr[4] "%{count} منها لا تنتمي إلى أي دالة، مثل الشيفرة التي تولّدها الماكرو."
+msgstr[5] "%{count} منها لا تنتمي إلى أي دالة، مثل الشيفرة التي تولّدها الماكرو."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
-msgstr "كل عملية تشغيل نفذت اختبارات هذا الهدف جلبتها من ذاكرة التخزين المؤقت الثنائية كملف ثنائي تم بناؤه بدون عدادات التغطية، لذا فإن ما تم تغطيته فيها غير معروف."
+msgstr "كل تشغيل نفّذ اختبارات هذا الهدف جلبها من ذاكرة التخزين المؤقت الثنائية كملفات ثنائية بُنيت دون عدادات التغطية، لذا فإن ما غطته الاختبارات فيها غير معروف."
 
 #: lib/tuist_web/live/coverage/components.ex:381
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
-msgstr "بعض الشيفرات التي نفذتها الاختبارات جاءت من ذاكرة التخزين المؤقت الثنائية كملفات ثنائية تم بناؤها بدون عدادات التغطية، لذا فإن ما تم تغطيته فيها غير معروف وقد تكون التغطية الفعلية أعلى. يسرد تبويب الأهداف هذه العناصر على أنها غير مقاسة."
+msgstr "جاء جزء من الشيفرة التي نفّذتها الاختبارات من ذاكرة التخزين المؤقت الثنائية كملفات ثنائية بُنيت دون عدادات التغطية، لذا فإن ما غطته الاختبارات فيها غير معروف وقد تكون التغطية الفعلية أعلى. يعرض تبويب الأهداف هذه العناصر على أنها غير مقاسة."
 
 #: lib/tuist_web/live/coverage/components.ex:833
 #, elixir-autogen, elixir-format
 msgid "No complete commit on %{branch} in this period"
-msgstr "لا توجد مراجعة كاملة (commit) على %{branch} خلال هذه الفترة"
+msgstr "لا توجد عملية إيداع كاملة على %{branch} خلال هذه الفترة"
 
 #: lib/tuist_web/live/test_case_live.ex:317
 #: lib/tuist_web/live/test_runs_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Reported name"
-msgstr "الاسم المُبلغ عنه"
+msgstr "الاسم المبلَّغ عنه"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:338
 #, elixir-autogen, elixir-format

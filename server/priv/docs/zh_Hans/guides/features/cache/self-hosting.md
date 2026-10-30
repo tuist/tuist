@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Self-hosted cache",
+  "title": "自托管缓存",
   "titleTemplate": ":title | Cache | Guides | Tuist",
-  "description": "Deploy self-hosted cache nodes and connect them to Tuist."
+  "description": "部署自托管缓存节点并将其连接到 Tuist。"
 }
 ---
 
@@ -10,10 +10,10 @@
 
 自托管缓存节点让你将构建产物和缓存元数据靠近生成和使用构建输出的机器。当 CI、开发者办公室、远程工作站或区域计算集群之间的缓存延迟至关重要时，请使用它们。
 
-目标是在任何地方都实现低延迟缓存，而不仅仅是在中央缓存恰好附近的单一环境中。每个缓存节点从本地磁盘提供读写服务，同时网状网络在对等节点之间复制产物和元数据，以便其他位置随着时间的推移也能受益于相同的缓存。
+目标是在所有地方实现低延迟缓存，而不仅仅是在恰好靠近中央缓存的单一环境中。每个缓存节点从本地磁盘提供读写服务，同时网格在对等节点之间复制产物和元数据，以便其他位置随着时间的推移也能受益于相同的缓存。
 
 > [!NOTE]
-> Tuist 的自托管缓存节点由 [Kura](https://github.com/tuist/tuist/tree/main/kura) 提供支持，这是 Tuist 的去中心化缓存网状网络。Kura 是缓存节点的数据平面：它提供缓存读写服务，在磁盘上存储本地状态，并将产物和元数据复制到对等节点。
+> Tuist 的自托管缓存节点由 [Kura](https://github.com/tuist/tuist/tree/main/kura)（Tuist 的去中心化缓存网格）提供支持。Kura 是缓存节点的数据平面：它提供缓存读写服务，在磁盘上存储本地状态，并将产物和元数据复制到对等节点。
 
 ## 自托管缓存如何与 Tuist 配合使用 {#how-self-hosted-cache-fits-with-tuist}
 
@@ -25,9 +25,9 @@ Tuist 的托管缓存使用 `https://<account>.cache.tuist.dev`。对于自托�
 export TUIST_CACHE_ENDPOINT=https://cache.example.com
 ```
 
-此覆盖在两种服务器类型上均优先，并且对于自托管 Tuist 服务器是可选的。对于 Xcode 缓存守护进程，在设置后重新运行 `tuist setup cache`，以便 LaunchAgent 接收更新后的环境。
+此覆盖在两种服务器类型上均优先，并且对于自托管 Tuist 服务器是可选的。对于 Xcode 缓存守护进程，请在设置后重新运行 `tuist setup cache`，以便 LaunchAgent 接收更新后的环境变量。
 
-自托管 Tuist 服务器从静态配置中获取端点。在 Tuist 托管的服务器上，节点使用凭据进行身份验证并注册自身。首先使用下面两个部分之一部署节点，然后参阅 [将节点连接到 Tuist](#connect-nodes-to-tuist)。
+自托管 Tuist 服务器从静态配置获取端点。在 Tuist 托管服务器上，节点使用凭据进行身份验证并自行注册。首先使用以下两个部分之一部署节点，然后参阅 [将节点连接到 Tuist](#connect-nodes-to-tuist)。
 
 ## 在 Kubernetes 上部署 {#deploy-on-kubernetes}
 
@@ -49,10 +49,10 @@ server:
   cacheEndpointUrl: "http://kura.kura.svc.cluster.local:4000"
 ```
 
-这会在服务器 Pod 中设置 `TUIST_CACHE_ENDPOINTS`。使用开发机器和 CI 可以访问的地址；上述集群本地服务名称适用于在集群内运行的客户端。
+这会在服务器 Pod 中设置 `TUIST_CACHE_ENDPOINTS`。使用开发机器和 CI 可以访问的地址；上述集群内部服务名称适用于在集群内运行的客户端。
 
 > [!IMPORTANT]
-> 每个 Kura 节点必须拥有自己的 `KURA_DATA_DIR`。Kura 会对数据目录获取应用级写入锁，并期望只有一个进程拥有它。在 Kubernetes 中，每个 Pod 使用一个持久卷。在 Kubernetes 之外，不要让多个进程指向同一个挂载目录。
+> 每个 Kura 节点必须拥有自己的 `KURA_DATA_DIR`。Kura 会对数据目录采用应用级写锁，并期望只有一个进程拥有它。在 Kubernetes 中，每个 Pod 使用一个持久卷。在 Kubernetes 之外，不要让多个进程指向同一个挂载目录。
 
 ## 不使用 Kubernetes 部署 {#deploy-without-kubernetes}
 
@@ -84,9 +84,9 @@ TUIST_CACHE_ENDPOINTS=https://cache.example.com
 
 ## 将节点置于负载均衡器之后 {#load-balancers}
 
-客户端对每个缓存端点 URL 同时使用 HTTP 和 gRPC：HTTP 用于健康检查和 HTTP 缓存 API，gRPC 用于模块缓存和 Bazel 的远程缓存。客户端和 Kura 之间的任何入口、负载均衡器或 CDN 必须在相同的主机名和端口上转发两者。这适用于客户端收到的每个端点，因为 CLI 会选择响应最快的一个。如果 gRPC 无法到达 Kura，CLI 会警告远程模块缓存不可用，并仅使用本地模块缓存。
+客户端将每个缓存端点 URL 用于 HTTP 和 gRPC：HTTP 用于健康检查和 HTTP 缓存 API，gRPC 用于模块缓存和 Bazel 的远程缓存。客户端和 Kura 之间的任何入口、负载均衡器或 CDN 必须在相同的主机名和端口上转发两者。这适用于客户端接收的每个端点，因为 CLI 会选择响应最快的一个。如果 gRPC 无法到达 Kura，CLI 会警告远程模块缓存不可用，并仅使用本地模块缓存。
 
-将这些路径前缀作为通过 HTTP/2 的 gRPC 路由到 Kura，其他所有内容作为 HTTP：
+将这些路径前缀作为 HTTP/2 上的 gRPC 路由到 Kura，其他所有内容作为 HTTP：
 
 | 路径前缀 | 使用者 |
 | --- | --- |
@@ -95,19 +95,19 @@ TUIST_CACHE_ENDPOINTS=https://cache.example.com
 | `/build.bazel.remote.asset.v1.` | Bazel |
 | `/google.devtools.build.v1.` | Bazel 构建事件 |
 
-Kura 在 `KURA_PORT` 上接受明文 HTTP/2 (h2c)，并在设置了 `KURA_PUBLIC_TLS_CERT_PATH` 和 `KURA_PUBLIC_TLS_KEY_PATH` 时在 `KURA_HTTPS_PORT` 上接受通过 TLS 的 HTTP/2。如果你的代理像 ingress-nginx 那样在请求之间重用上游连接，请设置 `KURA_GATEWAY_GRPC_PORT` 并将 gRPC 流量发送到该端口。它仅提供 gRPC 服务，因此 HTTP/1.1 和 gRPC 请求永远不会共享连接。
+Kura 在 `KURA_PORT` 上接受明文 HTTP/2 (h2c)，并在设置 `KURA_PUBLIC_TLS_CERT_PATH` 和 `KURA_PUBLIC_TLS_KEY_PATH` 时在 `KURA_HTTPS_PORT` 上接受基于 TLS 的 HTTP/2。如果你的代理像 ingress-nginx 那样跨请求重用上游连接，请设置 `KURA_GATEWAY_GRPC_PORT` 并将 gRPC 流量发送到该端口。它仅提供 gRPC 服务，因此 HTTP/1.1 和 gRPC 请求永远不会共享连接。
 
-配置 gRPC 路由时使用：
+配置 gRPC 路由：
 
-- 无请求体大小限制。上传在单个请求中发送一个文件，最多 2 GiB。
+- 无请求体大小限制。上传在单个请求中发送一个文件，最大可达 2 GiB。
 - 关闭请求和响应缓冲。
 - 读取、发送和空闲超时至少为 300 秒。
 
-Kura 不提供 gRPC 健康检查服务。通过 HTTP 在 `/ready` 对节点进行健康检查。如果你的负载均衡器需要 gRPC 健康检查，请调用 `/build.bazel.remote.execution.v2.Capabilities/GetCapabilities` 并接受 gRPC 状态码 `0` 和 `16`。启用了授权的节点会以 `16` (`UNAUTHENTICATED`) 响应没有令牌的请求。
+Kura 不提供 gRPC 健康检查服务。通过 HTTP 在 `/ready` 对节点进行健康检查。如果你的负载均衡器需要 gRPC 健康检查，请调用 `/build.bazel.remote.execution.v2.Capabilities/GetCapabilities` 并接受 gRPC 状态码 `0` 和 `16`。启用授权的节点会用 `16` (`UNAUTHENTICATED`) 响应没有令牌的请求。
 
 ### ingress-nginx {#load-balancers-ingress-nginx}
 
-使用 Helm chart 时，保持 HTTP 入口在 `/` 上，并为同一主机添加 gRPC 入口。只有 HTTP 入口声明 TLS：
+使用 Helm chart 时，将 HTTP 入口保留在 `/` 上，并为同一主机添加 gRPC 入口。只有 HTTP 入口声明 TLS：
 
 ```yaml
 service:
@@ -162,46 +162,46 @@ gRPC 目标组需要 HTTPS 监听器。在该监听器上：
 1. 将默认规则转发到协议版本为 `HTTP1` 且在 `KURA_PORT` 上的目标组，并通过 HTTP 在 `/ready` 进行健康检查。
 2. 创建第二个目标组，协议版本为 `gRPC`，在 `KURA_GATEWAY_GRPC_PORT`（或 `KURA_PORT`）上使用协议 `HTTP`，或在 `KURA_HTTPS_PORT` 上使用协议 `HTTPS`。按上述说明配置其健康检查。
 3. 添加一条规则，将路径模式 `/build.bazel.remote.execution.v2.*`、`/google.bytestream.*`、`/build.bazel.remote.asset.v1.*` 和 `/google.devtools.build.v1.*` 转发到第二个目标组。
-4. 将负载均衡器的空闲超时时间提高到至少 300 秒。
+4. 将负载均衡器的空闲超时提高到至少 300 秒。
 
 ### CDN {#load-balancers-cdns}
 
-位于节点前方的 CDN 必须支持 gRPC，并且不得在其防火墙规则中阻止 gRPC 路径。客户端以最多 2 MiB 的块上传大型构件，并由节点进行组装，因此没有任何请求需要大请求体或长时间上传。模块缓存和 Xcode 编译缓存会这样做，Bazel 在使用 `--experimental_remote_cache_chunking` 构建时也会这样做（Bazel 8.7 及 9.1 或更高版本）。如果没有该标志，Bazel 会在单个请求中上传每个输出，因此 CDN 还必须允许大请求体以及在你的最慢链路上完成最大输出所需时长的上传。如果你的 CDN 无法满足这些要求，请为客户端提供一个绕过它的主机名，例如仅 DNS 记录。
+位于节点前的 CDN 必须支持 gRPC，且不得在其防火墙规则中阻止 gRPC 路径。客户端以最多 2 MiB 的分块上传大型构件，并由节点进行组装，因此没有任何请求需要大请求体或长时间上传。模块缓存和 Xcode 编译缓存都采用这种方式，Bazel 在使用 `--experimental_remote_cache_chunking` 构建时也是如此（Bazel 8.7 及 9.1 或更高版本）。如果没有该标志，Bazel 会在单个请求中上传每个输出，因此 CDN 还必须允许大请求体，并允许上传时间达到你的最慢链路上最大输出所需的时间。如果你的 CDN 无法满足这些要求，请为客户端提供一个绕过它的主机名，例如仅 DNS 记录。
 
 #### Cloudflare {#load-balancers-cloudflare}
 
-模块缓存可通过任何计划上的代理 Cloudflare 主机名正常工作。在区域中：
+模块缓存可通过任何套餐下的代理 Cloudflare 主机名正常工作。在区域中：
 
 1. 在 **网络** 下，开启 **gRPC**。
 2. 在 **SSL/TLS** 下，将加密模式设置为 **完全** 或 **完全（严格）**。Cloudflare 通过端口 443 连接到源站，因此源站必须在该端口提供 TLS 并通过 ALPN 提供 HTTP/2。
 3. 确保没有 WAF 自定义规则或托管规则阻止上述 gRPC 路径。
 
-如果源站在大约两分钟后仍未开始响应，Cloudflare 会终止请求。不带 `--experimental_remote_cache_chunking` 的 Bazel 上传只有在最后一个字节到达后才会得到响应，因此在 Cloudflare 上，如果此类上传耗时超过该时间，则会失败。
+如果源站在大约两分钟后仍未开始响应，Cloudflare 会终止请求。没有 `--experimental_remote_cache_chunking` 的 Bazel 上传只有在最后一个字节到达后才会得到响应，因此在 Cloudflare 上，此类上传如果耗时超过该时间就会失败。
 
 ## 将节点连接到 Tuist {#connect-nodes-to-tuist}
 
-配置客户端路由并在 Tuist 中注册你的节点，以便它们的地址、就绪状态和使用情况显示在仪表板中。
+配置客户端路由并将你的节点注册到 Tuist，以便它们的地址、就绪状态和使用情况显示在仪表板中。
 
-在 **自托管 Tuist 服务器** 上，你使用 `TUIST_CACHE_ENDPOINTS` 静态声明端点，如上述部署部分所示。CLI 使用第一个配置的 URL。`TUIST_CACHE_ENDPOINT` 会为单个客户端覆盖该 URL。
+在 **自托管 Tuist 服务器** 上，你使用 `TUIST_CACHE_ENDPOINTS` 静态声明端点，如上文的部署部分所示。CLI 使用第一个配置的 URL。`TUIST_CACHE_ENDPOINT` 会为单个客户端覆盖该 URL。
 
-在 **Tuist 托管服务器** 上，在开发 shell 和 CI 中设置 `TUIST_CACHE_ENDPOINT`，以将缓存请求路由到你的节点。每个节点使用你生成的凭据进行身份验证，然后注册其地址并向仪表板报告其就绪状态。本节介绍节点注册。
+在 **Tuist 托管服务器** 上，在开发者 shell 和 CI 中设置 `TUIST_CACHE_ENDPOINT`，以将缓存请求路由到你的节点。每个节点使用你生成的凭据进行身份验证，然后注册其地址并向仪表板报告其就绪状态。本节介绍节点注册。
 
 > [!IMPORTANT]
-> **企业计划**
+> **Enterprise 套餐**
 >
-> 自托管缓存节点仅在企业计划中可用。下面描述的 **自托管服务器** 部分仅针对该计划上的账户显示。
+> 自托管缓存节点仅在 Enterprise 套餐上可用。下文所述的 **自托管服务器** 部分仅对该套餐的账户显示。
 
 ### 生成节点凭据 {#generate-a-node-credential}
 
-在 Tuist 仪表板中，打开你的账户，转到 **缓存**，找到 **自托管服务器**。选择 **生成凭据** 来创建客户端 ID 和密钥。
+在 Tuist 仪表板中，打开你的账户，进入 **缓存**，找到 **自托管服务器**。选择 **生成凭据** 来创建客户端 ID 和密钥。
 
 该凭据仅授权创建它的账户的流量。
 
-密钥仅显示一次，关闭对话框后无法恢复，因此请直接将其复制到节点读取的密钥存储中。撤销凭据会立即停止所有使用该凭据的节点进行身份验证，因此在撤销正在使用的凭据之前，请先生成替代凭据。
+密钥仅显示一次，关闭对话框后无法恢复，因此请将其直接复制到节点读取的密钥存储中。撤销凭据会立即停止使用该凭据的所有节点进行身份验证，因此在撤销正在使用的凭据之前，请先生成替代凭据。
 
 ### 在启动时注册节点 {#enroll-the-node-on-boot}
 
-注册是启动节点的推荐方式。设置 `KURA_ENROLL_ON_BOOT` 并为节点提供其凭据及其自身的对等 URL：
+注册是启动节点的推荐方式。设置 `KURA_ENROLL_ON_BOOT` 并为节点提供其凭据和自身的对等 URL：
 
 ```bash
 KURA_ENROLL_ON_BOOT=true
@@ -213,9 +213,9 @@ KURA_NODE_URL=https://kura-1.internal:7443
 
 节点在本地生成其密钥对，因此私钥永远不会离开节点，并且它会接收签名的对等证书、账户 CA、其租户标识符和对等列表。这就是你否则需要手动配置的所有内容：已注册的节点不需要 `KURA_TENANT_ID`、不需要 `KURA_PEERS`，也不需要配置对等 TLS。
 
-保持 `KURA_INTERNAL_TLS_*` 未设置：注册会将证书材料写入 `KURA_DATA_DIR` 下的 `tls` 目录。仅当你自行提供证书而不是进行注册时才自行设置这些路径，如 [构建缓存网格](#build-a-cache-mesh) 中所述。
+保持 `KURA_INTERNAL_TLS_*` 未设置：注册会将证书材料写入 `KURA_DATA_DIR` 下的 `tls` 目录。仅当你自行提供证书而不是通过注册时，才自行设置这些路径，如 [构建缓存网格](#build-a-cache-mesh) 中所述。
 
-首次加入账户网格的节点在成为环的服务成员之前，会拉取账户的现有缓存。为整个缓存调整数据卷的大小，并预计首次加入在广域网链路上会花费一段时间。节点在追赶期间报告 `joining`，完成后报告 `serving`。
+首次加入账户网格的节点在成为环的服务成员之前，会拉取账户的现有缓存。为整个缓存调整数据卷大小，并预计首次加入在广域网链路上会花费一些时间。节点在追赶期间报告 `joining`，之后报告 `serving`。
 
 ### 公布端点 {#advertise-the-endpoint}
 
@@ -226,37 +226,37 @@ KURA_REGISTRATION_URL=https://tuist.dev/_internal/kura/mesh/registrations
 KURA_ADVERTISED_HTTP_URL=https://kura-1.example.com:4443
 ```
 
-节点每 60 秒针对 180 秒的租约发送一次心跳。当租约过期时，Tuist 认为其注册不可用。Tuist 从不调用节点，因此它只需可由你的客户端访问，而无需从互联网访问。
+节点每 60 秒针对 180 秒的租约发送一次心跳。当租约过期时，Tuist 认为其注册不可用。Tuist 从不调用节点，因此它只需要对你的客户端可达，而不需要从互联网可达。
 
-### 验证节点是否正在服务 {#verify-the-node-is-serving}
+### 验证节点正在服务 {#verify-the-node-is-serving}
 
-回到仪表板中的 **缓存**，节点会出现在 **已注册节点** 下，显示其端点、区域、状态和最后心跳。从未出现的节点未到达注册端点或身份验证失败。出现后又消失的节点已停止发送心跳或停止报告自身就绪。
+回到仪表板中的 **缓存**，节点会出现在 **已注册节点** 下，显示其端点、区域、状态和最后一次心跳。从未出现的节点未到达注册端点或身份验证失败。出现后又消失的节点已停止发送心跳或停止报告自身就绪。
 
 ### 将租户标识符与你的账户句柄匹配 {#match-the-tenant-identifier}
 
-`KURA_TENANT_ID` 必须等于你的 Tuist 账户句柄。控制平面将心跳中的租户与从凭据解析出的账户进行比较，并以 `409 tenant_mismatch` 拒绝不匹配的情况，因此具有错误值的节点虽然身份验证成功，但永远不会注册。
+`KURA_TENANT_ID` 必须等于你的 Tuist 账户句柄。控制平面将心跳中的租户与从凭据解析出的账户进行比较，并以 `409 tenant_mismatch` 拒绝不匹配的情况，因此具有错误值的节点虽然能成功身份验证，但永远不会注册。
 
 > [!IMPORTANT]
-> 本指南前面的 Helm chart 和容器示例都将此默认设置为 `default`。该值对于自托管 Tuist 服务器是正确的，其中租户是本地标签，但对于 Tuist 托管服务器上的账户是错误的，其中它必须命名账户。注册节点可以完全避免这个问题，因为控制平面会提供该值。
+> 本指南前面的 Helm chart 和容器示例都将此默认设置为 `default`。该值对于自托管 Tuist 服务器是正确的，因为租户是本地标签，但对于 Tuist 托管服务器上的账户是错误的，因为它必须命名账户。注册节点可以完全避免这个问题，因为控制平面会提供该值。
 
-未设置的 `KURA_TENANT_ID` 不会跳过检查。它会完全禁用注册：节点继续提供缓存流量，仪表板中不显示任何内容，也不报告错误。如果节点运行正常但未出现在 **已注册节点** 中，请首先检查此变量。
+未设置的 `KURA_TENANT_ID` 不会跳过检查。它会完全禁用注册：节点继续服务缓存流量，仪表板中不显示任何内容，也不报告错误。如果节点健康但缺失于 **已注册节点**，请首先检查此变量。
 
-### 选择你的客户端可以访问的公布 URL {#choose-an-advertised-url}
+### 选择你的客户端可访问的公布 URL {#choose-an-advertised-url}
 
-为 `KURA_ADVERTISED_HTTP_URL` 和在 Tuist 服务器或 CLI 上配置的缓存 URL 使用客户端可访问的地址。
+为 `KURA_ADVERTISED_HTTP_URL` 以及在 Tuist 服务器或 CLI 上配置的缓存 URL 使用客户端可访问的地址。
 
-当每个配置为使用它的主机名都能解析并访问该名称时，仅内部主机名是合适的。对于不同网络上的客户端，请使用共享的可访问地址或为每个环境配置可访问的缓存节点。
+当每个配置为使用它的主机都能解析并访问该名称时，仅限内部的主机名是合适的。对于不同网络上的客户端，使用共享的可访问地址，或为每个环境配置一个可访问的缓存节点。
 
 ## 构建缓存网格 {#build-a-cache-mesh}
 
-缓存网格让你能够将缓存容量部署在需要它的计算资源旁边。公司可以在其主要 CI 运行器附近运行一个节点，在欧洲开发人员附近运行另一个节点，并在美国办公室或区域构建集群附近运行第三个节点。每个位置都读写最近的节点，而 Kura 会在后台复制构件和元数据，以便其他位置的后续构建可以重用相同的输出。
+缓存网格让你可以将缓存容量部署在需要它的计算资源附近。公司可以在其主要 CI 运行器附近运行一个节点，在欧洲开发者附近运行另一个节点，并在美国办公室或区域构建集群附近运行第三个节点。每个位置都读写离它最近的节点，而 Kura 会在后台复制构件和元数据，以便其他位置的后续构建可以重用相同的输出。
 
-只有当节点能够通过 Kura 的内部对等端口相互访问时，网格才能正常工作。该对等平面与 Tuist 客户端使用的公共缓存端点是分开的。Kura 使用它来检查成员资格、回填新加入的节点，并在接受本地写入后复制构件。
+只有当节点可以通过 Kura 的内部对等端口相互访问时，网格才能正常工作。该对等平面与 Tuist 客户端使用的公共缓存端点是分离的。Kura 使用它来检查成员资格、回填新加入的节点，并在接受本地写入后复制构件。
 
-我们强烈建议在节点跨区域、云、VPC、办公室或任何不完全私有的缓存部署网络进行通信时，使用 [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication) 保护对等平面。启用 mTLS 后，Kura 仅向提供由配置的 CA 签名的证书的对等方提供内部复制端点。对等证书必须涵盖节点用于相互调用的 DNS 名称，并且对等 URL 必须在内部端口上使用 `https://`。
+我们强烈建议在节点跨区域、云、VPC、办公室或任何不完全专用于缓存部署的网络进行通信时，使用 [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication) 保护对等平面。启用 mTLS 后，Kura 仅向提供由配置的 CA 签名的证书的对等方提供内部复制端点。对等证书必须涵盖节点相互调用时使用的 DNS 名称，并且对等 URL 必须在内部端口上使用 `https://`。
 
 > [!NOTE]
-> 针对 Tuist 托管控制平面注册的节点会在注册期间接收其对等证书和账户 CA，因此以下手动步骤适用于未注册的网格。
+> 向 Tuist 托管的控制平面注册的节点会在注册期间接收其对等证书和账户 CA，因此以下手动步骤适用于未注册的网格。
 
 例如，这会生成一个私有 CA 和一个对等证书，小型网格中的每个节点都可以挂载该证书。将 DNS 名称替换为你的节点在 `KURA_NODE_URL` 和 `KURA_PEERS` 中使用的内部名称。
 
@@ -292,72 +292,72 @@ openssl x509 -req -in peer.csr \
 
 ### 节点间的追赶 {#catch-up-between-nodes}
 
-加入或重新加入网格的节点会执行**回填**：它按最新优先的顺序遍历每个对等方的条目并拉取缺失的内容，而实时复制则覆盖在对等方可视期间进行的写入。回填过程会从对等方的最新条目回溯到节点的段环视野和其上次完成的重放中较旧的那个，因此保证节点持有最近的数据，但不一定是所有数据。`KURA_BACKFILL_MARGIN_PERCENT` 设置视野回溯的深度。
+加入或重新加入网格的节点会执行**回填**：它按最新优先的顺序遍历每个对等方的条目并拉取缺失的内容，而实时复制则覆盖在对等方可见期间进行的写入。回填过程从对等方最新的条目回溯到节点的段环视野和其上次完成回填中较旧的那个，因此保证节点持有最近的数据，但不一定是所有数据。`KURA_BACKFILL_MARGIN_PERCENT` 设置视野回溯的深度。
 
-在运行网格之前，有两点值得注意：
+在运行网格之前，有两个值得了解的后果：
 
-- 一旦其段环达到 `KURA_BACKFILL_READY_RING_PERCENT` 满 **或** 其第一个回填周期稳定，节点就会报告 `/ready`，并且就绪状态将在进程的剩余生命周期内保持。后来的对等方波动永远不会使服务中的节点退出轮转。
-- 当对等方长时间不可达时，周期也会稳定。因此，如果唯一对等方宕机，节点会在持有少量或没有数据的情况下变为就绪状态。它会提供未命中响应而不是错误。如果你希望根据差异来控制发布，`/status/rollout` 会报告 `backfill_initial_cycle`（`pending`、`complete` 或 `degraded`）。
+- 一旦其段环达到 `KURA_BACKFILL_READY_RING_PERCENT` 满度 **或** 其第一个回填周期稳定，节点就会报告 `/ready`，并且就绪状态将在进程的剩余生命周期内保持。随后的对等方波动永远不会使服务中的节点退出轮转。
+- 当对等方长时间不可达时，周期也会稳定。因此，唯一对等方宕机的节点会在持有少量或没有数据的情况下变为就绪状态。它服务于缓存未命中而不是错误。如果你想根据差异来控制发布，`/status/rollout` 会报告 `backfill_initial_cycle`（`pending`、`complete` 或 `degraded`）。
 
-**跨回填变更升级网格。** 回填之前的 Kura 版本通过另一种现已移除的对等协议进行追赶。在你采用仅支持回填的版本**之前**，先将每个节点滚动升级到运行回填的版本。使用这两种协议的节点无法相互追赶：热节点继续从其卷提供服务，但停止缩小其差距，而在该窗口期内从空卷启动的节点永远不会变为就绪状态。Chart 会为你设置 `KURA_BACKFILL_ENABLED=true`，因此先升级 Chart 可以解决此问题。同时移动 Chart 和镜像的单个 `helm upgrade` 则不行。
+**跨回填变更升级网格。** 回填之前的 Kura 版本通过另一种现已移除的对等协议进行追赶。在采用仅支持回填的版本**之前**，先将每个节点滚动升级到运行回填的版本。使用这两种协议的节点无法相互追赶：热节点继续从其卷提供服务但停止缩小差距，而在该窗口期内从空卷启动的节点永远不会变为就绪状态。Chart 为你设置了 `KURA_BACKFILL_ENABLED=true`，因此优先升级 Chart 可以涵盖此情况。同时移动 Chart 和镜像的单个 `helm upgrade` 则不会。
 
-除了 mTLS 之外，还要使用网络级限制。在 Kubernetes 中，将 Kura 作为 `StatefulSet` 运行，每个 Pod 配备一个持久卷，并使用无头服务进行对等发现，然后仅允许属于同一缓存部署的 Pod 之间访问内部对等端口，例如使用 `NetworkPolicy`。在 Kubernetes 之外，为每个节点分配稳定的 DNS 名称或 IP 地址，使用其他节点的内部 URL 种子化网格，并使用防火墙规则或安全组，以便只有缓存节点可以访问对等端口。公共缓存流量应通过公共 HTTP 或 gRPC 端点进入，而不是通过内部对等平面。
+除了 mTLS 外，还要使用网络级限制。在 Kubernetes 中，将 Kura 作为 `StatefulSet` 运行，每个 Pod 配备一个持久卷，并使用无头服务进行对等发现，然后仅允许属于同一缓存部署的 Pod 之间访问内部对等端口，例如使用 `NetworkPolicy`。在 Kubernetes 之外，为每个节点分配稳定的 DNS 名称或 IP 地址，使用其他节点的内部 URL 初始化网格，并使用防火墙规则或安全组，以便只有缓存节点可以访问对等端口。公共缓存流量应通过公共 HTTP 或 gRPC 端点进入，而不是通过内部对等平面。
 
 ## 配置 {#configuration}
 
-Helm chart 从 `values.yaml` 渲染常见的运行时设置。如果在没有 Kubernetes 的情况下运行 Kura，请直接在进程上设置相同的变量。Chart 未直接映射的变量可以通过 `extraEnv` 或 `extraEnvFrom` 注入。
+Helm chart 从 `values.yaml` 渲染常见的运行时设置。如果你在没有 Kubernetes 的情况下运行 Kura，请直接在进程上设置相同的变量。Chart 未直接映射的变量可以通过 `extraEnv` 或 `extraEnvFrom` 注入。
 
 | 环境变量 | 描述 | 必需 | 默认值 | Helm 值 |
 | --- | --- | --- | --- | --- |
-| `KURA_PORT` | 公共缓存端口。一个监听器提供 HTTP 缓存 API、健康端点和 Bazel/Buck2 REAPI gRPC (h2c)。 | 是 | 无默认值 | `service.httpPort` |
+| `KURA_PORT` | 公共缓存端口。一个监听器服务于 HTTP 缓存 API、健康端点和 Bazel/Buck2 REAPI gRPC (h2c)。 | 是 | 无默认值 | `service.httpPort` |
 | `KURA_INTERNAL_PORT` | Kura 对等方使用的内部 HTTP 或 mTLS 端口。 | 是 | 无默认值 | `peerTls.internalPort` |
 | `KURA_TENANT_ID` | 节点的默认租户标识符。 | 是 | 无默认值 | `config.tenantId` |
 | `KURA_REGION` | 用于指标和复制状态的区域标签。 | 是 | 无默认值 | `config.region` |
-| `KURA_TMP_DIR` | 用于暂存请求正文和多部分组装的临时目录。 | 是 | 无默认值 | 固定为 `/var/cache/kura/tmp` |
-| `KURA_TMP_DIR_MAX_BYTES` | 在请求收到背压之前，允许进入 `KURA_TMP_DIR` 的最大暂存字节数。 | 否 | `8589934592` | `config.tmpDirMaxBytes` |
+| `KURA_TMP_DIR` | 用于暂存请求体和 multipart 组装的临时目录。 | 是 | 无默认值 | 固定为 `/var/cache/kura/tmp` |
+| `KURA_TMP_DIR_MAX_BYTES` | 在请求受到背压之前，允许进入 `KURA_TMP_DIR` 的最大暂存字节数。 | 否 | `8589934592` | `config.tmpDirMaxBytes` |
 | `KURA_DATA_DIR` | 用于元数据状态和段文件的持久目录。 | 是 | 无默认值 | 固定为 `/var/cache/kura` |
 | `KURA_NODE_URL` | 其他对等方用于访问此节点的规范内部 URL。 | 是 | 无默认值 | 派生自 Pod DNS 名称和 `peerTls.internalPort` |
-| `KURA_PEERS` | 在对等发现收敛之前使用的种子对等列表。 | 否 | `KURA_NODE_URL` | 派生自 StatefulSet 副本 |
+| `KURA_PEERS` | 在对等发现收敛之前使用的种子对等列表。 | 否 | `KURA_NODE_URL` | 派生自 StatefulSet 副本数 |
 | `KURA_DISCOVERY_DNS_NAME` | 用于自动对等发现的 DNS 名称。 | 否 | 已禁用 | 由 `config.discovery.enabled` 启用 |
-| `KURA_INTERNAL_TLS_CA_CERT_PATH` | 用于验证对等 mTLS 的 CA 证书。 | 否 | 已禁用，或在节点注册时在 `KURA_DATA_DIR` 下派生 | `peerTls.enabled` 和 `peerTls.caCertFileName` |
-| `KURA_INTERNAL_TLS_CERT_PATH` | 内部对等 mTLS 监听器使用的证书。 | 否 | 已禁用，或在节点注册时在 `KURA_DATA_DIR` 下派生 | `peerTls.enabled` 和 `peerTls.certFileName` |
-| `KURA_INTERNAL_TLS_KEY_PATH` | 内部对等 mTLS 监听器使用的私钥。 | 否 | 已禁用，或在节点注册时在 `KURA_DATA_DIR` 下派生 | `peerTls.enabled` 和 `peerTls.keyFileName` |
-| `KURA_PUBLIC_TLS_CERT_PATH` | 用于在共托管 HTTPS 监听器 (`KURA_HTTPS_PORT`) 上终止 TLS 的证书。 | 否 | 已禁用 | `extraEnv` |
+| `KURA_INTERNAL_TLS_CA_CERT_PATH` | 用于验证对等 mTLS 的 CA 证书。 | 否 | 已禁用，或在节点注册时派生自 `KURA_DATA_DIR` 下 | `peerTls.enabled` 和 `peerTls.caCertFileName` |
+| `KURA_INTERNAL_TLS_CERT_PATH` | 内部对等 mTLS 监听器使用的证书。 | 否 | 已禁用，或在节点注册时派生自 `KURA_DATA_DIR` 下 | `peerTls.enabled` 和 `peerTls.certFileName` |
+| `KURA_INTERNAL_TLS_KEY_PATH` | 内部对等 mTLS 监听器使用的私钥。 | 否 | 已禁用，或在节点注册时派生自 `KURA_DATA_DIR` 下 | `peerTls.enabled` 和 `peerTls.keyFileName` |
+| `KURA_PUBLIC_TLS_CERT_PATH` | 用于在共置 HTTPS 监听器 (`KURA_HTTPS_PORT`) 上终止 TLS 的证书。 | 否 | 已禁用 | `extraEnv` |
 | `KURA_PUBLIC_TLS_KEY_PATH` | 与 `KURA_PUBLIC_TLS_CERT_PATH` 配对的私钥。 | 否 | 已禁用 | `extraEnv` |
-| `KURA_HTTPS_PORT` | 提供相同共托管 HTTP + gRPC 服务（ALPN 协商）的 TLS 端口。仅在设置公共 TLS 路径时绑定。 | 否 | `4443` | `extraEnv` |
-| `KURA_GATEWAY_GRPC_PORT` | 纯文本 HTTP/2 端口，仅提供 gRPC API，适用于重用上游连接的代理。请参阅[将节点置于负载均衡器之后](#load-balancers)。 | 否 | 已禁用 | `service.gatewayGrpcPort` |
-| `KURA_FILE_DESCRIPTOR_POOL_SIZE` | 用于请求和后台 I/O 的文件描述符预算。 | 否 | 自动派生 | `config.fileDescriptors.poolSize` |
-| `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | 请求在 FD 背压导致检出失败之前等待的时间。 | 否 | `5000` | `config.fileDescriptors.acquireTimeoutMs` |
+| `KURA_HTTPS_PORT` | 提供相同共置 HTTP + gRPC 服务面的 TLS 端口（通过 ALPN 协商）。仅在设置公共 TLS 路径时绑定。 | 否 | `4443` | `extraEnv` |
+| `KURA_GATEWAY_GRPC_PORT` | 纯文本 HTTP/2 端口，仅提供 gRPC API，适用于重用上游连接的代理。请参阅 [将节点置于负载均衡器之后](#load-balancers)。 | 否 | 已禁用 | `service.gatewayGrpcPort` |
+| `KURA_FILE_DESCRIPTOR_POOL_SIZE` | 用于请求和后台 I/O 的文件描述符配额。 | 否 | 自动派生 | `config.fileDescriptors.poolSize` |
+| `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | 请求在 FD 背压导致检出失败前的等待时间。 | 否 | `5000` | `config.fileDescriptors.acquireTimeoutMs` |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | 最大固定段读取句柄数。 | 否 | 自动派生 | `config.fileDescriptors.segmentHandleCacheSize` |
 | `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | 关闭期间用于处理进行中 HTTP 和 gRPC 工作的宽限期。 | 否 | `240000` | `config.shutdown.drainCompletionTimeoutMs` |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | 软内存水位线，Kura 在此开始减少可选内存使用。 | 否 | 自动派生 | `config.memory.softLimitBytes` |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | 硬内存水位线，Kura 在此暂停复制并清理热缓存。 | 否 | 自动派生 | `config.memory.hardLimitBytes` |
 | `KURA_MANIFEST_CACHE_MAX_BYTES` | 内存中清单缓存的最大大小。 | 否 | 自动派生 | `config.memory.manifestCacheMaxBytes` |
 | `KURA_MAX_KEYVALUE_BYTES` | 每个请求的键值负载最大大小。 | 否 | `1048576` | `config.memory.maxKeyvalueBytes` |
-| `KURA_METADATA_STORE_MAX_OPEN_FILES` | 为元数据存储保留的文件描述符预算。 | 否 | 自动派生 | `config.metadataStore.maxOpenFiles` |
+| `KURA_METADATA_STORE_MAX_OPEN_FILES` | 为元数据存储保留的文件描述符配额。 | 否 | 自动派生 | `config.metadataStore.maxOpenFiles` |
 | `KURA_METADATA_STORE_MAX_BACKGROUND_JOBS` | 元数据存储的后台刷新和压缩并发度。 | 否 | 自动派生 | `config.metadataStore.maxBackgroundJobs` |
 | `KURA_METADATA_STORE_READ_CACHE_BYTES` | 元数据存储读取缓存的容量。 | 否 | 自动派生 | `extraEnv` |
-| `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | 为元数据写入缓冲保留的总内存预算。 | 否 | 自动派生 | `extraEnv` |
-| `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | 每次刷新前每个元数据写入缓冲区的大小。 | 否 | 自动派生 | `extraEnv` |
+| `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | 为元数据写入缓冲保留的总内存配额。 | 否 | 自动派生 | `extraEnv` |
+| `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | 每次元数据写入缓冲区在刷新前的大小。 | 否 | 自动派生 | `extraEnv` |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | 保留在内存中的元数据写入缓冲区最大数量。 | 否 | 自动派生 | `extraEnv` |
-| `KURA_MULTIPART_UPLOAD_TTL_MS` | 进行中的多部分上传在过期前可保持的最长时间。 | 否 | `86400000` | `extraEnv` |
-| `KURA_MULTIPART_JANITOR_INTERVAL_MS` | Kura 扫描过时多部分上传的频率。 | 否 | `600000` | `extraEnv` |
+| `KURA_MULTIPART_UPLOAD_TTL_MS` | 进行中的 multipart 上传在过期前可保持的最长时间。 | 否 | `86400000` | `extraEnv` |
+| `KURA_MULTIPART_JANITOR_INTERVAL_MS` | Kura 扫描过时 multipart 上传的频率。 | 否 | `600000` | `extraEnv` |
 | `KURA_BACKFILL_MARGIN_PERCENT` | 按年龄排序的段环中从最新部分计算的份额，用于限制回填操作的回溯范围。 | 否 | `40` | `config.backfill.marginPercent` |
-| `KURA_BACKFILL_READY_RING_PERCENT` | 节点在运行首个回填周期时报告自身就绪的段环填充度。 | 否 | `KURA_BACKFILL_MARGIN_PERCENT` 的一半 | `config.backfill.readyRingPercent` |
-| `KURA_BACKFILL_BATCH_BYTES` | 构成单个回填主体批次的字节阈值，以及条目单独获取的大小上限。 | 否 | `33554432` | `config.backfill.batchBytes` |
+| `KURA_BACKFILL_READY_RING_PERCENT` | 节点在首次回填周期中报告自身就绪时的段环填充度。 | 否 | `KURA_BACKFILL_MARGIN_PERCENT` 的一半 | `config.backfill.readyRingPercent` |
+| `KURA_BACKFILL_BATCH_BYTES` | 组成单个回填主体批次的字节阈值，以及条目单独获取的大小上限。 | 否 | `33554432` | `config.backfill.batchBytes` |
 | `KURA_TOKIO_WORKER_THREADS` | Tokio 工作线程数。 | 否 | 自动派生 | `extraEnv` |
 | `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | OTLP 追踪端点。留空以禁用追踪。 | 否 | 已禁用 | `config.telemetry.otlpTracesEndpoint` |
 | `KURA_OTEL_SERVICE_NAME` | OpenTelemetry 服务名称。 | 是 | 无默认值 | Helm 中的 Pod 名称 |
 | `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | OpenTelemetry 部署环境。 | 是 | 无默认值 | `config.telemetry.deploymentEnvironment` |
 | `KURA_SENTRY_DSN` | 用于恐慌和错误报告的 Sentry DSN。 | 否 | 已禁用 | `extraEnv` 或 `extraEnvFrom` |
-| `KURA_NODE_COUNTRY` | 节点所在数据中心的 ISO 3166-1 alpha-2 国家代码，作为 `geo.country.iso_code` 标记在导出的追踪中。 | 否 | 当 `KURA_REGION` 的前缀是国家代码时从中派生 | `extraEnv` |
+| `KURA_NODE_COUNTRY` | 节点所在数据中心的 ISO 3166-1 alpha-2 国家代码，作为 `geo.country.iso_code` 标记在导出的追踪中。 | 否 | 当 `KURA_REGION` 的前缀为国家代码时从中派生 | `extraEnv` |
 | `KURA_NODE_SUBDIVISION` | 该数据中心的 ISO 3166-2 分区（例如 `US-CA`），标记为 `geo.region.iso_code`。 | 否 | 未设置 | `extraEnv` |
-| `KURA_AUTH_ENABLED` | 要求调用方提供有效的 Tuist 令牌。设置 `KURA_AUTH_TUIST_URL` 即可单独启用授权，将其设置为 `false` 不会关闭授权——请取消设置 URL 以在无授权的情况下运行节点。 | 否 | 已禁用 | `auth.enabled` |
-| `KURA_AUTH_TUIST_URL` | 节点进行授权的 Tuist 服务器。可单独启用授权。 | 启用授权时必需 | 无默认值 | `auth.tuistUrl` |
+| `KURA_AUTH_ENABLED` | 要求调用方提供有效的 Tuist 令牌。设置 `KURA_AUTH_TUIST_URL` 即可单独启用授权，将其设置为 `false` 不会关闭授权——取消设置 URL 才能运行未经授权的节点。 | 否 | 已禁用 | `auth.enabled` |
+| `KURA_AUTH_TUIST_URL` | 节点进行授权的 Tuist 服务器。单独设置即可启用授权。 | 启用授权时必需 | 无默认值 | `auth.tuistUrl` |
 | `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` | 对该服务器调用的连接超时时间。 | 否 | `500` | `extraEnv` |
 | `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` | 对该服务器调用的请求超时时间。 | 否 | `1500` | `extraEnv` |
-| `KURA_AUTH_JWT_SECRET` | 用于节点自行读取令牌的共享密钥，从而跳过往返。它既签名也验证，因此仅在节点和服务器处于同一信任边界时使用。自托管节点通常不设置此项。 | 否 | 已禁用 | `extraEnv` 或 `extraEnvFrom` |
-| `KURA_AUTH_JWT_PUBLIC_KEY` | 服务器用于签署缓存令牌的非对称密钥对中的公钥部分，以一个或多个串联的 PEM 块形式提供。能够读取这些令牌但无法生成新令牌，这适用于可从互联网访问的节点。与 `KURA_AUTH_JWT_SECRET` 互斥。 | 否 | 已禁用 | `extraEnvFrom` |
+| `KURA_AUTH_JWT_SECRET` | 节点可自行读取令牌的共享密钥，从而跳过往返。它既签名也验证，因此仅在节点和服务器处于同一信任边界时使用。自托管节点通常不设置此项。 | 否 | 已禁用 | `extraEnv` 或 `extraEnvFrom` |
+| `KURA_AUTH_JWT_PUBLIC_KEY` | 服务器用于签署缓存令牌的非对称密钥对中的公钥部分，以一个或多个串联的 PEM 块形式提供。节点可读取这些令牌但无法生成新令牌，这正是可从互联网访问的节点应持有的配置。与 `KURA_AUTH_JWT_SECRET` 互斥。 | 否 | 已禁用 | `extraEnvFrom` |
 | `KURA_AUTH_JWT_ALGORITHM` | 该密钥使用的算法：使用共享密钥时为 `HS256`、`HS384` 或 `HS512`，使用公钥时为 `ES256`。 | 否 | 使用共享密钥时为 `HS256`，使用公钥时为 `ES256` | `extraEnv` |
 | `KURA_AUTH_JWT_ISSUER` | 令牌必须包含的颁发者。 | 否 | 不检查 | `extraEnv` |
 | `KURA_AUTH_JWT_AUDIENCES` | 令牌必须包含的受众，以逗号分隔。 | 否 | 不检查 | `extraEnv` |
@@ -368,6 +368,6 @@ Helm chart 从 `values.yaml` 渲染常见的运行时设置。如果在没有 Ku
 | `KURA_CONTROL_PLANE_CLIENT_SECRET` | 与 `KURA_CONTROL_PLANE_CLIENT_ID` 配对的客户端密钥。 | 注册或登记时必需 | 无默认值 | `extraEnv` |
 | `KURA_REGISTRATION_URL` | 节点发送注册心跳的绝对 URL，用于宣告其面向客户端的端点。 | 注册时必需 | 无默认值 | `extraEnv` |
 | `KURA_ADVERTISED_HTTP_URL` | 控制平面提供给客户端的面向客户端的缓存 URL。账户中的每个客户端都必须能够访问此 URL。 | 注册时必需 | 无默认值 | `extraEnv` |
-| `KURA_REGISTRATION_INTERVAL_MS` | 注册心跳频率。租约允许错过多次心跳，因此单次心跳丢失不会导致端点被移除。 | 否 | `60000` | `extraEnv` |
+| `KURA_REGISTRATION_INTERVAL_MS` | 注册心跳频率。租约容忍多次心跳丢失，因此单次心跳丢失不会导致端点被移除。 | 否 | `60000` | `extraEnv` |
 
-如果启用内部对等 mTLS，请同时设置 `KURA_INTERNAL_TLS_CA_CERT_PATH`、`KURA_INTERNAL_TLS_CERT_PATH` 和 `KURA_INTERNAL_TLS_KEY_PATH`。`KURA_NODE_URL` 和 `KURA_PEERS` 中的每个值都必须使用带有内部对等端口的 `https://`。
+如果启用内部对等 mTLS，请同时设置 `KURA_INTERNAL_TLS_CA_CERT_PATH`、`KURA_INTERNAL_TLS_CERT_PATH` 和 `KURA_INTERNAL_TLS_KEY_PATH`。`KURA_NODE_URL` 以及 `KURA_PEERS` 中的每个值都必须使用 `https://` 并指定内部对等端口。

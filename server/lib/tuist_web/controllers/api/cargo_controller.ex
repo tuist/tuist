@@ -116,6 +116,7 @@ defmodule TuistWeb.API.CargoController do
       body
       |> RemoteURL.strip_credentials_from_params()
       |> Map.merge(%{project_id: project.id, account_id: Authentication.authenticated_subject_account(conn).id})
+      |> Map.put(:tuist_version, TuistWeb.Headers.get_build_integration_version(conn, :cargo))
 
     case Cargo.create_build(attrs) do
       {:ok, id} ->
@@ -129,7 +130,7 @@ defmodule TuistWeb.API.CargoController do
 
   operation :list_builds,
     summary: "List Cargo builds for a project, newest first.",
-    description: "Cargo test runs reported as nextest are listed with test runs, not builds.",
+    description: "Cargo test execution results are listed with test runs, not builds.",
     operation_id: "listCargoBuilds",
     parameters: [
       account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],

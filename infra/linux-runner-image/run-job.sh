@@ -22,6 +22,13 @@ set -uo pipefail
 
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
+# Dispatch is the only source of this attestation. An untrusted job receives
+# no grant and must not inherit one from the image environment.
+unset TUIST_CACHE_SIGNING_GRANT
+if [ -s "${JIT_PATH}.cache-grant" ]; then
+  export TUIST_CACHE_SIGNING_GRANT="$(cat "${JIT_PATH}.cache-grant")"
+fi
+
 # Optional: route the job's Tuist cache at the account's per-job
 # endpoint when dispatch-poll.sh staged one. The CLI honors
 # TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
@@ -257,9 +264,14 @@ if [ -n "\${TUIST_CACHE_ENDPOINT:-}" ]; then
     echo "::warning::Could not publish the runner cache endpoint to the job environment"
   fi
 fi
-for _var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
+for _var in TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
   _value="\${!_var:-}"
   if [ -n "\${_value}" ]; then
+    # GitHub prints GITHUB_ENV values in later step headers. Register the
+    # dispatch credential before publishing it to that environment.
+    if [ "\${_var}" = "TUIST_CACHE_SIGNING_GRANT" ]; then
+      printf '::add-mask::%s\\n' "\${_value}"
+    fi
     printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
   fi
 done

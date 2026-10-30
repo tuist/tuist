@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - .github/actions/install/**
+      - .github/actions/cache-volume/attach.sh
       - .github/workflows/install-action.yml
       - ci/cache-volume/publish.sh
       - mise/tasks/release/check.sh

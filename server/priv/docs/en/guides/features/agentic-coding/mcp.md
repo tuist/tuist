@@ -40,6 +40,8 @@ The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can d
 
 Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
 
+Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Once run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
+
 Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
@@ -353,7 +355,7 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Individual test runs are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
+| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Cargo test execution results are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
 | `get_cargo_build` | Get build metadata and aggregate cache counters, including hits, task misses, and hit rate. | `account_handle`, `project_handle`, `build_id` |
 
 #### Mix builds
@@ -431,9 +433,11 @@ The code coverage tools are available to accounts with code coverage enabled.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_bundles` | List bundles (app binaries) for a project. | `account_handle`, `project_handle` |
-| `get_bundle` | Get detailed information about a specific bundle. | `bundle_id` |
+| `list_bundles` | List bundles (app binaries) for a project. Optionally filter by `git_branch` and `tags` (all tags must match exactly). | `account_handle`, `project_handle` |
+| `get_bundle` | Get detailed information about a specific bundle, including custom tags. | `bundle_id` |
 | `get_bundle_artifact_tree` | Get the full artifact tree for a bundle as a flat list sorted by path. | `bundle_id` |
+
+`list_bundles` accepts `tags: ["paid", "production"]` to distinguish build flavors or environments. Tags are case-sensitive labels containing letters, numbers, hyphens, or underscores, with at most 10 tags and 50 characters per tag. List and detail results include `custom_metadata.tags`. Pagination counts and branch filters apply to the tagged results; omitting `tags` preserves the unfiltered behavior. Invalid tag filters return an error rather than broadening the query.
 
 #### Generations
 

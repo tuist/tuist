@@ -1,7 +1,7 @@
 ---
 {
   "title": "CLI",
-  "titleTemplate": ":title · Code · Contributors · Tuist",
+  "titleTemplate": ":title · 程式碼 · 貢獻者 · Tuist",
   "description": "為 Tuist CLI 作出貢獻。"
 }
 ---
@@ -11,7 +11,7 @@
 
 ## 用途 {#what-it-is-for}
 
-CLI 係 Tuist 嘅核心。佢負責專案生成、自動化工作流程（測試、運行、圖表同檢查），並提供與 Tuist 伺服器嘅介面，支援認證、快取、洞察、預覽、Registry 同選擇性測試等功能。
+CLI 係 Tuist 嘅核心。佢負責項目生成、自動化工作流程（測試、運行、圖表同檢查），並提供連接 Tuist server 嘅介面，支援認證、快取、insights、預覽、registry 同選擇性測試等功能。
 
 ## 如何貢獻 {#how-to-contribute}
 
@@ -23,26 +23,26 @@ CLI 係 Tuist 嘅核心。佢負責專案生成、自動化工作流程（測試
 ### 本地設定 {#set-up-locally}
 
 - 複製儲存庫：`git clone git@github.com:tuist/tuist.git`
-- 使用 [官方安裝腳本](https://mise.jdx.dev/getting-started.html) 安裝 Mise（唔好使用 Homebrew），然後執行 `mise install`
-- 安裝 Tuist 依賴項：`tuist install`
+- 使用 [官方安裝腳本](https://mise.jdx.dev/getting-started.html) 安裝 Mise（唔好用 Homebrew），然後執行 `mise install`
+- 安裝 Tuist 依賴：`tuist install`
 - 生成工作區：`tuist generate`
 
-生成嘅專案會自動開啟。如果之後需要重新開啟，請執行 `open Tuist.xcworkspace`。
+生成嘅項目會自動開啟。如果之後需要重新開啟，請執行 `open Tuist.xcworkspace`。
 
 > [!NOTE]
 > **Xed .**
 >
-> 如果你嘗試使用 `xed .` 開啟專案，佢會開啟套件，而唔係 Tuist 生成嘅工作區。請使用 `Tuist.xcworkspace`。
+> 如果你嘗試用 `xed .` 開啟項目，佢會開啟套件，而唔係 Tuist 生成嘅工作區。請使用 `Tuist.xcworkspace`。
 
 
 ### 運行 Tuist {#run-tuist}
 
 #### 從 Xcode {#from-xcode}
 
-編輯 `tuist` scheme 並設定參數，例如 `generate --no-open`。將工作目錄設定為專案根目錄（或使用 `--path`）。
+編輯 `tuist` scheme 並設定參數，例如 `generate --no-open`。將工作目錄設為項目根目錄（或使用 `--path`）。
 
 > [!WARNING]
-> **ProjectDescription 編譯**
+> **Projectdescription 編譯**
 >
 > CLI 依賴 `ProjectDescription` 被構建。如果運行失敗，請先構建 `Tuist-Workspace` scheme。
 

@@ -21,7 +21,7 @@ msgstr "Artefatos"
 #: lib/tuist_web/live/docs_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
-msgstr "Detecte automaticamente testes instáveis que falham sem alterações de código e economize tempo investigando falsas falhas."
+msgstr "Detecte automaticamente testes instáveis que falham sem alterações no código e economize o tempo gasto investigando falsas falhas."
 
 #: lib/tuist_web/docs/layouts.ex:58
 #: lib/tuist_web/docs/layouts/root.html.heex:194
@@ -51,13 +51,13 @@ msgstr "Converse com a comunidade Tuist em tempo real."
 #: lib/tuist_web/live/docs_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
-msgstr "Conecte-se com milhares de desenvolvedores que estão lançando melhores aplicativos com o Tuist. Obtenha ajuda, compartilhe conquistas e molde o futuro das ferramentas de desenvolvimento de aplicativos."
+msgstr "Conecte-se com milhares de desenvolvedores que estão entregando apps melhores com o Tuist. Obtenha ajuda, compartilhe conquistas e molde o futuro das ferramentas de desenvolvimento de apps."
 
 #: lib/tuist_web/live/docs_live.ex:529
 #: lib/tuist_web/live/docs_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Contribute or report issues to our open source repository."
-msgstr "Contribua ou relate problemas em nosso repositório de código aberto."
+msgstr "Contribua ou reporte problemas ao nosso repositório open source."
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:71
 #: lib/tuist_web/docs/components/page_layout.html.heex:74
@@ -83,7 +83,7 @@ msgstr "Navegação da documentação"
 #: lib/tuist_web/live/docs_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Explore dashboard"
-msgstr "Explorar dashboard"
+msgstr "Explorar o dashboard"
 
 #: lib/tuist_web/live/docs_live.ex:386
 #: lib/tuist_web/live/docs_live.ex:758
@@ -101,13 +101,13 @@ msgstr "Siga a Tuist no LinkedIn para notícias e atualizações."
 #: lib/tuist_web/live/docs_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "Follow us on Bluesky to stay up to date with our work."
-msgstr "Siga-nos no Bluesky para se manter atualizado com nosso trabalho."
+msgstr "Siga-nos no Bluesky para se manter atualizado sobre nosso trabalho."
 
 #: lib/tuist_web/live/docs_live.ex:594
 #: lib/tuist_web/live/docs_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Follow us on Mastodon to stay up to date with our work."
-msgstr "Siga-nos no Mastodon para se manter atualizado com nosso trabalho."
+msgstr "Siga-nos no Mastodon para se manter atualizado sobre nosso trabalho."
 
 #: lib/tuist_web/docs/layouts.ex:47
 #: lib/tuist_web/docs/layouts/root.html.heex:170
@@ -133,7 +133,7 @@ msgstr "Insights"
 #: lib/tuist_web/live/docs_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
-msgstr "Aprenda com implementações reais e inspire-se com o que é possível quando sua cadeia de ferramentas simplesmente funciona."
+msgstr "Aprenda com implementações reais e inspire-se com o que é possível quando sua ferramenta funciona sem problemas."
 
 #: lib/tuist_web/live/docs_live.ex:570
 #: lib/tuist_web/live/docs_live.ex:811
@@ -236,7 +236,7 @@ msgstr "Slack"
 #: lib/tuist_web/docs/components/toc.html.heex:1
 #, elixir-autogen, elixir-format
 msgid "Table of contents"
-msgstr "Índice"
+msgstr "Sumário"
 
 #: lib/tuist_web/live/docs_live.ex:354
 #: lib/tuist_web/live/docs_live.ex:746
@@ -306,7 +306,7 @@ msgstr "Última atualização em %{date}"
 #: lib/tuist_web/live/docs_live.ex:640
 #, elixir-autogen, elixir-format
 msgid "View"
-msgstr "Visualizar"
+msgstr "Ver"
 
 #: lib/tuist_web/live/docs_live.ex:642
 #, elixir-autogen, elixir-format
@@ -347,13 +347,13 @@ msgstr "Instalar o Tuist"
 #: lib/tuist_web/live/docs_live.ex:771
 #, elixir-autogen, elixir-format
 msgid "Move from a successful build to useful feedback with shareable previews and bundle-size insights."
-msgstr "Passe de uma compilação bem-sucedida para um feedback útil com pré-visualizações compartilháveis e insights sobre o tamanho do bundle."
+msgstr "Passe de uma compilação bem-sucedida a feedback útil com previews compartilháveis e insights sobre o tamanho do bundle."
 
 #: lib/tuist_web/live/docs_live.ex:190
 #: lib/tuist_web/live/docs_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "One platform for faster build toolchains"
-msgstr "Uma plataforma para toolchains de compilação mais rápidas"
+msgstr "Uma plataforma para cadeias de ferramentas de compilação mais rápidas"
 
 #: lib/tuist_web/live/docs_live.ex:372
 #: lib/tuist_web/live/docs_live.ex:754
@@ -365,37 +365,37 @@ msgstr "Execute apenas os testes impactados ao detectar alterações desde sua �
 #: lib/tuist_web/live/docs_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
-msgstr "Execute os testes que importam, detecte comportamentos intermitentes e entenda o desempenho dos testes localmente e na integração contínua."
+msgstr "Execute os testes que importam, detecte comportamentos instáveis e entenda o desempenho dos testes localmente e na integração contínua."
 
 #: lib/tuist_web/live/docs_live.ex:306
 #: lib/tuist_web/live/docs_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
-msgstr "Compartilhe o trabalho de compilação entre máquinas de desenvolvedores, integração contínua, runners e agentes de codificação, depois use insights para encontrar regressões."
+msgstr "Compartilhe o trabalho de compilação entre máquinas de desenvolvedores, integração contínua, executores e agentes de codificação, e use insights para encontrar regressões."
 
 #: lib/tuist_web/live/docs_live.ex:436
 #: lib/tuist_web/live/docs_live.ex:777
 #, elixir-autogen, elixir-format
 msgid "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
-msgstr "Compartilhe seu app por meio de um link para que outras pessoas possam executá-lo em seus dispositivos ou simuladores sem a configuração do TestFlight."
+msgstr "Compartilhe seu app por meio de um link para que outras pessoas possam executá-lo em seus dispositivos ou simuladores sem precisar configurar o TestFlight."
 
 #: lib/tuist_web/live/docs_live.ex:295
 #: lib/tuist_web/live/docs_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
-msgstr "Acelere as compilações, melhore a confiabilidade dos testes, entenda o desempenho e execute fluxos de trabalho em infraestrutura projetada para sua toolchain."
+msgstr "Acelere as compilações, melhore a confiabilidade dos testes, entenda o desempenho e execute fluxos de trabalho em infraestrutura projetada para sua cadeia de ferramentas."
 
 #: lib/tuist_web/live/docs_live.ex:408
 #: lib/tuist_web/live/docs_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
-msgstr "Acompanhe o desempenho dos testes, identifique testes lentos precocemente e depure falhas de integração contínua por meio de logs em tempo real."
+msgstr "Acompanhe o desempenho dos testes, identifique testes lentos cedo e depure falhas de integração contínua por meio de logs em tempo real."
 
 #: lib/tuist_web/live/docs_live.ex:341
 #: lib/tuist_web/live/docs_live.ex:741
 #, elixir-autogen, elixir-format
 msgid "Understand build performance across local and continuous integration environments before slowdowns affect your team."
-msgstr "Compreenda o desempenho da compilação em ambientes locais e de integração contínua antes que as lentidões afetem sua equipe."
+msgstr "Entenda o desempenho das compilações em ambientes locais e de integração contínua antes que as lentidões afetem sua equipe."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:300
 #, elixir-autogen, elixir-format
@@ -415,7 +415,7 @@ msgstr "Abrir menu"
 #: lib/tuist_web/live/docs_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Follow us on X to stay up to date with our work."
-msgstr "Siga-nos no X para se manter atualizado com nosso trabalho."
+msgstr "Siga-nos no X para se manter atualizado sobre nosso trabalho."
 
 #: lib/tuist_web/live/docs_live.ex:233
 #, elixir-autogen, elixir-format
@@ -436,7 +436,7 @@ msgstr "Instalar a CLI do Tuist"
 #: lib/tuist_web/live/docs_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Supported for:"
-msgstr "Suportado para:"
+msgstr "Compatível com:"
 
 #: lib/tuist_web/live/docs_live.ex:247
 #, elixir-autogen, elixir-format
@@ -464,22 +464,22 @@ msgstr "Executores"
 #: lib/tuist_web/live/docs_live.ex:784
 #, elixir-autogen, elixir-format
 msgid "Run workflows on managed compute with cache infrastructure colocated for the best performance."
-msgstr "Execute fluxos de trabalho em computação gerenciada com infraestrutura de cache localizada junto para o melhor desempenho."
+msgstr "Execute fluxos de trabalho em computação gerenciada, com infraestrutura de cache localizada junto à computação para o melhor desempenho."
 
 #: lib/tuist_web/live/docs_live.ex:467
 #: lib/tuist_web/live/docs_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
-msgstr "Execute fluxos de trabalho de integração contínua em executores macOS e Linux gerenciados, com infraestrutura de cache localizada junto à computação para obter os melhores resultados e compartilhada com suas máquinas de desenvolvedor."
+msgstr "Execute fluxos de trabalho de integração contínua em executores macOS e Linux gerenciados, com infraestrutura de cache localizada junto à computação para os melhores resultados e compartilhada com as máquinas dos desenvolvedores."
 
 #: lib/tuist_web/live/docs_live.ex:192
 #: lib/tuist_web/live/docs_live.ex:713
 #, elixir-autogen, elixir-format
 msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
-msgstr "O código está sendo produzido mais rápido e em maior volume do que nunca. O Tuist se integra aos sistemas de build que você já usa, em projetos Xcode, Gradle, Bazel, Elixir e Rust, fornecendo a infraestrutura que permite que a integração e a entrega de software acompanhem o ritmo."
+msgstr "O código está sendo produzido com mais rapidez e em maior volume do que nunca. O Tuist se integra aos sistemas de build que você já usa, em projetos Xcode, Gradle, Bazel, Elixir e Rust, fornecendo a infraestrutura necessária para que a integração e a entrega de software acompanhem esse ritmo."
 
 #: lib/tuist_web/live/docs_live.ex:323
 #: lib/tuist_web/live/docs_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
-msgstr "Compartilhe artefatos de build do Xcode, Gradle, Bazel e Rust e pacotes de dependências do Elixir auditados entre máquinas e CI. O cache para Rust é experimental."
+msgstr "Compartilhe artefatos de build do Xcode, Gradle, Bazel e Rust, além de pacotes de dependências do Elixir auditados, entre máquinas e CI. O cache para Rust é experimental."

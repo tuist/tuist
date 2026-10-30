@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Build insights · Features · Guides · Tuist",
-  "description": "Track build analytics for a Tuist-generated Xcode project on the Tuist dashboard."
+  "title": "產生的 Xcode 專案",
+  "titleTemplate": ":title · 建置洞察 · 功能 · 指南 · Tuist",
+  "description": "在 Tuist 儀表板上追蹤由 Tuist 產生的 Xcode 專案之建置分析資料。"
 }
 ---
 # 產生的 Xcode 專案 {#generated-xcode-project-build-insights}
@@ -11,9 +11,9 @@
 > 自動產生的 Scheme 會自動包含 `tuist inspect build` 後置動作。
 
 >
-> 如果您不想在產生的 Scheme 中追蹤建構洞察，請使用 [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) 停用。
+> 若你不想在產生的 Scheme 中追蹤建置洞察，請使用 [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) 停用。
 
-如果您使用的是帶有自訂 Scheme 的產生專案，您需要自行新增後置動作。對於 [Mise](https://mise.jdx.dev/)：
+若你使用帶有自訂 Scheme 的產生專案，需要自行加入後置動作。針對 [Mise](https://mise.jdx.dev/)：
 
 ```swift
 let project = Project(
@@ -44,7 +44,7 @@ let project = Project(
 )
 ```
 
-如果您未使用 Mise，則需要確保 `tuist` 在 Scheme 的環境中可用，因為 Xcode 後置動作不會繼承您 Shell 的 `PATH`。對於 [Homebrew](https://brew.sh/) 安裝：
+若你未使用 Mise，需確保 `tuist` 在 Scheme 的環境中可用，因為 Xcode 後置動作不會繼承你 Shell 的 `PATH`。針對 [Homebrew](https://brew.sh/) 安裝：
 
 ```swift
 buildAction: .buildAction(
@@ -63,30 +63,30 @@ buildAction: .buildAction(
 )
 ```
 
-## CI 中的建構洞察 {#continuous-integration}
+## CI 中的建置洞察 {#continuous-integration}
 
-若要在 CI 上追蹤建構洞察，請確保 CI 已<.localized_link href="/guides/integrations/continuous-integration#authentication">驗證</.localized_link>。
+若要在 CI 上追蹤建置洞察，請確認 CI 已<.localized_link href="/guides/integrations/continuous-integration#authentication">驗證</.localized_link>。
 
-對於由 Xcodebuild 驅動的 CI，您需要：
-- 在叫用 `xcodebuild` 動作時使用 <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link>。
-- 將 `-resultBundlePath` 加入您的 `xcodebuild` 指令。
+針對由 Xcodebuild 驅動的 CI，你需要：
+- 叫用 `xcodebuild` 動作時使用 <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link>。
+- 在你的 `xcodebuild` 指令中加入 `-resultBundlePath`。
 
-若沒有 `-resultBundlePath`，將不會產生必要的活動記錄和結果套件，且 `tuist inspect build` 無法分析建構。
+若缺少 `-resultBundlePath`，就不會產生必要的活動日誌與結果套件，`tuist inspect build` 也無法分析該建置。
 
 ## 機器指標 {#machine-metrics}
 
-建構洞察可以包含在建構期間擷取的機器層級效能指標（CPU、記憶體、網路和磁碟使用量）。若要啟用此功能，請設定一個輕量級的後台常駐程式，持續採樣系統指標：
+建置洞察可包含在建置期間擷取的機器層級效能指標（CPU、記憶體、網路與磁碟使用量）。要啟用此功能，請設定一個輕量背景常駐程式，持續取樣系統指標：
 
 ```bash
 tuist setup insights
 ```
 
-這會執行一個在背景採樣指標的本機常駐程式。資料會由 `tuist inspect build` 自動擷取並隨建構報告上傳。
+這會在背景執行本機常駐程式並取樣指標。`tuist inspect build` 會自動取得這些資料，並隨建置報告上傳。
 
 > [!TIP]
 > **Ci**
 >
-> 在建構前於您的 CI 機器上執行 `tuist setup insights`，以同時擷取那裡的機器指標。
+> 在建置前於你的 CI 機器上執行 `tuist setup insights`，以便同時擷取那裡的機器指標。
 
 若要停止收集機器指標，請執行：
 
@@ -94,23 +94,23 @@ tuist setup insights
 tuist teardown insights
 ```
 
-這會卸載常駐程式的 LaunchAgent、移除其 plist，並從 `~/.local/state` 刪除採樣的指標和常駐程式記錄，因此背景中不會有任何程序繼續執行。
+這會卸載常駐程式的 LaunchAgent、移除其 plist，並從 `~/.local/state` 刪除已取樣的指標與常駐程式日誌，確保背景沒有殘留程序。
 
 
 ## 自訂中繼資料 {#custom-metadata}
 
-您可以使用環境變數將中繼資料附加至建構，以改善篩選功能。
+你可以透過環境變數將中繼資料附加到建置，以改善篩選效果。
 
 ### 環境變數
 
 | 變數 | 格式 | 說明 |
 |----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | 逗號分隔 | 單一變數中包含多個標籤。 |
+| `TUIST_BUILD_TAGS` | 逗號分隔 | 在單一變數中包含多個標籤。 |
 | `TUIST_BUILD_VALUE_*` | 單一值 | 鍵值組，其中後綴為鍵。 |
 
 ### 範例
 
-在叫用建構之前，請在 CI 或您的 Shell 中設定這些值：
+在叫用建置前，於 CI 或你的 Shell 中設定這些值：
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"

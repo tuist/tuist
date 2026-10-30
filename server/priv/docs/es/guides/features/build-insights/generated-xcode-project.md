@@ -1,19 +1,19 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Build insights · Features · Guides · Tuist",
-  "description": "Track build analytics for a Tuist-generated Xcode project on the Tuist dashboard."
+  "title": "Proyecto de Xcode generado",
+  "titleTemplate": ":title · Análisis de compilaciones · Funcionalidades · Guías · Tuist",
+  "description": "Rastrea las métricas de compilación de un proyecto de Xcode generado con Tuist en el panel de control de Tuist."
 }
 ---
 # Proyecto de Xcode generado {#generated-xcode-project-build-insights}
 
 > [!NOTE]
-> Los esquemas generados automáticamente incluyen la post-acción `tuist inspect build`.
+> Los esquemas autogenerados incluyen automáticamente la postacción `tuist inspect build`.
 
 >
-> Si no deseas rastrear insights de compilación en esquemas generados, desactívalo usando [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
+> Si no quieres hacer seguimiento del análisis de compilaciones en esquemas generados, desactívalo con [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
-Si estás usando proyectos generados con esquemas personalizados, necesitas añadir la post-acción tú mismo. Para [Mise](https://mise.jdx.dev/):
+Si usas proyectos generados con esquemas personalizados, debes añadir la postacción tú mismo. Para [Mise](https://mise.jdx.dev/):
 
 ```swift
 let project = Project(
@@ -44,7 +44,7 @@ let project = Project(
 )
 ```
 
-Si no estás usando Mise, debes asegurarte de que `tuist` esté disponible en el entorno del esquema, ya que las post-acciones de Xcode no heredan el `PATH` de tu shell. Para instalaciones de [Homebrew](https://brew.sh/):
+Si no usas Mise, debes asegurarte de que `tuist` esté disponible en el entorno del esquema, ya que las postacciones de Xcode no heredan el `PATH` de tu shell. Para instalaciones de [Homebrew](https://brew.sh/):
 
 ```swift
 buildAction: .buildAction(
@@ -63,25 +63,25 @@ buildAction: .buildAction(
 )
 ```
 
-## Insights de compilación en CI {#continuous-integration}
+## Análisis de compilaciones en CI {#continuous-integration}
 
-Para rastrear insights de compilación en CI, asegúrate de que la CI esté <.localized_link href="/guides/integrations/continuous-integration#authentication">autenticada</.localized_link>.
+Para hacer seguimiento del análisis de compilaciones en CI, asegúrate de que la CI esté <.localized_link href="/guides/integrations/continuous-integration#authentication">autenticada</.localized_link>.
 
 Para CI impulsada por Xcodebuild necesitas:
 - Usa <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> al invocar acciones de `xcodebuild`.
 - Añade `-resultBundlePath` a tu comando de `xcodebuild`.
 
-Sin `-resultBundlePath`, no se generan los registros de actividad ni los paquetes de resultados requeridos, y `tuist inspect build` no puede analizar la compilación.
+Sin `-resultBundlePath`, no se generan los registros de actividad ni los paquetes de resultados necesarios y `tuist inspect build` no puede analizar la compilación.
 
 ## Métricas de la máquina {#machine-metrics}
 
-Los insights de compilación pueden incluir métricas de rendimiento a nivel de máquina (CPU, memoria, red y uso de disco) capturadas durante la compilación. Para habilitar esto, configura un daemon ligero en segundo plano que muestree continuamente las métricas del sistema:
+El análisis de compilaciones puede incluir métricas de rendimiento a nivel de máquina (CPU, memoria, red y uso de disco) capturadas durante la compilación. Para habilitarlo, configura un demonio ligero en segundo plano que muestree continuamente las métricas del sistema:
 
 ```bash
 tuist setup insights
 ```
 
-Esto ejecuta un daemon local que muestrea métricas en segundo plano. Los datos son recogidos automáticamente por `tuist inspect build` y subidos junto con el informe de compilación.
+Esto ejecuta un demonio local que muestrea métricas en segundo plano. Los datos son recogidos automáticamente por `tuist inspect build` y subidos junto con el informe de compilación.
 
 > [!TIP]
 > **Ci**
@@ -94,18 +94,18 @@ Para dejar de recopilar métricas de la máquina, ejecuta:
 tuist teardown insights
 ```
 
-Esto descarga el LaunchAgent del daemon, elimina su plist y borra las métricas muestreadas y los registros del daemon de `~/.local/state`, por lo que no queda nada ejecutándose en segundo plano.
+Esto descarga el LaunchAgent del demonio, elimina su plist y borra las métricas muestreadas y los registros del demonio de `~/.local/state`, de modo que no queda nada ejecutándose en segundo plano.
 
 
 ## Metadatos personalizados {#custom-metadata}
 
-Puedes adjuntar metadatos a las compilaciones con variables de entorno para mejorar el filtrado.
+Puedes adjuntar metadatos a las compilaciones mediante variables de entorno para mejorar el filtrado.
 
 ### Variables de entorno
 
 | Variable | Formato | Descripción |
 |----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | Separado por comas | Múltiples etiquetas en una variable. |
+| `TUIST_BUILD_TAGS` | Separado por comas | Varias etiquetas en una sola variable. |
 | `TUIST_BUILD_VALUE_*` | Valor único | Par clave-valor donde el sufijo es la clave. |
 
 ### Ejemplos

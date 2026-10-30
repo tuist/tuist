@@ -11,13 +11,13 @@
 msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/build_run_live.html.heex:878
+#: lib/tuist_web/live/build_run_live.html.heex:880
 #: lib/tuist_web/live/generate_runs_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate}%"
 msgstr "%{hit_rate}%"
 
-#: lib/tuist_web/live/build_run_live.ex:966
+#: lib/tuist_web/live/build_run_live.ex:970
 #: lib/tuist_web/live/mix_build_live.ex:482
 #: lib/tuist_web/live/mix_build_live.ex:488
 #, elixir-autogen, elixir-format
@@ -33,7 +33,7 @@ msgstr "%{percentage}%"
 #: lib/tuist_web/live/run_detail_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
-msgstr "%{run_duration}წმ"
+msgstr "%{run_duration} წმ"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:475
 #, elixir-autogen, elixir-format
@@ -65,17 +65,17 @@ msgstr "საშუალო"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "აგების საშ. ხანგრძლივობა"
+msgstr "ბილდის საშუალო ხანგრძლივობა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:951
+#: lib/tuist_web/live/build_run_live.html.heex:953
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache keys"
-msgstr "კეშის გასაღებების წაკითხვის საშუალო ლატენტობა"
+msgstr "ქეშის გასაღებების წაკითხვის საშუალო დაყოვნება"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1007
+#: lib/tuist_web/live/build_run_live.html.heex:1009
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache keys"
-msgstr "კეშის გასაღებების ჩაწერის საშუალო ლატენტობა"
+msgstr "ქეშის გასაღებების ჩაწერის საშუალო დაყოვნება"
 
 #: lib/tuist_web/live/build_entity_live.ex:503
 #: lib/tuist_web/live/build_entity_live.ex:1177
@@ -100,13 +100,13 @@ msgstr "ბრენჩი"
 #: lib/tuist_web/live/once_run_live.ex:289
 #, elixir-autogen, elixir-format
 msgid "Build Details"
-msgstr "აგების დეტალები"
+msgstr "ბილდის დეტალები"
 
 #: lib/tuist_web/live/build_run_live.ex:87
 #: lib/tuist_web/live/build_run_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Build Run"
-msgstr "აგების გაშვება"
+msgstr "ბილდის გაშვება"
 
 #: lib/tuist_web/live/build_run_live.html.heex:6
 #: lib/tuist_web/live/build_runs_live.ex:16
@@ -116,16 +116,16 @@ msgstr "აგების გაშვება"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "აგების გაშვებები"
+msgstr "ბილდის გაშვებები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:241
 #: lib/tuist_web/live/bazel_invocations_live.ex:446
 #: lib/tuist_web/live/bazel_invocations_live.ex:458
-#: lib/tuist_web/live/build_run_live.ex:1206
+#: lib/tuist_web/live/build_run_live.ex:1210
 #: lib/tuist_web/live/build_run_live.html.heex:283
-#: lib/tuist_web/live/build_run_live.html.heex:466
-#: lib/tuist_web/live/build_run_live.html.heex:482
-#: lib/tuist_web/live/build_run_live.html.heex:525
+#: lib/tuist_web/live/build_run_live.html.heex:468
+#: lib/tuist_web/live/build_run_live.html.heex:484
+#: lib/tuist_web/live/build_run_live.html.heex:527
 #: lib/tuist_web/live/cargo_build_live.html.heex:76
 #: lib/tuist_web/live/cargo_builds_live.html.heex:312
 #: lib/tuist_web/live/cargo_builds_live.html.heex:342
@@ -137,20 +137,20 @@ msgstr "აგების გაშვებები"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:747
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "აგების ხანგრძლივობა"
+msgstr "ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/build_run_live.ex:62
 #: lib/tuist_web/live/build_run_live.ex:73
 #: lib/tuist_web/live/mix_build_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Build not found."
-msgstr "აგება ვერ მოიძებნა."
+msgstr "ბილდი ვერ მოიძებნა."
 
 #: lib/tuist_web/live/cargo_builds_live.ex:172
 #: lib/tuist_web/live/xcode_builds_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Build runs"
-msgstr "აგების გაშვებები"
+msgstr "ბილდის გაშვებები"
 
 #: lib/tuist_web/live/cargo_builds_live.ex:188
 #: lib/tuist_web/live/cargo_builds_live.html.heex:101
@@ -158,17 +158,17 @@ msgstr "აგების გაშვებები"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
-msgstr "აგების წარმატების მაჩვენებელი"
+msgstr "ბილდის წარმატების მაჩვენებელი"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Build:"
-msgstr "აგება:"
+msgstr "ბილდი:"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:463
 #, elixir-autogen, elixir-format
 msgid "Buildable folders"
-msgstr "ასაგები საქაღალდეები"
+msgstr "კომპილირებადი საქაღალდეები"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:57
 #: lib/tuist_web/live/builds_live.ex:15
@@ -179,7 +179,7 @@ msgstr "ასაგები საქაღალდეები"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "აგებები"
+msgstr "ბილდები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:250
 #: lib/tuist_web/live/build_run_live.html.heex:290
@@ -197,43 +197,43 @@ msgstr "აგებულია"
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "აგებულია"
+msgstr "ავტორი"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:317
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
 msgstr "Bundle ID"
 
-#: lib/tuist_web/live/build_run_live.html.heex:911
-#: lib/tuist_web/live/cargo_build_live.html.heex:178
+#: lib/tuist_web/live/build_run_live.html.heex:913
+#: lib/tuist_web/live/cargo_build_live.html.heex:181
 #: lib/tuist_web/live/mix_build_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "CAS Outputs"
-msgstr "CAS გამომავალი მონაცემები"
+msgstr "CAS გამოსავლები"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1171
+#: lib/tuist_web/live/build_run_live.html.heex:1173
 #: lib/tuist_web/live/mix_build_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "CAS output"
-msgstr "CAS გამომავალი მონაცემი"
+msgstr "CAS გამოსავალი"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:281
-#: lib/tuist_web/live/build_run_live.html.heex:1280
+#: lib/tuist_web/live/build_run_live.html.heex:1282
 #, elixir-autogen, elixir-format
 msgid "CAS outputs"
-msgstr "CAS გამომავალი მონაცემები"
+msgstr "CAS გამოსავლები"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1507
+#: lib/tuist_web/live/build_run_live.html.heex:1509
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "Tuist ქეშის გამოყენებისას CAS გამომავალი მონაცემები აქ გამოჩნდება"
+msgstr "Tuist ქეშის გამოყენებისას CAS გამოსავლები აქ გამოჩნდება"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:79
 #: lib/tuist_web/components/reapi_cache_outputs.ex:90
-#: lib/tuist_web/live/build_run_live.html.heex:1232
+#: lib/tuist_web/live/build_run_live.html.heex:1234
 #, elixir-autogen, elixir-format
 msgid "CAS outputs:"
-msgstr "CAS გამომავალი მონაცემები:"
+msgstr "CAS გამოსავლები:"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:88
 #: lib/tuist_web/live/xcode_builds_live.ex:389
@@ -255,15 +255,15 @@ msgstr "CI გაშვება"
 msgid "Cache Runs"
 msgstr "ქეშის გაშვებები"
 
-#: lib/tuist_web/live/build_run_live.html.heex:836
-#: lib/tuist_web/live/cargo_build_live.html.heex:113
+#: lib/tuist_web/live/build_run_live.html.heex:838
+#: lib/tuist_web/live/cargo_build_live.html.heex:116
 #: lib/tuist_web/live/mix_build_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
 msgstr "ქეშის შეჯამება"
 
-#: lib/tuist_web/live/build_run_live.html.heex:887
-#: lib/tuist_web/live/cargo_build_live.html.heex:154
+#: lib/tuist_web/live/build_run_live.html.heex:889
+#: lib/tuist_web/live/cargo_build_live.html.heex:157
 #: lib/tuist_web/live/mix_build_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
@@ -272,15 +272,15 @@ msgstr "ქეშის ჩამოტვირთვები"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:66
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "ქეშის მოხვედრის მაჩვენებელი"
+msgstr "ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:41
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
-msgstr "ქეშის მოხვედრები"
+msgstr "ქეშში მოხვედრა"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:237
-#: lib/tuist_web/live/build_run_live.html.heex:1130
+#: lib/tuist_web/live/build_run_live.html.heex:1132
 #: lib/tuist_web/live/mix_build_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Cache key"
@@ -289,17 +289,17 @@ msgstr "ქეშის გასაღები"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:55
 #, elixir-autogen, elixir-format
 msgid "Cache misses"
-msgstr "ქეშის გამოტოვებები"
+msgstr "ქეშში ვერ მოხვედრა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:895
-#: lib/tuist_web/live/cargo_build_live.html.heex:165
+#: lib/tuist_web/live/build_run_live.html.heex:897
+#: lib/tuist_web/live/cargo_build_live.html.heex:168
 #: lib/tuist_web/live/mix_build_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
 msgstr "ქეშის ატვირთვები"
 
-#: lib/tuist_web/live/build_run_live.html.heex:906
-#: lib/tuist_web/live/cargo_build_live.html.heex:173
+#: lib/tuist_web/live/build_run_live.html.heex:908
+#: lib/tuist_web/live/cargo_build_live.html.heex:176
 #: lib/tuist_web/live/mix_build_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
@@ -320,23 +320,23 @@ msgstr "ქეშირებადი სამიზნეები:"
 msgid "Cacheable tasks"
 msgstr "ქეშირებადი ამოცანები"
 
-#: lib/tuist_web/live/build_run_live.html.heex:855
+#: lib/tuist_web/live/build_run_live.html.heex:857
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
 msgstr "ქეშირებადი ამოცანები, რომლებიც ქეშში არ აღმოჩნდა."
 
-#: lib/tuist_web/live/build_run_live.html.heex:844
+#: lib/tuist_web/live/build_run_live.html.heex:846
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "ქეშირებადი ამოცანები, რომლებიც ამოღებულ იქნა ქეშიდან (ლოკალური + დისტანციური)."
+msgstr "ქეშირებადი ამოცანები, რომლებიც ქეშიდან (ლოკალური + დისტანციური) ამოღებულ იქნა."
 
-#: lib/tuist_web/live/build_run_live.html.heex:1206
+#: lib/tuist_web/live/build_run_live.html.heex:1208
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks will appear here when using Tuist cache"
-msgstr "ქეშირებადი ამოცანები აქ გამოჩნდება Tuist cache-ის გამოყენებისას"
+msgstr "ქეშირებადი ამოცანები აქ გამოჩნდება Tuist-ის ქეშის გამოყენებისას"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:81
-#: lib/tuist_web/live/build_run_live.html.heex:925
+#: lib/tuist_web/live/build_run_live.html.heex:927
 #: lib/tuist_web/live/mix_build_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks:"
@@ -388,30 +388,30 @@ msgid "Commit SHA"
 msgstr "კომიტის SHA"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:85
-#: lib/tuist_web/live/build_run_live.ex:1177
-#: lib/tuist_web/live/build_run_live.ex:1214
-#: lib/tuist_web/live/build_run_live.html.heex:467
-#: lib/tuist_web/live/build_run_live.html.heex:490
-#: lib/tuist_web/live/build_run_live.html.heex:545
-#: lib/tuist_web/live/build_run_live.html.heex:620
-#: lib/tuist_web/live/build_run_live.html.heex:627
-#: lib/tuist_web/live/build_run_live.html.heex:690
+#: lib/tuist_web/live/build_run_live.ex:1181
+#: lib/tuist_web/live/build_run_live.ex:1218
+#: lib/tuist_web/live/build_run_live.html.heex:469
+#: lib/tuist_web/live/build_run_live.html.heex:492
+#: lib/tuist_web/live/build_run_live.html.heex:547
+#: lib/tuist_web/live/build_run_live.html.heex:622
+#: lib/tuist_web/live/build_run_live.html.heex:629
+#: lib/tuist_web/live/build_run_live.html.heex:692
 #: lib/tuist_web/live/mix_build_live.ex:503
-#: lib/tuist_web/live/mix_build_live.html.heex:623
+#: lib/tuist_web/live/mix_build_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Compilation duration"
 msgstr "კომპილაციის ხანგრძლივობა"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:219
-#: lib/tuist_web/live/build_run_live.html.heex:1386
-#: lib/tuist_web/live/build_run_live.html.heex:1387
-#: lib/tuist_web/live/build_run_live.html.heex:1413
-#: lib/tuist_web/live/build_run_live.html.heex:1473
+#: lib/tuist_web/live/build_run_live.html.heex:1388
+#: lib/tuist_web/live/build_run_live.html.heex:1389
+#: lib/tuist_web/live/build_run_live.html.heex:1415
+#: lib/tuist_web/live/build_run_live.html.heex:1475
 #, elixir-autogen, elixir-format
 msgid "Compressed Size"
 msgstr "შეკუმშული ზომა"
 
-#: lib/tuist_web/live/build_run_live.ex:1431
+#: lib/tuist_web/live/build_run_live.ex:1435
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
 msgstr "შეკუმშული ზომა (მბ)"
@@ -445,7 +445,7 @@ msgstr "კოპირება"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:113
 #, elixir-autogen, elixir-format
 msgid "Copy as JSON"
-msgstr "კოპირება JSON-ად"
+msgstr "JSON-ის სახით კოპირება"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:377
 #, elixir-autogen, elixir-format
@@ -455,7 +455,7 @@ msgstr "ფაილების კოპირება"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:383
 #, elixir-autogen, elixir-format
 msgid "Core data models"
-msgstr "Core Data მოდელები"
+msgstr "Core Data-ს მოდელები"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:422
 #, elixir-autogen, elixir-format
@@ -478,9 +478,9 @@ msgstr "მოწყობილობა"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:202
 #: lib/tuist_web/components/reapi_cache_outputs.ex:291
 #: lib/tuist_web/helpers/cargo_cache.ex:63
-#: lib/tuist_web/live/build_run_live.ex:1404
-#: lib/tuist_web/live/build_run_live.html.heex:1293
-#: lib/tuist_web/live/build_run_live.html.heex:1446
+#: lib/tuist_web/live/build_run_live.ex:1408
+#: lib/tuist_web/live/build_run_live.html.heex:1295
+#: lib/tuist_web/live/build_run_live.html.heex:1448
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr "ჩამოტვირთვა"
@@ -494,7 +494,7 @@ msgstr "ჩამოტვირთვის შედეგი"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:125
 #: lib/tuist_web/components/reapi_cache_outputs.ex:106
 #: lib/tuist_web/components/runs/module_cache_tab.ex:166
-#: lib/tuist_web/live/build_run_live.html.heex:1334
+#: lib/tuist_web/live/build_run_live.html.heex:1336
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
 msgstr "ჩამოტვირთვის სიჩქარე"
@@ -506,7 +506,7 @@ msgstr "ჩამოტვირთვის სიჩქარე"
 #: lib/tuist_web/live/bazel_invocations_live.ex:506
 #: lib/tuist_web/live/bazel_invocations_live.ex:523
 #: lib/tuist_web/live/cargo_build_live.ex:130
-#: lib/tuist_web/live/cargo_build_live.html.heex:314
+#: lib/tuist_web/live/cargo_build_live.html.heex:317
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:13
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:21
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:92
@@ -527,7 +527,7 @@ msgstr "ხანგრძლივობა"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:417
 #, elixir-autogen, elixir-format
 msgid "Entitlements"
-msgstr "უფლებები"
+msgstr "შესაძლებლობები (Entitlements)"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:395
 #: lib/tuist_web/live/build_entity_live.ex:1110
@@ -550,22 +550,22 @@ msgid "Environment:"
 msgstr "გარემო:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:196
-#: lib/tuist_web/live/build_run_live.html.heex:355
-#: lib/tuist_web/live/build_run_live.html.heex:782
-#: lib/tuist_web/live/build_run_live.html.heex:789
+#: lib/tuist_web/live/build_run_live.html.heex:357
+#: lib/tuist_web/live/build_run_live.html.heex:784
+#: lib/tuist_web/live/build_run_live.html.heex:791
 #: lib/tuist_web/live/cargo_build_live.html.heex:31
-#: lib/tuist_web/live/cargo_build_live.html.heex:352
-#: lib/tuist_web/live/cargo_build_live.html.heex:364
+#: lib/tuist_web/live/cargo_build_live.html.heex:355
+#: lib/tuist_web/live/cargo_build_live.html.heex:367
 #: lib/tuist_web/live/mix_build_live.html.heex:70
-#: lib/tuist_web/live/mix_build_live.html.heex:472
-#: lib/tuist_web/live/mix_build_live.html.heex:701
-#: lib/tuist_web/live/mix_build_live.html.heex:708
+#: lib/tuist_web/live/mix_build_live.html.heex:473
+#: lib/tuist_web/live/mix_build_live.html.heex:702
+#: lib/tuist_web/live/mix_build_live.html.heex:709
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "შეცდომები"
 
-#: lib/tuist_web/live/build_run_live.html.heex:345
-#: lib/tuist_web/live/mix_build_live.html.heex:462
+#: lib/tuist_web/live/build_run_live.html.heex:347
+#: lib/tuist_web/live/mix_build_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Errors and Warnings"
 msgstr "შეცდომები და გაფრთხილებები"
@@ -584,11 +584,11 @@ msgstr "გარე"
 #: lib/tuist_web/live/build_entity_live.ex:1145
 #: lib/tuist_web/live/build_entity_live.html.heex:438
 #: lib/tuist_web/live/build_entity_live.html.heex:582
-#: lib/tuist_web/live/build_run_live.ex:1243
+#: lib/tuist_web/live/build_run_live.ex:1247
 #: lib/tuist_web/live/build_run_live.html.heex:260
-#: lib/tuist_web/live/build_run_live.html.heex:572
+#: lib/tuist_web/live/build_run_live.html.heex:574
 #: lib/tuist_web/live/cargo_build_live.html.heex:61
-#: lib/tuist_web/live/cargo_build_live.html.heex:303
+#: lib/tuist_web/live/cargo_build_live.html.heex:306
 #: lib/tuist_web/live/cargo_build_runs_live.ex:39
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:66
 #: lib/tuist_web/live/cargo_builds_live.html.heex:442
@@ -604,7 +604,7 @@ msgstr "გარე"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:913
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr "ჩაიშალა"
+msgstr "ვერ მოხერხდა"
 
 #: lib/tuist_web/live/cargo_builds_live.ex:180
 #: lib/tuist_web/live/cargo_builds_live.html.heex:118
@@ -615,120 +615,120 @@ msgstr "ჩაიშალა"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:832
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "ჩაშლილი აწყობები"
+msgstr "ვერ მოხერხებული ბილდები"
 
-#: lib/tuist_web/live/build_run_live.ex:982
+#: lib/tuist_web/live/build_run_live.ex:986
 #, elixir-autogen, elixir-format
 msgid "Failed compiling C file %{path}"
-msgstr "C ფაილის %{path} კომპილაცია ჩაიშალა"
+msgstr "C ფაილის %{path} კომპილაცია ვერ მოხერხდა"
 
-#: lib/tuist_web/live/build_run_live.ex:985
-#: lib/tuist_web/live/build_run_live.ex:1021
+#: lib/tuist_web/live/build_run_live.ex:989
+#: lib/tuist_web/live/build_run_live.ex:1025
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Swift file %{path}"
-msgstr "Swift ფაილის %{path} კომპილაცია ჩაიშალა"
+msgstr "Swift ფაილის %{path} კომპილაცია ვერ მოხერხდა"
 
-#: lib/tuist_web/live/build_run_live.ex:1018
+#: lib/tuist_web/live/build_run_live.ex:1022
 #, elixir-autogen, elixir-format
 msgid "Failed compiling XIB file %{path}"
-msgstr "XIB ფაილის %{path} კომპილაცია ჩაიშალა"
+msgstr "XIB ფაილის %{path} კომპილაცია ვერ მოხერხდა"
 
-#: lib/tuist_web/live/build_run_live.ex:1000
+#: lib/tuist_web/live/build_run_live.ex:1004
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
-msgstr "აქტივების კატალოგის %{path} კომპილაცია ჩაიშალა"
+msgstr "ასეტების კატალოგის %{path} კომპილაცია ვერ მოხერხდა"
 
-#: lib/tuist_web/live/build_run_live.ex:1003
+#: lib/tuist_web/live/build_run_live.ex:1007
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
-msgstr "სტორიბორდის კომპილაცია ვერ მოხერხდა %{path}"
+msgstr "სტორიბორდის კომპილაციის შეცდომა %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:997
+#: lib/tuist_web/live/build_run_live.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Failed copying Swift libraries %{path}"
-msgstr "Swift-ის ბიბლიოთეკების კოპირება ვერ მოხერხდა %{path}"
+msgstr "Swift-ის ბიბლიოთეკების კოპირების შეცდომა %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1012
+#: lib/tuist_web/live/build_run_live.ex:1016
 #, elixir-autogen, elixir-format
 msgid "Failed copying resource file %{path}"
-msgstr "რესურსის ფაილის კოპირება ვერ მოხერხდა %{path}"
+msgstr "რესურსის ფაილის კოპირების შეცდომა %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:991
+#: lib/tuist_web/live/build_run_live.ex:995
 #, elixir-autogen, elixir-format
 msgid "Failed creating static library %{path}"
-msgstr "სტატიკური ბიბლიოთეკის შექმნა ვერ მოხერხდა %{path}"
+msgstr "სტატიკური ბიბლიოთეკის შექმნის შეცდომა %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:988
+#: lib/tuist_web/live/build_run_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "Failed executing script %{script_name}"
-msgstr "სკრიპტის შესრულება ვერ მოხერხდა %{script_name}"
+msgstr "სკრიპტის შესრულების შეცდომა %{script_name}"
 
-#: lib/tuist_web/live/build_run_live.ex:994
+#: lib/tuist_web/live/build_run_live.ex:998
 #, elixir-autogen, elixir-format
 msgid "Failed linking %{path}"
-msgstr "ლინკინგი ვერ მოხერხდა %{path}"
+msgstr "ლინკინგის შეცდომა %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1009
+#: lib/tuist_web/live/build_run_live.ex:1013
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
-msgstr "სტორიბორდების ლინკინგი ვერ მოხერხდა %{path}"
+msgstr "სტორიბორდების ლინკინგის შეცდომა %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1015
+#: lib/tuist_web/live/build_run_live.ex:1019
 #, elixir-autogen, elixir-format
 msgid "Failed merging Swift module %{path}"
-msgstr "Swift-ის მოდულის შერწყმა ვერ მოხერხდა %{path}"
+msgstr "Swift-ის მოდულის შერწყმის შეცდომა %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1024
+#: lib/tuist_web/live/build_run_live.ex:1028
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
-msgstr "ბრიჯინგის ჰედერის %{path} წინასწარი კომპილაციის შეცდომა"
+msgstr "ვერ მოხერხდა ხიდის ჰედერის წინასწარი კომპილაცია %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1036
+#: lib/tuist_web/live/build_run_live.ex:1040
 #, elixir-autogen, elixir-format
 msgid "Failed processing %{path}"
-msgstr "%{path}-ის დამუშავების შეცდომა"
+msgstr "ვერ მოხერხდა %{path}-ის დამუშავება"
 
-#: lib/tuist_web/live/build_run_live.ex:1030
+#: lib/tuist_web/live/build_run_live.ex:1034
 #, elixir-autogen, elixir-format
 msgid "Failed validating %{path}"
-msgstr "%{path}-ის ვალიდაციის შეცდომა"
+msgstr "ვერ მოხერხდა %{path}-ის ვალიდაცია"
 
-#: lib/tuist_web/live/build_run_live.ex:1027
+#: lib/tuist_web/live/build_run_live.ex:1031
 #, elixir-autogen, elixir-format
 msgid "Failed validating embedded binary %{path}"
-msgstr "ჩაშენებული ბინარული ფაილის %{path} ვალიდაციის შეცდომა"
+msgstr "ვერ მოხერხდა ჩაშენებული ბინარული ფაილის %{path} ვალიდაცია"
 
-#: lib/tuist_web/live/build_run_live.ex:1006
+#: lib/tuist_web/live/build_run_live.ex:1010
 #, elixir-autogen, elixir-format
 msgid "Failed writing auxiliary file %{path}"
-msgstr "დამხმარე ფაილის %{path} ჩაწერის შეცდომა"
+msgstr "ვერ მოხერხდა დამხმარე ფაილის %{path} ჩაწერა"
 
 #: lib/tuist_web/components/build_timeline.ex:220
 #: lib/tuist_web/helpers/build_entity_labels.ex:17
-#: lib/tuist_web/live/build_run_live.html.heex:619
-#: lib/tuist_web/live/build_run_live.html.heex:635
-#: lib/tuist_web/live/build_run_live.html.heex:659
-#: lib/tuist_web/live/mix_build_live.html.heex:615
+#: lib/tuist_web/live/build_run_live.html.heex:621
+#: lib/tuist_web/live/build_run_live.html.heex:637
+#: lib/tuist_web/live/build_run_live.html.heex:661
+#: lib/tuist_web/live/mix_build_live.html.heex:616
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr "ფაილი"
 
-#: lib/tuist_web/live/build_run_live.html.heex:437
-#: lib/tuist_web/live/build_run_live.html.heex:598
-#: lib/tuist_web/live/mix_build_live.html.heex:551
-#: lib/tuist_web/live/mix_build_live.html.heex:566
+#: lib/tuist_web/live/build_run_live.html.heex:439
+#: lib/tuist_web/live/build_run_live.html.heex:600
+#: lib/tuist_web/live/mix_build_live.html.heex:552
+#: lib/tuist_web/live/mix_build_live.html.heex:567
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "ფაილების დეტალური ანალიზი"
+msgstr "ფაილების დაყოფა"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:187
 #: lib/tuist_web/components/reapi_cache_outputs.ex:167
 #: lib/tuist_web/components/runs/module_cache_tab.ex:211
 #: lib/tuist_web/live/build_entity_live.html.heex:542
-#: lib/tuist_web/live/build_run_live.html.heex:499
-#: lib/tuist_web/live/build_run_live.html.heex:644
-#: lib/tuist_web/live/build_run_live.html.heex:1074
-#: lib/tuist_web/live/build_run_live.html.heex:1419
+#: lib/tuist_web/live/build_run_live.html.heex:501
+#: lib/tuist_web/live/build_run_live.html.heex:646
+#: lib/tuist_web/live/build_run_live.html.heex:1076
+#: lib/tuist_web/live/build_run_live.html.heex:1421
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:35
 #: lib/tuist_web/live/generate_runs_live.html.heex:38
 #: lib/tuist_web/live/mix_build_live.html.heex:218
@@ -741,7 +741,7 @@ msgstr "ფილტრი"
 #: lib/tuist_web/live/run_detail_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Generate Runs"
-msgstr "გენერირების გაშვებები"
+msgstr "გაშვებების გენერირება"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:264
 #, elixir-autogen, elixir-format
@@ -756,25 +756,25 @@ msgstr "სათაურები"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:242
 #: lib/tuist_web/helpers/build_entity_labels.ex:97
 #: lib/tuist_web/helpers/cargo_cache.ex:58
-#: lib/tuist_web/live/build_run_live.ex:1379
-#: lib/tuist_web/live/build_run_live.ex:1606
-#: lib/tuist_web/live/build_run_live.html.heex:1105
+#: lib/tuist_web/live/build_run_live.ex:1383
+#: lib/tuist_web/live/build_run_live.ex:1610
+#: lib/tuist_web/live/build_run_live.html.heex:1107
 #: lib/tuist_web/live/mix_build_live.html.heex:252
 #: lib/tuist_web/live/run_detail_live.ex:348
 #: lib/tuist_web/live/run_detail_live.ex:381
 #: lib/tuist_web/live/test_run_live.ex:1418
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "მოხვედრა"
+msgstr "ქეშში მოხვედრა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:864
-#: lib/tuist_web/live/cargo_build_live.html.heex:142
+#: lib/tuist_web/live/build_run_live.html.heex:866
+#: lib/tuist_web/live/cargo_build_live.html.heex:145
 #: lib/tuist_web/live/generate_runs_live.ex:294
 #: lib/tuist_web/live/generate_runs_live.html.heex:61
 #: lib/tuist_web/live/mix_build_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
-msgstr "მოხვედრის მაჩვენებელი"
+msgstr "ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/xcode_build_runs_live.ex:256
 #: lib/tuist_web/live/xcode_builds_live.html.heex:97
@@ -793,9 +793,9 @@ msgstr "Info.plist"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:157
 #: lib/tuist_web/components/reapi_cache_outputs.ex:193
 #: lib/tuist_web/helpers/cargo_cache.ex:89
-#: lib/tuist_web/live/build_run_live.html.heex:1384
-#: lib/tuist_web/live/build_run_live.html.heex:1397
-#: lib/tuist_web/live/build_run_live.html.heex:1434
+#: lib/tuist_web/live/build_run_live.html.heex:1386
+#: lib/tuist_web/live/build_run_live.html.heex:1399
+#: lib/tuist_web/live/build_run_live.html.heex:1436
 #, elixir-autogen, elixir-format
 msgid "Key"
 msgstr "გასაღები"
@@ -803,10 +803,10 @@ msgstr "გასაღები"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:252
 #: lib/tuist_web/components/runs/module_cache_tab.ex:547
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
-#: lib/tuist_web/live/build_run_live.ex:1383
-#: lib/tuist_web/live/build_run_live.ex:1611
-#: lib/tuist_web/live/build_run_live.html.heex:928
-#: lib/tuist_web/live/build_run_live.html.heex:1108
+#: lib/tuist_web/live/build_run_live.ex:1387
+#: lib/tuist_web/live/build_run_live.ex:1615
+#: lib/tuist_web/live/build_run_live.html.heex:930
+#: lib/tuist_web/live/build_run_live.html.heex:1110
 #: lib/tuist_web/live/cargo_build_runs_live.ex:65
 #: lib/tuist_web/live/cargo_builds_live.ex:145
 #: lib/tuist_web/live/mix_build_live.ex:335
@@ -821,16 +821,16 @@ msgstr "გასაღები"
 msgid "Local"
 msgstr "ლოკალური"
 
-#: lib/tuist_web/live/build_run_live.html.heex:774
-#: lib/tuist_web/live/build_run_live.html.heex:827
-#: lib/tuist_web/live/cargo_build_live.html.heex:410
-#: lib/tuist_web/live/mix_build_live.html.heex:693
-#: lib/tuist_web/live/mix_build_live.html.heex:747
+#: lib/tuist_web/live/build_run_live.html.heex:776
+#: lib/tuist_web/live/build_run_live.html.heex:829
+#: lib/tuist_web/live/cargo_build_live.html.heex:413
+#: lib/tuist_web/live/mix_build_live.html.heex:694
+#: lib/tuist_web/live/mix_build_live.html.heex:748
 #, elixir-autogen, elixir-format
 msgid "Looks like you're having a great day!"
-msgstr "როგორც ჩანს, დღეს ბრწყინავთ!"
+msgstr "როგორც ჩანს, დღე შესანიშნავად მიდის!"
 
-#: lib/tuist_web/live/build_run_live.html.heex:333
+#: lib/tuist_web/live/build_run_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Mac device"
 msgstr "Mac მოწყობილობა"
@@ -838,10 +838,10 @@ msgstr "Mac მოწყობილობა"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:258
 #: lib/tuist_web/components/runs/module_cache_tab.ex:573
 #: lib/tuist_web/helpers/cargo_cache.ex:61
-#: lib/tuist_web/live/build_run_live.ex:1385
-#: lib/tuist_web/live/build_run_live.ex:1612
-#: lib/tuist_web/live/build_run_live.html.heex:938
-#: lib/tuist_web/live/build_run_live.html.heex:1120
+#: lib/tuist_web/live/build_run_live.ex:1389
+#: lib/tuist_web/live/build_run_live.ex:1616
+#: lib/tuist_web/live/build_run_live.html.heex:940
+#: lib/tuist_web/live/build_run_live.html.heex:1122
 #: lib/tuist_web/live/mix_build_live.ex:336
 #: lib/tuist_web/live/mix_build_live.ex:370
 #: lib/tuist_web/live/run_detail_live.ex:354
@@ -855,31 +855,31 @@ msgstr "გამოტოვებული"
 #: lib/tuist_web/helpers/build_entity_labels.ex:14
 #: lib/tuist_web/helpers/build_entity_labels.ex:18
 #: lib/tuist_web/live/build_entity_live.ex:611
-#: lib/tuist_web/live/build_run_live.html.heex:465
-#: lib/tuist_web/live/build_run_live.html.heex:474
-#: lib/tuist_web/live/build_run_live.html.heex:514
-#: lib/tuist_web/live/mix_build_live.html.heex:614
+#: lib/tuist_web/live/build_run_live.html.heex:467
+#: lib/tuist_web/live/build_run_live.html.heex:476
+#: lib/tuist_web/live/build_run_live.html.heex:516
+#: lib/tuist_web/live/mix_build_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "მოდული"
 
-#: lib/tuist_web/live/build_run_live.html.heex:432
-#: lib/tuist_web/live/build_run_live.html.heex:444
-#: lib/tuist_web/live/mix_build_live.html.heex:556
-#: lib/tuist_web/live/mix_build_live.html.heex:565
+#: lib/tuist_web/live/build_run_live.html.heex:434
+#: lib/tuist_web/live/build_run_live.html.heex:446
+#: lib/tuist_web/live/mix_build_live.html.heex:557
+#: lib/tuist_web/live/mix_build_live.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
-msgstr "მოდულის დეტალიზაცია"
+msgstr "მოდულების დაშლა"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:105
 #: lib/tuist_web/live/build_run_live.html.heex:180
 #: lib/tuist_web/live/run_detail_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
-msgstr "მოდულის კეში"
+msgstr "მოდულის ქეში"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:86
-#: lib/tuist_web/live/build_run_live.ex:1222
+#: lib/tuist_web/live/build_run_live.ex:1226
 #: lib/tuist_web/live/cargo_build_live.ex:131
 #: lib/tuist_web/live/mix_build_live.ex:500
 #, elixir-autogen, elixir-format
@@ -888,18 +888,18 @@ msgstr "სახელი"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:306
 #: lib/tuist_web/components/reapi_cache_outputs.ex:235
-#: lib/tuist_web/live/build_run_live.html.heex:1178
-#: lib/tuist_web/live/build_run_live.html.heex:1505
+#: lib/tuist_web/live/build_run_live.html.heex:1180
+#: lib/tuist_web/live/build_run_live.html.heex:1507
 #, elixir-autogen, elixir-format
 msgid "No CAS outputs found"
-msgstr "CAS გამომავალი მონაცემები ვერ მოიძებნა"
+msgstr "CAS გამომავალი მონაცემები არ მოიძებნა"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:309
-#: lib/tuist_web/live/build_run_live.html.heex:1204
+#: lib/tuist_web/live/build_run_live.html.heex:1206
 #: lib/tuist_web/live/mix_build_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks found"
-msgstr "კეშირებადი ამოცანები ვერ მოიძებნა"
+msgstr "ქეშირებადი ამოცანები არ მოიძებნა"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:102
 #: lib/tuist_web/components/cargo_cache_inspection.ex:118
@@ -911,10 +911,10 @@ msgstr "კეშირებადი ამოცანები ვერ მ
 #: lib/tuist_web/live/build_entity_live.html.heex:102
 #: lib/tuist_web/live/build_entity_live.html.heex:203
 #: lib/tuist_web/live/build_entity_live.html.heex:248
-#: lib/tuist_web/live/build_run_live.html.heex:1001
-#: lib/tuist_web/live/build_run_live.html.heex:1057
-#: lib/tuist_web/live/build_run_live.html.heex:1348
-#: lib/tuist_web/live/build_run_live.html.heex:1365
+#: lib/tuist_web/live/build_run_live.html.heex:1003
+#: lib/tuist_web/live/build_run_live.html.heex:1059
+#: lib/tuist_web/live/build_run_live.html.heex:1350
+#: lib/tuist_web/live/build_run_live.html.heex:1367
 #: lib/tuist_web/live/mix_build_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "No data"
@@ -936,30 +936,30 @@ msgstr "მონაცემები არ არის"
 msgid "No data yet"
 msgstr "მონაცემები ჯერ არ არის"
 
-#: lib/tuist_web/live/build_run_live.html.heex:825
-#: lib/tuist_web/live/cargo_build_live.html.heex:407
-#: lib/tuist_web/live/mix_build_live.html.heex:745
+#: lib/tuist_web/live/build_run_live.html.heex:827
+#: lib/tuist_web/live/cargo_build_live.html.heex:410
+#: lib/tuist_web/live/mix_build_live.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "No errors detected"
-msgstr "შეცდომები ვერ აღმოჩნდა"
+msgstr "შეცდომები არ აღმოჩენილა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:711
+#: lib/tuist_web/live/build_run_live.html.heex:713
 #, elixir-autogen, elixir-format
 msgid "No files found"
-msgstr "ფაილები ვერ მოიძებნა"
+msgstr "ფაილები არ მოიძებნა"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:275
-#: lib/tuist_web/live/build_run_live.html.heex:579
+#: lib/tuist_web/live/build_run_live.html.heex:581
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "მოდულები ვერ მოიძებნა"
+msgstr "მოდულები არ მოიძებნა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:772
-#: lib/tuist_web/live/cargo_build_live.html.heex:408
-#: lib/tuist_web/live/mix_build_live.html.heex:691
+#: lib/tuist_web/live/build_run_live.html.heex:774
+#: lib/tuist_web/live/cargo_build_live.html.heex:411
+#: lib/tuist_web/live/mix_build_live.html.heex:692
 #, elixir-autogen, elixir-format
 msgid "No warnings detected"
-msgstr "გაფრთხილებები ვერ აღმოჩნდა"
+msgstr "გაფრთხილებები არ აღმოჩენილა"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:662
 #: lib/tuist_web/live/build_run_live.html.heex:317
@@ -969,7 +969,7 @@ msgstr "გაფრთხილებები ვერ აღმოჩნდ�
 #: lib/tuist_web/live/run_detail_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "None"
-msgstr "არცერთი"
+msgstr "არ არის"
 
 #: lib/tuist_web/live/build_entity_live.html.heex:41
 #: lib/tuist_web/live/build_run_live.html.heex:168
@@ -985,11 +985,11 @@ msgstr "მიმოხილვა"
 #: lib/tuist_web/live/build_entity_live.ex:1144
 #: lib/tuist_web/live/build_entity_live.html.heex:433
 #: lib/tuist_web/live/build_entity_live.html.heex:577
-#: lib/tuist_web/live/build_run_live.ex:1242
+#: lib/tuist_web/live/build_run_live.ex:1246
 #: lib/tuist_web/live/build_run_live.html.heex:253
-#: lib/tuist_web/live/build_run_live.html.heex:567
+#: lib/tuist_web/live/build_run_live.html.heex:569
 #: lib/tuist_web/live/cargo_build_live.html.heex:60
-#: lib/tuist_web/live/cargo_build_live.html.heex:302
+#: lib/tuist_web/live/cargo_build_live.html.heex:305
 #: lib/tuist_web/live/cargo_build_runs_live.ex:38
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:65
 #: lib/tuist_web/live/cargo_builds_live.html.heex:441
@@ -1007,7 +1007,7 @@ msgstr "მიმოხილვა"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:908
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "გავლილია"
+msgstr "გავლილი"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:68
 #, elixir-autogen, elixir-format
@@ -1029,9 +1029,9 @@ msgstr "პროდუქტის სახელი"
 #: lib/tuist_web/live/build_entity_live.ex:603
 #: lib/tuist_web/live/build_entity_live.ex:606
 #: lib/tuist_web/live/build_entity_live.ex:607
-#: lib/tuist_web/live/build_run_live.ex:1193
-#: lib/tuist_web/live/build_run_live.ex:1230
-#: lib/tuist_web/live/build_run_live.html.heex:685
+#: lib/tuist_web/live/build_run_live.ex:1197
+#: lib/tuist_web/live/build_run_live.ex:1234
+#: lib/tuist_web/live/build_run_live.html.heex:687
 #, elixir-autogen, elixir-format
 msgid "Project"
 msgstr "პროექტი"
@@ -1073,7 +1073,7 @@ msgstr "გაშვების დრო"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:925
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "გაშვებული"
+msgstr "გაშვებულია მიერ"
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:365
 #: lib/tuist_web/live/once_runs_live.ex:50
@@ -1084,10 +1084,10 @@ msgstr "ბოლო ბილდები"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:246
 #: lib/tuist_web/components/runs/module_cache_tab.ex:560
-#: lib/tuist_web/live/build_run_live.ex:1384
-#: lib/tuist_web/live/build_run_live.ex:1610
-#: lib/tuist_web/live/build_run_live.html.heex:933
-#: lib/tuist_web/live/build_run_live.html.heex:1114
+#: lib/tuist_web/live/build_run_live.ex:1388
+#: lib/tuist_web/live/build_run_live.ex:1614
+#: lib/tuist_web/live/build_run_live.html.heex:935
+#: lib/tuist_web/live/build_run_live.html.heex:1116
 #: lib/tuist_web/live/mix_build_live.ex:334
 #: lib/tuist_web/live/mix_build_live.ex:361
 #: lib/tuist_web/live/run_detail_live.ex:352
@@ -1135,13 +1135,13 @@ msgstr "სქემა:"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
 #: lib/tuist_web/live/bazel_invocation_live.ex:588
 #: lib/tuist_web/live/build_entity_live.html.heex:509
-#: lib/tuist_web/live/build_run_live.html.heex:455
-#: lib/tuist_web/live/build_run_live.html.heex:609
-#: lib/tuist_web/live/build_run_live.html.heex:1066
-#: lib/tuist_web/live/build_run_live.html.heex:1374
-#: lib/tuist_web/live/cargo_build_live.html.heex:268
+#: lib/tuist_web/live/build_run_live.html.heex:457
+#: lib/tuist_web/live/build_run_live.html.heex:611
+#: lib/tuist_web/live/build_run_live.html.heex:1068
+#: lib/tuist_web/live/build_run_live.html.heex:1376
+#: lib/tuist_web/live/cargo_build_live.html.heex:271
 #: lib/tuist_web/live/mix_build_live.html.heex:209
-#: lib/tuist_web/live/mix_build_live.html.heex:583
+#: lib/tuist_web/live/mix_build_live.html.heex:584
 #: lib/tuist_web/live/once_run_live.ex:753
 #: lib/tuist_web/live/xcode_builds_live.html.heex:35
 #, elixir-autogen, elixir-format
@@ -1158,14 +1158,14 @@ msgstr "შერჩევითი ტესტირება"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:158
 #: lib/tuist_web/components/reapi_cache_outputs.ex:214
 #: lib/tuist_web/helpers/cargo_cache.ex:87
-#: lib/tuist_web/live/build_run_live.html.heex:1385
-#: lib/tuist_web/live/build_run_live.html.heex:1405
-#: lib/tuist_web/live/build_run_live.html.heex:1462
+#: lib/tuist_web/live/build_run_live.html.heex:1387
+#: lib/tuist_web/live/build_run_live.html.heex:1407
+#: lib/tuist_web/live/build_run_live.html.heex:1464
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr "ზომა"
 
-#: lib/tuist_web/live/build_run_live.ex:1423
+#: lib/tuist_web/live/build_run_live.ex:1427
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
 msgstr "ზომა (მბ)"
@@ -1175,13 +1175,13 @@ msgstr "ზომა (მბ)"
 #: lib/tuist_web/live/bazel_invocations_live.ex:510
 #: lib/tuist_web/live/build_entity_live.html.heex:370
 #: lib/tuist_web/live/build_entity_live.html.heex:521
-#: lib/tuist_web/live/build_run_live.html.heex:470
-#: lib/tuist_web/live/build_run_live.html.heex:623
-#: lib/tuist_web/live/build_run_live.html.heex:1390
-#: lib/tuist_web/live/cargo_build_live.html.heex:275
+#: lib/tuist_web/live/build_run_live.html.heex:472
+#: lib/tuist_web/live/build_run_live.html.heex:625
+#: lib/tuist_web/live/build_run_live.html.heex:1392
+#: lib/tuist_web/live/cargo_build_live.html.heex:278
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:16
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
-#: lib/tuist_web/live/mix_build_live.html.heex:592
+#: lib/tuist_web/live/mix_build_live.html.heex:593
 #: lib/tuist_web/live/once_runs_live.ex:833
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
@@ -1208,12 +1208,12 @@ msgstr "წყაროები"
 #: lib/tuist_web/live/build_entity_live.ex:1109
 #: lib/tuist_web/live/build_entity_live.ex:1171
 #: lib/tuist_web/live/build_entity_live.html.heex:573
-#: lib/tuist_web/live/build_run_live.ex:1238
-#: lib/tuist_web/live/build_run_live.ex:1400
+#: lib/tuist_web/live/build_run_live.ex:1242
+#: lib/tuist_web/live/build_run_live.ex:1404
 #: lib/tuist_web/live/build_run_live.html.heex:250
-#: lib/tuist_web/live/build_run_live.html.heex:1443
+#: lib/tuist_web/live/build_run_live.html.heex:1445
 #: lib/tuist_web/live/cargo_build_live.html.heex:56
-#: lib/tuist_web/live/cargo_build_live.html.heex:298
+#: lib/tuist_web/live/cargo_build_live.html.heex:301
 #: lib/tuist_web/live/cargo_build_runs_live.ex:34
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:61
 #: lib/tuist_web/live/cargo_builds_live.html.heex:437
@@ -1250,43 +1250,43 @@ msgstr "Swift-ის ვერსია"
 #: lib/tuist_web/live/build_entity_live.ex:602
 #: lib/tuist_web/live/build_entity_live.ex:604
 #: lib/tuist_web/live/build_entity_live.ex:605
-#: lib/tuist_web/live/build_run_live.ex:1185
-#: lib/tuist_web/live/build_run_live.html.heex:682
+#: lib/tuist_web/live/build_run_live.ex:1189
+#: lib/tuist_web/live/build_run_live.html.heex:684
 #, elixir-autogen, elixir-format
 msgid "Target"
-msgstr "მიზანი"
+msgstr "მიზანი (Target)"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:389
 #, elixir-autogen, elixir-format
 msgid "Target scripts"
-msgstr "სკრიპტების მიზნები"
+msgstr "სკრიპტები მიზნისთვის (Target)"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:457
 #, elixir-autogen, elixir-format
 msgid "Target settings"
-msgstr "მიზნის პარამეტრები"
+msgstr "მიზნის (Target) პარამეტრები"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:209
 #: lib/tuist_web/helpers/build_entity_labels.ex:13
-#: lib/tuist_web/live/build_run_live.html.heex:1094
+#: lib/tuist_web/live/build_run_live.html.heex:1096
 #: lib/tuist_web/live/mix_build_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "ამოცანა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:842
-#: lib/tuist_web/live/cargo_build_live.html.heex:120
+#: lib/tuist_web/live/build_run_live.html.heex:844
+#: lib/tuist_web/live/cargo_build_live.html.heex:123
 #: lib/tuist_web/live/mix_build_live.ex:283
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "ამოცანის წარმატებები"
+msgstr "ამოცანის ქეშში მოხვედრა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:853
-#: lib/tuist_web/live/cargo_build_live.html.heex:131
+#: lib/tuist_web/live/build_run_live.html.heex:855
+#: lib/tuist_web/live/cargo_build_live.html.heex:134
 #: lib/tuist_web/live/mix_build_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "ამოცანის გამოტოვებები"
+msgstr "ამოცანის გამოტოვება ქეშში"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:107
 #, elixir-autogen, elixir-format
@@ -1307,7 +1307,7 @@ msgstr "ტესტი: %{scheme}"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "საშუალო აგების ხანგრძლივობა ინდივიდუალური პროცენტილის ინტერვალებით."
+msgstr "საშუალო აგების ხანგრძლივობა ინდივიდუალური პერცენტილის ინტერვალებით."
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:120
 #: lib/tuist_web/live/xcode_builds_live.html.heex:250
@@ -1321,10 +1321,10 @@ msgstr "აგებების რაოდენობა, რომლებ
 msgid "The percentage of builds that succeeded."
 msgstr "აგებების პროცენტული მაჩვენებელი, რომლებიც წარმატებით დასრულდა."
 
-#: lib/tuist_web/live/build_run_live.html.heex:866
+#: lib/tuist_web/live/build_run_live.html.heex:868
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "კეშირებადი ამოცანების პროცენტული მაჩვენებელი, რომლებიც კეშში მოიძებნა (ლოკალური + დისტანციური)."
+msgstr "ქეშში მოხვედრის პროცენტული მაჩვენებელი ქეშირებადი ამოცანებისთვის (ლოკალური + დისტანციური)."
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:88
 #: lib/tuist_web/live/xcode_builds_live.html.heex:215
@@ -1332,63 +1332,63 @@ msgstr "კეშირებადი ამოცანების პრო�
 msgid "The total number of builds."
 msgstr "ბილდების საერთო რაოდენობა."
 
-#: lib/tuist_web/live/build_run_live.html.heex:958
+#: lib/tuist_web/live/build_run_live.html.heex:960
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "დრო, რომელიც დასჭირდა კეშირებადი ამოცანების უნიკალურად იდენტიფიცირებად კეშის გასაღებების წაკითხვას კეშიდან."
+msgstr "ქეშიდან ქეშირებადი ამოცანების უნიკალური იდენტიფიკატორების, ანუ ქეშის გასაღებების, წაკითხვის დრო."
 
-#: lib/tuist_web/live/build_run_live.html.heex:1014
+#: lib/tuist_web/live/build_run_live.html.heex:1016
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "დრო, რომელიც დასჭირდა კეშირებადი ამოცანების უნიკალურად იდენტიფიცირებად კეშის გასაღებების ჩაწერას კეშში."
+msgstr "ქეშში ქეშირებადი ამოცანების უნიკალური იდენტიფიკატორების, ანუ ქეშის გასაღებების, ჩაწერის დრო."
 
-#: lib/tuist_web/live/build_run_live.html.heex:1336
+#: lib/tuist_web/live/build_run_live.html.heex:1338
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr "დროთა მიხედვით შეწონილი საშუალო ჩამოტვირთვის სიჩქარე მეგაბიტებში წამში."
+msgstr "დროით შეწონილი საშუალო ჩამოტვირთვის სიჩქარე მეგაბიტებში წამში."
 
-#: lib/tuist_web/live/build_run_live.html.heex:1353
+#: lib/tuist_web/live/build_run_live.html.heex:1355
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr "დროთა მიხედვით შეწონილი საშუალო ატვირთვის სიჩქარე მეგაბიტებში წამში."
+msgstr "დროით შეწონილი საშუალო ატვირთვის სიჩქარე მეგაბიტებში წამში."
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:86
 #: lib/tuist_web/live/xcode_builds_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "ჯამური ბილდები"
+msgstr "ბილდები ჯამში"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:43
 #, elixir-autogen, elixir-format
 msgid "Total number of modules taken from either the local or the remote cache."
-msgstr "ლოკალური ან დისტანციური კეშიდან აღებული მოდულების საერთო რაოდენობა."
+msgstr "ლოკალური ანუ დისტანციური ქეშიდან აღებული მოდულების საერთო რაოდენობა."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:57
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "მოდულების საერთო რაოდენობა, რომლებიც შეიძლება აღებული იქნას ქეშიდან, თუ ის სრულად იქნებოდა შევსებული."
+msgstr "მოდულების საერთო რაოდენობა, რომლებიც ქეშიდან აიღებოდა, ის სრულად შევსებული რომ ყოფილიყო."
 
-#: lib/tuist_web/live/build_run_live.html.heex:889
+#: lib/tuist_web/live/build_run_live.html.heex:891
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "ქეშის არტიფაქტების ჩამოტვირთვის საერთო ზომა."
+msgstr "ქეშის არტეფაქტების ჩამოტვირთული მოცულობა."
 
-#: lib/tuist_web/live/build_run_live.html.heex:897
+#: lib/tuist_web/live/build_run_live.html.heex:899
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "ქეშის არტიფაქტების ატვირთვის საერთო ზომა."
+msgstr "ქეშის არტეფაქტების ატვირთული მოცულობა."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:276
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "სცადეთ საძიებო ტერმინის შეცვლა"
+msgstr "ცადეთ საძიებო ფრაზის შეცვლა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:580
-#: lib/tuist_web/live/build_run_live.html.heex:712
-#: lib/tuist_web/live/cargo_build_live.html.heex:331
+#: lib/tuist_web/live/build_run_live.html.heex:582
+#: lib/tuist_web/live/build_run_live.html.heex:714
+#: lib/tuist_web/live/cargo_build_live.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr "სცადეთ ძიების განახლება"
+msgstr "ცადეთ ძიების განახლება"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:188
 #, elixir-autogen, elixir-format
@@ -1399,11 +1399,11 @@ msgstr "Tuist-ის ვერსია"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:228
 #: lib/tuist_web/components/cargo_cache_inspection.ex:275
 #: lib/tuist_web/components/reapi_cache_outputs.ex:209
-#: lib/tuist_web/live/build_run_live.ex:1366
-#: lib/tuist_web/live/build_run_live.ex:1413
-#: lib/tuist_web/live/build_run_live.html.heex:668
-#: lib/tuist_web/live/build_run_live.html.heex:1125
-#: lib/tuist_web/live/build_run_live.html.heex:1457
+#: lib/tuist_web/live/build_run_live.ex:1370
+#: lib/tuist_web/live/build_run_live.ex:1417
+#: lib/tuist_web/live/build_run_live.html.heex:670
+#: lib/tuist_web/live/build_run_live.html.heex:1127
+#: lib/tuist_web/live/build_run_live.html.heex:1459
 #: lib/tuist_web/live/mix_build_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Type"
@@ -1424,7 +1424,7 @@ msgstr "ტიპი:"
 #: lib/tuist_web/live/build_run_live.html.heex:58
 #: lib/tuist_web/live/build_run_live.html.heex:242
 #: lib/tuist_web/live/build_run_live.html.heex:305
-#: lib/tuist_web/live/build_run_live.html.heex:1103
+#: lib/tuist_web/live/build_run_live.html.heex:1105
 #: lib/tuist_web/live/cargo_build_live.ex:127
 #: lib/tuist_web/live/cargo_build_live.ex:128
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:112
@@ -1457,9 +1457,9 @@ msgstr "უცნობი სქემა"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:203
 #: lib/tuist_web/components/reapi_cache_outputs.ex:300
 #: lib/tuist_web/helpers/cargo_cache.ex:64
-#: lib/tuist_web/live/build_run_live.ex:1405
-#: lib/tuist_web/live/build_run_live.html.heex:1310
-#: lib/tuist_web/live/build_run_live.html.heex:1452
+#: lib/tuist_web/live/build_run_live.ex:1409
+#: lib/tuist_web/live/build_run_live.html.heex:1312
+#: lib/tuist_web/live/build_run_live.html.heex:1454
 #, elixir-autogen, elixir-format
 msgid "Upload"
 msgstr "ატვირთვა"
@@ -1467,129 +1467,129 @@ msgstr "ატვირთვა"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:138
 #: lib/tuist_web/components/reapi_cache_outputs.ex:107
 #: lib/tuist_web/components/runs/module_cache_tab.ex:182
-#: lib/tuist_web/live/build_run_live.html.heex:1351
+#: lib/tuist_web/live/build_run_live.html.heex:1353
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
-msgstr "ატვირთვის გამტარუნარიანობა"
+msgstr "ატვირთვის სიჩქარე"
 
 #: lib/tuist_web/live/build_entity_live.html.heex:489
-#: lib/tuist_web/live/build_run_live.html.heex:402
+#: lib/tuist_web/live/build_run_live.html.heex:404
 #: lib/tuist_web/live/cargo_builds_live.html.heex:372
-#: lib/tuist_web/live/mix_build_live.html.heex:520
+#: lib/tuist_web/live/mix_build_live.html.heex:521
 #: lib/tuist_web/live/once_runs_live.ex:722
 #: lib/tuist_web/live/xcode_builds_live.html.heex:798
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "მეტის ნახვა"
 
-#: lib/tuist_web/live/build_run_live.ex:1040
+#: lib/tuist_web/live/build_run_live.ex:1044
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling C file %{path}"
-msgstr "გაფრთხილება C ფაილის %{path} კომპილაციისას"
+msgstr "გაფრთხილება C ფაილის კომპილაციისას %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1043
-#: lib/tuist_web/live/build_run_live.ex:1079
+#: lib/tuist_web/live/build_run_live.ex:1047
+#: lib/tuist_web/live/build_run_live.ex:1083
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Swift file %{path}"
-msgstr "გაფრთხილება Swift ფაილის %{path} კომპილაციისას"
+msgstr "გაფრთხილება Swift ფაილის კომპილაციისას %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1076
+#: lib/tuist_web/live/build_run_live.ex:1080
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling XIB file %{path}"
-msgstr "გაფრთხილება XIB ფაილის %{path} კომპილაციისას"
+msgstr "გაფრთხილება XIB ფაილის კომპილაციისას %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1058
+#: lib/tuist_web/live/build_run_live.ex:1062
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "გაფრთხილება %{path} აქტივების კატალოგის კომპილაციისას"
+msgstr "გაფრთხილება %{path} ასეტების კატალოგის კომპილაციისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1061
+#: lib/tuist_web/live/build_run_live.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "გაფრთხილება %{path} storyboard-ის კომპილაციისას"
+msgstr "გაფრთხილება %{path} სთორიბორდის კომპილაციისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1055
+#: lib/tuist_web/live/build_run_live.ex:1059
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "გაფრთხილება Swift ბიბლიოთეკების %{path}-ში კოპირებისას"
+msgstr "გაფრთხილება Swift-ის ბიბლიოთეკების %{path}-ზე კოპირებისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1070
+#: lib/tuist_web/live/build_run_live.ex:1074
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
-msgstr "გაფრთხილება რესურსების ფაილის %{path}-ში კოპირებისას"
+msgstr "გაფრთხილება რესურსების ფაილის %{path}-ზე კოპირებისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1049
+#: lib/tuist_web/live/build_run_live.ex:1053
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
-msgstr "გაფრთხილება სტატიკური ბიბლიოთეკის %{path}-ში შექმნისას"
+msgstr "გაფრთხილება სტატიკური ბიბლიოთეკის %{path}-ზე შექმნისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1046
+#: lib/tuist_web/live/build_run_live.ex:1050
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
-msgstr "გაფრთხილება სკრიპტის %{script_name} შესრულებისას"
+msgstr "გაფრთხილება %{script_name} სკრიპტის შესრულებისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1052
+#: lib/tuist_web/live/build_run_live.ex:1056
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
-msgstr "გაფრთხილება %{path}-ის დაკავშირებისას"
+msgstr "გაფრთხილება %{path}-ის ლინკვისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1067
+#: lib/tuist_web/live/build_run_live.ex:1071
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "გაფრთხილება storyboard-ების %{path}-ში დაკავშირებისას"
+msgstr "გაფრთხილება სთორიბორდების %{path}-ზე ლინკვისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1073
+#: lib/tuist_web/live/build_run_live.ex:1077
 #, elixir-autogen, elixir-format
 msgid "Warning when merging Swift module %{path}"
-msgstr "გაფრთხილება Swift მოდულის %{path} შერწყმისას"
+msgstr "გაფრთხილება Swift-ის მოდულის %{path} შერწყმისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1082
+#: lib/tuist_web/live/build_run_live.ex:1086
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "გაფრთხილება ხიდის სათაურის წინასწარი კომპილაციისას %{path}"
+msgstr "გაფრთხილება ხიდის ჰედერის %{path} წინასწარი კომპილაციისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1094
+#: lib/tuist_web/live/build_run_live.ex:1098
 #, elixir-autogen, elixir-format
 msgid "Warning when processing %{path}"
 msgstr "გაფრთხილება %{path}-ის დამუშავებისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1088
+#: lib/tuist_web/live/build_run_live.ex:1092
 #, elixir-autogen, elixir-format
 msgid "Warning when validating %{path}"
 msgstr "გაფრთხილება %{path}-ის ვალიდაციისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1085
+#: lib/tuist_web/live/build_run_live.ex:1089
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
 msgstr "გაფრთხილება ჩაშენებული ბინარული ფაილის %{path} ვალიდაციისას"
 
-#: lib/tuist_web/live/build_run_live.ex:1064
+#: lib/tuist_web/live/build_run_live.ex:1068
 #, elixir-autogen, elixir-format
 msgid "Warning when writing auxiliary file %{path}"
 msgstr "გაფრთხილება დამხმარე ფაილის %{path} ჩაწერისას"
 
 #: lib/tuist_web/live/build_run_live.html.heex:191
-#: lib/tuist_web/live/build_run_live.html.heex:392
-#: lib/tuist_web/live/build_run_live.html.heex:731
-#: lib/tuist_web/live/build_run_live.html.heex:738
+#: lib/tuist_web/live/build_run_live.html.heex:394
+#: lib/tuist_web/live/build_run_live.html.heex:733
+#: lib/tuist_web/live/build_run_live.html.heex:740
 #: lib/tuist_web/live/cargo_build_live.html.heex:30
-#: lib/tuist_web/live/cargo_build_live.html.heex:353
-#: lib/tuist_web/live/cargo_build_live.html.heex:365
+#: lib/tuist_web/live/cargo_build_live.html.heex:356
+#: lib/tuist_web/live/cargo_build_live.html.heex:368
 #: lib/tuist_web/live/mix_build_live.html.heex:65
-#: lib/tuist_web/live/mix_build_live.html.heex:510
-#: lib/tuist_web/live/mix_build_live.html.heex:649
-#: lib/tuist_web/live/mix_build_live.html.heex:656
+#: lib/tuist_web/live/mix_build_live.html.heex:511
+#: lib/tuist_web/live/mix_build_live.html.heex:650
+#: lib/tuist_web/live/mix_build_live.html.heex:657
 #, elixir-autogen, elixir-format
 msgid "Warnings"
 msgstr "გაფრთხილებები"
 
 #: lib/tuist_web/live/build_run_live.html.heex:186
-#: lib/tuist_web/live/build_run_live.html.heex:918
+#: lib/tuist_web/live/build_run_live.html.heex:920
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "Xcode Cache"
 
-#: lib/tuist_web/live/build_run_live.html.heex:331
+#: lib/tuist_web/live/build_run_live.html.heex:333
 #: lib/tuist_web/live/xcode_build_runs_live.ex:265
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:153
 #: lib/tuist_web/live/xcode_builds_live.ex:394
@@ -1599,7 +1599,7 @@ msgstr "Xcode Cache"
 msgid "Xcode version"
 msgstr "Xcode-ის ვერსია"
 
-#: lib/tuist_web/live/build_run_live.html.heex:332
+#: lib/tuist_web/live/build_run_live.html.heex:334
 #: lib/tuist_web/live/run_detail_live.html.heex:202
 #: lib/tuist_web/live/xcode_build_runs_live.ex:273
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:161
@@ -1618,17 +1618,17 @@ msgstr "p50"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "აგების ხანგრძლივობა p50"
+msgstr "პ50 ბილდის ხანგრძლივობა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:954
+#: lib/tuist_web/live/build_run_live.html.heex:956
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache keys"
-msgstr "ქეშის გასაღებების წაკითხვის დაყოვნება p50"
+msgstr "პ50 ლატენტურობა ქეშის გასაღებების წაკითხვისას"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1010
+#: lib/tuist_web/live/build_run_live.html.heex:1012
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache keys"
-msgstr "ქეშის გასაღებების ჩაწერის დაყოვნება p50"
+msgstr "პ50 ლატენტურობა ქეშის გასაღებების ჩაწერისას"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:484
 #, elixir-autogen, elixir-format
@@ -1639,17 +1639,17 @@ msgstr "p90"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "აგების ხანგრძლივობა p90"
+msgstr "პ90 ბილდის ხანგრძლივობა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:953
+#: lib/tuist_web/live/build_run_live.html.heex:955
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache keys"
-msgstr "p90 ლატენტობა კეშის გასაღებების წაკითხვისას"
+msgstr "p90 ლატენტურობა ქეშის გასაღებების კითხვისას"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1009
+#: lib/tuist_web/live/build_run_live.html.heex:1011
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache keys"
-msgstr "p90 ლატენტობა კეშის გასაღებების ჩაწერისას"
+msgstr "p90 ლატენტურობა ქეშის გასაღებების ჩაწერისას"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:470
 #, elixir-autogen, elixir-format
@@ -1660,44 +1660,44 @@ msgstr "p99"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "p99 აგების ხანგრძლივობა"
+msgstr "p99 ბილდის ხანგრძლივობა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:952
+#: lib/tuist_web/live/build_run_live.html.heex:954
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache keys"
-msgstr "p99 ლატენტობა კეშის გასაღებების წაკითხვისას"
+msgstr "p99 ლატენტურობა ქეშის გასაღებების კითხვისას"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1008
+#: lib/tuist_web/live/build_run_live.html.heex:1010
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache keys"
-msgstr "p99 ლატენტობა კეშის გასაღებების ჩაწერისას"
+msgstr "p99 ლატენტურობა ქეშის გასაღებების ჩაწერისას"
 
 #: lib/tuist_web/live/build_entity_live.ex:638
 #: lib/tuist_web/live/xcode_builds_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "ბოლო თვის განმავლობაში"
+msgstr "გასული თვის შემდეგ"
 
 #: lib/tuist_web/live/build_entity_live.ex:636
 #: lib/tuist_web/live/xcode_builds_live.ex:382
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "ბოლო კვირის განმავლობაში"
+msgstr "გასული კვირის შემდეგ"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "გასული წლიდან"
 
-#: lib/tuist_web/live/build_run_live.html.heex:358
-#: lib/tuist_web/live/build_run_live.html.heex:395
-#: lib/tuist_web/live/build_run_live.html.heex:741
-#: lib/tuist_web/live/build_run_live.html.heex:792
-#: lib/tuist_web/live/cargo_build_live.html.heex:367
-#: lib/tuist_web/live/mix_build_live.html.heex:475
-#: lib/tuist_web/live/mix_build_live.html.heex:513
-#: lib/tuist_web/live/mix_build_live.html.heex:659
-#: lib/tuist_web/live/mix_build_live.html.heex:711
+#: lib/tuist_web/live/build_run_live.html.heex:360
+#: lib/tuist_web/live/build_run_live.html.heex:397
+#: lib/tuist_web/live/build_run_live.html.heex:743
+#: lib/tuist_web/live/build_run_live.html.heex:794
+#: lib/tuist_web/live/cargo_build_live.html.heex:370
+#: lib/tuist_web/live/mix_build_live.html.heex:476
+#: lib/tuist_web/live/mix_build_live.html.heex:514
+#: lib/tuist_web/live/mix_build_live.html.heex:660
+#: lib/tuist_web/live/mix_build_live.html.heex:712
 #, elixir-autogen, elixir-format
 msgid "•"
 msgstr "•"
@@ -1707,7 +1707,7 @@ msgstr "•"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Apply"
-msgstr "გამოყენება"
+msgstr "გადახდა"
 
 #: lib/tuist_web/live/build_entity_live.ex:1014
 #: lib/tuist_web/live/cargo_builds_live.html.heex:61
@@ -1760,13 +1760,13 @@ msgstr "წინა პერიოდის შემდეგ"
 #: lib/tuist_web/live/xcode_builds_live.ex:381
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "გუშინდელი დღის შემდეგ"
+msgstr "გუშინდელი დღიდან"
 
 #: lib/tuist_web/live/generate_runs_live.ex:302
 #: lib/tuist_web/live/run_detail_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
-msgstr "ქეშის ბოლოწერტილი"
+msgstr "ქეშის წერტილი"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:404
 #: lib/tuist_web/live/xcode_builds_live.html.heex:11
@@ -1809,7 +1809,7 @@ msgstr "მანქანის მეტრიკები"
 #: lib/tuist_web/live/build_run_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Download build"
-msgstr "აწყობის ჩამოტვირთვა"
+msgstr "ბილდის ჩამოტვირთვა"
 
 #: lib/tuist_web/live/build_run_live.html.heex:267
 #: lib/tuist_web/live/xcode_build_runs_live.ex:228
@@ -1823,12 +1823,12 @@ msgstr "დამუშავება ვერ მოხერხდა"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Processing"
-msgstr "მიმდინარეობს დამუშავება"
+msgstr "დამუშავება"
 
 #: lib/tuist_web/live/build_run_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Your build is being processed"
-msgstr "თქვენი აწყობა მუშავდება"
+msgstr "თქვენი ბილდი მუშავდება"
 
 #: lib/tuist_web/live/build_run_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -1838,7 +1838,7 @@ msgstr "განახლება"
 #: lib/tuist_web/live/build_run_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "ეს ჩვეულებრივ რამდენიმე წამს გრძელდება. თუ გვერდი ავტომატურად არ განახლდა, დააჭირეთ განახლების ღილაკს."
+msgstr "ეს ჩვეულებრივ რამდენიმე წამს იღებს. თუ გვერდი ავტომატურად არ განახლდება, დააჭირეთ განახლების ღილაკს."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:75
 #, elixir-autogen, elixir-format
@@ -1848,7 +1848,7 @@ msgstr "სესიის ჩამოტვირთვა"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset."
-msgstr "10 000 ჩანაწერის ლიმიტი მიღწეულია, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ ფილტრაცია სქემით, კონფიგურაციით ან სხვა პარამეტრებით, რათა შეამციროთ მონაცემთა ნაკრები."
+msgstr "მიღწეულია 10 000 ჩანაწერის ლიმიტი, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ ფილტრაცია სქემის, კონფიგურაციის ან სხვა პარამეტრების მიხედვით, რათა შეამციროთ მონაცემთა ნაკრები."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:78
 #, elixir-autogen, elixir-format
@@ -1858,12 +1858,12 @@ msgstr "ჩამოტვირთულია"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:168
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput from the remote cache during this run."
-msgstr "ამ გაშვების დროს შორეულ ქეშიდან ჩამოტვირთვის საშუალო სიჩქარე (დროითი შეწონვით)."
+msgstr "დროით შეწონილი საშუალო ჩამოტვირთვის სიჩქარე დისტანციური ქეშიდან ამ გაშვების განმავლობაში."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:184
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput to the remote cache during this run."
-msgstr "ამ გაშვების დროს შორეულ ქეშზე ატვირთვის საშუალო სიჩქარე (დროითი შეწონვით)."
+msgstr "დროით შეწონილი საშუალო ატვირთვის სიჩქარე დისტანციურ ქეშში ამ გაშვების განმავლობაში."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:91
 #, elixir-autogen, elixir-format
@@ -1873,22 +1873,22 @@ msgstr "ატვირთულია"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:80
 #, elixir-autogen, elixir-format
 msgid "Total data downloaded from the remote cache during this run (%{count} artifacts)."
-msgstr "ამ გაშვების დროს შორეული ქეშიდან ჩამოტვირთული მონაცემების საერთო მოცულობა (%{count} არტეფაქტი)."
+msgstr "დისტანციური ქეშიდან ამ გაშვების განმავლობაში ჩამოტვირთული მონაცემების საერთო მოცულობა (%{count} არტიფაქტი)."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:93
 #, elixir-autogen, elixir-format
 msgid "Total data uploaded to the remote cache during this run (%{count} artifacts)."
-msgstr "ამ გაშვებისას დაშორებულ ქეშში ატვირთული მონაცემების საერთო რაოდენობა (%{count} არტიფაქტი)."
+msgstr "ამ გაშვებისას დაშორებულ ქეშში ატვირთული მონაცემების ჯამური რაოდენობა (%{count} არტიფაქტი)."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:469
 #, elixir-autogen, elixir-format
 msgid "Additional hashing inputs"
-msgstr "დამატებითი ჰეშირების შეყვანები"
+msgstr "დამატებითი შეყვანები ჰეშინგისთვის"
 
 #: lib/tuist_web/components/build_timeline.ex:182
 #, elixir-autogen, elixir-format
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
-msgstr "აგების ნაბიჯები. დროის დიაპაზონზე გადაათრიეთ ფოკუსირებისთვის. გადათრევის გასაუქმებლად დააჭირეთ Escape-ს. ნაბიჯების შესწავლისთვის გამოიყენეთ მარცხენა და მარჯვენა ისარი. გადიდების/შემცირებისთვის გამოიყენეთ პლიუსი და მინუსი, ხოლო თავდაპირველ ხედზე დასაბრუნებლად — Home."
+msgstr "ბილდის ეტაპები. ფოკუსირებისთვის გადაათრიეთ დროის შუალედზე. ჩაქსოვის გასაუქმებლად დააჭირეთ Escape-ს. ეტაპების შესასწავლად გამოიყენეთ მარცხენა და მარჯვენა ისრები. მასშტაბის ცვლილებისთვის გამოიყენეთ პლუსი და მინუსი, ხოლო საწყის მდგომარეობაზე დასაბრუნებლად — Home."
 
 #: lib/tuist_web/components/build_timeline.ex:292
 #: lib/tuist_web/components/build_timeline.ex:303
@@ -1899,12 +1899,12 @@ msgstr "კომპილაცია"
 #: lib/tuist_web/components/build_timeline.ex:304
 #, elixir-autogen, elixir-format
 msgid "Linking"
-msgstr "დაკავშირება"
+msgstr "ლინკვა"
 
 #: lib/tuist_web/components/build_timeline.ex:137
 #, elixir-autogen, elixir-format
 msgid "No timeline available"
-msgstr "დროითი შკალა ხელმიუწვდომელია"
+msgstr "დროის ხაზი მიუწვდომელია"
 
 #: lib/tuist_web/components/build_timeline.ex:296
 #: lib/tuist_web/components/build_timeline.ex:333
@@ -1925,19 +1925,19 @@ msgstr "სკრიპტები"
 #: lib/tuist_web/components/build_timeline.ex:280
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets"
-msgstr "ნაბიჯების ან სამიზნეების ძებნა"
+msgstr "ნაბიჯების ან მიზნების ძებნა"
 
 #: lib/tuist_web/components/build_timeline.ex:284
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets…"
-msgstr "ნაბიჯების ან სამიზნეების ძებნა…"
+msgstr "ნაბიჯების ან მიზნების ძებნა…"
 
 #: lib/tuist_web/components/build_timeline.ex:230
 #: lib/tuist_web/live/cargo_build_live.ex:132
-#: lib/tuist_web/live/cargo_build_live.html.heex:309
+#: lib/tuist_web/live/cargo_build_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Started after"
-msgstr "დაწყებული შემდეგი დროის შემდეგ"
+msgstr "დაწყებული შემდეგი თარიღის შემდეგ"
 
 #: lib/tuist_web/components/build_timeline.ex:246
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
@@ -1956,7 +1956,7 @@ msgstr "დროის შკალა"
 #: lib/tuist_web/components/build_timeline.ex:80
 #, elixir-autogen, elixir-format
 msgid "elapsed"
-msgstr "გასული"
+msgstr "გასული დრო"
 
 #: lib/tuist_web/components/build_timeline.ex:75
 #: lib/tuist_web/components/build_timeline.ex:81
@@ -1967,7 +1967,7 @@ msgstr "ნაბიჯები"
 #: lib/tuist_web/components/build_timeline.ex:85
 #, elixir-autogen, elixir-format
 msgid "targets"
-msgstr "მიზნები"
+msgstr "სამიზნეები"
 
 #: lib/tuist_web/components/build_timeline.ex:20
 #: lib/tuist_web/components/build_timeline.ex:27
@@ -1979,7 +1979,7 @@ msgstr "აგების ქრონოლოგია"
 #: lib/tuist_web/components/build_timeline.ex:272
 #, elixir-autogen, elixir-format
 msgid "No steps in this time range match your filters."
-msgstr "მითითებულ დროის ინტერვალში ფილტრებს არცერთი ეტაპი არ შეესაბამება."
+msgstr "მითითებულ დიაპაზონში არ არის თქვენს ფილტრებთან შესაბამისი ეტაპები."
 
 #: lib/tuist_web/components/build_timeline.ex:70
 #, elixir-autogen, elixir-format
@@ -1994,22 +1994,22 @@ msgstr "ჟურნალი"
 #: lib/tuist_web/components/build_timeline.ex:71
 #, elixir-autogen, elixir-format
 msgid "No log recorded for this step."
-msgstr "ამ ეტაპისთვის ჟურნალი არ არის ჩაწერილი."
+msgstr "ამ ეტაპისთვის ჟურნალი არ ჩაწერილა."
 
 #: lib/tuist_web/components/build_timeline.ex:264
 #, elixir-autogen, elixir-format
 msgid "This log was truncated."
-msgstr "ჟურნალი შემოკლებული იყო."
+msgstr "ეს ჟურნალი შეკვეცილი იყო."
 
 #: lib/tuist_web/components/build_timeline.ex:73
 #, elixir-autogen, elixir-format
 msgid "Unable to load the log. Select the step again to retry."
-msgstr "ჟურნალის ჩატვირთვა ვერ მოხერხდა. სცადეთ ხელახლა ეტაპის შერჩევა."
+msgstr "ჟურნალის ჩატვირთვა ვერ მოხერხდა. სცადეთ ეტაპის ხელახლა შერჩევა."
 
 #: lib/tuist_web/components/build_timeline.ex:203
 #, elixir-autogen, elixir-format
 msgid "Resize step details"
-msgstr "ზომის შეცვლის ეტაპის დეტალები"
+msgstr "ზომის ცვლილების ეტაპის დეტალები"
 
 #: lib/tuist_web/components/build_timeline.ex:100
 #, elixir-autogen, elixir-format
@@ -2020,7 +2020,7 @@ msgstr "დისკის I/O"
 #: lib/tuist_web/components/build_timeline.ex:110
 #, elixir-autogen, elixir-format
 msgid "In"
-msgstr "შემოსვლა"
+msgstr "შემოსული"
 
 #: lib/tuist_web/components/build_timeline.ex:98
 #, elixir-autogen, elixir-format
@@ -2036,7 +2036,7 @@ msgstr "ქსელი"
 #: lib/tuist_web/components/build_timeline.ex:113
 #, elixir-autogen, elixir-format
 msgid "Out"
-msgstr "გასვლა"
+msgstr "გასული"
 
 #: lib/tuist_web/components/build_timeline.ex:54
 #: lib/tuist_web/components/build_timeline.ex:111
@@ -2054,7 +2054,7 @@ msgstr "ჩაწერა"
 #: lib/tuist_web/components/build_timeline.ex:139
 #, elixir-autogen, elixir-format
 msgid "This build has no recorded step timings. Recorded steps are retained for 90 days."
-msgstr "ამ აგებას არ აქვს ჩაწერილი ნაბიჯების დროები. ჩაწერილი ნაბიჯები ინახება 90 დღის განმავლობაში."
+msgstr "ამ ბილდს არ აქვს ჩაწერილი ნაბიჯების დროები. ჩაწერილი ნაბიჯები ინახება 90 დღის განმავლობაში."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:331
 #, elixir-autogen, elixir-format
@@ -2065,22 +2065,22 @@ msgstr "ჩაშენებული პროდუქტის მითი�
 #: lib/tuist_web/live/build_entity_live.ex:667
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "მიუწვდომელი"
+msgstr "მიუწვდომელია"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:339
 #, elixir-autogen, elixir-format
 msgid "Foreign build"
-msgstr "უცხოური აგება"
+msgstr "უცხოური ბილდი"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:347
 #, elixir-autogen, elixir-format
 msgid "Test device"
-msgstr "სატესტო მოწყობილობა"
+msgstr "ტესტის მოწყობილობა"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:355
 #, elixir-autogen, elixir-format
 msgid "Test runtime"
-msgstr "სატესტო გარემო"
+msgstr "ტესტის გარემო"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:323
 #, elixir-autogen, elixir-format
@@ -2095,7 +2095,7 @@ msgstr "დამოკიდებულებების ჰეში"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:425
 #, elixir-autogen, elixir-format
 msgid "No direct target dependencies recorded"
-msgstr "პირდაპირი სამიზნე დამოკიდებულებები არ არის ჩაწერილი"
+msgstr "პირდაპირი დამოკიდებულებები სამიზნეზე არ არის ჩაწერილი"
 
 #: lib/tuist_web/components/build_timeline.ex:314
 #, elixir-autogen, elixir-format
@@ -2105,12 +2105,12 @@ msgstr "ანალიზი/მოწყობა"
 #: lib/tuist_web/components/build_timeline.ex:323
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms"
-msgstr "არტეფაქტების ტრანსფორმაცია"
+msgstr "არტეფაქტების ტრანსფორმაციები"
 
 #: lib/tuist_web/components/build_timeline.ex:60
 #, elixir-autogen, elixir-format
 msgid "Cache hit"
-msgstr "ქეშში მოხვედრა (Cache hit)"
+msgstr "ქეშში მოხვედრა"
 
 #: lib/tuist_web/components/build_timeline.ex:313
 #, elixir-autogen, elixir-format
@@ -2120,18 +2120,18 @@ msgstr "მიღება"
 #: lib/tuist_web/components/build_timeline.ex:312
 #, elixir-autogen, elixir-format
 msgid "File preparation"
-msgstr "ფაილის მომზადება"
+msgstr "ფაილების მომზადება"
 
 #: lib/tuist_web/components/build_timeline.ex:58
 #, elixir-autogen, elixir-format
 msgid "Local cache hit"
-msgstr "ლოკალურ ქეშში მოხვედრა"
+msgstr "ლოკალური ქეშში მოხვედრა"
 
 #: lib/tuist_web/components/build_timeline.ex:63
 #: lib/tuist_web/helpers/build_entity_labels.ex:102
 #, elixir-autogen, elixir-format
 msgid "No source"
-msgstr "წყაროს გარეშე"
+msgstr "წყარო არ არის"
 
 #: lib/tuist_web/components/build_timeline.ex:321
 #, elixir-autogen, elixir-format
@@ -2141,7 +2141,7 @@ msgstr "შეფუთვა"
 #: lib/tuist_web/components/build_timeline.ex:59
 #, elixir-autogen, elixir-format
 msgid "Remote cache hit"
-msgstr "დისტანციური ქეშის მოხვედრა"
+msgstr "ქეშში მოხვედრა (შორეული)"
 
 #: lib/tuist_web/components/build_timeline.ex:282
 #, elixir-autogen, elixir-format
@@ -2173,17 +2173,17 @@ msgstr "აქტუალური"
 #: lib/tuist_web/components/build_timeline.ex:51
 #, elixir-autogen, elixir-format
 msgid "cores"
-msgstr "ბირთვები"
+msgstr "ბირთვი"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1189
+#: lib/tuist_web/live/build_run_live.html.heex:1191
 #, elixir-autogen, elixir-format
 msgid "Load more"
 msgstr "მეტის ჩატვირთვა"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1188
+#: lib/tuist_web/live/build_run_live.html.heex:1190
 #, elixir-autogen, elixir-format
 msgid "Loading..."
-msgstr "იტვირთება..."
+msgstr "მიმდინარეობს ჩატვირთვა..."
 
 #: lib/tuist_web/live/mix_build_live.ex:516
 #, elixir-autogen, elixir-format
@@ -2194,7 +2194,7 @@ msgstr[0] "%{count} ფაილი"
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
-msgstr "%{duration}წმ"
+msgstr "%{duration} წმ"
 
 #: lib/tuist_web/live/mix_build_live.ex:461
 #, elixir-autogen, elixir-format
@@ -2204,16 +2204,16 @@ msgstr "კომპილაცია ვერ მოხერხდა"
 #: lib/tuist_web/live/mix_build_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "Compilation warning"
-msgstr "კომპილაციის გაფრთხილება"
+msgstr "გაფრთხილება კომპილაციისას"
 
 #: lib/tuist_web/live/mix_build_live.ex:502
-#: lib/tuist_web/live/mix_build_live.html.heex:629
+#: lib/tuist_web/live/mix_build_live.html.heex:630
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependencies"
-msgstr "კომპილაციის დროის დამოკიდებულებები"
+msgstr "კომპილაციის დროითი დამოკიდებულებები"
 
 #: lib/tuist_web/live/mix_build_live.ex:501
-#: lib/tuist_web/live/mix_build_live.html.heex:632
+#: lib/tuist_web/live/mix_build_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependents"
 msgstr "კომპილაციის დროს დამოკიდებულებები"
@@ -2223,7 +2223,7 @@ msgstr "კომპილაციის დროს დამოკიდე�
 msgid "Elixir / OTP"
 msgstr "Elixir / OTP"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:456
+#: lib/tuist_web/live/mix_build_live.html.heex:457
 #: lib/tuist_web/live/mix_builds_live.ex:206
 #: lib/tuist_web/live/mix_builds_live.html.heex:464
 #, elixir-autogen, elixir-format
@@ -2238,7 +2238,7 @@ msgstr "Elixir ფაილის კომპილაცია ჩავარ
 #: lib/tuist_web/live/mix_build_live.ex:62
 #, elixir-autogen, elixir-format
 msgid "Mix Build"
-msgstr "Mix Build"
+msgstr "Mix ბილდი"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:440
 #: lib/tuist_web/live/mix_builds_live.ex:205
@@ -2247,7 +2247,7 @@ msgstr "Mix Build"
 msgid "Mix environment"
 msgstr "Mix გარემო"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:457
+#: lib/tuist_web/live/mix_build_live.html.heex:458
 #: lib/tuist_web/live/mix_builds_live.ex:204
 #: lib/tuist_web/live/mix_builds_live.html.heex:474
 #, elixir-autogen, elixir-format
@@ -2277,7 +2277,7 @@ msgstr "ტიპების შემოწმება"
 #: lib/tuist_web/live/mix_build_live.ex:466
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Elixir file %{path}"
-msgstr "გაფრთხილება Elixir-ის ფაილის %{path} კომპილაციისას"
+msgstr "გაფრთხილება Elixir-ის ფაილის კომპილაციისას %{path}"
 
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:62
 #, elixir-autogen, elixir-format
@@ -2303,7 +2303,7 @@ msgstr "ინფრასტრუქტურა / ინსტრუმენ
 #: lib/tuist_web/components/build_health.ex:223
 #, elixir-autogen, elixir-format
 msgid "Unclassified"
-msgstr "კლასიფიცირებული არ არის"
+msgstr "კლასიფიცირებადი"
 
 #: lib/tuist_web/components/build_health.ex:221
 #, elixir-autogen, elixir-format
@@ -2327,7 +2327,7 @@ msgstr "შეცდომის კატეგორია"
 #: lib/tuist_web/components/build_health.ex:202
 #, elixir-autogen, elixir-format
 msgid "The recorded build data does not contain enough evidence for Tuist to classify this failure as verification or infrastructure and tooling."
-msgstr "ჩაწერილი აგების მონაცემები არ შეიცავს საკმარის მტკიცებულებას იმისთვის, რომ Tuist-მა ეს შეცდომა ვერიფიკაციად ან ინფრასტრუქტურად და ინსტრუმენტებად კლასიფიცირება."
+msgstr "ჩაწერილი ბილდის მონაცემები არ შეიცავს საკმარის ინფორმაციას იმისთვის, რომ Tuist-მა ეს შეცდომა ვერიფიკაციად ან ინფრასტრუქტურად და ხელსაწყოებად კლასიფიცირება."
 
 #: lib/tuist_web/components/build_health.ex:175
 #, elixir-autogen, elixir-format
@@ -2337,80 +2337,80 @@ msgstr "შეცდომის კატეგორიის შესახ�
 #: lib/tuist_web/components/build_health.ex:195
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Infrastructure and tooling covers configuration, dependency resolution, and execution infrastructure failures."
-msgstr "დადგენილია ჩაწერილი აგების მონაცემებიდან. ინფრასტრუქტურა და ინსტრუმენტები მოიცავს კონფიგურაციის, დამოკიდებულების გადაწყვეტისა და შესრულების ინფრასტრუქტურის შეცდომებს."
+msgstr "დადგენილია ჩაწერილი ბილდის მონაცემებიდან. ინფრასტრუქტურა და ხელსაწყოები მოიცავს კონფიგურაციის, დამოკიდებულებების ამოხსნისა და შესრულების ინფრასტრუქტურის შეცდომებს."
 
 #: lib/tuist_web/components/build_health.ex:188
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Verification covers compilation, test, lint, and check failures."
-msgstr "დადგენილია ჩაწერილი აგების მონაცემებიდან. ვერიფიკაცია მოიცავს კომპილაციის, ტესტირების, ლინტისა და შემოწმების შეცდომებს."
+msgstr "დადგენილია ჩაწერილი ბილდის მონაცემებიდან. ვერიფიკაცია მოიცავს კომპილაციის, ტესტირების, ლინტინგისა და შემოწმების შეცდომებს."
 
 #: lib/tuist_web/live/mix_build_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache artifacts"
-msgstr "ქეშის არტიფაქტების წაკითხვის საშუალო ლატენტობა"
+msgstr "ქეშში არტიფაქტების წაკითხვის საშუალო ლატენტობა"
 
 #: lib/tuist_web/live/mix_build_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache artifacts"
-msgstr "კეშის არტეფაქტების ჩაწერის საშუალო ლატენტობა"
+msgstr "ქეშის არტეფაქტების ჩაწერის საშუალო ლატენტობა"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Dependency compilation"
-msgstr "დამოკიდებულებების კომპილაცია"
+msgstr "დამოკიდებულების კომპილაცია"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:60
 #: lib/tuist_web/live/mix_build_live.html.heex:119
 #: lib/tuist_web/live/mix_build_live.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Mix cache"
-msgstr "შერეული კეში"
+msgstr "Mix cache"
 
 #: lib/tuist_web/live/mix_build_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache artifacts"
-msgstr "p50 ლატენტობა კეშის არტეფაქტების წაკითხვისას"
+msgstr "ქეშის არტეფაქტების წაკითხვის p50 ლატენტობა"
 
 #: lib/tuist_web/live/mix_build_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache artifacts"
-msgstr "p50 ლატენტობა კეშის არტეფაქტების ჩაწერისას"
+msgstr "ქეშის არტეფაქტების ჩაწერის p50 ლატენტობა"
 
 #: lib/tuist_web/live/mix_build_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache artifacts"
-msgstr "p90 ლატენტობა კეშის არტეფაქტების წაკითხვისას"
+msgstr "ქეშის არტეფაქტების წაკითხვის p90 ლატენტობა"
 
 #: lib/tuist_web/live/mix_build_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache artifacts"
-msgstr "p90 ლატენტობა კეშის არტეფაქტების ჩაწერისას"
+msgstr "ქეშის არტეფაქტების ჩაწერის p90 ლატენტობა"
 
 #: lib/tuist_web/live/mix_build_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache artifacts"
-msgstr "p99 ლატენტობა კეშის არტეფაქტების წაკითხვისას"
+msgstr "ქეშის არტეფაქტების წაკითხვის p99 ლატენტობა"
 
 #: lib/tuist_web/live/mix_build_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache artifacts"
-msgstr "p99 დაყოვნება კეშის არტიფაქტების ჩაწერისას"
+msgstr "p99 დაყოვნება ქეშის არტეფაქტების ჩაწერისას"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:311
 #: lib/tuist_web/live/mix_build_live.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Dependency bundle"
-msgstr "დამოკიდებულების ბანდი"
+msgstr "დამოკიდებულებების ბანდი"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:237
 #, elixir-autogen, elixir-format
 msgid "Only actual CAS transfers reported by Kura appear here. Local snapshot copies are not remote CAS outputs; compressed sizes are unavailable."
-msgstr "აქ მხოლოდ Kura-ს მიერ მოხსენებული რეალური CAS ტრანსფერებია ნაჩვენები. ლოკალური სნეპშოთის ასლები არ არის დაშორებული CAS გამომავალი; შეკუმშული ზომები ხელმისაწვდომი არ არის."
+msgstr "აქ გამოჩნდება მხოლოდ Kura-ს მიერ მოხსენებული რეალური CAS გადაცემები. ლოკალური სნეპშოთის ასლები არ არის დაშორებული CAS შედეგები; კომპრესირებული ზომები ხელმიუწვდომელია."
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:113
 #, elixir-autogen, elixir-format
 msgid "Time-weighted CAS transfer throughput reported by Kura through the shared REAPI analytics pipeline, excluding action-cache metadata and local copies."
-msgstr "Kura-ს მიერ მოხსენებული დროით შეწონილი CAS ტრანსფერის გამტარუნარიანობა გაზიარებული REAPI ანალიტიკის პაიპლაინის მეშვეობით, გამოკლებული action-cache მეტამონაცემები და ლოკალური ასლები."
+msgstr "Kura-ს მიერ საერთო REAPI ანალიტიკის პლატფორმით მოხსენებული დროით გაწონასწორებული CAS გადაცემის გამტარუნარიანობა, რომელიც არ მოიცავს action-cache მეტამონაცემებს და ლოკალურ ასლებს."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:15
 #: lib/tuist_web/helpers/build_entity_labels.ex:16
@@ -2433,7 +2433,7 @@ msgstr "ანალიტიკა"
 #: lib/tuist_web/live/build_entity_live.ex:599
 #, elixir-autogen, elixir-format
 msgid "Build path"
-msgstr "აგების გზა"
+msgstr "ბილდის გზა"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:212
 #: lib/tuist_web/live/cargo_build_live.html.heex:29
@@ -2472,7 +2472,7 @@ msgstr "გამოცხადებული მოქმედების �
 #: lib/tuist_web/live/build_entity_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Executions"
-msgstr "შესრულებები"
+msgstr "გაშვებები"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:84
 #, elixir-autogen, elixir-format
@@ -2487,12 +2487,12 @@ msgstr "ფაილები"
 #: lib/tuist_web/live/build_entity_live.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Last seen"
-msgstr "ბოლოს ნანახია"
+msgstr "ბოლო ნახვა"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:96
 #, elixir-autogen, elixir-format
 msgid "Local hit"
-msgstr "ლოკალური თანხვედრა"
+msgstr "ქეშში მოხვედრა (ლოკალური)"
 
 #: lib/tuist_web/live/build_entity_live.ex:1100
 #, elixir-autogen, elixir-format
@@ -2502,7 +2502,7 @@ msgstr "გაზომილი ხანგრძლივობები"
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "გამოტოვება"
+msgstr "ქეშში ვერ მოხვედრა"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:7
 #: lib/tuist_web/helpers/build_entity_labels.ex:11
@@ -2587,12 +2587,12 @@ msgstr "ჩაწერილია"
 #: lib/tuist_web/helpers/build_entity_labels.ex:95
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr "დაშორებული წვდომა"
+msgstr "დაშორებული ქეშში მოხვედრა"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:30
 #, elixir-autogen, elixir-format
 msgid "Root build"
-msgstr "ძირითადი აგება"
+msgstr "ძირითადი ბილდი"
 
 #: lib/tuist_web/live/build_entity_live.ex:598
 #, elixir-autogen, elixir-format
@@ -2602,12 +2602,12 @@ msgstr "ძირითადი პროექტი"
 #: lib/tuist_web/live/build_entity_live.ex:949
 #, elixir-autogen, elixir-format
 msgid "Showing the latest 10,000 measured durations since %{date}. Narrow the period or environment to see other observations."
-msgstr "ნაჩვენებია ბოლო 10,000 გაზომილი ხანგრძლივობა %{date}-დან. სხვა დაკვირვებების სანახავად შეამცირეთ პერიოდი ან გარემო."
+msgstr "ნაჩვენებია %{date}-დან გაზომილი ბოლო 10,000 ხანგრძლივობა. დააკვირდეთ სხვა მონაცემებს პერიოდის ან გარემოს შევიწროებით."
 
 #: lib/tuist_web/live/build_entity_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "Task path"
-msgstr "ამოცანის გზა"
+msgstr "ამოცანის ბილიკი"
 
 #: lib/tuist_web/live/build_entity_live.ex:601
 #, elixir-autogen, elixir-format
@@ -2622,33 +2622,33 @@ msgstr "ამოცანები"
 #: lib/tuist_web/live/build_entity_live.html.heex:637
 #, elixir-autogen, elixir-format
 msgid "This page remains available independently of individual build history."
-msgstr "ეს გვერდი ხელმისაწვდომია ინდივიდუალური აგების ისტორიისგან დამოუკიდებლად."
+msgstr "ეს გვერდი ხელმისაწვდომია ცალკეული ბილდების ისტორიისგან დამოუკიდებლად."
 
 #: lib/tuist_web/live/build_entity_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Try another period or report a new build."
-msgstr "სცადეთ სხვა პერიოდი ან დაარეგისტრირეთ ახალი აგება."
+msgstr "სცადეთ სხვა პერიოდი ან დაარეგისტრირეთ ახალი ბილდი."
 
 #: lib/tuist_web/live/xcode_build_runs_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Reported name"
-msgstr "მოხსენებული სახელი"
+msgstr "დაფიქსირებული სახელი"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:329
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency reading cache keys"
-msgstr "%{percentile} ლატენტობა cache-ის გასაღებების წაკითხვისას"
+msgstr "%{percentile} ლატენტობა ქეშის გასაღებების წაკითხვისას"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:332
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency writing cache keys"
-msgstr "%{percentile} ლატენტობა cache-ის გასაღებების ჩაწერისას"
+msgstr "%{percentile} ლატენტობა ქეშის გასაღებების ჩაწერისას"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:235
-#: lib/tuist_web/live/cargo_build_live.html.heex:247
+#: lib/tuist_web/live/cargo_build_live.html.heex:238
+#: lib/tuist_web/live/cargo_build_live.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "About compiler jobs"
-msgstr "კომპილატორის სამუშაოების შესახებ"
+msgstr "კომპილატორის ამოცანების შესახებ"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:67
 #, elixir-autogen, elixir-format
@@ -2668,22 +2668,22 @@ msgstr "ბლობი"
 #: lib/tuist_web/live/cargo_builds_live.html.heex:414
 #, elixir-autogen, elixir-format
 msgid "Build"
-msgstr "აგება"
+msgstr "ბილდი"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:232
 #, elixir-autogen, elixir-format
 msgid "Build script"
-msgstr "აგების სკრიპტი"
+msgstr "ბილდის სკრიპტი"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:157
+#: lib/tuist_web/live/cargo_build_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Bytes downloaded from the remote cache, including protocol metadata."
-msgstr "დაშორებული კეშიდან ჩამოტვირთული ბაიტები, პროტოკოლის მეტამონაცემების ჩათვლით."
+msgstr "ბაიტები, რომლებიც ჩამოიტვირთა დისტანციური ქეშიდან, პროტოკოლის მეტამონაცემების ჩათვლით."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:167
+#: lib/tuist_web/live/cargo_build_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Bytes uploaded to the remote cache."
-msgstr "დაშორებულ კეშზე ატვირთული ბაიტები."
+msgstr "ბაიტები, რომლებიც აიტვირთა დისტანციურ ქეშში."
 
 #: lib/tuist_web/helpers/cargo_cache.ex:150
 #, elixir-autogen, elixir-format
@@ -2693,17 +2693,17 @@ msgstr "CAS ობიექტი:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:63
 #, elixir-autogen, elixir-format
 msgid "Cache inspection is incomplete"
-msgstr "კეშის ინსპექცია არასრულია"
+msgstr "ქეშის ინსპექცია არასრულია"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:50
 #, elixir-autogen, elixir-format
 msgid "Cache verification detected divergent outputs"
-msgstr "კეშის ვერიფიკაციამ გამოავლინა განსხვავებული შედეგები"
+msgstr "ქეშის ვერიფიკაციამ აღმოაჩინა განსხვავებული შედეგები"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:134
+#: lib/tuist_web/live/cargo_build_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that compiled instead of reusing cached outputs, including cold builds and verification rebuilds."
-msgstr "კეშირებადი ამოცანები, რომლებიც შედგენილ იქნა კეშირებული შედეგების ხელახლა გამოყენების ნაცვლად, მათ შორის ცივი აწყობები და გადამოწმების გადაწყობები."
+msgstr "ქეშირებადი ამოცანები, რომლებიც შედგენილ იქნა ქეშირებული შედეგების ხელახლა გამოყენების ნაცვლად, მათ შორის ცივი აწყობები და გადამოწმებისთვის ხელახალი შედგენები."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:41
 #, elixir-autogen, elixir-format
@@ -2713,74 +2713,74 @@ msgstr "Cargo Cache"
 #: lib/tuist_web/helpers/cargo_cache.ex:72
 #, elixir-autogen, elixir-format
 msgid "Checked the cache but could not reuse cached outputs."
-msgstr "შემოწმდა კეში, მაგრამ კეშირებული შედეგების ხელახლა გამოყენება ვერ მოხერხდა."
+msgstr "შემოწმდა ქეში, მაგრამ ქეშირებული შედეგების ხელახლა გამოყენება ვერ მოხერხდა."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:123
+#: lib/tuist_web/live/cargo_build_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Compilation actions restored from the local or remote cache."
-msgstr "კომპილაციის ქმედებები აღდგა ლოკალური ან დისტანციური კეშიდან."
+msgstr "კომპილაციის მოქმედებები აღდგენილია ლოკალური ან დისტანციური ქეშიდან."
 
 #: lib/tuist_web/helpers/cargo_cache.ex:75
 #, elixir-autogen, elixir-format
 msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "შედგენილია ამოცანის შეყვანების შესასწავლად მომავალი კეშირებისთვის."
+msgstr "შეკრებილია მომავალში ქეშიდან ხელახლა გამოსაყენებლად ამოცანის შემავალი მონაცემების შესასწავლად."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
 msgstr "კომპილატორი"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:197
-#: lib/tuist_web/live/cargo_build_live.html.heex:202
-#: lib/tuist_web/live/cargo_build_live.html.heex:227
+#: lib/tuist_web/live/cargo_build_live.html.heex:200
+#: lib/tuist_web/live/cargo_build_live.html.heex:205
+#: lib/tuist_web/live/cargo_build_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Compiler jobs"
-msgstr "კომპილატორის დავალებები"
+msgstr "კომპილატორის ამოცანები"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:217
+#: lib/tuist_web/live/cargo_build_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Compiler jobs and diagnostics below cover only these displayed invocations."
-msgstr "კომპილატორის დავალებები და დიაგნოსტიკა ქვემოთ მოიცავს მხოლოდ აქ ნაჩვენებ გამოძახებებს."
+msgstr "კომპილატორის ამოცანები და დიაგნოსტიკა ეხება მხოლოდ აქ წარმოდგენილ გამოძახებებს."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:206
+#: lib/tuist_web/live/cargo_build_live.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Compiler jobs could not be loaded."
-msgstr "კომპილაციის დავალებების ჩატვირთვა ვერ მოხერხდა."
+msgstr "კომპილატორის დავალებების ჩატვირთვა ვერ მოხერხდა."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:127
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
-msgstr "დასრულებული удаленный CAS ბაიტები გაყოფილი მათ ჯამურ ოპერაციის ხანგრძლივობებზე, რაც მოიცავს კავშირის, განმეორებითი ცდისა და ვერიფიკაციის დროს. ოპერაციებს შეუძლიათ ერთმანეთს გადაფარონ; ეს არ არის მთლიანი აგების ქსელური გამტარუნარიანობა."
+msgstr "დასრულებული CAS-ის ბაიტები გაყოფილი მათი ჯამური ოპერაციის ხანგრძლივობაზე, რაც მოიცავს შეერთების, განმეორებითი ცდებისა და ვერიფიკაციის დროს. ოპერაციები შეიძლება ერთმანეთს ემთხვეოდეს; ეს არ არის მთლიანი აგების ქსელური გამტარუნარიანობა."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:140
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed upload-attempt durations, including presence checks. Already-present blobs and failed attempts are excluded. Operations can overlap."
-msgstr "დასრულებული удаленный CAS ბაიტები გაყოფილი მათ ჯამურ ატვირთვის-ცდის ხანგრძლივობებზე, რაც მოიცავს არსებობის შემოწმებებს. უკვე არსებული ბლობები და წარუმატებელი ცდები გამოირიცხება. ოპერაციებს შეუძლიათ ერთმანეთს გადაფარონ."
+msgstr "დასრულებული CAS-ის ბაიტები გაყოფილი მათი ჯამური ატვირთვის ცდების ხანგრძლივობაზე, რაც მოიცავს არსებობის შემოწმებას. უკვე არსებული ბლობები და წარუმატებელი ცდები გამოირიცხება. ოპერაციები შეიძლება ერთმანეთს ემთხვეოდეს."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:289
+#: lib/tuist_web/live/cargo_build_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "Crate"
-msgstr "Crate"
+msgstr "კრეიტი"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:294
+#: lib/tuist_web/live/cargo_build_live.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "Crate root: %{path}"
-msgstr "Crate-ის ფესვი: %{path}"
+msgstr "კრეიტის ფესვ: %{path}"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:303
 #, elixir-autogen, elixir-format
 msgid "Detailed cache records were not collected"
 msgstr "დეტალური ქეშის ჩანაწერები არ შეგროვებულა"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:237
+#: lib/tuist_web/live/cargo_build_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
-msgstr "ყველა სტრიქონი წარმოადგენს rustc-ის ერთ გამოძახებას crate-ისთვის, რომელიც შეიძლება შეიცავდეს მრავალ საწყის ფაილს. გზა არის მისი crate-ის ფესვი. crate-ს შეიძლება ჰქონდეს მრავალი დავალება სხვადასხვა სამიზნეების ან კონფიგურაციებისთვის. ხანგრძლივობებს შეუძლიათ ერთმანეთს გადაფარონ. დაწყების დრო შედარებითია Cargo ბრძანებასთან მიმართებაში."
+msgstr "თითოეული სტრიქონი წარმოადგენს rustc-ის ერთ გამოძახებას კრეიტისთვის, რომელიც შეიძლება შეიცავდეს მრავალ საწყის ფაილს. გზა მიუთითებს მის კრეიტის ფესვზე. კრეიტს შეიძლება ჰქონდეს რამდენიმე დავალება სხვადასხვა სამიზნის ან კონფიგურაციისთვის. ხანგრძლივობები შეიძლება ერთმანეთს ემთხვეოდეს. „დაწყებული შემდეგ“ აითვლება Cargo-ს ბრძანებიდან."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:327
+#: lib/tuist_web/live/cargo_build_live.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
-msgstr "Fresh Cargo არტიფაქტები არ იწვევენ rustc-ს. მათთვის კომპილატორის მუშაობა არ არის ნაგულისხმევი."
+msgstr "ახალი Cargo-ს არტიფაქტები არ იწვევენ rustc-ის გამოძახებას. მათთვის კომპილატორის მუშაობა არ იგულისხმება."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:52
 #, elixir-autogen, elixir-format
@@ -2790,19 +2790,19 @@ msgstr "ახალი კომპილატორის შედეგე�
 #: lib/tuist_web/components/cargo_cache_inspection.ex:65
 #, elixir-autogen, elixir-format
 msgid "Inspection records are bounded and best-effort. The tables, charts and measurements below cover only captured records; the summary above retains the aggregate totals."
-msgstr "ინსპექციის ჩანაწერები არის შემოფარგლული და საუკეთესო ძალისხმევით შესრულებული. ქვემოთ მოცემული ცხრილები, დიაგრამები და გაზომვები მოიცავს მხოლოდ დაფიქსირებულ ჩანაწერებს; ზემოთ მოცემული შეჯამება ინარჩუნებს აგრეგირებულ ჯამებს."
+msgstr "ინსპექციის ჩანაწერები შეზღუდულია და საუკეთესო ძალისხმევით ხდება. ქვემოთ მოცემული ცხრილები, დიაგრამები და გაზომვები მოიცავს მხოლოდ აღბეჭდილ ჩანაწერებს; ზემოთ მოცემული შეჯამება ინარჩუნებს აგრეგირებულ ჯამურ მაჩვენებლებს."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:92
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent lookup latency for recorded tasks, including local and remote resolution. Repeated reads of a key are averaged; cumulative build timings are not used as latency samples."
-msgstr "გაზომილია თითოეული გასაღებისთვის ქეშ-აგენტის ძიების ლატენტობა დაფიქსირებული ამოცანებისთვის, რაც მოიცავს როგორც ადგილობრივ, ისე დისტანციურ გარჩევას. გასაღების განმეორებითი წაკითხვები საშუალოდ გამოითვლება; კუმულაციური აგების დრო არ გამოიყენება როგორც ლატენტობის ნიმუშები."
+msgstr "გაზომილია თითოეული გასაღებისთვის ქეშ-აგენტის ძიების ლატენტობა ჩაწერილი ამოცანებისთვის, რაც მოიცავს როგორც ადგილობრივ, ისე შორეულ გარჩევას. გასაღების განმეორებითი წაკითხვები საშუალოდ გამოითვლება; კუმულაციური ბილდის დრო არ გამოიყენება ლატენტობის ნიმუშებად."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:108
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent store latency for recorded tasks. This includes local storage and queueing, not completion of background remote publication. Repeated writes of a key are averaged."
-msgstr "გაზომილია თითოეული გასაღებისთვის ქეშ-აგენტის შენახვის ლატენტობა დაფიქსირებული ამოცანებისთვის. ეს მოიცავს ადგილობრივ შენახვასა და რიგში დაყენებას, მაგრამ არა ფონური დისტანციური გამოქვეყნების დასრულებას. გასაღების განმეორებითი ჩაწერები საშუალოდ გამოითვლება."
+msgstr "გაზომილია თითოეული გასაღებისთვის ქეშ-აგენტის შენახვის ლატენტობა ჩაწერილი ამოცანებისთვის. ეს მოიცავს ადგილობრივ შენახვას და რიგში დაყენებას, არა ფონურ შორეულ გამოქვეყნებას. გასაღების განმეორებითი ჩაწერები საშუალოდ გამოითვლება."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:323
+#: lib/tuist_web/live/cargo_build_live.html.heex:326
 #, elixir-autogen, elixir-format
 msgid "No compiler jobs found"
 msgstr "კომპილატორის ამოცანები ვერ მოიძებნა"
@@ -2810,9 +2810,9 @@ msgstr "კომპილატორის ამოცანები ვე�
 #: lib/tuist_web/live/cargo_builds_live.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Only the 10,000 most recent builds are shown. Narrow the date range or filters to see the full dataset."
-msgstr "ნაჩვენებია მხოლოდ 10 000 ყველაზე ბოლო აგება. სრული მონაცემთა ნაკრების სანახავად შეამცირეთ თარიღის დიაპაზონი ან ფილტრები."
+msgstr "ნაჩვენებია მხოლოდ 10,000 უახლესი ბილდი. სრული მონაცემთა ნაკრების სანახავად შეავიწროვეთ თარიღის დიაპაზონი ან ფილტრები."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:146
+#: lib/tuist_web/live/cargo_build_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Percentage of cacheable tasks that reused cached outputs instead of compiling."
 msgstr "ქეშირებადი ამოცანების პროცენტული მაჩვენებელი, რომლებმაც ხელახლა გამოიყენეს ქეშირებული შედეგები კომპილაციის ნაცვლად."
@@ -2820,19 +2820,19 @@ msgstr "ქეშირებადი ამოცანების პრო�
 #: lib/tuist_web/components/cargo_cache_inspection.ex:80
 #, elixir-autogen, elixir-format
 msgid "Queried actions:"
-msgstr "მოთხოვნილი მოქმედებები:"
+msgstr "მოთხოვნილი ქმედებები:"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:78
 #, elixir-autogen, elixir-format
 msgid "Rebuilt to compare fresh outputs with cached outputs and verify cache correctness."
-msgstr "გადაწყობილია ახალი გამომავალი მონაცემების შედარებისთვის დაკეშირებულთან და კეშის სისწორის დასადასტურებლად."
+msgstr "ახალი შედეგების ქეშირებულ შედეგებთან შესადარებლად და ქეშის სისწორის დასადასტურებლად ხელახლა აიგო."
 
 #: lib/tuist_web/helpers/cargo_cache.ex:69
 #, elixir-autogen, elixir-format
 msgid "Reused cached outputs instead of compiling."
-msgstr "გამოყენებულია დაკეშირებული გამომავალი მონაცემები კომპილაციის ნაცვლად."
+msgstr "კომპილაციის ნაცვლად გამოყენებული იქნა ქეშირებული შედეგები."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:109
+#: lib/tuist_web/live/cargo_build_live.html.heex:111
 #: lib/tuist_web/live/cargo_build_runs_live.ex:54
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:109
 #: lib/tuist_web/live/cargo_builds_live.html.heex:199
@@ -2850,12 +2850,12 @@ msgstr "Rust-ის ვერსია:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:257
 #, elixir-autogen, elixir-format
 msgid "Showing the first 50 recorded CAS references."
-msgstr "ნაჩვენებია პირველი 50 ჩაწერილი CAS ბმული."
+msgstr "ჩვენდება პირველი 50 ჩაწერილი CAS მითითება."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:215
+#: lib/tuist_web/live/cargo_build_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Showing the first 500 compiler jobs"
-msgstr "ნაჩვენებია პირველი 500 კომპილატორის ამოცანა"
+msgstr "ჩვენდება პირველი 500 კომპილატორის დავალება"
 
 #: lib/tuist_web/live/build_entity_live.ex:473
 #: lib/tuist_web/live/build_entity_live.ex:880
@@ -2881,32 +2881,32 @@ msgstr "%{percentile} ფაილის კომპილაციის ხ�
 #: lib/tuist_web/live/build_entity_live.ex:762
 #, elixir-autogen, elixir-format
 msgid "Action executions"
-msgstr "მოქმედებების შესრულება"
+msgstr "მოქმედებების გაშვებები"
 
 #: lib/tuist_web/live/build_entity_live.ex:906
 #, elixir-autogen, elixir-format
 msgid "Each module contributes its containing file's measured compilation duration. Sibling modules share that measurement; their durations are not additive."
-msgstr "თითოეული მოდული შეიცავს თავისი შემცველი ფაილის გაზომილ კომპილაციის ხანგრძლივობას. დამხმარე მოდულები იზიარებენ ამ გაზომვას; მათი ხანგრძლივობები არ ჯამდება."
+msgstr "თითოეული მოდული შეიტანს მასში შემავალი ფაილის გაზომილ კომპილაციის ხანგრძლივობას. დაძმობილებული მოდულები იზიარებენ ამ გაზომვას; მათი ხანგრძლივობები არ ჯამდება."
 
 #: lib/tuist_web/live/build_entity_live.ex:772
 #, elixir-autogen, elixir-format
 msgid "Failed action executions"
-msgstr "შეუძლებელი მოქმედებების შესრულება"
+msgstr "წარუმატებელი მოქმედებების გაშვებები"
 
 #: lib/tuist_web/live/build_entity_live.ex:773
 #, elixir-autogen, elixir-format
 msgid "Failed compilations"
-msgstr "შეუძლებელი კომპილაციები"
+msgstr "წარუმატებელი კომპილაციები"
 
 #: lib/tuist_web/live/build_entity_live.ex:771
 #, elixir-autogen, elixir-format
 msgid "Failed task executions"
-msgstr "შეუძლებელი ამოცანების შესრულება"
+msgstr "წარუმატებელი დავალებების გაშვებები"
 
 #: lib/tuist_web/live/build_entity_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "File compilations"
-msgstr "ფაილების კომპილაცია"
+msgstr "ფაილების კომპილაციები"
 
 #: lib/tuist_web/live/build_entity_live.ex:764
 #, elixir-autogen, elixir-format
@@ -2926,27 +2926,27 @@ msgstr "ამოცანების შესრულებები"
 #: lib/tuist_web/live/build_entity_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "Module compilation records derived from compiled files, including those without measured timing. A file defining multiple modules contributes one record per module, not independent compilation work."
-msgstr "მოდულის კომპილაციის ჩანაწერები მიღებულია კომპილირებული ფაილებიდან, მათ შორის ისეთები, რომელთა დროც არ არის გაზომილი. ფაილი, რომელიც განსაზღვრავს რამდენიმე მოდულს, თითოეული მოდულისთვის ერთ ჩანაწერს ქმნის და არა დამოუკიდებელ კომპილაციურ სამუშაოს."
+msgstr "მოდულის კომპილაციის ჩანაწერები, მიღებული კომპილირებული ფაილებიდან, მათ შორის ისეთებიც, რომელთა დრო არ გაზომილა. ერთი ფაილი, რომელიც რამდენიმე მოდულს განსაზღვრავს, თითოეული მოდულისთვის ერთ ჩანაწერს ქმნის და არა ცალკე კომპილაციურ სამუშაოს."
 
 #: lib/tuist_web/live/build_entity_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Reported file compilations, including those without a measured duration."
-msgstr "ფაილის კომპილაციები, მათ შორის ისეთები, რომელთა ხანგრძლივობაც არ არის გაზომილი."
+msgstr "შეტყობინებული ფაილების კომპილაციები, მათ შორის ისეთებიც, რომელთა ხანგრძლივობა არ გაზომილა."
 
 #: lib/tuist_web/live/build_entity_live.ex:793
 #, elixir-autogen, elixir-format
 msgid "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
-msgstr "ამოცანების შესრულებები ჩაწერილი წარმატებით ან შეცდომით. კეშიდან ამოღებები, გამოტოვებული, აქტუალური და წყაროს გარეშე დარჩენილი ამოცანები გამორიცხულია, დროის ხელმისაწვდომობის მიუხედავად."
+msgstr "ამოცანების შესრულებები ჩაწერილი წარმატებით ან შეცდომით. ქეშში მოხვედრა, გამოტოვებული, უცვლელი და წყაროს გარეშე ამოცანები გამორიცხულია, დროის ხელმისაწვდომობის მიუხედავად."
 
 #: lib/tuist_web/live/build_entity_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
-msgstr "კეშირებადი მოქმედებების შესრულებები ჩაწერილი წარმატებით ან შეცდომით. კეშირებული, გამოტოვებული, გაუქმებული და უცნობი შედეგები გამორიცხულია, დროის ხელმისაწვდომობის მიუხედავად."
+msgstr "ქეშში არმოხვედრილი მოქმედებების შესრულებები ჩაწერილი წარმატებით ან შეცდომით. ქეშირებული, გამოტოვებული, გაუქმებული და უცნობი შედეგები გამორიცხულია, დროის ხელმისაწვდომობის მიუხედავად."
 
 #: lib/tuist_web/live/build_entity_live.ex:786
 #, elixir-autogen, elixir-format
 msgid "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
-msgstr "BEP-ით შეტყობინებული მოქმედებების შესრულებები, არა კეშის ძიება. სრული შესრულების დასაფარად ყველა მოქმედება უნდა იყოს გამოქვეყნებული; დროის მონაცემების არარსებობის შემთხვევაში ისინი მაინც ხელმიუწვდომელი რჩება."
+msgstr "BEP-ით შეტყობინებული მოქმედებების შესრულებები, არა ქეშის ძიება. სრული შესრულების დასაფარად ყველა მოქმედება უნდა გამოქვეყნდეს; დროის მონაცემების არარსებობის შემთხვევაში ისინი ხელმიუწვდომელი რჩება."
 
 #: lib/tuist_web/live/build_entity_live.ex:597
 #, elixir-autogen, elixir-format
@@ -2957,7 +2957,7 @@ msgstr "ძირითადი გამომავალი"
 #: lib/tuist_web/live/build_entity_live.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Last ran at"
-msgstr "ბოლო გაშვების დრო"
+msgstr "ბოლო გაშვება"
 
 #: lib/tuist_web/live/build_entity_live.html.heex:430
 #, elixir-autogen, elixir-format
@@ -2967,98 +2967,98 @@ msgstr "ბოლო სტატუსი"
 #: lib/tuist_web/live/build_entity_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Distinct actions with recorded activity during the selected period. The chart shows distinct actions per day, not a cumulative total."
-msgstr "არჩეულ პერიოდში ჩაწერილი აქტივობის მქონე განსხვავებული ქმედებები. დიაგრამა აჩვენებს განსხვავებულ ქმედებებს დღის მიხედვით და არა ჯამურ რაოდენობას."
+msgstr "არჩეულ პერიოდში აქტივობის ჩანაწერების მქონე განსხვავებული ქმედებები. დიაგრამა აჩვენებს განსხვავებულ ქმედებებს დღის მიხედვით და არა ჯამურ რაოდენობას."
 
 #: lib/tuist_web/live/build_entity_live.ex:865
 #, elixir-autogen, elixir-format
 msgid "Distinct files with recorded activity during the selected period. The chart shows distinct files per day, not a cumulative total."
-msgstr "არჩეულ პერიოდში ჩაწერილი აქტივობის მქონე განსხვავებული ფაილები. დიაგრამა აჩვენებს განსხვავებულ ფაილებს დღის მიხედვით და არა ჯამურ რაოდენობას."
+msgstr "არჩეულ პერიოდში აქტივობის ჩანაწერების მქონე განსხვავებული ფაილები. დიაგრამა აჩვენებს განსხვავებულ ფაილებს დღის მიხედვით და არა ჯამურ რაოდენობას."
 
 #: lib/tuist_web/live/build_entity_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Distinct modules with recorded activity during the selected period. The chart shows distinct modules per day, not a cumulative total."
-msgstr "არჩეულ პერიოდში ჩაწერილი აქტივობის მქონე განსხვავებული მოდულები. დიაგრამა აჩვენებს განსხვავებულ მოდულებს დღის მიხედვით და არა ჯამურ რაოდენობას."
+msgstr "არჩეულ პერიოდში აქტივობის ჩანაწერების მქონე განსხვავებული მოდულები. დიაგრამა აჩვენებს განსხვავებულ მოდულებს დღის მიხედვით და არა ჯამურ რაოდენობას."
 
 #: lib/tuist_web/live/build_entity_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks with recorded activity during the selected period. The chart shows distinct tasks per day, not a cumulative total."
-msgstr "არჩეულ პერიოდში ჩაწერილი აქტივობის მქონე განსხვავებული ამოცანები. დიაგრამა აჩვენებს განსხვავებულ ამოცანებს დღის მიხედვით და არა ჯამურ რაოდენობას."
+msgstr "არჩეულ პერიოდში აქტივობის ჩანაწერების მქონე განსხვავებული ამოცანები. დიაგრამა აჩვენებს განსხვავებულ ამოცანებს დღის მიხედვით და არა ჯამურ რაოდენობას."
 
 #: lib/tuist_web/live/build_entity_live.ex:927
 #, elixir-autogen, elixir-format
 msgid "Measured file compilation durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "არჩეულ პერიოდში გაზომილი ფაილების კომპილაციის ხანგრძლივობა. გამოტოვებული გაზომვები გამოირიცხება; ნამდვილად გაზომილი ნულოვანი მნიშვნელობები შედის."
+msgstr "ფაილების კომპილაციის გაზომილი ხანგრძლივობები არჩეული პერიოდის განმავლობაში. გამოტოვებული გაზომვები გამორიცხულია; ნამდვილი გაზომილი ნულები შეტანილია."
 
 #: lib/tuist_web/live/build_entity_live.ex:831
 #, elixir-autogen, elixir-format
 msgid "Recorded action execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "ჩაწერილი მოქმედებების შესრულების შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებად ან შეცდომად."
+msgstr "აღრიცხული მოქმედების შესრულების შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებებად ან შეცდომებად."
 
 #: lib/tuist_web/live/build_entity_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Recorded file compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "ჩაწერილი ფაილების კომპილაციის შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებად ან შეცდომად."
+msgstr "აღრიცხული ფაილის კომპილაციის შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებებად ან შეცდომებად."
 
 #: lib/tuist_web/live/build_entity_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Recorded module compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "ჩაწერილი მოდულების კომპილაციის შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებად ან შეცდომად."
+msgstr "აღრიცხული მოდულის კომპილაციის შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებებად ან შეცდომებად."
 
 #: lib/tuist_web/live/build_entity_live.ex:825
 #, elixir-autogen, elixir-format
 msgid "Recorded task execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "ჩაწერილი ამოცანების შესრულების შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებად ან შეცდომად."
+msgstr "აღრიცხული ამოცანის შესრულების შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებებად ან შეცდომებად."
 
 #: lib/tuist_web/live/build_entity_live.ex:920
 #, elixir-autogen, elixir-format
 msgid "Measured action durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "შერჩეულ პერიოდში გაზომილი მოქმედებების ხანგრძლივობა. გამოტოვებული გაზომვები გამორიცხულია; რეალურად გაზომილი ნულები ჩართულია."
+msgstr "შერჩეულ პერიოდში გაზომილი მოქმედებების ხანგრძლივობა. გამოტოვებული გაზომვები გამორიცხულია; რეალურად გაზომილი ნულები შეტანილია."
 
 #: lib/tuist_web/live/build_entity_live.ex:913
 #, elixir-autogen, elixir-format
 msgid "Measured task durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "შერჩეულ პერიოდში გაზომილი ამოცანების ხანგრძლივობა. გამოტოვებული გაზომვები გამორიცხულია; რეალურად გაზომილი ნულები ჩართულია."
+msgstr "შერჩეულ პერიოდში გაზომილი ამოცანების ხანგრძლივობა. გამოტოვებული გაზომვები გამორიცხულია; რეალურად გაზომილი ნულები შეტანილია."
 
 #: lib/tuist_web/live/build_entity_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "%{percentile} module build duration"
-msgstr "%{percentile} მოდულის აწყობის ხანგრძლივობა"
+msgstr "%{percentile} მოდულის ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/build_entity_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "Failed module builds"
-msgstr "მოდულის აწყობის შეცდომები"
+msgstr "ვერდიქტიანი მოდულის ბილდები"
 
 #: lib/tuist_web/live/build_entity_live.ex:899
 #, elixir-autogen, elixir-format
 msgid "Measured compilation time for module builds, not total build time. Cache resolutions and modules without compilation work do not contribute timing samples."
-msgstr "გაზომილია კომპილაციის დრო მოდულების აწყობისთვის, არა მთლიანი აწყობის დრო. ქეშის ამოხსნები და მოდულები კომპილაციის სამუშაოს გარეშე არ შეიტანება დროის ნიმუშებში."
+msgstr "მოცემულია მოდულების კომპილაციის დრო და არა სრული ბილდის დრო. ქეშში მოხვედრები და მოდულები, რომლებსაც კომპილაციის სამუშაო არ ჰქონდათ, არ შედიან დროის ნიმუშებში."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:83
 #, elixir-autogen, elixir-format
 msgid "Module build duration"
-msgstr "მოდულის აწყობის ხანგრძლივობა"
+msgstr "მოდულის ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/build_entity_live.ex:617
 #: lib/tuist_web/live/build_entity_live.ex:760
 #, elixir-autogen, elixir-format
 msgid "Module builds"
-msgstr "მოდულების აწყობა"
+msgstr "მოდულების ბილდები"
 
 #: lib/tuist_web/live/build_entity_live.ex:779
 #, elixir-autogen, elixir-format
 msgid "Module builds with recorded compilation work during the selected period. Module-cache resolutions and modules without compilation work are excluded."
-msgstr "მოდულების აწყობა ჩაწერილი კომპილაციის სამუშაოებით შერჩეულ პერიოდში. გამორიცხულია მოდულ-ქეშის ამოხსნები და მოდულები კომპილაციის სამუშაოს გარეშე."
+msgstr "მოდულების ბილდები ჩაწერილი კომპილაციის სამუშაოთი შერჩეულ პერიოდში. გამორიცხულია ქეშში მოხვედრები და მოდულები კომპილაციის სამუშაოს გარეშე."
 
 #: lib/tuist_web/live/build_entity_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Recorded module build failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "ჩაწერილი მოდულების აწყობის შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებულად ან შეცდომად."
+msgstr "ჩაწერილი მოდულების ბილდის შეცდომები შერჩეულ პერიოდში. უცნობი შედეგები არ ითვლება წარმატებად ან შეცდომად."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:21
 #, elixir-autogen, elixir-format
 msgid "Search actions..."
-msgstr "მოქმედებების ძიება..."
+msgstr "ქმედებების ძიება..."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:22
 #, elixir-autogen, elixir-format
@@ -3073,7 +3073,7 @@ msgstr "მოდულების ძიება..."
 #: lib/tuist_web/helpers/build_entity_labels.ex:20
 #, elixir-autogen, elixir-format
 msgid "Search tasks..."
-msgstr "ამოცანების ძიება..."
+msgstr "ამოცანების ძებნა..."
 
 #: lib/tuist_web/live/build_entity_live.ex:596
 #, elixir-autogen, elixir-format
@@ -3083,7 +3083,7 @@ msgstr "მოქმედების ტიპი"
 #: lib/tuist_web/helpers/build_entity_labels.ex:61
 #, elixir-autogen, elixir-format
 msgid "No builds in this period"
-msgstr "ამ პერიოდში აგებები არ არის"
+msgstr "ამ პერიოდში ბილდები არ არის"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:62
 #, elixir-autogen, elixir-format
@@ -3093,12 +3093,12 @@ msgstr "ამ პერიოდში კომპილაციები ა
 #: lib/tuist_web/helpers/build_entity_labels.ex:63
 #, elixir-autogen, elixir-format
 msgid "No executions in this period"
-msgstr "ამ პერიოდში შესრულებები არ არის"
+msgstr "ამ პერიოდში გაშვებები არ არის"
 
 #: lib/tuist_web/live/build_entity_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "No reported default-branch graph"
-msgstr "ნაგულისხმევი შტოს გრაფიკი არ არის მოწოდებული"
+msgstr "ნაგულისხმები შტოს გრაფიკი არ არის მოხსენებული"
 
 #: lib/tuist_web/live/build_entity_live.ex:660
 #, elixir-autogen, elixir-format
@@ -3108,7 +3108,7 @@ msgstr "არ არის კონფიგურირებული"
 #: lib/tuist_web/helpers/build_entity_labels.ex:65
 #, elixir-autogen, elixir-format
 msgid "Recent builds"
-msgstr "ბოლო აგებები"
+msgstr "ბოლო ბილდები"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:66
 #, elixir-autogen, elixir-format
@@ -3118,12 +3118,12 @@ msgstr "ბოლო კომპილაციები"
 #: lib/tuist_web/helpers/build_entity_labels.ex:67
 #, elixir-autogen, elixir-format
 msgid "Recent executions"
-msgstr "ბოლო შესრულებები"
+msgstr "ბოლო გაშვებები"
 
 #: lib/tuist_web/live/build_entity_live.ex:657
 #, elixir-autogen, elixir-format
 msgid "Latest recorded module count from a generated-project graph on the default branch (%{branch}) before the end of the selected period, independent of environment. The chart carries that reported count forward until another scoped snapshot arrives. Historical graphs without scoped count metadata remain unavailable."
-msgstr "არჩეული პერიოდის დასრულებამდე ნაგულისხმევ შტოზე (%{branch}) გენერირებული პროექტის გრაფიკიდან ბოლოს ჩაწერილი მოდულების რაოდენობა, გარემოს მიუხედავად. დიაგრამა ინარჩუნებს ამ ჩაწერილ რაოდენობას მანამ, სანამ არ მიიღებს ახალ შეზღუდულ სნეპშოტს. ისტორიული გრაფიკები შეზღუდული რაოდენობის მეტამონაცემების გარეშე ხელმიუწვდომელია."
+msgstr "არჩეული პერიოდის დასრულებამდე ნაგულისხმევ ბრენჩზე (%{branch}) გენერირებული პროექტის გრაფიკიდან მიღებული მოდულების უახლესი რაოდენობა, გარემოსგან დამოუკიდებლად. დიაგრამა აგრძელებს ამ მნიშვნელობის ჩვენებას, სანამ არ მიიღებს შემდეგ შესაბამის სნეპშოტს. ისტორიული გრაფიკები, რომლებსაც არ აქვთ შეზღუდული რაოდენობის მეტამონაცემები, ხელმიუწვდომელია."
 
 #: lib/tuist_web/components/build_metadata.ex:120
 #, elixir-autogen, elixir-format
@@ -3134,12 +3134,12 @@ msgstr "ხელმისაწვდომი ლოგიკური პრ�
 #: lib/tuist_web/components/build_metadata.ex:77
 #, elixir-autogen, elixir-format
 msgid "Build environment"
-msgstr "აგების გარემო"
+msgstr "აწყობის გარემო"
 
 #: lib/tuist_web/components/build_metadata.ex:132
 #, elixir-autogen, elixir-format
 msgid "CI job"
-msgstr "CI დავალება"
+msgstr "CI სამუშაო"
 
 #: lib/tuist_web/components/build_metadata.ex:131
 #, elixir-autogen, elixir-format
@@ -3189,7 +3189,7 @@ msgstr "მოწყობილობის მოდელი"
 #: lib/tuist_web/components/build_metadata.ex:130
 #, elixir-autogen, elixir-format
 msgid "Maximum Gradle workers"
-msgstr "Gradle-ის მაქსიმალური სამუშაო პროცესები"
+msgstr "Gradle worker-ების მაქსიმალური რაოდენობა"
 
 #: lib/tuist_web/components/build_metadata.ex:129
 #, elixir-autogen, elixir-format
@@ -3224,9 +3224,25 @@ msgstr "OS-ის მოხსენებული მეხსიერებ�
 #: lib/tuist_web/components/build_metadata.ex:133
 #, elixir-autogen, elixir-format
 msgid "Runner environment"
-msgstr "გამშვების გარემო"
+msgstr "რანერის გარემო"
 
 #: lib/tuist_web/components/build_metadata.ex:134
 #, elixir-autogen, elixir-format
 msgid "Runner name"
-msgstr "გამშვების სახელი"
+msgstr "რანერის სახელი"
+
+#: lib/tuist_web/live/build_run_live.html.heex:331
+#: lib/tuist_web/live/cargo_build_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Tuist CLI version"
+msgstr "Tuist CLI-ის ვერსია"
+
+#: lib/tuist_web/live/mix_build_live.html.heex:456
+#, elixir-autogen, elixir-format
+msgid "tuist_ex version"
+msgstr "tuist_ex-ის ვერსია"
+
+#: lib/tuist_web/live/build_run_live.html.heex:332
+#, elixir-autogen, elixir-format
+msgid "Tuist generator version"
+msgstr "Tuist გენერატორის ვერსია"

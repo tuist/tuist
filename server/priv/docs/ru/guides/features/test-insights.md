@@ -1,18 +1,18 @@
 ---
 {
-  "title": "Test Insights",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Identify flaky and slow tests in Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Test Insights."
+  "title": "Аналитика тестов",
+  "titleTemplate": ":title · Возможности · Руководства · Tuist",
+  "description": "Выявляйте нестабильные и медленные тесты в проектах на Xcode, Gradle, Bazel, Elixir и Rust с помощью аналитики тестов Tuist."
 }
 ---
 # Аналитика тестов {#test-insights}
 
-Используйте аналитику тестов для мониторинга состояния вашего набора тестов: выявляйте медленные тесты, отслеживайте нестабильные тесты и быстро разбирайтесь в причинах сбоев CI-запусков. В настоящее время поддерживаются Xcode, Gradle, Bazel, Elixir и Rust.
+Используйте аналитику тестов, чтобы следить за состоянием набора тестов: выявлять медленные тесты, отслеживать нестабильные тесты и быстро разбираться в причинах сбоев CI-запусков. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir и Rust.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Отслеживайте аналитику тестов Xcode, используя пост-действия схем и CLI Tuist."
+    details="Отслеживайте аналитику тестов Xcode с помощью пост-действий схем и CLI Tuist."
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
@@ -22,17 +22,17 @@
 />
   <.home_card
     title="Bazel"
-    details="Отслеживайте аналитику тестов Bazel, запуская тесты через tuist bazel test."
+    details="Отслеживайте аналитику тестов Bazel, запуская тесты через команду tuist bazel test."
     link="/guides/features/test-insights/bazel"
 />
   <.home_card
     title="Elixir"
-    details="Отслеживайте тесты вашего проекта на Elixir с помощью Hex-пакета Tuist."
+    details="Отслеживайте тесты вашего проекта на Elixir с помощью пакета Tuist для Hex."
     link="/guides/features/test-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="Отслеживайте результаты тестов Cargo, длительность наборов тестов и doctests, используя вашу обычную команду для тестирования."
+    details="Отслеживайте результаты тестов Cargo, длительность наборов тестов и doctests, используя вашу обычную команду запуска тестов."
     link="/guides/features/test-insights/rust"
 />
 </.home_cards>

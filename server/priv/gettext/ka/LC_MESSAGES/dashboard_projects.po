@@ -14,7 +14,7 @@ msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/xcode_overview_live.html.heex:1042
 #, elixir-autogen, elixir-format
 msgid "%{average_build_time}s"
-msgstr "%{average_build_time}წმ"
+msgstr "%{average_build_time} წმ"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:110
 #: lib/tuist_web/live/xcode_overview_live.html.heex:238
@@ -26,7 +26,7 @@ msgstr "%{binary_cache_effectiveness}%"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
-msgstr "%{duration}წმ"
+msgstr "%{duration} წმ"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:250
 #, elixir-autogen, elixir-format
@@ -74,7 +74,7 @@ msgstr "ნებისმიერი"
 #: lib/tuist_web/live/project_settings_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Anyone with the link"
-msgstr "ნებისმიერი, ვისაც აქვს ბმული"
+msgstr "ნებისმიერს, ვისაც აქვს ბმული"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:654
 #, elixir-autogen, elixir-format
@@ -84,7 +84,7 @@ msgstr "აპლიკაცია:"
 #: lib/tuist_web/live/project_settings_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
-msgstr "დარწმუნებული ხართ, რომ გსურთ ამის წაშლა?"
+msgstr "დარწმუნებული ხართ, რომ გსურთ წაშლა?"
 
 #: lib/tuist_web/live/bazel_overview_live.ex:188
 #: lib/tuist_web/live/bazel_overview_live.ex:450
@@ -104,12 +104,12 @@ msgstr "დარწმუნებული ხართ, რომ გსუ�
 #: lib/tuist_web/live/xcode_overview_live.html.heex:1110
 #, elixir-autogen, elixir-format
 msgid "Average build time"
-msgstr "აწყობის საშუალო დრო"
+msgstr "ბილდის საშუალო დრო"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to build a project as reported from Xcode post actions."
-msgstr "საშუალო დრო, რაც სჭირდება პროექტის აწყობას Xcode-ის post actions-ის მიხედვით."
+msgstr "Xcode-ის post-action-ებიდან მიღებული მონაცემების მიხედვით, პროექტის კომპილაციის საშუალო დრო."
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:451
 #, elixir-autogen, elixir-format
@@ -119,12 +119,12 @@ msgstr "ბინარული ქეში და შერჩევითი
 #: lib/tuist_web/live/xcode_overview_live.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "Build time"
-msgstr "აწყობის დრო"
+msgstr "ბილდის დრო"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Build time saved"
-msgstr "დაზოგილი აწყობის დრო"
+msgstr "დაზოგილი ბილდის დრო"
 
 #: lib/tuist_web/live/bazel_builds_live.ex:10
 #: lib/tuist_web/live/bazel_overview_live.ex:316
@@ -152,7 +152,7 @@ msgstr "Bundle-ის ინსტალაციის ზომა"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "Bundles"
-msgstr "Bundle-ები"
+msgstr "Bundles"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:936
 #: lib/tuist_web/live/bazel_invocations_live.ex:943
@@ -177,12 +177,12 @@ msgstr "CI"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "Cache effectiveness"
-msgstr "ქეშის ეფექტურობა"
+msgstr "ქეშის ეფექტიანობა"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
-msgstr "ქეშის ეფექტურობა წარმოადგენს მოდულის ქეშის და Xcode-ის ქეშის გაერთიანებულ hit rate-ს, რაც აჩვენებს იმ ქეშირებადი ელემენტების პროცენტულ მაჩვენებელს, რომლებიც ამოღებული იქნა ქეშიდან ხელახლა აწყობის ნაცვლად."
+msgstr "ქეშის ეფექტიანობა წარმოადგენს როგორც მოდულების ქეშის, ისე Xcode-ის ქეშის გაერთიანებულ hit rate-ს და აჩვენებს იმ ქეშირებადი ელემენტების პროცენტულ მაჩვენებელს, რომლებიც ამოღებული იქნა ქეშიდან ხელახლა აწყობის ნაცვლად."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:139
 #: lib/tuist_web/live/bazel_invocations_live.ex:236
@@ -256,7 +256,7 @@ msgstr "პროექტის წაშლა სამუდამოდ წ
 #: lib/tuist_web/live/project_settings_live.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Enter this project's name to confirm"
-msgstr "დაადასტურეთ ამ პროექტის სახელის შეყვანით"
+msgstr "დასადასტურებლად შეიყვანეთ ამ პროექტის სახელი"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:213
 #: lib/tuist_web/live/bazel_overview_live.ex:123
@@ -280,7 +280,7 @@ msgstr "გარემო:"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:933
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "წარუმატებელი აწყობები"
+msgstr "ვერდიხის ბილდები"
 
 #: lib/tuist_web/live/bazel_overview_live.ex:529
 #: lib/tuist_web/live/cargo_overview_live.ex:206
@@ -289,7 +289,7 @@ msgstr "წარუმატებელი აწყობები"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:508
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
-msgstr "წარუმატებელი გაშვებები"
+msgstr "ვერდიხის გაშვებები"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:8
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:8
@@ -320,7 +320,7 @@ msgstr "ინსტალაციის ზომა"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:986
 #, elixir-autogen, elixir-format
 msgid "Last 30 runs"
-msgstr "ბოლო 30 გაშვება"
+msgstr "ბოლო 40 გაშვება"
 
 #: lib/tuist_web/live/bazel_overview_live.ex:545
 #: lib/tuist_web/live/cargo_overview_live.ex:240
@@ -339,7 +339,7 @@ msgstr "ბოლო ურთიერთქმედება %{time}"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "უახლესი აპლიკაციის პრევიუები"
+msgstr "აპლიკაციის ბოლო პრივიუები"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:937
 #: lib/tuist_web/live/bazel_invocations_live.ex:944
@@ -388,14 +388,14 @@ msgstr "ჯერ არ არის ბანდლები"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "No previews yet"
-msgstr "ჯერ არ არის პრევიუები"
+msgstr "ჯერ არ არის პრივიუები"
 
 #: lib/tuist_web/live/cargo_overview_live.html.heex:176
 #: lib/tuist_web/live/once_overview_live.ex:424
 #: lib/tuist_web/live/xcode_overview_live.html.heex:991
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
-msgstr "ჯერ არ არის უახლესი ბილდები"
+msgstr "ჯერ არ არის ბოლო ბილდები"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:63
 #: lib/tuist_web/live/project_settings_live.html.heex:77
@@ -431,12 +431,12 @@ msgstr "წარმატებული გაშვებები"
 #: lib/tuist_web/live/project_settings_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Preview access"
-msgstr "პრივიუს ხელმისაწვდომობა"
+msgstr "პრივიუების ხელმისაწვდომობა"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:587
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "პრივიუსები"
+msgstr "პრივიუები"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:294
 #: lib/tuist_web/live/project_settings_live.html.heex:366
@@ -469,17 +469,17 @@ msgstr "პროექტის გადარქმევა"
 #: lib/tuist_web/live/project_settings_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "Rename your project?"
-msgstr "გადავარქვათ თქვენს პროექტს სახელი?"
+msgstr "გადავარქვათ პროექტი?"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:289
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
-msgstr "გადარქმევას შეიძლება ჰქონდეს მოულოდნელი შედეგები"
+msgstr "გადარქმევას შეიძლება მოჰყვეს მოულოდნელი შედეგები"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Renaming your project can have unintended side effects."
-msgstr "თქვენი პროექტის სახელის გადარქმევას შეიძლება ჰქონდეს დაუგეგმავი გვერდითი ეფექტები."
+msgstr "პროექტის სახელის შეცვლამ შეიძლება გამოიწვიოს დაუგეგმავი გვერდითი ეფექტები."
 
 #: lib/tuist_web/live/bazel_overview_live.ex:550
 #: lib/tuist_web/live/cargo_overview_live.html.heex:139
@@ -503,17 +503,17 @@ msgstr "პროექტების ძიება..."
 #: lib/tuist_web/live/xcode_overview_live.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness"
-msgstr "სელექციური ტესტების ეფექტურობა"
+msgstr "შერჩევითი ტესტირების ეფექტურობა"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
-msgstr "სელექციური ტესტების ეფექტურობა წარმოადგენს სელექციური ტესტების მოხვედრების შეფარდებას გამოტოვებულ სელექციურ ტესტებთან."
+msgstr "შერჩევითი ტესტირების ეფექტურობა წარმოადგენს შერჩევითი ტესტირების ქეშში მოხვედრების შეფარდებას გამოტოვებულ ტესტებთან."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Set your previews to be public or private by default."
-msgstr "დააყენეთ თქვენი პრივიუები საჯაროდ ან კერძოდ ნაგულისხმევად."
+msgstr "დააყენეთ თქვენი პრივიუები საჯაროდ ან პირადად ნაგულისხმევად."
 
 #: lib/tuist_web/live/project_settings_live.ex:30
 #: lib/tuist_web/live/project_settings_live.ex:33
@@ -542,7 +542,7 @@ msgstr "გვერდი, რომელსაც ეძებთ, არ ა
 #: lib/tuist_web/live/project_settings_live.html.heex:326
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
-msgstr "ამ ქმედების გაუქმება შეუძლებელია."
+msgstr "ეს ქმედება შეუქცევადია."
 
 #: lib/tuist_web/live/create_project_live.ex:48
 #, elixir-autogen, elixir-format
@@ -562,7 +562,7 @@ msgstr "Tuist-ის ლოგო"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:1033
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "მეტის ნახვა"
+msgstr "იხილეთ მეტი"
 
 #: lib/tuist_web/live/project_automation_live.ex:25
 #: lib/tuist_web/live/project_automations_live.ex:25
@@ -573,25 +573,25 @@ msgstr "მეტის ნახვა"
 #: lib/tuist_web/live/projects_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "თქვენ არ გაქვთ ამ ქმედების შესრულების უფლება."
+msgstr "არ გაქვთ უფლება ამ ქმედების შესრულებისა."
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:30
 #: lib/tuist_web/live/xcode_overview_live.ex:267
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "გასული თვის განმავლობაში"
+msgstr "წინა თვის შემდეგ"
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:27
 #: lib/tuist_web/live/xcode_overview_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "გასული კვირის განმავლობაში"
+msgstr "წინა კვირის შემდეგ"
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:28
 #: lib/tuist_web/live/xcode_overview_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "გასული წლის განმავლობაში"
+msgstr "წინა წლის შემდეგ"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:148
 #: lib/tuist_web/live/bazel_invocations_live.ex:245
@@ -616,7 +616,7 @@ msgstr "გამოყენება"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:881
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "მორგებული"
+msgstr "მორგება"
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:37
 #: lib/tuist_web/live/cargo_overview_live.ex:180
@@ -680,7 +680,7 @@ msgstr "კონფიგურაცია"
 #: lib/tuist_web/live/project_notifications_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Daily"
-msgstr "ყოველდღიურად"
+msgstr "ყოველდღე"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -704,7 +704,7 @@ msgstr "შენახვა"
 #: lib/tuist_web/live/project_notifications_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Send test report"
-msgstr "სატესტო ანგარიშის გაგზავნა"
+msgstr "ტესტის ანგარიშის გაგზავნა"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:151
 #, elixir-autogen, elixir-format
@@ -731,14 +731,14 @@ msgstr "საშუალო"
 #: lib/tuist_web/live/project_notifications_live.ex:637
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "აგების ხანგრძლივობა"
+msgstr "ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:607
 #: lib/tuist_web/live/bazel_overview_live.ex:170
 #: lib/tuist_web/live/project_notifications_live.ex:639
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "ქეშის მოხვედრის მაჩვენებელი"
+msgstr "ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:302
 #: lib/tuist_web/live/project_notifications_live.html.heex:533
@@ -750,7 +750,7 @@ msgstr "კატეგორია"
 #: lib/tuist_web/live/project_notifications_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Get notified when metrics regress"
-msgstr "მიიღეთ შეტყობინება, როცა მეტრიკები გაუარესდება"
+msgstr "მიიღეთ შეტყობინება მეტრიკების გაუარესებისას"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:140
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:257
@@ -765,7 +765,7 @@ msgstr "მეტრიკა"
 #: lib/tuist_web/live/project_notifications_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "Test duration"
-msgstr "ტესტირების ხანგრძლივობა"
+msgstr "ტესტის ხანგრძლივობა"
 
 #: lib/tuist_web/live/project_automations_live.ex:1065
 #: lib/tuist_web/live/project_automations_live.html.heex:264
@@ -801,7 +801,7 @@ msgstr "განრიგის კონფიგურაცია"
 #: lib/tuist_web/live/project_notifications_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Configure your report notifications"
-msgstr "შეტყობინებების კონფიგურაცია თქვენი ანგარიშისთვის"
+msgstr "შეტყობინებების კონფიგურაცია"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:393
 #: lib/tuist_web/live/project_notifications_live.html.heex:713
@@ -834,7 +834,7 @@ msgstr "ანგარიშები"
 #: lib/tuist_web/live/project_notifications_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Schedule"
-msgstr "გრაფიკი"
+msgstr "დაგეგმვა"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:205
 #, elixir-autogen, elixir-format
@@ -875,18 +875,18 @@ msgstr "საშუალო"
 #: lib/tuist_web/live/project_notifications_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "build time"
-msgstr "აწყობის დრო"
+msgstr "კომპილაციის დრო"
 
 #: lib/tuist_web/live/project_notifications_live.ex:778
 #: lib/tuist_web/live/project_notifications_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "builds"
-msgstr "აწყობები"
+msgstr "კომპილაციები"
 
 #: lib/tuist_web/live/project_notifications_live.ex:776
 #, elixir-autogen, elixir-format
 msgid "cache hit rate"
-msgstr "ქეშის მოხვედრის მაჩვენებელი"
+msgstr "ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/project_notifications_live.ex:773
 #, elixir-autogen, elixir-format
@@ -909,7 +909,7 @@ msgstr "შექმნა"
 #: lib/tuist_web/live/project_notifications_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Create alert rule"
-msgstr "განგაშის წესის შექმნა"
+msgstr "გაფრთხილების წესის შექმნა"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:260
 #: lib/tuist_web/live/project_notifications_live.html.heex:543
@@ -967,25 +967,25 @@ msgstr "ავტომატიზაციები"
 #: lib/tuist_web/live/projects_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "Build system"
-msgstr "აწყობის სისტემა"
+msgstr "აგების სისტემა"
 
 #: lib/tuist_web/live/create_project_live.ex:89
 #: lib/tuist_web/live/projects_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Select build system"
-msgstr "აირჩიეთ აგების სისტემა"
+msgstr "აირჩიეთ ბილდის სისტემა"
 
 #: lib/tuist_web/live/project_notifications_live.ex:667
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
-msgstr "გაფრთხილება, როდესაც ბოლო ბანდლის <strong>%{size_label}</strong> შტოზე <strong>%{git_branch}</strong> გაიზარდა <strong>%{deviation}%</strong>-ით წინა ბანდლთან შედარებით."
+msgstr "გაფრთხილება, როცა <strong>%{size_label}</strong> უახლესი ბანდლისა ბრენჩზე <strong>%{git_branch}</strong> გაიზარდა <strong>%{deviation}%</strong>-ით წინა ბანდლთან შედარებით."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:277
 #: lib/tuist_web/live/project_notifications_live.html.heex:378
 #: lib/tuist_web/live/project_notifications_live.html.heex:697
 #, elixir-autogen, elixir-format
 msgid "Branch"
-msgstr "შტო"
+msgstr "ბრენჩი"
 
 #: lib/tuist_web/live/project_notifications_live.ex:640
 #, elixir-autogen, elixir-format
@@ -1017,17 +1017,17 @@ msgstr "%{scheme} %{unit}"
 #: lib/tuist_web/live/project_notifications_live.ex:700
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{rolling_window_size} %{current_unit}</strong>-ის <strong>%{metric_category}</strong> შემცირდა <strong>%{deviation}%</strong>-ით წინა <strong>%{rolling_window_size} %{unit}</strong>-თან შედარებით."
+msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{rolling_window_size} %{current_unit}</strong>-ის <strong>%{metric_category}</strong> წინა <strong>%{rolling_window_size} %{unit}</strong>-თან შედარებით <strong>%{deviation}%</strong>-ით შემცირდა."
 
 #: lib/tuist_web/live/project_notifications_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{rolling_window_size} %{current_unit}</strong>-ის <strong>%{metric_category}</strong> გაიზარდა <strong>%{deviation}%</strong>-ით წინა <strong>%{rolling_window_size} %{unit}</strong>-თან შედარებით."
+msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{rolling_window_size} %{current_unit}</strong>-ის <strong>%{metric_category}</strong> წინა <strong>%{rolling_window_size} %{unit}</strong>-თან შედარებით <strong>%{deviation}%</strong>-ით გაიზარდა."
 
 #: lib/tuist_web/live/project_notifications_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
-msgstr "გაფრთხილება, როდესაც <strong>%{git_branch}</strong> შტოზე უახლესი <strong>%{bundle_name}</strong> ბანდლის <strong>%{size_label}</strong> გაიზარდა <strong>%{deviation}%</strong>-ით წინა ბანდლთან შედარებით."
+msgstr "გაფრთხილება, როდესაც <strong>%{git_branch}</strong> შტოზე უახლესი <strong>%{bundle_name}</strong> ბანდლის <strong>%{size_label}</strong> წინა ბანდლთან შედარებით <strong>%{deviation}%</strong>-ით გაიზარდა."
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:422
 #: lib/tuist_web/live/project_notifications_live.html.heex:752
@@ -1083,12 +1083,12 @@ msgstr "ყველა"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Baseline branch"
-msgstr "საბაზისო შტო"
+msgstr "საბაზისო ბრენჩი"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
-msgstr "PR-ების ბლოკირება, როდესაც ბანდლის ზომა აღემატება საბაზისო შტოსთან შედარებით დადგენილ ზღვარს"
+msgstr "პულების გაბლოკვა, როდესაც ბანდლის ზომა აღემატება საბაზისო ბრენჩთან შედარებით დადგენილ ზღვარს"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:209
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:266
@@ -1100,7 +1100,7 @@ msgstr "ბანდლის სახელი"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr "შექმენით ზღვარი PR-ების ბლოკირებისთვის, თუ ბანდლის ზომა აღემატება დადგენილ ლიმიტს"
+msgstr "შექმენით ზღვარი პულების გასაბლოკად, თუ ბანდლის ზომა ლიმიტს გადააჭარბებს"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:92
 #, elixir-autogen, elixir-format
@@ -1115,7 +1115,7 @@ msgstr "გადახრა %"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
-msgstr "ზომის ზღვრები არ არის მითითებული"
+msgstr "ზომის ზღვრები არ არის"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:49
 #, elixir-autogen, elixir-format
@@ -1145,12 +1145,12 @@ msgstr "GitHub-თან დაკავშირება"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
-msgstr "შეაერთეთ Tuist GitHub App, რათა PR-ებზე ჩაირთოს ბანდლის ზომის შემოწმება."
+msgstr "შეუერთეთ Tuist GitHub App, რათა PR-ებში ჩართოთ ბანდლის ზომის შემოწმების გაშვებები."
 
 #: lib/tuist_web/live/create_project_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Create a Tuist project"
-msgstr "Tuist პროექტის შექმნა"
+msgstr "Tuist-ის პროექტის შექმნა"
 
 #: lib/tuist_web/live/create_project_live.ex:68
 #, elixir-autogen, elixir-format
@@ -1194,7 +1194,7 @@ msgstr "ლეიბლის დამატება: %{label}"
 #: lib/tuist_web/live/project_automations_live.html.heex:687
 #, elixir-autogen, elixir-format
 msgid "Add recovery action"
-msgstr "აღდგენის ქმედების დამატება"
+msgstr "აღდგენის მოქმედების დამატება"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:601
 #: lib/tuist_web/live/project_automations_live.html.heex:984
@@ -1213,7 +1213,7 @@ msgstr "მდგომარეობის შეცვლა"
 #: lib/tuist_web/live/project_automations_live.html.heex:865
 #, elixir-autogen, elixir-format
 msgid "Change state to"
-msgstr "მდგომარეობის შეცვლა შემდეგზე:"
+msgstr "მდგომარეობის შეცვლა მდგომარეობაზე"
 
 #: lib/tuist_web/live/project_automation_live.html.heex:44
 #, elixir-autogen, elixir-format
@@ -1223,7 +1223,7 @@ msgstr "პირობა"
 #: lib/tuist_web/live/project_automations_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Continuously monitor tests and respond with automated actions."
-msgstr "ტესტების მუდმივი მონიტორინგი და ავტომატური ქმედებებით რეაგირება."
+msgstr "ტესტების უწყვეტი მონიტორინგი და ავტომატური მოქმედებებით რეაგირება."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:72
 #, elixir-autogen, elixir-format
@@ -1276,14 +1276,14 @@ msgstr "არასტაბილური გაშვებები"
 #: lib/tuist_web/live/project_automations_live.html.heex:731
 #, elixir-autogen, elixir-format
 msgid "Mark as flaky"
-msgstr "მონიშნეთ როგორც არასტაბილური"
+msgstr "მონიშნეთ არასტაბილურად"
 
 #: lib/tuist_web/live/project_automations_live.ex:752
 #: lib/tuist_web/live/project_automations_live.html.heex:613
 #: lib/tuist_web/live/project_automations_live.html.heex:996
 #, elixir-autogen, elixir-format
 msgid "Mark test as flaky"
-msgstr "მონიშნეთ ტესტი როგორც არასტაბილური"
+msgstr "მონიშნეთ ტესტი არასტაბილურად"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:571
 #: lib/tuist_web/live/project_automations_live.html.heex:954
@@ -1294,7 +1294,7 @@ msgstr "შეტყობინების შაბლონი"
 #: lib/tuist_web/live/project_automations_live.html.heex:1129
 #, elixir-autogen, elixir-format
 msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
-msgstr "ჯერ არ არის ავტომატიზაციები. დაამატეთ ერთი, რათა დაიწყოთ ტესტის შემთხვევის მდგომარეობის ავტომატურად მართვა პირობების მიხედვით."
+msgstr "ჯერ არ არის ავტომატიზაციები. დაამატეთ ერთი, რათა დაიწყოთ სატესტო შემთხვევის მდგომარეობის ავტომატური მართვა პირობების მიხედვით."
 
 #: lib/tuist_web/live/project_automation_live.html.heex:56
 #: lib/tuist_web/live/project_automations_live.html.heex:651
@@ -1321,7 +1321,7 @@ msgstr "მოქმედებების შესრულება, რო
 #: lib/tuist_web/live/project_automations_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Run these actions for each test case that meets the condition"
-msgstr "შეასრულეთ ეს მოქმედებები თითოეული ტესტის შემთხვევისთვის, რომელიც შეესაბამება პირობას"
+msgstr "შეასრულეთ ეს მოქმედებები ყოველი იმ სატესტო შემთხვევისთვის, რომელიც აკმაყოფილებს პირობას"
 
 #: lib/tuist_web/live/project_automations_live.ex:967
 #: lib/tuist_web/live/project_automations_live.html.heex:466
@@ -1330,7 +1330,7 @@ msgstr "შეასრულეთ ეს მოქმედებები თ
 #: lib/tuist_web/live/project_automations_live.html.heex:917
 #, elixir-autogen, elixir-format
 msgid "Send Slack notification"
-msgstr "Slack-ის გაფრთხილების გაგზავნა"
+msgstr "Slack-ში შეტყობინების გაგზავნა"
 
 #: lib/tuist_web/live/project_automations_live.ex:986
 #, elixir-autogen, elixir-format
@@ -1341,12 +1341,12 @@ msgstr "Slack: არ არის კონფიგურირებული
 #: lib/tuist_web/live/project_automations_live.html.heex:957
 #, elixir-autogen, elixir-format
 msgid "Supports Slack"
-msgstr "მხარს უჭერს Slack-ს"
+msgstr "მხარდაჭერილია Slack"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Test case automations"
-msgstr "ტესტის შემთხვევების ავტომატიზაცია"
+msgstr "სატესტო შემთხვევის ავტომატიზაციები"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1149
 #, elixir-autogen, elixir-format
@@ -1370,14 +1370,14 @@ msgstr "უცნობი"
 #: lib/tuist_web/live/project_automations_live.html.heex:714
 #, elixir-autogen, elixir-format
 msgid "Unmark as flaky"
-msgstr "მოხსენით როგორც არასტაბილური"
+msgstr "მოხსენი როგორც არასტაბილური"
 
 #: lib/tuist_web/live/project_automations_live.ex:755
 #: lib/tuist_web/live/project_automations_live.html.heex:617
 #: lib/tuist_web/live/project_automations_live.html.heex:1000
 #, elixir-autogen, elixir-format
 msgid "Unmark test as flaky"
-msgstr "მოხსენით ტესტი, როგორც არასტაბილური"
+msgstr "მოხსენი ტესტი როგორც არასტაბილური"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:123
 #: lib/tuist_web/live/project_automations_live.html.heex:138
@@ -1393,7 +1393,7 @@ msgstr "ტრიგერის გარეშე"
 #: lib/tuist_web/live/project_automations_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "e.g. Auto-quarantine flaky tests"
-msgstr "მაგ., არასტაბილური ტესტების ავტომატური კარანტინი"
+msgstr "მაგ., არასტაბილური ტესტების ავტომატურად კარანტინში მოთავსება"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:582
 #: lib/tuist_web/live/project_automations_live.html.heex:965
@@ -1479,7 +1479,7 @@ msgstr "როდესაც არასტაბილურობის მ�
 #: lib/tuist_web/live/project_automations_live.ex:1013
 #, elixir-autogen, elixir-format
 msgid "When flaky runs %{symbol} %{threshold} over %{window}"
-msgstr "როდესაც არასტაბილური გაშვებები %{symbol} %{threshold}-ს აღემატება %{window}-ის განმავლობაში"
+msgstr "როდესაც არასტაბილური გაშვებები %{symbol} %{threshold}-ს აჭარბებს %{window}-ის განმავლობაში"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:308
 #: lib/tuist_web/live/project_automations_live.html.heex:808
@@ -1519,17 +1519,17 @@ msgstr "1–%{max}"
 #: lib/tuist_web/live/project_automations_live.ex:923
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is manually flagged as flaky."
-msgstr "აქტიურდება, როდესაც ტესტი ხელით მონიშნულია როგორც არასტაბილური."
+msgstr "აქტიურდება, როცა ტესტი ხელით მონიშნება როგორც არასტაბილური."
 
 #: lib/tuist_web/live/project_automations_live.ex:932
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is muted (still runs, failures ignored)."
-msgstr "აქტიურდება, როდესაც ტესტი ჩუმდება (გაშვება გრძელდება, შეცდომები უგულებელყოფილია)."
+msgstr "აქტიურდება, როდესაც ტესტი ჩაყუჩებულია (გაშვება გრძელდება, შეცდომები უგულებელყოფილია)."
 
 #: lib/tuist_web/live/project_automations_live.ex:935
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is skipped entirely."
-msgstr "აქტიურდება, როდესაც ტესტი სრულიად გამოტოვებულია."
+msgstr "აქტიურდება, როდესაც ტესტი სრულად გამოტოვებულია."
 
 #: lib/tuist_web/live/project_automations_live.ex:929
 #, elixir-autogen, elixir-format
@@ -1539,12 +1539,12 @@ msgstr "აქტიურდება, როდესაც ტესტი �
 #: lib/tuist_web/live/project_automations_live.ex:926
 #, elixir-autogen, elixir-format
 msgid "Fires when the flaky flag is manually removed."
-msgstr "აქტიურდება, როდესაც არასტაბილურობის ნიშანი ხელით მოხსნილია."
+msgstr "აქტიურდება, როდესაც არასტაბილურობის ნიშანი ხელით მოიხსნება."
 
 #: lib/tuist_web/live/project_automations_live.ex:911
 #, elixir-autogen, elixir-format
 msgid "Marked as flaky"
-msgstr "მონიშნულია როგორც არასტაბილური"
+msgstr "მონიშნულია, როგორც არასტაბილური"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:333
 #, elixir-autogen, elixir-format
@@ -1554,17 +1554,17 @@ msgstr "ამ მოვლენებზე"
 #: lib/tuist_web/live/project_automations_live.ex:914
 #, elixir-autogen, elixir-format
 msgid "State changed to Enabled"
-msgstr "მდგომარეობა შეიცვალა ჩართულად"
+msgstr "მდგომარეობა შეიცვალა ჩართულზე"
 
 #: lib/tuist_web/live/project_automations_live.ex:916
 #, elixir-autogen, elixir-format
 msgid "State changed to Muted"
-msgstr "მდგომარეობა შეიცვალა ჩუმად"
+msgstr "მდგომარეობა შეიცვალა ჩაყუჩებულზე"
 
 #: lib/tuist_web/live/project_automations_live.ex:918
 #, elixir-autogen, elixir-format
 msgid "State changed to Skipped"
-msgstr "სტატუსი შეიცვალა გამოტოვებულად"
+msgstr "მდგომარეობა შეიცვალა გამოტოვებულად"
 
 #: lib/tuist_web/live/project_automations_live.ex:908
 #: lib/tuist_web/live/project_automations_live.html.heex:170
@@ -1575,17 +1575,17 @@ msgstr "ტესტი განახლდა"
 #: lib/tuist_web/live/project_automations_live.ex:912
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
-msgstr "არასტაბილურად აღნიშვნა მოხსნილია"
+msgstr "მოხსნილია არასტაბილურის ნიშნული"
 
 #: lib/tuist_web/live/project_automations_live.ex:1040
 #, elixir-autogen, elixir-format
 msgid "When a test is updated"
-msgstr "როდესაც ტესტი განახლდება"
+msgstr "როცა ტესტი განახლდება"
 
 #: lib/tuist_web/live/project_automations_live.ex:1044
 #, elixir-autogen, elixir-format
 msgid "When a test is updated: %{events}"
-msgstr "როდესაც ტესტი განახლდება: %{events}"
+msgstr "როცა ტესტი განახლდება: %{events}"
 
 #: lib/tuist_web/live/projects_live.ex:376
 #, elixir-autogen, elixir-format
@@ -1596,12 +1596,12 @@ msgstr "ახალი პროექტი"
 #: lib/tuist_web/live/project_automations_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Test reliability"
-msgstr "ტესტის საიმედოობა"
+msgstr "ტესტების საიმედოობა"
 
 #: lib/tuist_web/live/project_notifications_live.ex:628
 #, elixir-autogen, elixir-format
 msgid "Branch is required."
-msgstr "საჭიროა შტო."
+msgstr "ბრანჩი სავალდებულოა."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
@@ -1611,22 +1611,22 @@ msgstr "ბრენჩის სახელი"
 #: lib/tuist_web/live/project_settings_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Default branch"
-msgstr "ნაგულისხმები ბრენჩი"
+msgstr "ნაგულისხმევი ბრენჩი"
 
 #: lib/tuist_web/live/project_settings_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Default branch updated."
-msgstr "ნაგულისხმები ბრენჩი განახლდა."
+msgstr "ნაგულისხმევი ბრენჩი განახლდა."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Edit default branch"
-msgstr "ნაგულისხმები ბრენჩის რედაქტირება"
+msgstr "ნაგულისხმევი ბრენჩის რედაქტირება"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
-msgstr "ბრენჩი, რომელსაც Tuist იყენებს როგორც საბაზისოს ანალიტიკისთვის, ინსაიტებისთვის და შედარებებისთვის."
+msgstr "ბრენჩი, რომელსაც Tuist იყენებს როგორც საბაზისო ხაზს ანალიტიკისთვის, ინსაიტებისთვის და შედარებებისთვის."
 
 #: lib/tuist_web/live/project_settings_live.ex:121
 #, elixir-autogen, elixir-format
@@ -1636,7 +1636,7 @@ msgstr "ველი არ შეიძლება იყოს ცარი�
 #: lib/tuist_web/live/project_automations_live.ex:621
 #, elixir-autogen, elixir-format
 msgid "This automation uses an unsupported trigger configuration. Edit it before enabling it."
-msgstr "ეს ავტომატიზაცია იყენებს მხარდაუჭერელ ტრიგერის კონფიგურაციას. ჩართვამდე შეცვალეთ ის."
+msgstr "ეს ავტომატიზაცია იყენებს მხარდაუჭერელ ტრიგერის კონფიგურაციას. ჩართვამდე შეასწორეთ ის."
 
 #: lib/tuist_web/live/project_automation_live.ex:90
 #, elixir-autogen, elixir-format
@@ -1684,7 +1684,7 @@ msgstr "ავტომატიზაცია ვერ მოიძებნ�
 #: lib/tuist_web/live/project_automation_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "Automation renamed"
-msgstr "ავტომატიზაციას გადაერქვა სახელი"
+msgstr "ავტომატიზაციას სახელი გადაერქვა"
 
 #: lib/tuist_web/live/project_automation_live.ex:78
 #, elixir-autogen, elixir-format
@@ -1709,7 +1709,7 @@ msgstr "პირობა შეიცვალა"
 #: lib/tuist_web/live/project_automation_live.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Configuration changes to this automation, newest first."
-msgstr "ამ ავტომატიზაციის კონფიგურაციის ცვლილებები, უახლესი პირველი."
+msgstr "ამ ავტომატიზაციის კონფიგურაციის ცვლილებები, ახალიდან ძველისკენ."
 
 #: lib/tuist_web/live/project_automation_live.html.heex:38
 #, elixir-autogen, elixir-format
@@ -1721,7 +1721,7 @@ msgstr "მიმდინარე კონფიგურაცია"
 #: lib/tuist_web/live/project_automation_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Disabled"
-msgstr "გამორთულია"
+msgstr "გათიშულია"
 
 #: lib/tuist_web/live/project_automation_live.html.heex:65
 #, elixir-autogen, elixir-format
@@ -1731,12 +1731,12 @@ msgstr "რედაქტირების ისტორია"
 #: lib/tuist_web/live/project_automation_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Enabled after %{window}"
-msgstr "ჩაირთვება %{window}-ის შემდეგ"
+msgstr "აქტიურდება %{window}-ის შემდეგ"
 
 #: lib/tuist_web/live/project_automation_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Every %{cadence}"
-msgstr "ყოველ %{cadence}"
+msgstr "ყოველ %{cadence}-ზე"
 
 #: lib/tuist_web/live/project_automation_live.ex:118
 #, elixir-autogen, elixir-format
@@ -1746,12 +1746,12 @@ msgstr "საწყისი კონფიგურაცია"
 #: lib/tuist_web/live/project_automation_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "No configuration changes recorded yet"
-msgstr "კონფიგურაციის ცვლილებები ჯერ არ ჩაწერილა"
+msgstr "კონფიგურაციის ცვლილებები ჯერ არ დაფიქსირებულა"
 
 #: lib/tuist_web/live/project_automation_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Recovery actions changed"
-msgstr "აღდგენის ქმედებები შეიცვალა"
+msgstr "აღდგენის მოქმედებები შეიცვალა"
 
 #: lib/tuist_web/live/project_automation_live.ex:254
 #, elixir-autogen, elixir-format
@@ -1761,7 +1761,7 @@ msgstr "აღდგენის პირობა შეიცვალა"
 #: lib/tuist_web/live/project_automation_live.ex:231
 #, elixir-autogen, elixir-format
 msgid "Recovery disabled"
-msgstr "აღდგენა გამორთულია"
+msgstr "აღდგენა გათიშულია"
 
 #: lib/tuist_web/live/project_automation_live.ex:230
 #, elixir-autogen, elixir-format
@@ -1771,12 +1771,12 @@ msgstr "აღდგენა ჩართულია"
 #: lib/tuist_web/live/project_automation_live.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Review changes to this automation and see who changed its configuration."
-msgstr "გადახედეთ ცვლილებებს ამ ავტომატიზაციაში და ნახეთ, ვინ შეცვალა მისი კონფიგურაცია."
+msgstr "გადახედეთ ამ ავტომატიზაციის ცვლილებებს და ნახეთ, ვინ შეცვალა მისი კონფიგურაცია."
 
 #: lib/tuist_web/live/project_automation_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "Trigger actions changed"
-msgstr "მოქმედებების ტრიგერი შეიცვალა"
+msgstr "ტრიგერული მოქმედებები შეიცვალა"
 
 #: lib/tuist_web/live/project_automation_live.ex:100
 #: lib/tuist_web/live/project_automation_live.ex:104
@@ -1803,12 +1803,12 @@ msgstr "დაშბორდი"
 #: lib/tuist_web/live/project_automations_live.html.heex:833
 #, elixir-autogen, elixir-format
 msgid "Only apply to tests in these states"
-msgstr "გამოიყენეთ მხოლოდ ამ სტატუსის მქონე ტესტებზე"
+msgstr "გამოყენება მხოლოდ იმ ტესტებზე, რომლებიც ამ სტატუსშია"
 
 #: lib/tuist_web/live/project_notifications_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{rolling_window_size} %{current_unit}</strong>-ის <strong>%{metric_category}</strong> განშტოებაზე <strong>%{git_branch}</strong> შემცირდა <strong>%{deviation}%</strong>-ით წინა <strong>%{rolling_window_size} %{unit}</strong>-თან შედარებით."
+msgstr "გაფრთხილება, როცა <strong>%{git_branch}</strong> ბრენჩზე ბოლო <strong>%{rolling_window_size} %{current_unit}</strong>-ის განმავლობაში <strong>%{metric_category}</strong> შემცირდა <strong>%{deviation}%</strong>-ით წინა <strong>%{rolling_window_size} %{unit}</strong>-თან შედარებით."
 
 #: lib/tuist_web/live/project_notifications_live.ex:635
 #, elixir-autogen, elixir-format
@@ -1829,7 +1829,7 @@ msgstr "დამატება"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Add approver"
-msgstr "დამტკიცებლის დამატება"
+msgstr "დამტკიცების პირის დამატება"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:315
 #, elixir-autogen, elixir-format
@@ -1839,7 +1839,7 @@ msgstr "ნებისმიერი"
 #: lib/tuist_web/live/project_bundle_settings_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "Anyone with write access to the repository."
-msgstr "რეპოზიტორიზე წვდომის მქონე ნებისმიერი პირი."
+msgstr "რეპოზიტორიაში წვდომის უფლების მქონე ნებისმიერი პირი."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:477
 #, elixir-autogen, elixir-format
@@ -1849,22 +1849,22 @@ msgstr "დასტურები"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:522
 #, elixir-autogen, elixir-format
 msgid "Approvers"
-msgstr "დამტკიცებლები"
+msgstr "დამტკიცების პირები"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Choose who can accept a bundle size increase that exceeded a threshold."
-msgstr "აირჩიეთ, ვის შეუძლია დაამტკიცოს ბანდლის ზომის ზრდა, რომელიც ზღვარს გადააჭარბებს."
+msgstr "აირჩიეთ, ვის შეუძლია დაამტკიცოს ბანდლის ზომის ზრდა, რომელმაც გადააჭარბა ზღვარს."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
-msgstr "ჯერ მიამაგრეთ Tuist GitHub App ამ პროექტს, რათა მომხმარებლის სახელი შემოწმდეს GitHub-თან."
+msgstr "ჯერ დააკავშირეთ Tuist GitHub App ამ პროექტთან, რათა მომხმარებლის სახელი შემოწმდეს GitHub-თან მიმართებაში."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:305
 #, elixir-autogen, elixir-format
 msgid "Enter a valid GitHub username that isn't already on the list."
-msgstr "შეიყვანეთ სწორი GitHub-ის მომხმარებლის სახელი, რომელიც ჯერ არ არის სიაში."
+msgstr "შეიყვანეთ მოქმედი GitHub-ის მომხმარებლის სახელი, რომელიც ჯერ არ არის სიაში."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:549
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:592
@@ -1885,48 +1885,48 @@ msgstr "დამტკიცებლები არ არიან"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Nobody can accept a size increase until a GitHub username is added"
-msgstr "GitHub-ის მომხმარებლის სახელის დამატებამდე ზომის ზრდის მიღება არავის შეუძლია"
+msgstr "GitHub-ის მომხმარებლის სახელის დამატებამდე ზომის ზრდას ვერავინ დაამტკიცებს"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "Only the GitHub usernames you add below."
-msgstr "მხოლოდ ქვემოთ დამატებული GitHub-ის მომხმარებლის სახელები."
+msgstr "მხოლოდ ქვემოთ დამატებული GitHub-ის მომხმარებლების სახელები."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:316
 #, elixir-autogen, elixir-format
 msgid "Selected GitHub users"
-msgstr "შერჩეული GitHub მომხმარებლები"
+msgstr "შერჩეული GitHub-ის მომხმარებლები"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:307
 #: lib/tuist_web/live/project_bundle_settings_live.ex:312
 #, elixir-autogen, elixir-format
 msgid "The approver could not be added."
-msgstr "დამტკიცების უფლების მქონე პირის დამატება ვერ მოხერხდა."
+msgstr "დამტკიცებლის დამატება ვერ მოხერხდა."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
-msgstr "ეს პირი შეუძლია დაეთანხმოს ბანდლის ზომის ზრდას, რომელმაც გადააჭარბა ზღვარს, pull request-ზე შემოწმების გაშვებისას."
+msgstr "ეს პირს შეუძლია მიიღოს ბანდლის ზომის ისეთი ზრდა, რომელიც აღემატება ზღვარს, pull request-ზე შემოწმების გაშვებიდან."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "Who can accept"
-msgstr "ვის შეუძლია დათანხმება"
+msgstr "ვინ შეუძლია დათანხმება"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "Couldn't reach GitHub to check that username. Try again in a moment."
-msgstr "GitHub-თან დაკავშირება ვერ მოხერხდა ამ მომხმარებლის სახელის შესამოწმებლად. სცადეთ ხელახლა რამდენიმე წამში."
+msgstr "GitHub-თან ვერ დავუკავშირდით მომხმარებლის სახელის შესამოწმებლად. სცადეთ თავიდან მოგვიანებით."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "That is not a valid GitHub username."
-msgstr "ეს არ არის სწორი GitHub-ის მომხმარებლის სახელი."
+msgstr "ეს არ არის მოქმედი GitHub-ის მომხმარებლის სახელი."
 
 #: lib/tuist_web/live/project_automations_live.ex:1026
 #, elixir-autogen, elixir-format
 msgid "When test reliability on the default branch %{symbol} %{threshold}% over %{window}"
-msgstr "როდესაც ტესტების საიმედოობა ძირითად შტოზე %{symbol} %{threshold}% %{window}-ის განმავლობაში"
+msgstr "როდესაც ტესტების სანდოობა ნაგულისხმევ ბრენჩზე %{symbol} %{threshold}% %{window}-ის განმავლობაში"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:437
 #: lib/tuist_web/live/bazel_cache_live.ex:466
@@ -1938,13 +1938,13 @@ msgstr "როდესაც ტესტების საიმედოო�
 #: lib/tuist_web/live/once_cache_live.ex:683
 #, elixir-autogen, elixir-format
 msgid "Action cache hit rate"
-msgstr "მოქმედების ქეშის მოხვედრის მაჩვენებელი"
+msgstr "მოქმედებების ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:479
 #: lib/tuist_web/live/once_run_live.ex:649
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups"
-msgstr "ქეშის ძიების ოპერაციები"
+msgstr "მოქმედების ქეშში მოხვედრის ძიებები"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:492
 #: lib/tuist_web/live/bazel_invocations_live.ex:575
@@ -1975,12 +1975,12 @@ msgstr "ხანგრძლივობა"
 #: lib/tuist_web/live/once_runs_live.ex:1343
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr "ვერ მოხერხდა"
+msgstr "ვერცხე"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Invocation success rate"
-msgstr "გამოძახებების წარმატების მაჩვენებელი"
+msgstr "გამოძახების წარმატების მაჩვენებელი"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:58
 #: lib/tuist_web/live/bazel_invocations_live.ex:23
@@ -1991,7 +1991,7 @@ msgstr "გამოძახებები"
 #: lib/tuist_web/live/bazel_invocations_live.ex:886
 #, elixir-autogen, elixir-format
 msgid "No cache lookups"
-msgstr "ქეშის ძიების ოპერაციები არ არის"
+msgstr "ქეშში მოხვედრის ძიებები არ არის"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:799
 #: lib/tuist_web/live/bazel_invocations_live.ex:583
@@ -2016,22 +2016,22 @@ msgstr "წარმატებული"
 #: lib/tuist_web/live/once_runs_live.ex:441
 #, elixir-autogen, elixir-format
 msgid "The share of completed commands with a zero exit code."
-msgstr "შესრულებული ბრძანებების წილი ნულოვანი გასვლის კოდით."
+msgstr "ნულოვანი გასვლის კოდით დასრულებული ბრძანებების წილი."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "A square image that represents the project. PNG, JPEG, or WebP up to 2 MB."
-msgstr "კვადრატული სურათი, რომელიც წარმოადგენს პროექტს. PNG, JPEG ან WebP ფორმატში, 2 მბ-მდე."
+msgstr "პროექტის ამსახველი კვადრატული გამოსახულება. PNG, JPEG ან WebP, ზომაში 2 MB-მდე."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Cancel selected file"
-msgstr "გაუქმება შერჩეული ფაილის"
+msgstr "შერჩეული ფაილის გაუქმება"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Choose file"
-msgstr "ფაილის არჩევა"
+msgstr "აირჩიეთ ფაილი"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:188
 #, elixir-autogen, elixir-format
@@ -2041,7 +2041,7 @@ msgstr "მიმდინარე პროექტის ლოგო"
 #: lib/tuist_web/live/project_settings_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Logo must be 2 MB or smaller."
-msgstr "ლოგო უნდა იყოს 2 მბ ან ნაკლები."
+msgstr "ლოგოს ზომა უნდა იყოს 2 MB ან ნაკლები."
 
 #: lib/tuist_web/live/project_settings_live.ex:202
 #: lib/tuist_web/live/project_settings_live.ex:248
@@ -2087,12 +2087,12 @@ msgstr "წავშალოთ მიმდინარე პროექტ�
 #: lib/tuist_web/live/project_settings_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "Select a logo before uploading."
-msgstr "ატვირთვამდე აირჩიეთ ლოგო."
+msgstr "ლოგოს ატვირთვამდე შეარჩიეთ ის."
 
 #: lib/tuist_web/live/project_settings_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "The selected file couldn't be uploaded."
-msgstr "არჩეული ფაილის ატვირთვა ვერ მოხერხდა."
+msgstr "შერჩეული ფაილის ატვირთვა ვერ მოხერხდა."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:794
 #: lib/tuist_web/live/bazel_invocation_live.ex:813
@@ -2123,30 +2123,30 @@ msgstr "მოქმედების ქეშის ძებნა"
 #: lib/tuist_web/live/bazel_invocation_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups that did not find a result in the remote cache."
-msgstr "მოქმედების ქეშის ძებნები, რომლებმაც ვერ იპოვეს შედეგი დაშორებულ ქეშში."
+msgstr "მოქმედების ქეშის ძებნები, რომლებმაც დისტანციურ ქეშში შედეგი არ იპოვეს."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups that found a result in the remote cache."
-msgstr "მოქმედების ქეშის ძებნები, რომლებმაც იპოვეს შედეგი დაშორებულ ქეშში."
+msgstr "მოქმედების ქეშის ძებნები, რომლებმაც დისტანციურ ქეშში შედეგი იპოვეს."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:471
 #: lib/tuist_web/live/once_run_live.ex:641
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups:"
-msgstr "მოქმედებების კეშის ძიება:"
+msgstr "მოქმედების ქეშის ძიება:"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:364
 #: lib/tuist_web/live/once_run_live.ex:530
 #, elixir-autogen, elixir-format
 msgid "Action hits"
-msgstr "მოქმედებების წარმატებული შედეგები"
+msgstr "მოქმედების ქეშში მოხვედრა"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:376
 #: lib/tuist_web/live/once_run_live.ex:542
 #, elixir-autogen, elixir-format
 msgid "Action misses"
-msgstr "მოქმედებების წარუმატებელი შედეგები"
+msgstr "მოქმედების გამოტოვება ქეშში"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:708
 #, elixir-autogen, elixir-format
@@ -2169,25 +2169,25 @@ msgstr "ატვირთული შინაარსის ობიექ�
 #: lib/tuist_web/live/once_runs_live.ex:1093
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "აგების საშუალო ხანგრძლივობა"
+msgstr "საშ. ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:715
 #: lib/tuist_web/live/once_cache_live.ex:781
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
-msgstr "კეშში მოხვედრის საშუალო მაჩვენებელი"
+msgstr "ქეშში მოხვედრის საშ. მაჩვენებელი"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:517
 #: lib/tuist_web/live/once_run_live.ex:687
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache keys"
-msgstr "კეშის გასაღებების კითხვის საშუალო ლატენტობა"
+msgstr "ქეშის გასაღებების წაკითხვის საშუალო დაყოვნება"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:534
 #: lib/tuist_web/live/once_run_live.ex:703
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache keys"
-msgstr "კეშის გასაღებების ჩაწერის საშუალო ლატენტობა"
+msgstr "ქეშის გასაღებების ჩაწერის საშუალო დაყოვნება"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:195
 #: lib/tuist_web/live/bazel_invocation_live.ex:437
@@ -2219,13 +2219,13 @@ msgstr "Bazel-ის ვერსია"
 #: lib/tuist_web/live/once_runs_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "აგების გაშვებები"
+msgstr "ბილდის გაშვებები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:959
 #: lib/tuist_web/live/bazel_invocation_live.ex:962
 #, elixir-autogen, elixir-format
 msgid "Build failed (exit code 1)"
-msgstr "აგება ჩავარდა (გამოსვლის კოდი 1)"
+msgstr "ბილდი ჩავარდა (გამოსვლის კოდი 1)"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:695
 #: lib/tuist_web/live/bazel_invocations_live.ex:800
@@ -2233,7 +2233,7 @@ msgstr "აგება ჩავარდა (გამოსვლის კ�
 #: lib/tuist_web/live/once_runs_live.ex:1177
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
-msgstr "აგების წარმატების მაჩვენებელი"
+msgstr "ბილდის წარმატების მაჩვენებელი"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:357
 #: lib/tuist_web/live/once_run_live.ex:523
@@ -2245,7 +2245,7 @@ msgstr "ქეშის შეჯამება"
 #: lib/tuist_web/live/once_cache_live.ex:804
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "ქეშის ჩამოტვირთვები"
+msgstr "ქეშიდან გადმოწერები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:646
 #: lib/tuist_web/live/once_run_live.ex:840
@@ -2261,7 +2261,7 @@ msgstr "ქეშის გასაღები"
 #: lib/tuist_web/live/once_cache_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "Cache latency"
-msgstr "ქეშის დაყოვნება"
+msgstr "ქეშის ლატენტობა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:328
 #: lib/tuist_web/live/bazel_cache_live.ex:674
@@ -2277,7 +2277,7 @@ msgstr "ქეშის გამტარუნარიანობა"
 #: lib/tuist_web/live/once_cache_live.ex:805
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "ქეშის ატვირთვები"
+msgstr "ქეშში ატვირთვები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:426
 #: lib/tuist_web/live/once_run_live.ex:592
@@ -2288,7 +2288,7 @@ msgstr "ქეშირებადი მოქმედებები"
 #: lib/tuist_web/live/bazel_invocation_live.ex:970
 #, elixir-autogen, elixir-format
 msgid "Command-line problem (exit code 2)"
-msgstr "ბრძანების სტრიქონის პრობლემა (გასვლის კოდი 2)"
+msgstr "ბრძანების სტრიქონის პრობლემა (გამოსვლის კოდი 2)"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:285
 #: lib/tuist_web/live/once_run_live.ex:358
@@ -2306,7 +2306,7 @@ msgstr "დასრულებული ბრძანებები"
 #: lib/tuist_web/live/once_runs_live.ex:466
 #, elixir-autogen, elixir-format
 msgid "Completed commands with a nonzero exit code."
-msgstr "დასრულებული ბრძანებები არანულოვანი გასვლის კოდით."
+msgstr "დასრულებული ბრძანებები არანულოვანი გამოსვლის კოდით."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:431
 #: lib/tuist_web/live/once_run_live.ex:597
@@ -2374,7 +2374,7 @@ msgstr "შეცდომა (გასვლის კოდი %{code})"
 #: lib/tuist_web/live/bazel_invocations_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Failed invocations"
-msgstr "შეუფერებელი გამოძახებები"
+msgstr "წარუმატებელი გაშვებები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:596
 #: lib/tuist_web/live/bazel_invocations_live.ex:540
@@ -2393,7 +2393,7 @@ msgstr "ფილტრი"
 #: lib/tuist_web/live/once_run_live.ex:1225
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "მოხვედრა"
+msgstr "ქეშში მოხვედრა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:498
 #: lib/tuist_web/live/bazel_invocation_live.ex:388
@@ -2406,7 +2406,7 @@ msgstr "მოხვედრის მაჩვენებელი"
 #: lib/tuist_web/live/bazel_invocation_live.ex:983
 #, elixir-autogen, elixir-format
 msgid "Internal Bazel error (exit code 37)"
-msgstr "შიდა Bazel შეცდომა (გამოსვლის კოდი 37)"
+msgstr "Bazel-ის შიდა შეცდომა (გამოსვლის კოდი 37)"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:972
 #, elixir-autogen, elixir-format
@@ -2428,7 +2428,7 @@ msgstr "გასაღები"
 #: lib/tuist_web/live/once_run_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Latency"
-msgstr "ლატენტობა"
+msgstr "დაყოვნება"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:980
 #, elixir-autogen, elixir-format
@@ -2444,22 +2444,22 @@ msgstr "ლოკალური გარემოს შეცდომა (�
 #: lib/tuist_web/live/once_run_live.ex:1126
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "გაცდენილი"
+msgstr "ქეშში არ მოხვდა"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "No Bazel builds have been received yet."
-msgstr "Bazel-ის აგებები ჯერ არ მიღებულა."
+msgstr "Bazel-ის ბილდები ჯერ არ მიღებულა."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "No Bazel builds in the selected period."
-msgstr "შერჩეულ პერიოდში Bazel-ის აგებები არ არის."
+msgstr "არჩეულ პერიოდში Bazel-ის ბილდები არ არის."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:714
 #, elixir-autogen, elixir-format
 msgid "No Bazel builds match the current filters."
-msgstr "მიმდინარე ფილტრებს Bazel-ის აგებები არ შეესაბამება."
+msgstr "მიმდინარე ფილტრებს Bazel-ის ბილდები არ შეესაბამება."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:711
 #, elixir-autogen, elixir-format
@@ -2469,7 +2469,7 @@ msgstr "Bazel-ის გამოძახებები ჯერ არ მ�
 #: lib/tuist_web/live/bazel_invocations_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "No Bazel invocations in the selected period."
-msgstr "შერჩეულ პერიოდში Bazel-ის გამოძახებები არ არის."
+msgstr "არჩეულ პერიოდში Bazel-ის გამოძახებები არ არის."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:384
 #, elixir-autogen, elixir-format
@@ -2489,19 +2489,19 @@ msgstr "ამ გამოძახებისთვის მოქმედ�
 #: lib/tuist_web/live/bazel_cache_live.ex:756
 #, elixir-autogen, elixir-format
 msgid "No cache activity associated with an invocation in the selected period"
-msgstr "არ არის აღრიცხული ქეშის აქტივობა შერჩეულ პერიოდში შესრულებულ გამოძახებასთან"
+msgstr "შერჩეულ პერიოდში არ დაფიქსირებულა ქეშთან დაკავშირებული აქტივობა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "No cache activity associated with an invocation yet"
-msgstr "ჯერ არ არის დაფიქსირებული ქეშის აქტივობა ამ გამოძახებასთან"
+msgstr "ჯერ არ დაფიქსირებულა ქეშთან დაკავშირებული აქტივობა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:751
 #: lib/tuist_web/live/bazel_overview_live.ex:684
 #: lib/tuist_web/live/once_cache_live.ex:821
 #, elixir-autogen, elixir-format
 msgid "No cache observations in the selected period"
-msgstr "არ არის აღრიცხული ქეშის დაკვირვებები შერჩეულ პერიოდში"
+msgstr "შერჩეულ პერიოდში ქეშის დაკვირვებები არ აღრიცხულა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:753
 #: lib/tuist_web/live/bazel_overview_live.ex:686
@@ -2509,12 +2509,12 @@ msgstr "არ არის აღრიცხული ქეშის და�
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "No cache observations yet"
-msgstr "ჯერ არ არის დაფიქსირებული ქეშის დაკვირვებები"
+msgstr "ჯერ არ არის ქეშის დაკვირვებები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:767
 #, elixir-autogen, elixir-format
 msgid "No content object transfers were observed for this invocation."
-msgstr "ამ გამოძახებისთვის არ დაფიქსირდა კონტენტის ობიექტების გადაცემები."
+msgstr "ამ გაშვებისთვის კონტენტის ობიექტების გადაცემები არ დაფიქსირებულა."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:530
 #: lib/tuist_web/live/bazel_invocation_live.ex:544
@@ -2527,17 +2527,17 @@ msgstr "მონაცემები არ არის"
 #: lib/tuist_web/live/bazel_invocation_live.ex:789
 #, elixir-autogen, elixir-format
 msgid "No digest"
-msgstr "არ არის digest"
+msgstr "დაიჯესტი არ არის"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:685
 #, elixir-autogen, elixir-format
 msgid "No matching cache requests"
-msgstr "შესაბამისი ქეშის მოთხოვნები არ არის"
+msgstr "შეთავსებადი ქეშ-მოთხოვნები არ არის"
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:70
 #, elixir-autogen, elixir-format
 msgid "No targets reported"
-msgstr "მიზნები არ არის მოხსენებული"
+msgstr "არ არის მოხსენებული სამიზნეები"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:968
 #, elixir-autogen, elixir-format
@@ -2548,7 +2548,7 @@ msgstr "ტესტები ვერ მოიძებნა (გამო�
 #: lib/tuist_web/live/once_run_live.ex:865
 #, elixir-autogen, elixir-format
 msgid "Observed"
-msgstr "დაფიქსირდა"
+msgstr "დაფიქსირებულია"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:977
 #, elixir-autogen, elixir-format
@@ -2571,12 +2571,12 @@ msgstr "კითხვის დაყოვნება"
 #: lib/tuist_web/live/once_run_live.ex:971
 #, elixir-autogen, elixir-format
 msgid "Remote"
-msgstr "შორეული"
+msgstr "დაშორებული"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "Remote cache entry evicted (exit code 39)"
-msgstr "შორეული ქეშის ჩანაწერი წაიშალა (გამოსვლის კოდი 39)"
+msgstr "დაშორებული ქეშის ჩანაწერი გაუქმდა (გამოსვლის კოდი 39)"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:273
 #, elixir-autogen, elixir-format
@@ -2586,12 +2586,12 @@ msgstr "რეპოზიტორია"
 #: lib/tuist_web/live/bazel_invocation_live.ex:986
 #, elixir-autogen, elixir-format
 msgid "Result publishing failed (exit code 38)"
-msgstr "შედეგის გამოქვეყნება ვერ მოხერხდა (გასვლის კოდი 38)"
+msgstr "შედეგების გამოქვეყნება ვერ მოხერხდა (გასვლის კოდი 38)"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "Result publishing failed (exit code 45)"
-msgstr "შედეგის გამოქვეყნება ვერ მოხერხდა (გასვლის კოდი 45)"
+msgstr "შედეგების გამოქვეყნება ვერ მოხერხდა (გასვლის კოდი 45)"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:659
 #: lib/tuist_web/live/once_run_live.ex:855
@@ -2628,47 +2628,47 @@ msgstr "მიზნები"
 #: lib/tuist_web/live/bazel_invocation_live.ex:965
 #, elixir-autogen, elixir-format
 msgid "Tests failed or timed out (exit code 3)"
-msgstr "ტესტები ჩავარდა ან დრო ამოიწურა (გასვლის კოდი 3)"
+msgstr "ტესტები ჩავარდა ან ამოიწურა დრო (გასვლის კოდი 3)"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "The average time Tuist's remote cache spent serving reads and writes during the selected period."
-msgstr "საშუალო დრო, რომელიც Tuist-ის დაშორებულმა ქეშმა დახარჯა წაკითხვებისა და ჩაწერების მომსახურებაზე შერჩეული პერიოდის განმავლობაში."
+msgstr "შერჩეულ პერიოდში Tuist-ის დისტანციურმა ქეშმა წაკითხვებისა და ჩაწერების მომსახურებაზე საშუალოდ რამდენი დრო დახარჯა."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:194
 #, elixir-autogen, elixir-format
 msgid "The bytes returned from and accepted by Tuist's remote cache during the selected period."
-msgstr "ბაიტების რაოდენობა, რომლებიც დაბრუნდა ან მიიღო Tuist-ის დაშორებულმა ქეშმა შერჩეული პერიოდის განმავლობაში."
+msgstr "შერჩეულ პერიოდში Tuist-ის დისტანციური ქეშიდან დაბრუნებული და მის მიერ მიღებული ბაიტები."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:321
 #, elixir-autogen, elixir-format
 msgid "The duration of completed Bazel commands, with average and percentile views."
-msgstr "დასრულებული Bazel ბრძანებების ხანგრძლივობა, საშუალო და პროცენტილის ხედვებით."
+msgstr "დასრულებული Bazel-ის ბრძანებების ხანგრძლივობა, საშუალო და პერცენტილის ხედვებით."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "The percentage of action cache lookups that found a result in the remote cache."
-msgstr "მოქმედებების ქეშში ძიების პროცენტული მაჩვენებელი, რომელმაც იპოვა შედეგი დაშორებულ ქეშში."
+msgstr "იმ ქეშში მოხვედრების პროცენტული მაჩვენებელი, რომლებმაც შედეგი დისტანციურ ქეშში იპოვეს."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "The percentage of action-cache lookups served from Tuist's remote cache, measured per invocation."
-msgstr "Tuist-ის დაშორებული ქეშიდან მომსახურებული მოქმედებების ქეშში ძიების პროცენტული მაჩვენებელი, გაზომილი თითოეული გამოძახებისთვის."
+msgstr "Tuist-ის დისტანციური ქეშიდან მომსახურებული action-cache-ის ძიებების პროცენტული მაჩვენებელი, გაზომილი თითოეული გამოძახებისთვის."
 
 #: lib/tuist_web/live/bazel_overview_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "The share of action-cache lookups served from Tuist's remote cache."
-msgstr "Tuist-ის დაშორებული ქეშიდან მომსახურებული მოქმედებების ქეშში ძიების წილი."
+msgstr "action-cache-ის ძიებების ის წილი, რომლებიც Tuist-ის დისტანციური ქეშიდან მოემსახურა."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "This invocation did not use a remote cache."
-msgstr "ამ გამოძახებამ არ გამოიყენა დაშორებული ქეში."
+msgstr "ამ გამოძახებამ დისტანციური ქეში არ გამოიყენა."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:519
 #, elixir-autogen, elixir-format
 msgid "Time to read action cache keys, including both remote hits and misses."
-msgstr "დრო მოქმედებების ქეშის გასაღებების წასაკითხად, როგორც დაშორებული ქეშის წარმატებული, ისე წარუმატებელი ძიებების ჩათვლით."
+msgstr "action cache-ის გასაღებების წაკითხვის დრო, რომელიც მოიცავს როგორც ქეშში მოხვედრებს, ასევე გამოტოვებებს."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:536
 #, elixir-autogen, elixir-format
@@ -2679,17 +2679,17 @@ msgstr "მოქმედების შედეგების დაშო�
 #: lib/tuist_web/live/once_runs_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "ჯამური ბილდები"
+msgstr "სრული ბილდები"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "Total invocations"
-msgstr "ჯამური გამოძახებები"
+msgstr "სრული გამოძახებები"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "Transferred remote-cache bytes divided by measured request time. Requests without a measured duration are excluded."
-msgstr "დაშორებული ქეშიდან გადმოტანილი ბაიტები, გაყოფილი გაზომილ მოთხოვნის დროზე. მოთხოვნები, რომლებსაც არ აქვთ გაზომილი ხანგრძლივობა, გამორიცხულია."
+msgstr "დაშორებული ქეშიდან გადატანილი ბაიტების რაოდენობა გაყოფილი გაზომილ მოთხოვნის ხანგრძლივობაზე. მოთხოვნები, რომლებსაც არ აქვთ გაზომილი ხანგრძლივობა, გამორიცხულია."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:686
 #, elixir-autogen, elixir-format
@@ -2729,19 +2729,19 @@ msgstr "ატვირთვები"
 #: lib/tuist_web/live/once_cache_live.ex:809
 #, elixir-autogen, elixir-format
 msgid "Write latency"
-msgstr "ჩაწერის დაყოვნება"
+msgstr "ჩაწერის ლატენტობა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:714
 #: lib/tuist_web/live/once_cache_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "p50 action cache hit rate"
-msgstr "p50 მოქმედებების ქეშის წარმატების მაჩვენებელი"
+msgstr "p50 მოქმედების ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:703
 #: lib/tuist_web/live/once_runs_live.ex:1092
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "p50 აგების ხანგრძლივობა"
+msgstr "p50 ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:707
 #, elixir-autogen, elixir-format
@@ -2752,13 +2752,13 @@ msgstr "p50 გამოძახების ხანგრძლივობ�
 #: lib/tuist_web/live/once_cache_live.ex:779
 #, elixir-autogen, elixir-format
 msgid "p90 action cache hit rate"
-msgstr "p90 მოქმედებების ქეშის წარმატების მაჩვენებელი"
+msgstr "p90 მოქმედების ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:702
 #: lib/tuist_web/live/once_runs_live.ex:1091
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "p90 აგების ხანგრძლივობა"
+msgstr "p90 ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:706
 #, elixir-autogen, elixir-format
@@ -2769,13 +2769,13 @@ msgstr "p90 გამოძახების ხანგრძლივობ�
 #: lib/tuist_web/live/once_cache_live.ex:778
 #, elixir-autogen, elixir-format
 msgid "p99 action cache hit rate"
-msgstr "p99 მოქმედებების ქეშის წარმატების მაჩვენებელი"
+msgstr "p99 მოქმედების ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:701
 #: lib/tuist_web/live/once_runs_live.ex:1090
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "p99 აგების ხანგრძლივობა"
+msgstr "p99 ბილდის ხანგრძლივობა"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:705
 #, elixir-autogen, elixir-format
@@ -2805,7 +2805,7 @@ msgstr "ქეშის ატვირთვის სიჩქარე"
 #: lib/tuist_web/live/bazel_overview_live.ex:691
 #, elixir-autogen, elixir-format
 msgid "No builds in the selected period"
-msgstr "არჩეულ პერიოდში აგებები არ არის"
+msgstr "არჩეულ პერიოდში ბილდები არ ყოფილა"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:513
 #: lib/tuist_web/live/bazel_invocations_live.ex:618
@@ -2823,50 +2823,50 @@ msgstr "გაშვებულია მიერ"
 #: lib/tuist_web/live/bazel_cache_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "Recent Invocations"
-msgstr "ბოლო გამოძახებები"
+msgstr "ბოლო გაშვებები"
 
 #: lib/tuist_web/live/bazel_overview_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "The average duration of Bazel build invocations."
-msgstr "Bazel-ის აგების გამოძახებების საშუალო ხანგრძლივობა."
+msgstr "Bazel-ის ბილდების საშუალო ხანგრძლივობა."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:561
 #, elixir-autogen, elixir-format
 msgid "Invocation"
-msgstr "გამოძახება"
+msgstr "გაშვება"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:508
 #: lib/tuist_web/live/project_automations_live.html.heex:900
 #, elixir-autogen, elixir-format
 msgid "Skips the entire target, including healthy tests."
-msgstr "ტოვებს მთელ მიზანს, ჯანსაღი ტესტების ჩათვლით."
+msgstr "ტარგეტის სრულად გამოტოვება, ჯანსაღი ტესტების ჩათვლით."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:400
 #: lib/tuist_web/live/once_run_live.ex:566
 #, elixir-autogen, elixir-format
 msgid "Content downloaded"
-msgstr "ჩამოტვირთული კონტენტი"
+msgstr "ჩამოტვირთული შინაარსი"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:412
 #: lib/tuist_web/live/once_run_live.ex:578
 #, elixir-autogen, elixir-format
 msgid "Content uploaded"
-msgstr "ატვირთული კონტენტი"
+msgstr "ატვირთული შინაარსი"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:402
 #, elixir-autogen, elixir-format
 msgid "Total size of build outputs downloaded from the remote cache. Excludes action cache lookups, which return metadata rather than outputs."
-msgstr "დაშორებული ქეშიდან ჩამოტვირთული აგების შედეგების საერთო ზომა. არ შეიცავს მოქმედების ქეშის ძიებებს, რომლებიც აბრუნებენ მეტამონაცემებს და არა შედეგებს."
+msgstr "დაშორებული ქეშიდან ჩამოტვირთული ბილდის შედეგების საერთო ზომა. არ მოიცავს action cache-ის ძიებებს, რომლებიც აბრუნებენ მეტამონაცემებს და არა შედეგებს."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
-msgstr "დაშორებულ ქეშში ატვირთული აგების შედეგების საერთო ზომა. არ შეიცავს მოქმედების ქეშში ჩაწერებს, რომლებიც ინახავენ მეტამონაცემებს და არა შედეგებს."
+msgstr "დაშორებულ ქეშში ატვირთული ბილდის შედეგების საერთო ზომა. არ მოიცავს action cache-ში ჩაწერებს, რომლებიც ინახავენ მეტამონაცემებს და არა შედეგებს."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1076
 #, elixir-autogen, elixir-format
 msgid "Actions for existing matches are pending. Save with this option unchecked to cancel any remaining actions."
-msgstr "არსებული შესაბამისობებისთვის მოქმედებები ლოდინგის რეჟიმშია. დარჩენილი მოქმედებების გასაუქმებლად შეინახეთ ამ პარამეტრის გამორთვით."
+msgstr "არსებული შესაბამისობებისთვის მოქმედებები ლოდინის რეჟიმშია. დარჩენილი მოქმედებების გასაუქმებლად შეინახეთ ამ პარამეტრის გამორთული მდგომარეობით."
 
 #: lib/tuist_web/live/project_automations_live.ex:742
 #, elixir-autogen, elixir-format
@@ -2906,7 +2906,7 @@ msgstr "ყოველი შესაბამისი ტესტისთ�
 #: lib/tuist_web/live/project_automations_live.html.heex:1059
 #, elixir-autogen, elixir-format
 msgid "Match count unavailable. You can still save."
-msgstr "შეთავსებების რაოდენობა მიუწვდომელია. მაინც შეგიძლიათ შენახვა."
+msgstr "შესაბამისობების რაოდენობა მიუწვდომელია. მაინც შეგიძლიათ შენახვა."
 
 #: lib/tuist_web/live/project_automations_live.ex:731
 #, elixir-autogen, elixir-format
@@ -2916,12 +2916,12 @@ msgstr "მოქმედებები არ არის შერჩეუ
 #: lib/tuist_web/live/project_automations_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Recovery is disabled."
-msgstr "აღდგენა გათიშულია."
+msgstr "აღდგენა გამორთულია."
 
 #: lib/tuist_web/live/project_automation_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Requested actions for existing matches"
-msgstr "მოთხოვნილი მოქმედებები არსებული შეთავსებებისთვის"
+msgstr "მოთხოვნილი მოქმედებები არსებული შესაბამისობებისთვის"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1101
 #, elixir-autogen, elixir-format
@@ -2932,7 +2932,7 @@ msgstr "მოქმედებების შენახვა და გა
 #, elixir-autogen, elixir-format
 msgid "Select to also run them once after saving for %{count} test that currently matches."
 msgid_plural "Select to also run them once after saving for %{count} tests that currently match."
-msgstr[0] "აირჩიეთ, რომ ისინი ერთხელ შესრულდეს შენახვის შემდეგ %{count} ტესტისთვის, რომელიც ამჟამად ემთხვევა."
+msgstr[0] "აირჩიეთ, რომ შენახვის შემდეგ ერთხელ გაუშვათ %{count} სატესტო შემთხვევისთვის, რომელიც ამჟამად ემთხვევა."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:390
 #, elixir-autogen, elixir-format
@@ -2942,27 +2942,27 @@ msgstr "რა"
 #: lib/tuist_web/live/project_automations_live.ex:1131
 #, elixir-autogen, elixir-format
 msgid "e.g. 30d"
-msgstr "მაგ., 30 დღე"
+msgstr "მაგ., 30d"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1043
 #, elixir-autogen, elixir-format
 msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
-msgstr "ნაგულისხმევად, ქმედებები სრულდება მხოლოდ მაშინ, როდესაც ტესტი შეესაბამება პირობას. ტესტები, რომლებიც ამჟამად შეესაბამებიან, არ მიიღებენ მათ, თუ ისინი არ აღდგებიან და შემდეგ კვლავ არ შეესაბამებიან."
+msgstr "ნაგულისხმევად, მოქმედებები სრულდება მხოლოდ მაშინ, როცა ტესტი პირობას დაემთხვევა. ტესტებს, რომლებიც ამჟამად ემთხვევიან, ისინი არ მიეკუთვნებათ, თუ არ აღდგებიან და შემდეგ კვლავ არ დაემთხვევიან."
 
 #: lib/tuist_web/live/once_run_live.ex:1329
 #, elixir-autogen, elixir-format
 msgid "Action %{index}"
-msgstr "ქმედება %{index}"
+msgstr "მოქმედება %{index}"
 
 #: lib/tuist_web/live/once_run_live.ex:544
 #, elixir-autogen, elixir-format
 msgid "Actions that had to execute because the Once cache had no result."
-msgstr "ქმედებები, რომლებიც უნდა შესრულებულიყო, რადგან Once-ის ქეშში შედეგი არ იყო."
+msgstr "მოქმედებები, რომლებიც შესრულდა იმიტომ, რომ Once-ის ქეშში შედეგი არ იყო."
 
 #: lib/tuist_web/live/once_run_live.ex:532
 #, elixir-autogen, elixir-format
 msgid "Actions that replayed from the Once cache instead of executing."
-msgstr "ქმედებები, რომლებიც განმეორებით ჩაირთო Once-ის ქეშიდან შესრულების ნაცვლად."
+msgstr "მოქმედებები, რომლებიც შესრულდა Once-ის ქეშიდან გაშვების ნაცვლად."
 
 #: lib/tuist_web/live/once_run_live.ex:773
 #, elixir-autogen, elixir-format
@@ -2972,17 +2972,17 @@ msgstr "ყველა შედეგი"
 #: lib/tuist_web/live/once_run_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "Argument values are redacted by Once before this command is sent to Tuist."
-msgstr "არგუმენტების მნიშვნელობები Once-ის მიერ ფარულია, სანამ ეს ბრძანება Tuist-ს გაეგზავნება."
+msgstr "არგუმენტის მნიშვნელობები Once-ის მიერ იფარება, სანამ ეს ბრძანება Tuist-ს გაეგზავნება."
 
 #: lib/tuist_web/live/once_run_live.ex:1332
 #, elixir-autogen, elixir-format
 msgid "Build"
-msgstr "აწყობა"
+msgstr "ბილდი"
 
 #: lib/tuist_web/live/once_run_live.ex:926
 #, elixir-autogen, elixir-format
 msgid "Build script"
-msgstr "აგების სკრიპტი"
+msgstr "ბილდის სკრიპტი"
 
 #: lib/tuist_web/live/once_run_live.ex:440
 #: lib/tuist_web/live/once_run_live.ex:915
@@ -2994,7 +2994,7 @@ msgstr "ქეში"
 #: lib/tuist_web/live/once_run_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
-msgstr "ქეშის მოხვედრები"
+msgstr "ქეშში მოხვედრები"
 
 #: lib/tuist_web/live/once_run_live.ex:1269
 #: lib/tuist_web/live/once_run_live.ex:1339
@@ -3005,7 +3005,7 @@ msgstr "გაუქმებული"
 #: lib/tuist_web/live/once_runs_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Completed once commands in the selected period."
-msgstr "შესრულდა ერთხელ შერჩეული პერიოდის განმავლობაში."
+msgstr "არჩეულ პერიოდში ერთხელ შესრულებული ბრძანებები."
 
 #: lib/tuist_web/live/once_run_live.ex:347
 #, elixir-autogen, elixir-format
@@ -3020,7 +3020,7 @@ msgstr "დასრულებული"
 #: lib/tuist_web/live/once_run_live.ex:556
 #, elixir-autogen, elixir-format
 msgid "Fraction of the run's actions that replayed from the cache."
-msgstr "აგების ოპერაციების ნაწილი, რომელიც ქეშიდან აღდგა."
+msgstr "გაშვების იმ ქმედებების წილი, რომლებიც ქეშიდან განმეორდა."
 
 #: lib/tuist_web/live/once_run_live.ex:1334
 #, elixir-autogen, elixir-format
@@ -3039,7 +3039,7 @@ msgstr "ჰოსტი"
 #: lib/tuist_web/live/once_run_live.ex:1341
 #, elixir-autogen, elixir-format
 msgid "Infrastructure error"
-msgstr "ინფრასტრუქტურული შეცდომა"
+msgstr "ინფრასტრუქტურის შეცდომა"
 
 #: lib/tuist_web/live/once_run_live.ex:319
 #, elixir-autogen, elixir-format
@@ -3050,58 +3050,58 @@ msgstr "ტიპი"
 #: lib/tuist_web/live/once_run_live.ex:1226
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "გამოტოვება"
+msgstr "ქეშში ვერ მოხვედრა"
 
 #: lib/tuist_web/live/once_run_live.ex:1234
 #, elixir-autogen, elixir-format
 msgid "No actions match your search or filters"
-msgstr "თქვენს ძებნას ან ფილტრებს არცერთი ქმედება არ შეესაბამება"
+msgstr "მოქმედებები არ ემთხვევა თქვენს ძიებას ან ფილტრებს"
 
 #: lib/tuist_web/live/once_run_live.ex:1238
 #, elixir-autogen, elixir-format
 msgid "No actions recorded"
-msgstr "ქმედებები არ არის ჩაწერილი"
+msgstr "მოქმედებები არ არის ჩაწერილი"
 
 #: lib/tuist_web/live/once_cache_live.ex:826
 #, elixir-autogen, elixir-format
 msgid "No cache activity associated with a run in the selected period"
-msgstr "შერჩეულ პერიოდში გაშვებასთან დაკავშირებული კეშის აქტივობა არ არსებობს"
+msgstr "არჩეულ პერიოდში გაშვებასთან დაკავშირებული ქეშის აქტივობა არ არის"
 
 #: lib/tuist_web/live/once_cache_live.ex:829
 #, elixir-autogen, elixir-format
 msgid "No cache activity associated with a run yet"
-msgstr "ჯერ არ არის დაკავშირებული ქეშ-აქტივობა გაშვებასთან"
+msgstr "ჯერ არ არის გაშვებასთან დაკავშირებული ქეშის აქტივობა"
 
 #: lib/tuist_web/live/once_run_live.ex:612
 #, elixir-autogen, elixir-format
 msgid "No cache lookups reported yet"
-msgstr "ჯერ არ არის მოხსენებული ქეშ-მოძიებები"
+msgstr "ჯერ არ არის აღრიცხული ქეშის მოთხოვნები"
 
 #: lib/tuist_web/live/once_run_live.ex:613
 #, elixir-autogen, elixir-format
 msgid "No content transfers reported yet"
-msgstr "ჯერ არ არის მოხსენებული კონტენტის გადაცემები"
+msgstr "ჯერ არ არის აღრიცხული შინაარსის გადაცემები"
 
 #: lib/tuist_web/live/once_runs_live.ex:1102
 #, elixir-autogen, elixir-format
 msgid "No once builds have been received yet."
-msgstr "ჯერ არ არის მიღებული „Once“ ბილდები."
+msgstr "ჯერ არ მიგვიღია ერთჯერადი ბილდები."
 
 #: lib/tuist_web/live/once_runs_live.ex:1099
 #, elixir-autogen, elixir-format
 msgid "No once builds in the selected period."
-msgstr "არჩეულ პერიოდში „Once“ ბილდები არ არის."
+msgstr "მონიშნულ პერიოდში ერთჯერადი ბილდები არ არის."
 
 #: lib/tuist_web/live/once_runs_live.ex:1096
 #, elixir-autogen, elixir-format
 msgid "No once builds match the current filters."
-msgstr "მიმდინარე ფილტრებს „Once“ ბილდები არ შეესაბამება."
+msgstr "მიმდინარე ფილტრებს ერთჯერადი ბილდები არ შეესაბამება."
 
 #: lib/tuist_web/live/once_runs_live.ex:604
 #: lib/tuist_web/live/once_runs_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "No once runs in this period"
-msgstr "ამ პერიოდში „Once“ გაშვებები არ არის"
+msgstr "ამ პერიოდში ერთჯერადი გაშვებები არ არის"
 
 #: lib/tuist_web/live/once_run_live.ex:263
 #: lib/tuist_web/live/once_run_live.ex:603
@@ -3112,17 +3112,17 @@ msgstr "Once Cache"
 #: lib/tuist_web/live/once_run_live.ex:1251
 #, elixir-autogen, elixir-format
 msgid "Once build"
-msgstr "ერთხელ აგება"
+msgstr "ერთი ბილდი"
 
 #: lib/tuist_web/live/once_run_live.ex:1253
 #, elixir-autogen, elixir-format
 msgid "Once run"
-msgstr "ერთხელ გაშვება"
+msgstr "ერთი გაშვება"
 
 #: lib/tuist_web/live/once_run_live.ex:1252
 #, elixir-autogen, elixir-format
 msgid "Once test"
-msgstr "ერთხელ ტესტირება"
+msgstr "ერთი ტესტი"
 
 #: lib/tuist_web/live/once_cache_live.ex:398
 #: lib/tuist_web/live/once_run_live.ex:371
@@ -3130,19 +3130,19 @@ msgstr "ერთხელ ტესტირება"
 #: lib/tuist_web/live/once_runs_live.ex:999
 #, elixir-autogen, elixir-format
 msgid "Once version"
-msgstr "ერთხელ ვერსია"
+msgstr "ერთი ვერსია"
 
 #: lib/tuist_web/live/once_cache_live.ex:472
 #, elixir-autogen, elixir-format
 msgid "Recent Runs"
-msgstr "ბოლოდროინდელი გაშვებები"
+msgstr "ბოლო გაშვებები"
 
 #: lib/tuist_web/live/once_run_live.ex:914
 #: lib/tuist_web/live/once_run_live.ex:965
 #: lib/tuist_web/live/once_run_live.ex:1128
 #, elixir-autogen, elixir-format
 msgid "Reused"
-msgstr "ხელახლა გამოყენებული"
+msgstr "გამოყენებული"
 
 #: lib/tuist_web/live/once_cache_live.ex:549
 #: lib/tuist_web/live/once_runs_live.ex:868
@@ -3180,32 +3180,32 @@ msgstr "ტესტის გაშვებები"
 #: lib/tuist_web/live/once_cache_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "The average time Once's remote cache spent serving reads and writes during the selected period."
-msgstr "საშუალო დრო, რომელიც Once-ის დაშორებული კეში ხარჯავდა წაკითხვისა და ჩაწერის მოთხოვნების შესრულებაზე შერჩეულ პერიოდში."
+msgstr "Once-ის დისტანციური ქეში, შერჩეულ პერიოდში, კითხვებისა და ჩაწერების შესრულებაზე საშუალოდ რამდენ დროს ხარჯავდა."
 
 #: lib/tuist_web/live/once_cache_live.ex:213
 #, elixir-autogen, elixir-format
 msgid "The bytes returned from and accepted by Once's remote cache during the selected period."
-msgstr "ბაიტების რაოდენობა, რომლებიც დააბრუნა და მიიღო Once-ის დაშორებულმა კეშმა შერჩეულ პერიოდში."
+msgstr "Once-ის დისტანციურმა ქეშმა შერჩეულ პერიოდში რამდენი ბაიტი დააბრუნა და მიიღო."
 
 #: lib/tuist_web/live/once_runs_live.ex:501
 #, elixir-autogen, elixir-format
 msgid "The duration of completed once commands, with average and percentile views."
-msgstr "დასრულებული once ბრძანებების ხანგრძლივობა, საშუალო მაჩვენებლებისა და პერცენტილების ხედვებით."
+msgstr "შესრულებული once-კომანდების ხანგრძლივობა, საშუალო და პერცენტილის წარმოდგენებით."
 
 #: lib/tuist_web/live/once_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "The percentage of action-cache lookups served from Once's remote cache, measured per run."
-msgstr "მოქმედებების კეშში ძიების პროცენტული მაჩვენებელი, რომელიც მოემსახურა Once-ის დაშორებული კეშიდან, გაზომილი თითოეული გაშვებისთვის."
+msgstr "მოქმედებების ქეშში ძიების პროცენტული მაჩვენებელი, რომელიც Once-ის დისტანციურმა ქეშმა დააკმაყოფილა, გაზომილი თითოეული გაშვებისთვის."
 
 #: lib/tuist_web/live/once_run_live.ex:689
 #, elixir-autogen, elixir-format
 msgid "Time Once spent reading action cache keys, including hits and misses."
-msgstr "დრო, რომელიც Once-მა დახარჯა მოქმედების ქეშის გასაღებების წასაკითხად, მათ შორის წარმატებული და წარუმატებელი შედეგები."
+msgstr "დრო, რომელიც Once-მა დახარჯა მოქმედების ქეშის გასაღებების წასაკითხად, მათ შორის ქეშში მოხვედრებისა და გამოტოვებების ჩათვლით."
 
 #: lib/tuist_web/live/once_run_live.ex:705
 #, elixir-autogen, elixir-format
 msgid "Time Once spent writing action results back into the cache."
-msgstr "დრო, რომელიც Once-მა დახარჯა მოქმედების შედეგების ქეშში უკან ჩასაწერად."
+msgstr "დრო, რომელიც Once-მა დახარჯა მოქმედების შედეგების ქეშში უკან ჩაწერისთვის."
 
 #: lib/tuist_web/live/once_run_live.ex:1340
 #, elixir-autogen, elixir-format
@@ -3215,32 +3215,32 @@ msgstr "მოქმედების ვადა ამოიწურა"
 #: lib/tuist_web/live/once_run_live.ex:568
 #, elixir-autogen, elixir-format
 msgid "Total bytes moved from the Once cache into this run."
-msgstr "ბაიტების საერთო რაოდენობა, რომელიც გადაიტანეს Once-ის ქეშიდან ამ გაშვებაში."
+msgstr "ჯამური ბაიტები, რომლებიც გადავიდა Once-ის ქეშიდან ამ გაშვებაში."
 
 #: lib/tuist_web/live/once_run_live.ex:580
 #, elixir-autogen, elixir-format
 msgid "Total bytes this run stored back into the Once cache."
-msgstr "ბაიტების საერთო რაოდენობა, რომელიც ამ გაშვებისას უკან შეინახეს Once-ის ქეშში."
+msgstr "ჯამური ბაიტები, რომლებიც ამ გაშვებამ შეინახა Once-ის ქეშში."
 
 #: lib/tuist_web/live/once_cache_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "Transferred remote-cache bytes divided by measured request time."
-msgstr "დაშორებული remote-cache ბაიტები, გაყოფილი გაზომილ მოთხოვნის დროზე."
+msgstr "დაშორებული ქეშის ბაიტები გაყოფილი გაზომილ მოთხოვნის დროზე."
 
 #: lib/tuist_web/live/once_run_live.ex:1240
 #, elixir-autogen, elixir-format
 msgid "Waiting for actions…"
-msgstr "მოქმედებების ლოდირება…"
+msgstr "მოქმედებების ლოდინი…"
 
 #: lib/tuist_web/live/once_run_live.ex:1245
 #, elixir-autogen, elixir-format
 msgid "[redacted]"
-msgstr "[რედაქტირებული]"
+msgstr "[დაფარული]"
 
 #: lib/tuist_web/live/once_overview_live.ex:298
 #, elixir-autogen, elixir-format
 msgid "No cache activity yet"
-msgstr "კეშირების აქტივობა ჯერ არ არის"
+msgstr "ქეშის აქტივობა ჯერ არ არის"
 
 #: lib/tuist_web/live/once_overview_live.ex:317
 #, elixir-autogen, elixir-format
@@ -3250,28 +3250,28 @@ msgstr "ტესტების გაშვება ჯერ არ არ�
 #: lib/tuist_web/live/once_overview_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "The average duration of Once build runs."
-msgstr "Once-ის აგების საშუალო ხანგრძლივობა."
+msgstr "Once ბილდის გაშვებების საშუალო ხანგრძლივობა."
 
 #: lib/tuist_web/live/once_overview_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "The average duration of Once test runs."
-msgstr "Once-ის ტესტების საშუალო ხანგრძლივობა."
+msgstr "Once ტესტების გაშვებების საშუალო ხანგრძლივობა."
 
 #: lib/tuist_web/live/once_cache_live.ex:417
 #: lib/tuist_web/live/once_runs_live.ex:573
 #, elixir-autogen, elixir-format
 msgid "The 1,000 run limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent runs."
-msgstr "მიღწეულია 1,000 გაშვების ლიმიტი, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ თარიღის დიაპაზონის შევიწროება ბოლოდროინდელი გაშვებების სანახავად."
+msgstr "1,000 გაშვების ლიმიტი მიღწეულია, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ თარიღის დიაპაზონის შევიწროვება უფრო ახალი გაშვებების სანახავად."
 
 #: lib/tuist_web/live/once_overview_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "The share of cacheable actions resolved from cache rather than being rerun."
-msgstr "კეშიდან ამოღებული ქეშირებადი მოქმედებების წილი იმის ნაცვლად, რომ ისინი ხელახლა შესრულდეს."
+msgstr "ქეშირებადი მოქმედებების წილი, რომლებიც ამოღებული იქნა ქეშიდან და არა გადაკეთდა."
 
 #: lib/tuist_web/live/once_run_live.ex:781
 #, elixir-autogen, elixir-format
 msgid "No cache activity matches your search or filters"
-msgstr "თქვენს ძებნას ან ფილტრებს კეშირების აქტივობა არ ემთხვევა"
+msgstr "ქეშის აქტივობა ვერ შეესაბამება თქვენს ძიებას ან ფილტრებს"
 
 #: lib/tuist_web/live/once_run_live.ex:1275
 #, elixir-autogen, elixir-format
@@ -3281,7 +3281,7 @@ msgstr "შეწყვეტილი"
 #: lib/tuist_web/live/mix_overview_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to complete a mix compile run during the selected period."
-msgstr "საშუალო დრო, რომელიც საჭიროა შერეული კომპილაციის გასაშვებად არჩეულ პერიოდში."
+msgstr "შერჩეულ პერიოდში Mix-ის კომპილაციის გაშვების დასრულების საშუალო დრო."
 
 #: lib/tuist_web/live/cargo_overview_live.html.heex:109
 #: lib/tuist_web/live/mix_overview_live.html.heex:240
@@ -3305,32 +3305,32 @@ msgstr "პროექტის პარამეტრები"
 #: lib/tuist_web/live/project_bundle_settings_live.ex:375
 #, elixir-autogen, elixir-format
 msgid "Absolute size (MB)"
-msgstr "აბსოლუტური ზომა (MB)"
+msgstr "აბსოლუტური ზომა (მბ)"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
-msgstr "პულ-რიკვესტების ბლოკირება, როდესაც <strong>%{size_label}</strong> იზრდება <strong>%{deviation}</strong>-ზე მეტად <strong>%{baseline_branch}</strong>-ზე განთავსებულ უახლეს ბანდლთან შედარებით."
+msgstr "PR-ების ბლოკირება, როდესაც <strong>%{size_label}</strong> იზრდება <strong>%{deviation}</strong>-ზე მეტად <strong>%{baseline_branch}</strong>-ზე არსებულ უახლეს ბანდლთან შედარებით."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
-msgstr "პულ-რიკვესტების ბლოკირება, როდესაც <strong>%{bundle_name}</strong>-ის <strong>%{size_label}</strong> იზრდება <strong>%{deviation}</strong>-ზე მეტად <strong>%{baseline_branch}</strong>-ზე განთავსებულ უახლეს ბანდლთან შედარებით."
+msgstr "PR-ების ბლოკირება, როდესაც <strong>%{bundle_name}</strong>-ის <strong>%{size_label}</strong> იზრდება <strong>%{deviation}</strong>-ზე მეტად <strong>%{baseline_branch}</strong>-ზე არსებულ უახლეს ბანდლთან შედარებით."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "Enter a valid size threshold."
-msgstr "შეიყვანეთ მოქმედი ზომის ზღვარი."
+msgstr "შეიყვანეთ ვალიდური ზომის ზღვარი."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "Percentage (%)"
-msgstr "პროცენტული მაჩვენებელი (%)"
+msgstr "პროცენტი (%)"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:365
 #, elixir-autogen, elixir-format
 msgid "The size threshold could not be saved. Check the name and baseline branch."
-msgstr "ზომის ზღვრის შენახვა ვერ მოხერხდა. გადაამოწმეთ სახელი და საბაზისო შტო."
+msgstr "ზომის ზღვარის შენახვა ვერ მოხერხდა. შეამოწმეთ სახელი და საბაზისო შტო."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:162
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:349
@@ -3341,12 +3341,12 @@ msgstr "ზღვრის ტიპი"
 #: lib/tuist_web/live/project_bundle_settings_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "1 MB = 1,000,000 bytes"
-msgstr "1 MB = 1,000,000 ბაიტი"
+msgstr "1 მბ = 1,000,000 ბაიტი"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Deviation (MB)"
-msgstr "გადახრა (MB)"
+msgstr "გადახრა (მბ)"
 
 #: lib/tuist_web/live/once_run_live.ex:419
 #: lib/tuist_web/live/once_run_live.ex:813
@@ -3357,7 +3357,7 @@ msgstr "საწყისი ფაილები"
 #: lib/tuist_web/live/once_run_live.ex:387
 #, elixir-autogen, elixir-format
 msgid "Search actions, targets or files..."
-msgstr "მოქმედებების, სამიზნეების ან ფაილების ძებნა..."
+msgstr "მოქმედებების, მიზნების ან ფაილების ძიება..."
 
 #: lib/tuist_web/live/once_run_live.ex:1313
 #, elixir-autogen, elixir-format
@@ -3368,12 +3368,12 @@ msgstr[0] "კიდევ %{display_count} ფაილი"
 #: lib/tuist_web/live/cargo_overview_live.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to complete a Cargo invocation during the selected period."
-msgstr "საშუალო დრო, რომელიც სჭირდება Cargo-ს გამოძახების შესრულებას არჩეულ პერიოდში."
+msgstr "Cargo-ს გამოძახების შესრულების საშუალო დრო შერჩეულ პერიოდში."
 
 #: lib/tuist_web/live/project_integrations_live.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Configure GitHub behavior for this project."
-msgstr "მოაწყვეთ GitHub-ის ქცევა ამ პროექტისთვის."
+msgstr "GitHub-ის ქცევის კონფიგურაცია ამ პროექტისთვის."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:13
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:13
@@ -3389,9 +3389,9 @@ msgstr "ინტეგრაციები"
 #: lib/tuist_web/live/project_integrations_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Post and update Tuist run reports on pull or merge requests. Uploads and CI job summaries are unaffected."
-msgstr "გამოაქვეყნეთ და განაახლეთ Tuist-ის შესრულების ანგარიშები pull ან merge მოთხოვნებზე. ატვირთვები და CI სამუშაოების შეჯამებები უცვლელი რჩება."
+msgstr "პოსტი და Tuist-ის გაშვების ანგარიშების განახლება pull ან merge მოთხოვნებზე. ატვირთვები და CI სამუშაოების შეჯამებები უცვლელი რჩება."
 
 #: lib/tuist_web/live/project_integrations_live.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Run report comments"
-msgstr "შესრულების ანგარიშის კომენტარები"
+msgstr "გაშვების ანგარიშის კომენტარები"

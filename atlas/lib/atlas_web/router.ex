@@ -243,6 +243,8 @@ defmodule AtlasWeb.Router do
     pipe_through :native
 
     get "/connections", ConnectionController, :index, log: false
+    get "/coding-repositories", CodingRepositoriesController, :index, log: false
+    put "/coding-repositories/settings", CodingRepositoriesController, :update, log: false
     get "/business-profile", BusinessProfileController, :show, log: false
     put "/business-profile", BusinessProfileController, :update, log: false
     delete "/connections/:provider", ConnectionController, :delete, log: false
@@ -388,6 +390,7 @@ defmodule AtlasWeb.Router do
       live "/settings", AccountSettingsLive, :index
       live "/settings/llm-providers", LLMProviderSettingsLive, :index
       live "/settings/connections", ConnectionsLive, :index
+      live "/settings/coding", CodingSettingsLive, :index
     end
 
     live_session :authenticated_dashboard,
@@ -395,6 +398,8 @@ defmodule AtlasWeb.Router do
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/", OverviewLive, :index
       live "/demo", DemoLive, :index
+      live "/orbit", OrbitLive, :index
+      live "/orbit/:id", OrbitLive, :show
       live "/tasks", TasksLive, :index
       live "/people", PeopleLive, :index
       live "/people/time-off", TimeOffLive, :index

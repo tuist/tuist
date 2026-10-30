@@ -16,6 +16,12 @@ defmodule Tuist.Docs.Sidebar do
   end
 
   @strings_dir Path.expand("../../priv/docs/strings", __DIR__)
+  @strings_paths @strings_dir |> Path.join("*.json") |> Path.wildcard() |> Enum.sort()
+  @strings_paths_digest :erlang.md5(@strings_paths)
+
+  for path <- @strings_paths do
+    @external_resource Path.relative_to_cwd(path)
+  end
 
   extract_texts = fn extract_texts, map, prefix ->
     map
@@ -67,6 +73,12 @@ defmodule Tuist.Docs.Sidebar do
     end
 
   @translations translations
+
+  def __mix_recompile__? do
+    @strings_dir |> Path.join("*.json") |> Path.wildcard() |> Enum.sort() |> :erlang.md5() != @strings_paths_digest
+  end
+
+  def __phoenix_recompile__?, do: __mix_recompile__?()
 
   def tree do
     guides_tree() ++ resources_tree() ++ references_tree() ++ cli_tree()
@@ -139,7 +151,12 @@ defmodule Tuist.Docs.Sidebar do
 
     Enum.map(tree, fn
       %Group{label: label, items: items} = group ->
-        %{group | label: translate(label, nil, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
+        %{
+          group
+          | category: group.category || label,
+            label: translate(label, nil, maps),
+            items: Enum.map(items, &localize_item(&1, locale, maps))
+        }
     end)
   end
 

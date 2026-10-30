@@ -1013,8 +1013,19 @@ if [ ! -x "${JQ}" ]; then
   exit 1
 fi
 
+# The dev.tuist.logd-watchdog LaunchDaemon restarts a wedged logd, and reports
+# one that does not come back here, where tart-kubelet stops the VM (see
+# logd-watchdog.sh). A warm VM stops polling once it is reported, so it never
+# takes a job.
+LOGD_WEDGED_MARKER=/tmp/tuist-logd-wedged
+[ -d "${STATUS_SHARE}" ] && LOGD_WEDGED_MARKER="${STATUS_SHARE}/logd-wedged"
+
 while true; do
   attempt=$((attempt + 1))
+  if [ -e "${LOGD_WEDGED_MARKER}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: logd wedged during warm standby; exiting instead of taking a job"
+    exit 1
+  fi
   # Beat before the request, not after: this says the loop is running,
   # and a curl that hangs to its --max-time is exactly the stall the
   # beat needs to expose. One iteration is bounded by that timeout, so

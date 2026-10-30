@@ -1,16 +1,9 @@
-ARG ELIXIR_VERSION=1.20.2
-ARG OTP_VERSION=29.0.3
 ARG DOCKER_IMAGE_PREFIX=
 ARG DOCKER_OFFICIAL_IMAGE_PREFIX=
-# hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
-# linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
-ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
-# The plain debian:bookworm-20260406-slim tag is amd64-only. Use the unpinned
-# bookworm-slim tag for the runner base so the final image supports both
-# amd64 and arm64. Trading a small amount of reproducibility for multi-arch.
-ARG DEBIAN_RUNNER_VERSION=bookworm-slim
-ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
-ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
+# Renovate bumps the *_IMAGE tags below. The Elixir and OTP versions in the
+# builder tag match mise.toml.
+ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim"
+ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:bookworm-20261027-slim"
 # Swift 6.4 includes the FoundationNetworking fix for concurrent registry
 # redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).
 ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.4.1-bookworm"
@@ -251,9 +244,10 @@ RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
 # ========================================
 FROM ${RUNNER_IMAGE} AS runner-base
 
-# APT_CACHE_BUST is passed from CI (e.g. the commit SHA) to invalidate the
-# apt layer so `apt-get upgrade` picks up the latest security patches instead
-# of reusing a stale cached layer.
+# Builds that pass APT_CACHE_BUST rebuild the apt layer so `apt-get upgrade`
+# picks up the latest security patches. Deployed images don't pass it: their
+# apt layer is rebuilt when RUNNER_IMAGE changes, so consecutive deploys share
+# it and nodes pull it once.
 ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \

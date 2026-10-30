@@ -22,8 +22,8 @@ func TestMergeBuildkitVolumesKeepsUnrelatedKeysAndSelectsCompleteStates(t *testi
 			t.Run(fmt.Sprintf("into=%s/changed=%t", into, changed), func(t *testing.T) {
 				d := &daemon{dataRoot: t.TempDir(), mergeRoot: t.TempDir(), base: dockerSnapshot{BuildVolumes: map[string]string{}}}
 				key := func(s string) string { return "buildx_buildkit_tuist-" + digest(s)[:32] + "0_state" }
-				shared, branchOnly, headOnly := key("shared"), key("branch"), key("head")
-				states := map[string]map[string]string{d.dataRoot: {shared: "branch", branchOnly: "branch-only"}, d.mergeRoot: {shared: "head", headOnly: "head-only"}}
+				shared, branchOnly, headOnly, removed := key("shared"), key("branch"), key("head"), key("removed")
+				states := map[string]map[string]string{d.dataRoot: {shared: "branch", branchOnly: "branch-only"}, d.mergeRoot: {shared: "head", headOnly: "head-only", removed: "removed"}}
 				for root, entries := range states {
 					for name, value := range entries {
 						path := filepath.Join(root, "volumes", name, "_data")
@@ -41,7 +41,8 @@ func TestMergeBuildkitVolumesKeepsUnrelatedKeysAndSelectsCompleteStates(t *testi
 						}
 					}
 				}
-				d.base.BuildVolumes[shared] = "branch"
+				// The job removed a builder it started with that the head kept as is.
+				d.base.BuildVolumes[shared], d.base.BuildVolumes[removed] = "branch", "removed"
 				if changed {
 					d.base.BuildVolumes[shared] = "previous"
 				}
@@ -70,11 +71,15 @@ func TestMergeBuildkitVolumesKeepsUnrelatedKeysAndSelectsCompleteStates(t *testi
 						name := args[len(args)-1]
 						states[root][name] = "created"
 						return nil, os.MkdirAll(filepath.Join(root, "volumes", name, "_data"), 0700)
+					case "rm":
+						name := args[len(args)-1]
+						delete(states[root], name)
+						return nil, os.RemoveAll(filepath.Join(root, "volumes", name))
 					}
 					return nil, fmt.Errorf("unexpected command %v", args)
 				}
 				branch := dockerSnapshot{BuildVolumes: map[string]string{shared: "branch", branchOnly: "branch-only"}}
-				head := dockerSnapshot{BuildVolumes: map[string]string{shared: "head", headOnly: "head-only"}}
+				head := dockerSnapshot{BuildVolumes: map[string]string{shared: "head", headOnly: "head-only", removed: "removed"}}
 				if err := d.mergeBuildkitVolumes(context.Background(), into, branch, head); err != nil {
 					t.Fatal(err)
 				}
@@ -85,6 +90,9 @@ func TestMergeBuildkitVolumesKeepsUnrelatedKeysAndSelectsCompleteStates(t *testi
 				winner := "head"
 				if changed {
 					winner = "branch"
+				}
+				if _, err := os.Stat(filepath.Join(root, "volumes", removed)); !os.IsNotExist(err) {
+					t.Fatalf("the job's removed builder is back: %v", err)
 				}
 				for name, want := range map[string]string{shared: winner, branchOnly: "branch-only", headOnly: "head-only"} {
 					got, err := os.ReadFile(filepath.Join(root, "volumes", name, "_data", "state"))

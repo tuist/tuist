@@ -1,3 +1,29 @@
+## Tags {#tags}
+
+Attach tags when uploading a bundle to distinguish build flavors, environments, or release channels. Bundle tags follow the same convention as Build Insights tags:
+
+```bash
+tuist inspect bundle App.ipa --tags paid production
+```
+
+In CI, you can also set comma-separated tags with `TUIST_BUNDLE_TAGS`:
+
+```bash
+TUIST_BUNDLE_TAGS="paid,production" tuist inspect bundle App.ipa
+```
+
+Explicit `--tags` replace the environment variable's tags. Tags may contain letters, numbers, hyphens, and underscores, with up to 10 tags per bundle and 50 characters per tag. The same options work for Android bundles. `--json` remains local-only and does not upload tags or the bundle.
+
+Tags appear beside bundle names and in bundle details. Use the dashboard's **Tags** filter and enter a tag to include or exclude it in the bundle list. Matching is exact and case-sensitive, even though the filter operators are labelled **contains** and **does not contain**: `paid` does not match `paid-extra`. To filter from the CLI:
+
+```bash
+tuist bundle list --tags paid production
+```
+
+The CLI, API (`?tags=paid,production`), and MCP `list_bundles` tool (`tags: ["paid", "production"]`) return bundles containing **all** specified tags. API uploads accept `bundle.custom_metadata.tags`; list and detail responses return `custom_metadata.tags`. Existing bundles without tags remain available as before. Tags filter the bundle list; they do not change size charts or automatic comparison and threshold baselines.
+
+Existing clients can continue uploading and reading bundles without tags. Updated clients can also read responses from older servers that omit `custom_metadata`. Storing and filtering tags requires a server version that supports bundle tags: older servers ignore upload metadata and reject tag filters. Updated clients omit both upload metadata and tag query parameters when no tags are supplied.
+
 ## Understanding bundle sizes {#understanding-sizes}
 
 For every analyzed bundle, Tuist reports two values:

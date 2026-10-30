@@ -31,6 +31,21 @@ permissions or enable a real environment from screenshot fixtures. The server ow
 durable Orbit runs/checkpoints, frozen environment selection, encrypted command
 records, private history and unknown-outcome handling across deployments.
 
+Parent-directory discovery lists immediate non-symlink Git roots. Coding projects
+advertise an optional boolean and canonical public-GitHub `owner/repo` identity
+from local `remote.origin.url`, never raw remotes, credentials or local paths.
+Read metadata off the main actor without fetching; non-GitHub/unrecognized remotes
+remain ordinary selectable projects. Repository discovery grants no consent.
+With terminal consent,
+`read`/`bash`/`edit`/`write` run in a retained worktree scoped by origin, owner,
+installation, project and thread. Create it lazily after claim from local HEAD,
+never copying dirty files or fetching/resetting/stashing the original checkout.
+Use a title slug plus UUID for the initial branch; do not rename a branch the
+person may already be using. Descriptor-relative file mutations reject symlinks
+and apply unique nonoverlapping replacements atomically against original text,
+preserving UTF-8 BOM, newline style and existing permissions. Archive/sign-out
+must not delete code; local retention/export is separate from server records.
+
 Build with `ONCE_CACHE_PROVIDER=local mise run build:macos`, test shared adapters
 with `mise run test:macos`, and lint through `mise run lint:swift`. The minimum is
 macOS 14; gate newer SwiftUI APIs for both iOS and macOS. Native app menus, keyboard

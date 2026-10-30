@@ -40,6 +40,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
     {"* * * * *", Tuist.Sandboxes.AmpReconciler},
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
+    {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},

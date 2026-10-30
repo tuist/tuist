@@ -227,10 +227,22 @@ that `rate()` reads. The `tuist_` prefix rule (drops `pod`, `instance`,
 metric without an exact rule, so a new counter under that prefix cannot be
 rated until it gets an exact rule with `sum:counter`. An exact rule takes
 precedence over a prefix rule, as `tuist_runners_dispatch_request_count`
-shows. `tuist_runner_cache_volume_operations_total` and
-`tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}` got
-theirs on 2026-10-22 at 16:50 UTC; samples stored before then still cannot be
-rated.
+shows. Exact `sum:counter` rules (dropping only `instance` and `pod`) cover:
+
+- `tuist_runners_job_executor_queue_time_milliseconds_{bucket,count,sum}`,
+  read by the `runner-queue-time-p90-over-target` alert
+- `tuist_runners_job_queue_time_milliseconds_{bucket,count,sum}`, read by the
+  Runners dashboard's queue-time panels
+
+Samples stored before a rule took effect still cannot be rated.
+
+Auto-apply also rewrites exact rules. The
+`tuist_runner_cache_volume_operations_total` and
+`tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}`
+rules added on 2026-10-22 no longer match: as of 2026-10-30 `_bucket` stores
+plain `sum`, and `_total` and `_count` have no exact rule and fall back to the
+prefix rule. Re-read the rules after adding one, and again before trusting a
+rate over the metric.
 
 `sum:counter` cannot count an increment it never saw. A counter series a
 source creates on its first increment (a label combination the code does not
