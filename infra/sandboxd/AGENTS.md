@@ -130,6 +130,22 @@ resolve both cluster Services and public names through the pod's NAT.
   `cold_boot` resume. No template shape snapshot is needed, and the guest
   keeps its workspace. The first pause writes the sandbox's own memory
   image.
+- `archive {sandbox_id, part_size, part_urls}`: refuse unless the sandbox is
+  paused; stream `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory
+  image) as one zstd object (`internal/archive`: magic `SBXARC1`, a JSON
+  header, file records with data blocks at their offsets, holes and zero
+  blocks left out) cut into `part_size` parts, each PUT to the next
+  presigned UploadPart URL (two parts in memory at most, three attempts per
+  part). Answers the parts' ETags, the object's `bytes` and `sha256`,
+  `stored_bytes` and `disks_synced`. The sandbox stays paused on the node;
+  the server deletes it once the upload is complete. A `resume` or `delete`
+  cancels an archive in flight instead of waiting for it. Transport errors
+  never carry the signed URL.
+- `create {..., from_archive: {url, bytes, sha256}}`: download the archive
+  (three attempts), check its size and SHA-256, extract it into a fresh
+  jail (the template name and workspace size must match), then cold boot
+  like a disk-snapshot clone. A failure discards the jail; the archive is
+  never touched.
 - `delete {sandbox_id}`: kill the VM if running, tear down the netns, remove
   the jail dir. Deleting an id the node does not hold succeeds and removes
   whatever is left on disk under it.
@@ -247,6 +263,7 @@ Server to node:
 {"type":"command","id":"c7","op":"stop_worker","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}
+{"type":"command","id":"c10","op":"archive","args":{"sandbox_id":"...","part_size":N,"part_urls":["https://..."]}}
 ```
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
@@ -332,7 +349,8 @@ acknowledged by the server's poller; the worker never polls.
 
 Runner/sandbox capacity policy and rollout gates: [fleet-sharing.md](fleet-sharing.md).
 
-Diff snapshots, userfaultfd restore from object storage, cross-node resume,
+Diff snapshots, userfaultfd restore from object storage, cross-node resume
+with memory (archived sandboxes restore on any node, but cold),
 per-account egress policy, non-root execution in the guest, Claude Code
 self-hosted runners.
 

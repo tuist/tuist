@@ -2620,6 +2620,12 @@ sandboxes:
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200
+  # Hours an Amp Orb stays paused on its node before the server archives its
+  # kernel, rootfs and workspace (not its memory image) to the account's
+  # object storage and deletes the node copy, releasing its disk reservation.
+  # The next spawn restores it on any node and cold boots it. 0 keeps paused
+  # Orbs on their nodes. See infra/amp-orbs/README.md.
+  archiveAfterHours: 0
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
   prebuildShapes: "2x4096"

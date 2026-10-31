@@ -109,6 +109,13 @@ defmodule TuistWeb.API.SandboxesController do
       residency_work_id: %Schema{type: :string, nullable: true},
       last_active_at: %Schema{type: :string, format: "date-time", nullable: true},
       paused_at: %Schema{type: :string, format: "date-time", nullable: true},
+      archived_at: %Schema{
+        type: :string,
+        format: "date-time",
+        nullable: true,
+        description: "When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`."
+      },
+      archive_bytes: %Schema{type: :integer, nullable: true, description: "Size of the stored archive in bytes."},
       error_message: %Schema{type: :string, nullable: true},
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
@@ -660,6 +667,8 @@ defmodule TuistWeb.API.SandboxesController do
       :residency_work_id,
       :last_active_at,
       :paused_at,
+      :archived_at,
+      :archive_bytes,
       :error_message,
       :inserted_at,
       :updated_at

@@ -2,7 +2,10 @@ defmodule Tuist.Sandboxes.Sandbox do
   @moduledoc """
   A Firecracker sandbox VM living on one sandboxd node. Created from a
   template snapshot, paused to the node's disk when idle, resumed when
-  the next agent turn arrives.
+  the next agent turn arrives. An Amp Orb paused for long enough is
+  `archived`: its disks move to object storage (`archive_*` fields), it has
+  no node, and its next spawn restores it on any node
+  (`Tuist.Sandboxes.Archives`).
 
   `residency_work_id` names the Anthropic work item whose worker is
   currently running inside the VM. `residency_epoch` increments every
@@ -16,7 +19,7 @@ defmodule Tuist.Sandboxes.Sandbox do
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes.AgentEnvironment
 
-  @states [:creating, :running, :resuming, :paused, :error, :deleted]
+  @states [:creating, :running, :resuming, :paused, :archived, :error, :deleted]
   # The shapes (vcpus, memory_mb) accounts can request. Each one costs a
   # template build and a memory image on every node that serves it, so the
   # list is short and matches the nodes' ALLOWED_SHAPES (chart
@@ -41,6 +44,12 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :last_active_at, :utc_datetime
     field :paused_at, :utc_datetime
     field :error_message, :string
+    field :archive_key, :string
+    field :archive_upload_id, :string
+    field :archive_bytes, :integer
+    field :archive_sha256, :string
+    field :archive_attempted_at, :utc_datetime
+    field :archived_at, :utc_datetime
 
     belongs_to :account, Account
     belongs_to :provider_environment, Tuist.Sandboxes.ProviderEnvironment, type: :binary_id
@@ -107,7 +116,13 @@ defmodule Tuist.Sandboxes.Sandbox do
       :residency_epoch,
       :last_active_at,
       :paused_at,
-      :error_message
+      :error_message,
+      :archive_key,
+      :archive_upload_id,
+      :archive_bytes,
+      :archive_sha256,
+      :archive_attempted_at,
+      :archived_at
     ])
     |> validate_required([:state])
   end

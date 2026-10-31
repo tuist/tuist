@@ -45,6 +45,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.Profiles, as: RunnerProfiles
+  alias Tuist.Sandboxes.Archives, as: SandboxArchives
 
   require Logger
 
@@ -2728,6 +2729,7 @@ defmodule Tuist.Accounts do
   defp purge_account_storage(account) do
     purge_account_cache_masters(account)
     purge_account_gitlab_caches(account)
+    purge_account_sandbox_archives(account)
   end
 
   # The runner cache-volume master archive is customer-derived build cache
@@ -2742,6 +2744,21 @@ defmodule Tuist.Accounts do
     e ->
       Logger.warning(
         "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
+  end
+
+  # Archived Amp Orbs keep their disks under an account_id-keyed prefix, and
+  # their rows cascade with the account, so nothing else would find them.
+  # Best-effort, like the cache-master purge.
+  defp purge_account_sandbox_archives(account) do
+    Tuist.Storage.delete_all_objects(SandboxArchives.object_prefix(account.id), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge sandbox archives on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
       )
 
       :ok

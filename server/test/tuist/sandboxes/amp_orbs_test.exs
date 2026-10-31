@@ -129,7 +129,8 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert {:error, :timeout} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
     assert Repo.reload!(sandbox).residency_work_id == "amp:amp-thread"
 
-    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+    # Every Orb pause syncs the disks, which archiving relies on.
+    expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{}} end)
 
     assert {:ok, %{state: :paused, residency_work_id: nil}} =
              AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})

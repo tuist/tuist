@@ -13,6 +13,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   is cloned from it, so Amp skips the project's setup. Saving is best
   effort: a failed save never fails the pause, and Amp then reruns setup
   in the next new Orb.
+
+  An Orb paused long enough is archived to object storage by
+  `Tuist.Sandboxes.Archives`; a spawn restores it and a pause leaves it
+  archived.
   """
 
   alias Tuist.Environment
@@ -64,6 +68,11 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     with {:ok, _deleted} <- Sandboxes.delete(sandbox), do: {:ok, nil}
   end
 
+  # Pausing an archived Orb has nothing left to do: its disks are in object
+  # storage and a disk snapshot needs them on a node.
+  defp dispatch_operation(_account, _orb_id, %Sandbox{state: :archived} = sandbox, %{operation: "pause"}),
+    do: {:ok, sandbox}
+
   defp dispatch_operation(_account, _orb_id, %Sandbox{state: :paused} = sandbox, %{operation: "pause"} = params) do
     with {:ok, paused} <- Sandboxes.end_residency(sandbox) do
       save_snapshot(paused, params)
@@ -72,8 +81,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
 
   defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params) do
     # Keep the residency until the snapshot succeeds. A failed pause must
-    # not make an active Orb eligible for CI reclaim.
-    with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: snapshot_id(params) != nil),
+    # not make an active Orb eligible for CI reclaim. Every pause syncs the
+    # guest's disks, so they alone hold every write once a disk snapshot or
+    # the archive tier drops the memory image.
+    with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: true),
          {:ok, paused} <- Sandboxes.end_residency(paused) do
       save_snapshot(paused, params)
     end
