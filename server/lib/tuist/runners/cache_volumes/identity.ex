@@ -60,9 +60,10 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   def resolve(_), do: {:error, :unavailable}
 
   @doc """
-  Resolves and stores a GitLab job's cache volume identity when the job is
-  acquired, while its job token is fresh, so allocation does not call GitLab.
-  A failed lookup stores nothing and allocation resolves it live instead.
+  Resolves and stores a GitLab job's cache volume identity right after the job
+  is acquired (`Workers.CaptureGitLabIdentityWorker`), while its job token is
+  fresh, so allocation does not call GitLab. A failed lookup stores nothing and
+  allocation resolves it live instead.
   """
   def capture_gitlab(%GitLab.Job{} = assigned) do
     case live_gitlab_identity(assigned) do

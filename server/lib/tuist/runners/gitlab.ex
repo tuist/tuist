@@ -20,7 +20,6 @@ defmodule Tuist.Runners.GitLab do
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
-  alias Tuist.Runners.CacheVolumes.Identity
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
@@ -32,6 +31,7 @@ defmodule Tuist.Runners.GitLab do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.Workers.CaptureGitLabIdentityWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
@@ -163,7 +163,7 @@ defmodule Tuist.Runners.GitLab do
         # Best effort: the executor writes the same bytes before its own log.
         Client.write_trace(job.url, payload, waiting_trace(job, payload, resolved))
         # Best effort: without it, allocation asks GitLab itself.
-        Identity.capture_gitlab(job)
+        CaptureGitLabIdentityWorker.enqueue(job)
         {:ok, 1}
 
       {{:ok, job}, {:error, _}} ->

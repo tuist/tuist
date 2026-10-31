@@ -103,9 +103,12 @@ these schemas persist volume identities and per-job uses.
   GitHub cannot answer it attaches read-only (`same_repository` false, no writer
   branch), so its custom volumes and checkout still read and its Docker volume
   stays unavailable. A checkout needs a known default branch.
-- GitLab's identity is captured when the job is acquired
-  (`Identity.capture_gitlab/1`, `runner_gitlab_jobs.cache_volume_identity`), so
-  allocation does not call GitLab; it resolves live only when that capture failed.
+- GitLab's identity is captured right after the job is acquired, by
+  `Workers.CaptureGitLabIdentityWorker` (`Identity.capture_gitlab/1`,
+  `runner_gitlab_jobs.cache_volume_identity`), so allocation does not call
+  GitLab; it resolves live only when that capture has not landed. Keep the
+  capture out of the acquisition itself: a GitLab failure there must never fail
+  the job.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
