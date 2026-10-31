@@ -1,0 +1,16 @@
+load("@rules_tuist//:android.bzl", "android_preview")
+load("@rules_tuist//:apple.bzl", "apple_preview")
+load("@rules_tuist//:executable.bzl", "executable_preview")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":apps.bzl", "android_application", "apple_application")
+
+android_application(name = "android_app")
+apple_application(name = "apple_app")
+
+android_preview(name = "preview_android", app = ":android_app")
+apple_preview(name = "preview_apple", app = ":apple_app")
+
+cc_library(name = "greeting", srcs = ["greeting.cc"], linkstatic = False)
+cc_binary(name = "tool", srcs = ["tool.cc"], deps = [":greeting"], linkstatic = False)
+executable_preview(name = "preview_executable", binary = ":tool")

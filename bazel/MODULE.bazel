@@ -1,7 +1,12 @@
 module(
-    name = "tuist_previews",
+    name = "rules_tuist",
     version = "0.1.0",
 )
 
 bazel_dep(name = "rules_android", version = "0.8.0")
 bazel_dep(name = "rules_apple", version = "5.3.1")
+bazel_dep(name = "rules_python", version = "2.4.6")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(python_version = "3.12")
+use_repo(python, "python_3_12")

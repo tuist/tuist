@@ -13,6 +13,8 @@ import urllib.request
 from pathlib import Path
 
 import apple
+import auth
+import executable
 
 import android
 
@@ -182,7 +184,7 @@ def publish(service, intent, blobs):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build an application and explicitly publish a Tuist preview."
+        description="Build an application or executable and explicitly publish a Tuist preview."
     )
     parser.add_argument("--config", required=True)
     parser.add_argument("--payload", required=True)
@@ -216,12 +218,18 @@ def main():
         # the original Bazel output while publication is running.
         snapshot = directory / "input"
         shutil.copyfile(payload, snapshot)
-        producer = {"android": android, "apple": apple}[config["ecosystem"]]
+        producer = {"android": android, "apple": apple, "executable": executable}[
+            config["ecosystem"]
+        ]
         result = producer.prepare(snapshot, directory, args)
         metadata = result[-1]
-        identifier = metadata.get("application_id") or metadata.get("bundle_identifier")
+        identifier = (
+            metadata.get("display_name")
+            if config["ecosystem"] == "executable"
+            else metadata.get("application_id") or metadata.get("bundle_identifier")
+        )
         if not isinstance(identifier, str) or not identifier:
-            raise ValueError("The application has no native identifier")
+            raise ValueError("The output has no preview identifier")
         for field in [
             "application_id",
             "bundle_identifier",
@@ -239,17 +247,7 @@ def main():
                     "Native application metadata is not eligible for a preview"
                 )
         root, blobs = package(*result, directory)
-        token = subprocess.run(
-            ["tuist", "auth", "token", "--url", args.url],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        if not token or any(char.isspace() for char in token):
-            raise ValueError(
-                "Tuist did not return an authentication token; run tuist auth login"
-            )
-        service.token = token
+        service.token = auth.token(args.url)
         intent = {
             "schema": "once.publication_intent.v1",
             "target": config["target"],

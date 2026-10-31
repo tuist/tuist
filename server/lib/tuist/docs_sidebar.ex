@@ -417,9 +417,23 @@ defmodule Tuist.Docs.Sidebar do
             label: "Previews",
             slug: "/en/guides/features/previews",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/previews/xcode", icon: "brand_apple"},
-              %Item{label: "Gradle", slug: "/en/guides/features/previews/gradle", icon: "brand_gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/previews/bazel", icon: "brand_bazel"}
+              %Item{
+                label: "Build and publish",
+                items: [
+                  %Item{label: "Xcode", slug: "/en/guides/features/previews/xcode", icon: "brand_apple"},
+                  %Item{label: "Gradle", slug: "/en/guides/features/previews/gradle", icon: "brand_gradle"},
+                  %Item{label: "Bazel", slug: "/en/guides/features/previews/bazel", icon: "brand_bazel"}
+                ]
+              },
+              %Item{label: "Supported types", slug: "/en/guides/features/previews/types", icon: "package"},
+              %Item{
+                label: "Run previews",
+                items: [
+                  %Item{label: "CLI", slug: "/en/guides/features/previews/run/cli", icon: "devices_code"},
+                  %Item{label: "macOS app", slug: "/en/guides/features/previews/run/macos", icon: "device_desktop"},
+                  %Item{label: "iPhone app", slug: "/en/guides/features/previews/run/ios", icon: "device_mobile"}
+                ]
+              }
             ]
           },
           %Item{

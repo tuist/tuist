@@ -12,7 +12,7 @@ def _apple_preview_impl(ctx):
         fail("Tuist previews require an Apple application, not a framework, extension or test")
     if info.archive.is_directory:
         fail("Tuist previews require archive output; disable experimental tree-artifact output")
-    return preview_executable(ctx, info.archive, "apple")
+    return preview_executable(ctx, info.archive, "apple", ctx.attr.app.label)
 
 apple_preview = rule(
     implementation = _apple_preview_impl,
@@ -20,6 +20,7 @@ apple_preview = rule(
     attrs = {
         "app": attr.label(mandatory = True, providers = [AppleBundleInfo]),
         "_sources": attr.label(default = Label("//private:sources")),
+        "_runtime": attr.label(default = Label("@python_3_12//:py3_runtime"), cfg = "exec"),
     },
     doc = "Build an Apple application; publish ad-hoc simulator/macOS apps with --publish.",
 )

@@ -1,8 +1,8 @@
 module(name = "tuist_android_preview_example")
 
-bazel_dep(name = "tuist_previews", version = "0.1.0")
+bazel_dep(name = "rules_tuist", version = "0.1.0")
 local_path_override(
-    module_name = "tuist_previews",
+    module_name = "rules_tuist",
     path = "../..",
 )
 

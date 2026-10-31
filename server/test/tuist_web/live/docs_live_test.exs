@@ -21,7 +21,7 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "preview build-system guides" do
-    test "overview links to Xcode, Gradle, and Bazel", %{conn: conn} do
+    test "overview separates artifact types, publication workflows, and running previews", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews")
 
       for {system, name} <- [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}] do
@@ -32,16 +32,73 @@ defmodule TuistWeb.DocsLiveTest do
                )
       end
 
-      assert has_element?(view, "#publish-from-once")
-      assert has_element?(view, ~s(a[href="/en/docs/guides/features/previews/once"]))
+      for anchor <- ["what-you-can-preview", "publish-a-preview", "run-a-preview"] do
+        assert has_element?(view, "main ##{anchor}")
+      end
+
+      assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews/types"]), "Supported types")
+
+      for {client, label} <- [{"cli", "CLI"}, {"macos", "macOS app"}, {"ios", "iPhone app"}] do
+        assert has_element?(
+                 view,
+                 ~s(main a[data-part="feature-card"][href="/en/docs/guides/features/previews/run/#{client}"]),
+                 label
+               )
+      end
+
+      refute has_element?(
+               view,
+               ~s(a[data-part="feature-card"][href="/en/docs/guides/features/previews/once"])
+             )
     end
 
-    test "serves setup and eligibility for each build system", %{conn: conn} do
+    test "keeps the unlisted Once guide accessible through Bazel", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/bazel")
+
+      assert has_element?(view, "#publish-from-once")
+      assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews/once"]))
+    end
+
+    test "publication guides link to common recipient guidance instead of repeating it", %{conn: conn} do
+      {:ok, overview, _html} = live(conn, "/en/docs/guides/features/previews")
+
+      for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
+        assert has_element?(overview, "main ##{anchor}")
+      end
+
+      for system <- ["xcode", "gradle", "bazel", "once"] do
+        {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/" <> system)
+
+        for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
+          refute has_element?(view, "main ##{anchor}")
+        end
+
+        assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews#run-a-preview"]))
+      end
+    end
+
+    test "GitHub integration links to the relocated preview comment instructions", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/en/docs/guides/integrations/gitforge/github")
+
+      assert has_element?(
+               view,
+               ~s(main a[href="/en/docs/guides/features/previews/xcode#pullmerge-request-comments"])
+             )
+
+      {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/xcode")
+      assert has_element?(view, "main #pullmerge-request-comments")
+    end
+
+    test "serves build, type, and recipient guides", %{conn: conn} do
       for {system, title, command} <- [
             {"xcode", "Xcode previews", "tuist share App"},
-            {"gradle", "Gradle previews", "./gradlew :app:assembleDebug"},
+            {"gradle", "Gradle previews", "./gradlew :app:tuistShareDebug"},
             {"bazel", "Bazel previews", "--publish --project acme/app"},
-            {"once", "Once artifact publication", "--allow-on-build"}
+            {"once", "Once artifact publication", "--allow-on-build"},
+            {"types", "Supported preview types", "--executable bin/my-tool"},
+            {"run/cli", "Run previews with the CLI", "tuist run {url} -- --help"},
+            {"run/macos", "Run previews with the macOS app", "brew install --cask tuist/tuist/tuist"},
+            {"run/ios", "Run previews with the iPhone app", "monitorPreviewUpdates"}
           ] do
         {:ok, view, html} = live(conn, "/en/docs/guides/features/previews/" <> system)
         assert has_element?(view, "h1", title)

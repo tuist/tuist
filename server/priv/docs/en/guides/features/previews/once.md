@@ -53,3 +53,9 @@ Replaying the same retained publication verifies the remote receipt and avoids a
 ## Retention
 
 Artifact publications expire after 30 days on hosted Tuist. Self-hosted instances use `TUIST_APP_PREVIEW_RETENTION_DAYS`; leaving it unset disables expiry for this family. Expired records remain as tombstones and cannot be reactivated by replaying the same intent. Existing `tuist share` signing, visibility, and distribution workflows remain unchanged.
+
+See <.localized_link href="/guides/features/previews#run-a-preview">Run a preview</.localized_link> for running published builds, access, tracks, and README badges.
+
+## Apple previews
+
+For eligible Apple simulator and macOS previews, see the <.localized_link href="/guides/features/previews/run/macos">Tuist macOS companion app instructions</.localized_link>. Physical-device applications remain ineligible for Once publication.

@@ -1,22 +1,29 @@
-# Bazel application previews
+# Bazel previews
 
-The `tuist_previews` Bzlmod module adapts **application providers**, not filenames
-or remote-cache contents, into Tuist's immutable artifact publication protocol.
+The `rules_tuist` Bzlmod module adapts application providers and executable
+targets into Tuist's immutable artifact publication protocol.
 It uses the same receiver and preview distribution as Once; Once itself is not
-required. This module is not yet registered in the Bazel Central Registry.
+required. Application rules stay unchanged; a companion `bazel run` target is
+the explicit publication boundary, like `oci_push` in `rules_oci`.
 
 ## Setup
 
-Vendor this directory from a pinned `tuist/tuist` revision into
-`third_party/tuist_previews`, then add to your `MODULE.bazel`:
+Add the module directly from the Tuist repository to `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "tuist_previews", version = "0.1.0")
-local_path_override(
-    module_name = "tuist_previews",
-    path = "third_party/tuist_previews",
+bazel_dep(name = "rules_tuist")
+
+git_override(
+    module_name = "rules_tuist",
+    remote = "https://github.com/tuist/tuist.git",
+    commit = "FULL_COMMIT_SHA",
+    strip_prefix = "bazel",
 )
 ```
+
+Replace `FULL_COMMIT_SHA` with the full commit you want to pin. Published source
+archives also work with `archive_override`. See [Releases](https://github.com/tuist/tuist/blob/main/bazel/release/README.md)
+for canary, RC and stable source releases and archive checksums.
 
 The module requires modern `rules_android` (0.8.0+) / `rules_apple` (5.3.1+).
 Only load the adapter for the ecosystem you use. Keep your existing application
@@ -25,7 +32,7 @@ rules, SDK registration, platform selection and signing configuration.
 Add a companion executable target in your `BUILD.bazel`:
 
 ```starlark
-load("@tuist_previews//:android.bzl", "android_preview")
+load("@rules_tuist//:android.bzl", "android_preview")
 
 android_preview(name = "preview_android", app = ":android_app")
 ```
@@ -33,21 +40,42 @@ android_preview(name = "preview_android", app = ":android_app")
 Or, for Apple:
 
 ```starlark
-load("@tuist_previews//:apple.bzl", "apple_preview")
+load("@rules_tuist//:apple.bzl", "apple_preview")
 
 apple_preview(name = "preview_ios", app = ":ios_app")
+apple_preview(name = "preview_macos", app = ":macos_app")
 ```
 
-Install Python 3.11+, Bash, and the Tuist CLI with `tuist auth token` support
-(4.216.0+). Sign in with `tuist auth login` or configure Tuist's existing CI
-authentication. The publisher delegates token resolution/refresh to that CLI;
-do not put credentials in BUILD files, rule attributes, or command-line flags.
+For a command-line tool:
+
+```starlark
+load("@rules_tuist//:executable.bzl", "executable_preview")
+
+executable_preview(name = "preview_cli", binary = ":my_tool")
+```
+
+This packages the executable and its declared runfiles in a deterministic ZIP,
+including `tuist-preview.json` with the entry point, matching `tuist share`.
+The archive retains the binary's relative library paths and a runfiles tree.
+Declare runtime dependencies in the producing target; the rule does not bundle
+undeclared system libraries or interpreters. Native Mach-O and ELF targets are
+identified from their headers without executing them; scripts require a shebang
+and a recipient-supplied interpreter.
+
+Sign in directly with `bazel run @rules_tuist//:login`. Existing CLI/Gradle
+credentials also work: the native publisher shares their credential files and
+persistent POSIX refresh lock. On CI, set `TUIST_TOKEN` or use the login target
+with Tuist's OIDC authentication. No installed Tuist CLI or host Python is
+required; Bazel supplies the runtime. Do not put credentials in BUILD files or
+rule attributes. Linux and macOS use their standard Bash shell.
 
 ## Build and publish
 
 ```sh
 bazel run //:preview_android -- --publish --project acme/app --track review
 bazel run //:preview_ios --platforms=//platforms:ios_simulator -- --publish --project acme/app --track review
+bazel run //:preview_macos -- --publish --project acme/app --track review
+bazel run //:preview_cli -- --publish --project acme/app --track review
 ```
 
 Use your own simulator platform label for the Apple command. Pass `--url` for a
@@ -73,9 +101,9 @@ receipt before attempting another upload.
 Tuist creates previews asynchronously, with the project's default visibility.
 The returned link opens the existing project previews list; a receipt confirms
 retained artifacts, not completed preview processing. Storage, retention and
-distribution are described in the [Bazel preview guide](../server/priv/docs/en/guides/features/previews/bazel.md).
+distribution are described in the [Bazel preview guide](https://tuist.dev/en/docs/guides/features/previews/bazel).
 
-### Eligible applications
+### Eligible outputs
 
 - **Android:** `ApkInfo.signed_apk` from `android_binary`, verified using Android
   SDK `apksigner`, with package/version metadata and instrumentation declarations
@@ -92,6 +120,13 @@ distribution are described in the [Bazel preview guide](../server/priv/docs/en/g
   Metadata comes from the signed bundle's Info.plist, not from filenames or
   unsigned provider binaries. IPA/ZIP layout is normalized to a root `.app` ZIP,
   preserving executable bits and internal symlinks. macOS and Xcode are required.
+- **Executables:** macOS Mach-O (including universal binaries) and Linux ELF,
+  arm64/x86_64, plus scripts with shebangs. Uses the executable target's
+  `DefaultInfo` and declared runfiles. The producer supplies
+  `dev.tuist.executable.v1` with `tuist.executable.v1` metadata (display name,
+  platform, architectures and entry point); Tuist projects it into the existing
+  executable preview type and distribution path. The server's CLI-preview
+  rollout gate applies to this projection too.
 
 ## Validation
 
@@ -99,7 +134,17 @@ From the monorepo root:
 
 ```sh
 python3 -m unittest discover -s bazel/tests -v
+USE_BAZEL_VERSION=9.3.1 python3 bazel/tests/runtime/runtime_test.py
 ```
+
+The runtime driver requires Bazel or Bazelisk and a native C++ toolchain on
+`PATH`. It checks all public companion targets in directory and manifest-only runfiles modes with failing
+host Python and Tuist shims. Its application providers are fixtures, not native
+builds; the executable fixture is a real C++ binary with a shared library. It
+publishes to a loopback receiver, reuses receipts across runfiles modes, executes
+the extracted distribution outside Bazel and checks upload failures. Actual
+Android/Apple builds may have their own runfiles limitations in
+upstream tool rules; this check isolates the Tuist launcher from those tools.
 
 The protocol and Apple packaging checks use native-tool and service doubles.
 With `ANDROID_HOME` set and a JDK, SDK API 35/build-tools 35.0.0 and command-line

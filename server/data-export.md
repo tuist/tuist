@@ -291,11 +291,21 @@ operations; retain them until an administrator removes them.
 - **Full closures** (account object storage):
   `{account_id}/{project_id}/artifacts/{intent_key}/{digest}` stores the immutable
   artifact-set document, all member manifests and all payloads, including unknown
-  consumption interfaces. Once and Bazel application publications use this same
-  namespace, receipt identity and export process. Bazel publications include only
-  the selected signed application payload and derived native metadata, not
-  signing keys or unrelated rule outputs. Authenticated uploads verify SHA-256;
-  commit validates the reachable closure before returning a receipt. Supported native interfaces
+  consumption interfaces. Once, Bazel, and Gradle publications use this same
+  namespace, receipt identity and export process. Bazel and Gradle publications include only
+  the selected signed application payload, or executable distribution, and derived native metadata, not
+  signing keys or unrelated build outputs. Gradle metadata includes the application
+  ID, version code/name, verified signing certificate SHA-256 fingerprints, and
+  signature-verification result. Its publication target identifies the module and
+  variant; track is optional and revision is currently absent.
+  Executable publications retain the entry-point path, display name, operating
+  system and CPU architectures as `tuist.executable.v1` metadata, together with a
+  ZIP containing `tuist-preview.json` and the executable's runtime distribution.
+  Bazel includes the target's declared runfiles; Gradle native applications
+  include their installed executable and runtime libraries. Export these payloads
+  and metadata through the same artifact closure; projected executable builds
+  expose their platform and architecture in the existing `app_builds` columns.
+  Authenticated uploads verify SHA-256; commit validates the reachable closure before returning a receipt. Supported native interfaces
   additionally create `previews`/`app_builds` rows with the publication's project,
   creator, revision, track and original timestamp, honoring the project's default
   preview visibility. The nullable `app_builds.artifact_storage_key` references

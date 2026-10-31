@@ -9,6 +9,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
   alias Tuist.Artifacts
   alias Tuist.Artifacts.Package
   alias Tuist.Artifacts.Publication
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Uniq.UUID
 
@@ -29,6 +30,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
     if Artifacts.retained?(publication, project.account) do
       with {:ok, root} <- Package.read_json(project, publication.key, publication.intent["root"]),
            {:ok, applications} <- applications(project, publication, root["members"]),
+           :ok <- executable_previews_enabled(project, applications),
            {:ok, _} <- persist(publication, applications) do
         :ok
       end
@@ -50,7 +52,10 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
 
   defp application(project, publication, name, manifest) do
     interfaces = manifest["interfaces"]
-    interface = interfaces["dev.once.apple-install.v2"] || interfaces["dev.once.android-install.v1"]
+
+    interface =
+      interfaces["dev.once.apple-install.v2"] || interfaces["dev.once.android-install.v1"] ||
+        interfaces["dev.tuist.executable.v1"]
 
     if interface do
       with %{"spec" => %{"metadata_payload" => payload}} when is_binary(payload) <- interface,
@@ -113,13 +118,40 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
     end
   end
 
+  defp app_attributes(
+         %{"schema" => "tuist.executable.v1", "platform" => platform, "architectures" => architectures} = metadata
+       )
+       when platform in ["macos", "linux"] and is_list(architectures) do
+    if length(architectures) <= 2 and Enum.all?(architectures, &(&1 in ["arm64", "x86_64"])) do
+      %{
+        type: :executable,
+        platforms: [if(platform == "macos", do: :macos, else: :linux)],
+        architectures: Enum.uniq(architectures),
+        identifier: nil,
+        name: metadata["display_name"],
+        version: nil,
+        build_version: nil
+      }
+    end
+  end
+
   defp app_attributes(_), do: nil
+
+  defp valid_attributes?(%{type: :executable, name: name}) do
+    is_binary(name) and byte_size(name) in 1..255 and not String.contains?(name, "\0")
+  end
 
   defp valid_attributes?(attributes) do
     is_binary(attributes.identifier) and byte_size(attributes.identifier) in 1..255 and
       Enum.all?([attributes.identifier, attributes.name, attributes.version, attributes.build_version], fn value ->
         is_nil(value) or (is_binary(value) and byte_size(value) <= 255 and not String.contains?(value, "\0"))
       end)
+  end
+
+  defp executable_previews_enabled(project, applications) do
+    if Enum.any?(applications, &(&1.type == :executable)) and not FeatureFlags.cli_previews_enabled?(project.account),
+      do: {:error, :cli_previews_disabled},
+      else: :ok
   end
 
   defp persist(publication, applications) do
@@ -158,6 +190,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
               preview_id: app.id,
               type: app.type,
               supported_platforms: app.platforms,
+              supported_architectures: Map.get(app, :architectures, []),
               build_version: app.build_version,
               inserted_at: publication.inserted_at
             })

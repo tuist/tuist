@@ -7,6 +7,7 @@ import plistlib
 import shutil
 import socket
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -22,6 +23,7 @@ from unittest.mock import patch
 PRIVATE = Path(__file__).resolve().parents[1] / "private"
 sys.path.insert(0, str(PRIVATE))
 import apple
+import executable
 
 
 @contextmanager
@@ -120,7 +122,6 @@ class PublicationTests(unittest.TestCase):
         self.bin = self.root / "bin"
         self.bin.mkdir()
         for name, text in {
-            "tuist": "echo test-token",
             "apksigner": "echo 'Signer #1 certificate SHA-256 digest: "
             + "ab" * 32
             + "'",
@@ -156,7 +157,11 @@ class PublicationTests(unittest.TestCase):
                 *args,
             ],
             check=False,
-            env=dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"]),
+            env=dict(
+                os.environ,
+                TUIST_TOKEN="test-token",
+                PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
+            ),
             capture_output=True,
             text=True,
         )
@@ -209,7 +214,6 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(len(state["uploads"]), 4)
 
     def test_disabled_and_missing_consent_never_connect_or_resolve_credentials(self):
-        (self.bin / "tuist").unlink()
         self.config.unlink()
         with receiver() as (url, state):
             for args in [(), ("--publish", "--no-publish"), ("--project", "acme/app")]:
@@ -267,6 +271,78 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(state["requests"], [])
 
 
+class ExecutablePackagingTests(unittest.TestCase):
+    def test_targets_come_from_headers_not_the_publisher_host(self):
+        linux = bytearray(64)
+        linux[:6] = b"\x7fELF\x02\x01"
+        linux[18:20] = (183).to_bytes(2, "little")
+        mac = struct.pack("<IIII", 0xFEEDFACF, 0x01000007, 0, 2) + bytes(16)
+        fat = (
+            struct.pack(">II", 0xCAFEBABE, 2)
+            + struct.pack(">IIIII", 0x0100000C, 0, 64, 32, 0)
+            + struct.pack(">IIIII", 0x01000007, 0, 96, 32, 0)
+        )
+        cases = [
+            (linux, ("linux", ["arm64"])),
+            (mac, ("macos", ["x86_64"])),
+            (fat, ("macos", ["arm64", "x86_64"])),
+            (b"#!/bin/sh\n", ("linux", [])),
+            (b"MZ unsupported Windows", None),
+            (mac[:16], None),
+            (fat[:20], None),
+            (mac[:12] + struct.pack("<I", 6) + bytes(16), None),
+        ]
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(executable.sys, "platform", "linux"),
+        ):
+            root = Path(temporary)
+            source = root / "tool"
+            source.touch(mode=0o755)
+            for header, expected in cases:
+                with self.subTest(expected=expected):
+                    source.write_bytes(header)
+                    archive = root / "distribution.zip"
+                    executable.package(
+                        {
+                            "executable": "tool",
+                            "files": {"tool": str(source)},
+                            "empty_files": [],
+                        },
+                        archive,
+                    )
+                    if expected is None:
+                        with self.assertRaises(ValueError):
+                            executable.prepare(archive, root, None)
+                    else:
+                        _, media, interface, metadata = executable.prepare(
+                            archive, root, None
+                        )
+                        self.assertEqual(
+                            (metadata["platform"], metadata["architectures"]), expected
+                        )
+                        self.assertEqual(
+                            (media, interface),
+                            ("application/zip", "dev.tuist.executable.v1"),
+                        )
+
+    def test_distribution_rejects_escaping_paths_and_non_executable_entrypoints(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "tool"
+            source.write_bytes(b"#!/bin/sh\necho hello\n")
+            for entrypoint in ("../tool", "/tool", "tool"):
+                with self.subTest(entrypoint=entrypoint), self.assertRaises(ValueError):
+                    executable.package(
+                        {
+                            "executable": entrypoint,
+                            "files": {entrypoint: str(source)},
+                            "empty_files": [],
+                        },
+                        root / "tool.zip",
+                    )
+
+
 class NativeAndroidTests(unittest.TestCase):
     """Real SDK manifest/signature checks; only auth and the receiver are doubles."""
 
@@ -309,9 +385,6 @@ class NativeAndroidTests(unittest.TestCase):
                 check=True,
                 capture_output=True,
             )
-            auth = root / "tuist"
-            auth.write_text("#!/bin/sh\necho test-token\n")
-            auth.chmod(0o755)
             config = root / "config.json"
             config.write_text(
                 json.dumps({"ecosystem": "android", "target": "//app:app"})
@@ -391,6 +464,7 @@ class NativeAndroidTests(unittest.TestCase):
                             check=False,
                             env=dict(
                                 os.environ,
+                                TUIST_TOKEN="test-token",
                                 PATH=str(root) + os.pathsep + os.environ["PATH"],
                             ),
                             capture_output=True,

@@ -56,4 +56,8 @@ Use your existing <.localized_link href="/guides/integrations/continuous-integra
 tuist share App --track beta --release-notes "Fix sign-in"
 ```
 
-See the <.localized_link href="/guides/features/previews">Previews overview</.localized_link> for running previews, tracks, release notes, visibility, and the companion apps.
+See <.localized_link href="/guides/features/previews#run-a-preview">Run a preview</.localized_link> for running published builds, access, tracks, and README badges.
+
+<!-- @snippet: ./_tuist-share -->
+
+Recipients can use the <.localized_link href="/guides/features/previews/run/macos">Tuist macOS app</.localized_link> or <.localized_link href="/guides/features/previews/run/ios">iPhone app</.localized_link> independently of the build-system integration. The iPhone guide also covers <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">in-app update notifications</.localized_link> with the Tuist SDK.

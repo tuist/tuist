@@ -110,6 +110,75 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
     assert Repo.get!(Publication, publication.id).projected
   end
 
+  test "projects desktop applications and executables with target compatibility and respects the rollout gate", context do
+    interfaces = [
+      {"dev.once.apple-install.v2",
+       %{
+         "schema" => "once.apple_application.v1",
+         "signature_verified" => true,
+         "signing" => "ad_hoc",
+         "platform" => "macos",
+         "sdk_variant" => "device",
+         "bundle_identifier" => "org.example.desktop"
+       }},
+      {"dev.tuist.executable.v1",
+       %{
+         "schema" => "tuist.executable.v1",
+         "display_name" => "tool",
+         "platform" => "linux",
+         "architectures" => ["arm64"],
+         "executable" => "bin/tool"
+       }},
+      {"dev.tuist.executable.v1",
+       %{
+         "schema" => "tuist.executable.v1",
+         "display_name" => "mac-tool",
+         "platform" => "macos",
+         "architectures" => ["x86_64", "arm64"],
+         "executable" => "bin/mac-tool"
+       }},
+      {"dev.tuist.executable.v1",
+       %{
+         "schema" => "tuist.executable.v1",
+         "display_name" => "unsupported",
+         "platform" => "linux",
+         "architectures" => ["mips"]
+       }}
+    ]
+
+    {intent, blobs} = package(interfaces)
+    key = Package.key(intent)
+    upload(context, key, blobs)
+    assert json_response(request(context, :post, "/publications/#{key}", intent), :ok)
+    [publication] = Repo.all(Publication)
+    job = %Oban.Job{args: %{"publication_id" => publication.id}}
+
+    stub(Tuist.FeatureFlags, :cli_previews_enabled?, fn _ -> false end)
+    assert {:error, :cli_previews_disabled} = ProjectApplicationsWorker.perform(job)
+    assert Repo.all(AppBuild) == []
+    refute Repo.get!(Publication, publication.id).projected
+
+    stub(Tuist.FeatureFlags, :cli_previews_enabled?, fn _ -> true end)
+    assert :ok = ProjectApplicationsWorker.perform(job)
+    assert :ok = ProjectApplicationsWorker.perform(job)
+    builds = Repo.all(AppBuild)
+    assert length(builds) == 3
+    assert Enum.any?(builds, &(&1.type == :app_bundle and &1.supported_platforms == [:macos]))
+
+    assert Enum.any?(
+             builds,
+             &(&1.type == :executable and &1.supported_platforms == [:linux] and &1.supported_architectures == ["arm64"])
+           )
+
+    assert Enum.any?(
+             builds,
+             &(&1.type == :executable and &1.supported_platforms == [:macos] and
+                 &1.supported_architectures == ["x86_64", "arm64"])
+           )
+
+    assert Enum.all?(builds, &String.contains?(&1.artifact_storage_key, "/artifacts/"))
+  end
+
   test "rejects incomplete closures, wrong hashes and failed storage without acknowledging publication", context do
     {intent, blobs} = package([{"example.report.v1", %{}}])
     key = Package.key(intent)

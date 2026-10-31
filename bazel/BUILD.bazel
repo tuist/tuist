@@ -1,4 +1,9 @@
+load("//private:preview.bzl", "tuist_login")
+
 exports_files([
     "android.bzl",
     "apple.bzl",
+    "executable.bzl",
 ])
+
+tuist_login(name = "login", visibility = ["//visibility:public"])

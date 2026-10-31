@@ -2,31 +2,42 @@
 {
   "title": "Bazel previews",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Publish signed Android APKs and Apple simulator or macOS applications from Bazel with explicit runtime consent."
+  "description": "Publish Android apps, Apple apps, and command-line tools as previews from Bazel."
 }
 ---
 # Bazel previews
 
-Add a companion `android_preview` or `apple_preview` target beside your application. These rules publish supported application outputs through your existing Tuist project's Previews. They consume application providers, not arbitrary build outputs or remote-cache files.
+Publish Android APKs, Apple simulator and macOS apps, and command-line tools from your existing Bazel targets. Add a preview target for each output you want to share; your ordinary builds stay unchanged.
 
 ## Setup
 
-Vendor the [`bazel/` directory from tuist/tuist](https://github.com/tuist/tuist/tree/main/bazel) at a pinned revision into `third_party/tuist_previews`. The module is not yet available in the Bazel Central Registry. Add it to `MODULE.bazel`:
+Add [`rules_tuist` from the Tuist repository](https://github.com/tuist/tuist/tree/main/bazel) to `MODULE.bazel`, pinning the commit you want to use:
 
 ```starlark
-bazel_dep(name = "tuist_previews", version = "0.1.0")
-local_path_override(
-    module_name = "tuist_previews",
-    path = "third_party/tuist_previews",
+bazel_dep(name = "rules_tuist")
+
+git_override(
+    module_name = "rules_tuist",
+    remote = "https://github.com/tuist/tuist.git",
+    commit = "FULL_COMMIT_SHA",
+    strip_prefix = "bazel",
 )
 ```
 
-Use `rules_android` 0.8.0+ or `rules_apple` 5.3.1+, Python 3.11+, Bash, and the Tuist CLI with `tuist auth token` support (4.216.0+). Sign in with `tuist auth login` or use Tuist's existing <.localized_link href="/guides/integrations/continuous-integration">CI authentication</.localized_link>. Never put credentials in BUILD files or rule attributes. Your Tuist server must support artifact publication.
+Keep your existing application targets, native SDKs, and signing setup. Bazel supplies the publication tools.
+
+Sign in directly from Bazel:
+
+```bash
+bazel run @rules_tuist//:login
+```
+
+This shares credentials with the Tuist CLI and Gradle plugin; an existing sign-in works too. On CI, use `TUIST_TOKEN` or run the login target with Tuist's <.localized_link href="/guides/integrations/continuous-integration">OIDC authentication</.localized_link>. Never put credentials in BUILD files or rule attributes. Pass `-- --url https://tuist.example.com` to sign in to a self-hosted instance.
 
 Load only the adapter you need in your `BUILD.bazel`:
 
 ```starlark
-load("@tuist_previews//:android.bzl", "android_preview")
+load("@rules_tuist//:android.bzl", "android_preview")
 
 android_preview(name = "preview_android", app = ":android_app")
 ```
@@ -34,12 +45,21 @@ android_preview(name = "preview_android", app = ":android_app")
 For Apple applications:
 
 ```starlark
-load("@tuist_previews//:apple.bzl", "apple_preview")
+load("@rules_tuist//:apple.bzl", "apple_preview")
 
 apple_preview(name = "preview_ios", app = ":ios_app")
+apple_preview(name = "preview_macos", app = ":macos_app")
 ```
 
-Keep your application's existing SDK registration, platform selection, and signing configuration.
+For executable targets such as `cc_binary`:
+
+```starlark
+load("@rules_tuist//:executable.bzl", "executable_preview")
+
+executable_preview(name = "preview_cli", binary = ":my_tool")
+```
+
+The executable preview includes the target's declared runtime files. Declare the libraries and resources your tool needs in its Bazel target, and use paths that work outside your build directory.
 
 ## Build and publish
 
@@ -48,23 +68,34 @@ bazel run //:preview_android -- \
   --publish --project acme/app --track review
 bazel run //:preview_ios --platforms=//platforms:ios_simulator -- \
   --publish --project acme/app --track review
+bazel run //:preview_macos -- --publish --project acme/app --track review
+bazel run //:preview_cli -- --publish --project acme/app --track review
 ```
 
-Replace the application and simulator platform labels with your own. Pass `--url` for a self-hosted Tuist origin and `--revision` to associate a Git commit. Publication delegates authentication to the Tuist CLI; no separate credentials are needed.
+Replace the application and simulator platform labels with your own. Pass `--url` for a self-hosted Tuist origin and `--revision` to associate a Git commit.
 
-`--publish --project account/project` authorizes this invocation only. The application must build successfully before publication runs. Without these arguments, or with `--no-publish`, the executable does not resolve credentials or contact the artifact service. Ordinary `bazel build` never publishes, including when building a preview target or replaying cached actions. `tuist bazel setup` enables caching and insights, not publication.
+Pass `--publish --project account/project` to share a successful build. Without `--publish`, or with `--no-publish`, nothing is uploaded and no sign-in is required. Ordinary `bazel build` never publishes, including on cache hits. `tuist bazel setup` enables caching and insights, not publication.
 
-## Eligible applications
+## Supported outputs
 
-- **Android:** signed, non-instrumentation APKs from `ApkInfo.signed_apk`. Debug and release signatures are accepted for explicit publication. Install Android SDK build-tools (`apksigner`) and command-line tools (`apkanalyzer`), and set `ANDROID_HOME` or `ANDROID_SDK_ROOT`. Metadata comes from the APK manifest. AABs, libraries, keystores, and signing lineage are not published.
-- **Apple:** ad-hoc signed simulator and macOS applications from `AppleBundleInfo.archive`, verified on macOS with `codesign --verify --deep --strict`. ZIP/IPA archives are normalized to a root `.app` ZIP while preserving executable bits and internal framework symlinks. Physical-device archives, unsigned or non-ad-hoc applications, standalone frameworks, extensions, tests, and experimental tree archives are rejected.
+- **Android:** signed application APKs, including debug builds. Install Android SDK build-tools and command-line tools, and set `ANDROID_HOME` or `ANDROID_SDK_ROOT`. Test APKs and Android App Bundles are not supported.
+- **Apple:** ad-hoc-signed simulator and macOS applications, built and verified on macOS. Physical-device builds, frameworks, extensions, and tests are not supported. Use archive output rather than experimental tree archives.
+- **Command-line tools:** macOS or Linux executables for arm64 or x86_64, including universal macOS binaries. Scripts require a shebang and an interpreter on the recipient's system. Declare runtime dependencies in your target; Tuist does not install missing libraries or language runtimes.
 
 ## Cache replay, failures, and retention
 
-Publication runs outside cached graph execution. Identical retained payloads, metadata, target, track, and revision are confirmed by receipt without another upload or preview. A changed track or revision creates a distinct publication. Failed uploads, mismatched receipts, and unconfirmed commits exit nonzero; rerunning after an uncertain response checks the receipt before uploading again.
+Repeating the same publication reuses the existing preview without uploading it again, even when Bazel restores the build from cache. Changing the output, track, or revision creates a new publication. An upload failure fails the command; you can rerun it to check whether publication completed before trying again.
 
-The receipt confirms artifact storage, not completion of asynchronous preview processing. Its link opens the project's previews list. Previews use the project's default visibility and existing distribution; the complete artifact closure stays private even in a public project.
+The command links to your project's previews, where processing may take a moment. Previews use the project's default visibility.
 
 Artifact publications expire after 30 days on hosted Tuist. Self-hosted instances use `TUIST_APP_PREVIEW_RETENTION_DAYS`; leaving it unset disables expiry for this family. Expired publication records cannot be revived by replaying the same intent.
 
-See the <.localized_link href="/guides/features/previews">Previews overview</.localized_link> for running and sharing published applications.
+See <.localized_link href="/guides/features/previews#run-a-preview">Run a preview</.localized_link> for running published builds, access, tracks, and README badges.
+
+## Apple previews
+
+For Apple simulator and macOS previews, see the <.localized_link href="/guides/features/previews/run/macos">Tuist macOS companion app instructions</.localized_link>. These do not change Bazel's application eligibility or signing requirements.
+
+## Related workflows {#publish-from-once}
+
+Existing Once integrations have a separate <.localized_link href="/guides/features/previews/once">artifact publication guide</.localized_link>. Both workflows keep publication separate from cached graph execution.

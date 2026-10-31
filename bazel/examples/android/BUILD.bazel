@@ -1,5 +1,5 @@
 load("@rules_android//android:rules.bzl", "android_binary")
-load("@tuist_previews//:android.bzl", "android_preview")
+load("@rules_tuist//:android.bzl", "android_preview")
 
 android_binary(
     name = "app",
