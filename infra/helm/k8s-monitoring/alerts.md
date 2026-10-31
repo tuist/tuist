@@ -977,13 +977,22 @@ rather than on magnitude.
 
 Note `cilium_drop_count_total` carries no source address, so on its own it says
 *that* a host is mis-sourced but not *which* one. Use `hubble_drop_total`, which
-carries `source` and `destination`:
+carries `source` and `destination`. First verify
+[per-node Hubble scrape coverage](README.md#hubble-packet-drop-coverage): one
+healthy Service-address target does not establish cluster-wide coverage. A
+missing or failing agent scrape makes absence of drops inconclusive. After
+the per-node collector rollout, include the observing node:
 
 ```promql
-topk(10, sum by (source, destination) (
-  rate(hubble_drop_total{reason="POLICY_DENIED", protocol="TCP"}[5m])
+topk(10, sum by (node, source, destination) (
+  rate(hubble_drop_total{reason="POLICY_DENIED", protocol="TCP", node!=""}[5m])
 ))
 ```
+
+`node` is the agent observing the drop, not necessarily the source or destination
+node. Scope queries to the cluster being investigated. Historical counters from
+the Service scrape have no node attribution and cannot establish which nodes
+were free of drops.
 
 An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
 path resolves to a bare IP, which is the distinction that matters here. Those
