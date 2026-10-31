@@ -1,10 +1,48 @@
 import Path
 import Testing
 import TuistREAPI
-
 @testable import TuistBazelCommand
 
 struct BazelrcFileTests {
+    @Test func remote_execution_is_opt_in_and_survives_cache_migration() throws {
+        let image = "sha-" + String(repeating: "a", count: 40)
+        let execution = try #require(try BazelExecutionConfiguration.parse(endpoint: "grpcs://execution.example", image: image))
+        let contents = BazelrcFile.render(
+            endpoint: GRPCEndpoint(host: "cache.example", explicitPort: nil, isTLS: true),
+            accountHandle: "tuist", projectHandle: "app",
+            credentialHelperPath: try AbsolutePath(validating: "/tmp/helper"), execution: execution
+        )
+        #expect(contents.contains("build --remote_executor=grpcs://execution.example"))
+        #expect(contents.contains("build --remote_timeout=15m"))
+        #expect(contents.contains("build --remote_default_exec_properties=tuist-image=\(image)"))
+        #expect(contents.contains("build --noremote_local_fallback"))
+        let refreshed = try #require(BazelrcFile.replacingRemoteCache(in: contents, with: moved))
+        #expect(refreshed.contains("build --credential_helper=execution.example=/tmp/helper"))
+        #expect(refreshed.contains("build --remote_executor=grpcs://execution.example"))
+        #expect(!rendered().contains("--remote_executor"))
+    }
+
+    @Test func cache_migration_preserves_a_helper_shared_with_the_executor() throws {
+        let existing = rendered() + "build --remote_executor=grpcs://acme-eu-west-1.kura.tuist.dev:8443\n"
+        let refreshed = try #require(BazelrcFile.replacingRemoteCache(in: existing, with: moved))
+        #expect(refreshed.contains("--credential_helper=acme-eu-west-1.kura.tuist.dev="))
+        #expect(refreshed.contains("--credential_helper=acme-ca-east-1.kura.tuist.dev="))
+        #expect(BazelrcFile.replacingRemoteCache(in: refreshed, with: moved) == nil)
+    }
+
+    @Test func rejects_partial_or_mutable_execution_configuration() throws {
+        #expect(try BazelExecutionConfiguration.parse(endpoint: nil, image: nil) == nil)
+        for (endpoint, image) in [
+            ("https://execution.example", "latest"),
+            ("grpcs://execution.example", "latest"),
+            ("grpcs://user:password@execution.example", "sha-" + String(repeating: "a", count: 40)),
+        ] {
+            #expect(throws: BazelSetupCommandServiceError.invalidExecutionConfiguration) {
+                try BazelExecutionConfiguration.parse(endpoint: endpoint, image: image)
+            }
+        }
+    }
+
     @Test func network_reports_quote_actor_overrides_and_preserve_explicit_suppression() {
         let endpoint = GRPCEndpoint(host: "bes.example", explicitPort: nil, isTLS: true)
         let contents = BazelrcFile.renderNetworkTrustedReports(

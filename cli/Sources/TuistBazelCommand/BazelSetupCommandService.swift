@@ -182,13 +182,21 @@ public struct BazelSetupCommandService {
         directory: String?,
         buildInsights: Bool = true,
         remoteDownloader: Bool = true,
+        remoteExecutor: String? = nil,
+        executionImage: String? = nil,
         addBazelrcImport shouldAddBazelrcImport: Bool = true
     ) async throws {
+        let execution = try BazelExecutionConfiguration.parse(endpoint: remoteExecutor, image: executionImage)
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let canonicalDirectoryPath = try canonicalPath(directoryPath)
         let setupConfiguration = try await setupConfiguration(directoryPath: directoryPath)
         let buildInsights = buildInsights &&
             (!setupConfiguration.networkTrustedCache || setupConfiguration.networkTrustedReporting)
+        if execution != nil,
+           setupConfiguration.endpoint == nil || setupConfiguration.networkTrustedCache || setupConfiguration.networkTrustedReporting
+        {
+            throw BazelSetupCommandServiceError.invalidExecutionConfiguration
+        }
 
         let bazelWorkspacePath = try await bazelWorkspacePath(startingAt: canonicalDirectoryPath)
         let bazelrcDirectoryPath = bazelWorkspacePath ?? canonicalDirectoryPath
@@ -219,6 +227,7 @@ public struct BazelSetupCommandService {
                 credentialHelperPath: credentialHelperPath,
                 buildInsights: buildInsights,
                 remoteDownloader: remoteDownloader,
+                execution: execution,
                 actorOverride: Environment.current.variables["TUIST_ACTOR_ID"]
             )
         } else {
@@ -491,9 +500,12 @@ public enum BazelSetupCommandServiceError: LocalizedError, Equatable {
     case notAuthenticated
     case missingFullHandle
     case invalidCacheEndpoint(String)
+    case invalidExecutionConfiguration
 
     public var errorDescription: String? {
         switch self {
+        case .invalidExecutionConfiguration:
+            return "Remote execution requires an authenticated cache, --remote-executor with a grpc:// or grpcs:// URL, and --execution-image with an immutable sha-<commit> tag."
         case .notAuthenticated:
             return
                 "You are not authenticated. Refer to the documentation for authentication options: https://tuist.dev/en/docs/guides/server/authentication"
