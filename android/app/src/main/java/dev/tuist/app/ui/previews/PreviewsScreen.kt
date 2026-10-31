@@ -58,9 +58,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.SubcomposeAsyncImage
 import dev.tuist.app.R
-import dev.tuist.app.api.model.AppBuild
 import dev.tuist.app.api.model.Preview
-import dev.tuist.app.api.model.PreviewSupportedPlatform
 import dev.tuist.app.ui.noora.NooraSpacing
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -373,8 +371,8 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
             }
         }
 
-        val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.apk }
-        if (apkBuild != null && preview.supportedPlatforms.contains(PreviewSupportedPlatform.android)) {
+        val apkBuild = preview.builds.firstOrNull { it.type == "apk" }
+        if (apkBuild != null && preview.supportedPlatforms.contains("android")) {
             Spacer(Modifier.width(NooraSpacing.Spacing4))
             val context = LocalContext.current
             Box(

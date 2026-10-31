@@ -116,6 +116,10 @@ Helm-installed resource; publishing it is a separate rollout step.
   separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
+- Cilium policy inspection uses the same read tier, limited to
+  `ciliumnetworkpolicies`, `ciliumclusterwidenetworkpolicies` and
+  `ciliumegressgatewaypolicies` in `cilium.io`. This grant includes no policy
+  writes, other Cilium resources, Secret reads or live-debug access.
 - OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound
   `tuist-fleet-unwedge` role. Do not aggregate it into `edit` or extend it to
   templates, status, create, update or delete. RBAC does not restrict fields;

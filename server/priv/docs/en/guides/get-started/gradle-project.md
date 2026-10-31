@@ -107,11 +107,13 @@ Open **Bundle insights → Android** on the dashboard to see the trend and confi
 
 Play Console's internal test track adds a review-and-propagation delay on every share. Sending a raw `.apk` through Slack or email is faster but loses track of which build a specific message refers to.
 
-Previews turns a build into a shareable link that recipients install with one command:
+The plugin can build and publish an application variant directly, without a separate CLI upload:
 
 ```bash
-tuist share App.apk
+./gradlew :app:tuistShareDebug --track nightly
 ```
+
+Requesting a `tuistShare<Variant>` task opts that invocation into publication; ordinary builds never upload previews. See <.localized_link href="/guides/features/previews/gradle">Gradle previews</.localized_link> for supported APKs, signing, and installation.
 
 ## Bring the team along
 

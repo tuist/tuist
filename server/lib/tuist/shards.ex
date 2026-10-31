@@ -100,18 +100,13 @@ defmodule Tuist.Shards do
     {modules, suites} =
       shard_targets(plan, project.id, assignment_shards, granularity, now, module_inventory(params, units, granularity))
 
-    plan =
-      if plan.reporting_version == 1 do
-        assignments =
-          JSON.encode!(%{
-            modules: Enum.map(modules, &Map.delete(&1, :inserted_at)),
-            test_suites: Enum.map(suites, &Map.delete(&1, :inserted_at))
-          })
+    assignments =
+      JSON.encode!(%{
+        modules: Enum.map(modules, &Map.delete(&1, :inserted_at)),
+        test_suites: Enum.map(suites, &Map.delete(&1, :inserted_at))
+      })
 
-        %{plan | assignments: assignments}
-      else
-        plan
-      end
+    plan = %{plan | assignments: assignments}
 
     insert_upload_route!(plan)
     {:ok, plan} = IngestRepo.insert(plan)
@@ -506,7 +501,9 @@ defmodule Tuist.Shards do
     end)
   end
 
-  defp preload_assignments(%ShardPlan{reporting_version: 1, assignments: assignments} = plan, _preloads) do
+  # A replica can see a plan before its separately inserted assignment rows. Keep reads atomic
+  # whenever the plan carries its manifest, independently of its test-reporting contract.
+  defp preload_assignments(%ShardPlan{assignments: assignments} = plan, _preloads) when assignments != "" do
     data = JSON.decode!(assignments)
     modules = Enum.map(data["modules"], &assignment_struct(ShardPlanModule, &1))
     suites = Enum.map(data["test_suites"], &assignment_struct(ShardPlanTestSuite, &1))

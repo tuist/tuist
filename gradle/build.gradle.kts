@@ -10,17 +10,20 @@ group = "dev.tuist"
 version = findProperty("version")?.takeIf { it != "unspecified" } ?: "0.1.0"
 
 repositories {
+    google()
     mavenCentral()
     gradlePluginPortal()
 }
 
 dependencies {
+    implementation("com.android.tools.build:apksig:8.8.2")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("org.tomlj:tomlj:1.1.1")
     implementation("net.java.dev.jna:jna:5.14.0")
+    implementation("org.apache.commons:commons-compress:1.26.1")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
@@ -43,6 +46,10 @@ tasks.shadowJar {
     relocate("com.google.gson", "dev.tuist.shadow.gson")
     relocate("org.tomlj", "dev.tuist.shadow.tomlj")
     relocate("org.antlr", "dev.tuist.shadow.antlr")
+    relocate("com.android.apksig", "dev.tuist.shadow.apksig")
+    relocate("org.apache.commons.compress", "dev.tuist.shadow.compress")
+    relocate("org.apache.commons.io", "dev.tuist.shadow.commons.io")
+    relocate("org.apache.commons.lang3", "dev.tuist.shadow.commons.lang3")
     minimize {
         exclude(dependency("net.java.dev.jna:.*"))
     }

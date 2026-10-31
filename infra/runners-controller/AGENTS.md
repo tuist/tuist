@@ -99,6 +99,12 @@ cancellable and leaves the reserve intact. See
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
+  The floor tier funds pools in use (load now, or a runner session in the
+  last hour: `Signals.InUse`) before pools that only hold a learned floor,
+  in `capByShape` too. Learned floors on a busy rack sum past its seats, and
+  an even split left the pools whose jobs were arriving short of warm
+  runners while pools with no job in an hour stayed warm.
+
   A tier that cannot be funded in full is split proportionally to cost,
   and the whole Pods the rounding leaves go one per pool per round to the
   pools with the largest target (which includes the hourly peak), then by

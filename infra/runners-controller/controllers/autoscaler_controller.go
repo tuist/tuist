@@ -676,6 +676,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			Name:       p.Name,
 			PerPodCost: cost,
 			Floor:      scaling.WarmFloor(sig, k),
+			InUse:      sig.InUse(),
 			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
 			ShapeKey:   shape.key(),

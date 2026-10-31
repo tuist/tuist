@@ -88,7 +88,7 @@ Organization administrators can also change or clear the API URL on an existing 
 
 ## Pull/merge request comments {#pull-merge-request-comments}
 
-The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</.localized_link>:
+The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews/xcode#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</.localized_link>:
 
 Tuist updates one comment as results arrive. Gradle builds appear separately for each root project and set of requested tasks; rerunning the same tasks replaces that invocation's previous result. The full build history remains available on Tuist.
 

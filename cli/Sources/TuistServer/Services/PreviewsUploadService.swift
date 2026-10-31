@@ -22,6 +22,7 @@ import TuistEnvironment
 
 public enum PreviewUploadType: Equatable {
     case apk(path: AbsolutePath, metadata: APKMetadata)
+    case executable(path: AbsolutePath, entryPoint: RelativePath?)
     #if canImport(TuistCore)
         case ipa(AppBundle)
         case appBundles([AppBundle])
@@ -165,9 +166,52 @@ public protocol PreviewsUploadServicing {
             updateProgress: @escaping (Double) -> Void
         ) async throws -> Components.Schemas.Preview {
             switch previewUploadType {
+            case let .executable(path, entryPoint):
+                return try await fileSystem.runInTemporaryDirectory(prefix: "executable-preview") { temporaryDirectory in
+                    let root = try RelativePath(validating: path.basename)
+                    let executable = entryPoint.map { root.appending($0) } ?? root
+                    let executablePath = entryPoint.map { path.appending($0) } ?? path
+                    let target = try ExecutablePreviewTarget.read(at: executablePath.url)
+                    let manifestPath = temporaryDirectory.appending(component: ExecutablePreviewManifest.filename)
+                    try await fileSystem.writeAsJSON(
+                        ExecutablePreviewManifest(executable: executable),
+                        at: manifestPath
+                    )
+                    let archiver = try fileArchiver.makeFileArchiver(for: [path, manifestPath])
+                    let archivePath = try await archiver.zip(name: path.basename)
+                    do {
+                        let binaryId = try await contentHash(at: archivePath)
+                        let platforms: [Components.Schemas.PreviewSupportedPlatform] = target.platform == "macos" ? [.macos] :
+                            [.linux]
+                        let preview = try await uploadPreviewBuild(
+                            buildPath: archivePath,
+                            previewType: .executable,
+                            displayName: executable.basename,
+                            version: nil,
+                            buildVersion: resolvedBuildVersion(gitCommitSHA ?? binaryId),
+                            bundleIdentifier: nil,
+                            supportedPlatforms: platforms,
+                            supportedArchitectures: target.architectures,
+                            gitBranch: gitBranch,
+                            gitCommitSHA: gitCommitSHA,
+                            gitRef: gitRef,
+                            binaryId: binaryId,
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            track: track,
+                            releaseNotes: releaseNotes,
+                            updateProgress: updateProgress
+                        )
+                        try await archiver.delete()
+                        return preview
+                    } catch {
+                        try? await archiver.delete()
+                        throw error
+                    }
+                }
             case let .apk(apkPath, metadata):
                 let buildVersion = resolvedBuildVersion(metadata.versionCode)
-                let binaryId = try await apkBinaryId(at: apkPath)
+                let binaryId = try await contentHash(at: apkPath)
 
                 let preview = try await uploadPreviewBuild(
                     buildPath: apkPath,
@@ -254,6 +298,13 @@ public protocol PreviewsUploadServicing {
                             at: bundle.path,
                             name: bundle.infoPlist.executableName ?? bundle.infoPlist.name
                         )
+                        var architectures: [String] = []
+                        if bundle.infoPlist.supportedPlatforms.contains(.device(.macOS)) {
+                            let executable = bundle.path.appending(
+                                components: "Contents", "MacOS", bundle.infoPlist.executableName ?? bundle.infoPlist.name
+                            )
+                            architectures = (try? ExecutablePreviewTarget.read(at: executable.url))?.architectures ?? []
+                        }
 
                         preview = try await uploadPreviewBuild(
                             buildPath: bundleArchivePath,
@@ -264,6 +315,7 @@ public protocol PreviewsUploadServicing {
                             bundleIdentifier: bundle.infoPlist.bundleId,
                             supportedPlatforms: bundle.infoPlist.supportedPlatforms
                                 .map(Components.Schemas.PreviewSupportedPlatform.init),
+                            supportedArchitectures: architectures,
                             gitBranch: gitBranch,
                             gitCommitSHA: gitCommitSHA,
                             gitRef: gitRef,
@@ -313,6 +365,7 @@ public protocol PreviewsUploadServicing {
             buildVersion: String,
             bundleIdentifier: String?,
             supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
+            supportedArchitectures: [String] = [],
             gitBranch: String?,
             gitCommitSHA: String?,
             gitRef: String?,
@@ -333,6 +386,7 @@ public protocol PreviewsUploadServicing {
                     buildVersion: buildVersion,
                     bundleIdentifier: bundleIdentifier,
                     supportedPlatforms: supportedPlatforms,
+                    supportedArchitectures: supportedArchitectures,
                     gitBranch: gitBranch,
                     gitCommitSHA: gitCommitSHA,
                     gitRef: gitRef,
@@ -371,10 +425,10 @@ public protocol PreviewsUploadServicing {
             )
         }
 
-        // MARK: - APK (cross-platform)
+        // MARK: - Content identity (cross-platform)
 
-        private func apkBinaryId(at path: AbsolutePath) async throws -> String {
-            let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
+        private func contentHash(at path: AbsolutePath) async throws -> String {
+            let data = try Data(contentsOf: path.url)
             let digest = SHA256.hash(data: data)
             return digest.map { String(format: "%02x", $0) }.joined()
         }
@@ -384,7 +438,7 @@ public protocol PreviewsUploadServicing {
         #if canImport(TuistCore)
             private func iconPaths(for previewUploadType: PreviewUploadType) async throws -> [AbsolutePath] {
                 switch previewUploadType {
-                case .apk:
+                case .apk, .executable:
                     return []
                 case let .appBundles(appBundles):
                     return try await appBundles.concurrentMap { try await iconPaths(for: $0) }.flatMap { $0 }

@@ -52,6 +52,18 @@ for env in staging canary production; do
       (.apiGroups | includes("postgresql.cnpg.io")) and
       (.resources | includes("clusters")) and (.verbs | index("get") != null))) and
 
+    # Policy inspection must not grant other Cilium resources or write verbs.
+    (role("tuist-view-infra-read") |
+      [.rules[] | select(.apiGroups | includes("cilium.io"))] == [{
+        apiGroups: ["cilium.io"],
+        resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies", "ciliumegressgatewaypolicies"],
+        verbs: ["get", "list", "watch"]
+      }]) and
+    # No extension to view may expose core Secrets, including via wildcards.
+    (all(.[] | select(.kind == "ClusterRole" and
+      .metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"] == "true");
+      all(.rules[]; ((.apiGroups | includes("")) and (.resources | includes("secrets"))) | not))) and
+
     # Both ordinary identity groups bind only to view, in every environment.
     (all("tuist-admins", "tuist-eng";
       . as $group | $resources | bindings($group) |
@@ -70,8 +82,8 @@ for env in staging canary production; do
     (all(.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding");
       .roleRef.name != "tuist-edit-cnpg-write"))
   ' "$work/$env.json" >/dev/null || {
-    echo "FAIL: $env CNPG permissions or access-tier isolation changed" >&2
+    echo "FAIL: $env CNPG/Cilium permissions or access-tier isolation changed" >&2
     exit 1
   }
-  echo "PASS: $env CNPG status patch is isolated to its write tier; chart lint/render passed"
+  echo "PASS: $env CNPG writes and Cilium policy reads are isolated; chart lint/render passed"
 done

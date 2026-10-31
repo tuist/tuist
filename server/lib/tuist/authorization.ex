@@ -206,6 +206,27 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :artifact do
+    action :create do
+      desc("Artifact publication uses existing preview-write permissions.")
+      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_project, :projects_match])
+      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
+    end
+
+    action :read do
+      desc("Artifact closures stay private, including in public projects.")
+      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_user, user_role: :viewer])
+      allow([:authenticated_as_user, :ops_access])
+      allow([:authenticated_as_project, :projects_match])
+      allow([:authenticated_as_account, scopes_permit: "project:previews:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
+    end
+  end
+
   object :preview do
     action :create do
       desc("Allows users of a project to create a preview.")
