@@ -26,6 +26,13 @@ defmodule TuistWeb.API.SandboxesController do
   tags ["Sandboxes"]
 
   @template_pattern "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  @orb_admission_refusals [
+    :no_capacity,
+    :sandbox_concurrency_limit,
+    :sandbox_running_limit,
+    :sandbox_account_busy,
+    :locked
+  ]
 
   @agent_environment_schema %Schema{
     title: "SandboxAgentEnvironment",
@@ -215,7 +222,7 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, :orb_bootstrap_failed} ->
           conn |> put_status(:bad_gateway) |> json(%{message: "Orb bootstrap failed. Check the sandbox image."})
 
-        {:error, reason} when reason in [:no_capacity, :sandbox_concurrency_limit, :sandbox_account_busy, :locked] ->
+        {:error, reason} when reason in @orb_admission_refusals ->
           conn |> put_resp_header("x-tuist-orb-retry", "admission") |> sandbox_error(reason)
 
         {:error, reason} ->
@@ -566,7 +573,16 @@ defmodule TuistWeb.API.SandboxesController do
     |> put_status(:forbidden)
     |> json(%{
       message:
-        "The account has reached its limit of #{Sandboxes.max_live_sandboxes_per_account()} sandboxes. Delete some first."
+        "The account has reached its limit of #{Sandboxes.max_on_node_sandboxes_per_account()} sandboxes on nodes, paused ones included. Delete some first."
+    })
+  end
+
+  defp sandbox_error(conn, :sandbox_running_limit) do
+    conn
+    |> put_status(:too_many_requests)
+    |> json(%{
+      message:
+        "The account has reached its limit of #{Sandboxes.max_running_sandboxes_per_account()} running sandboxes. Pause a sandbox before starting more work."
     })
   end
 

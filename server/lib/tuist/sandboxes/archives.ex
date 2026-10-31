@@ -4,7 +4,9 @@ defmodule Tuist.Sandboxes.Archives do
 
   A paused Orb holds its memory image and disks on one node, reserving its
   full disk ceiling there. Once it has been paused for longer than
-  `Tuist.Environment.sandbox_archive_after_hours/0`, its node uploads the
+  `Tuist.Environment.sandbox_archive_after_hours/0`, or its account keeps
+  more than `max_paused_on_node_per_account/0` paused Orbs on nodes (the
+  least recently paused go first), its node uploads the
   kernel, rootfs and workspace (not the memory image) to the account's
   object storage through presigned multipart URLs, the row becomes
   `archived` with no node, and the jail is deleted. The next spawn restores
@@ -27,6 +29,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Storage
 
   require Logger
@@ -34,6 +37,7 @@ defmodule Tuist.Sandboxes.Archives do
   @mib 1024 * 1024
   @gib 1024 * @mib
   @max_archived_bytes_per_account 100 * @gib
+  @max_paused_on_node_per_account 10
   # The archived kernel, and room for the archive's framing and an
   # incompressible worst case on top of the disk ceiling.
   @kernel_allowance_bytes 512 * @mib
@@ -52,6 +56,7 @@ defmodule Tuist.Sandboxes.Archives do
   @readable_interval_ms 3_000
 
   def max_archived_bytes_per_account, do: @max_archived_bytes_per_account
+  def max_paused_on_node_per_account, do: @max_paused_on_node_per_account
 
   def object_prefix(account_id), do: "sandbox-archives/#{account_id}/"
 
@@ -70,7 +75,8 @@ defmodule Tuist.Sandboxes.Archives do
   @doc """
   One pass of the archive tier: deletes the archives of restored Orbs,
   aborts uploads and restores whose caller died, then archives Orbs paused
-  for longer than the configured threshold. Archiving is off while no
+  for longer than the configured threshold and the least recently paused
+  Orbs of accounts over the on-node cap. Archiving is off while no
   threshold is configured; the cleanups always run.
   """
   def run do
@@ -82,6 +88,20 @@ defmodule Tuist.Sandboxes.Archives do
       nil -> :ok
       hours -> hours |> candidates() |> Enum.each(&archive/1)
     end
+  end
+
+  @doc """
+  Queues an archive run when the account keeps more paused Orbs on nodes
+  than the cap, so the oldest leave without waiting for the hourly run.
+  """
+  def enqueue_if_over_cap(account_id) do
+    paused = Repo.aggregate(where(idle_paused_orbs(), [s], s.account_id == ^account_id), :count)
+
+    if Environment.sandbox_archive_after_hours() && paused > @max_paused_on_node_per_account do
+      {:ok, _job} = %{} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+    end
+
+    :ok
   end
 
   defp idle_paused_orbs do
@@ -97,8 +117,17 @@ defmodule Tuist.Sandboxes.Archives do
     paused_before = DateTime.add(now, -hours, :hour)
     retry_before = DateTime.add(now, -@retry_after_hours, :hour)
 
+    newest_first =
+      from s in idle_paused_orbs(),
+        select: %{
+          id: s.id,
+          rank: over(row_number(), partition_by: s.account_id, order_by: [desc: s.paused_at, desc: s.id])
+        }
+
     idle_paused_orbs()
-    |> where([s], s.paused_at < ^paused_before and is_nil(s.archived_at) and is_nil(s.archive_upload_id))
+    |> join(:inner, [s], r in subquery(newest_first), on: r.id == s.id)
+    |> where([s, r], s.paused_at < ^paused_before or r.rank > ^@max_paused_on_node_per_account)
+    |> where([s], is_nil(s.archived_at) and is_nil(s.archive_upload_id))
     |> where([s], is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before)
     |> order_by([s], asc: s.paused_at)
     |> limit(@per_run)
@@ -122,7 +151,13 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   defp start(id) do
-    with %Sandbox{state: :paused, node_name: node_name, paused_at: %DateTime{}, archived_at: nil} = sandbox
+    with %Sandbox{
+           state: :paused,
+           node_name: node_name,
+           paused_at: %DateTime{},
+           archived_at: nil,
+           archive_upload_id: nil
+         } = sandbox
          when is_binary(node_name) <- Sandboxes.get_sandbox_by_id(id),
          %Account{} = account <- Repo.get(Account, sandbox.account_id),
          true <- Storage.supports_signed_upload_headers?(account),

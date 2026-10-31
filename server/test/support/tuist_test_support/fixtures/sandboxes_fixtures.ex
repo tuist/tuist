@@ -82,6 +82,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       residency_work_id: Keyword.get(opts, :residency_work_id),
       residency_epoch: Keyword.get(opts, :residency_epoch, 0),
       last_active_at: opts |> Keyword.get(:last_active_at) |> truncate(),
+      guest_cpu_ms: Keyword.get(opts, :guest_cpu_ms),
       paused_at: opts |> Keyword.get(:paused_at) |> truncate(),
       error_message: Keyword.get(opts, :error_message),
       archive_key: Keyword.get(opts, :archive_key),

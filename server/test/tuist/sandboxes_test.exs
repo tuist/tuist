@@ -12,6 +12,7 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
 
   describe "agent environments" do
@@ -369,6 +370,70 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "reconcile_node_report/2" do
+    test "records guest activity only when the guest used CPU since the last activity" do
+      quiet_since = DateTime.truncate(DateTime.add(DateTime.utc_now(), -100, :second), :second)
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", guest_cpu_ms: 1000, last_active_at: quiet_since)
+      report = fn cpu_ms -> %{"sandboxes" => [%{"id" => sandbox.id, "state" => "running", "cpu_ms" => cpu_ms}]} end
+
+      # 100 seconds at 2% of one vCPU is 2 s of CPU.
+      assert :ok = Sandboxes.reconcile_node_report("node-a", report.(2500))
+      assert %Sandbox{guest_cpu_ms: 1000, last_active_at: ^quiet_since} = Repo.reload!(sandbox)
+
+      assert :ok = Sandboxes.reconcile_node_report("node-a", report.(4000))
+      assert %Sandbox{guest_cpu_ms: 4000, last_active_at: active_at} = Repo.reload!(sandbox)
+      assert DateTime.after?(active_at, quiet_since)
+
+      # A new VM process starts its count again.
+      assert :ok = Sandboxes.reconcile_node_report("node-a", report.(50))
+      assert %Sandbox{guest_cpu_ms: 50} = Repo.reload!(sandbox)
+    end
+
+    test "queues a pause for a running Orb whose guest has been quiet for ten minutes" do
+      quiet_since = DateTime.truncate(DateTime.add(DateTime.utc_now(), -601, :second), :second)
+
+      orb =
+        sandbox_fixture(
+          state: :running,
+          node_name: "node-a",
+          amp_orb_id: "orb-quiet",
+          residency_work_id: "amp:orb-quiet",
+          guest_cpu_ms: 1000,
+          last_active_at: quiet_since
+        )
+
+      recent =
+        sandbox_fixture(
+          state: :running,
+          node_name: "node-a",
+          amp_orb_id: "orb-recent",
+          guest_cpu_ms: 1000,
+          last_active_at: DateTime.add(DateTime.utc_now(), -300, :second)
+        )
+
+      api = sandbox_fixture(state: :running, node_name: "node-a", guest_cpu_ms: 1000, last_active_at: quiet_since)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{
+                 "sandboxes" => for(s <- [orb, recent, api], do: %{"id" => s.id, "state" => "running", "cpu_ms" => 1100})
+               })
+
+      assert [%Oban.Job{args: args}] = all_enqueued(worker: PauseIdleOrbWorker)
+      assert args == %{"sandbox_id" => orb.id, "last_active_at" => DateTime.to_iso8601(quiet_since)}
+    end
+
+    test "never treats a guest as quiet before its node reports CPU time" do
+      orb =
+        sandbox_fixture(
+          state: :running,
+          node_name: "node-a",
+          amp_orb_id: "orb-old-daemon",
+          last_active_at: DateTime.add(DateTime.utc_now(), -3600, :second)
+        )
+
+      assert :ok = Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => orb.id, "state" => "running"}]})
+      assert [] = all_enqueued(worker: PauseIdleOrbWorker)
+    end
+
     test "does not downgrade a resuming sandbox the node still lists as paused" do
       sandbox = sandbox_fixture(state: :resuming, node_name: "node-a", template_tag: "sha-1")
 
@@ -552,15 +617,38 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "limits and shapes" do
-    test "refuses a create past the account's live sandbox limit" do
+    test "refuses a create past the account's running sandbox limit" do
       account = account_fixture()
-      assert Sandboxes.max_live_sandboxes_per_account() == 5
+      assert Sandboxes.max_running_sandboxes_per_account() == 5
 
       for _ <- 1..5,
+          do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      reject(&Capacity.place/1)
+      assert {:error, :sandbox_running_limit} = Sandboxes.create_sandbox(account, %{})
+    end
+
+    test "paused sandboxes count only toward the on-node cap" do
+      account = account_fixture()
+      for _ <- 1..5, do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
+      expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
+      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
+
+      for _ <- 6..Sandboxes.max_on_node_sandboxes_per_account(),
           do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
 
       reject(&Capacity.place/1)
       assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
+    end
+
+    test "refuses a resume past the account's running sandbox limit" do
+      account = account_fixture()
+      for _ <- 1..5, do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      paused = sandbox_fixture(account: account, state: :paused, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      assert {:error, :sandbox_running_limit} = Sandboxes.resume(paused)
+      assert Repo.reload!(paused).state == :paused
     end
 
     test "refuses a shape the nodes do not offer" do

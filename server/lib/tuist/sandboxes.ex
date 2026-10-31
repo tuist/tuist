@@ -24,6 +24,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
   alias Tuist.Tasks
 
@@ -46,8 +47,18 @@ defmodule Tuist.Sandboxes do
   # belongs to a caller that died mid-operation (a web pod stopped during a
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
-  @max_live_sandboxes_per_account 5
-  @live_states [:creating, :running, :resuming, :paused]
+  # Running sandboxes hold CPU and memory; the account CPU and memory quota
+  # bounds those as well. Paused sandboxes hold only disk on their node, so
+  # they count toward the larger on-node cap instead, and Amp Orbs past
+  # `Archives.max_paused_on_node_per_account/0` move to object storage.
+  @max_running_sandboxes_per_account 5
+  @max_on_node_sandboxes_per_account 15
+  @running_states [:creating, :running, :resuming]
+  @on_node_states [:creating, :running, :resuming, :paused]
+  # A running Amp Orb whose guest has used under 2% of one vCPU for this
+  # long is paused, in case Amp's own pause never arrives.
+  @orb_idle_pause_after_seconds 600
+  @active_cpu_ms_per_second 20
 
   def default_template, do: @default_template
   def default_shape, do: @default_shape
@@ -212,11 +223,26 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  def max_live_sandboxes_per_account, do: @max_live_sandboxes_per_account
+  def max_running_sandboxes_per_account, do: @max_running_sandboxes_per_account
+  def max_on_node_sandboxes_per_account, do: @max_on_node_sandboxes_per_account
 
+  # Admits one more sandbox onto a node: a create or a restore.
   defp check_sandbox_limit(account_id) do
-    live = Repo.aggregate(from(s in Sandbox, where: s.account_id == ^account_id and s.state in ^@live_states), :count)
-    if live < @max_live_sandboxes_per_account, do: :ok, else: {:error, :sandbox_limit}
+    with :ok <- check_running_limit(account_id) do
+      if count_in_states(account_id, @on_node_states) < @max_on_node_sandboxes_per_account,
+        do: :ok,
+        else: {:error, :sandbox_limit}
+    end
+  end
+
+  defp check_running_limit(account_id) do
+    if count_in_states(account_id, @running_states) < @max_running_sandboxes_per_account,
+      do: :ok,
+      else: {:error, :sandbox_running_limit}
+  end
+
+  defp count_in_states(account_id, states) do
+    Repo.aggregate(from(s in Sandbox, where: s.account_id == ^account_id and s.state in ^states), :count)
   end
 
   defp boot(%Sandbox{} = sandbox, source) do
@@ -400,7 +426,8 @@ defmodule Tuist.Sandboxes do
   defp running_or_resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
 
   defp do_resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
-    with {:ok, sandbox} <- Capacity.admit(sandbox) do
+    with :ok <- check_running_limit(sandbox.account_id),
+         {:ok, sandbox} <- Capacity.admit(sandbox) do
       case Nodes.call(node_name, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
         {:ok, data} ->
           Logger.info("sandboxes: sandbox resumed",
@@ -499,7 +526,7 @@ defmodule Tuist.Sandboxes do
           disks_synced: data["disks_synced"]
         )
 
-        with {:ok, paused} <- update_sandbox(sandbox, %{state: :paused, paused_at: now()}) do
+        with {:ok, paused} <- update_sandbox(sandbox, %{state: :paused, paused_at: now(), guest_cpu_ms: nil}) do
           if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name, true)
           {:ok, paused}
         end
@@ -870,12 +897,61 @@ defmodule Tuist.Sandboxes do
       |> maybe_put(:template_tag, reported["template_tag"])
       |> maybe_put_state(reported["state"])
       |> keep_in_flight_state(sandbox, reported["state"])
+      |> put_guest_activity(sandbox, reported)
 
     if Enum.any?(attrs, fn {key, value} -> Map.get(sandbox, key) != value end) do
       {:ok, _sandbox} = update_sandbox(sandbox, attrs)
     end
 
+    if idle_orb?(sandbox, attrs), do: enqueue_idle_orb_pause(sandbox)
+
     :ok
+  end
+
+  # A running guest is active when it used more than @active_cpu_ms_per_second
+  # of CPU since the last report that found it active. A smaller reading
+  # than that one comes from a new VM process.
+  defp put_guest_activity(attrs, %Sandbox{state: :running} = sandbox, %{"state" => "running", "cpu_ms" => cpu_ms})
+       when is_integer(cpu_ms) do
+    if guest_active?(sandbox, cpu_ms),
+      do: Map.merge(attrs, %{guest_cpu_ms: cpu_ms, last_active_at: now()}),
+      else: attrs
+  end
+
+  defp put_guest_activity(attrs, _sandbox, _reported), do: attrs
+
+  defp guest_active?(%Sandbox{guest_cpu_ms: last, last_active_at: %DateTime{} = since}, cpu_ms) when is_integer(last) do
+    cpu_ms < last or cpu_ms - last > DateTime.diff(now(), since, :second) * @active_cpu_ms_per_second
+  end
+
+  defp guest_active?(%Sandbox{}, _cpu_ms), do: true
+
+  # Amp pauses an Orb when its thread goes idle. A running Orb whose guest
+  # stayed quiet for @orb_idle_pause_after_seconds is paused here in case
+  # that pause never arrives.
+  defp idle_orb?(%Sandbox{state: :running, amp_orb_id: orb_id, guest_cpu_ms: cpu_ms} = sandbox, attrs)
+       when is_binary(orb_id) and is_integer(cpu_ms) do
+    Map.get(attrs, :state) == :running and not Map.has_key?(attrs, :guest_cpu_ms) and
+      is_struct(sandbox.last_active_at, DateTime) and
+      DateTime.diff(now(), sandbox.last_active_at, :second) >= @orb_idle_pause_after_seconds
+  end
+
+  defp idle_orb?(_sandbox, _attrs), do: false
+
+  defp enqueue_idle_orb_pause(%Sandbox{} = sandbox) do
+    %{sandbox_id: sandbox.id, last_active_at: DateTime.to_iso8601(sandbox.last_active_at)}
+    |> PauseIdleOrbWorker.new()
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: could not schedule the idle Orb pause",
+          sandbox_id: sandbox.id,
+          reason: inspect(reason)
+        )
+    end
   end
 
   # A resume in flight holds its memory reservation through `resuming`, and

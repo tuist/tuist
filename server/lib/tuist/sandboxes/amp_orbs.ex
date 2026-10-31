@@ -5,7 +5,9 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   The database owns the account-scoped Orb identity. The same cluster lock
   used by sandbox lifecycle operations serializes dispatch, including the
   first create, across web replicas. The unique index is the final identity
-  fence. Amp owns idle detection and sends pause when a turn finishes.
+  fence. Amp sends pause when a thread goes idle; a running Orb whose
+  guest stays quiet for ten minutes is paused as if it had (`pause_idle/2`),
+  in case Amp's pause never arrives.
 
   Project snapshots: a pause carrying Amp's `snapshot_id` syncs the guest's
   disks and saves them as a `Tuist.Sandboxes.DiskSnapshot` on the Orb's
@@ -25,6 +27,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Sandbox
 
@@ -79,13 +82,49 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     end
   end
 
-  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params) do
-    # Keep the residency until the snapshot succeeds. A failed pause must
-    # not make an active Orb eligible for CI reclaim. Every pause syncs the
-    # guest's disks, so they alone hold every write once a disk snapshot or
-    # the archive tier drops the memory image.
+  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params), do: pause_orb(sandbox, params)
+
+  @doc """
+  Pauses a running Orb whose guest has been quiet since `last_active_at`,
+  as Amp's own pause would, unless a spawn or new activity came since.
+  """
+  def pause_idle(sandbox_id, %DateTime{} = last_active_at) do
+    case Repo.get(Sandbox, sandbox_id) do
+      %Sandbox{amp_orb_id: orb_id, account_id: account_id} when is_binary(orb_id) ->
+        Sandboxes.with_sandbox_lock(
+          "amp:#{account_id}:#{orb_id}",
+          fn -> pause_if_still_idle(sandbox_id, last_active_at) end,
+          wait: false
+        )
+
+      _ ->
+        {:ok, :skipped}
+    end
+  end
+
+  defp pause_if_still_idle(sandbox_id, last_active_at) do
+    case Repo.get(Sandbox, sandbox_id) do
+      %Sandbox{state: :running, last_active_at: %DateTime{} = active_at} = sandbox ->
+        if DateTime.compare(active_at, last_active_at) == :eq do
+          Logger.info("sandboxes: pausing an idle Orb", sandbox_id: sandbox_id, node: sandbox.node_name)
+          pause_orb(sandbox, %{})
+        else
+          {:ok, :skipped}
+        end
+
+      _ ->
+        {:ok, :skipped}
+    end
+  end
+
+  # Keep the residency until the snapshot succeeds. A failed pause must not
+  # make an active Orb eligible for CI reclaim. Every pause syncs the guest's
+  # disks, so they alone hold every write once a disk snapshot or the
+  # archive tier drops the memory image.
+  defp pause_orb(sandbox, params) do
     with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: true),
          {:ok, paused} <- Sandboxes.end_residency(paused) do
+      :ok = Archives.enqueue_if_over_cap(paused.account_id)
       save_snapshot(paused, params)
     end
   end

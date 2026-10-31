@@ -42,6 +42,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :residency_work_id, :string
     field :residency_epoch, :integer, default: 0
     field :last_active_at, :utc_datetime
+    field :guest_cpu_ms, :integer
     field :paused_at, :utc_datetime
     field :error_message, :string
     field :archive_key, :string
@@ -115,6 +116,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :residency_work_id,
       :residency_epoch,
       :last_active_at,
+      :guest_cpu_ms,
       :paused_at,
       :error_message,
       :archive_key,
