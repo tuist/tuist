@@ -140,13 +140,20 @@ Kura REAPI ActionCache and CAS/ByteStream protocol as Bazel: an input key maps
 to an ActionResult whose output is a content-addressed dependency compilation
 bundle. A verified local snapshot store remains the fail-open fallback. The
 shared setup above enables this alongside build and test insights. `mix compile`
-restores matching dependency builds before Mix compiles the rest. The generated alias exposes compiled bootstrap modules without compiling other
+restores matching dependency builds before Mix compiles the rest. The generated
+`compile/1` function in your Mix project compiles Tuist and its dependencies only
+when they are missing or out of date. If your compile alias still starts with
+`deps.compile tuist_ex --include-children`, run `mix tuist.setup` again: that
+alias rebuilds Tuist's dependencies on every `mix compile`, which can also
+recompile your whole project. The generated
+function exposes compiled bootstrap modules without compiling other
 dependencies, including when Mix uses separate OS compiler workers. The wrapper
 re-enables Mix's normal dependency checks afterward, so local dependencies and
 unsupported chains still compile and changed locks are checked. Non-allowlisted
 fetched dependencies compile in batches, retaining Mix's OS-worker parallelism.
-Without an
-alias, use `mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
+Without the alias, a fresh checkout can bootstrap once with
+`mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
+Don't repeat it on every build: it rebuilds Tuist's dependencies each time.
 Dependencies needed to bootstrap Tuist itself compile normally. When already
 current and supported, they count as local hits without a cache lookup. Jason
 and Decimal are bootstrap dependencies, so they are not useful demonstration

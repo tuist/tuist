@@ -269,25 +269,9 @@ servers; a retained invalid field still fails on the single retry.
 
 ## Manual compile integration
 
-If setup cannot edit your project's configuration safely, integrate this alias
-manually, preserving any custom compile actions:
-
-```elixir
-compile: [
-  "deps.compile tuist_ex --include-children",
-  "deps.loadpaths --no-compile --no-deps-check",
-  "tuist.compile"
-]
-```
-
-These steps compile and load Tuist before other dependencies, including on cold
-parallel builds. The wrapper restores normal dependency checks afterward. The
-same alias works with Hex, Git and path installations; no script path is needed.
-
-For jobs that prepare an uploaded build and then run with `--no-compile`, guard
-all bootstrap work too. Mix forwards arguments only to the final task of a list
-alias, so its earlier `deps.compile` otherwise runs unconditionally. Use a local
-function in your Mix project module instead:
+If setup cannot edit your project's configuration safely, add this alias and
+these functions to your Mix project module manually, preserving any custom
+compile actions:
 
 ```elixir
 # In aliases/0:
@@ -296,17 +280,32 @@ compile: &compile/1
 # In the same Mix project module:
 defp compile(args) do
   if "--no-compile" not in args do
-    Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+    compile_tuist_ex()
   end
 
   Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
   Mix.Task.run("tuist.compile", args)
 end
+
+defp compile_tuist_ex do
+  deps =
+    ["tuist_ex"]
+    |> Mix.Dep.filter_by_name(Mix.Dep.load_and_cache(), include_children: true)
+    |> Enum.reject(&(Mix.Dep.ok?(&1) and &1.scm.fetchable?()))
+    |> Enum.map(&Atom.to_string(&1.app))
+
+  if deps != [], do: Mix.Task.run("deps.compile", deps)
+end
 ```
 
-This is a project-local function, not a capture of an SDK function that is not
-loaded yet. Treat it as a custom integration: `tuist.setup` refuses customized
-compile aliases rather than replacing them.
+These functions compile and load Tuist before other dependencies, including on
+cold parallel builds, and skip that work when Tuist and its dependencies are
+already compiled or the command runs with `--no-compile`. The same functions
+work with Hex, Git and path installations; no script path is needed.
+
+If your alias starts with `deps.compile tuist_ex --include-children`, every
+`mix compile` rebuilds Tuist's dependencies and can recompile your whole
+project. Run `mix tuist.setup` again to replace it.
 
 ## How it works
 
