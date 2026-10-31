@@ -1007,3 +1007,20 @@ func TestDispatchReclaimsTheCgroupDownToTheTarget(t *testing.T) {
 		t.Fatalf("a reclaim without a target must fail, got %+v", res)
 	}
 }
+
+func TestListReportsCPUTimeOfRunningSandboxesOnly(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 1)
+	h.launcher.Last().SetCPUTime(1500 * time.Millisecond)
+
+	if got := h.m.List()[0].CPUMs; got != 1500 {
+		t.Fatalf("running cpu_ms = %d, want 1500", got)
+	}
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if got := h.m.List()[0].CPUMs; got != 0 {
+		t.Fatalf("paused cpu_ms = %d, want 0", got)
+	}
+}

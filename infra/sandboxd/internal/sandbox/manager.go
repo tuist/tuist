@@ -1023,8 +1023,15 @@ func (m *Manager) Status(ctx context.Context, id string) (protocol.SandboxInfo, 
 
 func (sb *Sandbox) info() protocol.SandboxInfo {
 	sb.mu.Lock()
-	defer sb.mu.Unlock()
-	return sb.meta.Info(sb.worker != nil)
+	info := sb.meta.Info(sb.worker != nil)
+	inst := sb.inst
+	sb.mu.Unlock()
+	if inst != nil && info.State == protocol.StateRunning {
+		if cpu, ok := inst.CPUTime(); ok {
+			info.CPUMs = cpu.Milliseconds()
+		}
+	}
+	return info
 }
 
 func (m *Manager) List() []protocol.SandboxInfo {

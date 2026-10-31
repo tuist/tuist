@@ -241,7 +241,7 @@ Node to server:
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
-               "vcpus":2,"memory_mb":4096,"worker_running":false}]}
+               "vcpus":2,"memory_mb":4096,"worker_running":false,"cpu_ms":1234}]}
 {"type":"result","id":"c1","ok":true,"data":{...}}
 {"type":"result","id":"c1","ok":false,"error":"..."}
 {"type":"stream","id":"c1","stream":"stdout","data_b64":"..."}
@@ -265,6 +265,11 @@ Server to node:
 {"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}
 {"type":"command","id":"c10","op":"archive","args":{"sandbox_id":"...","part_size":N,"part_urls":["https://..."]}}
 ```
+
+A running sandbox's `cpu_ms` is its Firecracker process's user and system
+time from `/proc/<pid>/stat` (vCPU threads included), restarting from zero
+with each new VM process; the server uses it to pause idle Amp Orbs. Paused
+sandboxes, and hosts without `/proc`, omit it.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker

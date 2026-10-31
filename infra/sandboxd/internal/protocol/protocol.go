@@ -123,7 +123,10 @@ type SandboxInfo struct {
 	// ColdBoot marks a paused sandbox whose next resume boots the kernel on
 	// its own disks instead of restoring memory, because the daemon lost the
 	// VM while it was running and the disks moved on since the last snapshot.
-	ColdBoot   bool      `json:"cold_boot,omitempty"`
+	ColdBoot bool `json:"cold_boot,omitempty"`
+	// CPUMs is a running VM's CPU time since its process started, for the
+	// server to tell an active guest from an idle one.
+	CPUMs      int64     `json:"cpu_ms,omitempty"`
 	Generation int       `json:"generation"`
 	CreatedAt  time.Time `json:"created_at"`
 	Error      string    `json:"error,omitempty"`
