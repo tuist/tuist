@@ -118,6 +118,28 @@ struct DerivedDataLocatorTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_hashes_the_real_path_of_a_workspace_reached_through_a_symlink() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let realDirectory = temporaryDirectory.appending(component: "real")
+        let aliasDirectory = temporaryDirectory.appending(component: "alias")
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: realDirectory.appending(component: "Tuist.xcworkspace").pathString),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createSymbolicLink(
+            atPath: aliasDirectory.pathString,
+            withDestinationPath: realDirectory.pathString
+        )
+        let aliasWorkspace = aliasDirectory.appending(component: "Tuist.xcworkspace")
+
+        let aliasResult = try await subject.locate(for: aliasWorkspace)
+        let realResult = try await subject.locate(for: realDirectory.appending(component: "Tuist.xcworkspace"))
+
+        #expect(aliasResult == realResult)
+        #expect(aliasResult.basename != "Tuist-\(try XcodeProjectPathHasher.hashString(for: aliasWorkspace.pathString))")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func locate_hashes_the_path_xcode_standardizes_for_custom_absolute_location() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let customDerivedDataDirectory = temporaryDirectory.appending(component: "CustomDerivedData")
