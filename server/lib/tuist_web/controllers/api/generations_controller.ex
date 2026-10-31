@@ -152,12 +152,23 @@ defmodule TuistWeb.API.GenerationsController do
            },
            required: [:generations, :pagination_metadata]
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
 
   def index(%{assigns: %{selected_project: selected_project}, params: %{page_size: page_size} = params} = conn, _params) do
+    if valid_cursors?(params) do
+      list_generations(conn, selected_project, page_size, params)
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{message: "`after` and `before` must be cursors returned by a previous response."})
+    end
+  end
+
+  defp list_generations(conn, selected_project, page_size, params) do
     filters =
       [
         %{field: :project_id, op: :==, value: selected_project.id},
@@ -231,6 +242,17 @@ defmodule TuistWeb.API.GenerationsController do
         end_cursor: end_cursor
       }
     })
+  end
+
+  defp valid_cursors?(params), do: Enum.all?([:after, :before], &valid_cursor?(Map.get(params, &1)))
+
+  defp valid_cursor?(nil), do: true
+
+  defp valid_cursor?(cursor) do
+    case Flop.Cursor.decode(cursor) do
+      {:ok, decoded} -> Map.keys(decoded) == [:ran_at]
+      :error -> false
+    end
   end
 
   operation(:show,
