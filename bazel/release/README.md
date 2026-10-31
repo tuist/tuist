@@ -98,7 +98,9 @@ source tarball as the module asset. Archive timestamps/ownership and gzip time
 are normalized; publishing rebuilds the archive from the selected SHA and
 requires byte-for-byte equality with the validated artifact and its checksum.
 
-Planning/control code is checked out from main and pinned for the entire run.
+Planning/control code uses the triggering main commit (`github.sha`) for the
+entire run. Release sources are archived directly from Git, not checked out
+over the control code, and validation does not write shared action caches.
 Dispatches from any other workflow ref are skipped. Branch names are validated
 against the release namespace **before** they are resolved. Candidate code is
 only executed in a separate read-only validation job with no persisted checkout

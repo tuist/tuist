@@ -147,7 +147,6 @@ class ReleaseTests(unittest.TestCase):
         ]:
             outputs = self.workflow_plan(event=event, channel=channel)
             self.assertEqual(json.loads(outputs["plans"])[0]["version"], expected)
-            self.assertEqual(outputs["control_sha"], self.initial)
         rc = self.cut_rc()
         outputs = self.workflow_plan(channel="promote", branch=rc["branch"])
         self.assertEqual(json.loads(outputs["plans"])[0]["version"], "0.1.0")

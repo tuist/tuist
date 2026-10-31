@@ -37,11 +37,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       plans: ${{ steps.plan.outputs.plans }}
-      control_sha: ${{ steps.plan.outputs.control_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -63,7 +62,6 @@ jobs:
             *) exit 1 ;;
           esac
           echo "plans=$plans" >> "$GITHUB_OUTPUT"
-          echo "control_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   validate:
     needs: plan
@@ -79,8 +77,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.plan.outputs.control_sha }}
+          ref: ${{ github.sha }}
           path: control
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -90,18 +89,12 @@ jobs:
       - name: Release automation regressions
         working-directory: control
         run: python3 .github/scripts/bazel-release.test.py
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ matrix.release.sha }}
-          path: source
-          fetch-depth: 0
-          persist-credentials: false
       - name: Package exact source with trusted control code
-        working-directory: source
+        working-directory: control
         env:
           SOURCE_SHA: ${{ matrix.release.sha }}
           VERSION: ${{ matrix.release.version }}
-        run: python3 ../control/bazel/release/release.py package "$SOURCE_SHA" "$VERSION" "$RUNNER_TEMP/assets"
+        run: python3 bazel/release/release.py package "$SOURCE_SHA" "$VERSION" "$RUNNER_TEMP/assets"
       - name: Validate the stamped source archive without release credentials
         env:
           VERSION: ${{ matrix.release.version }}
@@ -128,7 +121,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.plan.outputs.control_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:

@@ -111,6 +111,11 @@ class AuthTests(unittest.TestCase):
             "NO_PROXY": "*",
             "PYTHONDONTWRITEBYTECODE": "1",
         }
+        # Hosted Python toolchains may need their shared-library search path.
+        # Preserve the interpreter's loader inputs, not user authentication state.
+        for name in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+            if name in os.environ:
+                self.env[name] = os.environ[name]
         self.credentials = self.root / "config/tuist/credentials/127.0.0.1.json"
         self.old = {
             "accessToken": jwt(exp=1),
