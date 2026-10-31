@@ -268,11 +268,24 @@ defmodule Tuist.MixProject do
   # without requiring an SDK module before a cold worker has loaded it.
   defp compile(args) do
     if "--no-compile" not in args do
-      Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+      compile_tuist_ex()
     end
 
     Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
     Mix.Task.run("tuist.compile", args)
+  end
+
+  # `deps.compile` rebuilds every dependency it is given, and a rebuilt fetched
+  # dependency makes Mix recompile the whole project. Give it only what
+  # `deps.loadpaths` would compile: dependencies that are not ok, and local ones.
+  defp compile_tuist_ex do
+    deps =
+      ["tuist_ex"]
+      |> Mix.Dep.filter_by_name(Mix.Dep.load_and_cache(), include_children: true)
+      |> Enum.reject(&(Mix.Dep.ok?(&1) and &1.scm.fetchable?()))
+      |> Enum.map(&Atom.to_string(&1.app))
+
+    if deps != [], do: Mix.Task.run("deps.compile", deps)
   end
 
   defp releases do
