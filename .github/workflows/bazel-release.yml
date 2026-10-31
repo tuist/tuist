@@ -44,6 +44,9 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Resolve using only trusted main control code
         id: plan
         env:
@@ -79,6 +82,11 @@ jobs:
           ref: ${{ needs.plan.outputs.control_sha }}
           path: control
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Release-source execution must not write shared default-branch caches.
+      - uses: bazelbuild/setup-bazelisk@v3
       - name: Release automation regressions
         working-directory: control
         run: python3 .github/scripts/bazel-release.test.py
@@ -94,9 +102,6 @@ jobs:
           SOURCE_SHA: ${{ matrix.release.sha }}
           VERSION: ${{ matrix.release.version }}
         run: python3 ../control/bazel/release/release.py package "$SOURCE_SHA" "$VERSION" "$RUNNER_TEMP/assets"
-      - uses: bazel-contrib/setup-bazel@0.15.0
-        with:
-          bazelisk-cache: true
       - name: Validate the stamped source archive without release credentials
         env:
           VERSION: ${{ matrix.release.version }}
@@ -125,6 +130,9 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.control_sha }}
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: actions/download-artifact@v4
         with:
           pattern: rules-tuist-*
