@@ -191,7 +191,7 @@ struct FileSystemSupportTests {
             await trash.purge()
             #expect(!fileSystem.existsIncludingSymlinks(trash.directory))
 
-            for index in 0..<3 {
+            for index in 0 ..< 3 {
                 let directory = root.appendingPathComponent("checkouts/Dependency\(index)")
                 try await fileSystem.atomicWrite("private", to: directory.appendingPathComponent("Sources/file.swift"))
                 try await trash.discard(directory)
