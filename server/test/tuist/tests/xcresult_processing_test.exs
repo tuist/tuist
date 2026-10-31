@@ -118,13 +118,12 @@ defmodule Tuist.Tests.XcresultProcessingTest do
   end
 
   test "deserializes ran_at before persisting a failed sharded run", %{account: account, project: project} do
-    test_run_id = UUIDv7.generate()
     ran_at = ~N[2026-07-21 02:59:14.935065]
     plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
 
-    assert {:ok, _test} =
+    assert {:ok, %{id: test_run_id}} =
              Tests.create_test(%{
-               id: test_run_id,
+               id: UUIDv7.generate(),
                project_id: project.id,
                account_id: account.id,
                duration: 0,
