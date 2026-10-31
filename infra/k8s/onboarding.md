@@ -407,8 +407,8 @@ other runtime images/values unchanged. Record that Helm revision as the
 3. Check `TailscaleIngressSvcConfigured`, both ingress proxy replicas' readiness,
    and HTTP `/ping` through the unchanged tailnet hostname. Then, under approved
    fixture/data-validation scope, run a macOS xcresult-processor fixture and verify
-   its expected ClickHouse persistence/mirroring. Ready Pods, `/ping`, and a
-   completed job alone do not prove that mirror writes arrived.
+   its expected ClickHouse persistence, including any configured mirrors. Ready
+   Pods, `/ping`, and a completed job alone do not prove that expected rows arrived.
 4. From outside the tailnet, use fresh normal TCP connections to verify the old
    public NodePort is closed across the recorded and current public node inventory,
    paired with the positive tailnet control. Re-read the live Service for any new
