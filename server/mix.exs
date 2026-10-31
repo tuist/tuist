@@ -12,7 +12,7 @@ defmodule Tuist.MixProject do
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       releases: releases(),
       aliases: aliases(),
-      tuist: [project: "tuist/server", cache: true],
+      tuist: [project: "tuist/server", cache: [portable: true]],
       deps: deps(),
       compilers: compilers(Mix.env()),
       phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],

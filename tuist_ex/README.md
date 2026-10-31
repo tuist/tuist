@@ -268,7 +268,8 @@ Authentication, unavailable
 endpoints, quota refusals and storage failures fall back without hiding compiler
 failures. Set `upload: false` to read remote bundles without publishing new ones;
 local snapshots still populate. This is a client behavior option, not an
-authorization boundary. Dependency snapshots and remote bundles are capped at 64 MiB. Compiler manifests and BEAMs
+authorization boundary. Uploads are also skipped when the server reports that
+the cache token cannot write to the project. Dependency snapshots and remote bundles are capped at 64 MiB. Compiler manifests and BEAMs
 may embed producer checkout paths and compile-time values, including secrets.
 Audit selected dependencies and restrict project cache access accordingly.
 Writers are trusted code producers: a writer can publish executable BEAMs under

@@ -213,7 +213,8 @@ closure from the same cache rather than recompiling it independently.
 | `endpoint` | Discovered automatically | Override the account's HTTPS REAPI endpoint. |
 
 `upload: false` controls client behavior, not authorization. Project cache
-permissions are enforced by the server. Project `endpoint:` options and discovered
+permissions are enforced by the server. Credentials that can only read the
+project's cache skip uploads automatically. Project `endpoint:` options and discovered
 endpoints require HTTPS, except for loopback (`localhost`, `127.0.0.1`, `::1`)
 development endpoints.
 
