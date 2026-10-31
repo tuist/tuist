@@ -31,6 +31,7 @@ const (
 	OpReclaim     = "reclaim"
 	OpSaveDisks   = "save_disks"
 	OpDeleteDisks = "delete_disks"
+	OpArchive     = "archive"
 )
 
 const (
@@ -212,6 +213,9 @@ type CreateArgs struct {
 	// FromDiskSnapshot names a saved disk snapshot to clone instead of the
 	// template's disks. The sandbox cold boots on the clones.
 	FromDiskSnapshot string `json:"from_disk_snapshot,omitempty"`
+	// FromArchive downloads the sandbox's archived disks and kernel from
+	// object storage instead. The sandbox cold boots on them.
+	FromArchive *ArchiveSource `json:"from_archive,omitempty"`
 }
 
 type SandboxArgs struct {
@@ -233,6 +237,25 @@ type SaveDisksArgs struct {
 
 type DiskSnapshotArgs struct {
 	SnapshotID string `json:"snapshot_id"`
+}
+
+// ArchiveArgs asks for a paused sandbox's kernel and disks to be uploaded
+// to object storage as one multipart object. PartURLs are presigned
+// UploadPart URLs for parts 1..n of PartSize bytes each; the daemon holds
+// no storage credentials. The sandbox stays on the node until the server
+// deletes it.
+type ArchiveArgs struct {
+	SandboxID string   `json:"sandbox_id"`
+	PartSize  int64    `json:"part_size"`
+	PartURLs  []string `json:"part_urls"`
+}
+
+// ArchiveSource is an archive to restore: a presigned GET URL and the size
+// and SHA-256 the archive was uploaded with.
+type ArchiveSource struct {
+	URL    string `json:"url"`
+	Bytes  int64  `json:"bytes"`
+	SHA256 string `json:"sha256"`
 }
 
 type ExecArgs struct {
@@ -264,6 +287,23 @@ type PauseResult struct {
 
 type SaveDisksResult struct {
 	DurationMs int64 `json:"duration_ms"`
+}
+
+type ArchivePart struct {
+	PartNumber int    `json:"part_number"`
+	ETag       string `json:"etag"`
+}
+
+// ArchiveResult lists the uploaded parts for the server to complete the
+// upload with. Bytes and SHA256 describe the object; StoredBytes is the
+// file data it holds before compression.
+type ArchiveResult struct {
+	Parts       []ArchivePart `json:"parts"`
+	Bytes       int64         `json:"bytes"`
+	SHA256      string        `json:"sha256"`
+	StoredBytes int64         `json:"stored_bytes"`
+	DisksSynced bool          `json:"disks_synced"`
+	DurationMs  int64         `json:"duration_ms"`
 }
 
 type ExecResult struct {

@@ -710,6 +710,10 @@ func (f *fakeOps) DeleteDisks(ctx context.Context, id string) error {
 	f.calls = append(f.calls, "delete_disks "+id)
 	return nil
 }
+func (f *fakeOps) Archive(ctx context.Context, args protocol.ArchiveArgs) (protocol.ArchiveResult, error) {
+	f.calls = append(f.calls, fmt.Sprintf("archive %s parts=%d", args.SandboxID, len(args.PartURLs)))
+	return protocol.ArchiveResult{Bytes: 3}, nil
+}
 func (f *fakeOps) Delete(ctx context.Context, id string) error {
 	f.calls = append(f.calls, "delete "+id)
 	return nil
@@ -792,6 +796,10 @@ func TestDispatch(t *testing.T) {
 	if !res.OK {
 		t.Fatalf("delete_disks result %+v", res)
 	}
+	res, _ = run("archive", `{"sandbox_id":"s1","part_size":1048576,"part_urls":["https://a","https://b"]}`)
+	if !res.OK || res.Data.(protocol.ArchiveResult).Bytes != 3 {
+		t.Fatalf("archive result %+v", res)
+	}
 	res, _ = run("delete", `{"sandbox_id":"s1"}`)
 	if !res.OK {
 		t.Fatalf("delete result %+v", res)
@@ -808,7 +816,7 @@ func TestDispatch(t *testing.T) {
 	if res.OK || !strings.Contains(res.Error, "decoding args") {
 		t.Fatalf("bad args result %+v", res)
 	}
-	if strings.Join(ops.calls, ",") != "create s1,resume s1,pause s1 sync=true,exec s1,start_worker s1,stop_worker s1,status s1,save_disks s1 snap1,delete_disks snap1,delete s1" {
+	if strings.Join(ops.calls, ",") != "create s1,resume s1,pause s1 sync=true,exec s1,start_worker s1,stop_worker s1,status s1,save_disks s1 snap1,delete_disks snap1,archive s1 parts=2,delete s1" {
 		t.Fatalf("calls %v", ops.calls)
 	}
 	data, _ := json.Marshal(Dispatch(context.Background(), ops, protocol.Command{ID: "x", Op: "delete", Args: json.RawMessage(`{"sandbox_id":"s1"}`)}, nil))

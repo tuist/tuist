@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -64,9 +65,11 @@ type Deps struct {
 	Agent    func(vsockPath string) vsock.Agent
 	// CloneFile defaults to vm.Reflink; fake-VM tests can copy their tiny fixtures.
 	CloneFile func(src, dst string) error
-	Metrics   *Metrics
-	Events    func(protocol.Event)
-	Log       *slog.Logger
+	// HTTPClient moves archives to and from object storage.
+	HTTPClient *http.Client
+	Metrics    *Metrics
+	Events     func(protocol.Event)
+	Log        *slog.Logger
 }
 
 type Manager struct {
@@ -78,6 +81,7 @@ type Manager struct {
 	slots     *network.Slots
 	agent     func(string) vsock.Agent
 	cloneFile func(string, string) error
+	http      *http.Client
 	metrics   *Metrics
 	events    func(protocol.Event)
 	log       *slog.Logger
@@ -114,6 +118,11 @@ type Sandbox struct {
 	// epoch changes on every spawn and deliberate kill so a death watcher
 	// can tell whether the process it saw exit is still the current one.
 	epoch uint64
+	// resumes counts resumes and deletes asked for, and cancelArchive stops
+	// an archive in flight, so a sandbox the server wants back never waits
+	// out an upload.
+	resumes       uint64
+	cancelArchive context.CancelFunc
 }
 
 var (
@@ -150,10 +159,14 @@ func New(cfg Config, deps Deps) *Manager {
 	if deps.CloneFile == nil {
 		deps.CloneFile = vm.Reflink
 	}
+	if deps.HTTPClient == nil {
+		deps.HTTPClient = defaultHTTPClient()
+	}
 	return &Manager{
 		cfg: cfg, store: deps.Store, builder: deps.Builder, launcher: deps.Launcher, net: deps.Network,
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
 		cloneFile: deps.CloneFile,
+		http:      deps.HTTPClient,
 		sandboxes: map[string]*Sandbox{},
 	}
 }
@@ -195,13 +208,19 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if args.Hostname == "" {
 		args.Hostname = m.namespace(args.SandboxID)
 	}
-	// A disk snapshot carries its own kernel and disks, so it needs neither
-	// the template on disk nor its shape snapshot.
+	// A disk snapshot or an archive carries its own kernel and disks, so it
+	// needs neither the template on disk nor its shape snapshot.
 	fromSnapshot := args.FromDiskSnapshot != ""
+	fromArchive := args.FromArchive != nil
+	if fromSnapshot && fromArchive {
+		return res, errors.New("create takes a disk snapshot or an archive, not both")
+	}
 	var tmpl template.Template
-	if fromSnapshot {
-		if err := vm.ValidateID(args.FromDiskSnapshot); err != nil {
-			return res, err
+	if fromSnapshot || fromArchive {
+		if fromSnapshot {
+			if err := vm.ValidateID(args.FromDiskSnapshot); err != nil {
+				return res, err
+			}
 		}
 		tmpl.Name = args.Template
 		if tmpl.Name == "" {
@@ -240,6 +259,9 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 
 	if fromSnapshot {
 		return m.createFromDiskSnapshot(ctx, sb, args, log)
+	}
+	if fromArchive {
+		return m.createFromArchive(ctx, sb, args, log)
 	}
 	artifacts, err := m.builder.Ensure(ctx, tmpl, shape)
 	if err != nil {
@@ -552,6 +574,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (res protocol.ResumeRes
 	if err != nil {
 		return res, err
 	}
+	sb.interruptArchive()
 	sb.opMu.Lock()
 	defer sb.opMu.Unlock()
 	if !m.current(id, sb) {
@@ -757,6 +780,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	if err != nil {
 		return err
 	}
+	sb.interruptArchive()
 	sb.opMu.Lock()
 	defer sb.opMu.Unlock()
 	if !m.current(id, sb) {

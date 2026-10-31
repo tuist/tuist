@@ -25,6 +25,7 @@ type Operations interface {
 	Status(ctx context.Context, id string) (protocol.SandboxInfo, error)
 	SaveDisks(ctx context.Context, args protocol.SaveDisksArgs) (protocol.SaveDisksResult, error)
 	DeleteDisks(ctx context.Context, id string) error
+	Archive(ctx context.Context, args protocol.ArchiveArgs) (protocol.ArchiveResult, error)
 }
 
 // Lifecycle operations run detached from the connection that carried the
@@ -36,6 +37,9 @@ const (
 	pauseTimeout  = 10 * time.Minute
 	saveTimeout   = 10 * time.Minute
 	deleteTimeout = 2 * time.Minute
+	// An archive streams up to the sandbox's full disk ceiling to object
+	// storage.
+	archiveTimeout = 30 * time.Minute
 
 	maxExecStreamBytes = 2 << 20
 )
@@ -184,6 +188,18 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 			return protocol.ErrorResult(cmd.ID, err)
 		}
 		return protocol.OKResult(cmd.ID, map[string]any{})
+	case protocol.OpArchive:
+		var args protocol.ArchiveArgs
+		if err := decode(&args); err != nil {
+			return protocol.ErrorResult(cmd.ID, err)
+		}
+		opCtx, cancel := detached(archiveTimeout)
+		defer cancel()
+		res, err := ops.Archive(opCtx, args)
+		if err != nil {
+			return protocol.ErrorResult(cmd.ID, err)
+		}
+		return protocol.OKResult(cmd.ID, res)
 	case protocol.OpReclaim:
 		var args protocol.ReclaimArgs
 		if err := decode(&args); err != nil {
