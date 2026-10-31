@@ -1843,17 +1843,7 @@ defmodule Tuist.Environment do
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
-    route_info = get_route_info(path)
-
-    default_route_type = Keyword.get(opts, :route_type)
-
-    type =
-      cond do
-        not is_nil(default_route_type) -> default_route_type
-        is_nil(route_info) -> :static_asset
-        Map.get(route_info, :type) == :marketing -> :marketing
-        true -> :app
-      end
+    type = Keyword.get_lazy(opts, :route_type, fn -> route_type(path) end)
 
     if type == :marketing and not Tuist.Environment.tuist_hosted?() do
       # When it's a marketing URL available presented somewhere in an
@@ -1872,10 +1862,11 @@ defmodule Tuist.Environment do
     end
   end
 
-  defp get_route_info(path) do
-    case Phoenix.Router.route_info(TuistWeb.Router, "GET", path, "") do
-      :error -> nil
-      route_info -> route_info
+  defp route_type(path) do
+    case Phoenix.Router.route_info(Tuist.Web.router(), "GET", path, "") do
+      :error -> :static_asset
+      %{type: :marketing} -> :marketing
+      _route_info -> :app
     end
   end
 

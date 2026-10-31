@@ -20,7 +20,7 @@ defmodule Tuist.Accounts.Workers.DeleteAccountArtifactsWorker do
 
   def new_cleanup(%Account{} = account) do
     storage_actor = Map.take(account, @storage_fields)
-    encrypted_storage = Phoenix.Token.encrypt(TuistWeb.Endpoint, @storage_salt, storage_actor)
+    encrypted_storage = Phoenix.Token.encrypt(Tuist.Web.endpoint(), @storage_salt, storage_actor)
     new(%{account_id: account.id, encrypted_storage: encrypted_storage})
   end
 
@@ -35,7 +35,7 @@ defmodule Tuist.Accounts.Workers.DeleteAccountArtifactsWorker do
         else: Map.put(args, "writers_present", Artifacts.uploads_pending?(account_id))
 
     with {:ok, %{id: ^account_id} = storage_actor} <-
-           Phoenix.Token.decrypt(TuistWeb.Endpoint, @storage_salt, encrypted_storage, max_age: :infinity),
+           Phoenix.Token.decrypt(Tuist.Web.endpoint(), @storage_salt, encrypted_storage, max_age: :infinity),
          account = struct(Account, storage_actor),
          {:ok, %{body: body}} <-
            Storage.list_objects("#{account.id}/", account,
