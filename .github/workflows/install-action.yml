@@ -32,13 +32,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         hit: ['true', 'false']
-        backend: [volume, github]
+        backend: [volume, github, external]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     env:
       TEST_CACHE_KEY: install-action-test-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.backend }}-${{ matrix.hit }}
       EXPECTED_BACKEND: ${{ matrix.backend }}
-      EXPECTED_MATERIALIZATION: ${{ matrix.backend == 'volume' && 'symlink' || 'copy' }}
+      EXPECTED_MATERIALIZATION: ${{ matrix.backend == 'github' && 'copy' || 'symlink' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -103,6 +103,11 @@ jobs:
       - name: Remove the seeded fixture before restoring it
         if: matrix.backend == 'github' && matrix.hit == 'true'
         run: rm -r install-fixture/Tuist/.build
+      - name: Seed a .build directory persisted by the runner
+        if: matrix.backend == 'external' && matrix.hit == 'true'
+        run: |
+          mkdir -p install-fixture/Tuist/.build
+          echo persisted > install-fixture/Tuist/.build/persisted-marker
       - uses: ./.github/actions/install
         id: install
         env:
@@ -110,13 +115,15 @@ jobs:
         with:
           path: install-fixture
           cache-key: ${{ env.TEST_CACHE_KEY }}
+          cache: ${{ matrix.backend == 'external' && 'external' || 'auto' }}
       - name: Verify composite outputs and unconditional installation
         shell: bash
         env:
           CACHE_HIT: ${{ steps.install.outputs.cache-hit }}
           CACHE_PATH: ${{ steps.install.outputs.cache-path }}
           CACHE_BACKEND: ${{ steps.install.outputs.cache-backend }}
-          EXPECTED_HIT: ${{ matrix.hit }}
+          EXPECTED_HIT: ${{ matrix.backend != 'external' && matrix.hit || 'false' }}
+          SEEDED: ${{ matrix.hit }}
         run: |
           test "$CACHE_HIT" = "$EXPECTED_HIT"
           test "$CACHE_BACKEND" = "$EXPECTED_BACKEND"
@@ -124,6 +131,9 @@ jobs:
           test -f "$RUNNER_TEMP/install-executed"
           if [[ "$EXPECTED_BACKEND" == github && "$EXPECTED_HIT" == true ]]; then
             test "$(cat install-fixture/Tuist/.build/archive-marker)" = restored
+          fi
+          if [[ "$EXPECTED_BACKEND" == external && "$SEEDED" == true ]]; then
+            test "$(cat install-fixture/Tuist/.build/persisted-marker)" = persisted
           fi
       - run: bash .github/actions/install/scripts/package.sh "$RUNNER_TEMP/install-action"
       - uses: actions/upload-artifact@v4
