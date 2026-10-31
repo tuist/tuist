@@ -26,6 +26,9 @@ defmodule Tuist.Sandboxes.Sandbox do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandboxes" do
+    field :purpose, Ecto.Enum, values: [:agent, :remote_execution], default: :agent
+    # Renewed by the owning remote-execution scheduler; lapsed rows are reaped.
+    field :execution_lease_expires_at, :utc_datetime
     field :anthropic_session_id, :string
     field :amp_orb_id, :string
     field :template, :string
@@ -78,6 +81,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     sandbox
     |> cast(attrs, [
       :account_id,
+      :purpose,
       :agent_environment_id,
       :anthropic_session_id,
       :amp_orb_id,

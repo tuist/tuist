@@ -340,7 +340,9 @@ defmodule Tuist.Sandboxes.Capacity do
     {count, memory_mb} =
       Repo.one(
         from s in Sandbox,
-          where: s.node_name == ^node_name and s.state in ^@charged_states,
+          where:
+            s.node_name == ^node_name and
+              (s.state in ^@charged_states or (s.purpose == :remote_execution and s.state == :error)),
           select: {count(s.id), coalesce(sum(s.memory_mb), 0)}
       )
 
@@ -361,7 +363,8 @@ defmodule Tuist.Sandboxes.Capacity do
   def reclaimable(node_name) when is_binary(node_name) do
     Repo.all(
       from s in Sandbox,
-        where: s.node_name == ^node_name and s.state == :running and is_nil(s.residency_work_id),
+        where: s.node_name == ^node_name and s.purpose == :agent,
+        where: s.state == :running and is_nil(s.residency_work_id),
         order_by: [asc_nulls_first: s.last_active_at, asc: s.inserted_at]
     )
   end
@@ -406,10 +409,12 @@ defmodule Tuist.Sandboxes.Capacity do
     reported_ids =
       for %{id: id} <- Map.get(node, :sandboxes, []), {:ok, uuid} <- [Ecto.UUID.cast(id)], do: uuid
 
+    reserved_error = dynamic([s], s.purpose == :remote_execution or s.id in ^reported_ids)
+    reserved = dynamic([s], s.state in ^@placed_states or (s.state == :error and ^reserved_error))
+
     from(s in Sandbox,
-      where:
-        s.node_name == ^node_name and
-          (s.state in ^@placed_states or (s.state == :error and s.id in ^reported_ids)),
+      where: s.node_name == ^node_name,
+      where: ^reserved,
       select: %{workspace_gb: s.workspace_gb, memory_mb: s.memory_mb, template: s.template}
     )
     |> Repo.all()
@@ -491,8 +496,47 @@ defmodule Tuist.Sandboxes.Capacity do
   def disk_space?(_node, _sandbox), do: true
 
   def ready_nodes(template) when is_binary(template) do
-    Enum.filter(Nodes.connected_nodes(), &template_ready?(&1, template))
+    Enum.filter(Nodes.connected_nodes(), &(Map.get(&1, :execution_slots, 0) == 0 and template_ready?(&1, template)))
   end
+
+  @doc "Reserve a fixed-capacity execution host; never borrow CI-first elastic capacity."
+  def place_execution(%Sandbox{} = sandbox, settings, image_tag) do
+    candidates =
+      Enum.filter(Nodes.connected_nodes(), fn node ->
+        execution_node?(node, settings, image_tag, sandbox)
+      end)
+
+    reserved =
+      Enum.find(rank(candidates), fn node ->
+        fits = fn ->
+          cpus =
+            Repo.one(
+              from s in Sandbox,
+                where: s.node_name == ^node.name and s.state != :deleted,
+                select: coalesce(sum(s.vcpus), 0)
+            )
+
+          cpus + sandbox.vcpus <= min(node.capacity.cpus, node.execution_slots * 2) and disk_space?(node, sandbox) and
+            disk_room?(node, sandbox)
+        end
+
+        reserve(node, charge_bytes(sandbox), fn -> set_node(sandbox, node.name) end, fits) == :ok
+      end)
+
+    if reserved, do: {:ok, reserved.name}, else: {:error, :no_capacity}
+  end
+
+  defp execution_node?(node, settings, image_tag, sandbox) do
+    node.name in settings.node_names and Map.get(node, :execution_deadlines, false) and
+      not shared_node?(node.name) and not elastic?(node) and execution_capacity?(node, sandbox) and
+      Enum.any?(Map.get(node, :templates, []), &(&1.name == "bazel" and &1.tag == image_tag and &1.ready))
+  end
+
+  defp execution_capacity?(%{execution_slots: slots, capacity: %{cpus: cpus, memory_bytes: memory}}, sandbox)
+       when is_integer(slots) and slots > 0 and is_integer(cpus) and is_integer(memory) and memory > 0,
+       do: cpus >= sandbox.vcpus
+
+  defp execution_capacity?(_node, _sandbox), do: false
 
   defp template_ready?(node, template) do
     node
@@ -1085,6 +1129,11 @@ defmodule Tuist.Sandboxes.Capacity do
       end
   end
 
+  # Ranking cannot change a singleton; reserve/4 still checks its capacity under
+  # the node lock before writing the placement.
+  defp rank([]), do: []
+  defp rank([node]), do: [node]
+
   defp rank(nodes) do
     nodes
     |> Enum.map(&{&1, free_bytes(&1)})
@@ -1115,14 +1164,15 @@ defmodule Tuist.Sandboxes.Capacity do
   defp reserve(node, charge, apply, disk_fits \\ fn -> true end) do
     fn ->
       lock(node.name)
+      reserved = reserved_bytes(node.name)
 
       memory_fits =
         case memory_budget_bytes(node) do
           :unbounded -> true
-          budget -> budget - reserved_bytes(node.name) >= charge
+          budget -> budget - reserved >= charge
         end
 
-      if memory_fits and allocation_allows?(node, reserved_bytes(node.name) + charge + @daemon_reserve_bytes) and
+      if memory_fits and allocation_allows?(node, reserved + charge + @daemon_reserve_bytes) and
            disk_fits.(), do: apply.(), else: Repo.rollback(:no_capacity)
     end
     |> Repo.transaction()

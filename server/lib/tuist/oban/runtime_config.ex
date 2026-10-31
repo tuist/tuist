@@ -30,6 +30,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
 
   @shared_crons [
+    {"* * * * *", Tuist.RemoteExecution.MaintenanceWorker},
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
