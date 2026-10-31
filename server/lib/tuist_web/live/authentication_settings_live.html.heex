@@ -8,6 +8,33 @@
     current_user={@current_user}
   />
 
+  <.card_section :if={is_nil(@organization)} data-part="mfa-card">
+    <div data-part="header">
+      <h2 data-part="title">{dgettext("dashboard_account", "Two-factor authentication")}</h2>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_account",
+          "Protect your sign-ins with an authenticator app and recovery codes."
+        )}
+      </span>
+    </div>
+    <div data-part="section" data-section="factor">
+      <div data-part="label">
+        <span data-part="title">{dgettext("dashboard_account", "Authenticator app")}</span>
+        <span data-part="description">
+          {dgettext("dashboard_account", "Manage your personal sign-in protection.")}
+        </span>
+      </div>
+      <div data-part="field">
+        <.button
+          variant="secondary"
+          href={~p"/users/settings/mfa"}
+          label={dgettext("dashboard_account", "Manage two-factor authentication")}
+        />
+      </div>
+    </div>
+  </.card_section>
+
   <.alert
     :if={@flash_message}
     status={elem(@flash_message, 0)}

@@ -1,0 +1,77 @@
+<.auth_page
+  id="mfa"
+  title={dgettext("dashboard_auth", "Two-factor authentication")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Enter the six-digit code from 1Password or your authenticator app."
+    )
+  }
+>
+  <.alert :if={@error} type="secondary" status="error" size="small" title={@error} />
+  <form id="mfa-challenge" method="post" action={~p"/users/mfa"} data-part="form">
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input
+      id="mfa-username"
+      type="text"
+      name="username"
+      value={@email}
+      autocomplete="username"
+      hidden
+      readonly
+    />
+    <.text_input
+      id="mfa-code"
+      name="mfa_code"
+      value=""
+      label={dgettext("dashboard_auth", "Authentication code")}
+      show_prefix={false}
+      autocomplete="one-time-code"
+      inputmode="numeric"
+      pattern="[0-9]{6}"
+      maxlength="6"
+      autocapitalize="none"
+      spellcheck="false"
+      required
+      autofocus={not @recovery}
+    />
+    <.button
+      variant="primary"
+      size="large"
+      type="submit"
+      label={dgettext("dashboard_auth", "Verify")}
+    />
+  </form>
+  <details id="mfa-recovery" open={@recovery}>
+    <summary>{dgettext("dashboard_auth", "Use a recovery code")}</summary>
+    <form id="mfa-recovery-form" method="post" action={~p"/users/mfa"} data-part="form">
+      <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+      <input type="hidden" name="recovery" value="true" />
+      <.text_input
+        id="mfa-recovery-code"
+        name="mfa_code"
+        value=""
+        label={dgettext("dashboard_auth", "Recovery code")}
+        show_prefix={false}
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        required
+        autofocus={@recovery}
+      />
+      <.button
+        variant="primary"
+        size="large"
+        type="submit"
+        label={dgettext("dashboard_auth", "Verify recovery code")}
+      />
+    </form>
+  </details>
+  <:footer>
+    <.link_button
+      variant="primary"
+      href={~p"/users/log_in"}
+      label={dgettext("dashboard_auth", "Back to sign in")}
+    />
+  </:footer>
+</.auth_page>

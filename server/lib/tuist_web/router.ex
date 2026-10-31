@@ -1310,6 +1310,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
 
     live_session :redirect_if_user_is_authenticated,
+      session: {TuistWeb.UserForgotPasswordLive, :password_reset_session, []},
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
@@ -1326,6 +1327,12 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
+    get "/users/settings/mfa", UserMFAController, :show
+    post "/users/settings/mfa/enroll", UserMFAController, :enroll
+    post "/users/settings/mfa/confirm", UserMFAController, :confirm
+    post "/users/settings/mfa/cancel", UserMFAController, :cancel
+    post "/users/settings/mfa/disable", UserMFAController, :disable
+
     live_session :require_authenticated_user,
       session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
@@ -1341,6 +1348,8 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app]
 
+    get "/users/mfa", UserMFAController, :challenge
+    post "/users/mfa", UserMFAController, :verify
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,
@@ -1535,6 +1544,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1577,6 +1587,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1619,6 +1630,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do

@@ -236,7 +236,8 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
     source = ProjectsFixtures.project_fixture(account_id: user.account.id, visibility: :public)
     {:ok, view, _html} = live(conn, "/#{user.account.name}/#{source.name}")
     assert {:error, {:redirect, %{to: to}}} = live_redirect(view, to: protected_path)
-    assert to == "/turnstile-challenge?return_to=" <> URI.encode_www_form(protected_path)
+    # The connected organization boundary now runs before overview admission.
+    assert to == "/users/auth/okta?organization_id=#{organization.id}"
     assert conn |> get(protected_path) |> redirected_to() =~ "/users/auth/okta"
   end
 

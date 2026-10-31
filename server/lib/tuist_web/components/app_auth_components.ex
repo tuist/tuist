@@ -6,6 +6,44 @@ defmodule TuistWeb.AppAuthComponents do
   use Phoenix.Component
   use Gettext, backend: TuistWeb.Gettext
 
+  import TuistWeb.Components.IconComponents, only: [tuist_mark: 1]
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :subtitle, :string, required: true
+  slot :inner_block, required: true
+  slot :footer
+
+  def auth_page(assigns) do
+    ~H"""
+    <div id={@id}>
+      <div data-part="wrapper">
+        <div data-part="frame">
+          <div data-part="content">
+            <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist logo")} />
+            <div data-part="dots">
+              <.dots_light />
+              <.dots_dark />
+            </div>
+            <div data-part="header">
+              <h1 data-part="title">{@title}</h1>
+              <span data-part="subtitle">{@subtitle}</span>
+            </div>
+            {render_slot(@inner_block)}
+          </div>
+          <div :if={@footer != []} data-part="bottom-link">{render_slot(@footer)}</div>
+        </div>
+      </div>
+      <div data-part="background">
+        <div data-part="top-right-gradient"></div>
+        <div data-part="bottom-left-gradient"></div>
+        <div data-part="shell"><.shell /></div>
+      </div>
+      <.terms_and_privacy />
+    </div>
+    """
+  end
+
   def terms_and_privacy(assigns) do
     ~H"""
     <div data-part="terms-notice">

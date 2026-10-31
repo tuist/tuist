@@ -48,6 +48,10 @@ defmodule Tuist do
       Ops.Database,
       Ops.FeatureFlags,
       Observability,
+      RateLimit,
+      RateLimit.InMemory,
+      RateLimit.PersistentFixedWindow,
+      RateLimit.PersistentTokenBucket,
       BrowserTelemetry.Receipts,
       # App
       # -----
@@ -193,6 +197,8 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.User,
+      Accounts.UserMFA,
+      Accounts.UserToken,
       Authentication,
       Authentication.UnavailableError,
       Authentication.SubjectCache,

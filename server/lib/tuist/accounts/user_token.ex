@@ -13,15 +13,21 @@ defmodule Tuist.Accounts.UserToken do
 
   # It is very important to keep the reset password token expiry short,
   # since someone with access to the email may take over the account.
-  @reset_password_validity_in_days 1
+  @reset_password_validity_in_minutes 15
   @confirm_validity_in_days 7
   @change_email_validity_in_days 7
-  @session_validity_in_days 60
+  @session_idle_seconds 15 * 60
+  @session_absolute_seconds 8 * 60 * 60
 
   schema "users_tokens" do
     field :token, :binary
     field :context, :string
     field :sent_to, :string
+    field :last_active_at, :utc_datetime
+    field :auth_provider, :string
+    field :auth_provider_organization_id, :string
+    field :mfa_verified_at, :utc_datetime
+    belongs_to :auth_organization, Tuist.Accounts.Organization
     belongs_to :user, Tuist.Accounts.User
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType
@@ -47,10 +53,44 @@ defmodule Tuist.Accounts.UserToken do
   and devices in the UI and allow users to explicitly expire any
   session they deem invalid.
   """
-  def build_session_token(user) do
+  def build_session_token(user, auth \\ %{}) do
     token = :crypto.strong_rand_bytes(@rand_size)
-    {token, %UserToken{token: token, context: "session", user_id: user.id}}
+    now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+    {token,
+     %UserToken{
+       token: token,
+       context: "session",
+       user_id: user.id,
+       inserted_at: DateTime.to_naive(now),
+       last_active_at: now,
+       auth_provider: to_string(Map.get(auth, :auth_method, :password)),
+       auth_provider_organization_id: Map.get(auth, :provider_organization_id),
+       mfa_verified_at: Map.get(auth, :mfa_verified_at),
+       auth_organization_id: Map.get(auth, :sso_organization_id)
+     }}
   end
+
+  def session_absolute_seconds, do: @session_absolute_seconds
+
+  def session_expires_at(session) do
+    created_at = DateTime.from_naive!(session.inserted_at, "Etc/UTC")
+    last_active_at = session.last_active_at || created_at
+
+    Enum.min_by(
+      [DateTime.add(created_at, @session_absolute_seconds), DateTime.add(last_active_at, @session_idle_seconds)],
+      &DateTime.to_unix/1
+    )
+  end
+
+  def satisfies_sso?(%UserToken{} = session, organization) do
+    session.auth_provider == to_string(organization.sso_provider) and
+      is_binary(session.auth_provider_organization_id) and
+      session.auth_provider_organization_id == organization.sso_organization_id and
+      (organization.sso_provider == :google or session.auth_organization_id == organization.id)
+  end
+
+  def satisfies_sso?(_, _), do: false
 
   def live_socket_id(%UserToken{context: "session", token: token}) do
     live_socket_id(token)
@@ -65,17 +105,25 @@ defmodule Tuist.Accounts.UserToken do
 
   The query returns the user found by the token, if any.
 
-  The token is valid if it matches the value in the database and it has
-  not expired (after @session_validity_in_days).
+  The token must meet both server-side idle and absolute deadlines.
+  Legacy sessions use their creation time, never migration or resumption time.
   """
   def verify_session_token_query(token) do
-    query =
-      from token in by_token_and_context_query(token, "session"),
-        join: user in assoc(token, :user),
-        where: token.inserted_at > ago(@session_validity_in_days, "day"),
-        select: user
-
+    query = from session in valid_session_query(token), join: user in assoc(session, :user), select: user
     {:ok, query}
+  end
+
+  def valid_session_query(token) do
+    now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+    idle_cutoff = DateTime.add(now, -@session_idle_seconds)
+    absolute_cutoff = now |> DateTime.add(-@session_absolute_seconds) |> DateTime.to_naive()
+    legacy_idle_cutoff = DateTime.to_naive(idle_cutoff)
+
+    from session in by_token_and_context_query(token, "session"),
+      where: session.inserted_at > ^absolute_cutoff,
+      where:
+        session.last_active_at > ^idle_cutoff or
+          (is_nil(session.last_active_at) and session.inserted_at > ^legacy_idle_cutoff)
   end
 
   @doc """
@@ -125,12 +173,12 @@ defmodule Tuist.Accounts.UserToken do
     case Base.url_decode64(token, padding: false) do
       {:ok, decoded_token} ->
         hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
-        days = days_for_context(context)
+        minutes = minutes_for_context(context)
 
         query =
           from token in by_token_and_context_query(hashed_token, context),
             join: user in assoc(token, :user),
-            where: token.inserted_at > ago(^days, "day") and token.sent_to == user.email,
+            where: token.inserted_at > ago(^minutes, "minute") and token.sent_to == user.email,
             select: user
 
         {:ok, query}
@@ -140,8 +188,8 @@ defmodule Tuist.Accounts.UserToken do
     end
   end
 
-  defp days_for_context("confirm"), do: @confirm_validity_in_days
-  defp days_for_context("reset_password"), do: @reset_password_validity_in_days
+  defp minutes_for_context("confirm"), do: @confirm_validity_in_days * 24 * 60
+  defp minutes_for_context("reset_password"), do: @reset_password_validity_in_minutes
 
   @doc """
   Checks if the token is valid and returns its underlying lookup query.

@@ -29,6 +29,7 @@ defmodule Noora.TextInputTest do
 
     html = render_component(&TextInput.text_input/1, assigns)
 
+    assert html =~ ~s(for="api-token")
     assert html =~ ~s(id="api-token-label-tooltip")
     assert html =~ ~s(data-positioning-placement="top-start")
     assert html =~ ~s(data-part="trigger" tabindex="0")
