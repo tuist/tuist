@@ -10676,7 +10676,7 @@
               "transformations": []
             }
           },
-          "description": "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding\n\nProduction ships every other bucket (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms, 1.024 s, 4.096 s, 16.384 s and 32.768 s. Staging and canary ship no buckets.\n\nPrometheus name: `kura_public_request_latency_seconds`_bucket/_count/_sum · labels: transport, route",
+          "description": "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding\n\nProduction ships every other bucket up to 1.024 s (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms and 1.024 s, and anything slower reads as 1.024 s. Staging and canary ship no buckets.\n\nPrometheus name: `kura_public_request_latency_seconds`_bucket/_count/_sum · labels: transport, route",
           "id": 21,
           "links": [],
           "title": "public_request_latency_seconds (p50 / p95 / p99)",
@@ -20134,7 +20134,7 @@
               "transformations": []
             }
           },
-          "description": "p95 of `public_request_latency_seconds` per region. Regions serve different client populations over different paths, so a tail that belongs to one region is a routing or placement question, not a runtime one.\n\nProduction ships every other bucket (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms, 1.024 s, 4.096 s, 16.384 s and 32.768 s. Staging and canary ship no buckets.",
+          "description": "p95 of `public_request_latency_seconds` per region. Regions serve different client populations over different paths, so a tail that belongs to one region is a routing or placement question, not a runtime one.\n\nProduction ships every other bucket up to 1.024 s (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms and 1.024 s, and anything slower reads as 1.024 s. Staging and canary ship no buckets.",
           "id": 205,
           "links": [],
           "title": "p95 public latency by region",
