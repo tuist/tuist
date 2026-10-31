@@ -212,6 +212,10 @@ config :logger, :console,
     # Tuist.Runners.Buildkite structured fields
     :queue,
     :job_uuid,
+    # Tuist.Runners.Bitrise structured fields
+    :stack,
+    :profile,
+    :build_slug,
     :errors,
     :requested,
     :target,

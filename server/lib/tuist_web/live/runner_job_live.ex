@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
@@ -67,6 +68,7 @@ defmodule TuistWeb.RunnerJobLive do
 
         buildkite_job = Buildkite.get_job(job.workflow_job_id)
         gitlab_job = GitLab.get_job_for_account(selected_account.id, job.workflow_job_id)
+        bitrise_build = Bitrise.get_build_for_account(selected_account.id, job.workflow_job_id)
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
         machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
@@ -82,6 +84,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:job, job)
          |> assign(:buildkite_job, buildkite_job)
          |> assign(:gitlab_job, gitlab_job)
+         |> assign(:bitrise_build, bitrise_build)
          |> assign(
            :volumes,
            CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id)
@@ -89,7 +92,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
-         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
+         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job || bitrise_build)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> expand_failed_steps()

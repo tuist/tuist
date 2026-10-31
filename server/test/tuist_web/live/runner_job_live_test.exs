@@ -823,6 +823,42 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "job-secret"
   end
 
+  test "Bitrise jobs link to their build and point to Bitrise for logs", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.Bitrise.Build{
+        account_id: account.id,
+        build_slug: "3da87d70-71cd-48c0-8780-157e8c1c5801",
+        app_slug: "5782983d-2bc1-4627-a9b7-af2f2f390ed3",
+        stack_identifier: "agent-pool-a0c641c0",
+        build_number: 2
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "bitrise",
+        fleet_name: "linux-amd64",
+        repository: "Hello-World",
+        workflow_run_id: 2,
+        workflow_name: "primary",
+        job_name: "primary",
+        head_branch: "master"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/2/jobs/#{mapping.workflow_job_id}")
+    build_url = "https://app.bitrise.io/build/3da87d70-71cd-48c0-8780-157e8c1c5801"
+
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Bitrise")
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Open the build on Bitrise")
+    assert html =~ "Logs for Bitrise builds stay on Bitrise."
+    refute html =~ "https://github.com/Hello-World"
+    refute html =~ "steps-card"
+  end
+
   describe "Buildkite jobs" do
     defp buildkite_job!(account, workflow_run_id, job_name) do
       {:ok, mapping} =

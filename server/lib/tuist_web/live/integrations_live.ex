@@ -3,14 +3,18 @@ defmodule TuistWeb.IntegrationsLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
   alias Tuist.FeatureFlags
   alias Tuist.Origin
   alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Projects
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
@@ -75,6 +79,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(buildkite_has_changes: false)
       |> assign_buildkite_installation()
       |> assign(gitlab_connections: GitLab.list_connections(selected_account.id), gitlab_error: nil)
+      |> assign(bitrise_error: nil, bitrise_flash: nil, bitrise_workspace_choices: nil, bitrise_pending_token: nil)
+      |> assign_bitrise()
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -218,6 +224,116 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def handle_event("close-connect-gitlab-modal", _params, socket) do
     {:noreply, push_event(socket, "close-modal", %{id: "connect-gitlab-modal"})}
+  end
+
+  @impl true
+  # The token is the only thing a customer pastes: Tuist reads the
+  # workspace from it. A token that sees several workspaces is held in
+  # the socket while the customer picks one.
+  def handle_event("connect-bitrise", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      api_token =
+        case Map.get(params, "api_token") do
+          token when token in [nil, ""] -> socket.assigns.bitrise_pending_token
+          token -> token
+        end
+
+      case Bitrise.connect(account.id, api_token, Map.get(params, "workspace_slug")) do
+        {:ok, _connection} ->
+          {:noreply,
+           socket
+           |> assign(bitrise_error: nil, bitrise_workspace_choices: nil, bitrise_pending_token: nil)
+           |> assign_bitrise()
+           |> push_event("close-modal", %{id: "connect-bitrise-modal"})}
+
+        {:choose_workspace, workspaces} ->
+          {:noreply,
+           assign(socket,
+             bitrise_error: nil,
+             bitrise_workspace_choices: workspaces,
+             bitrise_pending_token: String.trim(api_token)
+           )}
+
+        {:error, reason} ->
+          {:noreply, assign(socket, bitrise_error: bitrise_connect_error(reason))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("rotate-bitrise-token", %{"api_token" => api_token}, %{assigns: %{selected_account: account}} = socket) do
+    case Bitrise.connect(account.id, api_token) do
+      {:ok, _connection} ->
+        {:noreply,
+         socket
+         |> assign(
+           bitrise_error: nil,
+           bitrise_flash: {"success", dgettext("dashboard_integrations", "Bitrise API token updated.")}
+         )
+         |> assign_bitrise()}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, bitrise_error: bitrise_connect_error(reason), bitrise_flash: nil)}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-bitrise", _params, %{assigns: %{selected_account: account}} = socket) do
+    :ok = Bitrise.delete_connection(account.id)
+    {:noreply, socket |> assign(bitrise_error: nil, bitrise_flash: nil) |> assign_bitrise()}
+  end
+
+  @impl true
+  def handle_event("add-bitrise-pool", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      attrs =
+        params
+        |> Map.take(["stack_identifier", "profile_label", "intro_secret"])
+        |> Map.new(fn {key, value} -> {String.to_existing_atom(key), String.trim(value)} end)
+        |> then(&Map.put(&1, :name, available_pool_name(socket, Map.get(&1, :stack_identifier))))
+
+      case Bitrise.save_pool(account.id, attrs) do
+        {:ok, _pool} ->
+          {:noreply, socket |> assign(bitrise_error: nil, bitrise_flash: nil) |> assign_bitrise()}
+
+        {:error, :unknown_profile} ->
+          {:noreply,
+           assign(socket, bitrise_error: dgettext("dashboard_integrations", "Choose one of your Tuist profiles."))}
+
+        {:error, _reason} ->
+          {:noreply,
+           assign(socket,
+             bitrise_error: dgettext("dashboard_integrations", "Choose a runner pool and paste its pool token.")
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("remove-bitrise-pool", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    case Integer.parse(id) do
+      {pool_id, ""} -> :ok = Bitrise.delete_pool(account.id, pool_id)
+      _ -> :ok
+    end
+
+    {:noreply, assign_bitrise(socket)}
+  end
+
+  @impl true
+  def handle_event("reload-bitrise-pools", _params, socket) do
+    {:noreply, assign_bitrise(socket)}
+  end
+
+  @impl true
+  def handle_event("close-connect-bitrise-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(bitrise_error: nil, bitrise_workspace_choices: nil, bitrise_pending_token: nil)
+     |> push_event("close-modal", %{id: "connect-bitrise-modal"})}
   end
 
   @impl true
@@ -568,7 +684,7 @@ defmodule TuistWeb.IntegrationsLive do
     """
   end
 
-  attr(:result, Phoenix.LiveView.AsyncResult, required: true)
+  attr(:result, AsyncResult, required: true)
 
   defp origin_repository_status(assigns) do
     ~H"""
@@ -840,6 +956,191 @@ defmodule TuistWeb.IntegrationsLive do
       </span>
     </div>
     """
+  end
+
+  # `pools` is nil when Bitrise could not list the workspace's pools, and
+  # the stack ID is typed instead.
+  attr :pools, :any, default: nil
+  attr :any_pools?, :boolean, default: false
+  attr :profile_labels, :list, required: true
+
+  defp bitrise_pool_form(%{pools: []} = assigns) do
+    ~H"""
+    <div data-part="empty">
+      <span data-part="hint">
+        {if @any_pools?,
+          do:
+            dgettext(
+              "dashboard_integrations",
+              "Every runner pool in this workspace is paired. To add another, create a pool in Bitrise under Workspace settings, then Infrastructure."
+            ),
+          else:
+            dgettext(
+              "dashboard_integrations",
+              "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
+            )}
+      </span>
+      <.button
+        type="button"
+        label={dgettext("dashboard_integrations", "Reload pools")}
+        variant="secondary"
+        size="small"
+        phx-click="reload-bitrise-pools"
+      />
+    </div>
+    """
+  end
+
+  defp bitrise_pool_form(assigns) do
+    ~H"""
+    <form id="add-bitrise-pool-form" phx-submit="add-bitrise-pool">
+      <div data-part="fields">
+        <div :if={@pools} data-part="field">
+          <.label label={dgettext("dashboard_integrations", "Runner pool")} required />
+          <.select
+            id="bitrise-pool-stack"
+            name="stack_identifier"
+            label={dgettext("dashboard_integrations", "Runner pool")}
+            value={List.first(@pools).stack_identifier}
+          >
+            <:item :for={pool <- @pools} value={pool.stack_identifier} label={pool.name} />
+          </.select>
+        </div>
+        <.text_input
+          :if={is_nil(@pools)}
+          id="bitrise-pool-stack"
+          name="stack_identifier"
+          type="basic"
+          label={dgettext("dashboard_integrations", "Stack ID")}
+          hint={
+            dgettext(
+              "dashboard_integrations",
+              "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
+            )
+          }
+          value=""
+          required
+          show_required
+        />
+        <div data-part="field">
+          <.label
+            label={dgettext("dashboard_integrations", "Tuist profile")}
+            required
+            tooltip={dgettext("dashboard_integrations", "The machine this pool's builds run on.")}
+            tooltip_id="bitrise-pool-profile-tooltip"
+          />
+          <.select
+            id="bitrise-pool-profile"
+            name="profile_label"
+            label={dgettext("dashboard_integrations", "Tuist profile")}
+            value={TuistWeb.IntegrationsLive.default_bitrise_profile(@pools, @profile_labels)}
+          >
+            <:item :for={label <- @profile_labels} value={label} label={label} />
+          </.select>
+        </div>
+        <.text_input
+          id="bitrise-pool-secret"
+          name="intro_secret"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "Pool token")}
+          label_tooltip={
+            dgettext(
+              "dashboard_integrations",
+              "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
+            )
+          }
+          value=""
+          required
+          show_required
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Add pool")}
+          variant="primary"
+        />
+      </div>
+    </form>
+    """
+  end
+
+  defp assign_bitrise(%{assigns: %{runner_integrations_visible?: false}} = socket) do
+    assign(socket,
+      bitrise_connection: nil,
+      bitrise_pools: [],
+      bitrise_profile_labels: [],
+      bitrise_available_pools: AsyncResult.ok([])
+    )
+  end
+
+  defp assign_bitrise(%{assigns: %{selected_account: account}} = socket) do
+    connection = Bitrise.get_connection(account.id)
+
+    socket =
+      assign(socket,
+        bitrise_connection: connection,
+        bitrise_pools: if(connection, do: Bitrise.list_pools(account.id), else: []),
+        bitrise_profile_labels:
+          if(connection, do: Enum.map(Profiles.list_for_account(account), &Profile.dispatch_label/1), else: [])
+      )
+
+    # The pool picker reads the workspace's pools from Bitrise, which must
+    # not hold up the page.
+    if connection do
+      account_id = account.id
+
+      assign_async(socket, :bitrise_available_pools, fn ->
+        case Bitrise.available_pools(account_id) do
+          {:ok, pools} -> {:ok, %{bitrise_available_pools: pools}}
+          {:error, reason} -> {:error, reason}
+        end
+      end)
+    else
+      assign(socket, bitrise_available_pools: AsyncResult.ok([]))
+    end
+  end
+
+  defp available_pool_name(%{assigns: %{bitrise_available_pools: %AsyncResult{ok?: true, result: pools}}}, stack)
+       when is_list(pools) do
+    Enum.find_value(pools, &(&1.stack_identifier == stack && &1.name))
+  end
+
+  defp available_pool_name(_socket, _stack), do: nil
+
+  defp bitrise_connect_error(reason) when reason in [:invalid_token, :unauthorized, :forbidden],
+    do: dgettext("dashboard_integrations", "Bitrise rejected this API token.")
+
+  defp bitrise_connect_error(:no_workspace),
+    do: dgettext("dashboard_integrations", "This API token can't see any Bitrise workspace.")
+
+  defp bitrise_connect_error(:workspace_not_visible),
+    do:
+      dgettext(
+        "dashboard_integrations",
+        "This API token can't see the connected workspace. Disconnect first to switch workspaces."
+      )
+
+  defp bitrise_connect_error(_reason),
+    do: dgettext("dashboard_integrations", "Tuist couldn't reach Bitrise. Try again in a moment.")
+
+  @doc """
+  The profile the pool form starts on: the one named like the first pool
+  offered, as the setup guide suggests naming pools, or the first profile.
+  """
+  def default_bitrise_profile([%{name: name} | _pools], profile_labels) do
+    if name in profile_labels, do: name, else: List.first(profile_labels)
+  end
+
+  def default_bitrise_profile(_pools, profile_labels), do: List.first(profile_labels)
+
+  @doc """
+  The connected workspace's pools that are not bound to a profile yet.
+  """
+  def unconnected_bitrise_pools(available, connected) do
+    connected_stacks = MapSet.new(connected, & &1.stack_identifier)
+    Enum.reject(available, &MapSet.member?(connected_stacks, &1.stack_identifier))
   end
 
   defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
