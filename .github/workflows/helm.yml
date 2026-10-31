@@ -145,7 +145,7 @@ jobs:
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
       - name: Test per-node Hubble collection with Alloy
-        run: python3 infra/helm/k8s-monitoring/test-hubble-metrics.py
+        run: bash infra/helm/k8s-monitoring/test-hubble-metrics.sh
       - name: Test runner macOS host health alerts
         run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
       - name: Test runner queue time alert

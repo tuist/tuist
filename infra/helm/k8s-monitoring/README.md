@@ -441,14 +441,17 @@ marker cleanup, old-pod fallback, bucket thinning, and redundant-family drops.
 This test strips Cloud authentication and replaces the destination with the
 local receiver; it does not contact the production metrics endpoint.
 
-`python3 test-hubble-metrics.py` uses the same Alloy image and local receiver
-with a fixture Kubernetes list/watch API and two asymmetric agent counters.
+`bash test-hubble-metrics.sh` runs Alloy, Prometheus and an Nginx fixture on an
+internal Docker network, without published ports or external telemetry access.
+It supplies a Kubernetes list/watch API and two asymmetric agent counters.
 It verifies per-node discovery, an unready-but-reachable agent, a failed scrape,
 namespace/label/port selection, drop-label retention, family filtering, and
 exclusion of only the legacy Hubble Service. The same-named Service in another
-namespace remains scrapeable. It needs Docker, Helm, yq, and Prometheus, but no
-cluster or Cloud credentials; it does not qualify production network reachability
-or multi-replica collector failover.
+namespace remains scrapeable. It needs Bash, Docker, Helm, yq and jq, but no
+Python, host Prometheus installation, cluster or Cloud credentials. Fixture names
+and counters are synthetic, and the source address is reserved for documentation.
+The test does not qualify production network reachability or multi-replica
+collector failover.
 
 ## Metrics scrape cadence
 
