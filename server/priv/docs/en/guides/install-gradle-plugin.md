@@ -73,6 +73,16 @@ org.gradle.unsafe.isolated-projects=true
 
 Your build scripts and other plugins must also support these features. Gradle reports compatibility problems when storing the configuration cache.
 
+## Publish previews {#publish-previews}
+
+For Android application modules, the plugin registers `tuistShare<Variant>` tasks:
+
+```bash
+./gradlew :app:tuistShareDebug --track nightly
+```
+
+The task builds and verifies a single signed APK, then publishes it with your existing Tuist authentication. Invoking the task is the opt-in: ordinary `assemble`, `build`, and test tasks do not publish previews. No CLI upload step is required. See <.localized_link href="/guides/features/previews/gradle">Gradle previews</.localized_link> for eligibility, cache replay, and failure behavior.
+
 ## Configuration reference {#configuration-reference}
 
 The following options are available in the `tuist` extension block in `settings.gradle.kts`:
