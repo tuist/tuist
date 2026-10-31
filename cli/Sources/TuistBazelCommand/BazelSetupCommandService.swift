@@ -192,9 +192,10 @@ public struct BazelSetupCommandService {
         let setupConfiguration = try await setupConfiguration(directoryPath: directoryPath)
         let buildInsights = buildInsights &&
             (!setupConfiguration.networkTrustedCache || setupConfiguration.networkTrustedReporting)
-        if execution != nil,
-           setupConfiguration.endpoint == nil || setupConfiguration.networkTrustedCache || setupConfiguration.networkTrustedReporting
-        {
+        let executionAllowed = setupConfiguration.endpoint != nil &&
+            !setupConfiguration.networkTrustedCache &&
+            !setupConfiguration.networkTrustedReporting
+        if execution != nil, !executionAllowed {
             throw BazelSetupCommandServiceError.invalidExecutionConfiguration
         }
 
