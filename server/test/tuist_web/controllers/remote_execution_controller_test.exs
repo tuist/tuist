@@ -38,9 +38,10 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     {:ok, token, _claims} = Cache.issue_cache_token(project, scope: "#{project.account.name}/#{project.name}")
     conn = put_req_header(conn, "authorization", "Bearer " <> token)
 
-    assert conn
-           |> get("/api/remote-execution/#{project.account.name}/#{project.name}/capabilities")
-           |> json_response(:ok)
+    assert %{"cas_endpoint" => "grpcs://cache.example"} =
+             conn
+             |> get("/api/remote-execution/#{project.account.name}/#{project.name}/capabilities")
+             |> json_response(:ok)
   end
 
   test "disabled accounts and read-only credentials cannot execute", %{conn: conn, project: project, prefix: prefix} do

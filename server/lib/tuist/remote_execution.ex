@@ -15,6 +15,8 @@ defmodule Tuist.RemoteExecution do
   alias Tuist.Repo
 
   @max_wait_ms 5_000
+  # Base64 of the gateway's prefetched action metadata and small inputs.
+  @max_inputs_bytes 349_528
 
   def configure(%Account{id: id}, attrs) do
     settings = Repo.get(Settings, id) || %Settings{account_id: id}
@@ -58,22 +60,27 @@ defmodule Tuist.RemoteExecution do
 
   @doc """
   Queues an action and waits up to `:wait` milliseconds for its result.
-  Identical in-flight actions of the project share one operation.
+  Identical in-flight actions of the project share one operation. `inputs`
+  are blobs the gateway already read for the action; they are passed to its
+  VM unchanged, which verifies them against their digests.
   """
   def submit(project, params, opts \\ [])
 
   def submit(project, %{"hash" => hash, "size" => size} = params, opts)
       when is_binary(hash) and is_integer(size) and size >= 0 and size <= 4_194_304 do
     skip_cache = Map.get(params, "skip_cache", false)
+    inputs = Map.get(params, "inputs")
 
-    if Regex.match?(~r/^[a-f0-9]{64}$/, hash) and is_boolean(skip_cache) do
+    if Regex.match?(~r/^[a-f0-9]{64}$/, hash) and is_boolean(skip_cache) and
+         (is_nil(inputs) or (is_binary(inputs) and byte_size(inputs) <= @max_inputs_bytes)) do
       attrs = %{
         project_id: project.id,
         account_name: project.account.name,
         project_name: project.name,
         hash: hash,
         size: size,
-        skip_cache: skip_cache
+        skip_cache: skip_cache,
+        inputs: inputs
       }
 
       Scheduler.submit(project.account_id, attrs, wait(opts))

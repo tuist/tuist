@@ -12,6 +12,7 @@ defmodule TuistWeb.RemoteExecutionController do
         json(conn, %{
           image: settings.image_tag,
           endpoint: settings.executor_endpoint,
+          cas_endpoint: settings.cas_endpoint,
           max_concurrency: concurrency
         })
 

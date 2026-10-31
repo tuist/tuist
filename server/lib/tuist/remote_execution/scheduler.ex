@@ -146,7 +146,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
         if :queue.len(state.queue) >= queue_limit(state.settings) do
           {:reply, {:error, :queue_full}, state}
         else
-          op = new_operation(attrs, state.settings)
+          op = new_operation(attrs, state.settings, :queue.len(state.queue))
           inflight = if attrs.skip_cache, do: state.inflight, else: Map.put(state.inflight, key, op.id)
 
           state =
@@ -261,7 +261,11 @@ defmodule Tuist.RemoteExecution.Scheduler do
     VMs.expire(for {id, %{sandbox: %{}}} <- state.vms, do: id)
   end
 
-  defp new_operation(attrs, settings) do
+  # Prefetched inputs are kept only while a VM is likely to free up soon, which
+  # bounds what a long queue holds in memory. Later actions fetch their own.
+  defp new_operation(attrs, settings, queued) do
+    attrs = if queued >= settings.max_concurrency, do: %{attrs | inputs: nil}, else: attrs
+
     Map.merge(attrs, %{
       id: Ecto.UUID.generate(),
       state: :queued,
@@ -352,6 +356,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
       skip_cache: op.skip_cache
     }
 
+    request = if op.inputs, do: Map.put(request, :inputs, op.inputs), else: request
+
     token = cached_token(state, op.project_id)
     queue_time = now_ms() - op.queued_mono
 
@@ -360,7 +366,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
     })
 
     state
-    |> put_op(%{op | state: :executing, vm: vm.id})
+    |> put_op(%{op | state: :executing, vm: vm.id, inputs: nil})
     |> put_vm(%{vm | state: :busy})
     |> start_task({:run, op.id, vm.id}, fn -> VMs.execute(vm.sandbox, request, op.project_id, token) end)
     |> notify(op.id)

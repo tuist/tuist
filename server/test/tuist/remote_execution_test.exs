@@ -222,10 +222,20 @@ defmodule Tuist.RemoteExecutionTest do
     assert Scheduler.whereis(project.account_id) == nil
   end
 
+  test "inputs the gateway prefetched reach the action's VM", %{project: project} do
+    stub_node()
+
+    assert {:ok, %{done: true}} = submit(project, %{"inputs" => "cHJlZmV0Y2hlZA=="})
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], env: env}}
+    assert %{"inputs" => "cHJlZmV0Y2hlZA=="} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
+  end
+
   test "invalid requests are rejected before scheduling", %{project: project} do
     assert {:error, :invalid_request} = submit(project, %{"hash" => "short"})
     assert {:error, :invalid_request} = submit(project, %{"size" => -1})
     assert {:error, :invalid_request} = submit(project, %{"skip_cache" => "yes"})
+    assert {:error, :invalid_request} = submit(project, %{"inputs" => 42})
+    assert {:error, :invalid_request} = submit(project, %{"inputs" => String.duplicate("a", 400_000)})
   end
 
   test "reaping deletes only VMs whose lease lapsed", %{project: project} do
