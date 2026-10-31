@@ -467,6 +467,8 @@ MANAGED_XCCONFIG="/Users/runner/.tuist-managed-cas.xcconfig"
 # it is half the space the module cache's would be.
 MANAGED_XCODE_CACHE_LIMIT_BYTES=12000000000
 MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
+# Swift batch compiles split a module by the core count unless this pins it, and a batch's cache key names its files.
+MANAGED_SWIFT_BATCH_COUNT=6
 # The compilation cache root teardown drains and prunes, and the limit it prunes
 # the stores under it to. Empty when the job did not use the compilation cache.
 CAS_STORE_ROOT=""
@@ -909,6 +911,8 @@ stage_managed_cache_volumes() {
     printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${MANAGED_XCODE_CACHE}"
     printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
     printf 'COMPILATION_CACHE_LIMIT_SIZE = %s\n' "${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
+    printf 'TUIST_SWIFT_BATCH_FLAGS_YES = -driver-batch-count %s\n' "${MANAGED_SWIFT_BATCH_COUNT}"
+    printf 'OTHER_SWIFT_FLAGS = $(inherited) $(TUIST_SWIFT_BATCH_FLAGS_$(COMPILATION_CACHE_ENABLE_CACHING))\n'
   } >"${MANAGED_XCCONFIG}" 2>/dev/null; then
     printf 'tuist-xcode\t%s\n' "${MANAGED_XCODE_CACHE}" >"${RUNNER_CACHES_DIR}/xcode.volume" 2>/dev/null || true
     {
