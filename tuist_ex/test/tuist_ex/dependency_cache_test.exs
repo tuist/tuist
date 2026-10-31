@@ -98,25 +98,31 @@ defmodule TuistEx.DependencyCacheTest do
         commit!(Path.join(dir, "package"))
       end
 
-      compile_alias =
-        case unquote(bootstrap) do
-          :legacy ->
-            "&Code.eval_string(File.read!(#{inspect(Path.join(package, "compile.exs"))}), args: &1)"
-
-          bootstrap when bootstrap in [:ordinary, :deterministic] ->
-            inspect([
-              "deps.compile tuist_ex --include-children",
-              "deps.loadpaths --no-compile --no-deps-check",
-              "tuist.compile"
-            ])
-        end
-
       contents =
         String.replace(
           File.read!(mixfile),
           "deps: [{:dep_probe,",
-          "aliases: [compile: #{compile_alias}], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
+          "deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
         )
+
+      contents =
+        if unquote(bootstrap) == :legacy do
+          script = inspect(Path.join(package, "compile.exs"))
+
+          String.replace(
+            contents,
+            "deps: [",
+            "aliases: [compile: &Code.eval_string(File.read!(#{script}), args: &1)], deps: [",
+            global: false
+          )
+        else
+          config = [tuist: [project: "test/cache", cache: [remote: false]]]
+          {:ok, contents} = TuistEx.ProjectSetup.configure(contents, config)
+          contents
+        end
+
+      File.mkdir_p!(Path.join(project, "lib"))
+      File.write!(Path.join(project, "lib/root.ex"), "defmodule CacheFixture do\nend")
 
       compile_args =
         if unquote(bootstrap) in [:ordinary, :deterministic],
@@ -191,6 +197,15 @@ defmodule TuistEx.DependencyCacheTest do
       assert File.exists?(
                Path.join(project, "_build/test/lib/dep_probe/ebin/Elixir.DepProbe.beam")
              )
+
+      if unquote(bootstrap) != :legacy do
+        # An up-to-date project rebuilds no dependency and recompiles nothing.
+        {current, status} = run_mix.(compile_args)
+        assert status == 0, current
+        refute current =~ "===> Compiling", current
+        refute current =~ "Generated", current
+        refute current =~ ~r/Compiling \d+ files? \(\.ex\)/, current
+      end
 
       if unquote(bootstrap) == :ordinary do
         {output, status} =
@@ -341,26 +356,21 @@ defmodule TuistEx.DependencyCacheTest do
     mix_path = Path.join(project, "custom mix path")
     File.mkdir_p!(mix_path)
 
-    File.write!(
-      mixfile,
+    test_alias = ["fixture.prepare", "tuist.test"]
+
+    {:ok, contents} =
       mixfile
       |> File.read!()
       |> String.replace(
         "deps: [{:dep_probe,",
-        ~s|aliases: [compile: &compile/1, test: ["fixture.prepare", "tuist.test"]], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,|
+        ~s|aliases: [test: #{inspect(test_alias)}], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,|
       )
-      |> String.replace("\nend\n", """
+      |> TuistEx.ProjectSetup.configure(
+        aliases: [test: test_alias],
+        tuist: [project: "test/cache", cache: [remote: false]]
+      )
 
-        defp compile(args) do
-          if "--no-compile" not in args do
-            Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
-          end
-          Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
-          Mix.Task.run("tuist.compile", args)
-        end
-      end
-      """)
-    )
+    File.write!(mixfile, contents)
 
     File.mkdir_p!(Path.join(project, "lib"))
 
