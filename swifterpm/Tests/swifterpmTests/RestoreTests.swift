@@ -1316,7 +1316,8 @@ struct RestoreTests {
             let zipPath = try await makeXCFrameworkZip(root: root, targetName: "Foo")
             try await writeCachedManifest(
                 localBinaryTargetManifest(name: "Foo", path: "Foo.zip"),
-                packageDir: package
+                packageDir: package,
+                disableSandbox: true
             )
             try await fileSystem.write(
                 await fileSystem.readFile(at: zipPath.absolutePath),
@@ -1331,7 +1332,8 @@ struct RestoreTests {
                     registryConfig: RegistryConfig(),
                     mirrors: MirrorConfig(),
                     resolved: resolved,
-                    progress: nil
+                    progress: nil,
+                    disableSandbox: true
                 )
             }
             try await restore(resolved)
