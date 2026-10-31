@@ -39,8 +39,11 @@ const (
 
 // BootArgs builds the kernel command line for a template boot. The serial
 // console stays on (loglevel 4) so boot problems show up in firecracker.log.
+// Firecracker does not advertise KVM poll control, so the guest's adaptive
+// haltpoll idle driver is forced on: a vCPU polls briefly before halting,
+// which keeps short request/response exchanges off the wake-up path.
 func BootArgs(dns []string, hostname string) string {
-	args := "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw rootfstype=ext4 init=/sbin/sbx-init loglevel=4"
+	args := "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw rootfstype=ext4 init=/sbin/sbx-init loglevel=4 cpuidle_haltpoll.force=1"
 	if len(dns) > 0 {
 		args += " sbx.dns=" + strings.Join(dns, ",")
 	}

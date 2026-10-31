@@ -108,7 +108,7 @@ func TestSnapshotAndConfigRequests(t *testing.T) {
 	if boot["kernel_image_path"] != "/vmlinux" {
 		t.Fatalf("boot source body %v", boot)
 	}
-	wantArgs := "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw rootfstype=ext4 init=/sbin/sbx-init loglevel=4 sbx.dns=10.0.0.10 sbx.hostname=sandbox"
+	wantArgs := "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw rootfstype=ext4 init=/sbin/sbx-init loglevel=4 cpuidle_haltpoll.force=1 sbx.dns=10.0.0.10 sbx.hostname=sandbox"
 	if boot["boot_args"] != wantArgs {
 		t.Fatalf("boot args %q", boot["boot_args"])
 	}
