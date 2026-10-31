@@ -149,7 +149,7 @@ That tells us when to reconcile the reports for the branch's coverage trend. If 
 
 *The real Code Coverage dashboard with synthetic data for the Phoenix demo project: coverage over time, and changes across Elixir files and OTP applications.*
 
-Having this data also makes us curious about test selection. If we know which tests exercise a piece of code, could we avoid running the whole suite for a small change? Coverage-based test selection isn't available for Elixir yet, but we'd like to explore it.
+We're working on selective testing next, using coverage data to understand which tests exercise the code that changed. That would let us run the affected tests instead of the whole suite for every change. It isn't available for Elixir yet, but we hope to let teams try it soon.
 
 ## Elixir dependency caching
 
