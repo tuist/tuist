@@ -6,7 +6,6 @@ defmodule Tuist.AppBuilds do
 
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.AppBuilds.Preview
-  alias Tuist.Authorization
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -103,7 +102,6 @@ defmodule Tuist.AppBuilds do
   identified by the given binary ID and build version.
 
   Only previews that have at least one app build with a matching supported platform are considered.
-  Pass `public_only: true` to leave out members-only previews.
 
   Returns `{:ok, preview}` if found, `{:error, :not_found}` otherwise.
   """
@@ -128,21 +126,21 @@ defmodule Tuist.AppBuilds do
           else: dynamic([p], p.git_branch == ^git_branch)
 
       preview =
-        from(p in Preview,
-          join: ab in AppBuild,
-          on: ab.preview_id == p.id,
-          where: p.project_id == ^project.id,
-          where: p.bundle_identifier == ^bundle_identifier,
-          where: ^git_branch_filter,
-          where: p.track == ^normalized_track,
-          where: ab.type in ^supported_types,
-          where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
-          order_by: [desc: p.inserted_at],
-          limit: 1,
-          preload: ^preload
+        Repo.one(
+          from(p in Preview,
+            join: ab in AppBuild,
+            on: ab.preview_id == p.id,
+            where: p.project_id == ^project.id,
+            where: p.bundle_identifier == ^bundle_identifier,
+            where: ^git_branch_filter,
+            where: p.track == ^normalized_track,
+            where: ab.type in ^supported_types,
+            where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
+            order_by: [desc: p.inserted_at],
+            limit: 1,
+            preload: ^preload
+          )
         )
-        |> query_with_public_only_when_needed(opts)
-        |> Repo.one()
 
       case preview do
         nil -> {:error, :not_found}
@@ -210,25 +208,20 @@ defmodule Tuist.AppBuilds do
     |> preload(^preload)
     |> query_with_search_when_needed(opts)
     |> query_with_supported_platforms_when_needed(opts)
-    |> query_with_public_only_when_needed(opts)
     |> query_with_distinct_bundle_identifier_when_needed(attrs, opts)
     |> Flop.validate_and_run!(attrs, for: Preview)
   end
 
   @doc """
   Gets the latest previews with distinct bundle identifiers for a given project.
-
-  Pass `public_only: true` to leave out members-only previews.
   """
-  def latest_previews_with_distinct_bundle_ids(%Project{} = project, opts \\ []) do
-    public_only = Keyword.get(opts, :public_only, false)
-
+  def latest_previews_with_distinct_bundle_ids(%Project{} = project) do
     filters = [
       %{field: :project_id, op: :==, value: project.id}
     ]
 
     filters =
-      if is_nil(latest_preview(project, git_branch: project.default_branch, public_only: public_only)) do
+      if is_nil(latest_preview(project, git_branch: project.default_branch)) do
         filters
       else
         filters ++ [%{field: :git_branch, op: :==, value: project.default_branch}]
@@ -243,24 +236,10 @@ defmodule Tuist.AppBuilds do
           order_directions: [:desc]
         },
         distinct: [:bundle_identifier],
-        public_only: public_only,
         preload: [:app_builds, project: :account]
       )
 
     previews
-  end
-
-  defp query_with_public_only_when_needed(query, opts) do
-    if Keyword.get(opts, :public_only, false) do
-      query
-      |> join(:inner, [p], project in assoc(p, :project), as: :public_only_project)
-      |> where(
-        [p, public_only_project: project],
-        p.visibility == :public or (is_nil(p.visibility) and project.default_previews_visibility == :public)
-      )
-    else
-      query
-    end
   end
 
   defp query_with_search_when_needed(query, opts) do
@@ -338,7 +317,6 @@ defmodule Tuist.AppBuilds do
     Preview
     |> where([p], p.project_id == ^project.id)
     |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [p], p.git_branch == ^git_branch)))
-    |> query_with_public_only_when_needed(opts)
     |> order_by(desc: :inserted_at)
     |> limit(1)
     |> Repo.one()
@@ -381,21 +359,6 @@ defmodule Tuist.AppBuilds do
         project: %Project{default_previews_visibility: default_visibility}
       }) do
     (visibility || default_visibility) == :public
-  end
-
-  @doc """
-  Whether the subject can read the project's members-only previews.
-  """
-  def private_previews_readable_by?(subject, %Project{} = project) do
-    Authorization.authorize(:preview_read_private, subject, project) == :ok
-  end
-
-  @doc """
-  Whether the subject can read the preview: anyone can read a public preview, and members-only
-  previews need a project member, the project itself, or a token with preview scopes.
-  """
-  def preview_readable_by?(subject, %Preview{project: %Project{} = project} = preview) do
-    public_preview?(preview) or private_previews_readable_by?(subject, project)
   end
 
   @doc """

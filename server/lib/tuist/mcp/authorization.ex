@@ -49,7 +49,7 @@ defmodule Tuist.MCP.Authorization do
   # grant for the resource's own account, valid for this check only, and then
   # goes through the same policies as a grant from ops in the browser. That keeps operator
   # reads limited to what `:ops_access` already allows.
-  defp atlas_operator_authorizes_read?(assigns, action, resource, category) when action in [:read, :read_private] do
+  defp atlas_operator_authorizes_read?(assigns, :read, resource, category) do
     with true <- mcp_scoped?(authenticated_subject(assigns)),
          %User{email: email} = operator when is_binary(email) <- assigns[:atlas_operator],
          account_id when not is_nil(account_id) <- Checks.object_account_id(resource) do

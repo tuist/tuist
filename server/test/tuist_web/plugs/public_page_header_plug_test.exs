@@ -254,9 +254,9 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
     end
 
-    test "sets the header when the parent project and its previews are public", %{conn: conn} do
+    test "sets the header when the parent project is public", %{conn: conn} do
       project =
-        [visibility: :public, default_previews_visibility: :public]
+        [visibility: :public]
         |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
@@ -267,21 +267,6 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_preview_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
-    end
-
-    test "does not set the header for a members-only preview of a public project", %{conn: conn} do
-      project =
-        [visibility: :public]
-        |> ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
-
-      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :private)
-
-      conn = %{conn | path_params: %{"id" => preview.id}}
-
-      conn = PublicPageHeaderPlug.mark_public_preview_page(conn, [])
-
-      assert Plug.Conn.get_resp_header(conn, @header) == []
     end
 
     test "does not set the header when both the preview and the project are private", %{conn: conn} do

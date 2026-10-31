@@ -522,10 +522,10 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _args
       ) do
-    preview_id
-    |> AppBuilds.preview_by_id(project_id: selected_project.id, preload: [:app_builds, :created_by_account])
-    |> readable_preview(conn, selected_project)
-    |> case do
+    case AppBuilds.preview_by_id(preview_id,
+           project_id: selected_project.id,
+           preload: [:app_builds, :created_by_account]
+         ) do
       {:ok, preview} ->
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
@@ -680,7 +680,6 @@ defmodule TuistWeb.API.PreviewsController do
         distinct: distinct,
         search: Map.get(params, :search),
         supported_platforms: Map.get(params, :supported_platforms),
-        public_only: public_previews_only?(conn, selected_project),
         preload: [:app_builds, :created_by_account]
       )
 
@@ -808,8 +807,7 @@ defmodule TuistWeb.API.PreviewsController do
            binary_id,
            build_version,
            selected_project,
-           [preload: [:app_builds, :created_by_account], public_only: public_previews_only?(conn, selected_project)] ++
-             compatibility
+           [preload: [:app_builds, :created_by_account]] ++ compatibility
          ) do
       {:ok, preview} ->
         response = map_preview(conn, preview, account_handle, project_handle, selected_project.account)
@@ -819,20 +817,6 @@ defmodule TuistWeb.API.PreviewsController do
         json(conn, %{preview: nil})
     end
   end
-
-  defp public_previews_only?(conn, project) do
-    not AppBuilds.private_previews_readable_by?(Authentication.authenticated_subject(conn), project)
-  end
-
-  defp readable_preview({:ok, preview}, conn, project) do
-    preview = %{preview | project: project}
-
-    if AppBuilds.preview_readable_by?(Authentication.authenticated_subject(conn), preview),
-      do: {:ok, preview},
-      else: {:error, :not_found}
-  end
-
-  defp readable_preview(result, _conn, _project), do: result
 
   defp get_filters(%Project{} = project, params) do
     specifier = Map.get(params, :specifier)

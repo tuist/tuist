@@ -55,7 +55,7 @@ defmodule TuistWeb.Authorization do
       is_nil(user) ->
         raise UnauthorizedError, dgettext("dashboard", "You need to be authenticated to access this page.")
 
-      Tuist.AppBuilds.preview_readable_by?(user, preview) ->
+      Authorization.authorize(:preview_read, user, preview.project) == :ok ->
         conn
 
       true ->

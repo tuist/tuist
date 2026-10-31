@@ -18,11 +18,8 @@ defmodule TuistWeb.PreviewsLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
-    public_only = not AppBuilds.private_previews_readable_by?(socket.assigns[:current_user], project)
-
     {:ok,
      socket
-     |> assign(:public_only, public_only)
      |> assign(
        :head_title,
        "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
@@ -35,7 +32,7 @@ defmodule TuistWeb.PreviewsLive do
      )
      |> assign(
        :latest_app_previews,
-       AppBuilds.latest_previews_with_distinct_bundle_ids(project, public_only: public_only)
+       AppBuilds.latest_previews_with_distinct_bundle_ids(project)
      )
      |> assign(
        :user_agent,
@@ -45,14 +42,13 @@ defmodule TuistWeb.PreviewsLive do
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: project, available_filters: available_filters}} = socket) do
-    public_only = socket.assigns.public_only
     params = uri |> Query.query_params() |> Query.clear_incompatible_cursors([:inserted_at])
 
     uri = URI.new!("?" <> URI.encode_query(params))
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
     filter_name = params["name"] || ""
 
-    {next_previews, next_previews_meta} = assign_previews(project, filters, params, public_only)
+    {next_previews, next_previews_meta} = assign_previews(project, filters, params)
 
     {
       :noreply,
@@ -64,7 +60,7 @@ defmodule TuistWeb.PreviewsLive do
       |> assign(:previews_meta, next_previews_meta)
       |> assign(
         :latest_app_previews,
-        AppBuilds.latest_previews_with_distinct_bundle_ids(project, public_only: public_only)
+        AppBuilds.latest_previews_with_distinct_bundle_ids(project)
       )
     }
   end
@@ -122,7 +118,7 @@ defmodule TuistWeb.PreviewsLive do
     {:noreply, socket}
   end
 
-  defp assign_previews(project, filters, params, public_only) do
+  defp assign_previews(project, filters, params) do
     base_flop_filters = [%{field: :project_id, op: :==, value: project.id}]
     filter_flop_filters = build_flop_filters(filters)
 
@@ -152,7 +148,6 @@ defmodule TuistWeb.PreviewsLive do
 
     AppBuilds.list_previews(options,
       search: String.split(params["name"] || ""),
-      public_only: public_only,
       preload: [:created_by_account, :app_builds, project: :account]
     )
   end

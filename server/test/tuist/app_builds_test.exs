@@ -3,7 +3,6 @@ defmodule Tuist.AppBuildsTest do
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -2266,93 +2265,6 @@ defmodule Tuist.AppBuildsTest do
 
       # Then
       assert result.id == app_build_multi_platform.id
-    end
-  end
-
-  describe "members-only previews" do
-    test "list_previews/2 with public_only leaves out members-only previews" do
-      # Given
-      project = ProjectsFixtures.project_fixture(visibility: :public, default_previews_visibility: :public)
-      inherited = AppBuildsFixtures.preview_fixture(project: project, bundle_identifier: "dev.tuist.inherited")
-
-      public =
-        AppBuildsFixtures.preview_fixture(project: project, bundle_identifier: "dev.tuist.public", visibility: :public)
-
-      _private =
-        AppBuildsFixtures.preview_fixture(project: project, bundle_identifier: "dev.tuist.private", visibility: :private)
-
-      # When
-      {previews, _meta} =
-        AppBuilds.list_previews(%{filters: [%{field: :project_id, op: :==, value: project.id}]}, public_only: true)
-
-      # Then
-      assert previews |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([inherited.id, public.id])
-    end
-
-    test "list_previews/2 with public_only leaves out previews inheriting a members-only default" do
-      # Given
-      project = ProjectsFixtures.project_fixture(visibility: :public, default_previews_visibility: :private)
-      _inherited = AppBuildsFixtures.preview_fixture(project: project)
-
-      # When
-      {previews, _meta} =
-        AppBuilds.list_previews(%{filters: [%{field: :project_id, op: :==, value: project.id}]}, public_only: true)
-
-      # Then
-      assert previews == []
-    end
-
-    test "latest_previews_with_distinct_bundle_ids/2 with public_only falls back to the latest public preview" do
-      # Given
-      project = ProjectsFixtures.project_fixture(visibility: :public)
-
-      public =
-        AppBuildsFixtures.preview_fixture(project: project, visibility: :public, inserted_at: ~U[2021-01-01 00:00:00Z])
-
-      _private =
-        AppBuildsFixtures.preview_fixture(project: project, visibility: :private, inserted_at: ~U[2021-01-02 00:00:00Z])
-
-      # When
-      previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project, public_only: true)
-
-      # Then
-      assert Enum.map(previews, & &1.id) == [public.id]
-    end
-
-    test "latest_preview_for_binary_id_and_build_version/4 with public_only skips members-only previews" do
-      # Given
-      project = ProjectsFixtures.project_fixture(visibility: :public)
-      binary_id = "550E8400-E29B-41D4-A716-446655440099"
-
-      private =
-        AppBuildsFixtures.preview_fixture(project: project, visibility: :private, inserted_at: ~U[2021-01-02 00:00:00Z])
-
-      AppBuildsFixtures.app_build_fixture(preview: private, binary_id: binary_id, build_version: "1")
-
-      # When
-      result =
-        AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, "1", project, public_only: true)
-
-      # Then
-      assert result == {:error, :not_found}
-    end
-
-    test "preview_readable_by?/2 lets only members read members-only previews of public projects" do
-      # Given
-      member = AccountsFixtures.user_fixture()
-      non_member = AccountsFixtures.user_fixture()
-      project = ProjectsFixtures.project_fixture(account_id: member.account.id, visibility: :public)
-
-      private =
-        [project: project, visibility: :private] |> AppBuildsFixtures.preview_fixture() |> Repo.preload(:project)
-
-      public = [project: project, visibility: :public] |> AppBuildsFixtures.preview_fixture() |> Repo.preload(:project)
-
-      # Then
-      refute AppBuilds.preview_readable_by?(nil, private)
-      refute AppBuilds.preview_readable_by?(non_member, private)
-      assert AppBuilds.preview_readable_by?(member, private)
-      assert AppBuilds.preview_readable_by?(nil, public)
     end
   end
 end

@@ -2,6 +2,7 @@ defmodule TuistWeb.PreviewController do
   use TuistWeb, :controller
 
   alias Tuist.AppBuilds
+  alias Tuist.Authorization
   alias Tuist.Storage
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
@@ -32,11 +33,7 @@ defmodule TuistWeb.PreviewController do
         %{"account_handle" => account_handle, "project_handle" => project_handle} = params
       ) do
     bundle_id = params["bundle-id"]
-
-    latest_previews =
-      AppBuilds.latest_previews_with_distinct_bundle_ids(project,
-        public_only: not AppBuilds.private_previews_readable_by?(Authentication.current_user(conn), project)
-      )
+    latest_previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
 
     latest_preview =
       if is_nil(bundle_id) do
@@ -45,7 +42,9 @@ defmodule TuistWeb.PreviewController do
         Enum.find(latest_previews, fn preview -> preview.bundle_identifier == bundle_id end)
       end
 
-    if latest_preview do
+    latest_preview = latest_preview && %{latest_preview | project: project}
+
+    if latest_preview && can_read_preview?(conn, latest_preview) do
       conn
       |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_preview.id}")
       |> halt()
@@ -305,11 +304,16 @@ defmodule TuistWeb.PreviewController do
 
   defp authorize_preview_download(%{assigns: %{current_preview: preview}} = conn, _opts) do
     if AppBuilds.verify_preview_install_token(preview, conn.query_params["token"]) == :ok or
-         AppBuilds.preview_readable_by?(Authentication.current_user(conn), preview) do
+         can_read_preview?(conn, preview) do
       conn
     else
       deny_preview_access(conn)
     end
+  end
+
+  defp can_read_preview?(conn, preview) do
+    AppBuilds.public_preview?(preview) or
+      Authorization.authorize(:preview_read, Authentication.current_user(conn), preview.project) == :ok
   end
 
   defp deny_preview_access(conn) do

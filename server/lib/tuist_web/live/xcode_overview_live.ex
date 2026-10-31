@@ -39,7 +39,6 @@ defmodule TuistWeb.XcodeOverviewLive do
       DatePicker.date_picker_params(params, "bundle-size")
 
     cached_public_overview = socket.assigns[:cached_public_overview]
-    public_only = public_previews_only?(cached_public_overview, socket.assigns[:current_user], project)
 
     bundle_size_apps_result =
       PublicOverviewCache.load(socket, :bundle_size_app_options, fn ->
@@ -91,8 +90,7 @@ defmodule TuistWeb.XcodeOverviewLive do
       fetch_test_runs_data(project)
     end)
     |> PublicOverviewCache.assign_async(:latest_app_previews, fn ->
-      latest_app_previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project, public_only: public_only)
-      {:ok, %{latest_app_previews: latest_app_previews}}
+      {:ok, %{latest_app_previews: AppBuilds.latest_previews_with_distinct_bundle_ids(project)}}
     end)
     |> PublicOverviewCache.assign_async([:recent_build_runs, :passed_build_runs_count, :failed_build_runs_count], fn ->
       fetch_recent_build_runs_data(project)
@@ -112,11 +110,6 @@ defmodule TuistWeb.XcodeOverviewLive do
       end
     )
   end
-
-  defp public_previews_only?(true, _current_user, _project), do: true
-
-  defp public_previews_only?(_cached_public_overview, current_user, project),
-    do: not AppBuilds.private_previews_readable_by?(current_user, project)
 
   defp fetch_test_runs_data(project) do
     recent_test_runs = Tests.latest_completed_test_runs(project.id)

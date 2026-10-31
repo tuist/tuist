@@ -65,7 +65,7 @@ Recipients do not need the build system that produced the preview. Choose how to
 
 ## Visibility {#visibility}
 
-Previews use the project's default visibility. Private previews require authentication and project access, including in public projects. Make previews public in project settings only when the build can be shared with anyone. Public visibility does not bypass platform signing or device installation requirements.
+Previews use the project's default visibility. Private previews require authentication and project access. Make previews public in project settings only when the build can be shared with anyone. Public visibility does not bypass platform signing or device installation requirements.
 
 ## Tracks {#tracks}
 

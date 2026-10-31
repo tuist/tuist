@@ -271,30 +271,6 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
     end
 
-    action :read_private do
-      desc("Allows users of a project to read its members-only previews.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to read its members-only previews.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows read-only viewers of a project to read its members-only previews.")
-      allow([:authenticated_as_user, user_role: :viewer])
-
-      desc("Allows the authenticated project to read its own members-only previews.")
-      allow([:authenticated_as_project, :projects_match])
-
-      desc("Allows users with ops access to read any members-only preview.")
-      allow([:authenticated_as_user, :ops_access])
-
-      desc(
-        "Allows an account token with project:previews:read or project:previews:write scope to read members-only previews."
-      )
-
-      allow([:authenticated_as_account, scopes_permit: "project:previews:read"])
-      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
-    end
-
     action :delete do
       desc("Allows users of a project to delete a preview.")
       allow([:authenticated_as_user, user_role: :user])

@@ -1561,28 +1561,6 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:preview_read, nil, project) == :ok
   end
 
-  test "can.read_private.project.preview when the subject is not a member of the public project" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    project = ProjectsFixtures.project_fixture(visibility: :public)
-
-    # When
-    assert Authorization.authorize(:preview_read_private, user, project) == {:error, :forbidden}
-    assert Authorization.authorize(:preview_read_private, nil, project) == {:error, :forbidden}
-  end
-
-  test "can.read_private.project.preview when the subject is a viewer of the project organization" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    organization = AccountsFixtures.organization_fixture()
-    account = Accounts.get_account_from_organization(organization)
-    Accounts.add_user_to_organization(user, organization, role: :viewer)
-    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
-
-    # When
-    assert Authorization.authorize(:preview_read_private, user, project) == :ok
-  end
-
   test "can.update.project.settings when the subject is not the same project account being updated" do
     # Given
     user = AccountsFixtures.user_fixture()

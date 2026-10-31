@@ -16,8 +16,7 @@ defmodule TuistWeb.PreviewLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
-    current_user = Map.get(socket.assigns, :current_user)
-    preview = get_current_preview(preview_id, selected_project, current_user)
+    preview = get_current_preview(preview_id, selected_project)
 
     layout =
       if TuistWeb.Authentication.authenticated?(socket.assigns) or
@@ -27,7 +26,10 @@ defmodule TuistWeb.PreviewLive do
         false
       end
 
+    preview = Tuist.Repo.preload(preview, :project)
+
     user_agent = UAParser.parse(get_connect_info(socket, :user_agent))
+    current_user = Map.get(socket.assigns, :current_user)
 
     can_delete_preview = Authorization.authorize(:preview_delete, current_user, preview.project) == :ok
     desktop_preview = AppBuilds.desktop_preview?(preview)
@@ -126,7 +128,7 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-  defp get_current_preview(preview_id, selected_project, current_user) do
+  defp get_current_preview(preview_id, selected_project) do
     case AppBuilds.preview_by_id(preview_id,
            project_id: selected_project.id,
            preload: [:created_by_account, :app_builds, project: [:account]]
@@ -135,11 +137,7 @@ defmodule TuistWeb.PreviewLive do
         raise NotFoundError, "Preview not found."
 
       {:ok, preview} ->
-        if AppBuilds.preview_readable_by?(current_user, preview) do
-          preview
-        else
-          raise NotFoundError, "Preview not found."
-        end
+        preview
 
       {:error, _} ->
         raise NotFoundError,
