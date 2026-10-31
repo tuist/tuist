@@ -708,6 +708,33 @@ struct RestoreTests {
         #expect(WorkspacePrebuilts.linuxPlatformName(osRelease: "ID=arch\n", arch: "x86_64") == nil)
     }
 
+    @Test(arguments: [false, true])
+    func recordsOutdatedPrebuiltsWhenARestoreWouldDropThem(toolchainChanged: Bool) async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let recorded = "swiftlang-6.3.0.1.1-macosx26.0"
+            try await writeMinimalPackageManifest(at: package, name: "Package")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: ResolvedPins(originHash: "origin", pins: [swiftSyntaxPin(version: "603.0.0")], version: 3),
+                mirrors: MirrorConfig()
+            )
+            try await writeWorkspaceState(
+                prebuilts: [swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", name: recorded)],
+                scratchDir: scratch
+            )
+
+            let outdated = try await WorkspacePrebuilts.$nameProbe.withValue({ _ in
+                toolchainChanged ? "swiftlang-6.3.1.2.3-macosx26.0" : recorded
+            }) {
+                try await SwifterPM().recordsOutdatedPrebuilts(packageDirectory: package, scratchDirectory: scratch)
+            }
+
+            #expect(outdated == toolchainChanged)
+        }
+    }
+
     private final class Recorded<Value: Sendable>: Sendable {
         let value: Mutex<Value>
 
