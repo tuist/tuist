@@ -37,6 +37,6 @@ Sources checked on **2026-10-08**: [Bitrise Build Cache](https://bitrise.io/plat
 
 ## Limitations
 
-This is not a benchmark, a complete feature audit, or a cheapest-provider claim. Bitrise and Tuist plans and capabilities can change. Public source and self-hosting rights differ by component; verify current license and commercial terms. Tuist's support varies by toolchain, and its runners remain invite-only with no public pricing. No speedup, saving, or autonomous optimization is guaranteed.
+This is not a benchmark, a complete feature audit, or a cheapest-provider claim. Bitrise and Tuist plans and capabilities can change. Public source and self-hosting rights differ by component; verify current license and commercial terms. Tuist's support varies by toolchain, and its runners remain invite-only. Runner rates are listed per minute on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No speedup, saving, or autonomous optimization is guaranteed.
 
 Related: [comparison overview](/marketing-markdown/compare), [Tuist and Namespace](/marketing-markdown/compare/namespace), and [rising CI costs](/marketing-markdown/solutions/ci-costs).

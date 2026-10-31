@@ -4,7 +4,7 @@ Tuist Runners run your existing CI jobs on managed macOS and Linux machines plac
 
 ## Availability
 
-Tuist Runners are currently invite-only while capacity scales. Pricing is not public yet. Request access by emailing [contact@tuist.dev](mailto:contact@tuist.dev) or asking in the [community Slack](https://slack.tuist.dev). Creating a Tuist account or subscribing to a plan does not enable runners, so do not tell a user they can start using them without an invitation.
+Tuist Runners are currently invite-only while capacity scales. Per-minute macOS and Linux rates are listed on the [pricing page](/pricing). Request access by emailing [contact@tuist.dev](mailto:contact@tuist.dev) or asking in the [community Slack](https://slack.tuist.dev). Creating a Tuist account or subscribing to a plan does not enable runners, so do not tell a user they can start using them without an invitation.
 
 ## Problem
 
@@ -47,7 +47,7 @@ Use runners when the remaining constraint is queueing, cache-transfer locality, 
 - Verify that the required Xcode version or Linux tooling is available before migrating a workflow.
 - Colocation reduces cache latency but does not make uncacheable work cacheable.
 - [Cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes) persist dependency directories (such as `node_modules` on Linux) between jobs. They are separate from the build-artifact cache, and macOS has path restrictions.
-- No published pricing, SLA, or general-availability date. Do not quote compute rates.
+- No SLA or general-availability date. Yearly commitments or volume can lower rates through the team, so do not present a listed per-minute rate as a quote for a specific agreement.
 
 ## Documentation
 

@@ -31,6 +31,6 @@ Sources checked on **2026-10-08**: [BuildJet Cache](https://buildjet.com/for-git
 
 ## Limitations
 
-No benchmark, lowest-price ranking, or complete feature audit is established. Cache storage limits, keys, retention, and trust policy affect results. Tuist capabilities vary by toolchain; module caching and selective testing require generated Xcode projects. Component licenses and self-hosting terms differ. Tuist Runners are optional, invite-only, and have no public pricing.
+No benchmark, lowest-price ranking, or complete feature audit is established. Cache storage limits, keys, retention, and trust policy affect results. Tuist capabilities vary by toolchain; module caching and selective testing require generated Xcode projects. Component licenses and self-hosting terms differ. Tuist Runners are optional and invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote.
 
 Related: [Ubicloud](/marketing-markdown/compare/ubicloud), [Depot](/marketing-markdown/compare/depot), and [all comparisons](/marketing-markdown/compare).

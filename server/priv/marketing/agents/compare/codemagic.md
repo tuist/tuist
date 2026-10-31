@@ -33,6 +33,6 @@ Sources checked on **2026-10-08**: [Codemagic caching](https://docs.codemagic.io
 
 ## Limitations
 
-No benchmark or cheapest-provider claim is established. Cache compatibility, transfer costs, and workflow scope matter. Generated projects are required for Tuist module caching and selective testing, not ordinary Xcode compilation caching. Tuist Runners are optional, invite-only, and have no public pricing. Licenses and self-hosting terms are component-specific. Recheck current capabilities before buying.
+No benchmark or cheapest-provider claim is established. Cache compatibility, transfer costs, and workflow scope matter. Generated projects are required for Tuist module caching and selective testing, not ordinary Xcode compilation caching. Tuist Runners are optional and invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. Licenses and self-hosting terms are component-specific. Recheck current capabilities before buying.
 
 Related: [Bitrise](/marketing-markdown/compare/bitrise), [Appcircle](/marketing-markdown/compare/appcircle), and [all comparisons](/marketing-markdown/compare).

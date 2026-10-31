@@ -31,6 +31,6 @@ Sources checked on **2026-10-08**: Buildkite's [hosted macOS agents](https://bui
 
 ## Limitations
 
-Framework support and plan/deployment requirements vary. Tuist currently has no Bazel sharding or selective testing; Elixir quarantine is not applied yet. Public source does not imply every component has the same license or self-hosting rights. Tuist Runners are invite-only with no public pricing. No fastest-provider, cheapest-provider, or guaranteed-saving claim is established.
+Framework support and plan/deployment requirements vary. Tuist currently has no Bazel sharding or selective testing; Elixir quarantine is not applied yet. Public source does not imply every component has the same license or self-hosting rights. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No fastest-provider, cheapest-provider, or guaranteed-saving claim is established.
 
 Related: [CircleCI](/marketing-markdown/compare/circleci), [Cirun](/marketing-markdown/compare/cirun), and [all comparisons](/marketing-markdown/compare).

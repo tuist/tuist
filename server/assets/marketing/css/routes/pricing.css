@@ -68,6 +68,7 @@
 
     & > [data-part="plans"],
     & > [data-part="compare"],
+    & > [data-part="runners"],
     & > [data-part="faq"] {
       display: flex;
       flex-direction: column;
@@ -432,6 +433,12 @@
           display: block;
           margin-top: var(--noora-spacing-4);
         }
+
+        & > [data-part="feature-link"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          text-decoration: underline;
+        }
       }
 
       /* Closing CTA row: one button per plan column, empty feature cell. */
@@ -642,6 +649,173 @@
           }
         }
       }
+    }
+  }
+}
+
+/* Tuist Runners frame: per-platform machine tables, the allowance and
+   discount terms, and the access row. Same hairline grid as the plans
+   frame above. */
+#marketing-pricing > section[data-part="pricing"] > [data-part="runners"] {
+  border-top: 1px solid var(--marketing-stroke-default);
+  padding-top: var(--noora-spacing-16);
+
+  /* Desktop: macOS with the terms stacked beneath it on the left, the
+     longer Linux table spanning both rows on the right. Narrower
+     viewports stack all three in source order. */
+  & > [data-part="platforms"] {
+    display: grid;
+    grid-template-columns: 1fr;
+    border-top: 1px solid var(--marketing-stroke-default);
+    border-bottom: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      grid-template-rows: auto 1fr;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-areas:
+        "macos linux"
+        "terms linux";
+
+      & > [data-platform="macos"] {
+        grid-area: macos;
+      }
+
+      & > [data-platform="linux"] {
+        grid-area: linux;
+        border-left: 1px solid var(--marketing-stroke-default);
+      }
+
+      & > [data-part="terms"] {
+        grid-area: terms;
+      }
+    }
+
+    & > [data-part="platform"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+      box-sizing: border-box;
+      padding: var(--noora-spacing-7);
+
+      @media (max-width: 1023px) {
+        &:not(:first-child) {
+          border-top: 1px solid var(--marketing-stroke-default);
+        }
+      }
+
+      & > [data-part="platform-head"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+
+        & > [data-part="name"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="description"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="machines"] {
+        border-collapse: collapse;
+        width: 100%;
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        font-variant-numeric: tabular-nums;
+
+        & th,
+        & td {
+          border-top: 1px solid var(--marketing-stroke-default);
+          padding: var(--noora-spacing-5) 0;
+          text-align: right;
+        }
+
+        & th:first-child {
+          text-align: left;
+        }
+
+        & thead th {
+          border-top: none;
+          padding-top: 0;
+          color: var(--noora-surface-label-secondary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+
+        & tbody th {
+          color: var(--noora-surface-label-primary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+
+        & tbody td {
+          color: var(--noora-surface-label-primary);
+        }
+
+        & [data-part="unit"] {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+    }
+
+    & > [data-part="terms"] {
+      display: flex;
+      flex-direction: column;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+
+      & > [data-part="term"] {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--noora-spacing-4);
+        box-sizing: border-box;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-7);
+
+        & > svg {
+          flex-shrink: 0;
+          margin-top: 2px;
+          width: 16px;
+          height: 16px;
+          color: var(--noora-purple-500);
+        }
+
+        & [data-part="term-title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+        }
+
+        & [data-part="term-description"] {
+          margin-top: var(--noora-spacing-2);
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          text-wrap: pretty;
+        }
+      }
+    }
+  }
+
+  & > [data-part="access"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-7);
+    padding: 0 var(--noora-spacing-7) var(--noora-spacing-14);
+
+    @media (max-width: 720px) {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    & > [data-part="access-text"] {
+      max-width: 640px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+    }
+
+    & > .noora-button {
+      flex-shrink: 0;
     }
   }
 }
