@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,7 +30,12 @@ var errNoIDToken = errors.New("the job may not request an OIDC token")
 func proveExecution() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	token, err := requestExecutionToken(ctx, &http.Client{Timeout: 5 * time.Second},
+	client, err := newCacheHTTPClient(5 * time.Second)
+	if err != nil {
+		return "unavailable (token)"
+	}
+	defer client.CloseIdleConnections()
+	token, err := requestExecutionToken(ctx, client,
 		os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL"), os.Getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN"))
 	if errors.Is(err, errNoIDToken) {
 		return ""
@@ -69,19 +73,11 @@ func requestExecutionToken(ctx context.Context, client *http.Client, endpoint, b
 	}
 	req.Header.Set("Authorization", "bearer "+bearer)
 	req.Header.Set("Accept", "application/json")
-	response, err := client.Do(req)
-	if err != nil {
-		return "", errors.New("token request failed")
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return "", errors.New("token request rejected")
-	}
 	var result struct {
 		Value string `json:"value"`
 	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, 2*maxExecutionToken)).Decode(&result); err != nil {
-		return "", errors.New("invalid token response")
+	if err := requestJSON(client, req, &result); err != nil {
+		return "", errors.New("token request failed")
 	}
 	if result.Value == "" || len(result.Value) > maxExecutionToken {
 		return "", errors.New("invalid token")
