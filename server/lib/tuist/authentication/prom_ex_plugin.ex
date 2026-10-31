@@ -15,6 +15,12 @@ defmodule Tuist.Authentication.PromExPlugin do
           description: "The number of token refresh errors.",
           tags: [:cli_version, :reason]
         ),
+        counter(
+          [:tuist, :authentication, :oidc, :scope_withheld, :total],
+          event_name: [:tuist, :oidc, :scope_withheld],
+          description: "The number of scopes withheld from OIDC-exchanged tokens because a scope rule didn't match.",
+          tags: [:scope, :level, :field]
+        ),
         counter([:tuist, :authentication, :bcrypt_verification, :total],
           event_name: [:tuist, :authentication, :bcrypt_verification],
           description: "The number of uncached token bcrypt verifications on this replica.",
