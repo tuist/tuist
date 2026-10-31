@@ -161,7 +161,10 @@ pub async fn prepare(
     if let Some(error) = &active.error {
         return Err(conflict(error.clone()));
     }
-    if !active.ready && Instant::now() >= active.deadline {
+    if !active.ready
+        && !migration.armed.load(Ordering::Acquire)
+        && Instant::now() >= active.deadline
+    {
         return Err(conflict("migration deadline expired".into()));
     }
     Ok(Json(
@@ -225,6 +228,117 @@ pub async fn reset(
     ))
 }
 
+#[derive(Deserialize)]
+pub struct RebindRequest {
+    incarnation: String,
+    target: Target,
+    replacement: Target,
+}
+
+/// Moves an armed bridge to a restarted process of the same destination. The
+/// bridge stays armed and reports ready only after re-proving every retained
+/// record and the pinned feed on that process: proof never carries across
+/// destination processes.
+pub async fn rebind(
+    State(state): State<SharedState>,
+    Json(request): Json<RebindRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if request.incarnation != state.runtime.connection_incarnation()
+        || state.runtime.is_draining()
+        || request.replacement.url != request.target.url
+        || request.replacement.incarnation == request.target.incarnation
+        || request.replacement.incarnation.is_empty()
+        || request.replacement.incarnation.len() > 128
+        || !state.peer_views.load().iter().any(|peer| {
+            peer.url == request.replacement.url
+                && peer.region == state.config.region
+                && peer.serving
+                && !peer.draining
+        })
+    {
+        return Err(conflict(
+            "migration source or destination is not qualified".into(),
+        ));
+    }
+    let migration = &state.runtime.migration;
+    let _gate = migration.gate.lock().await;
+    if !migration.armed.load(Ordering::Acquire) {
+        return Err(conflict("only an armed bridge can be rebound".into()));
+    }
+    let start = {
+        let mut active = migration.active.lock().expect("migration lock");
+        let active = active
+            .as_mut()
+            .ok_or_else(|| conflict("no migration".into()))?;
+        if active.target == request.replacement {
+            false
+        } else if active.target != request.target {
+            return Err(conflict("another destination owns migration".into()));
+        } else {
+            active.target = request.replacement.clone();
+            active.proven = 0;
+            active.ready = false;
+            active.error = None;
+            true
+        }
+    };
+    if start {
+        tracing::warn!(
+            event.name = "kura.migration.destination_rebound",
+            "Migration destination restarted; re-proving retained records on the new process"
+        );
+        reprove(std::sync::Arc::downgrade(&state), request.replacement);
+    }
+    let active = migration.active.lock().expect("migration lock");
+    let active = active
+        .as_ref()
+        .ok_or_else(|| conflict("no migration".into()))?;
+    Ok(Json(
+        serde_json::json!({"incarnation":state.runtime.connection_incarnation(),"target":active.target,"ready":active.ready}),
+    ))
+}
+
+// A rebound bridge has no deadline: it keeps refusing unproven writes, so
+// retrying is never worse than giving up. A later rebind supersedes this one.
+fn reprove(state: std::sync::Weak<crate::state::AppState>, target: Target) {
+    tokio::spawn(async move {
+        let mut previous_error = None;
+        loop {
+            let Some(state) = state.upgrade() else { break };
+            if state.runtime.is_draining() {
+                break;
+            }
+            let result = prove(&state).await;
+            {
+                let mut guard = state
+                    .runtime
+                    .migration
+                    .active
+                    .lock()
+                    .expect("migration lock");
+                let Some(active) = guard.as_mut().filter(|active| active.target == target) else {
+                    break;
+                };
+                match result {
+                    Ok(()) => {
+                        active.ready = true;
+                        break;
+                    }
+                    Err(error) => {
+                        if previous_error.as_ref() != Some(&error) {
+                            tracing::warn!(event.name="kura.migration.reproof_failed", %error,
+                                "Rebound migration destination is not ready until it holds every retained record");
+                        }
+                        previous_error = Some(error);
+                    }
+                }
+            }
+            drop(state);
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
+
 fn consumer(state: &SharedState) -> String {
     format!("migration:{}", state.runtime.connection_incarnation())
 }
@@ -237,7 +351,9 @@ fn target(state: &SharedState) -> Result<Target, String> {
         .lock()
         .expect("migration lock");
     let active = active.as_ref().ok_or("no migration")?;
-    if (!active.ready && Instant::now() >= active.deadline) || state.runtime.is_draining() {
+    let armed = state.runtime.migration.armed.load(Ordering::Acquire);
+    if (!active.ready && !armed && Instant::now() >= active.deadline) || state.runtime.is_draining()
+    {
         return Err("migration expired or draining".into());
     }
     if let Some(error) = &active.error {
@@ -250,6 +366,14 @@ async fn prepare_inner(state: &SharedState) -> Result<(), String> {
     // Public writes continue during the bounded retained walk. Once armed,
     // every successful mutation waits for verification, including requests that
     // entered before arming. The feed then closes the walk's live-write window.
+    prove(state).await?;
+    state.runtime.migration.armed.store(true, Ordering::Release);
+    acknowledge(state).await
+}
+
+/// Verifies every retained record, then the pinned feed through its head, on
+/// the current destination process.
+async fn prove(state: &SharedState) -> Result<(), String> {
     let mut after = None;
     loop {
         target(state)?;
@@ -269,9 +393,7 @@ async fn prepare_inner(state: &SharedState) -> Result<(), String> {
             None => break,
         }
     }
-    acknowledge_inner(state, true).await?;
-    state.runtime.migration.armed.store(true, Ordering::Release);
-    acknowledge(state).await
+    acknowledge_inner(state, true).await
 }
 
 /// Also called for an already-running request: checking after its handler
@@ -844,6 +966,129 @@ mod tests {
             );
             assert!(!cleared.await.is_err_and(|e| e.is_panic()));
         }
+    }
+
+    async fn serve_at(state: SharedState, url: &str) -> tokio::task::JoinHandle<()> {
+        state.store.run_backfill_index_build().unwrap();
+        let address: std::net::SocketAddr = url.trim_start_matches("http://").parse().unwrap();
+        let listener = tokio::net::TcpListener::bind(address).await.unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, crate::http::router(state))
+                .await
+                .unwrap();
+        })
+    }
+
+    fn rebind_request(
+        source: &SharedState,
+        target: &Target,
+        replacement: &Target,
+    ) -> RebindRequest {
+        RebindRequest {
+            incarnation: source.runtime.connection_incarnation().to_owned(),
+            target: target.clone(),
+            replacement: replacement.clone(),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn an_armed_bridge_rebinds_to_a_restarted_destination_only_after_reproving_it() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        put(&source.state, "retained", 1000).await;
+        put(&destination.state, "retained", 1000).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url.clone(), &destination.state);
+        wait_ready(&source.state, &target).await;
+        put(&source.state, "acknowledged", 2000).await;
+        put(&destination.state, "acknowledged", 2000).await;
+        acknowledge(&source.state).await.unwrap();
+
+        // The same pod comes back as a new process that lost one acknowledged
+        // record. Its receipt cannot stand in for the previous process's.
+        server.abort();
+        let _ = server.await;
+        let restarted = test_context(|_| {}).await;
+        put(&restarted.state, "retained", 1000).await;
+        let server = serve_at(restarted.state.clone(), &url).await;
+        let replacement = Target {
+            url: url.clone(),
+            incarnation: restarted.state.runtime.connection_incarnation().to_owned(),
+        };
+        let elsewhere = Target {
+            url: "http://127.0.0.1:1".into(),
+            incarnation: replacement.incarnation.clone(),
+        };
+        assert!(
+            rebind(
+                State(source.state.clone()),
+                Json(rebind_request(&source.state, &target, &elsewhere))
+            )
+            .await
+            .is_err(),
+            "a rebind cannot move the bridge to another destination"
+        );
+        for _ in 0..2 {
+            let receipt = rebind(
+                State(source.state.clone()),
+                Json(rebind_request(&source.state, &target, &replacement)),
+            )
+            .await
+            .unwrap();
+            assert_eq!(receipt["target"]["incarnation"], replacement.incarnation);
+            assert_eq!(receipt["ready"], false);
+        }
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let receipt = prepare(
+            State(source.state.clone()),
+            Json(PrepareRequest {
+                incarnation: source.state.runtime.connection_incarnation().to_owned(),
+                target: replacement.clone(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(receipt["ready"], false, "ready without the lost record");
+        assert!(source.state.runtime.migration.armed.load(Ordering::Acquire));
+
+        put(&restarted.state, "acknowledged", 2000).await;
+        wait_ready(&source.state, &replacement).await;
+        put(&source.state, "after-rebind", 3000).await;
+        put(&restarted.state, "after-rebind", 3000).await;
+        acknowledge(&source.state).await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn only_an_armed_bridge_can_be_rebound() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let target = activate(
+            &source.state,
+            "http://127.0.0.1:1".into(),
+            &destination.state,
+        );
+        let replacement = Target {
+            url: target.url.clone(),
+            incarnation: "restarted".into(),
+        };
+        *source.state.runtime.migration.active.lock().unwrap() = Some(Active {
+            target: target.clone(),
+            deadline: Instant::now() + DEADLINE,
+            confirmed: 0,
+            proven: 0,
+            ready: false,
+            error: Some("injected failure".into()),
+        });
+        assert!(
+            rebind(
+                State(source.state.clone()),
+                Json(rebind_request(&source.state, &target, &replacement))
+            )
+            .await
+            .is_err(),
+            "a failed unarmed preparation is reset, not rebound"
+        );
     }
 
     #[tokio::test]

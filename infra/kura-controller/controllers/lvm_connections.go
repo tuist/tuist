@@ -79,6 +79,26 @@ type migrationTarget struct {
 
 type migrationPreparer interface {
 	Prepare(context.Context, corev1.Pod, string, string, migrationTarget, map[string][]byte) (bool, error)
+	Rebind(context.Context, corev1.Pod, string, string, migrationTarget, migrationTarget, map[string][]byte) error
+}
+
+func (r tlsPublicConnectionRetirer) Rebind(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target, replacement migrationTarget, tlsData map[string][]byte) error {
+	var receipt struct {
+		Incarnation string          `json:"incarnation"`
+		Target      migrationTarget `json:"target"`
+	}
+	err := r.post(ctx, pod, serverName, "/_internal/migration/rebind", tlsData, struct {
+		Incarnation string          `json:"incarnation"`
+		Target      migrationTarget `json:"target"`
+		Replacement migrationTarget `json:"replacement"`
+	}{incarnation, target, replacement}, &receipt)
+	if err != nil {
+		return err
+	}
+	if receipt.Incarnation != incarnation || receipt.Target != replacement {
+		return fmt.Errorf("invalid migration rebind receipt")
+	}
+	return nil
 }
 
 func (r tlsPublicConnectionRetirer) Prepare(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target migrationTarget, tlsData map[string][]byte) (bool, error) {

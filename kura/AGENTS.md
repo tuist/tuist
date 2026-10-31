@@ -287,3 +287,7 @@ pauses. Its bounded weak-reference task retains the feed pin until draining;
 release that pin on failed preparation or draining. The internal reset API may
 clear only a completed failed unarmed attempt and must serialize with write
 acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
+A destination process restart is recovered with the internal rebind API: only an
+armed bridge may move to a new incarnation at the same URL, it stays armed, and
+it reports ready only after re-proving every retained record and the pinned feed
+on the new process. Never carry proof from one destination process to another.

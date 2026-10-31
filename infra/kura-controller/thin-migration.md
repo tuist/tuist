@@ -56,7 +56,8 @@ making changes to its source. Never remove the write binding or blindly restore
 routing after `lvm-rebuild`; an armed bridge may already be protecting a moved
 endpoint. A destination failure can refuse writes on the old source. Preserve
 both volumes and investigate rather than treating readiness or a timeout as a
-handover receipt. Changed process identities require fresh qualification.
+handover receipt. Changed process identities require fresh qualification; a
+destination process restart is re-proved through the rebind below.
 
 An armed source pays for replication and destination content verification before
 acknowledging writes. The staging pause test deliberately kept routing on that
@@ -92,6 +93,28 @@ A failed **unarmed preparation** can be retried without restarting the writer:
 An armed handoff has no reset shortcut. Preserve the destination and donor and
 complete or explicitly recover the handoff; clearing the bridge would reintroduce
 the successful-PUT/missing-GET race.
+
+### Destination process restart
+
+When the destination pod keeps its UID and URL but reports a new
+`connection_incarnation`, the controller sends
+`POST /_internal/migration/rebind` with `{incarnation, target, replacement}`,
+where `replacement` is the same URL with the new process incarnation. Only an
+armed bridge accepts it; a repeated request for the current replacement is
+idempotent. The source then:
+
+- keeps the bridge armed, so writes still return success only after their
+  records verify on the destination, now the new process;
+- clears its proof and re-walks every retained record plus its pinned feed on
+  the new process, retrying until that succeeds or the source drains;
+- reports `ready` again only after that re-proof completes.
+
+The controller records the new incarnation in the write-target annotation only
+after the source accepts the rebind, and does not mark or retire the donor
+until preparation reports ready again. A record the restarted process lost
+keeps the bridge unready rather than moving routing past it. A replaced pod
+(new UID), a restarted source or a disarmed preparation is not rebound and
+still fails closed.
 
 ## Qualification
 

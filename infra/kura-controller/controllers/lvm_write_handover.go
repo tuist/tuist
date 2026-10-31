@@ -81,8 +81,8 @@ func (r *KuraInstanceReconciler) lvmWritesPrepared(ctx context.Context, instance
 		return false, fmt.Errorf("migration destination changed")
 	}
 	sample, err := r.runtimeStatusClient(instance).Status(ctx, *destination)
-	if err != nil || sample.invalidObservation || !sample.Ready || sample.ConnectionIncarnation != intent.Target.Incarnation {
-		return false, fmt.Errorf("migration destination process unavailable or changed: %v", err)
+	if err != nil || sample.invalidObservation || !sample.Ready || sample.ConnectionIncarnation == "" {
+		return false, fmt.Errorf("migration destination process unavailable: %v", err)
 	}
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: peerTLSSecretName(instance)}, secret); err != nil {
@@ -97,6 +97,23 @@ func (r *KuraInstanceReconciler) lvmWritesPrepared(ctx context.Context, instance
 		}
 	}
 	serverName := fmt.Sprintf("%s-headless.%s.svc.cluster.local", instance.Name, instance.Namespace)
+	if sample.ConnectionIncarnation != intent.Target.Incarnation {
+		// The same pod restarted its process. The source keeps refusing
+		// unproven writes and re-proves its retained data on the new process;
+		// the intent names that process only after the source accepted it.
+		replacement := migrationTarget{URL: intent.Target.URL, Incarnation: sample.ConnectionIncarnation}
+		if err := preparer.Rebind(ctx, *source, serverName, status.ConnectionIncarnation, intent.Target, replacement, secret.Data); err != nil {
+			return false, fmt.Errorf("migration destination restarted: %w", err)
+		}
+		intent.Target = replacement
+		raw, err := json.Marshal(intent)
+		if err != nil {
+			return false, err
+		}
+		before := source.DeepCopy()
+		source.Annotations[lvmWriteTargetAnnotation] = string(raw)
+		return false, r.Patch(ctx, source, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{}))
+	}
 	return preparer.Prepare(ctx, *source, serverName, status.ConnectionIncarnation, intent.Target, secret.Data)
 }
 

@@ -27,9 +27,10 @@ func TestThinWritePreparationPinsBothProcessesBeforeRouting(t *testing.T) {
 			target.UID = types.UID("target-uid")
 			source.Status.PodIP = "10.0.0.1"
 			target.Status.PodIP = "10.0.0.2"
+			var rebinds []migrationTarget
 			statuses := map[string]runtimeStatus{source.Name: {Ready: true, ConnectionIncarnation: "current-boot", BackfillInitialCycle: backfillCycleComplete}, target.Name: {Ready: true, ConnectionIncarnation: "target-boot", BackfillInitialCycle: backfillCycleComplete}}
 			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(source, target, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()
-			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}, PublicConnectionRetirer: stubConnectionRetirer{ready: !tc.pending}}
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}, PublicConnectionRetirer: stubConnectionRetirer{ready: !tc.pending, rebinds: &rebinds}}
 			ready, err := r.lvmHandoverReady(ctx, f.instance, 0)
 			if err != nil || ready {
 				t.Fatalf("initial intent: %v %v", ready, err)
@@ -67,11 +68,37 @@ func TestThinWritePreparationPinsBothProcessesBeforeRouting(t *testing.T) {
 			if ready {
 				t.Fatal("deleted before endpoint observation")
 			}
-			if tc.sourceRestart || tc.targetRestart || tc.podReplacement {
+			if tc.sourceRestart || tc.podReplacement {
 				if err == nil {
 					t.Fatal("accepted changed identity")
 				}
+				if len(rebinds) != 0 {
+					t.Fatal("rebound a changed source or replaced pod")
+				}
 				return
+			}
+			if tc.targetRestart {
+				// The same pod restarted its process. The source re-proves its data on
+				// the new process before the intent names it.
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(rebinds) != 2 || rebinds[0].Incarnation != "target-boot" || rebinds[1].Incarnation != "restarted" {
+					t.Fatalf("rebinds = %+v", rebinds)
+				}
+				if err := c.Get(ctx, client.ObjectKeyFromObject(source), source); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal([]byte(source.Annotations[lvmWriteTargetAnnotation]), &intent); err != nil {
+					t.Fatal(err)
+				}
+				if intent.Target.Incarnation != "restarted" || intent.UID != string(target.UID) || source.Annotations[lvmRebuildAnnotation] != "" {
+					t.Fatalf("rebound intent: %+v", intent)
+				}
+				ready, err = r.lvmHandoverReady(ctx, f.instance, 0)
+				if err != nil || ready {
+					t.Fatalf("after rebind: ready=%v err=%v", ready, err)
+				}
 			}
 			if err != nil {
 				t.Fatal(err)

@@ -20,8 +20,9 @@ import (
 )
 
 type stubConnectionRetirer struct {
-	ready bool
-	err   error
+	ready   bool
+	err     error
+	rebinds *[]migrationTarget
 }
 
 func (s stubConnectionRetirer) Retire(_ context.Context, _ corev1.Pod, _ string, incarnation string, _ map[string][]byte) (bool, error) {
@@ -32,6 +33,15 @@ func (s stubConnectionRetirer) Retire(_ context.Context, _ corev1.Pod, _ string,
 }
 func (s stubConnectionRetirer) Prepare(_ context.Context, _ corev1.Pod, _ string, _ string, _ migrationTarget, _ map[string][]byte) (bool, error) {
 	return s.ready, s.err
+}
+func (s stubConnectionRetirer) Rebind(_ context.Context, _ corev1.Pod, _ string, incarnation string, target, replacement migrationTarget, _ map[string][]byte) error {
+	if incarnation != "current-boot" || target.URL != replacement.URL {
+		return fmt.Errorf("refused rebind")
+	}
+	if s.rebinds != nil {
+		*s.rebinds = append(*s.rebinds, target, replacement)
+	}
+	return s.err
 }
 func TestThinMigrationRequiresConnectionRetirement(t *testing.T) {
 	for _, tc := range []struct {
