@@ -599,6 +599,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.requestExitRecovery(ctx, instance, pods); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.requestDrainHandover(ctx, instance, pods, samples); err != nil {
+		return ctrl.Result{}, err
+	}
 	if inProgress, err := r.reconcileReplicaRecovery(ctx, instance, pods, samples, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
@@ -3368,13 +3371,31 @@ func (r *KuraInstanceReconciler) reconcilePodDisruptionBudget(ctx context.Contex
 		return nil
 	}
 
+	holder := ""
+	if fencedServing(instance) {
+		var err error
+		if holder, err = r.fencedHolderPod(ctx, instance); err != nil {
+			return err
+		}
+	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, pdb, func() error {
 		if err := controllerutil.SetControllerReference(instance, pdb, r.Scheme); err != nil {
 			return err
 		}
 		pdb.Labels = labels(instance)
-		pdb.Spec.MinAvailable = ptr(intstr.FromInt32(replicas(instance) - 1))
-		pdb.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
+		selector := selectorLabels(instance)
+		if holder == "" {
+			pdb.Spec.MinAvailable = ptr(intstr.FromInt32(replicas(instance) - 1))
+			pdb.Spec.MaxUnavailable = nil
+		} else {
+			// The eviction API refuses a pod two budgets select, so one budget
+			// covers only the serving holder, which is evicted only after a
+			// planned handover moves the grant to another pod.
+			selector[podNameLabel] = holder
+			pdb.Spec.MinAvailable = nil
+			pdb.Spec.MaxUnavailable = ptr(intstr.FromInt32(0))
+		}
+		pdb.Spec.Selector = &metav1.LabelSelector{MatchLabels: selector}
 		return nil
 	})
 	return err
@@ -5178,7 +5199,8 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.kuraInstancesForNode),
 			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
 				_, marked := object.GetAnnotations()[EvacuateNodeAnnotation]
-				return marked
+				node, isNode := object.(*corev1.Node)
+				return marked || isNode && node.Spec.Unschedulable
 			})),
 		).
 		Owns(&appsv1.StatefulSet{}).

@@ -259,6 +259,11 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err := helper.reconcileExternalService(ctx, instance, primary); err != nil {
 		return result, err
 	}
+	// The holder's disruption budget follows the grant as closely as its routes,
+	// but a failed budget update never delays a renewal.
+	if err := helper.reconcilePodDisruptionBudget(ctx, instance); err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "reconcile the serving holder's disruption budget")
+	}
 	holders := map[string]servingHolder{}
 	for i := range pods.Items {
 		pod := &pods.Items[i]

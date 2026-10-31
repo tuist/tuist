@@ -184,6 +184,28 @@ restored on verification timeout. A source lost during Quiescing requires
 external fencing. Large corpora may exceed the deadline because this initial
 implementation verifies every retained byte; do not increase it casually.
 
+## Node drains
+
+The instance's disruption budget selects only the grant's holder, with
+`maxUnavailable: 0`, so the eviction API refuses to evict it in every phase.
+The standby is not covered: the eviction API refuses a pod that two budgets
+select. Before the first grant the budget keeps its instance-wide shape.
+
+When the holder's node is cordoned, the controller requests a planned handover
+to a Ready, caught-up standby on a schedulable node, with ID
+`drain-<holder incarnation prefix>-<attempt>`. The drain keeps retrying its
+eviction until the grant moves. The budget then follows the new holder and the
+former holder is evicted as a revoked standby. Each holder incarnation gets
+three automatic attempts, since an interrupted freeze refuses writes until its
+deadline. After that, or with no eligible standby, the drain waits for an
+operator. Consumed automatic requests are cleared. An operator's pending
+request, a handover in flight, an unsettled grant or an unfinished recovery is
+never replaced.
+
+Deleting the holder pod directly bypasses the budget and stops the writer: its
+graceful shutdown runs while it still holds the grant, and the standby is
+promoted only after kubelet reports the exit. Hand over first.
+
 ## Recover exactly one ordinal
 
 `replicaRecovery` requires a unique request ID, failed pod name/UID, PVC UID, PV
