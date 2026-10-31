@@ -70,7 +70,8 @@ defmodule Tuist.Runners.CacheVolumes.IdentityClaimsTest do
     default_branch("main")
     reject(&GitHubClient.get_workflow_run/1)
 
-    assert {:ok, %{repository_id: 123, trusted: true, same_repository: true, default_branch: "main", writer_branch: "main"}} =
+    assert {:ok,
+            %{repository_id: 123, trusted: true, same_repository: true, default_branch: "main", writer_branch: "main"}} =
              Identity.resolve(job)
   end
 

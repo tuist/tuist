@@ -207,16 +207,15 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   end
 
   defp recorded_default_branch(account_id, repository_id) do
-    Repo.one(
-      from(v in Volume,
-        where:
-          v.account_id == ^account_id and v.provider == "github" and v.repository_id == ^repository_id and
-            not is_nil(v.default_branch),
-        order_by: [desc: v.updated_at],
-        limit: 1,
-        select: v.default_branch
-      )
+    from(v in Volume,
+      where:
+        v.account_id == ^account_id and v.provider == "github" and v.repository_id == ^repository_id and
+          not is_nil(v.default_branch),
+      order_by: [desc: v.updated_at],
+      limit: 1,
+      select: v.default_branch
     )
+    |> Repo.one()
     |> case do
       default when is_binary(default) -> {:ok, default}
       nil -> :error
