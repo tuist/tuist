@@ -191,6 +191,12 @@ for _var in TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_
     printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
   fi
 done
+# Hand the host the job's GitHub OIDC token before the attaches below, so the
+# server learns which job this runner runs without waiting for GitHub's report.
+# The runner offers a token only to jobs granted id-token: write.
+if [ -n "\${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --prove-execution || true
+fi
 # Move dockerd onto the repository's Docker cache volume before the runner
 # pulls job and service containers, beside the cached checkout and within its
 # window. Any miss leaves dockerd on the job's ephemeral data root.

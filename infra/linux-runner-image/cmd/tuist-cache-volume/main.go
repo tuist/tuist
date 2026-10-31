@@ -85,6 +85,13 @@ func main() {
 		}
 		os.Exit(2)
 	}
+	if opts.proveExecution {
+		// Never fails the job: without a token the server waits for GitHub's report.
+		if result := proveExecution(); result != "" {
+			fmt.Println("Tuist execution token: " + result)
+		}
+		return
+	}
 	if opts.checkout != "" {
 		// Never fails the job: without a cached checkout, actions/checkout clones as usual.
 		if runtime.GOOS == "darwin" {
@@ -136,6 +143,7 @@ func main() {
 }
 
 type options struct {
+	proveExecution bool
 	detach         bool
 	checkout       string
 	export         bool
@@ -151,6 +159,7 @@ type options struct {
 func parseArguments(args []string, output io.Writer) (options, error) {
 	flags := flag.NewFlagSet("tuist-cache-volume", flag.ContinueOnError)
 	flags.SetOutput(output)
+	proveExecution := flags.Bool("prove-execution", false, "Hand the host the job's GitHub OIDC token (before the first step)")
 	detach := flags.Bool("detach-all", false, "Detach macOS volumes after the job")
 	checkout := flags.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
 	export := flags.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
@@ -166,6 +175,9 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 		}
 		// The flag set has already printed the error and the usage.
 		return options{}, errArguments
+	}
+	if *proveExecution {
+		return options{proveExecution: true}, nil
 	}
 	if *checkout != "" {
 		return options{checkout: *checkout}, nil

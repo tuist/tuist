@@ -63,6 +63,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
   GitHub to report its job, shared by its checkout and every volume; both the
   Linux and macOS agents use it.
+- A job's GitHub OIDC token reaches the server through the Linux agent's
+  `/execution` endpoint or a macOS `execution_token` mailbox request, with the
+  pod and node the agent itself trusts. Agents forward it unread and never log it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
   goes through `DoServer`: up to four attempts on a connection failure or a
   502/503/504, jittered backoff from 250 ms to 2 s, never past the request
