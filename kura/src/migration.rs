@@ -33,6 +33,9 @@ struct Active {
     target: Target,
     deadline: Instant,
     confirmed: u64,
+    /// Feed head through which a completed run verified every record and then
+    /// the destination identity. Any write committed at or below it is proven.
+    proven: u64,
     ready: bool,
     error: Option<String>,
 }
@@ -43,6 +46,8 @@ pub struct MigrationState {
     active: Mutex<Option<Active>>,
     gate: tokio::sync::Mutex<()>,
     verification_gate: tokio::sync::Mutex<()>,
+    #[cfg(test)]
+    verifications: std::sync::atomic::AtomicU64,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +105,7 @@ pub async fn prepare(
                     target: request.target.clone(),
                     deadline: Instant::now() + DEADLINE,
                     confirmed,
+                    proven: 0,
                     ready: false,
                     error: None,
                 });
@@ -148,7 +154,10 @@ pub async fn prepare(
         });
     }
     let active = migration.active.lock().expect("migration lock");
-    let active = active.as_ref().expect("migration started");
+    // A concurrent reset may clear a failed attempt between the two locks.
+    let Some(active) = active.as_ref() else {
+        return Err(conflict("migration preparation was reset".into()));
+    };
     if let Some(error) = &active.error {
         return Err(conflict(error.clone()));
     }
@@ -173,7 +182,9 @@ fn maintain_bridge(state: std::sync::Weak<crate::state::AppState>) {
                 state.store.sync_feed().forget_consumer(&consumer(&state));
                 break;
             }
-            let error = acknowledge(&state).await.err();
+            // Forced, so an idle bridge still probes its destination and refreshes
+            // the feed pin rather than relying on the last proven run.
+            let error = acknowledge_with(&state, true).await.err();
             if error != previous_error
                 && let Some(error) = &error
             {
@@ -258,7 +269,7 @@ async fn prepare_inner(state: &SharedState) -> Result<(), String> {
             None => break,
         }
     }
-    acknowledge_inner(state).await?;
+    acknowledge_inner(state, true).await?;
     state.runtime.migration.armed.store(true, Ordering::Release);
     acknowledge(state).await
 }
@@ -266,10 +277,14 @@ async fn prepare_inner(state: &SharedState) -> Result<(), String> {
 /// Also called for an already-running request: checking after its handler
 /// completes is what includes writes admitted before migration was armed.
 pub async fn acknowledge(state: &SharedState) -> Result<(), String> {
+    acknowledge_with(state, false).await
+}
+
+async fn acknowledge_with(state: &SharedState, force: bool) -> Result<(), String> {
     if !state.runtime.migration.armed.load(Ordering::Acquire) {
         return Ok(());
     }
-    let result = tokio::time::timeout(ACK_TIMEOUT, acknowledge_inner(state))
+    let result = tokio::time::timeout(ACK_TIMEOUT, acknowledge_inner(state, force))
         .await
         .map_err(|_| "migration acknowledgment timed out".to_owned())?;
     // A failed preparation never authorizes routing to move. Restore ordinary
@@ -280,28 +295,38 @@ pub async fn acknowledge(state: &SharedState) -> Result<(), String> {
     result
 }
 
-async fn acknowledge_inner(state: &SharedState) -> Result<(), String> {
+/// Group commit: completions queue on one gate, and a run that took its head
+/// after a write committed proves that write, so waiters behind it return
+/// without another destination round trip. `force` always runs, for arming
+/// and for the bridge loop that probes an idle destination.
+async fn acknowledge_inner(state: &SharedState, force: bool) -> Result<(), String> {
+    let feed = state.store.sync_feed();
+    feed.settle().await;
+    let committed = feed.head();
     let _gate = state.runtime.migration.gate.lock().await;
     target(state)?;
-    let feed = state.store.sync_feed();
+    if !force && active_field(state, |active| active.proven)? >= committed {
+        return Ok(());
+    }
     feed.settle().await;
     let head = feed.head();
     loop {
-        let confirmed = state
-            .runtime
-            .migration
-            .active
-            .lock()
-            .expect("migration lock")
-            .as_ref()
-            .ok_or("no migration")?
-            .confirmed;
+        let confirmed = active_field(state, |active| active.confirmed)?;
         if !feed.enabled() || confirmed < feed.floor() {
             return Err("migration feed history was lost".into());
         }
         feed.note_consumer(&consumer(state), confirmed);
         if confirmed >= head {
-            return verify_remote(state, Vec::new()).await;
+            verify_remote(state, Vec::new()).await?;
+            let mut active = state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .expect("migration lock");
+            let active = active.as_mut().ok_or("no migration")?;
+            active.proven = active.proven.max(head);
+            return Ok(());
         }
         let rows = state.store.sync_feed_page_to(confirmed, PAGE, head)?;
         let next = if rows.len() < PAGE {
@@ -335,6 +360,16 @@ async fn acknowledge_inner(state: &SharedState) -> Result<(), String> {
             .confirmed = next;
         feed.note_consumer(&consumer(state), next);
     }
+}
+
+fn active_field(state: &SharedState, field: impl FnOnce(&Active) -> u64) -> Result<u64, String> {
+    let active = state
+        .runtime
+        .migration
+        .active
+        .lock()
+        .expect("migration lock");
+    Ok(field(active.as_ref().ok_or("no migration")?))
 }
 
 async fn verify_remote(state: &SharedState, records: Vec<Record>) -> Result<(), String> {
@@ -395,6 +430,12 @@ pub async fn verify(
         .verification_gate
         .try_lock()
         .map_err(|_| conflict("destination verification busy".into()))?;
+    #[cfg(test)]
+    state
+        .runtime
+        .migration
+        .verifications
+        .fetch_add(1, Ordering::Relaxed);
     for expected in request.records {
         verify_record(&state, &expected).await.map_err(conflict)?;
     }
@@ -583,7 +624,11 @@ mod tests {
         let (url, server) = serve(destination.state.clone()).await;
         let mut target = activate(&source.state, url, &destination.state);
         wait_ready(&source.state, &target).await;
-        source.state.store.sync_feed().raise_floor(1);
+        // A completing write is past everything proven so far, so its feed rows
+        // must still be verifiable.
+        put(&source.state, "after-arming", 3000).await;
+        let feed = source.state.store.sync_feed();
+        feed.raise_floor(feed.head());
         assert!(
             acknowledge(&source.state)
                 .await
@@ -690,6 +735,7 @@ mod tests {
             target: target.clone(),
             deadline: Instant::now() - Duration::from_secs(1),
             confirmed: 0,
+            proven: 0,
             ready: false,
             error: None,
         });
@@ -731,6 +777,73 @@ mod tests {
         acknowledge(&source.state).await.unwrap();
         wait_ready(&source.state, &target).await;
         server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_acknowledgments_share_one_destination_verification() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        wait_ready(&source.state, &target).await;
+        for (i, key) in ["a", "b", "c", "d", "e", "f", "g", "h"].iter().enumerate() {
+            put(&source.state, key, 2000 + i as u64).await;
+            put(&destination.state, key, 2000 + i as u64).await;
+        }
+        let verifications = &destination.state.runtime.migration.verifications;
+        let before = verifications.load(Ordering::Relaxed);
+        let acks: Vec<_> = (0..16)
+            .map(|_| {
+                let state = source.state.clone();
+                tokio::spawn(async move { acknowledge(&state).await })
+            })
+            .collect();
+        for ack in acks {
+            ack.await.unwrap().unwrap();
+        }
+        // One run verifies the eight writes and the destination's identity; the
+        // background bridge loop may add one more. Serialized acknowledgments
+        // made a round trip each.
+        let calls = verifications.load(Ordering::Relaxed) - before;
+        assert!(
+            calls <= 4,
+            "16 waiting writes made {calls} destination calls"
+        );
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn polling_a_failed_preparation_while_it_is_reset_never_panics() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let target = activate(
+            &source.state,
+            "https://destination.invalid".into(),
+            &destination.state,
+        );
+        let request = || PrepareRequest {
+            incarnation: source.state.runtime.connection_incarnation().to_owned(),
+            target: target.clone(),
+        };
+        for _ in 0..2_000 {
+            *source.state.runtime.migration.active.lock().unwrap() = Some(Active {
+                target: target.clone(),
+                deadline: Instant::now() + DEADLINE,
+                confirmed: 0,
+                proven: 0,
+                ready: false,
+                error: Some("injected failure".into()),
+            });
+            let polled = tokio::spawn(prepare(State(source.state.clone()), Json(request())));
+            let cleared = tokio::spawn(reset(State(source.state.clone()), Json(request())));
+            // Either order is legitimate: a reset that wins lets the poll start a
+            // fresh attempt, which this unreachable destination then fails.
+            assert!(
+                !polled.await.is_err_and(|e| e.is_panic()),
+                "prepare panicked while a reset cleared its attempt"
+            );
+            assert!(!cleared.await.is_err_and(|e| e.is_panic()));
+        }
     }
 
     #[tokio::test]

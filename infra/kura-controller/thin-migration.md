@@ -39,7 +39,11 @@ cache migration protocol, not a new crash-consistency or global serving grant.
 
 Preparation has one fixed 20-minute deadline. Verification uses batches of at
 most 16 descriptors and existing 64 KiB hashing buffers. Destination verification
-is serialized; write acknowledgment waits at most five seconds. An unsuccessful
+is serialized, but write acknowledgments group-commit: concurrent completions
+queue on one gate, and a run that took its feed head after a write committed
+proves that write, so waiters behind it return without another round trip. The
+bridge loop still forces a full run every second to probe an idle destination.
+Write acknowledgment waits at most five seconds. An unsuccessful
 preparation disarms its bridge and leaves the controller unable to move routing.
 Successful preparation cannot expire merely because the controller pauses: its
 bridge stays active until the donor drains, retaining its feed pin with one
@@ -57,7 +61,10 @@ handover receipt. Changed process identities require fresh qualification.
 An armed source pays for replication and destination content verification before
 acknowledging writes. The staging pause test deliberately kept routing on that
 source: eight concurrent 4 MiB writes delivered only 16–21 MiB/s, with 2.10–3.12 s
-p95. Ordinary unarmed serving does not perform these checks. Keep this temporary
+p95, when every completion made its own destination round trip. Group commit
+(2026-10-31) cuts sixteen concurrent completions to at most four round trips in
+the unit test; the staging measurement has not been repeated. Ordinary unarmed
+serving does not perform these checks. Keep this temporary
 cost in the rollout budget, observe write latency during each handoff, and do not
 pause a ready bridge indefinitely as a substitute for completing the move. An
 unacceptable latency increase should stop selection of further nodes while the

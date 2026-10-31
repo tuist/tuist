@@ -274,9 +274,13 @@ storage move to one destination process. Preparation hashes retained records and
 verifies them on that peer; armed HTTP/gRPC mutation completion checks committed
 feed records against actual destination content. Feed cursors alone never prove
 retention. A fixed preparation deadline, bounded verification batches and a
-single verification worker prevent unbounded work. This is not a serving grant
-or permission to bypass cache capacity. Its implementation is still awaiting
-Linux tests, failure recovery qualification and live staging rehearsal.
+single verification worker prevent unbounded work. Acknowledgments group-commit:
+only a run whose feed head was taken after a write committed may prove it, and
+the bridge loop forces a run to probe an idle destination. Polling or resetting
+a preparation must tolerate the other clearing or restarting it, never panic.
+This is not a serving grant or permission to bypass cache capacity. Its
+implementation is still awaiting Linux tests, failure recovery qualification and
+live staging rehearsal.
 
 A ready migration bridge must survive the preparation deadline and controller
 pauses. Its bounded weak-reference task retains the feed pin until draining;
