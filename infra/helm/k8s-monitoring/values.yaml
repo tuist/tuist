@@ -959,6 +959,14 @@ k8s-monitoring:
         regex = "true"
         action = "drop"
       }
+      // Hubble counters belong to individual agents, not the Service. The
+      // dedicated pod scrape below collects every node without also scraping
+      // one arbitrary backend through the headless Service's DNS name.
+      rule {
+        source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_name"]
+        regex = "kube-system;hubble-metrics"
+        action = "drop"
+      }
     metricsTuning:
       excludeMetrics:
         # Cilium's event timestamps, BPF map gauges, and agent-internal
@@ -2136,6 +2144,72 @@ k8s-monitoring:
           rule {
             source_labels = ["__name__"]
             regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
+            action = "keep"
+          }
+        }
+
+        // Hubble exposes per-agent counters. Service discovery samples only
+        // one backend, so discover each Cilium pod's named port instead.
+        discovery.kubernetes "tuist_hubble" {
+          role = "pod"
+          namespaces {
+            names = ["kube-system"]
+          }
+          selectors {
+            role = "pod"
+            label = "k8s-app=cilium"
+          }
+        }
+
+        discovery.relabel "tuist_hubble" {
+          targets = discovery.kubernetes.tuist_hubble.targets
+          // Do not filter on readiness: an unready agent's metrics may still
+          // be reachable and are especially useful during network incidents.
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "hubble-metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "instance"
+          }
+        }
+
+        prometheus.scrape "tuist_hubble" {
+          targets = discovery.relabel.tuist_hubble.output
+          forward_to = [prometheus.relabel.tuist_hubble.receiver]
+          job_name = "hubble"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
+        prometheus.relabel "tuist_hubble" {
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          rule {
+            source_labels = ["__name__"]
+            regex = "hubble_drop_total|up|scrape_samples_scraped"
             action = "keep"
           }
         }
