@@ -37,6 +37,7 @@ jobs:
         run: python3 -m unittest discover -s bazel/tests -p 'test_*.py'
       - uses: bazel-contrib/setup-bazel@0.15.0
         with:
+          bazelisk-version: 1.29.0
           bazelisk-cache: true
       - name: Public companion launchers with directory and manifest-only runfiles
         working-directory: bazel
