@@ -503,12 +503,7 @@ defmodule TuistWeb.Authentication do
         require_authenticated_user(conn, opts)
 
       {:ok, preview} ->
-        if (preview.visibility || preview.project.default_previews_visibility) == :public or
-             Authorization.authorize(
-               :preview_read,
-               nil,
-               preview.project
-             ) == :ok do
+        if Tuist.AppBuilds.public_preview?(preview) do
           conn
         else
           require_authenticated_user(conn, opts)

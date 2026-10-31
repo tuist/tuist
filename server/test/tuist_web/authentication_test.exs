@@ -582,10 +582,10 @@ defmodule TuistWeb.AuthenticationTest do
       refute conn.status
     end
 
-    test "does not redirect if a user is anonymous and a project is public", %{conn: conn} do
+    test "does not redirect if a user is anonymous and the project's previews are public", %{conn: conn} do
       # Given
       project =
-        [visibility: :public]
+        [visibility: :public, default_previews_visibility: :public]
         |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
@@ -606,6 +606,32 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       refute conn.halted
       refute conn.status
+    end
+
+    test "redirects if a user is anonymous and the preview of a public project is members-only", %{conn: conn} do
+      # Given
+      project =
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :private)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "id" => preview.id
+          }
+      }
+
+      # When
+      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+
+      # Then
+      assert conn.halted
+      assert conn.status
     end
 
     test "redirects if a user is anonymous, a project is private, and preview type is :app_bundle",

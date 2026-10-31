@@ -64,12 +64,10 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
   def mark_public_preview_page(%{path_params: %{"id" => preview_id}} = conn, _opts) do
     case AppBuilds.preview_by_id(preview_id, preload: :project) do
       {:ok, preview} ->
-        preview_visibility = preview.visibility || preview.project.default_previews_visibility
-
         cond do
+          not AppBuilds.public_preview?(preview) -> conn
           preview.project.visibility == :public -> conn |> put_public_header() |> enable_robot_indexing()
-          preview_visibility == :public -> put_public_header(conn)
-          true -> conn
+          true -> put_public_header(conn)
         end
 
       _ ->

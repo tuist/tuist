@@ -589,4 +589,106 @@ defmodule TuistWeb.PreviewControllerTest do
       end
     end
   end
+
+  describe "members-only previews of public projects" do
+    setup do
+      member = AccountsFixtures.user_fixture(preload: [:account])
+
+      project =
+        ProjectsFixtures.project_fixture(account_id: member.account.id, visibility: :public, preload: [:account])
+
+      preview =
+        [project: project, visibility: :private, inserted_at: ~U[2024-01-02 00:00:00Z]]
+        |> AppBuildsFixtures.preview_fixture()
+        |> Tuist.Repo.preload(project: :account)
+
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
+
+      stub(Storage, :object_exists?, fn _object_key, _actor -> true end)
+
+      stub(Storage, :generate_download_url, fn _object_key, _actor, _opts ->
+        "https://storage.tuist.dev/previews/build.zip?X-Amz-Signature=abc"
+      end)
+
+      %{
+        member: member,
+        project: project,
+        preview: preview,
+        base_path: "/#{project.account.name}/#{project.name}/previews"
+      }
+    end
+
+    test "latest redirects signed-out visitors to log in when only members-only previews exist", %{base_path: base_path} do
+      conn = get(build_conn(), "#{base_path}/latest")
+
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "latest redirects signed-out visitors to the latest public preview", %{project: project, base_path: base_path} do
+      public_preview =
+        AppBuildsFixtures.preview_fixture(project: project, visibility: :public, inserted_at: ~U[2024-01-01 00:00:00Z])
+
+      conn = get(build_conn(), "#{base_path}/latest")
+
+      assert redirected_to(conn) == "#{base_path}/#{public_preview.id}"
+    end
+
+    test "latest redirects members to the latest members-only preview", %{
+      member: member,
+      project: project,
+      preview: preview,
+      base_path: base_path
+    } do
+      AppBuildsFixtures.preview_fixture(project: project, visibility: :public, inserted_at: ~U[2024-01-01 00:00:00Z])
+
+      conn = build_conn() |> log_in_user(member) |> get("#{base_path}/latest")
+
+      assert redirected_to(conn) == "#{base_path}/#{preview.id}"
+    end
+
+    test "manifest redirects signed-out visitors without an install token to log in", %{
+      preview: preview,
+      base_path: base_path
+    } do
+      conn = get(build_conn(), "#{base_path}/#{preview.id}/manifest.plist")
+
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "manifest raises not found for signed-in non-members", %{conn: conn, preview: preview, base_path: base_path} do
+      assert_raise NotFoundError, fn ->
+        get(conn, "#{base_path}/#{preview.id}/manifest.plist")
+      end
+    end
+
+    test "manifest is served to members", %{member: member, preview: preview, base_path: base_path} do
+      conn = build_conn() |> log_in_user(member) |> get("#{base_path}/#{preview.id}/manifest.plist")
+
+      assert response(conn, 200) =~ "https://storage.tuist.dev/previews/build.zip?X-Amz-Signature=abc"
+    end
+
+    test "preview page redirects signed-out visitors to log in", %{preview: preview, base_path: base_path} do
+      conn = get(build_conn(), "#{base_path}/#{preview.id}")
+
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "preview page raises not found for signed-in non-members", %{conn: conn, preview: preview, base_path: base_path} do
+      assert_raise NotFoundError, fn ->
+        get(conn, "#{base_path}/#{preview.id}")
+      end
+    end
+
+    test "preview page raises not found for a preview of another project", %{conn: conn, user: user} do
+      other_project = ProjectsFixtures.project_fixture(preload: [:account])
+      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
+
+      own_project =
+        ProjectsFixtures.project_fixture(account_id: user.account.id, visibility: :public, preload: [:account])
+
+      assert_raise NotFoundError, fn ->
+        get(conn, "/#{own_project.account.name}/#{own_project.name}/previews/#{other_preview.id}")
+      end
+    end
+  end
 end

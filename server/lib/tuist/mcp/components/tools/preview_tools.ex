@@ -13,6 +13,7 @@ defmodule Tuist.MCP.Components.Tools.PreviewSerializer do
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
   alias Tuist.Environment
+  alias Tuist.MCP.Authorization
   alias Tuist.MCP.Formatter
   alias Tuist.Storage
 
@@ -122,6 +123,13 @@ defmodule Tuist.MCP.Components.Tools.PreviewSerializer do
       ],
       "additionalProperties" => false
     }
+  end
+
+  @doc """
+  Whether the request can read the project's members-only previews.
+  """
+  def private_previews_readable?(assigns, project) do
+    Authorization.authorize_request(assigns, :read_private, project, :preview)
   end
 
   def serialize(preview, project) do
@@ -272,7 +280,7 @@ defmodule Tuist.MCP.Components.Tools.ListPreviews do
     do:
       "List previews (shareable app builds) for a project. Each preview includes temporary download URLs for its builds, valid for #{div(PreviewSerializer.download_url_expires_in(), 60)} minutes. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
-  def execute(_conn, args, project) do
+  def execute(conn, args, project) do
     with {:ok, supported_platforms} <- PreviewSerializer.cast_supported_platforms(Map.get(args, "supported_platforms")) do
       {previews, meta} =
         AppBuilds.list_previews(
@@ -285,6 +293,7 @@ defmodule Tuist.MCP.Components.Tools.ListPreviews do
           },
           distinct: distinct(args),
           supported_platforms: supported_platforms,
+          public_only: not PreviewSerializer.private_previews_readable?(conn.assigns, project),
           preload: [:app_builds, :created_by_account]
         )
 
@@ -376,7 +385,12 @@ defmodule Tuist.MCP.Components.Tools.GetPreview do
              :preview,
              "Preview not found: #{preview_id}"
            ) do
-      {:ok, PreviewSerializer.serialize(preview, project)}
+      if AppBuilds.public_preview?(%{preview | project: project}) or
+           PreviewSerializer.private_previews_readable?(conn.assigns, project) do
+        {:ok, PreviewSerializer.serialize(preview, project)}
+      else
+        {:error, "Preview not found: #{preview_id}"}
+      end
     end
   end
 
@@ -433,9 +447,10 @@ defmodule Tuist.MCP.Components.Tools.GetLatestPreview do
     do:
       "Given the binary ID and build version of a running app, get the latest preview on the same track (same bundle identifier and git branch). Returns null when no matching build is known. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
-  def execute(_conn, %{"binary_id" => binary_id, "build_version" => build_version}, project) do
+  def execute(conn, %{"binary_id" => binary_id, "build_version" => build_version}, project) do
     case AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project,
-           preload: [:app_builds, :created_by_account]
+           preload: [:app_builds, :created_by_account],
+           public_only: not PreviewSerializer.private_previews_readable?(conn.assigns, project)
          ) do
       {:ok, preview} -> {:ok, %{preview: PreviewSerializer.serialize(preview, project)}}
       {:error, :not_found} -> {:ok, %{preview: nil}}
