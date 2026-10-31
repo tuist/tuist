@@ -5,7 +5,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -230,14 +230,18 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert app_build.type == :ipa
     end
 
-    for platform <- ["macos", "linux"] do
+    for platform <- ["macos", "linux"], env <- [:test, :can, :prod] do
       @platform platform
-      test "starts multipart upload of an executable preview for #{platform}", %{
+      @env env
+      test "starts executable preview uploads for #{platform} in #{env} without enrollment", %{
         conn: conn,
         user: user,
         project: project,
         account: account
       } do
+        stub(Environment, :env, fn -> @env end)
+        stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
         expect(Storage, :multipart_start, fn object_key, _actor ->
           assert String.ends_with?(object_key, ".zip")
           {:ok, "upload-id"}
@@ -954,46 +958,6 @@ defmodule TuistWeb.PreviewsControllerTest do
         expected = if @capabilities, do: native, else: compatible
         assert response["preview"]["id"] == expected.id
       end
-    end
-
-    test "the rollout gate rejects new enum writes without blocking mobile uploads", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      stub(FeatureFlags, :cli_previews_enabled?, fn _account -> false end)
-      stub(Storage, :multipart_start, fn _key, _actor -> {:ok, "mobile-upload"} end)
-      conn = Authentication.put_current_user(conn, user)
-
-      for {type, platforms} <- [{"executable", ["macos"]}, {"ipa", ["linux"]}] do
-        response =
-          conn
-          |> put_req_header("content-type", "application/json")
-          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-            type: type,
-            display_name: "tuist",
-            supported_platforms: platforms
-          )
-          |> json_response(:forbidden)
-
-        assert response["message"] =~ "Finish upgrading all server replicas"
-      end
-
-      assert Repo.aggregate(Preview, :count) == 0
-
-      response =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-          type: "ipa",
-          display_name: "App",
-          bundle_identifier: "dev.example.app",
-          supported_platforms: ["ios"]
-        )
-        |> json_response(:ok)
-
-      assert response["data"]["upload_id"] == "mobile-upload"
     end
   end
 
