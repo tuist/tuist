@@ -79,8 +79,12 @@ defmodule Tuist.Tests.Coverage do
   # the default so an install that never touched the setting still works.
   # A list bound with `in ^list` travels as one array field, which ClickHouse
   # also refuses past `http_max_field_value_size` (128 KiB, URL-encoded), so a
-  # list of paths needs chunking as much as a list of ids does.
+  # list of paths binds as hashes (`path_hash_chunks/1`).
   @max_query_parameters 900
+
+  # Paths bind as 63-bit hashes (at most 19 digits), so a chunk's size doesn't
+  # depend on how long the paths are; 5,000 stay under 128 KiB.
+  @path_hashes_per_query 5_000
 
   @doc """
   Refolds the commit of the run a command event belongs to once the targets
@@ -137,6 +141,23 @@ defmodule Tuist.Tests.Coverage do
 
   @doc false
   def id_chunks(ids, reserved \\ 0), do: Enum.chunk_every(ids, max(@max_query_parameters - reserved, 1))
+
+  @doc """
+  `paths` as chunks of hashes, to match with
+  `fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer}))`.
+  A list of the paths themselves travels as one parameter, which ClickHouse
+  refuses past `http_max_field_value_size` (128 KiB by default), and a hash's
+  size doesn't depend on the path's length. Hashes can collide, so the query's
+  rows are kept only for the paths asked for.
+  """
+  def path_hash_chunks(paths), do: paths |> Enum.map(&path_hash/1) |> Enum.chunk_every(@path_hashes_per_query)
+
+  # `halfMD5` in ClickHouse: the first 8 bytes of the MD5, big-endian, shifted
+  # into a non-negative Int64.
+  defp path_hash(path) do
+    <<hash::unsigned-big-64, _::binary>> = :crypto.hash(:md5, path)
+    Bitwise.bsr(hash, 1)
+  end
 
   # A published version ranks the shards a computation included above the
   # newest report it saw, in microseconds, which stay below 2^51 until 2041.

@@ -106,10 +106,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   @publish_attempts 3
   @pending_completions "coverage_commit_completions"
 
-  # Paths bind as 63-bit hashes (at most 19 digits), so a chunk's size doesn't
-  # depend on how long the paths are; 5,000 stay under 128 KiB.
-  @path_hashes_per_query 5_000
-
   @doc """
   Republishes the commit's totals from its runs' retained reports and
   returns the row published, or nil when no run measured the commit.
@@ -1473,9 +1469,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   The merged per-line execution counts of the given paths at the commit,
   keyed by path, as `{line, count}` pairs in line order. The paths are bound
-  as hashes, in chunks: a list travels as one parameter, which ClickHouse
-  refuses past `http_max_field_value_size` (128 KiB by default), and a hash's
-  size doesn't depend on the path's length.
+  as hashes (`Tuist.Tests.Coverage.path_hash_chunks/1`).
   """
   def line_counts(project_id, sha, paths, opts \\ [])
 
@@ -1493,8 +1487,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         wanted = MapSet.new(paths)
 
         wanted
-        |> Enum.map(&path_hash/1)
-        |> Enum.chunk_every(@path_hashes_per_query)
+        |> Coverage.path_hash_chunks()
         |> Enum.flat_map(fn hashes ->
           ClickHouseRepo.all(
             from(f in files,
@@ -1515,13 +1508,6 @@ defmodule Tuist.Tests.Coverage.Commits do
            |> Enum.sort()}
         end)
     end
-  end
-
-  # `halfMD5` in ClickHouse: the first 8 bytes of the MD5, big-endian, shifted
-  # into a non-negative Int64.
-  defp path_hash(path) do
-    <<hash::unsigned-big-64, _::binary>> = :crypto.hash(:md5, path)
-    Bitwise.bsr(hash, 1)
   end
 
   @doc """

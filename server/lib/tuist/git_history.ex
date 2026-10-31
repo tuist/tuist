@@ -50,6 +50,7 @@ defmodule Tuist.GitHistory do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
 
@@ -1087,10 +1088,6 @@ defmodule Tuist.GitHistory do
     ) || 0
   end
 
-  # One HTTP form field per bound path or directory, and ClickHouse refuses a
-  # request over `http_max_fields` (1000 by default).
-  @blob_paths_chunk 900
-
   @doc """
   The files of a commit with their blobs, by path, optionally narrowed to
   the paths one glob pattern matches (`match:` a pattern from
@@ -1121,19 +1118,30 @@ defmodule Tuist.GitHistory do
   def files_in(_repository_id, _sha, []), do: []
 
   def files_in(repository_id, sha, directories) do
-    directories
-    |> Enum.uniq()
-    |> Enum.chunk_every(@blob_paths_chunk)
-    |> Enum.flat_map(fn chunk ->
+    wanted = MapSet.new(directories)
+
+    wanted
+    |> Coverage.path_hash_chunks()
+    |> Enum.flat_map(fn hashes ->
       ClickHouseRepo.all(
         from(f in CommitFile,
           where:
             f.repository_id == ^repository_id and f.sha == ^sha and
-              fragment("if(position(?, '/') > 0, replaceRegexpOne(?, '/[^/]*$', ''), '.')", f.path, f.path) in ^chunk,
+              fragment(
+                "bitShiftRight(halfMD5(if(position(?, '/') > 0, replaceRegexpOne(?, '/[^/]*$', ''), '.')), 1) IN (?)",
+                f.path,
+                f.path,
+                type(^hashes, {:array, :integer})
+              ),
           group_by: f.path,
-          select: %{path: f.path, git_blob_id: fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
+          select:
+            {f.path, fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at),
+             fragment("if(position(?, '/') > 0, replaceRegexpOne(?, '/[^/]*$', ''), '.')", f.path, f.path)}
         )
       )
+    end)
+    |> Enum.flat_map(fn {path, git_blob_id, directory} ->
+      if MapSet.member?(wanted, directory), do: [%{path: path, git_blob_id: git_blob_id}], else: []
     end)
   end
 
@@ -1156,17 +1164,22 @@ defmodule Tuist.GitHistory do
   def blobs_at(_repository_id, _sha, []), do: %{}
 
   def blobs_at(repository_id, sha, paths) do
-    paths
-    |> Enum.chunk_every(@blob_paths_chunk)
-    |> Enum.flat_map(fn chunk ->
+    wanted = MapSet.new(paths)
+
+    wanted
+    |> Coverage.path_hash_chunks()
+    |> Enum.flat_map(fn hashes ->
       ClickHouseRepo.all(
         from(f in CommitFile,
-          where: f.repository_id == ^repository_id and f.sha == ^sha and f.path in ^chunk,
+          where:
+            f.repository_id == ^repository_id and f.sha == ^sha and
+              fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer})),
           group_by: f.path,
           select: {f.path, fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
         )
       )
     end)
+    |> Enum.filter(&MapSet.member?(wanted, elem(&1, 0)))
     |> Map.new()
   end
 end
