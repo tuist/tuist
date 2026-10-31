@@ -38,6 +38,7 @@ on:
       - .github/scripts/linux-runner-image-*
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
+      - .github/scripts/helm-move-release-objects*
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -56,6 +57,7 @@ on:
       - .github/scripts/linux-runner-image-*
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
+      - .github/scripts/helm-move-release-objects*
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -281,6 +283,8 @@ jobs:
           bash .github/scripts/ghcr-manifest-digest.test.sh
       - name: Deploys adopt objects already annotated for their release
         run: bash .github/scripts/helm-adopt-release-objects.test.sh
+      - name: Deploys move objects only from the release that owns them
+        run: bash .github/scripts/helm-move-release-objects.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

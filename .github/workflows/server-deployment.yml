@@ -2022,6 +2022,19 @@ jobs:
           if [ -n "${MACOS_RUNNER_IMAGE_TAG_INPUT:-}" ]; then
             rack_node_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$MACOS_RUNNER_IMAGE_TAG_INPUT")
           fi
+          rack_node_sets+=(--set tuistRelease="$HELM_RELEASE_NAME")
+          # The rented Kura CSI plugin moved here from the tuist release, which
+          # keeps the live DaemonSet; hand it over before the release adopts it.
+          echo "::group::Move rack-node objects from the tuist release"
+          move_render="$(mktemp)"
+          helm template "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            "${helm_values_args[@]}" \
+            "${rack_node_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$move_render"
+          bash .github/scripts/helm-move-release-objects.sh "$move_render" "$HELM_RELEASE_NAME" "$HELM_RELEASE_NAME-rack-nodes" "$NAMESPACE"
+          rm -f "$move_render"
+          echo "::endgroup::"
           helm upgrade --install "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
             --namespace "$NAMESPACE" \
             -f "$HELM_CHART_PATH/values.yaml" \

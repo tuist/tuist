@@ -1426,12 +1426,13 @@ helm:rack-independence` checks that deploys do not wait on rack nodes (see
 
 ### Kura volume encryption
 
-The independently deployed `rack-nodes` release owns `kura-volumes-csi-rack`,
-selected by `kuraVolumesCSI.rackPools`. The main waited release owns the CSI
-identity, RBAC and StorageClasses, and excludes those pools from its own plugin.
-Both plugins use the same projected identity and mount/key contract; their
-DaemonSets never overlap. An offline rack cannot hold the main Helm upgrade.
-Set the pinned CSI image on both releases. Keep them installed while claims exist.
+The independently deployed `rack-nodes` release owns both CSI node plugins:
+`kura-volumes-csi-rack`, selected by `kuraVolumesCSI.rackPools`, and the rented
+`kura-volumes-csi-node` on the other cache pools. The main waited release owns
+the CSI identity, RBAC, admission and StorageClasses. Both plugins use the same
+identity and mount/key contract; their DaemonSets never overlap. Neither an
+offline rack nor a broken rented node can hold the main Helm upgrade. Set the
+pinned CSI image on both releases. Keep them installed while claims exist.
 
 Fresh storage installs create `kura-volumes` directly through curtin, including
 resident-installer layouts. Existing hosts require an explicit spare-host

@@ -1,34 +1,36 @@
-{{- if and .Values.kuraVolumesCSI.enabled .Values.kuraVolumesCSI.rackPools }}
-{{- $namespace := "kura-volumes" }}
-{{- $driver := "kura-volumes.tuist.dev" }}
-{{- $imageTag := .Values.kuraVolumesCSI.image.tag }}
-{{- $digest := .Values.kuraVolumesCSI.image.digest | default "" }}
-{{- if and $digest (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) }}
-{{- fail "kuraVolumesCSI.image.digest must be a sha256 digest" }}
-{{- end }}
-{{- if not (or $digest $imageTag) }}
-{{- fail "kuraVolumesCSI.image.digest or image.tag is required" }}
-{{- end }}
-{{- $image := printf "%s:%s" .Values.kuraVolumesCSI.image.repository $imageTag }}
-{{- if $digest }}{{- $image = printf "%s@%s" .Values.kuraVolumesCSI.image.repository $digest }}{{- end }}
-{{- $pools := .Values.kuraVolumesCSI.rackPools }}
-{{- $keyServiceUrl := .Values.kuraVolumesCSI.keyServiceUrl | default .Values.server.appUrl }}
-{{- $pluginDir := printf "/var/lib/kubelet/plugins/%s" $driver }}
+{{- /*
+The node plugins of the kura-volumes.tuist.dev driver, outside the waited tuist
+release so a dark or broken Kura node can never roll a server deploy back. The
+driver identity, RBAC, admission policies and StorageClasses stay in the tuist
+release. kura-volumes-csi-node serves the rented cache pools and keeps the name
+and selector it had in the tuist release, whose immutable selector names that
+release; .github/scripts/helm-move-release-objects.sh hands the live object
+over. kura-volumes-csi-rack serves kuraVolumesCSI.rackPools.
+*/ -}}
+{{- define "rackNodes.kuraVolumesCSIPlugin" }}
+{{- $root := .root }}{{- $name := .name }}{{- $instance := .instance }}{{- $pools := .pools }}{{- $rack := .rack }}
+{{- $namespace := .namespace }}{{- $image := .image }}{{- $keyServiceUrl := .keyServiceUrl }}{{- $pluginDir := .pluginDir }}
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   annotations:
     helm.sh/resource-policy: keep
-  name: kura-volumes-csi-rack
+    {{- if not $rack }}
+    # Unwaited so a broken rented Kura node cannot roll a deploy back, not
+    # because it runs on racks (infra/mise/tasks/helm/rack-independence.sh).
+    tuist.dev/off-rack: "true"
+    {{- end }}
+  name: {{ $name }}
   namespace: {{ $namespace }}
   labels:
-    {{- include "rackNodes.labels" . | nindent 4 }}
+    {{- include "rackNodes.labels" $root | nindent 4 }}
     app.kubernetes.io/component: kura-volumes-csi
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: kura-volumes-csi-rack
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: {{ $name }}
+      app.kubernetes.io/instance: {{ $instance }}
   # Restarting the plugin leaves live volumes alone: their dm-crypt mappings and
   # mounts belong to the host, not to the container.
   updateStrategy:
@@ -38,8 +40,8 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: kura-volumes-csi-rack
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/instance: {{ $instance }}
         app.kubernetes.io/component: kura-volumes-csi
     spec:
       serviceAccountName: kura-volumes-csi-node
@@ -56,9 +58,11 @@ spec:
                     values:
                       {{- toYaml $pools | nindent 22 }}
       tolerations:
+        {{- if $rack }}
         - key: tuist.dev/rack-storage
           operator: Exists
           effect: NoSchedule
+        {{- end }}
         - key: tuist.dev/runner-cache
           operator: Exists
           effect: NoSchedule
@@ -68,16 +72,16 @@ spec:
       containers:
         - name: driver
           image: {{ $image | quote }}
-          imagePullPolicy: {{ .Values.kuraVolumesCSI.image.pullPolicy }}
+          imagePullPolicy: {{ $root.Values.kuraVolumesCSI.image.pullPolicy }}
           args:
             - --endpoint=unix:///csi/csi.sock
             - --node-id=$(NODE_NAME)
             - --state-dir=/data/kura-volumes
             - --key-service-url={{ $keyServiceUrl }}
-            {{- with .Values.kuraVolumesCSI.volumeGroup }}
+            {{- with $root.Values.kuraVolumesCSI.volumeGroup }}
             - --volume-group={{ . }}
             {{- end }}
-            {{- with .Values.kuraVolumesCSI.thin }}
+            {{- with $root.Values.kuraVolumesCSI.thin }}
             {{- if .pool }}
             - --thin-pool={{ .pool }}
             - --thin-data-reserve-bytes={{ .dataReserveBytes | int64 }}
@@ -107,7 +111,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.serviceAccountName
-            {{- with .Values.kuraVolumesCSI.keyServicePublicKey }}
+            {{- with $root.Values.kuraVolumesCSI.keyServicePublicKey }}
             - name: KEY_SERVICE_PUBLIC_KEY
               value: {{ . | quote }}
             {{- end }}
@@ -131,9 +135,9 @@ spec:
             - name: lvm-lock
               mountPath: /run/lock/lvm
           resources:
-            {{- toYaml .Values.kuraVolumesCSI.resources.driver | nindent 12 }}
+            {{- toYaml $root.Values.kuraVolumesCSI.resources.driver | nindent 12 }}
         - name: node-driver-registrar
-          image: {{ .Values.kuraVolumesCSI.nodeDriverRegistrar.image | quote }}
+          image: {{ $root.Values.kuraVolumesCSI.nodeDriverRegistrar.image | quote }}
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=/csi/csi.sock
@@ -144,9 +148,9 @@ spec:
             - name: registration-dir
               mountPath: /registration
           resources:
-            {{- toYaml .Values.kuraVolumesCSI.resources.sidecar | nindent 12 }}
+            {{- toYaml $root.Values.kuraVolumesCSI.resources.sidecar | nindent 12 }}
         - name: csi-provisioner
-          image: {{ .Values.kuraVolumesCSI.provisioner.image | quote }}
+          image: {{ $root.Values.kuraVolumesCSI.provisioner.image | quote }}
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=/csi/csi.sock
@@ -168,7 +172,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
           resources:
-            {{- toYaml .Values.kuraVolumesCSI.resources.sidecar | nindent 12 }}
+            {{- toYaml $root.Values.kuraVolumesCSI.resources.sidecar | nindent 12 }}
       volumes:
         - name: lvm-lock
           hostPath:
@@ -194,4 +198,31 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+{{- end }}
+{{- if .Values.kuraVolumesCSI.enabled }}
+{{- $namespace := "kura-volumes" }}
+{{- $driver := "kura-volumes.tuist.dev" }}
+{{- $imageTag := .Values.kuraVolumesCSI.image.tag }}
+{{- $digest := .Values.kuraVolumesCSI.image.digest | default "" }}
+{{- if and $digest (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) }}
+{{- fail "kuraVolumesCSI.image.digest must be a sha256 digest" }}
+{{- end }}
+{{- if not (or $digest $imageTag) }}
+{{- fail "kuraVolumesCSI.image.digest or image.tag is required" }}
+{{- end }}
+{{- $image := printf "%s:%s" .Values.kuraVolumesCSI.image.repository $imageTag }}
+{{- if $digest }}{{- $image = printf "%s@%s" .Values.kuraVolumesCSI.image.repository $digest }}{{- end }}
+{{- $keyServiceUrl := .Values.kuraVolumesCSI.keyServiceUrl | default .Values.server.appUrl }}
+{{- $pluginDir := printf "/var/lib/kubelet/plugins/%s" $driver }}
+{{- $rackPools := .Values.kuraVolumesCSI.rackPools | default list }}
+{{- $rentedPools := include "rackNodes.kuraCachePools" . | fromJsonArray }}
+{{- $rentedPools = without $rentedPools "" }}
+{{- range $rackPools }}{{- $rentedPools = without $rentedPools . }}{{- end }}
+{{- $plugin := dict "root" . "namespace" $namespace "image" $image "keyServiceUrl" $keyServiceUrl "pluginDir" $pluginDir }}
+{{- if $rentedPools }}
+{{- include "rackNodes.kuraVolumesCSIPlugin" (merge (dict "name" "kura-volumes-csi-node" "instance" .Values.tuistRelease "pools" $rentedPools "rack" false) $plugin) }}
+{{- end }}
+{{- if $rackPools }}
+{{- include "rackNodes.kuraVolumesCSIPlugin" (merge (dict "name" "kura-volumes-csi-rack" "instance" .Release.Name "pools" $rackPools "rack" true) $plugin) }}
+{{- end }}
 {{- end }}

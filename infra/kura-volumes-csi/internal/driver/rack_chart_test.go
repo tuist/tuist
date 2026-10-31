@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -59,10 +60,42 @@ func TestManagedStoragePrerequisitesStayOptIn(t *testing.T) {
 	}
 }
 
-func TestRackPluginHasIndependentReleaseAndSameHostContract(t *testing.T) {
-	helm, err := exec.LookPath("helm")
+// renderDaemonSets renders a chart and returns its DaemonSets by name.
+func renderDaemonSets(t *testing.T, args ...string) map[string]appsv1.DaemonSet {
+	t.Helper()
+	out, err := exec.Command("helm", args...).CombinedOutput()
 	if err != nil {
-		t.Fatal("helm required for rack release regression")
+		t.Fatalf("helm: %v\n%s", err, out)
+	}
+	dec := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(out), 4096)
+	sets := map[string]appsv1.DaemonSet{}
+	for {
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		var kind struct{ Kind string }
+		if json.Unmarshal(raw, &kind) != nil || kind.Kind != "DaemonSet" {
+			continue
+		}
+		// Callers assert the DaemonSets they need; others may not fit the typed API.
+		var ds appsv1.DaemonSet
+		if json.Unmarshal(raw, &ds) == nil {
+			sets[ds.Name] = ds
+		}
+	}
+	return sets
+}
+
+func poolsOf(ds appsv1.DaemonSet) []string {
+	return ds.Spec.Template.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions[0].Values
+}
+
+func TestNodePluginsLiveInTheUnwaitedReleaseWithOneHostContract(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Fatal("helm required for node plugin release regression")
 	}
 	_, file, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "../../../helm"))
@@ -82,84 +115,99 @@ func TestRackPluginHasIndependentReleaseAndSameHostContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	render := func(chart, release string, extra ...string) []appsv1.DaemonSet {
+	rackNodes := filepath.Join(root, "rack-nodes")
+	render := func(chart, release string, extra ...string) map[string]appsv1.DaemonSet {
 		args := []string{"template", release, chart, "-f", filepath.Join(root, "tuist/values.yaml"), "--set", "kuraFleet.enabled=true", "--set", "kuraVolumesCSI.enabled=true", "--set", "kuraVolumesCSI.image.tag=test-pinned", "--set", "kuraVolumesCSI.rackPools[0]=rack-storage-ber1", "--set", "server.appUrl=https://staging.tuist.dev"}
-		args = append(args, extra...)
-		out, err := exec.Command(helm, args...).CombinedOutput()
-		if err != nil {
-			t.Fatalf("helm: %v\n%s", err, out)
-		}
-		if chart == isolated && (!strings.Contains(string(out), "podInfoOnMount: true") || !strings.Contains(string(out), "name: kura-thin-encrypted-nvme") || !strings.Contains(string(out), "topology.kura-volumes.tuist.dev/node-layout")) {
-			t.Fatal("thin class or pod UID contract missing")
-		}
-		dec := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(out), 4096)
-		var sets []appsv1.DaemonSet
-		for {
-			var ds appsv1.DaemonSet
-			err := dec.Decode(&ds)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if ds.Kind == "DaemonSet" {
-				sets = append(sets, ds)
-			}
-		}
-		return sets
+		return renderDaemonSets(t, append(args, extra...)...)
 	}
-	main := render(isolated, "tuist")
-	rack := render(filepath.Join(root, "rack-nodes"), "tuist-rack-nodes")
-	if len(main) != 1 || len(rack) != 1 {
-		t.Fatalf("main=%d rack=%d", len(main), len(rack))
+	out, err := exec.Command("helm", "template", "tuist", isolated, "-f", filepath.Join(root, "tuist/values.yaml"), "--set", "kuraFleet.enabled=true", "--set", "kuraVolumesCSI.enabled=true").CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm: %v\n%s", err, out)
 	}
-	thinArgs := []string{"--set", "kuraVolumesCSI.thin.pool=tenants"}
-	tm := render(isolated, "tuist", thinArgs...)
-	tr := render(filepath.Join(root, "rack-nodes"), "tuist-rack-nodes", thinArgs...)
-	if !reflect.DeepEqual(tm[0].Spec.Template.Spec.Containers, tr[0].Spec.Template.Spec.Containers) {
+	if !strings.Contains(string(out), "podInfoOnMount: true") || !strings.Contains(string(out), "name: kura-thin-encrypted-nvme") || !strings.Contains(string(out), "topology.kura-volumes.tuist.dev/node-layout") {
+		t.Fatal("thin class or pod UID contract missing")
+	}
+	if main := render(isolated, "tuist"); len(main) != 0 {
+		t.Fatalf("the waited tuist release still renders node plugins: %d", len(main))
+	}
+
+	sets := render(rackNodes, "tuist-rack-nodes", "--set", "tuistRelease=tuist")
+	rented, rack := sets["kura-volumes-csi-node"], sets["kura-volumes-csi-rack"]
+	if len(sets) != 2 || rented.Name == "" || rack.Name == "" {
+		t.Fatalf("rack-nodes plugins = %d", len(sets))
+	}
+	// The rented plugin is adopted from the tuist release, so its selector,
+	// which Kubernetes never lets change, stays the one that release created.
+	if want := map[string]string{"app.kubernetes.io/name": "kura-volumes-csi-node", "app.kubernetes.io/instance": "tuist"}; !reflect.DeepEqual(rented.Spec.Selector.MatchLabels, want) {
+		t.Fatalf("rented selector = %v, want %v", rented.Spec.Selector.MatchLabels, want)
+	}
+	if rack.Spec.Selector.MatchLabels["app.kubernetes.io/instance"] != "tuist-rack-nodes" {
+		t.Fatal("rack plugin selector moved")
+	}
+
+	thin := render(rackNodes, "tuist-rack-nodes", "--set", "kuraVolumesCSI.thin.pool=tenants")
+	if !reflect.DeepEqual(thin["kura-volumes-csi-node"].Spec.Template.Spec.Containers, thin["kura-volumes-csi-rack"].Spec.Template.Spec.Containers) {
 		t.Fatal("thin rack args drift")
 	}
-	if !strings.Contains(strings.Join(tm[0].Spec.Template.Spec.Containers[0].Args, " "), "--thin-pool=tenants") {
+	if !strings.Contains(strings.Join(thin["kura-volumes-csi-node"].Spec.Template.Spec.Containers[0].Args, " "), "--thin-pool=tenants") {
 		t.Fatal("thin configuration missing")
 	}
-	a, b := main[0], rack[0]
 	digest := "sha256:" + strings.Repeat("a", 64)
-	for _, chart := range []string{isolated, filepath.Join(root, "rack-nodes")} {
-		sets := render(chart, "tuist", "--set", "kuraVolumesCSI.image.digest="+digest)
-		if sets[0].Spec.Template.Spec.Containers[0].Image != "ghcr.io/tuist/kura-volumes-csi@"+digest {
-			t.Fatal("digest must take precedence over legacy tag on both releases")
+	for _, ds := range render(rackNodes, "tuist-rack-nodes", "--set", "kuraVolumesCSI.image.digest="+digest) {
+		if ds.Spec.Template.Spec.Containers[0].Image != "ghcr.io/tuist/kura-volumes-csi@"+digest {
+			t.Fatal("digest must take precedence over legacy tag on every plugin")
 		}
 	}
-	if a.Name == b.Name || a.Spec.Selector.MatchLabels["app.kubernetes.io/instance"] == b.Spec.Selector.MatchLabels["app.kubernetes.io/instance"] {
-		t.Fatal("releases overlap")
-	}
-	pa, pb := a.Spec.Template.Spec, b.Spec.Template.Spec
+
+	pa, pb := rented.Spec.Template.Spec, rack.Spec.Template.Spec
 	if pa.ServiceAccountName != pb.ServiceAccountName || pa.ServiceAccountName != "kura-volumes-csi-node" {
 		t.Fatal("rack key identity differs")
 	}
 	if !reflect.DeepEqual(pa.Containers, pb.Containers) || !reflect.DeepEqual(pa.Volumes, pb.Volumes) {
 		t.Fatal("rack storage/key/mount contract drifted from rented plugin")
 	}
-	pools := func(ds appsv1.DaemonSet) []string {
-		return ds.Spec.Template.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions[0].Values
-	}
-	if !reflect.DeepEqual(pools(b), []string{"rack-storage-ber1"}) || !reflect.DeepEqual(pools(a), []string{"kura-scw-fr-par"}) {
+	if !reflect.DeepEqual(poolsOf(rack), []string{"rack-storage-ber1"}) || !reflect.DeepEqual(poolsOf(rented), []string{"kura-scw-fr-par"}) {
 		t.Fatal("wrong pool ownership")
 	}
-	hasTaint := false
-	for _, v := range pb.Tolerations {
-		if v.Key == "tuist.dev/rack-storage" {
-			hasTaint = true
+	tolerates := func(tolerations []corev1.Toleration) bool {
+		for _, v := range tolerations {
+			if v.Key == "tuist.dev/rack-storage" {
+				return true
+			}
 		}
+		return false
 	}
-	if !hasTaint {
-		t.Fatal("rack taint not tolerated")
+	if !tolerates(pb.Tolerations) || tolerates(pa.Tolerations) {
+		t.Fatal("only the rack plugin tolerates rack storage")
 	}
-	// Moving the last rented pool into the independent release must retain the
-	// shared CSI identity and classes, but never leave two plugins on one node.
-	none := render(isolated, "tuist", "--set", "kuraVolumesCSI.rackPools[1]=kura-scw-fr-par")
-	if len(none) != 0 {
-		t.Fatal("waited release still schedules on delegated pool")
+	// Moving the last rented pool to a rack must never leave two plugins on one node.
+	moved := render(rackNodes, "tuist-rack-nodes", "--set", "kuraVolumesCSI.rackPools[1]=kura-scw-fr-par")
+	if _, ok := moved["kura-volumes-csi-node"]; ok || len(moved) != 1 {
+		t.Fatal("rented plugin still schedules on a delegated pool")
+	}
+}
+
+// rackNodes.kuraCachePools copies tuist.kuraCachePools; every managed fleet
+// must resolve to the same pools in both charts.
+func TestRentedPluginPoolsMatchTheTuistCachePools(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "../../../helm"))
+	for _, env := range []string{"staging", "canary", "production"} {
+		t.Run(env, func(t *testing.T) {
+			values := []string{"-f", filepath.Join(root, "tuist/values-managed-common.yaml"), "-f", filepath.Join(root, "tuist/values-managed-"+env+".yaml"), "-f", filepath.Join(root, "tuist/values-ci.yaml")}
+			exporter, ok := renderDaemonSets(t, append([]string{"template", "tuist", filepath.Join(root, "tuist")}, values...)...)["kura-volume-quota-exporter"]
+			if !ok {
+				t.Fatal("cache pool exporter missing")
+			}
+			args := []string{"template", "tuist-rack-nodes", filepath.Join(root, "rack-nodes"), "-f", filepath.Join(root, "tuist/values.yaml")}
+			args = append(append(args, values...), "--set", "kuraVolumesCSI.enabled=true", "--set", "kuraVolumesCSI.image.tag=test-pinned", "--set", "kuraVolumesCSI.rackPools=null")
+			plugin, ok := renderDaemonSets(t, args...)["kura-volumes-csi-node"]
+			if !ok {
+				t.Fatal("rented plugin missing")
+			}
+			if !reflect.DeepEqual(poolsOf(exporter), poolsOf(plugin)) {
+				t.Fatalf("cache pools differ: tuist %v, rack-nodes %v", poolsOf(exporter), poolsOf(plugin))
+			}
+		})
 	}
 }

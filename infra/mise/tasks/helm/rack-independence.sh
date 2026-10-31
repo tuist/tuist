@@ -15,7 +15,8 @@ set -euo pipefail
 # role in rackLinuxFleet.roles, one more without the Cilium exclusion for a role
 # whose hosts are on the cluster network (`publicAddress`), a rack Linux node
 # with no role taint, and a rack's Mac mini. The unwaited releases must land on them, which keeps the
-# model honest. Every rendered Service name has to fit the 63 characters the
+# model honest, except a DaemonSet annotated `tuist.dev/off-rack: "true"`, which
+# is unwaited for another reason (the rented Kura CSI plugin). Every rendered Service name has to fit the 63 characters the
 # API server allows, since most charts build names from the release name.
 
 ROOT="${ROOT:-$(git rev-parse --show-toplevel)}"
@@ -44,7 +45,7 @@ for env in staging canary production; do
   render "waited-tuist-$env" tuist "$HELM/tuist" --namespace tuist "${tuist_values[@]}" -f "$HELM/tuist/values-ci.yaml"
   render "waited-k8s-monitoring-$env" k8s-monitoring "$HELM/k8s-monitoring" --namespace observability -f "$HELM/k8s-monitoring/values-$env.yaml"
   render "waited-platform-$env" platform "$HELM/platform" --namespace platform "${platform_values[@]}"
-  render "unwaited-rack-nodes-$env" tuist-rack-nodes "$HELM/rack-nodes" --namespace tuist -f "$HELM/tuist/values.yaml" "${tuist_values[@]}"
+  render "unwaited-rack-nodes-$env" tuist-rack-nodes "$HELM/rack-nodes" --namespace tuist -f "$HELM/tuist/values.yaml" "${tuist_values[@]}" --set kuraVolumesCSI.image.tag=rack-independence
   render "unwaited-rack-cache-gateways-$env" rack-cache-gateways "$HELM/rack-cache-gateways" --namespace platform -f "$HELM/platform/values.yaml" "${platform_values[@]}"
   yq -o json -I0 '{"roles": (.rackLinuxFleet.roles // {}), "clusterNetworkRoles": ([.rackLinuxFleet.hosts[]? | select(.publicAddress) | .role] | unique), "fleet": (.rackFleet.name // "tuist-tuist-rack-fleet")}' "$HELM/tuist/values-managed-$env.yaml" > "$WORK/rack-$env.json"
 done
@@ -102,13 +103,13 @@ jq -n -r \
   nodes as $nodes
   | [$renders[0] | to_entries[] | .key as $release | .value[]
       | select(.kind == "DaemonSet" or .kind == "Deployment" or .kind == "StatefulSet")
-      | {release: $release, workload: "\(.kind)/\(.metadata.name)", kind, spec: .spec.template.spec}
+      | {release: $release, workload: "\(.kind)/\(.metadata.name)", kind, spec: .spec.template.spec, offRack: (.metadata.annotations["tuist.dev/off-rack"] == "true")}
       | .landsOn = [.spec as $spec | $nodes[] | select(. as $node | $spec | schedulable($node)) | .name]
       | .pinned = (.spec | pinned_to_rack)] as $workloads
   | ([$workloads[] | select(.release | startswith("waited-"))
       | select(.kind == "DaemonSet" and (.landsOn | length) > 0 or .kind != "DaemonSet" and .pinned)
       | "\(.release | ltrimstr("waited-")): \(.workload) runs on rack nodes (\(.landsOn | join(", ")))"])
-    + ([$workloads[] | select(.release | startswith("unwaited-")) | select(.kind == "DaemonSet" and (.landsOn | length) == 0)
+    + ([$workloads[] | select(.release | startswith("unwaited-")) | select(.kind == "DaemonSet" and (.landsOn | length) == 0 and (.offRack | not))
       | "\(.release | ltrimstr("unwaited-")): \(.workload) runs on no rack node, so the rack node model is wrong"])
     + ([$renders[0] | to_entries[] | .key as $release | .value[]
       | select(.kind == "Service" and (.metadata.name | length) > 63)

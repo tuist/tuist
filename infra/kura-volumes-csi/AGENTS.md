@@ -166,10 +166,10 @@ this does not require duplicating an entire multi-node fleet. A single-host
 region still needs another host to remain available during conversion, and a
 single-copy instance needs its standby before any destructive migration.
 
-The rack plugin lives in `infra/helm/rack-nodes`, outside the waited main release,
-with explicitly configured `kuraVolumesCSI.rackPools`. Its regression render
-checks the shared host/key contract and disjoint pool ownership against the
-rented plugin. `go test ./...` requires Helm for this check. LVM-enrolled regions
+Both node plugins live in `infra/helm/rack-nodes`, outside the waited main
+release: the rack plugin on explicitly configured `kuraVolumesCSI.rackPools` and
+the rented plugin on the other cache pools. Its regression render checks the
+shared host/key contract, pool helper parity and disjoint pool ownership. `go test ./...` requires Helm for this check. LVM-enrolled regions
 now encrypt by default; plain CSI remains available for diagnostics. Rack fresh
 installation uses curtin LVM; old hosts need a planned migration/reinstall.
 
