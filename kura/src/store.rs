@@ -24,6 +24,10 @@ use tokio::{
 };
 use uuid::Uuid;
 
+mod sieve;
+
+use self::sieve::SieveCache;
+
 use crate::{
     action_cache_refs::referenced_blob_keys,
     action_cache_removals::{
@@ -10472,7 +10476,7 @@ fn validate_total_size(next_total: u64, max_total: u64) -> Result<(), MultipartE
     }
 }
 
-/// Least-recently-used ordering shared by the in-memory caches. It mirrors the
+/// Least-recently-used ordering for the file-handle cache. It mirrors the
 /// owning cache's keys in a map from a monotonic access counter to key, so the
 /// least-recently-used entry is `pop_lru()` in O(log n) instead of the O(n)
 /// scan of the whole cache that eviction otherwise runs on every insert. Each
@@ -10808,8 +10812,8 @@ struct ManifestCache {
 /// The existence cache is touched on every artifact read and existence
 /// check; a single lock around it convoys under concurrent serving
 /// (profiled: read-heavy REAPI batches capped near 1k blobs/s with readers
-/// queued on this mutex). Sharding bounds contention; LRU order and TTL are
-/// preserved per shard.
+/// queued on this mutex). Sharding bounds contention; SIEVE eviction and TTL
+/// are maintained per shard.
 struct ShardedExistenceCache {
     shards: [StdMutex<ExistenceCache>; EXISTENCE_CACHE_SHARDS],
 }
@@ -10870,15 +10874,13 @@ impl ShardedExistenceCache {
 }
 
 struct ExistenceCache {
-    entries: HashMap<Arc<str>, CachedExistence>,
-    access: AccessOrder,
+    entries: SieveCache<CachedExistence>,
     capacity: usize,
     ttl: Duration,
 }
 
 struct CachedExistence {
     inserted_at: Instant,
-    access_order: u64,
 }
 
 struct CachedManifest {
@@ -11029,77 +11031,55 @@ fn row_budget_bytes(limit_bytes: usize) -> usize {
 impl ExistenceCache {
     fn new(capacity: usize, ttl: Duration) -> Self {
         Self {
-            entries: HashMap::new(),
-            access: AccessOrder::new(),
+            entries: SieveCache::new(),
             capacity,
             ttl,
         }
     }
 
     fn contains(&mut self, artifact_id: &str) -> bool {
-        let Some((key, inserted_at, previous_order)) = self
-            .entries
-            .get_key_value(artifact_id)
-            .map(|(key, entry)| (key.clone(), entry.inserted_at, entry.access_order))
-        else {
+        let Some(entry) = self.entries.get(artifact_id) else {
             return false;
         };
-        if Instant::now().duration_since(inserted_at) > self.ttl {
+        if Instant::now().duration_since(entry.inserted_at) > self.ttl {
             self.entries.remove(artifact_id);
-            self.access.forget(previous_order);
             return false;
-        }
-        let access_order = self.access.touch(key, Some(previous_order));
-        if let Some(entry) = self.entries.get_mut(artifact_id) {
-            entry.access_order = access_order;
         }
         true
     }
 
     fn insert(&mut self, artifact_id: &str) {
-        let (key, previous_order) = self
-            .entries
-            .get_key_value(artifact_id)
-            .map(|(key, entry)| (key.clone(), Some(entry.access_order)))
-            .unwrap_or_else(|| (Arc::from(artifact_id), None));
-        let access_order = self.access.touch(key.clone(), previous_order);
+        if let Some(entry) = self.entries.get(artifact_id) {
+            entry.inserted_at = Instant::now();
+            return;
+        }
+        if self.capacity == 0 {
+            return;
+        }
+        // Evict before admission: a newly inserted, unvisited entry must not
+        // become the victim when every existing entry has its visited bit set.
+        self.trim_to(self.capacity - 1);
         self.entries.insert(
-            key,
+            artifact_id,
             CachedExistence {
                 inserted_at: Instant::now(),
-                access_order,
             },
         );
-        self.evict_over_capacity();
     }
 
     fn remove_many(&mut self, artifact_ids: &[String]) {
         for artifact_id in artifact_ids {
-            if let Some(removed) = self.entries.remove(artifact_id.as_str()) {
-                self.access.forget(removed.access_order);
-            }
+            self.entries.remove(artifact_id);
         }
     }
 
     fn trim_to(&mut self, target_entries: usize) -> usize {
         let mut evicted = 0_usize;
         while self.entries.len() > target_entries {
-            let Some(oldest_key) = self.access.pop_lru() else {
-                break;
-            };
-            self.entries.remove(oldest_key.as_ref());
+            self.entries.pop();
             evicted += 1;
         }
         evicted
-    }
-
-    fn evict_over_capacity(&mut self) {
-        while self.entries.len() > self.capacity {
-            let Some(oldest_key) = self.access.pop_lru() else {
-                break;
-            };
-            self.entries.remove(oldest_key.as_ref());
-        }
     }
 }
 
@@ -14378,19 +14358,23 @@ mod tests {
     }
 
     #[test]
-    fn existence_cache_evicts_least_recently_used() {
+    fn existence_cache_gives_visited_entries_a_second_chance() {
         let mut cache = ExistenceCache::new(3, Duration::from_secs(60));
         for id in ["a", "b", "c"] {
             cache.insert(id);
         }
-        // Touch "a" so "b" becomes the least-recently-used entry.
+        // Skip the visited oldest entry and evict the next unvisited one.
         assert!(cache.contains("a"));
         cache.insert("d");
 
-        assert!(!cache.contains("b"), "LRU entry should have been evicted");
+        assert!(!cache.contains("b"));
         for id in ["a", "c", "d"] {
             assert!(cache.contains(id), "{id} should still be present");
         }
+        // Every resident is visited. Admission must survive the full sweep.
+        cache.insert("e");
+        assert!(cache.contains("e"));
+        assert_eq!(cache.entries.len(), 3);
     }
 
     #[test]
@@ -14468,22 +14452,21 @@ mod tests {
     }
 
     #[test]
-    fn existence_cache_bounds_size_and_mirrors_index_past_capacity() {
+    fn existence_cache_bounds_size_and_recovers_after_pressure_trimming() {
         let capacity = 64;
         let mut cache = ExistenceCache::new(capacity, Duration::from_secs(60));
-        // Insert far past capacity: O(log n) eviction must keep the entry map
-        // and its access-order mirror bounded and equal in size.
         for index in 0..capacity * 20 {
             cache.insert(&format!("artifact-{index}"));
         }
         assert_eq!(cache.entries.len(), capacity);
-        assert_eq!(
-            cache.access.order.len(),
-            cache.entries.len(),
-            "access-order index must mirror the entry map exactly"
-        );
-        // The most recently inserted entry survives.
         assert!(cache.contains(&format!("artifact-{}", capacity * 20 - 1)));
+        assert!(!cache.contains("artifact-0"));
+        assert_eq!(cache.trim_to(0), capacity);
+        assert!(!cache.contains(&format!("artifact-{}", capacity * 20 - 1)));
+        cache.insert("refilled");
+        assert!(cache.contains("refilled"));
+        cache.remove_many(&["refilled".into()]);
+        assert!(!cache.contains("refilled"));
     }
 
     #[tokio::test]
