@@ -259,8 +259,12 @@ func (d *Driver) observeThin(ctx context.Context) (*ThinSnapshot, error) {
 	if err != nil || chunk < 65536 || chunk > 1<<20 {
 		return nil, fmt.Errorf("unsupported thin chunk size")
 	}
-	if _, err = d.lvm(ctx, "lvchange", "--activate", "y", d.volumeGroup+"/"+d.thin.Pool); err != nil {
-		return nil, err
+	// Every observation would otherwise take a VG-wide LVM operation even
+	// though the pool is almost always active already.
+	if strings.TrimSpace(pool.Active) != "active" {
+		if _, err = d.lvm(ctx, "lvchange", "--activate", "y", d.volumeGroup+"/"+d.thin.Pool); err != nil {
+			return nil, err
+		}
 	}
 	out, err := d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, d.thin.Pool)+"-tpool")
 	if err != nil {

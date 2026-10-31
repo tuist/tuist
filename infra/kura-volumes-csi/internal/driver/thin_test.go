@@ -102,3 +102,33 @@ func TestThinCountersRemainExact(t *testing.T) {
 		}
 	}
 }
+
+// observePool scripts one observation of an empty pool and returns its snapshot.
+func observePool(t *testing.T, active string, extra ...call) *ThinSnapshot {
+	t.Helper()
+	e := newEnv(t)
+	e.d.volumeGroup = "kura-volumes"
+	e.d.thin = ThinConfig{Pool: "tenants", DataReserveBytes: 64 << 20, MetadataReserveBytes: 16 << 20, MaxVolumes: 4}
+	inventory := fmt.Sprintf(`{"report":[{"lv":[{"lv_name":"tenants","lv_uuid":"pool-uuid","pool_lv":"","lv_size":"68719476736","segtype":"thin-pool","origin":"","lv_attr":"twi-aotz--","lv_active":%q,"chunk_size":"65536","lv_metadata_size":"1073741824"}]}]}`, active)
+	status := "0 134217728 thin-pool 1 10/262144 10/1048576 - rw discard_passdown error_if_no_space - 1024"
+	e.runner.expect(call{cmd: lvmCmd("lvs", "--reportformat json --units b --nosuffix -o lv_name,lv_uuid,pool_lv,lv_size,segtype,origin,lv_attr,lv_active,chunk_size,lv_metadata_size kura-volumes"), out: inventory})
+	e.runner.expect(extra...)
+	e.runner.expect(
+		call{cmd: "dmsetup status kura--volumes-tenants-tpool", out: status},
+		call{cmd: "dmsetup status kura--volumes-tenants-tpool", out: status},
+	)
+	s, err := e.d.observeThin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestThinObservationActivatesOnlyAnInactivePool(t *testing.T) {
+	if s := observePool(t, "active"); !s.Healthy {
+		t.Fatalf("active pool unhealthy: %s", s.Reason)
+	}
+	if s := observePool(t, "", call{cmd: lvmCmd("lvchange", "--activate y kura-volumes/tenants")}); !s.Healthy {
+		t.Fatalf("activated pool unhealthy: %s", s.Reason)
+	}
+}

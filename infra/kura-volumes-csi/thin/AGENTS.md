@@ -39,3 +39,7 @@ reusable local Linux qualification harness, not a deployed allocator.
   experiments. Keep the PR draft and production thin enrollment disabled until
   the performance gate passes or its acceptance criterion is explicitly changed.
   Preserve failed and successful evidence in `validation.md`.
+
+- `kubelet_restart_test.rb` restarts the kubelet of a disposable
+  `kind-kura-kubelet-restart` cluster only. Keep both cases: withdrawn capacity
+  must not disrupt a resident pod, and a published zero must be rejected.

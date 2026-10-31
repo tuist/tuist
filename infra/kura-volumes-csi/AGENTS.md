@@ -40,6 +40,9 @@ CreateVolume and DeleteVolume run on the node that owns the volume.
     before `luksFormat`; every reopen asks the server for exactly this
     version.
   - `<id>.lock`: per-volume `flock`, held for every RPC on the volume.
+  - `.thin-pool.lock`: on thin nodes, taken before the volume lock by create,
+    delete, grant, reclaim and observation. Node stage/publish RPCs skip it so
+    a slow key fetch never stalls the pool; never take it after a volume lock.
   - `<id>.img.new`: in-flight CreateVolume; renamed to `.img` after the marker
     is written.
 - Device chain: `losetup --direct-io=on` loop, dm-crypt mapping `kura-<id>`

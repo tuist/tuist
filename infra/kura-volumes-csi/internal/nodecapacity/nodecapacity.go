@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -23,8 +25,10 @@ const Resource = "tuist.dev/kura-disk"
 // and false when the node has no volume group.
 type Measure func(ctx context.Context) (int64, bool, error)
 
-// Patcher applies a JSON merge patch to the node's status.
+// Patcher reads the node's advertised resource and applies a JSON merge patch
+// to its status.
 type Patcher interface {
+	NodeCapacity(ctx context.Context, node string) (string, bool, error)
 	PatchNodeStatus(ctx context.Context, node string, patch []byte) error
 }
 
@@ -37,7 +41,9 @@ type Advertiser struct {
 }
 
 // Run advertises once and then on every interval, because a kubelet that
-// re-registers its node resets status and drops the resource.
+// re-registers its node resets status and drops the resource. It reads the node
+// first and patches only a differing value: every status patch fans out to all
+// node watchers, while the value rarely changes.
 func (a *Advertiser) Run(ctx context.Context) {
 	ticker := time.NewTicker(a.Interval)
 	defer ticker.Stop()
@@ -62,6 +68,11 @@ func (a *Advertiser) Once(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if current, present, err := a.Patcher.NodeCapacity(ctx, a.Node); err == nil && present == ok {
+		if bytes, parsed := parseQuantity(current); !ok || parsed && bytes == capacity {
+			return nil
+		}
+	}
 	var value any
 	if ok {
 		value = strconv.FormatInt(capacity, 10)
@@ -85,4 +96,43 @@ func (p *InClusterPatcher) PatchNodeStatus(ctx context.Context, node string, pat
 		return fmt.Errorf("patch node %s status: %w", node, err)
 	}
 	return nil
+}
+
+func (p *InClusterPatcher) NodeCapacity(ctx context.Context, node string) (string, bool, error) {
+	body, err := p.api.Do(ctx, http.MethodGet, "/api/v1/nodes/"+node, "application/json", nil)
+	if err != nil {
+		return "", false, fmt.Errorf("read node %s: %w", node, err)
+	}
+	var n struct {
+		Status struct {
+			Capacity map[string]string `json:"capacity"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(body, &n); err != nil {
+		return "", false, fmt.Errorf("decode node %s: %w", node, err)
+	}
+	value, present := n.Status.Capacity[Resource]
+	return value, present, nil
+}
+
+var quantityPattern = regexp.MustCompile(`^([0-9]+)(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$`)
+
+var quantityMultipliers = map[string]int64{
+	"": 1, "k": 1e3, "M": 1e6, "G": 1e9, "T": 1e12, "P": 1e15, "E": 1e18,
+	"Ki": 1 << 10, "Mi": 1 << 20, "Gi": 1 << 30, "Ti": 1 << 40, "Pi": 1 << 50, "Ei": 1 << 60,
+}
+
+// parseQuantity reads the integer forms the API server canonicalizes byte
+// quantities to. Anything else reports false, so the caller patches.
+func parseQuantity(s string) (int64, bool) {
+	m := quantityPattern.FindStringSubmatch(s)
+	if m == nil {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	multiplier := quantityMultipliers[m[2]]
+	if err != nil || n > math.MaxInt64/multiplier {
+		return 0, false
+	}
+	return n * multiplier, true
 }

@@ -55,7 +55,9 @@ func (d *Driver) volume(id string) (volume, error) {
 }
 
 // lockVolume serializes every operation on one volume across the driver's
-// goroutines and any other process on the node. It polls so a cancelled
+// goroutines and any other process on the node, after the pool lock when the
+// operation can change pool commitments or quotas (create, delete, grant,
+// reclaim). Lock order is always pool, then volume. It polls so a cancelled
 // request releases its wait instead of blocking a gRPC worker.
 func (d *Driver) lockVolume(ctx context.Context, v volume) (func(), error) {
 	if d.thin.Pool == "" || ctx.Value(borrowedPoolLock{}) == true {
@@ -72,6 +74,16 @@ func (d *Driver) lockVolume(ctx context.Context, v volume) (func(), error) {
 	}
 	return func() { unlock(); poolUnlock() }, nil
 }
+
+// lockNodeVolume serializes node staging and publication of one volume. These
+// change no pool commitment, grant or trim, so they skip the pool lock: a stage
+// waiting on the key service must not stall pool-wide observation, admission
+// or cleanup of other volumes. Borrowed children are only staged/published
+// here, under their parent's volume lock, never created or deleted.
+func (d *Driver) lockNodeVolume(ctx context.Context, v volume) (func(), error) {
+	return d.lockFile(ctx, v)
+}
+
 func (d *Driver) lockPool(ctx context.Context) (func(), error) {
 	return d.lockFile(ctx, volume{id: "thin-pool", lock: filepath.Join(d.stateDir, ".thin-pool.lock")})
 }

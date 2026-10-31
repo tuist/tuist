@@ -205,7 +205,7 @@ func (d *Driver) stageBorrowedChild(ctx context.Context, parent, child *ThinVolu
 		return err
 	}
 	// Child filesystem root is not writable by the runtime. Marker and segment
-	// directory creation is serialized with lifecycle operations by the pool lock.
+	// directory creation is serialized with unit changes by the parent volume lock.
 	marker := filepath.Join(staging, ".unit-id")
 	if data, err := os.ReadFile(marker); err == nil {
 		if string(data) != child.VolumeID {

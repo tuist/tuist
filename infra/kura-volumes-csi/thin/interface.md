@@ -65,7 +65,8 @@ observations. The scheduler cannot place new resource-requesting pods there;
 Kubernetes 1.34's [kubelet admission](https://github.com/kubernetes/kubernetes/blob/v1.34.1/pkg/kubelet/lifecycle/predicate.go)
 ignores absent extended resources when re-admitting resident pods. CSI still
 refuses new allocation without a healthy observation, including for manually
-bound pods. This behavior needs a live kubelet-restart rehearsal before rollout.
+bound pods. `kubelet_restart_test.rb` rehearses this on a disposable kind node;
+hosted kubelets have not been restarted under it.
 Reductions and cleanup remain
 available. Pool extension is not required for safety and is not automatic.
 Physical device failures and unauthorized administrative changes remain storage
@@ -78,8 +79,12 @@ With thin configuration enabled, the same CSI process serves HTTP over
 Linux `SO_PEERCRED` UID 0 on each connection. Do not mount
 this socket into tenant containers. There is no TCP listener and no separate
 privileged quota agent. The trusted node allocator needs access to this socket,
-not host devices or a shell. CSI and API handlers take the same pool lock, then
-the same per-volume lock, covering creation, quotas, trimming and deletion.
+not host devices or a shell. CSI and API handlers that change commitments,
+grants or trims (create, delete, grant, reclaim) and observations take the pool
+lock, then the per-volume lock. Node staging and publication take only the
+volume lock and reapply the durable grant, so a stage waiting on the key service
+does not stall the pool. An observation can see a volume mid-stage; a failed
+observation only withdraws capacity until the next one.
 
 - `GET /v1/node` returns schema `version: 1`, mode, node and pool identities,
   observation timestamp/duration, exact chunk/data/metadata byte counters,

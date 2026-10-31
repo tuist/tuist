@@ -41,7 +41,7 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	if err != nil {
 		return nil, err
 	}
-	unlock, err := d.lockVolume(ctx, v)
+	unlock, err := d.lockNodeVolume(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (d *Driver) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolu
 	if err := checkPath("staging_target_path", staging); err != nil {
 		return nil, err
 	}
-	unlock, err := d.lockVolume(ctx, v)
+	unlock, err := d.lockNodeVolume(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +309,7 @@ func (d *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 	if err := validateCapability(req.GetVolumeCapability()); err != nil {
 		return nil, err
 	}
-	unlock, err := d.lockVolume(ctx, v)
+	unlock, err := d.lockNodeVolume(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +391,7 @@ func (d *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublish
 	if err := checkPath("target_path", target); err != nil {
 		return nil, err
 	}
-	unlock, err := d.lockVolume(ctx, v)
+	unlock, err := d.lockNodeVolume(ctx, v)
 	if err != nil {
 		return nil, err
 	}

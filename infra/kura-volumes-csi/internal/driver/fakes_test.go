@@ -94,6 +94,10 @@ func (f *fakeHost) DeviceNumber(path string) (string, error) {
 }
 
 type fakeKeys struct {
+	// fetching is signalled and release awaited, when set, before a fetch
+	// returns, to hold a stage inside its key request.
+	fetching  chan struct{}
+	release   chan struct{}
 	err       error
 	active    int
 	requested []int
@@ -103,6 +107,10 @@ type fakeKeys struct {
 // Fetch mirrors the server: version 0 serves the active version, any other
 // version is served as asked.
 func (f *fakeKeys) Fetch(_ context.Context, _ string, version int) ([]byte, int, error) {
+	if f.fetching != nil {
+		f.fetching <- struct{}{}
+		<-f.release
+	}
 	f.requested = append(f.requested, version)
 	if f.err != nil {
 		return nil, 0, f.err

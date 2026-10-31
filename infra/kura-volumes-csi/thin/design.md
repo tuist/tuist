@@ -169,7 +169,8 @@ NodePublish and invalidates that incarnation during unpublish/replacement.
 Republishing the same volume does not erase its physical charge or change keys.
 
 Use one durable node ledger and a fixed lock order: pool lock, then volume lock.
-Create, stage, publish, grant, reclaim, unstage and delete participate. Retain
+Create, grant, reclaim, delete and observation take both; stage, publish,
+unpublish and unstage change no commitment and take only the volume lock. Retain
 per-volume flock across process restarts, as the current driver does. Operations
 must not deadlock by taking locks in the reverse order; keep long trim work
 bounded and represent pending work durably. The allocator never takes these
