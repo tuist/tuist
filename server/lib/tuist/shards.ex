@@ -13,6 +13,7 @@ defmodule Tuist.Shards do
   alias Tuist.ClickHouseRepo
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards.BinPacker
@@ -33,6 +34,7 @@ defmodule Tuist.Shards do
   @min_parallelism_factor 0.5
   @max_parallelism_factor 16.0
   @concurrency_shard_runs 50
+  @upload_route_cache [persist_across_deployments: true, ttl: to_timeout(hour: 1)]
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
   def create_shard_plan(%Project{} = project, params, opts \\ []) do
@@ -113,6 +115,7 @@ defmodule Tuist.Shards do
       end
 
     {:ok, plan} = IngestRepo.insert(plan)
+    remember_upload_route(project, plan)
     if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
     if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
 
@@ -131,12 +134,9 @@ defmodule Tuist.Shards do
   end
 
   def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil, opts \\ []) do
-    case get_plan(project.id, reference) do
-      nil ->
-        {:error, :not_found}
-
-      plan ->
-        start_upload_for_plan(project, account, plan, artifact, opts)
+    case upload_plan_id(project.id, reference) do
+      nil -> {:error, :not_found}
+      plan_id -> start_upload_for_plan_id(project, account, plan_id, artifact, opts)
     end
   end
 
@@ -179,12 +179,9 @@ defmodule Tuist.Shards do
         artifact \\ nil,
         opts \\ []
       ) do
-    case get_plan(project.id, reference) do
-      nil ->
-        {:error, :not_found}
-
-      plan ->
-        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact, opts)
+    case upload_plan_id(project.id, reference) do
+      nil -> {:error, :not_found}
+      plan_id -> complete_upload_for_plan(project, account, plan_id, upload_id, parts, artifact, opts)
     end
   end
 
@@ -216,12 +213,9 @@ defmodule Tuist.Shards do
         artifact \\ nil,
         opts \\ []
       ) do
-    case get_plan(project.id, reference) do
-      nil ->
-        {:error, :not_found}
-
-      plan ->
-        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact, opts)
+    case upload_plan_id(project.id, reference) do
+      nil -> {:error, :not_found}
+      plan_id -> generate_upload_url_for_plan(project, account, plan_id, upload_id, part_number, artifact, opts)
     end
   end
 
@@ -252,14 +246,54 @@ defmodule Tuist.Shards do
   # the account's storage.
   defp plan_storage(project, account, plan_id, opts) do
     if ShardStorage.routable?(project) do
-      case get_plan_by_id(project.id, plan_id) do
+      case storage_target(project.id, plan_id) do
         nil -> {:error, :not_found}
-        plan -> ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant))
+        target -> ShardStorage.resolve_for_request(%{storage_target: target}, account, Keyword.get(opts, :runner_grant))
       end
     else
       {:ok, account}
     end
   end
+
+  # The shared store carries a new plan's upload routing through replication; older plans fall
+  # back to ClickHouse. A reference resolves to its latest plan, as in `get_plan/2`.
+  defp remember_upload_route(project, plan) do
+    KeyValueStore.put(plan_id_key(project.id, plan.reference), plan.id, @upload_route_cache)
+
+    if ShardStorage.routable?(project) do
+      KeyValueStore.put(storage_target_key(project.id, plan.id), plan.storage_target, @upload_route_cache)
+    end
+  end
+
+  defp upload_plan_id(project_id, reference) do
+    case KeyValueStore.get(plan_id_key(project_id, reference), @upload_route_cache) do
+      plan_id when is_binary(plan_id) ->
+        plan_id
+
+      _ ->
+        case get_plan(project_id, reference) do
+          nil -> nil
+          plan -> plan.id
+        end
+    end
+  end
+
+  defp plan_id_key(project_id, reference), do: [__MODULE__, :plan_id, project_id, reference]
+
+  defp storage_target(project_id, plan_id) do
+    case KeyValueStore.get(storage_target_key(project_id, plan_id), @upload_route_cache) do
+      target when is_binary(target) ->
+        target
+
+      _ ->
+        case get_plan_by_id(project_id, plan_id) do
+          nil -> nil
+          plan -> plan.storage_target
+        end
+    end
+  end
+
+  defp storage_target_key(project_id, plan_id), do: [__MODULE__, :storage_target, project_id, plan_id]
 
   # Each shard downloads only the products it needs: a single `shared` artifact (frameworks,
   # dylibs, the xctestrun, etc.) plus one per-module artifact for each module assigned to the
