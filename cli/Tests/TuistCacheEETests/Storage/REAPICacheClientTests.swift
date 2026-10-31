@@ -1758,8 +1758,10 @@ struct REAPICacheClientTests {
 
             try await client.uploadBlobs([digest: source])
 
-            // The stalled attempt was cut and the blob uploaded again from its first byte.
-            #expect(await state.writeAttempts == 2)
+            // Prove that the first attempt reached the scripted stall. A healthy retry can also
+            // hit the impatient idle guard on a busy executor, so its attempt count is not fixed.
+            #expect(await state.stalledWriteBytes == [1024 * 1024])
+            #expect(await state.writeAttempts >= 2)
             #expect(await state.blobs[digest] == body)
         }
     }
@@ -2081,6 +2083,8 @@ private actor WireCache {
     private var writePlans: [WritePlan] = []
     var writeAttempts = 0
     var writeAttemptTimes: [ContinuousClock.Instant] = []
+    var stalledWriteBytes: [Int] = []
+    func recordStalledWrite(bytes: Int) { stalledWriteBytes.append(bytes) }
     func planWrites(_ plans: [WritePlan]) { writePlans = plans }
     func nextWritePlan() -> WritePlan {
         writeAttempts += 1
@@ -2339,7 +2343,7 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
 
     func write(
         request: RPCAsyncSequence<Google_Bytestream_WriteRequest, any Error>,
-        context _: ServerContext
+        context: ServerContext
     ) async throws -> Google_Bytestream_WriteResponse {
         state.uploadActivity.withLock { $0.active += 1; $0.peak = max($0.peak, $0.active) }
         defer { state.uploadActivity.withLock { $0.active -= 1 } }
@@ -2360,7 +2364,13 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
             compressed = message.resourceName.contains("/compressed-blobs/zstd/")
             data.append(message.data)
             finished = message.finishWrite
-            if case let .hang(after) = plan, data.count >= after { try await Task.sleep(for: .seconds(30)) }
+            if case let .hang(after) = plan, data.count >= after {
+                await state.recordStalledWrite(bytes: data.count)
+                // RPC cancellation does not cancel the handler's Task. Stop here permanently,
+                // rather than waking up and sleeping again for every buffered upload message.
+                try await context.cancellation.cancelled
+                throw CancellationError()
+            }
         }
         let expected = try #require(digest)
         #expect(finished)
