@@ -621,13 +621,32 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// The StatefulSet is held on OnDelete meanwhile, so its template keeps
 	// following the instance without a rolling update restarting the replica
 	// that is still serving.
+	//
+	// Enrolling a region into LVM changes every instance's desired storage at
+	// once, but only the selected source node's claims may move. The others keep
+	// reconciling against the storage their template already has.
+	desired := instance
+	lvmHeld := false
 	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
-		if err := r.reconcileStatefulSetDuringResize(ctx, instance); err != nil {
+		if lvmHeld, err = r.lvmMigrationTemplateHeld(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+		sts := &appsv1.StatefulSet{}
+		if lvmHeld {
+			err = r.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+		}
+		if !lvmHeld || err != nil {
+			if err := r.reconcileStatefulSetDuringResize(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+		}
+		desired = lvmHeldTemplate(instance, sts)
 	}
 
 	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
@@ -654,16 +673,21 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileEgressClassID(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+	if err := r.reconcileStatefulSet(ctx, desired); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileCPUResizeHold(ctx, instance, time.Now()); err != nil {
+	if err := r.reconcileCPUResizeHold(ctx, desired, time.Now()); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
-		return ctrl.Result{}, err
+	// A partly migrated instance stays on the resize hold until its remaining
+	// legacy claims can move; a rolling update would restart them on hosts
+	// without LVM capacity.
+	if !lvmHeld {
+		if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
-	if err := r.replacePendingPodsForStorageDecrease(ctx, instance); err != nil {
+	if err := r.replacePendingPodsForStorageDecrease(ctx, desired); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
@@ -672,11 +696,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Retiring a cache box means abandoning node-local volumes and refilling
 	// them from a peer, so the moves are sequenced rather than done at once.
 	// Paced by this reconciler's requeue below.
-	if err := r.evacuateMarkedNodes(ctx, instance); err != nil {
+	if err := r.evacuateMarkedNodes(ctx, desired); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	rollout, err := r.rolloutStatus(ctx, instance)
+	rollout, err := r.rolloutStatus(ctx, desired)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

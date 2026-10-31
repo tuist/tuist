@@ -95,3 +95,20 @@ func (r *KuraInstanceReconciler) lvmMigrationAllowed(ctx context.Context, instan
 	}
 	return hasLandingNode(prepared, map[string]bool{selected.Name: true}, selector), nil
 }
+
+// lvmHeldTemplate keeps the storage half of a held template: the claim's class
+// and size and the disk resource the kura container reserves. Everything else
+// follows the instance, so an instance waiting for its source node to be
+// selected still takes image and configuration changes on its current hosts.
+func lvmHeldTemplate(instance *kurav1.KuraInstance, sts *appsv1.StatefulSet) *kurav1.KuraInstance {
+	held := instance.DeepCopy()
+	held.Spec.StorageClassName, _ = templateStorageClass(sts)
+	if size := templateStorage(sts); !size.IsZero() {
+		held.Spec.StorageSize = size.String()
+	}
+	held.Spec.DiskResource = ""
+	if request := kuraDiskRequest(sts.Spec.Template.Spec, kuraDiskResource); !request.IsZero() {
+		held.Spec.DiskResource = string(kuraDiskResource)
+	}
+	return held
+}
