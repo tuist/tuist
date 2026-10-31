@@ -347,6 +347,7 @@ struct GitControllerTests {
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
             "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
             "GITHUB_HEAD_REF": "feature-branch",
         ]
         commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
@@ -356,8 +357,8 @@ struct GitControllerTests {
             output: "merge-commit-sha\n"
         )
         commandRunner.succeedCommand(
-            ["git", "-C", path.pathString, "rev-parse", "HEAD^2"],
-            output: "actual-pr-head-sha\n"
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "merge-commit-sha"],
+            output: rawMergeCommit("merge-commit-sha", parents: ["base-sha", "actual-pr-head-sha"])
         )
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
         commandRunner.succeedCommand(
@@ -388,6 +389,49 @@ struct GitControllerTests {
         let gitInfo = try await subject.gitInfo(workingDirectory: path)
 
         #expect(gitInfo.sha == "actual-pr-head-sha")
+        #expect(!commandRunner.called(["git", "-C", path.pathString, "rev-parse", "HEAD^2"]))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_reads_the_pull_request_head_from_githubs_event_payload() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let event = path.appending(component: "event.json")
+        try await FileSystem().writeText(
+            #"{"pull_request": {"head": {"sha": "payload-head-sha"}, "base": {"sha": "base-sha"}}}"#,
+            at: event
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+            "GITHUB_EVENT_PATH": event.pathString,
+        ]
+        stubPullRequestCheckout(path: path, head: "merge-commit-sha", secondParent: "actual-pr-head-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "payload-head-sha")
+        #expect(!commandRunner.called(
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "merge-commit-sha"]
+        ))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_reads_the_merge_commits_parents_when_the_event_payload_names_no_pull_request() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let event = path.appending(component: "event.json")
+        try await FileSystem().writeText(#"{"action": "synchronize"}"#, at: event)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+            "GITHUB_EVENT_PATH": event.pathString,
+        ]
+        stubPullRequestCheckout(path: path, head: "merge-commit-sha", secondParent: "actual-pr-head-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "actual-pr-head-sha")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -407,16 +451,97 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "actual-pr-head-sha")
     }
 
-    private func stubPullRequestCheckout(path: AbsolutePath, head: String, secondParent: String) {
+    private func stubPullRequestCheckout(path: AbsolutePath, head: String, secondParent: String?) {
         commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "\(head)\n")
-        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"], output: "\(secondParent)\n")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", head],
+            output: rawMergeCommit(head, parents: ["first-parent-sha"] + [secondParent].compactMap { $0 })
+        )
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
         commandRunner.succeedCommand(
             ["git", "-C", path.pathString, "remote", "get-url", "origin"],
             output: "https://github.com/tuist/tuist"
         )
+    }
+
+    private func rawMergeCommit(_ sha: String, parents: [String]) -> String {
+        (["commit \(sha) (grafted, HEAD)", "tree t"] + parents.map { "parent \($0)" } + [
+            "author A <a@tuist.dev> 1700000000 +0000",
+            "committer A <a@tuist.dev> 1700000000 +0000",
+            "",
+            "    Merge \(parents.last ?? "") into \(parents.first ?? "")",
+            "",
+        ]).joined(separator: "\n")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_reports_head_on_a_pull_request_ref_without_githubs_merge_commit() async throws {
+        // Only GITHUB_SHA says HEAD is GitHub's merge commit.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["GITHUB_REF": "refs/pull/1/merge"]
+        stubPullRequestCheckout(path: path, head: "merge-commit-sha", secondParent: "actual-pr-head-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "merge-commit-sha")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_reports_head_on_a_pull_request_ref_whose_head_is_not_a_merge_commit() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["GITHUB_REF": "refs/pull/1/merge", "GITHUB_SHA": "head-sha"]
+        stubPullRequestCheckout(path: path, head: "head-sha", secondParent: nil)
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "head-sha")
+    }
+
+    /// `actions/checkout` fetches `refs/pull/N/merge` at depth 1 by default: the merge commit is the
+    /// only commit in the checkout, and the shallow grafts hide its parents from `HEAD^2`.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_reports_the_pull_request_head_in_a_depth_one_merge_checkout() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try #require(Environment.mocked).variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "PATH": ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin",
+        ]
+        let origin = path.appending(component: "origin")
+        let checkout = path.appending(component: "checkout")
+        try await FileSystem().makeDirectory(at: origin)
+        try await FileSystem().makeDirectory(at: checkout)
+        let git = { (directory: AbsolutePath, arguments: [String]) in
+            try await CommandRunner().capture(
+                arguments: ["git", "-C", directory.pathString, "-c", "user.name=T", "-c", "user.email=t@tuist.dev"]
+                    + arguments
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        _ = try await git(origin, ["init", "--quiet", "--initial-branch=main"])
+        _ = try await git(origin, ["commit", "--quiet", "--allow-empty", "-m", "base"])
+        _ = try await git(origin, ["checkout", "--quiet", "-b", "feature"])
+        _ = try await git(origin, ["commit", "--quiet", "--allow-empty", "-m", "feature"])
+        let pullRequestHead = try await git(origin, ["rev-parse", "HEAD"])
+        _ = try await git(origin, ["checkout", "--quiet", "main"])
+        _ = try await git(origin, ["commit", "--quiet", "--allow-empty", "-m", "main"])
+        _ = try await git(origin, ["merge", "--quiet", "--no-ff", "feature", "-m", "Merge feature into main"])
+        let mergeCommit = try await git(origin, ["rev-parse", "HEAD"])
+        _ = try await git(origin, ["update-ref", "refs/pull/1/merge", mergeCommit])
+        _ = try await git(origin, ["reset", "--quiet", "--hard", "HEAD^1"])
+        _ = try await git(checkout, ["init", "--quiet"])
+        _ = try await git(checkout, [
+            "fetch", "--quiet", "--depth=1", "file://\(origin.pathString)", "+refs/pull/1/merge:refs/remotes/pull/1/merge",
+        ])
+        _ = try await git(checkout, ["checkout", "--quiet", "--detach", "refs/remotes/pull/1/merge"])
+        await #expect(throws: (any Error).self) { try await git(checkout, ["rev-parse", "HEAD^2"]) }
+        try #require(Environment.mocked).variables["GITHUB_SHA"] = mergeCommit
+
+        let gitInfo = try await GitController(commandRunner: CommandRunner()).gitInfo(workingDirectory: checkout)
+
+        #expect(gitInfo.sha == pullRequestHead)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_reads_the_base_branch_and_pull_request_number()
@@ -586,6 +711,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "false\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         commandRunner.succeedCommand(git + ["merge-base", "origin/main", "head"], output: "base\n")
@@ -614,6 +740,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
@@ -636,6 +763,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -647,6 +775,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
         commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"])
         commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "main^{commit}"])
@@ -667,6 +796,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--depth=1",
             "origin",
@@ -681,6 +811,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
         commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"])
         commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "main^{commit}"])
@@ -706,6 +837,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--depth=1",
             "origin",
@@ -717,6 +849,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "false\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         commandRunner.succeedCommand(git + ["merge-base", "origin/main", "head"], output: "base\n")
@@ -741,6 +874,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         // Never resolves, so deepening runs until a bound stops it.
@@ -748,6 +882,7 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -769,6 +904,7 @@ struct GitControllerTests {
         #expect(commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -777,6 +913,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=100",
             "origin",
@@ -788,12 +925,14 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
         commandRunner.succeedCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -802,6 +941,7 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=70",
             "origin",
@@ -823,6 +963,7 @@ struct GitControllerTests {
         #expect(commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=70",
             "origin",
@@ -831,6 +972,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=100",
             "origin",
@@ -842,6 +984,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
@@ -850,6 +993,7 @@ struct GitControllerTests {
         commandRunner.errorCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -868,6 +1012,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=100",
             "origin",
@@ -882,6 +1027,7 @@ struct GitControllerTests {
         try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
         try await FileSystem().writeText("boundary\nside\n", at: path.appending(components: ".git", "shallow"))
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
@@ -933,6 +1079,7 @@ struct GitControllerTests {
         try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
         try await FileSystem().writeText("head\n", at: path.appending(components: ".git", "shallow"))
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
@@ -952,12 +1099,106 @@ struct GitControllerTests {
         ])
     }
 
+    @Test(.inTemporaryDirectory) func gitHistory_leaves_out_a_head_the_checkout_does_not_have() async throws {
+        // A depth-1 pull request checkout has the merge commit, not the pull request's head it reports.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"])
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "basehead"],
+            output: "basehead 1700000200\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, remoteAccess: .baseHead)
+        )
+
+        #expect(history.headSHA == "head")
+        #expect(history.commits.map(\.sha) == ["basehead"])
+        #expect(history
+            .fallbackReason == "shallow clone: the merge base with main is not in the checkout; head is not in the checkout")
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--recurse-submodules=no",
+            "--filter=blob:none",
+            "--depth=1",
+            "origin",
+            "head",
+        ]))
+    }
+
+    /// `actions/checkout`'s default: `refs/pull/N/merge` at depth 1, without the pull request's head
+    /// the run reports, or the base branch.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitHistory_fetches_the_pull_request_head_a_depth_one_merge_checkout_lacks() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try #require(Environment.mocked).variables = [
+            "PATH": ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin",
+        ]
+        let origin = path.appending(component: "origin")
+        let checkout = path.appending(component: "checkout")
+        try await FileSystem().makeDirectory(at: origin)
+        try await FileSystem().makeDirectory(at: checkout)
+        let git = { (directory: AbsolutePath, arguments: [String]) in
+            try await CommandRunner().capture(
+                arguments: ["git", "-C", directory.pathString, "-c", "user.name=T", "-c", "user.email=t@tuist.dev"]
+                    + arguments
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        _ = try await git(origin, ["init", "--quiet", "--initial-branch=main"])
+        _ = try await git(origin, ["config", "uploadpack.allowFilter", "true"])
+        try await FileSystem().writeText("base\n", at: origin.appending(component: "Base.swift"))
+        _ = try await git(origin, ["add", "."])
+        _ = try await git(origin, ["commit", "--quiet", "-m", "base"])
+        let forkPoint = try await git(origin, ["rev-parse", "HEAD"])
+        _ = try await git(origin, ["checkout", "--quiet", "-b", "feature"])
+        try await FileSystem().writeText("feature\n", at: origin.appending(component: "Feature.swift"))
+        _ = try await git(origin, ["add", "."])
+        _ = try await git(origin, ["commit", "--quiet", "-m", "feature"])
+        let pullRequestHead = try await git(origin, ["rev-parse", "HEAD"])
+        _ = try await git(origin, ["checkout", "--quiet", "main"])
+        try await FileSystem().writeText("main\n", at: origin.appending(component: "Main.swift"))
+        _ = try await git(origin, ["add", "."])
+        _ = try await git(origin, ["commit", "--quiet", "-m", "main"])
+        _ = try await git(origin, ["merge", "--quiet", "--no-ff", "feature", "-m", "Merge feature into main"])
+        _ = try await git(origin, ["update-ref", "refs/pull/1/merge", "HEAD"])
+        _ = try await git(origin, ["reset", "--quiet", "--hard", "HEAD^1"])
+        _ = try await git(checkout, ["init", "--quiet"])
+        _ = try await git(checkout, ["remote", "add", "origin", "file://\(origin.pathString)"])
+        _ = try await git(checkout, ["fetch", "--quiet", "--depth=1", "origin", "+refs/pull/1/merge:refs/remotes/pull/1/merge"])
+        _ = try await git(checkout, ["checkout", "--quiet", "--detach", "refs/remotes/pull/1/merge"])
+        let subject = GitController(commandRunner: CommandRunner())
+
+        let history = try await subject.gitHistory(
+            workingDirectory: checkout,
+            headSHA: pullRequestHead,
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowCommits: 100, deepenBudgetSeconds: 30)
+        )
+        let files = try await subject.commitFiles(workingDirectory: checkout, sha: pullRequestHead, limit: 10)
+
+        #expect(history.headSHA == pullRequestHead)
+        #expect(history.mergeBaseSHA == forkPoint)
+        #expect(history.fallbackReason == nil)
+        #expect(history.commits.first { $0.sha == pullRequestHead }?.parents == [forkPoint])
+        #expect(files.files.map(\.path) == ["Base.swift", "Feature.swift"])
+    }
+
     @Test(.inTemporaryDirectory) func gitHistory_leaves_out_boundary_commits_whose_parents_cannot_be_read() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
         try await FileSystem().writeText("boundary\n", at: path.appending(components: ".git", "shallow"))
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
@@ -987,6 +1228,7 @@ struct GitControllerTests {
             case "$*" in
               *"rev-parse --show-object-format"*) echo sha1 ;;
               *"rev-parse --is-shallow-repository"*) echo true ;;
+              *"rev-parse --verify --quiet head^{commit}"*) echo head ;;
               *"rev-parse --verify"*) \(baseBranchInCheckout ? "echo basehead" : "exit 1") ;;
               *" fetch "*)
                 echo $$ > "\(fetchPID.pathString)"
@@ -1041,6 +1283,7 @@ struct GitControllerTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha256\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "head^{commit}"], output: "head\n")
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
             output: "head 1700000100\n"
@@ -1069,7 +1312,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "def456\n"
         )
-        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
@@ -1082,7 +1324,8 @@ struct GitControllerTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_circleci() async throws {
-        // Given
+        // Given: the pull request's head merged the base branch in, so its second parent is a base
+        // branch commit. CircleCI names no merge commit, so HEAD is reported.
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
@@ -1095,7 +1338,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "ghi789\n"
         )
-        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "ghi789"],
+            output: rawMergeCommit("ghi789", parents: ["fix-bug-parent-sha", "main-sha"])
+        )
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
@@ -1105,6 +1351,16 @@ struct GitControllerTests {
         #expect(gitInfo.ref == "refs/pull/6740/merge")
         #expect(gitInfo.branch == "fix-bug")
         #expect(gitInfo.sha == "ghi789")
+        #expect(!commandRunner.called([
+            "git",
+            "-C",
+            path.pathString,
+            "log",
+            "--no-walk",
+            "--no-decorate",
+            "--format=raw",
+            "ghi789",
+        ]))
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_buildkite() async throws {
@@ -1121,7 +1377,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "jkl012\n"
         )
-        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When

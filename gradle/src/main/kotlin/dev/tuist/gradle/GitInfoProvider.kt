@@ -1,9 +1,11 @@
 package dev.tuist.gradle
 
+import com.google.gson.JsonParser
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.process.ExecOperations
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.Serializable
 import javax.inject.Inject
 
@@ -83,22 +85,37 @@ class ProcessGitInfoProvider(
     }
 
     /**
-     * On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit that exists only in
-     * the checkout, so the pull request's head, its second parent, is reported instead. A shallow
-     * checkout without that parent reports HEAD. On GitHub Actions, `GITHUB_SHA` is that merge
-     * commit: a workflow that checked out another commit, such as the pull request's head, reports
-     * HEAD, since that commit's second parent, if it has one, is not the pull request.
+     * On a GitHub Actions pull request HEAD is GitHub's merge commit (`GITHUB_SHA`, from
+     * `refs/pull/N/merge`), which is on no branch, so the pull request's head is reported, as the CLI
+     * does: as the event payload (`GITHUB_EVENT_PATH`) names it, else as the merge commit's second
+     * parent. Only when HEAD is `GITHUB_SHA`: a workflow that checked out another
+     * commit, such as the pull request's head, reports HEAD, since that commit's second parent, when
+     * it merged the base branch in, is a base branch commit. The parent is read from the commit
+     * object, since in a shallow checkout the grafts hide it from `rev-parse HEAD^2`.
      */
     override fun commitSha(): String? {
         val head = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
-        val mergeCommit = environmentProvider("GITHUB_SHA")?.takeIf(String::isNotEmpty)
-        if (ref()?.startsWith("refs/pull/") == true && (mergeCommit == null || mergeCommit == head)) {
-            runCatching { gitCommandRunner(listOf("rev-parse", "HEAD^2")) }.getOrNull()
-                ?.takeIf(String::isNotBlank)
-                ?.let { return it }
+        if (head != null && environmentProvider("GITHUB_SHA") == head &&
+            environmentProvider("GITHUB_REF")?.startsWith("refs/pull/") == true
+        ) {
+            githubPullRequestHeadSha()?.let { return it }
+            runCatching { gitCommandRunner(listOf("cat-file", "-p", "HEAD")) }.getOrNull()
+                ?.lineSequence()
+                ?.takeWhile(String::isNotEmpty)
+                ?.filter { it.startsWith("parent ") }
+                ?.map { it.removePrefix("parent ").trim() }
+                ?.toList()
+                ?.takeIf { it.size == 2 }
+                ?.let { return it[1] }
         }
         return head
     }
+
+    private fun githubPullRequestHeadSha(): String? =
+        runCatching {
+            val event = JsonParser.parseString(File(environmentProvider("GITHUB_EVENT_PATH")!!).readText()).asJsonObject
+            event.getAsJsonObject("pull_request").getAsJsonObject("head").get("sha").asString
+        }.getOrNull()?.takeIf(String::isNotEmpty)
 
     override fun ref(): String? {
         val ciRef = ciRef()
@@ -158,7 +175,7 @@ private fun runGitProcess(args: List<String>): String {
             .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start()
     try {
-        val output = process.inputStream.bufferedReader().use { it.readLine()?.trim().orEmpty() }
+        val output = process.inputStream.bufferedReader().use { it.readText().trim() }
         val exitCode = process.waitFor()
         if (exitCode != 0) {
             throw RuntimeException("git ${args.first()} failed (exit code $exitCode)")
