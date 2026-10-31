@@ -57,7 +57,12 @@ fn forward_wait_secs(app: &SharedState) -> u64 {
     app.config.sync_long_poll_secs.min(refresh)
 }
 
-fn forward_url(app: &SharedState, peer: &str, after: Option<SyncPosition>) -> String {
+fn forward_url(
+    app: &SharedState,
+    peer: &str,
+    after: Option<SyncPosition>,
+    wait_secs: u64,
+) -> String {
     let mut url = format!(
         "{peer}/_internal/sync/forward?peer={}&region={}",
         url_encode(&app.config.node_url),
@@ -66,7 +71,7 @@ fn forward_url(app: &SharedState, peer: &str, after: Option<SyncPosition>) -> St
     if let Some(after) = after {
         url.push_str("&after=");
         url.push_str(&after.encode());
-        url.push_str(&format!("&wait={}", forward_wait_secs(app)));
+        url.push_str(&format!("&wait={wait_secs}"));
     }
     url
 }
@@ -77,7 +82,7 @@ fn unsupported_route(status: StatusCode) -> bool {
 
 async fn request_head(app: &SharedState, peer: &str) -> Result<SyncForwardHead, String> {
     let response = app
-        .peer_request(reqwest::Method::GET, peer, &forward_url(app, peer, None))?
+        .peer_request(reqwest::Method::GET, peer, &forward_url(app, peer, None, 0))?
         .send()
         .await
         .map_err(|error| format!("sync head request failed: {error}"))?;
@@ -95,12 +100,13 @@ async fn request_forward(
     app: &SharedState,
     peer: &str,
     after: SyncPosition,
+    wait_secs: u64,
 ) -> Result<Forward, String> {
     let response = app
         .peer_request(
             reqwest::Method::GET,
             peer,
-            &forward_url(app, peer, Some(after)),
+            &forward_url(app, peer, Some(after), wait_secs),
         )?
         .send()
         .await
@@ -121,6 +127,53 @@ async fn request_forward(
     serde_json::from_slice(&bytes)
         .map(Forward::Page)
         .map_err(|error| format!("sync forward decode failed: {error}"))
+}
+
+/// The record rows `peer`'s feed holds after `from` and at or below `head`,
+/// read without waiting; None when the feed no longer reaches back to `from`
+/// (another incarnation or a trimmed floor) or holds more than `limit`.
+pub(crate) async fn feed_records_between(
+    app: &SharedState,
+    peer: &str,
+    from: SyncPosition,
+    head: u64,
+    limit: usize,
+) -> Result<Option<Vec<BackfillEntry>>, String> {
+    let mut after = from;
+    let mut entries = Vec::new();
+    while after.seq < head {
+        let Forward::Page(page) = request_forward(app, peer, after, 0).await? else {
+            return Ok(None);
+        };
+        let records = page.entries.iter().filter(|entry| {
+            entry.seq <= head
+                && matches!(
+                    SyncFeedKind::from_wire_name(&entry.kind),
+                    Some(SyncFeedKind::Record(_))
+                )
+        });
+        for entry in records {
+            if entries.len() == limit {
+                return Ok(None);
+            }
+            entries.push(BackfillEntry {
+                record_kind: entry.kind.clone(),
+                record_id: entry.record_id.clone(),
+                version_ms: entry.version_ms,
+                size: entry.size,
+            });
+        }
+        // An empty page holds every row at or below the head: what remains
+        // are seqs released without a row.
+        if page.entries.is_empty() {
+            break;
+        }
+        if page.next <= after.seq {
+            return Ok(None);
+        }
+        after.seq = page.next;
+    }
+    Ok(Some(entries))
 }
 
 fn tuning(app: &SharedState, source: PassSource) -> BackfillPassTuning {
@@ -398,7 +451,7 @@ pub async fn run(
         let response = tokio::select! {
             biased;
             _ = cancel.cancelled() => return,
-            response = request_forward(&app, &peer, position) => response,
+            response = request_forward(&app, &peer, position, forward_wait_secs(&app)) => response,
         };
         match response {
             Ok(Forward::Page(page)) => {

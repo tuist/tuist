@@ -147,6 +147,9 @@ pub enum PassSource {
     /// Repair the named source's retained index without the recency cutoff.
     /// Store capacity and the subsequent full-corpus barrier still apply.
     RetainedIndex,
+    /// Repair exactly these records of the named source, without the recency
+    /// cutoff: what a content-verified destination found missing.
+    RetainedEntries(Vec<BackfillEntry>),
     /// Apply exactly these entries — one forward page of the arrival feed
     /// or of the ascending region read (design §3.1, §4.1; implementation
     /// decision D-9).
@@ -318,7 +321,7 @@ impl PassContext<'_> {
     fn capacity_is_per_entry(&self) -> bool {
         matches!(
             &self.tuning.source,
-            PassSource::Entries(_) | PassSource::RetainedIndex
+            PassSource::Entries(_) | PassSource::RetainedEntries(_) | PassSource::RetainedIndex
         )
     }
 
@@ -328,7 +331,10 @@ impl PassContext<'_> {
         // fit in the active segment, or replace data the source already evicted.
         // Normal ring rotation/disk admission still bound every apply, and the
         // frozen full-corpus verification rejects any holes caused by rotation.
-        if matches!(self.tuning.source, PassSource::RetainedIndex) {
+        if matches!(
+            self.tuning.source,
+            PassSource::RetainedIndex | PassSource::RetainedEntries(_)
+        ) {
             return false;
         }
         let inputs = self.state.store.backfill_capacity_inputs();
@@ -468,7 +474,9 @@ async fn list_entries(
     context: &PassContext<'_>,
     queue: mpsc::Sender<QueuedFetch>,
 ) -> Result<BackfillPassEnd, PassAbort> {
-    if let PassSource::Entries(entries) = &context.tuning.source {
+    if let PassSource::Entries(entries) | PassSource::RetainedEntries(entries) =
+        &context.tuning.source
+    {
         context.update_stats(|stats| stats.pages_listed += 1);
         for entry in entries {
             if context.cancel.is_cancelled() {

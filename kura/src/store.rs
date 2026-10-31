@@ -4205,6 +4205,14 @@ impl Store {
             .store(frontier_ms, Ordering::Release);
     }
 
+    /// Extends the watch to segments that may hold `version_ms`, before a
+    /// record that old is checked as held, so its later eviction is counted.
+    pub(crate) fn lower_retained_watch(&self, version_ms: u64) -> u64 {
+        self.retained_loss_frontier_ms
+            .fetch_min(version_ms, Ordering::AcqRel)
+            .min(version_ms)
+    }
+
     pub(crate) fn retained_loss_evictions(&self) -> u64 {
         self.retained_loss_evictions.load(Ordering::Acquire)
     }
@@ -10181,6 +10189,31 @@ impl Store {
             .map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?
             .map(|bytes| decode_manifest_record(artifact_id, &bytes))
             .transpose()
+    }
+
+    /// [`Store::manifest_from_db`] for many ids in one RocksDB multi-get, in
+    /// request order.
+    pub(crate) fn manifests_from_db<'a>(
+        &self,
+        artifact_ids: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Vec<Option<ArtifactManifest>>, String> {
+        let artifact_ids: Vec<&str> = artifact_ids.into_iter().collect();
+        self.db
+            .batched_multi_get_cf(
+                self.cf(ROCKSDB_CF_MANIFESTS),
+                artifact_ids
+                    .iter()
+                    .map(|artifact_id| artifact_id.as_bytes()),
+                false,
+            )
+            .into_iter()
+            .zip(artifact_ids)
+            .map(|(row, artifact_id)| {
+                row.map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?
+                    .map(|bytes| decode_manifest_record(artifact_id, &bytes))
+                    .transpose()
+            })
+            .collect()
     }
 
     fn manifest_cache_get_retained(&self, artifact_id: &str) -> Option<Arc<ArtifactManifest>> {
