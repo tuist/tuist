@@ -6,7 +6,6 @@ defmodule TuistWeb.API.PreviewsController do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds
-  alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.Storage
   alias TuistWeb.API.Responses
@@ -45,26 +44,8 @@ defmodule TuistWeb.API.PreviewsController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :preview)
-  plug(:require_cli_previews when action == :multipart_start)
 
   tags(["Previews"])
-
-  defp require_cli_previews(conn, _opts) do
-    %{body_params: body, assigns: %{selected_project: project}} = conn
-    cli? = body.type == "executable" or Enum.any?(Map.get(body, :supported_platforms, []), &(to_string(&1) == "linux"))
-
-    if cli? and not FeatureFlags.cli_previews_enabled?(project.account) do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{
-        message:
-          "CLI previews are not enabled on this server yet. Finish upgrading all server replicas before enabling CLI uploads."
-      })
-      |> halt()
-    else
-      conn
-    end
-  end
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a preview artifact.",
