@@ -1440,6 +1440,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistAppleArchiver",
         dependencies: [
+            "TuistLogging",
             mockableDependency,
             pathDependency,
         ],
@@ -1452,6 +1453,8 @@ targets.append(contentsOf: [
         name: "TuistAppleArchiverTests",
         dependencies: [
             "TuistAppleArchiver",
+            "TuistLoggerTesting",
+            "TuistLogging",
             fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             pathDependency,
