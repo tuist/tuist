@@ -68,7 +68,66 @@ fleet_edge_check() {
   fleet_edge_check_rack_caches "$site_file" || return 1
   fleet_edge_check_wan "$site_file" || return 1
   fleet_edge_check_tor_management "$site_file" || return 1
+  fleet_edge_check_sites "$site_file" || return 1
   fleet_edge_check_power "$site_file"
+}
+
+# A site's IPv4 networks, one "<kind> <name> <network>" per line. `internal`
+# ones (machines, management, provisioning and each ToR's management link) are
+# routed from the tailnet or reached from it through the edges, so two sites
+# never share one; the VRRP link is the same on every site and never leaves
+# it. `own` ones (site prefixes and the egress block) are the site's alone on
+# the internet. `shared` ones are the aggregates it announces.
+fleet_site_networks() {
+  local site_file="$1" kind name address
+  while IFS=$'\x1f' read -r kind name address; do
+    [ -n "$address" ] || continue
+    echo "$kind $name $(fleet_network "$address")"
+  done < <(jq -r '
+    .management as $m |
+    [
+      ["internal", "machines", ($m.edge.machines.gateway // "")],
+      ["internal", "management", ($m.prefix // "")],
+      ["internal", "provisioning", ($m.edge.provisioning // "")],
+      (.nodes[]? | select(.tor_management) | ["internal", "\(.name)-tor-management", .tor_management.address]),
+      ($m.edge.wan.bgp.site_prefixes // [] | .[] | ["own", "site-prefix", .]),
+      ["own", "egress", ($m.edge.wan.egress.prefix // "")],
+      ($m.edge.wan.bgp.prefixes // [] | .[] | select(contains(":") | not) | ["shared", "prefix", .])
+    ] | .[] | map(tostring) | join("\u001f")' "$site_file")
+}
+
+# The site against every other site defined beside it: no internal network or
+# block of its own may overlap another site's, and a site that announces an
+# aggregate another site announces too has to name its egress as a site
+# prefix, or the upstream may deliver its replies to the other site, whose
+# edge drops them. Copies of a site made by the tests (a file whose name is
+# not its `site`) are not sites, on either side of the comparison.
+fleet_edge_check_sites() {
+  local site_file="$1" site other other_site bad="" kind name network okind oname onetwork has_site_prefixes
+  site="$(jq -r '.site' "$site_file")"
+  [ "$site" = "$(basename "$site_file" .json)" ] || return 0
+  has_site_prefixes="$(jq -r '.management.edge.wan.bgp.site_prefixes // [] | length' "$site_file")"
+  for other in "$(dirname "$site_file")"/*.json; do
+    other_site="$(jq -r '.site // ""' "$other" 2>/dev/null)"
+    [ "$other_site" = "$(basename "$other" .json)" ] && [ "$other_site" != "$site" ] || continue
+    while read -r kind name network; do
+      while read -r okind oname onetwork; do
+        fleet_prefixes_overlap "$network" "$onetwork" || continue
+        if [ "$kind" = internal ] && [ "$okind" = internal ]; then
+          bad="${bad:+$bad$'\n'}$site's $name network $network overlaps $other_site's $oname network $onetwork"
+        elif [ "$kind" = own ] && [ "$okind" = own ]; then
+          bad="${bad:+$bad$'\n'}$site's $name $network overlaps $other_site's $oname $onetwork; each site's egress is its own"
+        elif [ "$kind" = shared ] && [ "$okind" = shared ] && [ "$has_site_prefixes" = 0 ] && jq -e '.management.edge.wan.egress' "$site_file" >/dev/null; then
+          bad="${bad:+$bad$'\n'}$site and $other_site both announce $network, so $site needs management.edge.wan.bgp.site_prefixes covering its egress"
+        fi
+      done < <(fleet_site_networks "$other")
+    done < <(fleet_site_networks "$site_file")
+  done
+  if [ -n "$bad" ]; then
+    echo "error: the site collides with another site:" >&2
+    printf '  %s\n' "$bad" | sort -u >&2
+    return 1
+  fi
 }
 
 # Whether the management VLAN rides the edges' uplinks rather than a port of
@@ -108,17 +167,22 @@ fleet_edge_check_wan() {
     return 1
   fi
 }
-
 # The site's own prefixes and the AS that announces them over the WAN, when it
 # has them: the site's ASN and the upstream's, and each prefix as a network
 # with no host bits. An IPv4 prefix needs the WAN's IPv4 address and an IPv6
-# one its IPv6 address, which the sessions run from. Prints what is wrong.
+# one its IPv6 address, which the sessions run from. A site prefix is an IPv4
+# block inside one of them that only this site serves (its egress), announced
+# to the upstream tagged NO_EXPORT: with two sites announcing the same
+# aggregate, it is what makes the upstream deliver the replies to the site
+# that sent them. An IPv6 block the size of a site is routable on its own, so
+# it is one of the prefixes instead. Prints what is wrong.
 fleet_edge_check_bgp() {
   local site_file="$1" address="$2" address6="$3" asn peer_asn prefix
-  local -a prefixes
+  local -a prefixes site_prefixes
   jq -e '.management.edge.wan.bgp' "$site_file" >/dev/null 2>&1 || return 0
   IFS=$'\x1f' read -r asn peer_asn < <(jq -r '.management.edge.wan.bgp as $b | [($b.asn // ""), ($b.peer_asn // "")] | map(tostring) | join("\u001f")' "$site_file")
   mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | tostring' "$site_file")
+  mapfile -t site_prefixes < <(jq -r '.management.edge.wan.bgp.site_prefixes // [] | .[] | tostring' "$site_file")
   if [ -z "$address" ]; then
     echo "management.edge.wan.bgp needs the WAN's address, which its sessions run from"
     return 0
@@ -147,6 +211,18 @@ fleet_edge_check_bgp() {
       return 0
     fi
   done
+  for prefix in "${site_prefixes[@]}"; do
+    if [[ "$prefix" == *:* ]]; then
+      echo "management.edge.wan.bgp.site_prefixes '$prefix' is IPv6; an IPv6 block one site serves is routable on its own, so it goes in prefixes"
+      return 0
+    elif ! [[ "$prefix" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${prefix%/*}" || [ "$(fleet_network "$prefix")" != "$prefix" ]; then
+      echo "management.edge.wan.bgp.site_prefixes '$prefix' is not an IPv4 network with its prefix length"
+      return 0
+    elif ! fleet_prefix_inside_any "$prefix" "${prefixes[@]}"; then
+      echo "management.edge.wan.bgp.site_prefixes '$prefix' is not inside an IPv4 prefix management.edge.wan.bgp announces"
+      return 0
+    fi
+  done
 }
 
 # Where the site's Mac minis go out from, when not the WAN address: a block of
@@ -154,25 +230,26 @@ fleet_edge_check_bgp() {
 # time, the minis that do. Without nodes, every Mac mini does. Prints what is
 # wrong.
 fleet_edge_check_egress() {
-  local site_file="$1" prefix announced node found
-  local -a nodes minis
+  local site_file="$1" prefix node
+  local -a nodes minis announced
   jq -e '.management.edge.wan.egress' "$site_file" >/dev/null 2>&1 || return 0
   prefix="$(jq -r '.management.edge.wan.egress.prefix // ""' "$site_file")"
   if ! [[ "$prefix" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${prefix%/*}" || [ "$(fleet_network "$prefix")" != "$prefix" ]; then
     echo "management.edge.wan.egress.prefix '$prefix' is not an IPv4 network with its prefix length"
     return 0
   fi
-  found=""
-  while read -r announced; do
-    [ -n "$announced" ] || continue
-    if (( $(fleet_prefix_length "$prefix") >= $(fleet_prefix_length "$announced") )) &&
-      [ "$(fleet_network "${prefix%/*}/${announced#*/}")" = "$announced" ]; then
-      found=1
+  mapfile -t announced < <(jq -r '.management.edge.wan.bgp.site_prefixes // [] | .[]' "$site_file")
+  if [ "${#announced[@]}" -gt 0 ]; then
+    if ! fleet_prefix_inside_any "$prefix" "${announced[@]}"; then
+      echo "management.edge.wan.egress.prefix '$prefix' is not inside one of management.edge.wan.bgp.site_prefixes, so its replies could be delivered to another site announcing the same prefix"
+      return 0
     fi
-  done < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | select(contains(":") | not)' "$site_file")
-  if [ -z "$found" ]; then
-    echo "management.edge.wan.egress.prefix '$prefix' is not inside an IPv4 prefix management.edge.wan.bgp announces"
-    return 0
+  else
+    mapfile -t announced < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | select(contains(":") | not)' "$site_file")
+    if ! fleet_prefix_inside_any "$prefix" "${announced[@]}"; then
+      echo "management.edge.wan.egress.prefix '$prefix' is not inside an IPv4 prefix management.edge.wan.bgp announces"
+      return 0
+    fi
   fi
   mapfile -t nodes < <(jq -r '.management.edge.wan.egress.nodes // [] | .[] | tostring' "$site_file")
   [ "${#nodes[@]}" -gt 0 ] || return 0
@@ -199,6 +276,39 @@ fleet_prefix_range() {
     $(( last >> 24 & 255 )) $(( last >> 16 & 255 )) $(( last >> 8 & 255 )) $(( last & 255 ))
 }
 
+# The first and last address of an IPv4 network as integers, space separated:
+# 95.130.119.16/28 is 1602385680 1602385695.
+fleet_prefix_bounds() {
+  local prefix="$1" bits octets value i
+  bits="$(fleet_prefix_length "$prefix")"
+  IFS=. read -r -a octets <<<"${prefix%/*}"
+  value=0
+  for i in 0 1 2 3; do value=$(( (value << 8) | octets[i] )); done
+  value=$(( value & ~((1 << (32 - bits)) - 1) & 0xffffffff ))
+  echo "$value $(( value | ((1 << (32 - bits)) - 1) ))"
+}
+
+# Whether two IPv4 networks share an address.
+fleet_prefixes_overlap() {
+  local a_first a_last b_first b_last
+  read -r a_first a_last <<<"$(fleet_prefix_bounds "$1")"
+  read -r b_first b_last <<<"$(fleet_prefix_bounds "$2")"
+  (( a_first <= b_last && b_first <= a_last ))
+}
+
+# Whether an IPv4 network lies inside any of the others (IPv6 ones are skipped).
+fleet_prefix_inside_any() {
+  local prefix="$1" outer first last outer_first outer_last
+  shift
+  read -r first last <<<"$(fleet_prefix_bounds "$prefix")"
+  for outer in "$@"; do
+    [[ -n "$outer" && "$outer" != *:* ]] || continue
+    read -r outer_first outer_last <<<"$(fleet_prefix_bounds "$outer")"
+    (( outer_first <= first && last <= outer_last )) && return 0
+  done
+  return 1
+}
+
 # The site's BIRD configuration, when it announces prefixes of its own: one
 # session per address family to the WAN's upstream, from the WAN address. Both
 # edges run it, and only the master holds that address, so only the master's
@@ -215,14 +325,19 @@ fleet_prefix_range() {
 # upstream delivers to it is dropped by tuist_rack_wan. Of what the upstream
 # sends, the default route is kept and nothing goes into the node's routes:
 # the node's default through the WAN is keepalived's.
+# A site's own blocks inside the shared aggregate (`site_prefixes`) are
+# announced beside it tagged NO_EXPORT, so the upstream routes them to this
+# site while the rest of the internet sees only the aggregate, from every site
+# that is up.
 fleet_edge_bgp() {
   local site_file="$1" address gateway address6 gateway6 asn peer_asn prefix family
-  local -a prefixes
+  local -a prefixes site_prefixes
   fleet_edge_check "$site_file" || return 1
   IFS=$'\x1f' read -r address gateway address6 gateway6 asn peer_asn < <(jq -r '.management.edge.wan as $w | [
       $w.address, $w.gateway, ($w.address6 // ""), ($w.gateway6 // ""), $w.bgp.asn, $w.bgp.peer_asn
     ] | map(tostring) | join("\u001f")' "$site_file")
   mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes[]' "$site_file")
+  mapfile -t site_prefixes < <(jq -r '.management.edge.wan.bgp.site_prefixes // [] | .[]' "$site_file")
   cat <<CONF
 # generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
 log stderr all;
@@ -232,13 +347,23 @@ protocol device {
 }
 CONF
   for family in 4 6; do
-    local routes="" peer local_address
+    local routes="" peer local_address export="    export where proto = \"originate$family\";"
     for prefix in "${prefixes[@]}"; do
       if { [ "$family" = 6 ] && [[ "$prefix" == *:* ]]; } || { [ "$family" = 4 ] && [[ "$prefix" != *:* ]]; }; then
         routes+="  route $prefix blackhole;"$'\n'
       fi
     done
     [ -n "$routes" ] || continue
+    if [ "$family" = 4 ] && [ "${#site_prefixes[@]}" -gt 0 ]; then
+      for prefix in "${site_prefixes[@]}"; do routes+="  route $prefix blackhole;"$'\n'; done
+      local set
+      set="$(IFS=,; echo "${site_prefixes[*]}")"
+      export="    export filter {
+      if proto != \"originate4\" then reject;
+      if net ~ [ ${set//,/, } ] then bgp_community.add((65535, 65281));
+      accept;
+    };"
+    fi
     if [ "$family" = 4 ]; then
       peer="$gateway" local_address="${address%/*}"
     else
@@ -262,7 +387,7 @@ protocol bgp upstream$family {
       reject;
     };
     import limit 10 action block;
-    export where proto = "originate$family";
+${export}
   };
 }
 CONF
