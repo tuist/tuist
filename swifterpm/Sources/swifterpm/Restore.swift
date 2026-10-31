@@ -50,6 +50,7 @@ enum WorkspaceRestorer {
 
         let sourcePins = resolved.pins.filter { PinKind.isSourceControl($0.kind) }
         let registryPins = resolved.pins.filter { PinKind.isRegistry($0.kind) }
+        let skipped = resolved.pins.count - sourcePins.count - registryPins.count
         let trash = ScratchTrash(scratchDir: scratchDir)
         let sourceResults: [(String, URL)]
         let registryResults: [(String, URL)]
