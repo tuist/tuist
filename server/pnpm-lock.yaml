@@ -14,7 +14,7 @@ overrides:
   fast-uri: 3.1.9
   fflate: 0.4.9
   flatted: 3.4.2
-  follow-redirects: 1.16.1
+  follow-redirects: 1.16.2
   form-data: 4.0.6
   mdast-util-to-hast: 13.2.1
   nanoid@^3.0.0: 3.3.18
@@ -69,7 +69,7 @@ time:
   eventsource-parser@3.1.1: 2026-08-10T15:55:29.938Z
   fast-uri@3.1.9: 2026-10-19T23:05:26.357Z
   fflate@0.4.9: 2026-07-20T16:20:26.758Z
-  follow-redirects@1.16.1: 2026-10-01T13:52:31.780Z
+  follow-redirects@1.16.2: 2026-10-25T21:32:25.963Z
   form-data@4.0.6: 2026-06-12T17:37:53.689Z
   hasown@2.0.4: 2026-05-28T18:11:39.940Z
   https-proxy-agent@5.0.1: 2022-04-14T18:42:00.761Z
@@ -901,8 +901,8 @@ packages:
   focus-trap@7.8.0:
     resolution: {integrity: sha512-/yNdlIkpWbM0ptxno3ONTuf+2g318kh2ez3KSeZN5dZ8YC6AAmgeWz+GasYYiBJPFaYcSAPeu4GfhUaChzIJXA==}
 
-  follow-redirects@1.16.1:
-    resolution: {integrity: sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==}
+  follow-redirects@1.16.2:
+    resolution: {integrity: sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow==}
     engines: {node: '>=4.0'}
     peerDependenciesMeta:
       debug:
@@ -2576,7 +2576,7 @@ snapshots:
 
   axios@1.20.0:
     dependencies:
-      follow-redirects: 1.16.1
+      follow-redirects: 1.16.2
       form-data: 4.0.6
       https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
@@ -2718,7 +2718,7 @@ snapshots:
     dependencies:
       tabbable: 6.4.0
 
-  follow-redirects@1.16.1: {}
+  follow-redirects@1.16.2: {}
 
   form-data@4.0.6:
     dependencies:
