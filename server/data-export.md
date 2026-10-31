@@ -268,6 +268,99 @@ operations; retain them until an administrator removes them.
 - App build information
 - Desktop and CLI previews use the existing PostgreSQL `previews` and `app_builds` tables and project/account relationships. `app_builds.type` includes `executable` (integer `3`), and supported platforms include `linux` (integer `10`) alongside the existing macOS platform. `app_builds.supported_architectures` stores the publisher-reported CPU architectures (`arm64` and/or `x86_64`) for automatic download selection; an empty array represents legacy, unknown, or interpreter-based builds. Include this column in the build metadata export. Executable preview ZIPs contain an entry-point manifest (`tuist-preview.json`) and the developer's executable or full distribution, including any libraries, resource bundles, and helpers. macOS app previews contain the `.app` bundle. Both use the existing `{account_handle}/{project_handle}/previews/{app_build_id}.zip` object key and multipart upload/download authorization. Export metadata by joining `app_builds.preview_id` to `previews.id` and `previews.project_id` to the account's projects; retrieve each retained archive with `Tuist.AppBuilds.storage_key/1` and `Tuist.Storage.stream_object/2`. The normal preview artifact retention applies (30 days hosted, subject to configured overrides); metadata remains after artifact expiry, and deleted or expired archives cannot be exported.
 
+### Artifact Publications
+
+- **Publication records** (`artifact_publications`, PostgreSQL): `id` (UUID),
+  `project_id`, nullable `created_by_account_id`, `key` (SHA-256 publication-intent
+  identity), `intent` (JSON containing `schema`, root descriptor, target, optional
+  track and revision), `contents` (JSON mapping every reachable digest to its
+  digest/byte-size/media-type descriptor), `committed` (closure validation and
+  durable publication completed), `projected` (native-preview projection
+  completion), `expired` (irreversible tombstone), and `inserted_at`/`updated_at`.
+  The key is unique per project. An uncommitted staging row pins uploaded content
+  while bounded storage validation runs outside a database transaction; it has
+  empty `contents` and cannot produce a receipt or preview. Failed or interrupted
+  validation can resume for the same key until retention expires the row.
+  Retention also creates expired, uncommitted tombstones with empty `intent` and
+  `contents` before deleting abandoned uploads belonging to surviving projects.
+  These fence late remote deletions against publication, even after a timeout or
+  worker loss; they never produce receipts or previews.
+  Project deletion cascades records; deleting the creator account nulls that
+  relationship. The project belongs to the owning account. Targets, tracks,
+  revisions, interface metadata and payloads can contain customer-owned content.
+- **Full closures** (account object storage):
+  `{account_id}/{project_id}/artifacts/{intent_key}/{digest}` stores the immutable
+  artifact-set document, all member manifests and all payloads, including unknown
+  consumption interfaces. Once, Bazel, and Gradle publications use this same
+  namespace, receipt identity and export process. Bazel and Gradle publications include only
+  the selected signed application payload, or executable distribution, and derived native metadata, not
+  signing keys or unrelated build outputs. Gradle metadata includes the application
+  ID, version code/name, verified signing certificate SHA-256 fingerprints, and
+  signature-verification result. Its publication target identifies the module and
+  variant; track is optional and revision is currently absent.
+  Executable publications retain the entry-point path, display name, operating
+  system and CPU architectures as `tuist.executable.v1` metadata, together with a
+  ZIP containing `tuist-preview.json` and the executable's runtime distribution.
+  Bazel includes the target's declared runfiles; Gradle native applications
+  include their installed executable and runtime libraries. Export these payloads
+  and metadata through the same artifact closure; projected executable builds
+  expose their platform and architecture in the existing `app_builds` columns.
+  Authenticated uploads verify SHA-256; commit validates the reachable closure before returning a receipt. Supported native interfaces
+  additionally create `previews`/`app_builds` rows with the publication's project,
+  creator, revision, track and original timestamp, honoring the project's default
+  preview visibility. The nullable `app_builds.artifact_storage_key` references
+  the original payload in the artifact namespace, rather than a detached copy.
+  This key is server-owned, not accepted as upload metadata. Include it in
+  preview exports and retrieve the referenced bytes from account storage.
+- **Retention**: receipt lookup, content download, commit replay and preview
+  projection use a 30-day window from `inserted_at` on hosted Tuist. Self-hosted
+  instances use `artifact_retention_days.app_previews`
+  (`TUIST_APP_PREVIEW_RETENTION_DAYS`); unset disables expiry. Expired rows remain
+  as tombstones and the same intent cannot be reactivated by uploading or
+  committing it again. Scheduled retention deletes generic closure objects
+  using the publication or staging row's `inserted_at`; incomplete uploads without a
+  row use object `last_modified`. Projected previews reference the same bytes and
+  timestamps. Access expiry can precede physical deletion, so include still-stored
+  expired closures and incomplete-upload objects in export and erasure inventories.
+- **Account erasure**: account deletion transactionally queues
+  `Tuist.Accounts.Workers.DeleteAccountArtifactsWorker` to erase committed and
+  uncommitted objects in the account-ID artifact namespace, even after account,
+  project and publication rows are gone and when retention is disabled.
+  `artifact_uploads` stores an internal integer `id`, `account_id` and `inserted_at`
+  for every admitted write. Admission locks the surviving account briefly, so
+  deletion stops new writers without holding SQL connections during uploads.
+  These rows deliberately have no account foreign key and survive deletion.
+  Confirmed successful writes remove their row. Unconfirmed errors or lost
+  writers retain it. Cleanup rescans from the beginning until a complete pass
+  starts without writers; abandoned claims keep cleanup and its encrypted storage
+  snapshot live. An operator must establish that no remote write can still
+  complete before clearing an abandoned claim. Export claims by `account_id`.
+  Storage failures defer the same page without exhausting the cleanup job or
+  losing its snapshot to pruning. It does not abort provider-level incomplete
+  multipart sessions or backfill already-deleted accounts.
+  `oban_jobs.args` temporarily stores `account_id`, an optional continuation
+  token, `writers_present` (whether a writer existed at the start of the current
+  pass) and `encrypted_storage`: an authenticated encrypted snapshot of account
+  ID/name and custom S3 bucket, access key, secret key, region and endpoint. This
+  snapshot has no account foreign key or token-age expiry so cleanup can survive
+  deletion and retry using the original storage destination. Encryption uses
+  the endpoint secret and salt `deleted-account-artifact-storage`; retries require
+  the same secret and valid storage credentials. Normal Oban pruning controls
+  ciphertext retention (terminal jobs currently remain approximately two hours;
+  cleanup waiting on storage recovery or abandoned writers is nonterminal and
+  does not expire).
+  Export cleanup-job metadata without disclosing decrypted credentials.
+- **Export**: select publications by joining `artifact_publications.project_id`
+  to `projects.id` and filtering `projects.account_id`; export every listed column
+  as JSON, including expired tombstones and creator relationships. For each row,
+  retrieve the root when present and every descriptor in `contents` from the namespace above,
+  preserving all reachable blobs rather than only projected application payloads.
+  Enumerate the account/project `artifacts/` prefixes for retained uploads not
+  yet represented by a committed row. Use the account's configured storage,
+  including custom storage. Also export the corresponding preview rows and
+  payload references. Purged blobs cannot be recovered; record missing objects rather than
+  treating a receipt or tombstone as proof that bytes remain available.
+
 ### Alerts & Monitoring
 - Alert rules (name, category, metric, deviation thresholds, Slack channel configuration, baseline established timestamp)
 - Alert history (triggered alerts with current/previous values, timestamps)

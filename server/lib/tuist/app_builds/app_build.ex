@@ -38,6 +38,7 @@ defmodule Tuist.AppBuilds.AppBuild do
     field :supported_architectures, {:array, :string}, default: []
     field :binary_id, :string
     field :build_version, :string
+    field :artifact_storage_key, :string
 
     timestamps(type: :utc_datetime)
   end
