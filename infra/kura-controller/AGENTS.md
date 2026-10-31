@@ -12,6 +12,9 @@ Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node li
   before Quiescing. Renew the primary normally, bind completion to the exact
   intent/source epoch/destination incarnation, and preserve the original five-minute
   frozen-corpus barrier. Preparation failure never promotes or pauses the primary.
+  A fresh source report of `barrier_failure` for the exact intent restores
+  Serving before that deadline, the same abort as a timeout; destination
+  reports and other intents never release the barrier.
   Clear only Serving-phase preparation when fencing; interrupted Quiescing keeps
   its existing external recovery requirements.
   Durable CAS epochs and positive fencing own activated instances. Missing-node
