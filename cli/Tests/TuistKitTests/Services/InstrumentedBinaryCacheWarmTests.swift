@@ -14,6 +14,7 @@ struct InstrumentedBinaryCacheWarmTests {
         #expect(InstrumentedBinaryCacheWarm.sourceRoots(["/Users/ci/checkout", "/Volumes/ci/checkout"]) == [
             "/Users/ci/checkout", "/Volumes/ci/checkout",
         ])
+        #expect(InstrumentedBinaryCacheWarm.sourceRoots(["/private/opt/checkout"]) == ["/private/opt/checkout"])
     }
 
     @Test func buildSettings_quoteEachPrefixMapSoARootWithWhitespaceStaysOneArgument() {
