@@ -887,7 +887,8 @@ struct RunCommandServiceTests {
         given(adbController)
             .installApp(at: .value(installedAPK), device: .value(androidDevice))
             .willProduce { path, _ in
-                #expect(try Data(contentsOf: URL(fileURLWithPath: path.pathString)) == apkBytes)
+                let installedBytes = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
+                #expect(installedBytes == apkBytes)
             }
 
         given(adbController)
