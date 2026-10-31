@@ -115,7 +115,7 @@ func schemes() -> [Scheme] {
                 postActions: [
                     inspectTestPostAction(target: "TuistKitAcceptanceTests"),
                 ],
-                // Explicit, so mise.toml's TUIST_COVERAGE_ENABLED doesn't turn it on: the tests mostly
+                // Explicit, so Tuist.swift's `coverage` option doesn't turn it on: the tests mostly
                 // exercise nested xcodebuild processes, which coverage doesn't measure.
                 options: .options(coverage: false)
             ),
@@ -188,7 +188,7 @@ func schemes() -> [Scheme] {
         // ceiling TuistAcceptanceTests already runs at on the same fleet after the worker cap in
         // tuist-project-tests.yml, against the same EE target and the same cases. tuist/tuist#12512 measured the
         // oversubscription that cap exists to prevent, but it measured the whole 207-test suite at
-        // 16x concurrency; this plan is 15 tests and does not add a worker beyond that ceiling.
+        // 16x concurrency; this plan is 16 tests and does not add a worker beyond that ceiling.
         testAction: .targets(
             [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
                 + (
@@ -199,7 +199,7 @@ func schemes() -> [Scheme] {
             postActions: [
                 inspectTestPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
             ],
-            // Explicit, like TuistAcceptanceTests, so mise.toml's TUIST_COVERAGE_ENABLED doesn't turn it on.
+            // Explicit, like TuistAcceptanceTests, so Tuist.swift's `coverage` option doesn't turn it on.
             options: .options(
                 language: "en",
                 coverage: false

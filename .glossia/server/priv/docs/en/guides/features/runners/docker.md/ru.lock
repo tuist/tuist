@@ -1,0 +1,267 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "b85f7860c5c734ba949255e4c1af40348a8511ebdc582c60c344421c159879e5",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Docker {#docker}": {
+                  "content_hash": "b12c08ebe006532e148d536faec2287223b0c6f94066bd9ebfef75eb8fdfe28e"
+                },
+                "## Image pulls {#image-pulls}": {
+                  "content_hash": "1b48fd73837f03d26598255a50cc2e43f86447c77df739d09fc2040b3413d4ee"
+                },
+                "## Private registries {#private-registries}": {
+                  "content_hash": "db446b83a77fd22953ae16f93a048655192be453230100ede561f7ab1b71a180"
+                },
+                "## Running a job in a container {#running-a-job-in-a-container}": {
+                  "content_hash": "b965ebc20fa2985dfbecd8338af29a6378b2a0c12f9ac10aa407ba9db6de3a7c"
+                },
+                "## Service containers {#service-containers}": {
+                  "content_hash": "f5cdb471dcae6a19f7b1b49755e1c404829e8a950e55321b3a9532aa825694b0"
+                },
+                "Preamble": {
+                  "content_hash": "af02de28b513b99de10a822319693d2c44813af8a7aab3c0fae33ea3ef260be4"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "91abfed9cadb474a9abafac6cf729d6d9b648df1fa01e76e55a929174572c340",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/features/runners/docker.md",
+          "metadata": {
+            "content_hash": "90eca2a6ced414f31a55ed391bf9da622eb39b4b543d0070574a02c666da38f1"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "9786290c0e23635ecda638522b48a87ba4e82b1561fcc08ec81b152f3d7b77de",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Russian",
+            "locale": "ru",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/ru.md": {
+                    "content_hash": "6b95108ccc3f0561fd0baa74b19d36042627768e18d00466b411a26aec631992",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "809f7790b82a210b52aac663416221f899955f61f11ebd1f9f407018d6317413"
+                      },
+                      "## Russian-specific translation rules": {
+                        "content_hash": "1d80989e3db1fe4ea014830312aa518a027ef98b660b47dab0f8186666ebc492"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "03e8f92357bd42c2840b538e8db6643bcc4fe3e1a92d80e84872435f31e05253"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c3a059b5c05b024eeb6e14e43a4f18d82ce4b256e66040b87383147bff80417f",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "c14966d4fca075aebc13f54f40846a461c5a2fe8a69c3a7efd0def151ce0a282"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "5333d1ef6ad53f55a278ad34659373b59457597f7c78719bc78853bedaae8b6e"
+                      }
+                    }
+                  },
+                  "hash": "4032fcf654013ee0633b42203aa210b89122b5bcda2737e22a4db3751da0395e",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "99e96d3cce8d6dd883c28481dd913999408bea3faf905c4ae89cc604f544234b"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "1c29f387af2aa07df4576cca8e378d7346eec40bdc689129231e1b07e76c04f2",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "26ddd15da44ba3709e3ef994282bebf566d0c888fa4a4a5a8039217a7bedd6bf",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "b85f7860c5c734ba949255e4c1af40348a8511ebdc582c60c344421c159879e5",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/features/runners/docker.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "0bbea159a20b0adaaf01c5d4d5b3b14ecafe729fd13c84ca28356ddbc0c514dd",
+  "output_path": "server/priv/docs/ru/guides/features/runners/docker.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [
+        "repo:features"
+      ],
+      "content_hash": "99e96d3cce8d6dd883c28481dd913999408bea3faf905c4ae89cc604f544234b",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_path": "server/priv/docs/en/guides/features/runners/docker.md",
+  "translated_at": "2026-10-29T15:31:15.183303Z",
+  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+}

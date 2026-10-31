@@ -36,6 +36,24 @@ The command re-uses binaries to speed up the process.
 
 If a binary fails to upload, the command still uploads the rest, then exits with a non-zero status and lists the targets that weren't uploaded. Binaries in a machine's local cache count as cached, so to upload them again from the same machine, run `tuist clean binaries` before warming. Pass `--no-upload` to only store binaries in the local cache.
 
+### Destination selection {#destination-selection}
+
+Use `--destination simulator` or `--destination device` to cache and generate for one destination:
+
+```bash
+tuist cache --destination simulator
+tuist generate --destination simulator
+
+tuist cache --destination device
+tuist generate --destination device
+```
+
+The default is `all`, which preserves every destination supported by your targets, including Mac Catalyst. A later `tuist cache` reuses cached slices and builds only the missing SDKs. Normal generation keeps a module's sources if any required slices are missing.
+
+Restricted generation limits source targets to the selected destination and preserves native macOS targets, including macros. Neither restricted mode includes Mac Catalyst. Regenerate with `--destination all` to restore all destinations.
+
+Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching requires `--destination all`.
+
 ### Remote upload admission {#remote-upload-admission}
 
 Modern module caching uses REAPI. When a busy cache temporarily rejects an upload with `RESOURCE_EXHAUSTED`, Tuist backs off with jitter, respects standard `google.rpc.RetryInfo` minimum delays, and retries within a bounded wait budget. Upload admission allows at most six retries per call. Each blob-upload operation shares one 60-second cumulative backoff budget across its presence checks, batch uploads, and streaming writes; concurrent waits each consume the budget, so repeated refusals do not grant every queued blob another minute of retries. Successful transfers do not consume this budget and are not cancelled when it runs out. Action-result publication has its own bounded budget. The exponential delay starts at one second and grows toward 30 seconds before proportional jitter. If a server's required delay exceeds the remaining budget, Tuist fails rather than retrying earlier than instructed. Cancellation interrupts backoff, and cache reads retain short retries so overload does not stall generation.

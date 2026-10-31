@@ -51,6 +51,12 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      sandbox_template_image_tag:
+        description: Published sandbox template tag; omit to build on a fresh deploy or preserve the live template on a server-only rollback
+        required: false
+      sandboxd_image_tag:
+        description: Published sandboxd tag; omit to build on a fresh deploy or preserve the live daemon on a server-only rollback
+        required: false
       staging_platform_revision:
         description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
         required: false
@@ -109,7 +115,22 @@ on:
         type: boolean
         default: true
   workflow_call:
+    outputs:
+      linux_runner_image:
+        description: Intended Linux runner image before per-pool staging holds
+        value: ${{ jobs.deploy.outputs.linux_runner_image }}
+      macos_runner_images:
+        description: JSON array of the macOS catalog runner images this deploy targets
+        value: ${{ jobs.deploy.outputs.macos_runner_images }}
     inputs:
+      sandbox_template_image_tag:
+        description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
+        required: false
+        type: string
+      sandboxd_image_tag:
+        description: Published sandboxd tag; fresh deploys build it, pre-built server deploys preserve the live daemon when unset
+        required: false
+        type: string
       staging_platform_revision:
         description: Existing staging platform Helm revision to restore and retain for this deployment
         required: false
@@ -307,6 +328,22 @@ jobs:
 
           echo "Production deploy is running from refs/heads/main."
 
+  build-sandbox-template:
+    name: Publish sandbox template
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandbox_template_image_tag == ''
+    uses: ./.github/workflows/sandbox-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+
+  build-sandboxd:
+    name: Publish sandboxd
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandboxd_image_tag == ''
+    uses: ./.github/workflows/sandboxd-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+
   build:
     name: Build + push server
     needs: guard_production_source
@@ -403,7 +440,6 @@ jobs:
             TUIST_HOSTED=1
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
-            APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
       - name: Export production project builds
         id: project-export
         if: steps.project-cache.outcome == 'success'
@@ -475,6 +511,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
           build-args: ${{ matrix.build-args }}
@@ -589,6 +626,7 @@ jobs:
           # bin/${TARGETARCH}/kura staged above and performs no compilation.
           context: ./kura
           file: ./kura/Dockerfile.release
+          build-contexts: certificate-trust=./infra/certificate-trust
           platforms: linux/amd64
           push: true
           tags: |
@@ -864,8 +902,11 @@ jobs:
           mise -C infra run --skip-tools k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
 
   deploy:
+    outputs:
+      linux_runner_image: ${{ steps.deploy-chart.outputs.linux_runner_image }}
+      macos_runner_images: ${{ steps.macos-images.outputs.macos_runner_images }}
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-images, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-images, build-sandbox-template, build-sandboxd, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
@@ -887,7 +928,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-sandbox-template.result == 'success' || needs.build-sandbox-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -915,6 +956,8 @@ jobs:
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       SERVER_IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
+      SANDBOX_TEMPLATE_IMAGE_TAG: ${{ inputs.sandbox_template_image_tag || needs.build-sandbox-template.outputs.image_tag }}
+      SANDBOXD_IMAGE_TAG: ${{ inputs.sandboxd_image_tag || needs.build-sandboxd.outputs.image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
       KURA_VOLUMES_CSI_IMAGE_DIGEST_INPUT: ${{ inputs.kura_volumes_csi_image_digest }}
@@ -1091,26 +1134,49 @@ jobs:
         # announcement, the pool keeps the digest it runs now, so no job
         # waits on the pull. A gate that cannot read the cluster moves the
         # pools as before, and a checkout predating the gate has none.
+        # Canary qualifies the release, as for Linux: it waits for staging,
+        # never accepts the announcement's age, and fails closed, so runners
+        # acceptance runs on the images production will move to.
+        id: macos-images
         if: env.RUNNER_IMAGE_DIGESTS != ''
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
         run: |
           set -euo pipefail
           gate=.github/scripts/runner-image-staging-gate.sh
+          stacked="${RUNNER_IMAGE_STACKED_DIGESTS:-"{}"}"
+          echo "macos_runner_images=$(jq -cn --argjson a "$RUNNER_IMAGE_DIGESTS" --argjson b "$stacked" \
+            '[$a, $b | .[] | "ghcr.io/tuist/tuist-runner@" + .] | unique')" >> "$GITHUB_OUTPUT"
           [ -x "$gate" ] || exit 0
-          if ! gated="$("$gate" "$RUNNER_IMAGE_DIGESTS" "${RUNNER_IMAGE_STACKED_DIGESTS:-"{}"}")"; then
+          if [ "$TARGET_ENVIRONMENT" = canary ]; then
+            want="$(jq -cn --argjson digests "$RUNNER_IMAGE_DIGESTS" --argjson stacked "$stacked" '{digests: $digests, stacked: $stacked}')"
+            deadline=$((SECONDS + 1800))
+            until gated="$(RUNNER_IMAGE_STAGING_TIMEOUT_SECONDS=31536000 "$gate" "$RUNNER_IMAGE_DIGESTS" "$stacked")" && [ "$gated" = "$want" ]; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::Canary's macOS hosts have not staged the release's runner images within 30 minutes; refusing to qualify old images."
+                exit 1
+              fi
+              sleep 30
+            done
+            exit 0
+          fi
+          if ! gated="$("$gate" "$RUNNER_IMAGE_DIGESTS" "$stacked")"; then
             echo "::warning::Could not check which runner images the hosts have staged; moving the pools to the release's images."
             exit 0
           fi
           echo "RUNNER_IMAGE_DIGESTS=$(jq -c .digests <<< "$gated")" >> "$GITHUB_ENV"
           echo "RUNNER_IMAGE_STACKED_DIGESTS=$(jq -c .stacked <<< "$gated")" >> "$GITHUB_ENV"
-      - name: Pre-pull the server image
+      - name: Render the server image pre-pull
         # The migration Job and every server Pod the rollout replaces one at a
         # time otherwise start by pulling the new image on their node (22-40s
         # each). A throwaway DaemonSet on the nodes server Pods schedule to
-        # pulls it now, while the steps before the Helm upgrade run, and
-        # "Remove the server image pre-pull" deletes it afterwards. Nothing
-        # waits on it: a node that has not finished pulling just pulls for
-        # the Pod as before. Only the server Deployment's node placement is
-        # copied; its pod anti-affinity would keep these Pods off its nodes.
+        # pulls it while the waits before the Helm upgrade run, and "Remove
+        # the server image pre-pull" deletes it afterwards. Nothing waits on
+        # it: a node that has not finished pulling just pulls for the Pod as
+        # before. Only the server Deployment's node placement is copied; its
+        # pod anti-affinity would keep these Pods off its nodes. The Helm step
+        # applies it after the CAPI provider rollout, because the kubelet
+        # pulls one image at a time and the provider shares these nodes.
         run: |
           set -euo pipefail
           if ! scheduling="$(
@@ -1125,6 +1191,7 @@ jobs:
             exit 0
           fi
           image="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          manifest="$RUNNER_TEMP/server-image-prepull.json"
           jq -n --arg namespace "$NAMESPACE" --arg image "$image" --argjson scheduling "$scheduling" '{
             apiVersion: "apps/v1",
             kind: "DaemonSet",
@@ -1155,8 +1222,9 @@ jobs:
                 })
               }
             }
-          }' | kubectl apply -f -
-          echo "Pre-pulling ${image} on the nodes server Pods schedule to: ${scheduling}"
+          }' > "$manifest"
+          echo "SERVER_IMAGE_PREPULL_MANIFEST=$manifest" >> "$GITHUB_ENV"
+          echo "Will pre-pull ${image} on the nodes server Pods schedule to: ${scheduling}"
       - name: Resolve Kura controller image tag
         run: |
           set -euo pipefail
@@ -1374,6 +1442,7 @@ jobs:
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
+        id: deploy-chart
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
         # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
@@ -1480,8 +1549,12 @@ jobs:
             linux_runner_image_version="${LINUX_RUNNER_IMAGE_VERSION:-}"
           fi
           if [ -n "$linux_runner_image_version" ]; then
+            # Resolve manual pins too. The pool identity is content, so a new
+            # release tag serving the same manifest cannot churn idle runners.
+            linux_runner_image_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$linux_runner_image_version")"
+            echo "linux_runner_image=ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}" >> "$GITHUB_OUTPUT"
             add_set "runnersFleetLinux.shapeRunnerImage" \
-              "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
+              "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
           fi
 
           helm_values_args=(
@@ -1573,6 +1646,20 @@ jobs:
             main_renders_xcresult_processor=true
           else
             main_renders_xcresult_processor=false
+          fi
+          # Read identity from the rendered chart rather than assuming its namespace
+          # or resource prefix. Explicit/published tags win; server-only re-promotions
+          # retain the live template and daemon instead of reverting to the
+          # values-file pins.
+          sandbox_namespace=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .metadata.namespace' "$registry_render")
+          if [ -n "$sandbox_namespace" ]; then
+            sandbox_name=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .metadata.name' "$registry_render")
+            sandbox_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.initContainers[] | select(.name == "template") | .image' "$registry_render")
+            sandbox_tag=$(bash .github/scripts/sandbox-live-image-tag.sh "$sandbox_namespace" "$sandbox_name" template "$sandbox_image" "$SANDBOX_TEMPLATE_IMAGE_TAG")
+            add_set "sandboxes.templateImage.tag" "$sandbox_tag"
+            sandboxd_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.containers[] | select(.name == "sandboxd") | .image' "$registry_render")
+            sandboxd_tag=$(bash .github/scripts/sandbox-live-image-tag.sh "$sandbox_namespace" "$sandbox_name" sandboxd "$sandboxd_image" "$SANDBOXD_IMAGE_TAG")
+            add_set "sandboxes.image.tag" "$sandboxd_tag"
           fi
           rm -f "$registry_render"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
@@ -1785,6 +1872,20 @@ jobs:
           # not there, and --create-namespace does not create one during a dry
           # run. That case is a first install, where there is no live release
           # for a rollback to damage.
+          echo "::group::Adopt release objects missing Helm's label"
+          adopt_render="$(mktemp)"
+          helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            "${helm_values_args[@]}" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+            --set registry.image.tag="$registry_image_tag" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+            "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$adopt_render"
+          bash .github/scripts/helm-adopt-release-objects.sh "$adopt_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+          rm -f "$adopt_render"
+          echo "::endgroup::"
+
           echo "::group::helm upgrade --dry-run=server (preflight)"
           if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
             preflight_log="$(mktemp)"
@@ -1815,10 +1916,17 @@ jobs:
             echo "::endgroup::"
           fi
 
+          start_server_image_prepull() {
+            if [ -f "${SERVER_IMAGE_PREPULL_MANIFEST:-}" ]; then
+              kubectl apply -f "$SERVER_IMAGE_PREPULL_MANIFEST"
+              rm -f "$SERVER_IMAGE_PREPULL_MANIFEST"
+            fi
+          }
+
           # Prepare KVM without switching existing pools until every available
           # Linux host has the kernel and enough device allocations. Uses the
           # same resolved images and values as the final release below.
-          if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+          if [ -f .github/scripts/runner-kvm-prepare.sh ] || [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
             kvm_render="$(mktemp)"
             helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
               --namespace "$NAMESPACE" \
@@ -1828,9 +1936,54 @@ jobs:
               --set registry.image.tag="$registry_image_tag" \
               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
               "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$kvm_render"
-            bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+              bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            fi
+            # Queued ahead of the provider image, the server image held its
+            # rollout above for the whole pull.
+            start_server_image_prepull
+            # Canary must qualify the candidate in this deployment, so wait for
+            # preparation and fail closed. Other environments retain background
+            # staging with per-pool holds and the existing warning-only fallback.
+            if [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
+              linux_staging_values="$(mktemp)"
+              export LINUX_IMAGE_STAGING_WAIT_SECONDS=0
+              if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                export LINUX_IMAGE_STAGING_WAIT_SECONDS=300
+              fi
+              if ! bash .github/scripts/linux-runner-image-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE" > "$linux_staging_values"; then
+                if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                  echo '::error::Cannot qualify the candidate Linux image; stopping before the Helm upgrade.'
+                  exit 1
+                fi
+                echo '::warning::Could not check Linux image staging; moving pools to the requested images.'
+                echo '{"runnersFleetLinux":{"imageHolds":{}}}' > "$linux_staging_values"
+              fi
+              helm_values_args+=(-f "$linux_staging_values")
+            fi
             rm -f "$kvm_render"
           fi
+          start_server_image_prepull
+
+          # Runner-local shard storage, as its own release before the server so
+          # the rolled pods read the target it publishes. Nothing waits on
+          # Garage: its host may still be joining, and new plans use default
+          # storage until it serves. Staging's store is managed by hand.
+          case "$TARGET_ENVIRONMENT" in
+            canary|production)
+              if helm upgrade --install shard-storage infra/helm/shard-storage \
+                --namespace kura \
+                -f "infra/helm/shard-storage/values-${TARGET_ENVIRONMENT}.yaml" \
+                --set enabled=true \
+                --wait=hookOnly; then
+                kubectl -n "$NAMESPACE" wait externalsecret/shard-storage-targets \
+                  --for=condition=Ready --timeout=120s ||
+                  echo "::warning::The shard storage target has not synced; the server starts without it."
+              else
+                echo "::warning::Could not upgrade shard storage; the server keeps default shard storage."
+              fi
+              ;;
+          esac
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
@@ -2011,14 +2164,12 @@ jobs:
             echo "Swift registry component disabled; skipping registry smoke test."
           fi
       - name: xcresult processor rollout
-        # Reports the processor release's rollout without gating the deploy:
-        # the server release is out by now and stays out whatever the
-        # processor does. A processor that never turns Ready (a shared
-        # Postgres or ClickHouse outage, or a Mac mini that cannot reach its
-        # Tart guest) fails this step, which annotates the run, and the job
-        # still succeeds. `:process_xcresult` jobs queue until a processor is
-        # Ready. 30m matches the Deployment's progressDeadlineSeconds: one
-        # Tart VM cycle per replica.
+        # Canary must have a Ready processor before acceptance and production
+        # promotion. A failed rollout fails the canary job, but does not roll
+        # back the already-deployed server release. Staging only reports the
+        # failure. `:process_xcresult` jobs queue until a processor is Ready.
+        # 30m matches the Deployment's progressDeadlineSeconds: one Tart VM
+        # cycle per replica.
         #
         # Production does not wait: its replicas cycle one Tart VM at a time
         # and nothing after this step depends on them, so the wait only held
@@ -2027,7 +2178,7 @@ jobs:
         # infra/helm/k8s-monitoring/alerts.md. Canary keeps waiting because
         # its acceptance tests need a Ready processor.
         if: env.XCRESULT_PROCESSOR_DEPLOYMENT != '' && inputs.environment != 'production'
-        continue-on-error: true
+        continue-on-error: ${{ inputs.environment != 'canary' }}
         timeout-minutes: 35
         run: |
           set -uo pipefail

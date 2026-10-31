@@ -19,9 +19,12 @@ struct AtlasConnection: Decodable, Identifiable {
 @MainActor
 final class AtlasConnections: ObservableObject {
     typealias Request = ([String: Any]) async throws -> Data
+    private struct Response: Decodable { let connections: [AtlasConnection] }
     @Published private(set) var connections: [AtlasConnection] = []
     @Published private(set) var busy = false
     @Published private(set) var message: String?
+    @Published private(set) var cached = false
+    var cachedRequest: AtlasReadCache.Request?
     private let request: Request
     private let authorize: (URL) async throws -> URL?
     private var generation = 0
@@ -38,13 +41,20 @@ final class AtlasConnections: ObservableObject {
 
     func load() async {
         guard !busy else { return }
+        let current = generation
         busy = true
         defer { busy = false }
+        if connections.isEmpty, let data = await cachedRequest?(["action": "list"]),
+           let saved = try? decoder.decode(Response.self, from: data), current == generation, !Task.isCancelled {
+            connections = saved.connections
+            cached = true
+        }
+        guard current == generation else { return }
         do { try await reload(); message = nil } catch { show(error) }
     }
 
     func connect(_ provider: String) async {
-        guard !busy else { return }
+        guard !busy, !cached else { return }
         busy = true
         message = nil
         let current = generation
@@ -69,7 +79,7 @@ final class AtlasConnections: ObservableObject {
     }
 
     func disconnect(_ provider: String) async {
-        guard !busy else { return }
+        guard !busy, !cached else { return }
         busy = true
         message = nil
         defer { busy = false }
@@ -82,18 +92,20 @@ final class AtlasConnections: ObservableObject {
     func invalidate() {
         generation += 1
         connections = []
+        cached = false
         message = nil
     }
 
     private func reload() async throws {
-        struct Response: Decodable { let connections: [AtlasConnection] }
         let current = generation
         let data = try await request(["action": "list"])
-        guard current == generation else { throw CancellationError() }
+        guard current == generation, !Task.isCancelled else { throw CancellationError() }
         connections = try decoder.decode(Response.self, from: data).connections
+        cached = false
     }
 
     private func show(_ error: Error) {
+        if AtlasReadCache.accessDenied(error) { connections = []; cached = false }
         if !(error is CancellationError) { message = error.localizedDescription }
     }
 

@@ -35,6 +35,10 @@ on:
       - infra/mise.lock
       - infra/mise/tasks/helm/**
       - .github/scripts/runner-kvm-*
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
+      - .github/scripts/helm-adopt-release-objects*
+      - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
@@ -49,6 +53,10 @@ on:
       - infra/mise.lock
       - infra/mise/tasks/helm/**
       - .github/scripts/runner-kvm-*
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
+      - .github/scripts/helm-adopt-release-objects*
+      - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
@@ -136,8 +144,12 @@ jobs:
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test per-node Hubble collection with Alloy
+        run: bash infra/helm/k8s-monitoring/test-hubble-metrics.sh
       - name: Test runner macOS host health alerts
         run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
+      - name: Test runner queue time alert
+        run: bash infra/helm/k8s-monitoring/test-runner-queue-time-alert.sh
 
   render:
     name: Render
@@ -245,6 +257,8 @@ jobs:
         run: python3 infra/helm/tuist/test-cluster-cookie.py
       - name: Test SSO domain verification deployment policy
         run: python3 infra/helm/tuist/test-sso-domain-verification.py
+      - name: Test ClickHouse tailnet Service exposure
+        run: python3 infra/helm/tuist/test-clickhouse-tailnet.py
       - name: CNPG promotion stays in the environment write tier
         run: |
           mise use -g yq@4.52.5
@@ -260,6 +274,13 @@ jobs:
         run: infra/mise/tasks/helm/linux-vrack.sh
       - name: KVM defaults and preparation gate
         run: infra/mise/tasks/helm/nested-kvm.sh
+      - name: Linux images are staged before pools move
+        run: |
+          bash .github/scripts/linux-runner-image-prepare.test.sh
+          bash infra/mise/tasks/helm/linux-image-staging.sh
+          bash .github/scripts/ghcr-manifest-digest.test.sh
+      - name: Deploys adopt objects already annotated for their release
+        run: bash .github/scripts/helm-adopt-release-objects.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

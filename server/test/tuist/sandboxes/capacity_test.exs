@@ -7,9 +7,11 @@ defmodule Tuist.Sandboxes.CapacityTest do
   alias Tuist.Kubernetes.Client, as: KubernetesClient
   alias Tuist.Repo
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxNode
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   @mib 1024 * 1024
   @gib 1024 * @mib
@@ -235,6 +237,35 @@ defmodule Tuist.Sandboxes.CapacityTest do
   end
 
   describe "admit/1" do
+    test "rechecks quota when another node takes the last slot after preflight", %{template: template} do
+      account = AccountsFixtures.account_fixture()
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_vcpus_limit: 2, sandbox_memory_gb_limit: 4})
+      node = connect(node_name(), template)
+      paused = sandbox_fixture(account: account, template: template, node_name: node, state: :paused)
+
+      expect(Nodes, :await_lookup, fn ^node ->
+        sandbox_fixture(account: account, state: :creating, node_name: node_name())
+        Nodes.lookup(node)
+      end)
+
+      assert {:error, :sandbox_concurrency_limit} = Capacity.admit(paused)
+      assert Repo.reload!(paused).state == :paused
+      assert Capacity.reserved_bytes(node) == 0
+    end
+
+    test "account admission is enforced on a connected node with room", %{template: template} do
+      account = AccountsFixtures.account_fixture()
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_vcpus_limit: 2, sandbox_memory_gb_limit: 4})
+      node = connect(node_name(), template)
+      running = sandbox_fixture(account: account, template: template, node_name: node)
+      paused = sandbox_fixture(account: account, template: template, node_name: node, state: :paused)
+      assert {:error, :sandbox_concurrency_limit} = Capacity.admit(paused)
+      assert Repo.reload!(paused).state == :paused
+      Repo.update!(Sandbox.update_changeset(running, %{state: :paused}))
+      assert {:ok, %{state: :resuming}} = Capacity.admit(paused)
+      assert Capacity.reserved_bytes(node) == Capacity.charge_bytes(paused)
+    end
+
     test "marks the sandbox resuming when it fits its node", %{template: template} do
       node = connect(node_name(), template)
       sandbox = sandbox_fixture(template: template, state: :paused, node_name: node, memory_mb: 4096)

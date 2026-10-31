@@ -297,6 +297,9 @@ config :logger, :console,
     :restore_ms,
     :snapshot_ms,
     :mem_bytes,
+    :disks_synced,
+    :disk_snapshot_id,
+    :last_used_at,
     :freed_bytes,
     :memory_bytes,
     :paused_at,
@@ -340,7 +343,8 @@ config :phoenix, :filter_parameters, [
   "secret",
   "token",
   "credential",
-  "installation_receipt"
+  "installation_receipt",
+  "arguments"
 ]
 
 # Use Jason for JSON parsing in Phoenix

@@ -352,7 +352,7 @@ async fn initialize_and_serve(
 
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
-    Usage::spawn_tasks(state.clone());
+    let usage_tasks = Usage::spawn_tasks(state.clone());
     // The analytics outbox forwarder drains the shared column family into
     // the server's webhook endpoints. In this release the pipeline is
     // empty because no producer routes through it yet, so the tasks idle
@@ -606,6 +606,19 @@ async fn initialize_and_serve(
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)
     });
+    // Leave local checkpoint time after producers stop; never spend the whole
+    // grace period waiting for a sibling or an unavailable control plane.
+    let checkpoint_reserve = if usage_tasks.is_some() {
+        Duration::from_secs(5).min(shutdown_budget.remaining())
+    } else {
+        Duration::ZERO
+    };
+    let producer_budget = ShutdownBudget {
+        deadline: shutdown_budget.deadline - checkpoint_reserve,
+    };
+    if let Some(tasks) = usage_tasks {
+        tasks.stop().await;
+    }
     // The departing node waits to be pulled (design §3.5): the sibling's
     // cursor reaching the head, bounded by what is left of the budget less
     // a margin for the process exit. It runs BEFORE the internal listener is
@@ -618,7 +631,7 @@ async fn initialize_and_serve(
     if state.store.sync_feed().enabled() {
         let stale = Duration::from_secs(state.config.sync_feed_stale_peer_secs);
         let margin = Duration::from_millis(state.config.sync_drain_margin_ms);
-        let deadline = Instant::now() + shutdown_budget.remaining().saturating_sub(margin);
+        let deadline = Instant::now() + producer_budget.remaining().saturating_sub(margin);
         let mut caught_up = state.store.sync_feed().consumers_caught_up(stale);
         while !caught_up && Instant::now() < deadline {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -635,8 +648,8 @@ async fn initialize_and_serve(
         }
     }
     state.sync.shutdown();
-    let _ = shutdown_tx.send(Some(shutdown_budget));
-    let drained = wait_for_inflight_drain(state.clone(), shutdown_budget).await;
+    let _ = shutdown_tx.send(Some(producer_budget));
+    let drained = wait_for_inflight_drain(state.clone(), producer_budget).await;
     if !drained {
         warn!(
             http_inflight = state.runtime.http_inflight(),
@@ -646,13 +659,28 @@ async fn initialize_and_serve(
         );
     }
     if let Some(internal_handle) = internal_handle {
-        wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
+        wait_for_task_shutdown(internal_handle, "internal", producer_budget).await;
     }
     if let Some(https_task) = https_task {
-        wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
+        wait_for_task_shutdown(https_task, "HTTPS", producer_budget).await;
     }
     if let Some(gateway_grpc_task) = gateway_grpc_task {
-        wait_for_task_shutdown(gateway_grpc_task, "gateway gRPC", shutdown_budget).await;
+        wait_for_task_shutdown(gateway_grpc_task, "gateway gRPC", producer_budget).await;
+    }
+    if state.usage.is_some() {
+        let checkpoint_state = state.clone();
+        match tokio::task::spawn_blocking(move || {
+            checkpoint_state
+                .usage
+                .as_ref()
+                .expect("usage should exist")
+                .checkpoint(&checkpoint_state.store, true)
+        })
+        .await
+        {
+            Ok(Ok(())) => {}
+            result => warn!("failed to checkpoint usage during shutdown: {result:?}"),
+        }
     }
     // Synchronous clean-shutdown stamp for backfill index staleness detection:
     // after it, any sequence gap the next boot observes means an index-unaware

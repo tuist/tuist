@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "replicas": {
+      "type": "integer",
+      "enum": [1, 3],
+      "description": "Immutable store replication factor; start with one, optionally use three on a new store."
+    },
+    "generateCredentials": {"type": "boolean"},
+    "privateNetwork": {"type": "string", "pattern": "^(pn-[0-9]+)?$"},
+    "target": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)?$"},
+        "site": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+        "enabled": {"type": "boolean"},
+        "privateNetworkReady": {"type": "boolean"}
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "properties": {
+        "expirationDays": {"type": "integer", "minimum": 1},
+        "abortMultipartDays": {"type": "integer", "minimum": 1}
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "properties": {
+        "bootstrapPeers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[0-9a-f]{64}@.+:[0-9]+$"}
+        }
+      }
+    }
+  }
+}

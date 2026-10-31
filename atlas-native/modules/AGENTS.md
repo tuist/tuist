@@ -79,6 +79,29 @@ arm64 runtime but instantiates it only on API 28+, retaining API-26 text fallbac
 Do not raise the app minimum or add Gradle. After SDK upgrades test actual card
 rendering alongside Atlas's Rust auth library, not just framework linking.
 
+`sparkle.star` exposes `atlas_sparkle` through Once 0.68.2's public
+`apple_linkable` contract. `AtlasSparkle` is macOS-only: dynamic link and runtime
+framework providers retain the complete checksum-pinned official Sparkle 2.10.1
+tree, including version symlinks, resources, Updater.app and both XPC services.
+No analysis-time downloads, private prelude copies or iOS dependencies. Once's
+extractor is ZIP-only: the checksum-verified archive fetch and symlink-preserving
+tar extraction are separate declared cached actions. Extraction also adds
+`_CodeSignature -> Versions/Current/_CodeSignature`: Once preserves symlinks but
+precreates the parent of its declared root signature output, which otherwise
+leaves an invalid real directory at the versioned framework root. Keep this
+adaptation inside the extraction action, not a cached-output mutation or a
+flattened framework. It adds the final
+Contents/MacOS framework runpath; `AtlasMacOSSDK` owns the selected SDK workaround.
+Once still emits flat apps; [macOS distribution](../macos/distribution/AGENTS.md)
+normalizes and signs a copy outside the cache. Keep the publishing-tool download
+pin identical. Validate the module, credential-free packaging fixtures and real
+`macos/distribution/test-framework-boundary.sh` against the imported framework
+when upgrading Once or Sparkle; compile alone does not prove helper embedding.
+
+The workspace pins Once 0.71.2. It does not include tuist/once#397's native
+macOS bundle layout yet; retain the bundle preparation, framework signature
+forwarding symlink and explicit macOS framework runpath until that fix ships.
+
 Validate graph, device/simulator builds, `check-sdk.sh`, and rendered preview
 after Once upgrades. Require the actual selected SDK and iOS 17 minimum on
 packaged binaries. Do not raise minimum OS, fake plist provenance, or draw a

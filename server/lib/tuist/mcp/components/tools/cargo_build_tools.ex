@@ -55,7 +55,7 @@ defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
       |> Map.put("type", ["object", "null"])
 
     build = build()
-    object(Map.put(build["properties"], "cache", cache))
+    %{build | "properties" => Map.put(build["properties"], "cache", cache), "required" => ["cache" | build["required"]]}
   end
 
   defp build do
@@ -76,6 +76,10 @@ defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
       "inserted_at" => %{"type" => "string"}
     })
     |> object()
+    |> Map.update!(
+      "properties",
+      &Map.put(&1, "tuist_version", Map.put(@nullable_string, "description", "The reporting Tuist CLI version."))
+    )
   end
 
   defp object(properties) do
@@ -104,7 +108,7 @@ defmodule Tuist.MCP.Components.Tools.ListCargoBuilds do
   @impl EMCP.Tool
   def description,
     do:
-      "List Cargo builds for a project, newest first. Cargo test runs reported as nextest are not builds and are not listed."
+      "List Cargo builds for a project, newest first. Cargo test execution results are listed with test runs, not builds."
 
   def execute(_conn, args, project) do
     {:ok,

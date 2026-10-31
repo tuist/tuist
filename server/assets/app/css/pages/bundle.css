@@ -25,26 +25,30 @@
         gap: var(--noora-spacing-9);
 
         & > [data-part="metadata-row"] {
-          display: flex;
-          flex-direction: row;
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
           gap: var(--noora-spacing-7);
 
+          @media (max-width: 1200px) {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+
           @media (max-width: 768px) {
-            & {
-              flex-direction: column;
-            }
+            grid-template-columns: minmax(0, 1fr);
           }
 
           & > [data-part="metadata"] {
             display: flex;
-            flex: 1;
             flex-direction: column;
             align-items: flex-start;
             gap: var(--noora-spacing-4);
+            min-width: 0;
+            overflow-wrap: anywhere;
 
             & > [data-part="trend"] {
               display: flex;
               flex-direction: row;
+              flex-wrap: wrap;
               align-items: center;
               gap: var(--noora-spacing-4);
 
@@ -90,6 +94,11 @@
               gap: var(--noora-spacing-2);
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+              &.tuist-project-with-tags {
+                flex-wrap: wrap;
+                gap: var(--noora-spacing-4);
+              }
 
               & > svg {
                 width: var(--noora-icon-size-medium);

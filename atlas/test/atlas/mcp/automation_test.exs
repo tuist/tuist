@@ -3,16 +3,83 @@ defmodule Atlas.MCP.AutomationTest do
 
   alias Atlas.Automations
   alias Atlas.Automations.Executor
+  alias Atlas.Automations.Interfaces
   alias Atlas.MCP.Server
   alias Atlas.MCP.Tools.CreateAutomationTrigger
   alias Atlas.MCP.Tools.GetAutomationAnalytics
   alias Atlas.MCP.Tools.GetAutomationExecutionTrace
   alias Atlas.MCP.Tools.GetAutomationWorkflow
+  alias Atlas.MCP.Tools.GetSignal
   alias Atlas.MCP.Tools.ListAutomationRecords
   alias Atlas.MCP.Tools.ListAutomationTypes
   alias Atlas.MCP.Tools.PublishAutomationWorkflow
   alias Atlas.MCP.Tools.RunAutomationWorkflow
   alias Atlas.MCP.Tools.SaveAutomationWorkflow
+
+  test "shared Slack identities cannot discover, dispatch or directly execute protected signal tools" do
+    actor = insert_user!(%{scopes: ["automation:write", "finance:read"]})
+    {_, revision} = Atlas.AutomationsFixtures.workflow_fixture(actor)
+
+    {:ok, source} =
+      Atlas.Signals.create_source(actor, %{
+        "name" => "Operator-only evidence",
+        "revision_id" => revision.id,
+        "reader_ids" => [],
+        "required_scopes" => ["finance:read"]
+      })
+
+    {:ok, _} = Atlas.Signals.set_enabled(actor, source.id, true)
+
+    {:ok, signal} =
+      Atlas.Signals.ingest(actor, source.id, %{
+        "external_id" => "private-event",
+        "correlation_key" => "private-event",
+        "type" => "finance.alert",
+        "schema_version" => 1,
+        "occurred_at" => "2026-10-28T10:00:00Z",
+        "title" => "Operator-only evidence",
+        "summary" => "Protected finance evidence"
+      })
+
+    tools =
+      Enum.filter(
+        Interfaces.operations(),
+        &(&1.operation in [
+            :create_signal_source,
+            :list_signal_sources,
+            :set_signal_source_enabled,
+            :ingest_signal,
+            :list_signals,
+            :get_signal,
+            :signal_candidates,
+            :decide_signal
+          ])
+      )
+
+    assert {:ok, %{data: data}} = execute_tool(GetSignal, mcp_conn(actor), %{"id" => signal.id})
+    assert data.envelope["summary"] == "Protected finance evidence"
+
+    for origin <- [%{audit_interface: "slack"}, %{mcp_claims: %{"slack_agent" => "systems_investigator"}}] do
+      conn = %{assigns: Map.put(origin, :current_user, actor)}
+      catalog = Server.handle_message(conn, %{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
+      names = Enum.map(catalog["result"]["tools"], & &1["name"])
+
+      for tool <- tools do
+        refute tool.mcp in names
+        assert {:error, _} = execute_tool(tool.tool, conn, %{"id" => signal.id})
+
+        assert %{"error" => _} =
+                 Server.handle_message(conn, %{
+                   "jsonrpc" => "2.0",
+                   "id" => 2,
+                   "method" => "tools/call",
+                   "params" => %{"name" => tool.mcp, "arguments" => %{"id" => signal.id}}
+                 })
+      end
+    end
+
+    assert {:ok, _} = execute_tool(GetSignal, mcp_conn(actor), %{"id" => signal.id})
+  end
 
   test "MCP can pin a contract and safely replay a launch request" do
     actor = insert_user!(%{scopes: ["automation:write"]})

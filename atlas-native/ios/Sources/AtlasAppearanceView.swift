@@ -35,6 +35,9 @@ struct AtlasAppearanceView: View {
             }
         }
         .navigationTitle("Appearance")
+        #if os(macOS)
+        .formStyle(.grouped)
+        #endif
         .modifier(AtlasThemedContent())
         .task { await appearance.refresh() }
     }

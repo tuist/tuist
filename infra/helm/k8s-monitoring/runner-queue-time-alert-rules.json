@@ -1,0 +1,101 @@
+[
+  {
+    "annotations": {
+      "description": "Over the last hour, {{ $values.C.Value | humanizePercentage }} of the {{ $values.B.Value }} {{ $labels.platform }} jobs that were not held by their account's concurrency limit waited more than 10 s for the runner that ran them, so the p90 queue time is over the 10 s target. It has stayed there for 30 minutes.\n\nQueue time is what the runners dashboard reports: enqueue to the claim of the runner GitHub ran the job on (`executor_claimed_at`). A job counts as held, and is left out, when its account's open runner sessions plus the job exceeded the account's limit at enqueue or 15 s before that claim.\n\nFirst query (Prometheus, grafanacloud-prom): 1 - sum by (fleet) (increase(tuist_runners_job_executor_queue_time_milliseconds_bucket{env=\"production\", platform=\"{{ $labels.platform }}\", limit_held=\"false\", le=\"10000.0\"}[1h])) / sum by (fleet) (increase(tuist_runners_job_executor_queue_time_milliseconds_count{env=\"production\", platform=\"{{ $labels.platform }}\", limit_held=\"false\"}[1h])) names the pools.\n\nLikely causes:\n- The pool had no warm runner, so jobs waited for a cold boot (a median 20 to 26 s on the rack, 13 to 16 s on Linux). Compare tuist_runners_autoscaler_learned_warm_floor_replicas and tuist_runners_autoscaler_warm_deficit_replicas for the pool.\n- A fan-out larger than the pool's floor.\n- The fleet is out of capacity: check Runner fleet out of macOS capacity and Runner jobs waiting for a runner.\n- Re-queued jobs after the runner shuffle (tuist_runners_job_requeued_count).",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-queue-time-p90-over-10-s",
+      "summary": "{{ $labels.platform }} runner queue time p90 over 10 s: {{ $values.C.Value | humanizePercentage }} of {{ $values.B.Value }} jobs in the last hour waited longer (concurrency-limit holds excluded)"
+    },
+    "condition": "D",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (platform) (increase(tuist_runners_job_executor_queue_time_milliseconds_bucket{env=\"production\", platform=~\"linux|macos\", limit_held=\"false\", le=\"10000.0\"}[1h]))",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (platform) (increase(tuist_runners_job_executor_queue_time_milliseconds_count{env=\"production\", platform=~\"linux|macos\", limit_held=\"false\"}[1h]))",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "B"
+        },
+        "queryType": "",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "1 - $A / $B",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$B - $A > 0.1 * $B && $B >= 20",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "D",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "D",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "30m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Runners",
+    "title": "Runner queue time p90 over 10 s",
+    "uid": "runner-queue-time-p90-over-target"
+  }
+]

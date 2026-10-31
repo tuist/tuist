@@ -1,33 +1,29 @@
 ---
 {
-  "title": "Implicit imports",
-  "titleTemplate": ":title · Inspect · Projects · Features · Guides · Tuist",
-  "description": "Learn how to use Tuist to find implicit imports."
+  "title": "隱含匯入",
+  "titleTemplate": ":title · 檢查 · 專案 · 功能 · 指南 · Tuist",
+  "description": "了解如何使用 Tuist 找出隱含匯入。"
 }
 ---
-# 隱含進口{#implicit-imports}
+# 隱式匯入 {#implicit-imports}
 
-為了減輕用原始 Xcode 專案維護 Xcode 專案圖的複雜性，Apple
-在設計建立系統時允許隱式定義依賴關係。這表示一個產品，例如一個應用程式，可以依賴於一個框架，甚至不需要明確地宣告依賴關係。在小規模的情況下，這是沒問題的，但隨著專案圖形的複雜度增加，隱含性可能會表現為不可靠的增量建立或基於編輯器的功能，例如預覽或程式碼完成。
+為了降低使用原始 Xcode 專案維護 Xcode 專案圖的複雜度，Apple 設計的建置系統允許以隱式方式定義相依性。這表示產品（例如 App）可以依賴某個 Framework，即使未明確宣告該相依性。在規模較小時，這不成問題，但隨著專案圖日益複雜，這種隱式特性可能導致增量建置不穩定，或影響預覽與程式碼完成等編輯器功能。
 
-問題是您無法阻止隱含相依性的發生。任何開發人員都可以在他們的 Swift 程式碼中加入`import` 語句，隱含相依性就會產生。這就是 Tuist
-的用武之地。Tuist 提供了一個命令，透過靜態分析專案中的程式碼來檢查隱含相依性。以下命令將輸出專案的隱含相依性：
+問題在於你無法防止隱式相依性發生。任何開發者都能在 Swift 程式碼中加入 `import` 陳述式，進而產生隱式相依性。這時 Tuist 就派上用場了。Tuist 提供一個指令，可透過靜態分析專案中的程式碼來檢查隱式相依性。以下指令會輸出你專案中的隱式相依性：
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
-如果指令偵測到任何隱含的匯入，它會以 0 以外的退出代碼退出。
+如果指令偵測到任何隱式匯入，它會以非零的結束碼退出。
 
 > [!TIP]
-> **Validate In Ci**
+> **在 CI 中驗證**
 >
-> 我們強烈建議每次有新程式碼推送到上游時，就執行這個指令，作為
-> <LocalizedLink href="/guides/integrations/continuous-integration">continuous integration</LocalizedLink> 指令的一部分。
+> 我們強烈建議每次將新程式碼推送至上游時，都將此指令作為 <.localized_link href="/guides/integrations/continuous-integration">持續整合</.localized_link> 流程的一部分執行。
 
 
 > [!WARNING]
-> **Not All Implicit Cases Are Detected**
+> **並非所有隱式情況都能被偵測到**
 >
-> 由於 Tuist 依賴靜態程式碼分析來偵測隱含的依賴關係，因此可能無法偵測到所有的情況。例如，Tuist 無法理解程式碼中透過編譯器指令的條件匯入。
-
+> 由於 Tuist 仰賴靜態程式碼分析來偵測隱式相依性，因此可能無法涵蓋所有情況。例如，Tuist 無法理解透過程式碼中的編譯器指示詞進行的條件式匯入。

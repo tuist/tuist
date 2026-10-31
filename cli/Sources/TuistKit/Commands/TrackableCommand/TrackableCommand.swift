@@ -312,6 +312,9 @@ public class TrackableCommand {
         from configuration: CommandConfiguration,
         runMetadataStorage: RunMetadataStorage
     ) async -> AnalyticsCommandMetadata {
+        if configuration.commandName == "run" {
+            return AnalyticsCommandMetadata(name: "run", subcommand: nil, commandArguments: ["run"])
+        }
         if let resolvedCommandMetadata = await runMetadataStorage.resolvedCommandMetadata {
             return resolvedCommandMetadata
         }

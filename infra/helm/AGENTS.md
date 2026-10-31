@@ -12,6 +12,9 @@ Monitoring cost controls must preserve metric identity and operator audit record
 See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
 Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
 runs the mixed-version latency expression through promtool.
+The runner queue-time p90 rule is in `k8s-monitoring/runner-queue-time-alert-rules.json`,
+tested by `test-runner-queue-time-alert.sh`; it reads a server histogram, so
+renaming its `limit_held` or `platform` tags breaks the rule.
 Runner macOS host-health rules are in `k8s-monitoring/runner-macos-host-alert-rules.json`;
 `test-runner-macos-host-alerts.sh` tests their risk, socket-count and collector
 freshness expressions with promtool. Keep the four `macos_host_*` metric families
@@ -46,7 +49,8 @@ Helm-installed resource; publishing it is a separate rollout step.
   while the provider withdraws runner policies and host addresses. Reservations
   belong to the controller, never Helm. Staging/canary values enable egress;
   align their public block with the cache vRack before deployment. Production
-  stays disabled until advance allowlisting and qualification are complete. Preserve
+  activation requires advance allowlisting, confirmed block attachment and a
+  drained cutover with per-host egress verification. Preserve
   `node_network_info` for the MAC-based
   bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
 
@@ -134,6 +138,10 @@ Helm-installed resource; publishing it is a separate rollout step.
   separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
+- Cilium policy inspection uses the same read tier, limited to
+  `ciliumnetworkpolicies`, `ciliumclusterwidenetworkpolicies` and
+  `ciliumegressgatewaypolicies` in `cilium.io`. This grant includes no policy
+  writes, other Cilium resources, Secret reads or live-debug access.
 - OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound
   `tuist-fleet-unwedge` role. Do not aggregate it into `edit` or extend it to
   templates, status, create, update or delete. RBAC does not restrict fields;

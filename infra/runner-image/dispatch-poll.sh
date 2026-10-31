@@ -127,6 +127,15 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
+# report_boot_stage marks that boot reached stage $1. The host reads the
+# file's mtime, which it stamps on its own clock.
+report_boot_stage() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  : >"${STATUS_SHARE}/boot-${1}" 2>/dev/null || true
+}
+
+report_boot_stage poller
+
 RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
 TCC_LOG=/var/log/tuist-runner/tcc.log
 TCC_LOG_PID=""
@@ -241,6 +250,13 @@ fi
 # shellcheck disable=SC1091
 source /etc/tuist.env
 
+# Node still embeds the compromised eMudhra roots; use the patched PEM store.
+export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--use-openssl-ca"
+export SSL_CERT_FILE=/etc/ssl/cert.pem
+export SSL_CERT_DIR=/var/empty
+export PIP_CERT="$SSL_CERT_FILE"
+export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
+
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
 # The booted OS version, so both uses follow base-image bumps. Every dispatch
@@ -317,6 +333,50 @@ if [ -n "${TUIST_CLUSTER_DNS_IP:-}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not install /etc/resolver/${cluster_domain}; in-cluster cache URLs will not resolve"
   fi
 fi
+
+# A golden-base VM boots with a clock that can start minutes behind, and
+# macOS `timed` may not have synced it yet. The GitHub runner stamps step
+# times and metrics-poll stamps samples off this clock, so an unsynced VM
+# lands the two on different timelines. The clock is stepped to the dispatch
+# server's `Date` header, which every poll response already carries: on the
+# first standby response, and again on the response that hands over a job,
+# before the runner starts. That adds no request and no wait, and it depends
+# on nothing the dispatch itself does not.
+#
+# The header has whole-second resolution, so offsets under
+# CLOCK_STEP_THRESHOLD_SECONDS are left to `timed`; stepping them could only
+# trade one sub-second error for another.
+CLOCK_STEP_THRESHOLD_SECONDS=2
+DISPATCH_HEADERS=/tmp/dispatch.headers
+
+# server_clock_offset prints how many seconds the guest clock is behind
+# (positive) or ahead of (negative) the server whose response headers are in
+# $1, or nothing when they carry no parseable `Date`.
+server_clock_offset() {
+  local server_date server_epoch
+  server_date=$(tr -d '\r' 2>/dev/null <"$1" | awk 'tolower($1) == "date:" { sub(/^[^:]*:[ \t]*/, ""); print; exit }')
+  [ -n "${server_date}" ] || return 0
+  server_epoch=$(LC_ALL=C date -j -u -f '%a, %d %b %Y %H:%M:%S GMT' "${server_date}" +%s 2>/dev/null) || return 0
+  echo $((server_epoch - $(date -u +%s)))
+}
+
+# step_clock_to_server steps the guest clock to the server time in the
+# response headers at $1 when they disagree by at least
+# CLOCK_STEP_THRESHOLD_SECONDS. Best-effort: a failed step leaves the clock
+# to `timed`.
+step_clock_to_server() {
+  local offset target
+  offset=$(server_clock_offset "$1")
+  [ -n "${offset}" ] || return 0
+  [ "${offset#-}" -ge "${CLOCK_STEP_THRESHOLD_SECONDS}" ] || return 0
+  target=$(date -u -r $(($(date -u +%s) + offset)) +%m%d%H%M%Y.%S)
+  if sudo /bin/date -u "${target}" >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: clock stepped ${offset}s to the dispatch server's time"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not step the clock ${offset}s to the dispatch server's time; relying on timed"
+  fi
+}
+clock_checked=0
 
 SA_TOKEN_PATH=/etc/tuist-sa-token
 if [ ! -f "${SA_TOKEN_PATH}" ]; then
@@ -953,13 +1013,25 @@ if [ ! -x "${JQ}" ]; then
   exit 1
 fi
 
+# The dev.tuist.logd-watchdog LaunchDaemon restarts a wedged logd, and reports
+# one that does not come back here, where tart-kubelet stops the VM (see
+# logd-watchdog.sh). A warm VM stops polling once it is reported, so it never
+# takes a job.
+LOGD_WEDGED_MARKER=/tmp/tuist-logd-wedged
+[ -d "${STATUS_SHARE}" ] && LOGD_WEDGED_MARKER="${STATUS_SHARE}/logd-wedged"
+
 while true; do
   attempt=$((attempt + 1))
+  if [ -e "${LOGD_WEDGED_MARKER}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: logd wedged during warm standby; exiting instead of taking a job"
+    exit 1
+  fi
   # Beat before the request, not after: this says the loop is running,
   # and a curl that hangs to its --max-time is exactly the stall the
   # beat needs to expose. One iteration is bounded by that timeout, so
   # a healthy warm runner never goes more than ~12s without a beat.
   report_heartbeat "${HEARTBEAT_POLLING}"
+  [ "${attempt}" = 1 ] && report_boot_stage first-poll
   # `-f` is intentionally omitted: with it, curl exits non-zero on
   # 4xx/5xx, the `|| http="000"` clause fires, and the real status
   # never reaches the case statement. We need 401/403/5xx as
@@ -968,7 +1040,7 @@ while true; do
   # doesn't end up in the captured %{http_code}. The `|| http="000"`
   # fallback now fires only on transport failure (DNS, TCP, TLS,
   # timeout), where %{http_code} is "000" anyway.
-  http=$(curl -sS -o /tmp/dispatch.json -w '%{http_code}' \
+  http=$(curl -sS -o /tmp/dispatch.json -D "${DISPATCH_HEADERS}" -w '%{http_code}' \
     --max-time 10 \
     --request POST \
     --header "Authorization: Bearer ${SA_TOKEN}" \
@@ -1069,21 +1141,7 @@ while true; do
         rm -f "${job_env_tmp}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
-      # Force an NTP step before the job runs. A golden-base VM can be
-      # handed a job within seconds of boot — before macOS `timed` has
-      # synced the guest clock, which can start minutes behind. The
-      # GitHub runner stamps step times and metrics-poll stamps samples
-      # off this clock, so an unsynced VM lands the two on different
-      # timelines (the step timeline only drifts into alignment once
-      # `timed` catches up mid-job). `sntp -sS` steps a large offset via
-      # clock_settime (and slews a sub-50ms one); the network is already
-      # up here since dispatch just succeeded. Best-effort: on failure
-      # `timed` still converges, just later.
-      if sudo /usr/bin/sntp -sS -t 5 time.apple.com >/dev/null 2>&1; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: clock stepped to NTP before runner start"
-      else
-        echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
-      fi
+      step_clock_to_server "${DISPATCH_HEADERS}"
       stage_runner_caches
       # Fork the machine-metrics sampler so it runs for the job's
       # duration and POSTs CPU/memory/network/disk to the server. It
@@ -1330,6 +1388,10 @@ HOOK
       # Quiet log every 30th tick (~once per minute at 2 s
       # interval) so the file doesn't balloon while idle.
       [ $((attempt % 30)) -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: warm standby (attempt=${attempt})"
+      if [ "${clock_checked}" = "0" ]; then
+        step_clock_to_server "${DISPATCH_HEADERS}"
+        clock_checked=1
+      fi
       sleep "${interval}"
       ;;
     401|403)

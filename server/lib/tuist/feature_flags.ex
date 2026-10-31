@@ -5,8 +5,32 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
-  @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
-  def immutable_shard_reports_enabled?(account, flags \\ nil) do
+  @doc "Default-off account enrollment in runner-local shard artifact storage."
+  def runner_shard_storage_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_shard_storage,
+      account,
+      flag_enabled?(:runner_shard_storage, account, flags)
+    )
+  end
+
+  @doc """
+  Default-off immutable shard creation gate. Version-1 plans drop coverage, so
+  projects with coverage (`coverage_enabled?/3`: Mix projects, and every
+  project of a coverage-enabled account) remain on legacy plans. Given an
+  account, it answers for the account's non-Mix projects.
+  """
+  def immutable_shard_reports_enabled?(subject, flags \\ nil)
+
+  def immutable_shard_reports_enabled?(%Project{account: account} = project, flags) do
+    Observability.feature_flag_evaluated(
+      :immutable_shard_reports,
+      account,
+      flag_enabled?(:immutable_shard_reports, account, flags) and not coverage_enabled?(account, project, flags)
+    )
+  end
+
+  def immutable_shard_reports_enabled?(account, flags) do
     Observability.feature_flag_evaluated(
       :immutable_shard_reports,
       account,
@@ -91,12 +115,14 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether the account's Linux jobs get a persistent Docker data root per
-  repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Canary and
-  production require the `:runner_docker_cache` flag for the account during the
-  rollout; development, test and staging default to enabled.
+  repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Production
+  requires the `:runner_docker_cache` flag for the account during the rollout.
+  Canary enables it for qualification without a separate database toggle;
+  pool configuration, profile opt-outs and repository authorization still apply.
+  Development, test and staging also default to enabled.
   """
   def runner_docker_cache_enabled?(account) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+    Environment.env() != :prod or FunWithFlags.enabled?(:runner_docker_cache, for: account)
   end
 
   @doc """
@@ -110,6 +136,33 @@ defmodule Tuist.FeatureFlags do
       :runner_site_cache,
       account,
       flag_enabled?(:runner_site_cache, account, flags)
+    )
+  end
+
+  @doc """
+  Whether the account gets a node in the runner-cache region of each site it
+  qualifies for (`runner_site_enabled?/2` or `runner_site_cache_enabled?/2`)
+  without the cache traffic from the site `Tuist.Kura.RunnerCache` otherwise
+  requires. Capacity admission still applies.
+  """
+  def runner_site_cache_pinned?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_site_cache_pinned,
+      account,
+      flag_enabled?(:runner_site_cache_pinned, account, flags)
+    )
+  end
+
+  @doc """
+  Whether the account is kept out of every site's runner-cache region, so its
+  node there drains and is torn down. Its jobs still run at the site
+  (`runner_site_enabled?/2`) and use its other regions' caches.
+  """
+  def runner_site_cache_excluded?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_site_cache_excluded,
+      account,
+      flag_enabled?(:runner_site_cache_excluded, account, flags)
     )
   end
 
@@ -133,11 +186,22 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
-  for the given account. Canary and production require an explicit `:xcode_coverage`
-  FunWithFlags toggle for the account while the feature is in early access, so
-  its data model and API can still change. Development, test, and staging
-  default to enabled.
+  Whether code coverage is ingested, processed and shown for a project of the
+  account. Mix projects have it in every account. Every other build system
+  (Xcode's coverage and test selection) is in early access behind
+  `xcode_coverage_enabled?/2`.
+  """
+  def coverage_enabled?(account, project, flags \\ nil)
+
+  def coverage_enabled?(_account, %Project{build_system: :mix}, _flags), do: true
+  def coverage_enabled?(account, _project, flags), do: xcode_coverage_enabled?(account, flags)
+
+  @doc """
+  Whether code coverage is ingested, processed and shown for the account's
+  projects other than Mix ones (see `coverage_enabled?/3`). Canary and
+  production require an explicit `:xcode_coverage` FunWithFlags toggle for the
+  account while the feature is in early access, so its data model and API can
+  still change. Development, test, and staging default to enabled.
   """
   def xcode_coverage_enabled?(account, flags \\ nil)
 

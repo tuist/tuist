@@ -24,7 +24,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.IOException
 import java.util.Collections
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -215,19 +217,37 @@ class TokenRefreshAuthenticatorTest {
 
     @Test
     fun `coalesces concurrent unauthorized responses into a single refresh`() {
+        val refreshing = CountDownLatch(1)
+        val release = CountDownLatch(1)
         refreshResponse = {
-            Thread.sleep(200)
+            refreshing.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
             successfulRefresh()
         }
-        val executor = Executors.newFixedThreadPool(4)
-
-        val codes = (1..4)
-            .map { executor.submit<Int> { execute().code } }
-            .map { it.get(10, TimeUnit.SECONDS) }
-        executor.shutdown()
-
-        assertTrue(codes.all { it == 200 })
-        assertEquals(1, refreshCount.get())
+        val executor = Executors.newSingleThreadExecutor()
+        val second = FutureTask<Int> { execute().code }
+        val secondThread = Thread(second)
+        try {
+            val first = executor.submit<Int> { execute().code }
+            assertTrue(refreshing.await(5, TimeUnit.SECONDS))
+            secondThread.start()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            fun waiting() = secondThread.state == Thread.State.BLOCKED &&
+                secondThread.stackTrace.any { it.methodName == "authenticate" }
+            while (!waiting() && refreshCount.get() < 2 && !second.isDone && System.nanoTime() < deadline) Thread.yield()
+            assertTrue("Second request never reached the authenticator", waiting() || refreshCount.get() == 2 || second.isDone)
+            release.countDown()
+            assertEquals(200, first.get(5, TimeUnit.SECONDS))
+            assertEquals(200, second.get(5, TimeUnit.SECONDS))
+            assertEquals(1, refreshCount.get())
+            assertEquals("new-access", storedAccessToken)
+            assertEquals("new-refresh", storedRefreshToken)
+        } finally {
+            release.countDown()
+            secondThread.interrupt()
+            secondThread.join(5000)
+            executor.shutdownNow()
+        }
     }
 
     @Test

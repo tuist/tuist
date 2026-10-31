@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Restarts the backing services an orb loses while paused or after starting
+# from a project snapshot. Fast and idempotent.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/../server"
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+
+# PostgreSQL autostarts under systemd; orbs without systemd need it started.
+pg_isready -q -h localhost || sudo pg_ctlcluster 16 main start
+
+# ClickHouse runs detached from the repository's own launcher, which returns
+# immediately when it is already up.
+mise run --no-deps clickhouse:start

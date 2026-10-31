@@ -25,6 +25,35 @@ defmodule Tuist.Runners.CacheGrantTest do
     assert CacheGrant.mint(42) == nil
   end
 
+  test "Linux routing verifies lifetime, issuer, audience, platform, site, account and signature" do
+    {private_pem, _} = keypair()
+    stub(Environment, :cache_grant_private_key, fn -> private_pem end)
+    token = CacheGrant.mint(42, platform: :linux, site: "gra")
+    assert {:ok, "gra"} = CacheGrant.linux_site(token, 42)
+    assert {:error, :invalid_runner_grant} = CacheGrant.linux_site(token, 43)
+    jwk = JOSE.JWK.from_pem(private_pem)
+    {true, %JOSE.JWT{fields: claims}, _} = JOSE.JWT.verify_strict(jwk, ["EdDSA"], token)
+    now = System.system_time(:second)
+
+    for override <- [
+          %{"exp" => now},
+          %{"iat" => now + 60},
+          %{"exp" => "forever"},
+          %{"iss" => "other"},
+          %{"aud" => "other"},
+          %{"site" => nil},
+          %{"platform" => "macos"}
+        ] do
+      {_, invalid} = jwk |> JOSE.JWT.sign(%{"alg" => "EdDSA"}, Map.merge(claims, override)) |> JOSE.JWS.compact()
+      assert {:error, :invalid_runner_grant} = CacheGrant.linux_site(invalid, 42)
+    end
+
+    {other_private, _} = keypair()
+    stub(Environment, :cache_grant_private_key, fn -> other_private end)
+    assert {:error, :invalid_runner_grant} = CacheGrant.linux_site(token, 42)
+    assert {:error, :invalid_runner_grant} = CacheGrant.linux_site("malformed", 42)
+  end
+
   test "mint/1 returns nil for a non-integer account id" do
     assert CacheGrant.mint("42") == nil
     assert CacheGrant.mint(nil) == nil

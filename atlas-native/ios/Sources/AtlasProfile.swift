@@ -10,10 +10,31 @@ struct AtlasNativeProfile: Decodable {
     struct PushNotifications: Decodable {
         let ios: Bool
         let android: Bool
+        let macos: Bool
     }
     let user: User
     let serverVersion: String
     let pushNotifications: PushNotifications?
+    var cached: Bool?
+}
+
+extension AtlasNativeProfile.PushNotifications {
+    private enum CodingKeys: String, CodingKey { case ios, android, macos }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        ios = try values.decode(Bool.self, forKey: .ios)
+        android = try values.decode(Bool.self, forKey: .android)
+        macos = try values.decodeIfPresent(Bool.self, forKey: .macos) ?? false
+    }
+
+    var supportsCurrentPlatform: Bool {
+        #if os(iOS)
+        ios
+        #else
+        macos
+        #endif
+    }
 }
 
 extension AtlasNativeProfile.User {
@@ -24,6 +45,49 @@ extension AtlasNativeProfile.User {
         name = try values.decode(String.self, forKey: .name)
         email = try values.decode(String.self, forKey: .email)
         description = try values.decodeIfPresent(String.self, forKey: .description) ?? ""
+    }
+}
+
+@MainActor
+final class AtlasProfile: ObservableObject {
+    @Published private(set) var profile: AtlasNativeProfile?
+    @Published private(set) var errorMessage: String?
+    private var generation = 0
+
+    func beginEditing() { generation += 1 }
+
+    func accept(_ profile: AtlasNativeProfile) {
+        generation += 1
+        self.profile = profile
+        errorMessage = nil
+    }
+
+    func invalidate() {
+        generation += 1
+        profile = nil
+        errorMessage = nil
+    }
+
+    func load(request: ([String: Any]) async throws -> Data, cachedRead: AtlasReadCache.Request?) async {
+        generation += 1
+        let identity = generation
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        if profile == nil, let data = await cachedRead?(["operation": "business", "resource": "profile", "action": "list"]),
+           identity == generation, !Task.isCancelled {
+            profile = try? decoder.decode(AtlasNativeProfile.self, from: data)
+        }
+        do {
+            let data = try await request(["resource": "profile", "action": "list"])
+            let loaded = try decoder.decode(AtlasNativeProfile.self, from: data)
+            guard identity == generation, !Task.isCancelled else { return }
+            profile = loaded
+            errorMessage = nil
+        } catch is CancellationError {} catch {
+            guard identity == generation, !Task.isCancelled else { return }
+            if AtlasReadCache.accessDenied(error) { profile = nil }
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

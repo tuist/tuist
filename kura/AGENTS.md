@@ -3,6 +3,24 @@
 Start with [the architecture overview](docs/architecture.md). Keep protocol,
 resource, and rollout constraints below intact when changing the cache mesh.
 
+## Certificate trust
+
+`src/certificate_trust.rs` and its Apple companion preserve native/enterprise
+trust and explicit peer anchors while restricting all twelve incident keys.
+Keep complete Apple evaluated paths, Unix native/extra roots, provider settings,
+PEM order/last-key behavior, hot identity snapshots, SNI, TLS versions and ALPN.
+Preconfigured reqwest TLS ignores its later root/identity/ALPN setters; do not
+reset the protected backend. Preserve origin resolver/redirect/header controls,
+terminal typed TLS failures, and mandatory inbound peer client authentication.
+Keep Sentry and blocking OTLP protected independently, including existing OTLP
+diagnostics. See [qualification and unresolved gates](README.md#outbound-certificate-distrust).
+Native-store tests use an owned child; never change the parent's trust environment.
+
+Production/E2E assembly uses `Dockerfile.release`, with the named
+`certificate-trust` context pointing at `../infra/certificate-trust`. Keep every
+build caller and Kura's release-change detection aligned. OS bundle filtering
+does not repair embedded/native verification or qualify running processes.
+
 ## Key Boundaries
 - Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
   See [the recovery runbook](../infra/kura-controller/serving-authority.md).

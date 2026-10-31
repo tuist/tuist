@@ -18,6 +18,9 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
@@ -44,6 +47,8 @@ defmodule Tuist.Sandboxes do
 
   def default_template, do: @default_template
   def default_shape, do: @default_shape
+
+  defdelegate dispatch_amp_orb(account, orb_id, params), to: Tuist.Sandboxes.AmpOrbs, as: :dispatch
 
   # ----- Agent environments -----
 
@@ -138,6 +143,7 @@ defmodule Tuist.Sandboxes do
   def list_sandboxes_idle_before(%DateTime{} = cutoff) do
     Repo.all(
       from s in Sandbox,
+        where: is_nil(s.amp_orb_id),
         where:
           (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
             (s.state == :error and s.updated_at < ^cutoff),
@@ -177,17 +183,28 @@ defmodule Tuist.Sandboxes do
   Inserts the sandbox row, picks a node that has the template ready and
   boots the VM there. The row exists before the node hears about the id,
   so a report that races the create never looks like an orphan.
+
+  `from_disk_snapshot: %DiskSnapshot{}` clones the snapshot's disks on its
+  node instead of booting the template. When that node cannot take the
+  sandbox or the clone fails, the sandbox boots from the template instead.
   """
-  def create_sandbox(%Account{id: account_id}, attrs \\ %{}) when is_map(attrs) do
+  def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs =
       @default_shape
       |> Map.put(:template, @default_template)
       |> Map.merge(attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
       |> Map.put(:account_id, account_id)
 
-    with :ok <- check_sandbox_limit(account_id),
-         {:ok, sandbox} <- %Sandbox{} |> Sandbox.create_changeset(attrs) |> Repo.insert() do
-      boot(sandbox)
+    changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
+
+    with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
+         {:ok, sandbox} <-
+           Concurrency.admit(account_id, requested, fn ->
+             with :ok <- check_sandbox_limit(account_id) do
+               Repo.insert(changeset)
+             end
+           end) do
+      boot(sandbox, Keyword.get(opts, :from_disk_snapshot))
     end
   end
 
@@ -198,7 +215,7 @@ defmodule Tuist.Sandboxes do
     if live < @max_live_sandboxes_per_account, do: :ok, else: {:error, :sandbox_limit}
   end
 
-  defp boot(%Sandbox{} = sandbox) do
+  defp boot(%Sandbox{} = sandbox, disk_snapshot) do
     hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
 
     args = %{
@@ -210,30 +227,77 @@ defmodule Tuist.Sandboxes do
       hostname: hostname
     }
 
-    with {:ok, node_name} <- Capacity.place(sandbox),
-         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
-      Logger.info("sandboxes: sandbox created",
-        sandbox_id: sandbox.id,
-        node: node_name,
-        template: sandbox.template,
-        boot_ms: data["boot_ms"]
-      )
+    case place_and_create(sandbox, args, disk_snapshot) do
+      {:ok, node_name, data} ->
+        Logger.info("sandboxes: sandbox created",
+          sandbox_id: sandbox.id,
+          node: node_name,
+          template: sandbox.template,
+          disk_snapshot_id: data["disk_snapshot_id"],
+          boot_ms: data["boot_ms"]
+        )
 
-      sandbox
-      |> update_sandbox(%{
-        state: :running,
-        node_name: node_name,
-        hostname: hostname,
-        template_tag: data["template_tag"],
-        last_active_at: now(),
-        error_message: nil
-      })
-      |> schedule_idle_pause()
-    else
+        sandbox
+        |> update_sandbox(%{
+          state: :running,
+          node_name: node_name,
+          hostname: hostname,
+          template_tag: data["template_tag"],
+          last_active_at: now(),
+          error_message: nil
+        })
+        |> schedule_idle_pause()
+
       {:error, reason} ->
         Logger.warning("sandboxes: sandbox creation failed", sandbox_id: sandbox.id, reason: inspect(reason))
         {:ok, _} = update_sandbox(sandbox, %{state: :error, hostname: hostname, error_message: error_message(reason)})
         {:error, reason}
+    end
+  end
+
+  defp place_and_create(sandbox, args, nil) do
+    with {:ok, node_name} <- Capacity.place(sandbox),
+         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+      {:ok, node_name, data}
+    end
+  end
+
+  # The snapshot only exists on its node. A failed clone leaves the node's
+  # reservation in place, so the template boot retries on the same node.
+  defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot) do
+    case Capacity.place_on_node(sandbox, disk_snapshot.node_name) do
+      {:ok, node_name} ->
+        clone_args = Map.put(args, :from_disk_snapshot, disk_snapshot.id)
+
+        case Nodes.call(node_name, "create", clone_args, timeout: @create_timeout) do
+          {:ok, data} ->
+            DiskSnapshots.touch(disk_snapshot)
+            {:ok, node_name, Map.put(data, "disk_snapshot_id", disk_snapshot.id)}
+
+          {:error, reason} ->
+            Logger.warning("sandboxes: create from disk snapshot failed, booting the template",
+              sandbox_id: sandbox.id,
+              disk_snapshot_id: disk_snapshot.id,
+              node: node_name,
+              reason: inspect(reason)
+            )
+
+            DiskSnapshots.forget_if_missing(disk_snapshot, reason)
+
+            with {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+              {:ok, node_name, data}
+            end
+        end
+
+      {:error, reason} ->
+        Logger.info("sandboxes: disk snapshot node cannot take the sandbox, booting the template elsewhere",
+          sandbox_id: sandbox.id,
+          disk_snapshot_id: disk_snapshot.id,
+          node: disk_snapshot.node_name,
+          reason: inspect(reason)
+        )
+
+        place_and_create(sandbox, args, nil)
     end
   end
 
@@ -328,10 +392,14 @@ defmodule Tuist.Sandboxes do
 
   defp do_resume(%Sandbox{state: :paused}), do: {:error, :no_node}
 
-  def pause(%Sandbox{id: id}) do
+  @doc """
+  Pauses a running sandbox. `sync_disks: true` flushes the guest's page
+  cache first, which saving its disks as a disk snapshot requires.
+  """
+  def pause(%Sandbox{id: id}, opts \\ []) do
     with_sandbox_lock(id, fn ->
       with_fresh(id, fn
-        %Sandbox{state: :running} = sandbox -> do_pause(sandbox)
+        %Sandbox{state: :running} = sandbox -> do_pause(sandbox, opts)
         %Sandbox{state: state} -> {:error, {:invalid_state, state}}
       end)
     end)
@@ -354,7 +422,7 @@ defmodule Tuist.Sandboxes do
         with_fresh(sandbox_id, fn
           %Sandbox{state: :running, residency_work_id: nil} = sandbox
           when is_nil(epoch) or sandbox.residency_epoch == epoch ->
-            do_pause(sandbox)
+            do_pause(sandbox, [])
 
           %Sandbox{} ->
             {:ok, :skipped}
@@ -364,14 +432,20 @@ defmodule Tuist.Sandboxes do
     )
   end
 
-  defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
-    case Nodes.call(node_name, "pause", %{sandbox_id: sandbox.id}, []) do
+  defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox, opts) when is_binary(node_name) do
+    args =
+      if Keyword.get(opts, :sync_disks, false),
+        do: %{sandbox_id: sandbox.id, sync_disks: true},
+        else: %{sandbox_id: sandbox.id}
+
+    case Nodes.call(node_name, "pause", args, []) do
       {:ok, data} ->
         Logger.info("sandboxes: sandbox paused",
           sandbox_id: sandbox.id,
           node: node_name,
           snapshot_ms: data["snapshot_ms"],
-          mem_bytes: data["mem_bytes"]
+          mem_bytes: data["mem_bytes"],
+          disks_synced: data["disks_synced"]
         )
 
         with {:ok, paused} <- update_sandbox(sandbox, %{state: :paused, paused_at: now()}) do
@@ -384,7 +458,7 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp do_pause(%Sandbox{state: :running}), do: {:error, :no_node}
+  defp do_pause(%Sandbox{state: :running}, _opts), do: {:error, :no_node}
 
   @doc """
   Tears the VM down on its node and removes the row. The row flips to
@@ -679,8 +753,12 @@ defmodule Tuist.Sandboxes do
   know are deleted from the node. A row left `creating` or `resuming` by a
   caller that died mid-operation is settled from the report once it has
   been stuck longer than any create or resume can take.
+  Disk snapshots are reconciled the same way (`DiskSnapshots.reconcile_node_report/2`).
   """
-  def reconcile_node_report(node_name, %{"sandboxes" => reported}) when is_binary(node_name) and is_list(reported) do
+  def reconcile_node_report(node_name, %{"sandboxes" => reported} = report)
+      when is_binary(node_name) and is_list(reported) do
+    :ok = DiskSnapshots.reconcile_node_report(node_name, report)
+
     reported_by_id =
       Map.new(
         for %{"id" => id} = sandbox <- reported,

@@ -11,6 +11,22 @@ The guides live in the Tuist documentation: start with
 see [Install the Hex package](https://tuist.dev/en/docs/guides/install-hex-package)
 for every option.
 
+## TLS verification
+
+HTTPS API, authentication, artifact-transfer and dependency-cache connections
+retain normal certificate and hostname verification. The package also rejects
+the twelve eMudhra-related public keys from the [public incident root](https://emudhra.we-have-a-problem.com/roots.json)
+and [intermediate inventories](https://emudhra.we-have-a-problem.com/impacted-intermediates.json),
+including intermediate keys, independently of whether the host's CA store has
+already been updated. The policy ships in the package; it does not modify the
+host application's global CA cache. Unrelated system and private certificate
+authorities remain subject to normal verification.
+
+Update your operating system and Erlang/OTP as well as this package. A TLS error
+must not be worked around by disabling verification or changing an HTTPS URL to
+HTTP. The explicit private-network plaintext cache override is not a fallback
+for failed TLS connections.
+
 ## Configure the server and project
 
 You can share the Tuist server address and the project handle with your team
@@ -564,9 +580,23 @@ and never cancelled mid-release. If package publication succeeds but the GitHub
 release fails, a retry verifies the published package contents and resumes
 documentation and release creation without replacing the package. Manual releases are restricted to `main`.
 
-The release workflow sets the package version from the shared release checker;
-the version in `mix.exs` is the development baseline. Release notes are generated
-from scoped commits using `cliff.toml`.
+For a stable-only hotfix, create `releases/tuist-ex-MAJOR.MINOR.x` at the latest
+published stable tag, and merge only the required SDK backport into it. Dispatch
+`tuist-ex-release.yml` **from main** with all three inputs: `source_sha` (the full
+merged release-branch tip SHA), `base_tag` (for example `tuist-ex@0.10.0`) and
+`patch_version` (for example `0.10.1`). Blank inputs preserve the ordinary main
+release check. Partial inputs fail closed. The stable lane requires the latest
+stable tag, its descendant release-branch tip, exactly the next patch version,
+an unused tag, and changes limited to `tuist_ex/` and its validation workflow.
+Validation, package assembly and the GitHub tag all use the same immutable source;
+the workflow pins the resolved base commit during planning and rejects a moved
+base tag when rechecking boundaries immediately before publication. A partial Hex
+publication can resume only while the target Git tag is absent and the rebuilt
+package checksum matches. Never replace an existing tag or package.
+
+The release workflow sets the package version from the shared release checker
+or the explicit stable patch input; the version in `mix.exs` is the development
+baseline. Release notes are generated from scoped commits using `cliff.toml`.
 
 Publication reuses the repository's `HEX_API_KEY` secret, which also publishes
 Noora. Its Hex account must be the intended owner of `tuist_ex` and the key

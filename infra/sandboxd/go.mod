@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/sandboxd
 
-go 1.25
+go 1.26.10
 
 require (
 	github.com/coder/websocket v1.8.13
@@ -18,3 +18,5 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 )
+
+godebug default=go1.25

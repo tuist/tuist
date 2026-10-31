@@ -702,6 +702,9 @@ const VIEW_REFRESH_MAX_QUEUE: usize = 50_000;
 /// published by another machine after our miss becomes visible on the next
 /// resolve past this window rather than requiring a proxy restart.
 const NEGATIVE_TTL: Duration = Duration::from_secs(60);
+// A publication skipped because the remote refused the credential. Reported once
+// by the remote that refused it, not once per spooled record.
+const CREDENTIAL_REFUSED: &str = "remote refused the cache credential";
 
 /// How long a path may go without a request before its in-memory caches are
 /// reclaimed and its store's handle released by the maintenance loop. Well
@@ -4569,7 +4572,7 @@ impl Proxy {
                 // armed it, and every publication queued behind it fails for the
                 // same reason. Saying so per record buries the line that
                 // explains them in thousands of copies of itself.
-                if reason != "remote shedding writes" {
+                if reason != "remote shedding writes" && reason != CREDENTIAL_REFUSED {
                     crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
                 }
             }
@@ -4596,6 +4599,10 @@ impl Proxy {
             remote.record_shed_write();
             state.stats_publish_shed.fetch_add(1, Ordering::Relaxed);
             return Err("remote shedding writes".into());
+        }
+        // Its requests would not be sent, so the closure walk would be wasted.
+        if remote.publication_refused() {
+            return Err(CREDENTIAL_REFUSED.into());
         }
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
@@ -6052,8 +6059,8 @@ impl Proxy {
         }
         drop(paths);
         for (instance, (_, remote)) in self.remotes.lock().unwrap().iter() {
-            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={} skipped_lookups={}",
-                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes(), remote.skipped_lookups()));
+            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={} skipped_lookups={} skipped_refused_credential={}",
+                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes(), remote.skipped_lookups(), remote.skipped_credential_requests()));
         }
         parts.join(" | ")
     }
@@ -9965,13 +9972,33 @@ mod tests {
         prune_store(&dir.path(), directory_size(&dir.0.join("v1.1").to_string_lossy())).unwrap();
         let rotated = generations(&dir);
         let state = path_state_for(&dir.path());
+        // An empty primary can occupy zero blocks, so total - 1 would put the
+        // upstream itself over budget. Include allocated non-generation metadata
+        // to exercise a store whose excess cannot be reclaimed by pruning.
+        std::fs::write(dir.0.join("fixture-metadata"), [0u8; 4096]).unwrap();
+        let probe = store_probe_object(state, b"small-active-primary");
         let counter = state.gen_counter.load(Ordering::SeqCst);
         let proxy = test_proxy();
 
         let limit = directory_size(&dir.path()) - 1;
+        assert!(directory_size(&dir.path()) > limit);
+        assert_eq!(spool_records(&dir.path()), 0);
+        assert!(proxy.store_bound_checked.lock().unwrap().is_empty());
+        let sizes = indexed_generation_sizes(&generation_sizes(&dir.path()));
+        assert_eq!(
+            plan_generations(&sizes, generation_limit(limit), true),
+            GenerationPlan::default(),
+            "fixture must have a small primary and an upstream within its allowance: {sizes:?}"
+        );
         assert!(proxy.bound_store(&dir.path(), state, limit).is_none());
+        assert!(proxy
+            .store_bound_checked
+            .lock()
+            .unwrap()
+            .contains_key(&dir.path()));
         assert_eq!(state.gen_counter.load(Ordering::SeqCst), counter);
         assert_eq!(generations(&dir), rotated);
+        assert!(state.load_present(&probe));
     }
 
     // An automatic prune runs beside builds that start once the machine looks

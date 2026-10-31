@@ -12,6 +12,17 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorkerTest do
 
   defp days_ago(days), do: DateTime.add(DateTime.utc_now(), -days, :day)
 
+  test "keeps old paused and errored Amp Orbs until an explicit delete" do
+    for state <- [:paused, :error] do
+      sandbox = sandbox_fixture(state: state, amp_orb_id: "amp-#{state}", paused_at: days_ago(365))
+      Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [updated_at: days_ago(365)])
+      reject(&Nodes.call/4)
+
+      assert :ok = perform_job(RetentionWorker, %{})
+      assert Repo.reload!(sandbox).state == state
+    end
+  end
+
   test "deletes sandboxes paused for longer than the retention window and keeps the rest" do
     expired =
       sandbox_fixture(

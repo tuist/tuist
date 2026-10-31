@@ -22,6 +22,7 @@ pub(crate) enum Action {
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Platform {
     Ios,
+    Macos,
     Android,
 }
 
@@ -74,7 +75,7 @@ pub(super) fn execute_using(
             ..
         } => {
             let valid_token = match platform {
-                Platform::Ios => {
+                Platform::Ios | Platform::Macos => {
                     (32..=512).contains(&token.len())
                         && token.len().is_multiple_of(2)
                         && token.bytes().all(|byte| byte.is_ascii_hexdigit())

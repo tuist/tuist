@@ -260,6 +260,15 @@ async fn serve_connection(
             },
             request_span.clone(),
         );
+        // Enroll before asynchronous preparation, then recheck drain. Either
+        // shutdown observes this guard, or we refuse to start producing usage
+        // after it has observed zero inflight requests and checkpointed.
+        let request_guard = state.start_http_request(HttpTrafficClass::Public);
+        if state.runtime.is_draining() {
+            drop(request_guard);
+            drop(permit);
+            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+        }
         let classified = scope_request(
             request_context.clone(),
             open_and_authorize(&state, parsed, artifact).instrument(request_span.clone()),
@@ -334,6 +343,7 @@ async fn serve_connection(
             }
             ClassifiedRequest::Fallback => {
                 drop(permit);
+                drop(request_guard);
                 return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
             }
         }
@@ -816,16 +826,27 @@ fn parse_request(bytes: &[u8]) -> Result<Option<ParsedRequest>, httparse::Error>
     let Some(version) = request.version else {
         return Ok(None);
     };
-    let headers = request
+    let mut headers = BTreeMap::new();
+    for header in request
         .headers
         .iter()
         .filter(|header| !header.name.is_empty())
-        .filter_map(|header| {
-            std::str::from_utf8(header.value)
-                .ok()
-                .map(|value| (header.name.to_ascii_lowercase(), value.trim().to_string()))
-        })
-        .collect();
+    {
+        let name = header.name.to_ascii_lowercase();
+        if name == "authorization" {
+            let value = if headers.contains_key(&name) {
+                String::new()
+            } else {
+                std::str::from_utf8(header.value)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_owned()
+            };
+            headers.insert(name, value);
+        } else if let Ok(value) = std::str::from_utf8(header.value) {
+            headers.insert(name, value.trim().to_owned());
+        }
+    }
     Ok(Some(ParsedRequest {
         method: method.to_owned(),
         target: target.to_owned(),
@@ -855,7 +876,6 @@ async fn serve_accelerated(
     keep_alive: bool,
 ) -> std::io::Result<Option<TcpStream>> {
     let transfer_started_at = Instant::now();
-    let _request_guard = state.start_http_request(HttpTrafficClass::Public);
     let AcceleratedCandidate {
         transfer,
         file,

@@ -677,6 +677,11 @@ spec:
             {{- end }}
             {{- end }}
           env:
+            # The manager holds about 130 MB of host binaries plus the
+            # cluster-wide informer caches. Collect harder as it nears the
+            # container limit rather than being OOM-killed mid-roll.
+            - name: GOMEMLIMIT
+              value: "800MiB"
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see
             # capi-scaleway-applesilicon-external-secrets.yaml). For
@@ -755,8 +760,8 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
+              memory: "512Mi"
             limits:
               cpu: "500m"
-              memory: "512Mi"
+              memory: "1Gi"
 {{- end }}

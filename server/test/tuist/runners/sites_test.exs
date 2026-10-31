@@ -12,6 +12,33 @@ defmodule Tuist.Runners.SitesTest do
 
   setup :verify_on_exit!
 
+  test "shard storage site comes only from the claiming node's operator label" do
+    expect(Client, :get_node, fn "linux-node", _ ->
+      {:ok,
+       %{
+         "metadata" => %{
+           "labels" => %{
+             "node.cluster.x-k8s.io/shard-storage-site" => "gra",
+             "tuist.dev/private-network" => "pn-2024093"
+           }
+         }
+       }}
+    end)
+
+    assert Sites.shard_storage_site("linux-node") == "gra"
+
+    expect(Client, :get_node, fn "routes-pending", _ ->
+      {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/shard-storage-site" => "gra"}}}}
+    end)
+
+    assert Sites.shard_storage_site("routes-pending") == nil
+    expect(Client, :get_node, fn "unlabelled", _ -> {:ok, %{"metadata" => %{"labels" => %{}}}} end)
+    assert Sites.shard_storage_site("unlabelled") == nil
+    expect(Client, :get_node, fn "unreachable", _ -> {:error, :timeout} end)
+    assert Sites.shard_storage_site("unreachable") == nil
+    assert Sites.shard_storage_site(nil) == nil
+  end
+
   @image "ghcr.io/tuist/tuist-runner:macos-26-6-1.0.0"
 
   setup do

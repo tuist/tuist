@@ -3,6 +3,7 @@ defmodule Tuist.AccountsTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
@@ -18,6 +19,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication
   alias Tuist.Base64
@@ -2841,6 +2843,62 @@ defmodule Tuist.AccountsTest do
       %{user: user_fixture()}
     end
 
+    test "a delivery failure does not suppress an immediate retry", %{user: user} do
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, :delivery_failed} =
+                   Accounts.deliver_user_reset_password_instructions(%{
+                     user: user,
+                     reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+                   })
+        end)
+
+      assert log =~ "Password reset email delivery failed"
+      refute log =~ "mail provider unavailable"
+      refute log =~ user.email
+
+      refute Repo.exists?(from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"))
+
+      stub(Bamboo.TestAdapter, :deliver, fn email, config ->
+        Mimic.call_original(Bamboo.TestAdapter, :deliver, [email, config])
+      end)
+
+      token =
+        extract_user_token(fn reset_password_url ->
+          Accounts.deliver_user_reset_password_instructions(%{
+            user: user,
+            reset_password_url: reset_password_url
+          })
+        end)
+
+      assert Accounts.get_user_by_reset_password_token(token).id == user.id
+      assert_receive {:delivered_email, email}
+      assert email.to == [nil: user.email]
+    end
+
+    test "a delivery failure preserves a replacement token if its own token was already removed", %{user: user} do
+      {replacement_token, replacement_user_token} = UserToken.build_email_token(user, "reset_password")
+
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        # A reset on another replica can remove the in-flight delivery's token.
+        Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+        Repo.insert!(replacement_user_token)
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      assert {:error, :delivery_failed} =
+               Accounts.deliver_user_reset_password_instructions(%{
+                 user: user,
+                 reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+               })
+
+      assert Accounts.get_user_by_reset_password_token(replacement_token).id == user.id
+    end
+
     test "sends token through notification", %{user: user} do
       token =
         extract_user_token(fn reset_password_url ->
@@ -4233,6 +4291,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
     end
 
     test "deletes an organization account successfully" do
@@ -4247,6 +4306,26 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
+    end
+
+    test "refuses to delete either account type if artifact cleanup cannot be durably enqueued" do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      accounts = [Accounts.get_account_from_user(user), Accounts.get_account_from_organization(organization)]
+
+      expect(Oban, :insert, 2, fn multi, :delete_account_artifacts, _changeset ->
+        Ecto.Multi.run(multi, :delete_account_artifacts, fn _repo, _changes -> {:error, :queue_unavailable} end)
+      end)
+
+      for account <- accounts do
+        assert_raise MatchError, fn -> Accounts.delete_account!(account) end
+        assert {:ok, _account} = Accounts.get_account_by_id(account.id)
+        refute_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
+      end
+
+      assert Accounts.get_user_by_id(user.id)
+      assert {:ok, _organization} = Accounts.get_organization_by_id(organization.id)
     end
 
     test "purges the account's runner cache-volume masters and GitLab caches from object storage" do

@@ -101,6 +101,8 @@ server:
   externalSecrets:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
+    shardStorage:
+      secret: shard-storage-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Canary's own (test-mode) IDs; the chart
@@ -465,7 +467,9 @@ kuraVolumesCSI:
 postgresql:
   mode: cnpg
   cnpg:
-    instances: 2
+    # Two standbys, as in production: with required `ANY 1` replication, a
+    # single standby that stalls or restarts would hold every commit.
+    instances: 3
     # PostgreSQL config sized against the 8 GiB memory limit below. CNPG
     # otherwise leaves Postgres on its 128 MiB shared_buffers default;
     # mirror the production tuning shape so canary catches any regression
@@ -654,6 +658,26 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
+  # Dedicated Garage validation host: ns3234030.ip-188-165-77.eu (RISE-1).
+  # Ubuntu 24.04, healthy RAID1/XFS and SSH verified; adoption marker is set.
+  shard-storage:
+    enabled: true
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: shard-storage
+    machine:
+      # Disjoint from both the Canadian cache and Linux runner adoption prefixes.
+      adoptDisplayNamePrefix: tuist-shards-ovh-canary
+      offer: rise-1
+      datacenter: gra
+      os: ubuntu_24.04
+      vRackID: pn-2024092
+      # The default cache taint enables quota-backed /data and its exporter.
+      # This host does not run Kata or join the Linux runner pool.
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # One shared RISE-M pool; every Linux job uses the regional Kura instance.
   runners-linux:
     enabled: true
@@ -669,6 +693,9 @@ ovhFleets:
     # OVH_ENDPOINT for all of them.
     endpoint: ovh-us
     nodePool: runners-linux
+    # Jobs reach the gra shard store privately once the provider attests the
+    # node's vRack routes (tuist.dev/private-network).
+    shardStorageSite: gra
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-canary
       offer: rise-m
@@ -841,7 +868,7 @@ sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
   image:
-    tag: "sha-3b10e1eddbaf"
+    tag: "sha-1949e6dfc6f9"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
@@ -883,6 +910,18 @@ runnersFleetLinux:
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
   shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    minFreeGB: 40
+    volumeGB: 20
+    provisioning:
+      enabled: true
+      sizeGB: 200
+    dockerCache:
+      enabled: true
+      # Acceptance uses the default shape; qualify it before widening rollout.
+      pools: [tuist-tuist-runner-pool-linux-2vcpu-8gb]
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
@@ -907,3 +946,7 @@ runnersFleetLinux:
 # rate limiter falls back to the per-pod InMemory bucket.
 redis:
   enabled: true
+
+ampOrbProvider:
+  enabled: true
+  url: https://canary.tuist.dev

@@ -103,7 +103,10 @@ pub fn spawn(state: SharedState, config: RegistrationConfig) {
 }
 
 async fn run(state: SharedState, config: RegistrationConfig) {
-    let client = Client::new();
+    let client = crate::certificate_trust::client_builder()
+        .expect("registration TLS configuration should build")
+        .build()
+        .expect("registration HTTP client should build");
     let mut ticker = interval(config.interval);
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut failure_logs =

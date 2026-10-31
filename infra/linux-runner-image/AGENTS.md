@@ -85,7 +85,7 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   build-args), not pinned: this image runs customer workflows, so
   it cannot assume anyone's `compileSdk`. Everything Google
   publishes at or above the floor is installed, which means new
-  platforms roll in on the next image rebuild with no version bump
+  platforms roll in on the next SDK-stage rebuild with no platform version bump
   anywhere — the same approach the hosted image takes with
   `platform_min_version` / `build_tools_min_version`. Do NOT
   re-pin these to whatever `android/` happens to target; that
@@ -172,7 +172,7 @@ root, or trimming externals from the image, breaks job containers
 From this directory:
 
 ```bash
-docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
+docker build --pull --build-context certificate-trust=../certificate-trust -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
 `RUNNER_VERSION` is a `--build-arg` (default lives in the
@@ -182,16 +182,25 @@ release-pipeline digest rewrite, same shape as the macOS image.
 
 ## CI
 
-The release pipeline mirrors the macOS runner image release but
-runs on a standard cloud Linux runner (no Tart / GUI session
-needed). Steady-state: `feat(linux-runner-image)` /
+The release pipeline mirrors the macOS runner image release
+(`runner-image-release.yml`) but runs on a standard cloud Linux runner (no
+Tart / GUI session needed). Steady-state: `feat(linux-runner-image)` /
 `fix(linux-runner-image)` conventional commits on `main` trigger
-a `release-linux-runner-image` job that builds, pushes
-`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`, takes the
-digest from the build-push-action's own output, and rewrites
-`runnersFleetLinux.pools[*].runnerImage` across managed-env
-values files (those whose pin is already non-empty — canary /
-production stay empty until the env is flipped on). Ad-hoc
+`.github/workflows/linux-runner-image-release.yml`, which builds and pushes
+`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`, tags
+`linux-runner-image@<semver>`, stages the image on canary and production hosts
+(`linux-runner-image-stage.sh`, up to an hour, like macOS's announce job) and
+then dispatches Server Production Deployment. It is not part of the deploy
+cascade. Deploy resolves the latest tag to a digest for
+`runnersFleetLinux.shapeRunnerImage` and checks staging before pool promotion.
+Canary waits for the candidate and fails closed so acceptance cannot qualify an
+old image. Other environments check once and hold unprepared pools, with the
+same one-hour/error fallback policy as macOS; later deployments reevaluate those
+holds. The release job alone writes
+the registry build cache; PR/manual builds may read it. Preserve the
+large dependency layers before release-specific inputs and keep the
+script-only layer-delta CI check. See [image rollout](image-rollout.md)
+for cache refresh, readiness, rollback and validation. Ad-hoc
 rebuilds for branch validation go through
 `.github/workflows/linux-runner-image.yml`: `pull_request` builds
 without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
@@ -414,9 +423,10 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   `changed`). Before that, when the agent's `/docker-merge` offers the saved head
   another job published since the mount, a changed data root is merged with it:
   a second dockerd runs on the head's clone (`/var/lib/docker-merge`, its own
-  socket, no networking), the images only one side keeps are copied into the
-  other with `docker save | docker load` (`planDockerMerge`: whichever moves
-  fewer bytes), the ledgers are merged, and the report names `merged_generation`
+  socket, no networking), the images one side added since the mount and the
+  other lacks are copied into the other with `docker save | docker load`
+  (`planDockerMerge`: whichever moves fewer bytes; an image of the mount that
+  either side removed is never brought back), the ledgers are merged, and the report names `merged_generation`
   and `merged_into` (`branch` or `head`) and describes the merged root. Any
   failure leaves the data root as the job left it. Without a volume, a job the agent answered
   `unseen` reports `/docker-seen` when the daemon holds any image, so the
@@ -435,8 +445,11 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   volume drivers/options are refused. Snapshot their tree metadata without
   following symlinks, bounded by teardown's context and one million entries.
   Default upstream setup with a random name and `keep-state: false` is ephemeral.
-- Merge different BuildKit volume keys, selecting this job's complete state for
-  a key it changed, otherwise the head's state. Never splice BuildKit databases.
+- Merge BuildKit volume keys three ways against the mount (`planBuildkitMerge`):
+  this job's complete state for a key it changed or added, otherwise the head's;
+  a key one side removed stays removed unless the other side changed it. Never
+  bring back a builder a job's prune or retention deleted, and skip copying
+  identical states. Never splice BuildKit databases.
   If the daemon's embedded build cache changed, merge images into the branch so
   that new build work survives; concurrent embedded caches use last-writer state.
   Stop/remove BuildKit containers before copying their volume state. A failed
