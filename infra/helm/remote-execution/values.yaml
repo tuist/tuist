@@ -1,0 +1,29 @@
+# Install into the server's existing sandboxes namespace (tuist-sandboxes).
+enabled: false
+serverURL: ""
+serverNamespace: tuist
+serverPort: 8080
+gateway:
+  replicas: 2
+  image: ghcr.io/tuist/tuist-remote-execution
+  tag: ""
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+workers:
+  image: ghcr.io/tuist/tuist-sandboxd
+  tag: ""
+  templateImage: ghcr.io/tuist/tuist-sandbox-template
+  templateTag: ""
+  perNodeConcurrency: 4
+  # Opt into native link/address/route setup after qualifying the daemon image.
+  # Both backends retain fresh namespaces and the same firewall/teardown path.
+  networkBackend: iproute2
+  diskGiB: 160
+  # These hosts must be excluded from every CI RunnerPool. The dedicated
+  # NoSchedule taint and this label are provisioned with the host pool.
+  nodeSelector:
+    tuist.dev/workload: remote-execution
+    kubernetes.io/arch: amd64
+    kubernetes.io/os: linux
+imagePullSecrets: []

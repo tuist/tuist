@@ -49,7 +49,9 @@ func SetChildSubreaper() error {
 func waitExit(pid int) error {
 	for {
 		var status unix.WaitStatus
-		wpid, err := unix.Wait4(pid, &status, unix.WNOHANG, nil)
+		// The jailer has exited and the subreaper owns this child. Block on
+		// its actual exit instead of adding up to 200 ms to every deletion.
+		wpid, err := unix.Wait4(pid, &status, 0, nil)
 		switch {
 		case errors.Is(err, unix.EINTR):
 			continue
@@ -62,7 +64,8 @@ func waitExit(pid int) error {
 		case wpid == pid:
 			return exitStatusError(status)
 		}
-		unix.Nanosleep(&unix.Timespec{Nsec: 200 * 1e6}, nil)
+		// Only the unusual still-reparenting case needs a retry.
+		unix.Nanosleep(&unix.Timespec{Nsec: 20 * 1e6}, nil)
 	}
 }
 

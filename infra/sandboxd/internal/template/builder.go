@@ -2,13 +2,12 @@ package template
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"sync"
 	"time"
 
@@ -61,15 +60,13 @@ type build struct {
 	err  error
 }
 
-var idSanitizer = regexp.MustCompile(`[^A-Za-z0-9-]+`)
-
 // BuildID is the jailer id of a template build.
 func BuildID(t Template, shape Shape) string {
-	id := idSanitizer.ReplaceAllString(fmt.Sprintf("tmpl-%s-%s-%s", t.Name, t.Tag, shape), "-")
-	if len(id) > 64 {
-		id = id[:64]
-	}
-	return strings.TrimRight(id, "-")
+	// Full commit tags made the API socket path exceed Linux's 108-byte
+	// sockaddr_un limit. Truncating also aliased tags with a common prefix.
+	// Keep the jail ID short while including the complete template identity.
+	digest := sha256.Sum256(fmt.Appendf(nil, "%q:%q:%s", t.Name, t.Tag, shape.String()))
+	return fmt.Sprintf("tmpl-%x", digest[:16])
 }
 
 // Ensure returns the shape's artifacts, building the snapshot first if it
@@ -251,6 +248,26 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	}
 	log.Info("template guest booted", "boot", time.Since(bootStart), "agent_version", pong.AgentVersion)
 
+	// REAPI guests always start from an empty workspace. Format it once in
+	// the trusted template, then unmount it before snapshotting. Every action
+	// receives a private reflink of these pristine bytes, never a used disk.
+	preparedWorkspace := t.Name == "bazel"
+	if preparedWorkspace {
+		if err := agent.Configure(ctx, vsock.ConfigureRequest{FormatWorkspace: true}); err != nil {
+			return fmt.Errorf("prepare template workspace: %w", err)
+		}
+		process, err := agent.Start(ctx, vsock.ExecRequest{
+			Cmd: []string{"/bin/sh", "-ec", "if [ -x /usr/local/bin/sbx-template-prepare ]; then /usr/local/bin/sbx-template-prepare; fi; exec /bin/umount /workspace"},
+			Cwd: "/", TimeoutMs: b.bootTimeout().Milliseconds(),
+		}, nil)
+		if err != nil {
+			return fmt.Errorf("prepare template: %w", err)
+		}
+		if code, err := process.Wait(ctx); err != nil || code != 0 {
+			return fmt.Errorf("prepare template exited %d: %v", code, err)
+		}
+	}
+
 	if err := api.PatchVMState(ctx, firecracker.VMPaused); err != nil {
 		return err
 	}
@@ -284,6 +301,9 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 		{filepath.Join(root, firecracker.MemPath), filepath.Join(staging, MemFile)},
 		{filepath.Join(root, firecracker.SnapshotPath), filepath.Join(staging, SnapshotFile)},
 	}
+	if preparedWorkspace {
+		moves = append(moves, struct{ src, dst string }{workspace, filepath.Join(staging, BootWorkspace)})
+	}
 	for _, mv := range moves {
 		if err := vm.Rename(mv.src, mv.dst); err != nil {
 			return fmt.Errorf("moving %s: %w", mv.src, err)
@@ -297,6 +317,7 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	meta := Metadata{
 		Name: t.Name, Tag: t.Tag, Kernel: t.seedKernel(), VCPUs: shape.VCPUs, MemoryMB: shape.MemoryMB,
 		WorkspaceGB: workspaceGB, FirecrackerVersion: b.FirecrackerVersion, BuiltAt: time.Now().UTC(),
+		WorkspacePrepared: preparedWorkspace,
 	}
 	if err := writeJSON(filepath.Join(staging, MetadataFile), meta); err != nil {
 		return err

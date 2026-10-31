@@ -81,6 +81,15 @@ jobs:
           file: infra/sandbox-image/Dockerfile
           platforms: linux/amd64
           push: false
+      - name: Validate execution gateway build
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          target: execution-gateway
+          platforms: linux/amd64
+          push: false
       - name: Validate provider build
         uses: docker/build-push-action@v6
         with:

@@ -172,6 +172,14 @@ func (m *Manager) namespace(id string) string { return network.NamespaceName(id)
 
 // Create makes a sandbox from a template shape snapshot and boots it.
 func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res protocol.CreateResult, err error) {
+	if args.ExpiresAtUnix != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, time.Unix(args.ExpiresAtUnix, 0))
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return res, err
+		}
+	}
 	start := time.Now()
 	defer func() {
 		m.metrics.observe(protocol.OpCreate, err)
@@ -221,6 +229,13 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		WorkspaceGB: args.WorkspaceGB, Hostname: args.Hostname, State: "creating", Slot: -1, CreatedAt: time.Now().UTC(),
 	}}
 	m.mu.Lock()
+	// Check under the same lock that publishes the new sandbox. After the
+	// lease expires, delete either sees this in-flight create and waits on
+	// opMu, or no later replay can insert it behind the deletion.
+	if err := ctx.Err(); err != nil {
+		m.mu.Unlock()
+		return res, err
+	}
 	if _, exists := m.sandboxes[args.SandboxID]; exists {
 		m.mu.Unlock()
 		return res, fmt.Errorf("%w: %s", ErrAlreadyExists, args.SandboxID)
@@ -277,8 +292,15 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		return res, err
 	}
 	workspace := filepath.Join(root, firecracker.WorkspacePath)
-	if err := vm.Sparse(workspace, int64(args.WorkspaceGB)<<30); err != nil {
-		return res, err
+	preparedWorkspace := artifacts.Meta.WorkspacePrepared && args.WorkspaceGB == artifacts.Meta.WorkspaceGB
+	if preparedWorkspace {
+		if err := m.cloneFile(artifacts.Workspace, workspace); err != nil {
+			return res, err
+		}
+	} else {
+		if err := vm.Sparse(workspace, int64(args.WorkspaceGB)<<30); err != nil {
+			return res, err
+		}
 	}
 	if err := vm.Chown(workspace, uid, uid); err != nil {
 		return res, err
@@ -293,7 +315,7 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		// drive patch makes Firecracker re-read the file size and notify
 		// the guest before the agent formats it.
 		return api.PatchDrive(ctx, firecracker.DrivePatch{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
-	}, true)
+	}, !preparedWorkspace)
 	if err != nil {
 		return res, err
 	}
@@ -329,11 +351,14 @@ func (m *Manager) resolveTemplate(name, tag string) (template.Template, error) {
 // process for it. The returned fail func tears both down again and decorates
 // the error with the tail of the Firecracker log.
 func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Instance, func(error) (vm.Instance, vsock.Agent, error), error) {
+	networkStarted := time.Now()
 	ns := m.namespace(meta.ID)
 	uid := m.cfg.UIDBase + meta.Slot
 	if err := m.net.Setup(ctx, ns, meta.Slot); err != nil {
 		return nil, nil, fmt.Errorf("network setup: %w", err)
 	}
+	m.observePhase("network_setup", networkStarted)
+	launchStarted := time.Now()
 	inst, err := m.launcher.Launch(ctx, vm.Spec{
 		ID: meta.ID, JailBase: m.cfg.JailBase, FirecrackerBin: m.cfg.FirecrackerBin, JailerBin: m.cfg.JailerBin,
 		JailerEnabled: m.cfg.JailerEnabled, UID: uid, GID: uid, NetNS: ns,
@@ -342,6 +367,7 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 		_ = m.net.Teardown(context.Background(), ns, meta.Slot)
 		return nil, nil, fmt.Errorf("launching firecracker: %w", err)
 	}
+	m.observePhase("launch", launchStarted)
 	fail := func(err error) (vm.Instance, vsock.Agent, error) {
 		killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -358,6 +384,7 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 // attach brings the guest agent up to date after a restore or a boot (clock,
 // hostname, DNS, workspace) and starts watching the process.
 func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, meta Metadata, formatWorkspace bool, fail func(error) (vm.Instance, vsock.Agent, error)) (vm.Instance, vsock.Agent, error) {
+	started := time.Now()
 	agent := m.agent(inst.VsockPath())
 	if _, err := vsock.WaitReady(ctx, agent, m.cfg.BootTimeout); err != nil {
 		return fail(err)
@@ -365,9 +392,12 @@ func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, met
 	if err := agent.SetTime(ctx, time.Now()); err != nil {
 		return fail(fmt.Errorf("set_time: %w", err))
 	}
+	m.observePhase("agent_ready", started)
+	started = time.Now()
 	if err := agent.Configure(ctx, vsock.ConfigureRequest{Hostname: meta.Hostname, DNS: m.cfg.DNS, FormatWorkspace: formatWorkspace}); err != nil {
 		return fail(fmt.Errorf("configure: %w", err))
 	}
+	m.observePhase("guest_configure", started)
 	if _, err := agent.Ping(ctx); err != nil {
 		return fail(fmt.Errorf("ping: %w", err))
 	}
@@ -393,6 +423,7 @@ func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, be
 		return nil, nil, err
 	}
 	api := inst.API()
+	loadStarted := time.Now()
 	if err := api.LoadSnapshot(ctx, firecracker.SnapshotLoadParams{
 		SnapshotPath: inst.GuestPath(firecracker.SnapshotPath),
 		MemBackend:   firecracker.MemoryBackend{BackendType: "File", BackendPath: inst.GuestPath(firecracker.MemPath)},
@@ -400,6 +431,7 @@ func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, be
 	}); err != nil {
 		return fail(err)
 	}
+	m.observePhase("load_snapshot", loadStarted)
 	if beforeAgent != nil {
 		if err := beforeAgent(api, inst); err != nil {
 			return fail(err)
@@ -764,22 +796,45 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 		// call waited, and released its slot.
 		return nil
 	}
-	if inst := sb.detach(); inst != nil {
-		killCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		if err := inst.Kill(killCtx); err != nil {
-			return err
-		}
-	}
 	sb.mu.Lock()
 	meta := sb.meta
+	inst := sb.inst
+	// Invalidate watch, but retain the instance until death is confirmed.
+	// A failed kill must not make the next delete mistake a live VM for nil.
+	sb.epoch++
+	sb.agent = nil
+	sb.meta.State = protocol.StateError
+	sb.meta.Error = "deletion pending"
 	sb.mu.Unlock()
-	if err := m.net.Teardown(context.Background(), m.namespace(id), meta.Slot); err != nil {
-		m.log.Warn("network teardown", "sandbox", id, "error", err)
+	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	// Network removal and process exit are independent. Await both before
+	// removing disks or releasing the slot; a used VM is never pooled.
+	networkDone := make(chan error, 1)
+	go func() {
+		started := time.Now()
+		err := m.net.Teardown(cleanupCtx, m.namespace(id), meta.Slot)
+		m.observePhase("network_teardown", started)
+		networkDone <- err
+	}()
+	started := time.Now()
+	var killErr error
+	if inst != nil {
+		killErr = inst.Kill(cleanupCtx)
 	}
+	m.observePhase("kill", started)
+	networkErr := <-networkDone
+	if killErr != nil || networkErr != nil {
+		return errors.Join(killErr, networkErr)
+	}
+	sb.mu.Lock()
+	sb.inst = nil
+	sb.mu.Unlock()
+	started = time.Now()
 	if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
 		return err
 	}
+	m.observePhase("remove_files", started)
 	if meta.Slot >= 0 {
 		m.slots.Release(meta.Slot)
 		sb.mu.Lock()
@@ -1251,4 +1306,13 @@ func (l *lineLogger) flush() {
 		}
 		delete(l.bufs, stream)
 	}
+}
+
+// Phase names are fixed at call sites; sandbox IDs never become metric labels.
+func (m *Manager) observePhase(phase string, started time.Time) {
+	duration := time.Since(started)
+	if m.metrics != nil {
+		m.metrics.Phases.WithLabelValues(phase).Observe(duration.Seconds())
+	}
+	m.log.Debug("sandbox lifecycle phase", "phase", phase, "duration", duration)
 }

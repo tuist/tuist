@@ -293,6 +293,7 @@ func (c *Client) WaitReady(ctx context.Context, timeout time.Duration) (Pong, er
 // WaitReady pings any Agent until it answers or the timeout passes.
 func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, error) {
 	deadline := time.Now().Add(timeout)
+	delay := time.Millisecond
 	var last error
 	for {
 		attempt, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -311,7 +312,8 @@ func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, e
 		select {
 		case <-ctx.Done():
 			return Pong{}, ctx.Err()
-		case <-time.After(25 * time.Millisecond):
+		case <-time.After(delay):
+			delay = min(2*delay, 25*time.Millisecond)
 		}
 	}
 }
