@@ -110,7 +110,7 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
     assert Repo.get!(Publication, publication.id).projected
   end
 
-  test "projects desktop applications and executables with target compatibility and respects the rollout gate", context do
+  test "projects desktop applications and executables with target compatibility without enrollment", context do
     interfaces = [
       {"dev.once.apple-install.v2",
        %{
@@ -153,12 +153,6 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
     [publication] = Repo.all(Publication)
     job = %Oban.Job{args: %{"publication_id" => publication.id}}
 
-    stub(Tuist.FeatureFlags, :cli_previews_enabled?, fn _ -> false end)
-    assert {:error, :cli_previews_disabled} = ProjectApplicationsWorker.perform(job)
-    assert Repo.all(AppBuild) == []
-    refute Repo.get!(Publication, publication.id).projected
-
-    stub(Tuist.FeatureFlags, :cli_previews_enabled?, fn _ -> true end)
     assert :ok = ProjectApplicationsWorker.perform(job)
     assert :ok = ProjectApplicationsWorker.perform(job)
     builds = Repo.all(AppBuild)

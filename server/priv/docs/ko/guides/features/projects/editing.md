@@ -7,9 +7,9 @@
 ---
 # 편집하기 {#editing}
 
-전통적인 Xcode 프로젝트나 Swift Package와 달리 변경 사항은 Xcode의 UI를 통해 이루어지지만, Tuist로 관리되는 프로젝트는 **매니페스트 파일**에 포함된 Swift 코드로 정의됩니다. Swift Package와 `Package.swift` 파일에 익숙하다면 접근 방식이 매우 유사합니다.
+Xcode의 UI를 통해 변경하는 기존 Xcode 프로젝트나 Swift Package와 달리, Tuist로 관리되는 프로젝트는 **매니페스트 파일**에 포함된 Swift 코드로 정의됩니다. Swift Package와 `Package.swift` 파일에 익숙하다면 접근 방식이 매우 유사합니다.
 
-텍스트 편집기로 이러한 파일을 편집할 수 있지만, `tuist edit`와 같이 Tuist에서 제공하는 워크플로를 사용하는 것을 권장합니다. 이 워크플로는 모든 매니페스트 파일을 포함하는 Xcode 프로젝트를 생성하고, 이를 편집하고 컴파일할 수 있게 해줍니다. Xcode를 사용하므로 **코드 자동 완성, 구문 강조, 오류 검사**의 모든 이점을 누릴 수 있습니다.
+텍스트 편집기로 이 파일들을 편집할 수 있지만, Tuist가 제공하는 워크플로우인 `tuist edit`를 사용하는 것을 권장합니다. 이 워크플로우는 모든 매니페스트 파일을 포함하는 Xcode 프로젝트를 생성하고, 이를 편집하고 컴파일할 수 있게 해줍니다. Xcode를 사용함으로써 **코드 자동 완성, 구문 강조, 오류 검사**의 모든 이점을 누릴 수 있습니다.
 
 ## 프로젝트 편집하기 {#edit-the-project}
 
@@ -24,14 +24,14 @@ tuist edit
 > [!NOTE]
 > **Glob으로 해결된 매니페스트**
 >
-> `tuist edit`은 프로젝트 루트 디렉터리(즉, `Tuist.swift` 파일이 있는 디렉터리)에서 `**/{Manifest}.swift` glob 패턴을 사용하여 포함할 매니페스트를 해결합니다. 프로젝트 루트에 유효한 `Tuist.swift`가 있는지 확인하세요.
+> `tuist edit`는 프로젝트 루트 디렉터리(`Tuist.swift` 파일이 있는 디렉터리)에서 `**/{Manifest}.swift` glob 패턴을 사용하여 포함할 매니페스트를 해결합니다. 프로젝트 루트에 유효한 `Tuist.swift`가 있는지 확인하세요.
 
 
 ### 매니페스트 파일 무시하기 {#ignoring-manifest-files}
 
-프로젝트에 실제 Tuist 매니페스트가 아닌 하위 디렉터리의 매니페스트 파일과 동일한 이름(예: `Project.swift`)을 가진 Swift 파일이 포함되어 있다면, 프로젝트 루트에 `.tuistignore` 파일을 생성하여 편집 프로젝트에서 제외할 수 있습니다.
+프로젝트의 하위 디렉터리에 실제 Tuist 매니페스트가 아닌 매니페스트 파일과 동일한 이름(예: `Project.swift`)의 Swift 파일이 포함된 경우, 프로젝트 루트에 `.tuistignore` 파일을 생성하여 편집 프로젝트에서 제외할 수 있습니다.
 
-`.tuistignore` 파일은 glob 패턴을 사용하여 무시해야 할 파일을 지정합니다:
+`.tuistignore` 파일은 glob 패턴을 사용하여 무시할 파일을 지정합니다:
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -41,10 +41,10 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-이는 Tuist 매니페스트 파일과 동일한 명명 규칙을 사용하는 테스트 픽스처나 예제 코드가 있을 때 특히 유용합니다.
+이는 테스트 픽스처나 예제 코드가 우연히 Tuist 매니페스트 파일과 동일한 명명 규칙을 사용하는 경우에 특히 유용합니다.
 
-## 편집 및 생성 워크플로 {#edit-and-generate-workflow}
+## 편집 및 생성 워크플로우 {#edit-and-generate-workflow}
 
-알아차렸겠지만, 편집은 생성된 Xcode 프로젝트에서 수행할 수 없습니다. 이는 생성된 프로젝트가 Tuist에 의존하지 않도록 설계되었으며, 향후 Tuist에서 쉽게 이탈할 수 있도록 하기 위함입니다.
+알아차렸겠지만, 편집은 생성된 Xcode 프로젝트에서 수행할 수 없습니다. 이는 생성된 프로젝트가 Tuist에 의존하지 않도록 설계된 것으로, 향후 Tuist에서 쉽게 전환할 수 있도록 하기 위함입니다.
 
 프로젝트를 반복 작업할 때는 터미널 세션에서 `tuist edit`를 실행하여 프로젝트를 편집할 Xcode 프로젝트를 얻고, 다른 터미널 세션에서 `tuist generate`를 실행하는 것을 권장합니다.

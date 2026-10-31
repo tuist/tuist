@@ -156,6 +156,41 @@ Plus the telemetry services themselves:
 - `kube-state-metrics` Deployment
 - `node-exporter` DaemonSet
 
+### Hubble packet-drop coverage
+
+`alloy-metrics` discovers each Running Cilium pod in `kube-system`, scraping its
+named `hubble-metrics` port once per minute with clustered target ownership.
+It retains `hubble_drop_total`, `up`, and `scrape_samples_scraped`, labelled with
+`node`, `instance=<node>`, `namespace`, and `pod`. Source, destination, reason,
+and protocol labels on drop counters are preserved. Unready agents remain
+targets: `up=0` distinguishes a failed scrape from a missing discovery target.
+The existing Cilium-agent scrape is unchanged.
+
+The annotated `kube-system/hubble-metrics` Service is excluded from autodiscovery.
+Its headless DNS name reaches individual agents, not an aggregate of all agents;
+scraping that name loses node attribution and most of the cluster's coverage.
+Discovery follows agent additions and removals without provider or incident
+selections. It uses the discovered address and named port, including IPv6.
+
+After the normal monitoring rollout, check `count(up{job="hubble"})` against
+the Running Cilium pod inventory and inspect `up{job="hubble"} == 0`. In a
+healthy cluster, the target count should also match the Cilium-agent target count.
+Every Hubble target should have a nonempty `node` and `instance` equal to it;
+the old Service-address instance should disappear. Wait for old series to become
+stale before comparing counts. Confirm `scrape_samples_scraped` remains visible
+and `hubble_drop_total` has node attribution where drops have occurred. An absent
+drop series alone does not prove either a scrape failure or zero packet loss.
+Use these coverage checks before interpreting the drop queries in [alerts.md](alerts.md).
+
+Collecting every agent increases drop-series coverage and ingestion. The
+allowlist excludes flow, DNS, TCP-flag and HTTP families, but it does not cap
+source/destination cardinality or reduce the exposition fetched from agents.
+Existing non-production destination filters still discard `hubble_*` metrics.
+New labels cannot repair historical unattributed counters, and Hubble does not
+observe every possible underlay failure. Reverting this collector change restores
+the old Service scrape and its coverage limitation; it does not change Cilium
+networking, permissions, or workload pods.
+
 ## Metrics aggregated downstream of this chart
 
 The Processor Service dashboard (`tuist-processor-service`) compares database
@@ -270,9 +305,11 @@ curl -s -u "1774467:$TOKEN" -X POST -H 'Content-Type: application/json' \
   $BASE/v1/recommendations/exemptions
 ```
 
-The prefix rule still drops `instance`, so a matcher on it matches nothing. The
-Build queue duration and XCResult queue duration alerts filter
-`tuist_oban_job_queue_time_milliseconds_bucket` on `instance="production"`.
+The prefix rule still drops `instance`, so a matcher on it matches nothing.
+Select production with `env="production"` or `cluster="tuist-production"`. The
+four Oban queue and processing duration alerts matched `instance="production"`
+and evaluated nothing from 2026-09-10; see
+[alerts.md](alerts.md#ingestion-queue-wait-and-processing-duration).
 
 `sum:counter` cannot count an increment it never saw. A counter series a
 source creates on its first increment (a label combination the code does not
@@ -403,6 +440,18 @@ rules into a local Prometheus receiver. It verifies both migration flag values,
 marker cleanup, old-pod fallback, bucket thinning, and redundant-family drops.
 This test strips Cloud authentication and replaces the destination with the
 local receiver; it does not contact the production metrics endpoint.
+
+`bash test-hubble-metrics.sh` runs Alloy, Prometheus and an Nginx fixture on an
+internal Docker network, without published ports or external telemetry access.
+It supplies a Kubernetes list/watch API and two asymmetric agent counters.
+It verifies per-node discovery, an unready-but-reachable agent, a failed scrape,
+namespace/label/port selection, drop-label retention, family filtering, and
+exclusion of only the legacy Hubble Service. The same-named Service in another
+namespace remains scrapeable. It needs Bash, Docker, Helm, yq and jq, but no
+Python, host Prometheus installation, cluster or Cloud credentials. Fixture names
+and counters are synthetic, and the source address is reserved for documentation.
+The test does not qualify production network reachability or multi-replica
+collector failover.
 
 ## Metrics scrape cadence
 

@@ -2,8 +2,9 @@ defmodule TuistWeb.PreviewController do
   use TuistWeb, :controller
 
   alias Tuist.AppBuilds
+  alias Tuist.Authorization
   alias Tuist.Storage
-  alias TuistWeb.Authorization
+  alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Plugs.LoaderPlug
 
@@ -19,7 +20,7 @@ defmodule TuistWeb.PreviewController do
               :manifest
             ]
 
-  plug Authorization, [:current_user, :read, :preview] when action in [:preview]
+  plug :authorize_preview_download when action in [:download_preview, :download_archive, :download_apk, :manifest]
 
   def latest_badge(conn, _params) do
     conn
@@ -41,15 +42,14 @@ defmodule TuistWeb.PreviewController do
         Enum.find(latest_previews, fn preview -> preview.bundle_identifier == bundle_id end)
       end
 
-    case latest_preview do
-      nil ->
-        raise NotFoundError,
-              "The page you are looking for doesn't exist or has been moved."
+    latest_preview = latest_preview && %{latest_preview | project: project}
 
-      preview ->
-        conn
-        |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}")
-        |> halt()
+    if latest_preview && can_read_preview?(conn, latest_preview) do
+      conn
+      |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_preview.id}")
+      |> halt()
+    else
+      deny_preview_access(conn)
     end
   end
 
@@ -302,8 +302,32 @@ defmodule TuistWeb.PreviewController do
     end
   end
 
-  defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do
-    case AppBuilds.preview_by_id(preview_id, preload: :app_builds) do
+  defp authorize_preview_download(%{assigns: %{current_preview: preview}} = conn, _opts) do
+    if AppBuilds.verify_preview_install_token(preview, conn.query_params["token"]) == :ok or
+         can_read_preview?(conn, preview) do
+      conn
+    else
+      deny_preview_access(conn)
+    end
+  end
+
+  defp can_read_preview?(conn, preview) do
+    AppBuilds.public_preview?(preview) or
+      Authorization.authorize(:preview_read, Authentication.current_user(conn), preview.project) == :ok
+  end
+
+  defp deny_preview_access(conn) do
+    if Authentication.authenticated?(conn) do
+      raise NotFoundError, "The page you are looking for doesn't exist or has been moved."
+    else
+      conn
+      |> Authentication.require_authenticated_user([])
+      |> halt()
+    end
+  end
+
+  defp assign_current_preview(%{params: %{"id" => preview_id}, assigns: %{selected_project: project}} = conn, _opts) do
+    case AppBuilds.preview_by_id(preview_id, project_id: project.id, preload: [:app_builds, :project]) do
       {:error, :not_found} ->
         raise NotFoundError, "Preview not found."
 

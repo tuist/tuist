@@ -9,7 +9,6 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
   alias Tuist.Artifacts
   alias Tuist.Artifacts.Package
   alias Tuist.Artifacts.Publication
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Uniq.UUID
 
@@ -30,7 +29,6 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
     if Artifacts.retained?(publication, project.account) do
       with {:ok, root} <- Package.read_json(project, publication.key, publication.intent["root"]),
            {:ok, applications} <- applications(project, publication, root["members"]),
-           :ok <- executable_previews_enabled(project, applications),
            {:ok, _} <- persist(publication, applications) do
         :ok
       end
@@ -146,12 +144,6 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
       Enum.all?([attributes.identifier, attributes.name, attributes.version, attributes.build_version], fn value ->
         is_nil(value) or (is_binary(value) and byte_size(value) <= 255 and not String.contains?(value, "\0"))
       end)
-  end
-
-  defp executable_previews_enabled(project, applications) do
-    if Enum.any?(applications, &(&1.type == :executable)) and not FeatureFlags.cli_previews_enabled?(project.account),
-      do: {:error, :cli_previews_disabled},
-      else: :ok
   end
 
   defp persist(publication, applications) do
