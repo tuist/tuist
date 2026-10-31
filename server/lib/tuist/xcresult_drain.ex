@@ -51,9 +51,15 @@ defmodule Tuist.XcresultDrain do
   defp resume_if_serving(%{stopped: false, stopping: false} = state) do
     # The configured queue always starts paused, including an Oban-only
     # supervisor restart. Only this local process can release it while the
-    # durable termination request is absent.
+    # durable termination request is absent. The serving marker is written
+    # before the request is read again, so tart-kubelet, which reads the marker
+    # after writing its request, tears down a VM without one immediately.
     if match?(%{paused: true}, Oban.check_queue(queue: :process_xcresult)) do
-      :ok = Oban.resume_queue(queue: :process_xcresult, local_only: true)
+      File.write!(Path.join(state.directory, "serving"), "")
+
+      if request(state.directory) == :none do
+        :ok = Oban.resume_queue(queue: :process_xcresult, local_only: true)
+      end
     end
 
     state

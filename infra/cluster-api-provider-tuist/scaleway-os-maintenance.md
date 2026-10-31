@@ -94,7 +94,15 @@ survives a kubelet restart. Missing acknowledgement holds the finalizer and VM
 even after the nominal grace period; it never silently converts a timeout into
 a successful drain. Explicit force deletion with zero grace bypasses the gate
 and can interrupt a job. A guest that has already exited can be cleaned up.
-This contract also protects ordinary processor rolling deployments after the
+So can a guest that never served. Its Pod also has
+`tuist.dev/graceful-drain-serving-marker: "true"`, and before the monitor first
+resumes the queue it writes `serving` to the share, then reads the request
+again. tart-kubelet reads the marker only after writing its request, so a share
+without one means the guest has never taken a job and never will: a release
+that crashes before its queue starts is torn down instead of
+holding its replacement forever. The marker needs no network path to the guest
+and survives a tart-kubelet restart. A guest that served and then stopped
+answering keeps the gate. This contract also protects ordinary processor rolling deployments after the
 Pods have adopted it.
 
 ## First rollout and rollback
@@ -122,6 +130,9 @@ update. Wait for maintenance to finish, or recover the isolated host first.
 Rolling tart-kubelet back removes the drain protection, so finish terminating
 Pods before doing so. The server change can be rolled back only after no
 opted-in VM is waiting for an acknowledgement; a legacy guest cannot answer it.
+Pin a release that writes `serving` only together with the marker annotation:
+the chart from the same commit keeps them paired, but a release from before the
+marker under the annotation would be torn down mid-job.
 
 ## Failure recovery
 
