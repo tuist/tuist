@@ -1,18 +1,18 @@
 ---
 {
-  "title": "Build Insights",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Track build performance for Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Build Insights."
+  "title": "Аналитика сборок",
+  "titleTemplate": ":title · Возможности · Руководства · Tuist",
+  "description": "Отслеживайте производительность сборок проектов на Xcode, Gradle, Bazel, Elixir и Rust с помощью аналитики сборок Tuist."
 }
 ---
 # Аналитика сборок {#build-insights}
 
-Используйте Build Insights для отслеживания производительности локальных сборок и сборок в CI. В настоящее время поддерживаются Xcode, Gradle, Bazel, Elixir и Rust.
+Используйте аналитику сборок для отслеживания производительности локальных сборок и сборок в CI. В настоящее время поддерживаются Xcode, Gradle, Bazel, Elixir и Rust.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Отслеживайте время выполнения пост-действий схем Xcode, параметры сборки и метаданные сборки в панели управления Tuist."
+    details="Отслеживайте время выполнения пост-действий схем Xcode, настройки сборки и метаданные сборки в панели управления Tuist."
     link="/guides/features/build-insights/xcode"
 />
   <.home_card

@@ -7,16 +7,16 @@
 ---
 # 目錄 {#directories}
 
-Tuist 依照 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，將檔案整理在系統中的多個目錄。這提供了一種乾淨且標準的方式來管理設定、快取與狀態檔案。
+Tuist 依據 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，將檔案整理至系統中的多個目錄。這提供了一種乾淨且標準的方式來管理設定、快取與狀態檔案。
 
 ## 支援的環境變數 {#supported-environment-variables}
 
-Tuist 同時支援標準 XDG 變數與帶有 Tuist 專屬前綴的變體。Tuist 專屬變體（以 `TUIST_` 為前綴）具有較高優先順序，讓你可以獨立於其他應用程式來設定 Tuist。
+Tuist 同時支援標準 XDG 變數與 Tuist 專屬的前綴變體。Tuist 專屬變體（以 `TUIST_` 為前綴）具有優先權，讓你能夠獨立於其他應用程式來設定 Tuist。
 
 ### 設定目錄 {#configuration-directory}
 
 **環境變數：**
-- `TUIST_XDG_CONFIG_HOME`（具有較高優先順序）
+- `TUIST_XDG_CONFIG_HOME`（具有優先權）
 - `XDG_CONFIG_HOME`
 
 **預設值：** `~/.config/tuist`
@@ -38,15 +38,15 @@ tuist auth login
 ### 快取目錄 {#cache-directory}
 
 **環境變數：**
-- `TUIST_XDG_CACHE_HOME`（具有較高優先順序）
+- `TUIST_XDG_CACHE_HOME`（具有優先權）
 - `XDG_CACHE_HOME`
 
 **預設值：** `~/.cache/tuist`
 
 **用途：**
 - **Plugins**：已下載並編譯的外掛快取
-- **ProjectDescriptionHelpers**：已編譯的專案描述輔助工具
-- **Manifests**：已快取的資訊清單檔案
+- **ProjectDescriptionHelpers**：已編譯的專案描述輔助程式
+- **Manifests**：快取的資訊清單檔案
 - **Projects**：產生的自動化專案快取
 - **EditProjects**：edit 指令的快取
 - **Runs**：測試與建置執行的分析資料
@@ -67,7 +67,7 @@ tuist cache
 ### 狀態目錄 {#state-directory}
 
 **環境變數：**
-- `TUIST_XDG_STATE_HOME`（具有較高優先順序）
+- `TUIST_XDG_STATE_HOME`（具有優先權）
 - `XDG_STATE_HOME`
 
 **預設值：** `~/.local/state/tuist`
@@ -89,15 +89,15 @@ tuist generate
 
 ## 優先順序 {#precedence-order}
 
-在決定使用哪個目錄時，Tuist 會依下列順序檢查環境變數：
+在決定使用哪個目錄時，Tuist 會依照以下順序檢查環境變數：
 
 1. **Tuist 專屬變數**（例如 `TUIST_XDG_CONFIG_HOME`）
 2. **標準 XDG 變數**（例如 `XDG_CONFIG_HOME`）
 3. **預設位置**（例如 `~/.config/tuist`）
 
-這讓你可以：
-- 使用標準 XDG 變數，一致地整理所有應用程式
-- 在需要為 Tuist 使用不同位置時，以 Tuist 專屬變數覆寫
+這讓你能夠：
+- 使用標準 XDG 變數，一致地組織所有應用程式
+- 當你需要為 Tuist 使用不同位置時，以 Tuist 專屬變數覆蓋設定
 - 無需任何設定即可依賴合理的預設值
 
 ## 常見使用情境 {#common-use-cases}
@@ -139,7 +139,7 @@ jobs:
 
 ### 使用隔離目錄進行除錯 {#debugging-with-isolated-directories}
 
-在除錯問題時，你可能希望從乾淨的狀態開始：
+除錯問題時，你可能希望從乾淨的狀態開始：
 
 ```bash
 # Create temporary directories for debugging

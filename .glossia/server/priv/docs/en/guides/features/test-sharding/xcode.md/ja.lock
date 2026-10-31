@@ -1,12 +1,95 @@
 {
   "baseline_schema_version": 1,
-  "hash": "c058c657ff71d4bcc5ccbc1011e0b074dd528a22e973b73d2feb943778aa5998",
+  "hash": "ebdcc0ee7e9eb12f5544cea75b316c0f20b12b89d0aab54643bb31138c56314f",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "91927f99a86ef91b225bc879cd093e3abe9fdc57dd250bfa561ba852e5bb56ce",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# .buildkite/shard-step.sh": {
+                  "content_hash": "9289d6395e40aeb2f053030e184c5c692a9577a52c0b821ecf98253b968ae158"
+                },
+                "# .circleci/config.yml": {
+                  "content_hash": "7142c1e3a20a587ed63b9d69f60ed527c553dbeb02e6d2b40f9498d934ab6ead"
+                },
+                "# .circleci/continue-config.yml": {
+                  "content_hash": "8e1e2100d44cad622797aac5061358ff3e36202290152e8fe2c0785f9328703a"
+                },
+                "# .gitlab-ci.yml": {
+                  "content_hash": "c58b53a84beeac6ef5e489a64d0a0ec297bdf309fb2138271495f75a5516b757"
+                },
+                "# .gitlab/shard-template.yml": {
+                  "content_hash": "90b1b1e945b33a94349f278cb340bf52901792943af9c1323144ac24e87755ac"
+                },
+                "# Xcode test sharding {#xcode-test-sharding}": {
+                  "content_hash": "e0a141ac55259f33b2fd6664a9b27b0a83927761f619f71ba9d177e4f54c6327"
+                },
+                "# bitrise.yml": {
+                  "content_hash": "58058161c5e86fb52201f405811425679c2e10492709ce3bec8f9927f22de6bc"
+                },
+                "# codemagic.yaml": {
+                  "content_hash": "4902600a25867bb9ad2d281d34ac06a72e78d0b412df6d28a85bbbaff701356b"
+                },
+                "# pipeline.yml": {
+                  "content_hash": "b1cbae127b9f04cf38e30472d2d89777c36e845de1518106f965de8c3bfc3660"
+                },
+                "## Build phase {#build-phase}": {
+                  "content_hash": "6da6ede922da16e2ca8bda6214e7a3339df661b4acca7e1fbbda4358b508678f"
+                },
+                "## Continuous integration {#continuous-integration}": {
+                  "content_hash": "526633f567ccae7f56f74ea0cfe4557b4d64cabc428975924fa75f3af60bb74d"
+                },
+                "## How it works {#how-it-works}": {
+                  "content_hash": "d82b1577d6a41a56077e7f03acc82d88c9aa9b6da70f2657209d34a4e84a3742"
+                },
+                "## Self-managed artifacts {#self-managed-artifacts}": {
+                  "content_hash": "5fcd7f17e7bb1d0329eea511a29eeb77869a555ccad3845b01291a8521adc462"
+                },
+                "## Shared volumes {#shared-volumes}": {
+                  "content_hash": "40e46289860926a21229e3621c6cdc0c9f498e0fc4f6c8936ac77a2ef62b942d"
+                },
+                "## Test phase {#test-phase}": {
+                  "content_hash": "4c04c385986d979eb4697181ba97b7475d08526c6abd6bd7301e9dc7cf730b30"
+                },
+                "### Bitrise {#bitrise}": {
+                  "content_hash": "08125b7d555f4f8e2c0c9c7a6030b7bddc08e47a7c5245b6959997854e1e98f5"
+                },
+                "### Build options {#build-options}": {
+                  "content_hash": "96cf4f19bfaea50dcb708b58c91fdd1d37919db803348937bee738ad50178740"
+                },
+                "### Buildkite {#buildkite}": {
+                  "content_hash": "3d5e297593a5fb0acc19e2e5ea6f3e908ee14bd29a0d99646b667b8a98070d5e"
+                },
+                "### CircleCI {#circleci}": {
+                  "content_hash": "9994aaa452827ff5ab86304b6a953b51ee2e51509c3552d985155624694e113a"
+                },
+                "### Codemagic {#codemagic}": {
+                  "content_hash": "cfdb3cbce2a95ce847028555015e16458ab30370f0846e7903408248a86360e9"
+                },
+                "### GitHub Actions {#github-actions}": {
+                  "content_hash": "210492ec94e28ba4309390adcec0d1d1ea3fe49d5ad500adb4db9341a8b24379"
+                },
+                "### GitLab CI {#gitlab-ci}": {
+                  "content_hash": "417f6e52de369cc4dd2f92b01309a7065d532b93914e9745efd6aa8cf07218a2"
+                },
+                "### Namespace {#namespace}": {
+                  "content_hash": "4325f4c1d67f3faccad6306bdac485eddf57c4c98a942ab4facd4de5fefe9f50"
+                },
+                "### Test options {#test-options}": {
+                  "content_hash": "6951570f698b283ceb9a5a1c06467d331c2adeacee0391846842e54c98594e2b"
+                },
+                "Preamble": {
+                  "content_hash": "8db1e19a45dc4949e95b08149f68f07b064d34fbea3d4bf04b850649bed625c2"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "8d86c9723c36a5a524da68a9d982d9114914a9b6abfd64e8750aac64437ac928",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-sharding/xcode.md",
           "metadata": {
@@ -15,13 +98,21 @@
         },
         {
           "children": [],
-          "hash": "5085a2de402fde9935966e7ac2ea45655e791641b6a2ae402222c48aef09f48f",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "ea807e03ab874a403357624533d4a0f7e830c3cd046465c30fda20ff37607487",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
             "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "format": "markdown",
-            "frontmatter_mode": "preserve",
+            "frontmatter_mode": "translate",
             "language": "Japanese",
             "locale": "ja",
             "model": "",
@@ -31,34 +122,130 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
               }
             },
             {
               "children": [],
-              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "details": {
+                "content_hash": {
+                  "server/L10N/ja.md": {
+                    "content_hash": "5629fcbb0285e1f0faefc3d6f44b4735e0b6c6eaac295c464f3d90e91d526076",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "17e737112f8411f4f09ba7f107a21fbd25b81df631a52ec5bc5bdb7a0c220cc2"
+                      },
+                      "## Japanese-specific translation rules": {
+                        "content_hash": "352bb35133b9575cbef564f18a2bbbe5ffa8f7cc7da672d2682f2b7c9f60182e"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "aa8a8c4c5b73b38b5d3b55095c374b5eb949d9c6a558300126fb51673dc3d37f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "99818e8be9753aacbc770998555826317dc931970415e6f431ba43402fb5b7c4",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                "content_hash": "6b5810aaba6807ba4bf866c12bb0d4dbf3dd7e031c37e39529e9c61325b9bbf2"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,15 +254,44 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "cefc8f720ca2e7c42bb4de2ebd8a95ad94de89aff7eb55a6b9b32b429fd72589"
+                      },
+                      "entry:4d6732f147755858d10ddfac34b5c1a5bc141561149e435b4882a14d62293f0f": {
+                        "case_sensitive": false,
+                        "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
+                        "term_hash": "4037494891a78d3446771726a340742ed3140da6174c837a00621eda15527faa",
+                        "translation_hash": "7b9d9ce0f562f0854f7e75e6a9be135b97b5567d794013439880586e5fac074f"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "b15339e8f3da2fcfff52e8c218f6de0c24cddb7b08b5d4d19045e491b96da6eb"
+                      },
+                      "entry:f62132c6f65234d7723d00af7da7844ea4be17735ae97c8c81542d1a3c7124cb": {
+                        "case_sensitive": false,
+                        "definition_hash": "b34d6f2265704075c9f2d7555824d65602d7ab02302a028b9c7e2a4f850faffc",
+                        "term_hash": "b792c1896e8d0a8070db2b6fb633a4e82d21621dffc66dc8354ff941bac35e5f",
+                        "translation_hash": "87d2e21b4aea2d39205896d77b7bc9e2a637ece22893b9c7d711baece6a973f5"
+                      }
+                    }
+                  },
+                  "hash": "8a8c9ff60774a9af87ca72408905e870accf136c0c2857c2f059bc12f2de5afd",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                    "content_hash": "3d68cbfc83e5d3760760791b959e073124feebcac795812a0eb072013d2c5ee6"
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "055478c06b42d32f10849391bca3dbf4b0d484fb8494fdbc0d2a000d87f3fb30",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,28 +300,35 @@
               }
             }
           ],
-          "hash": "b74fa45a0097171fdb2584d5a433da09c1ce902e92abf102a94a11dfeb9bd077",
+          "details": {},
+          "hash": "1e12abb62ada36c2764068ad293dcc93bbc38828f226cdc96b8d6d8e77fa565f",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "c058c657ff71d4bcc5ccbc1011e0b074dd528a22e973b73d2feb943778aa5998",
+      "details": {},
+      "hash": "ebdcc0ee7e9eb12f5544cea75b316c0f20b12b89d0aab54643bb31138c56314f",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-sharding/xcode.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "84f2078e5aa9424ce581cde81eea00b07534ddd8703ac6d462b056f438978da0",
+  "output_hash": "a726d5e8dad440475454eb8b39bc6aa8c26c1c587db39751c2c98d7a824c72a7",
   "output_path": "server/priv/docs/ja/guides/features/test-sharding/xcode.md",
   "protection_state": "recorded",
   "provider": "",
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [],
-      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "applied": [
+        "repo:features",
+        "repo:selective-testing",
+        "repo:test-run",
+        "repo:tests"
+      ],
+      "content_hash": "3d68cbfc83e5d3760760791b959e073124feebcac795812a0eb072013d2c5ee6",
       "shadowed": [],
       "version": null
     },
@@ -115,8 +338,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "a341b43cd8ffe0d4f30bc492fbdde41215d99451",
+  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
   "source_path": "server/priv/docs/en/guides/features/test-sharding/xcode.md",
-  "translated_at": "2026-10-28T11:00:42.677875Z",
-  "translation_session_id": "01a18206-c5b9-7fa7-8475-f16a8b4263cd"
+  "translated_at": "2026-10-29T16:14:57.415007Z",
+  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
 }

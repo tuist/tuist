@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-unset TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID
+unset TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID TUIST_CACHE_SIGNING_GRANT
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 fixtures="$(mktemp -d)"
@@ -40,6 +40,13 @@ bash -eu "${JOB_STARTED_HOOK}"
 printf 'TUIST_CACHE_ENDPOINT=%s\n' "${TUIST_CACHE_ENDPOINT}" >> "${fixtures}/expected"
 cmp "${fixtures}/expected" "${GITHUB_ENV}"
 echo "ok: the runtime endpoint is appended to the runtime environment file"
+
+export TUIST_CACHE_SIGNING_GRANT="signed.runner.grant"
+bash -eu "${JOB_STARTED_HOOK}" > "${fixtures}/grant-mask"
+grep -qx '::add-mask::signed.runner.grant' "${fixtures}/grant-mask"
+grep -qx 'TUIST_CACHE_SIGNING_GRANT=signed.runner.grant' "${GITHUB_ENV}"
+unset TUIST_CACHE_SIGNING_GRANT
+echo "ok: the dispatch grant reaches GitHub container steps"
 
 # An environment-file failure must not prevent the watchdog latch or
 # turn otherwise successful builds into failures.

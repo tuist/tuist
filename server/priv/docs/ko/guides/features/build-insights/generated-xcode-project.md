@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Build insights · Features · Guides · Tuist",
-  "description": "Track build analytics for a Tuist-generated Xcode project on the Tuist dashboard."
+  "title": "생성된 Xcode 프로젝트",
+  "titleTemplate": ":title · 빌드 인사이트 · 기능 · 가이드 · Tuist",
+  "description": "Tuist 대시보드에서 Tuist가 생성한 Xcode 프로젝트의 빌드 분석 정보를 추적합니다."
 }
 ---
 # 생성된 Xcode 프로젝트 {#generated-xcode-project-build-insights}
@@ -44,7 +44,7 @@ let project = Project(
 )
 ```
 
-Mise를 사용하지 않는 경우, Xcode 포스트 액션이 셸의 `PATH`을 상속하지 않기 때문에 스킴 환경에서 `tuist`을 사용할 수 있도록 해야 합니다. [Homebrew](https://brew.sh/) 설치의 경우:
+Mise를 사용하지 않는 경우, Xcode 포스트 액션이 셸의 `PATH`을 상속받지 않기 때문에 스킴 환경에서 `tuist`을 사용할 수 있도록 해야 합니다. [Homebrew](https://brew.sh/) 설치의 경우:
 
 ```swift
 buildAction: .buildAction(
@@ -84,7 +84,7 @@ tuist setup insights
 이는 백그라운드에서 메트릭을 샘플링하는 로컬 데몬을 실행합니다. 데이터는 `tuist inspect build`에 의해 자동으로 수집되어 빌드 보고서와 함께 업로드됩니다.
 
 > [!TIP]
-> **Ci**
+> **CI**
 >
 > 머신 메트릭도 캡처하려면 빌드 전에 CI 머신에서 `tuist setup insights`을 실행하세요.
 
@@ -94,12 +94,12 @@ tuist setup insights
 tuist teardown insights
 ```
 
-이 명령은 데몬의 LaunchAgent를 언로드하고 plist를 제거하며 `~/.local/state`에서 샘플링된 메트릭과 데몬 로그를 삭제하므로 백그라운드에서 실행되는 것이 남지 않습니다.
+이는 데몬의 LaunchAgent를 언로드하고 plist를 제거하며 `~/.local/state`에서 샘플링된 메트릭과 데몬 로그를 삭제하므로 백그라운드에서 실행되는 것이 남지 않습니다.
 
 
 ## 커스텀 메타데이터 {#custom-metadata}
 
-환경 변수를 사용하여 빌드에 메타데이터를 첨부하여 필터링을 개선할 수 있습니다.
+환경 변수를 사용하여 빌드에 메타데이터를 첨부하면 필터링을 개선할 수 있습니다.
 
 ### 환경 변수
 

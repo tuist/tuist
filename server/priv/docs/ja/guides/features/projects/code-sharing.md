@@ -1,35 +1,32 @@
 ---
 {
-  "title": "Code sharing",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
+  "title": "コード共有",
+  "titleTemplate": ":title · プロジェクト · 機能 · ガイド · Tuist",
+  "description": "マニフェストファイル間でコードを共有し、重複を減らして一貫性を確保する方法を学びます"
 }
 ---
-# コード共有{#code-sharing}
+# コード共有 {#code-sharing}
 
-Xcodeを大規模なプロジェクトで使用する際に不便な点の一つは、`.xcconfig`
-ファイルを通して、ビルド設定以外のプロジェクトの要素を再利用できないことです。プロジェクト定義を再利用できることは、以下の理由で便利です：
+大規模なプロジェクトで Xcode を使用する際の問題点の 1 つは、`.xcconfig` ファイルによるビルド設定以外では、プロジェクトの要素を再利用できないことです。プロジェクト定義を再利用できることは、以下の理由で有用です。
 
-- 一箇所で変更が適用され、すべてのプロジェクトに変更が自動的に反映されるため、**** のメンテナンスが容易になる。
-- これにより、新しいプロジェクトが準拠できる**規約** を定義することが可能になる。
-- プロジェクトはより**** 一貫しているため、不整合によるビルドの破損の可能性は著しく低い。
-- 既存のロジックを再利用できるので、新しいプロジェクトを追加するのは簡単な作業になる。
+- 変更を 1 か所に適用するとすべてのプロジェクトに自動的に反映されるため、**メンテナンス** が容易になります。
+- 新しいプロジェクトが準拠できる**規約**を定義できます。
+- プロジェクトはより**一貫性**が保たれ、その結果、不整合によるビルドエラーの可能性が大幅に低減します。
+- 既存のロジックを再利用できるため、新しいプロジェクトの追加が簡単になります。
 
-**プロジェクト記述ヘルパー** のコンセプトのおかげで、マニフェストファイル間でのコードの再利用がTuistでは可能です。
+Tuist では、**project description helpers** の概念により、マニフェストファイル間でコードを再利用できます。
 
 > [!TIP]
-> **A Tuist Unique Asset**
+> **Tuist 独自の強み**
 >
-> 多くの組織がTuistを気に入っているのは、プロジェクト記述ヘルパーに、プラットフォームチームが自分たちの規約を成文化し、自分たちのプロジェクトを記述するための独自の言語を考え出すためのプラットフォームを見出すからである。例えば、YAMLベースのプロジェクトジェネレータは、YAMLベースの独自のテンプレートソリューションを考え出さなければならない。
+> 多くの組織が Tuist を採用しているのは、project description helpers をプラットフォームチームが独自の規約をコード化し、プロジェクトを記述するための独自の言語を生み出すためのプラットフォームとして捉えているためです。たとえば、YAML ベースのプロジェクトジェネレーターは、独自の YAML ベースの独自テンプレートソリューションを用意するか、組織にそのツールの上で構築することを強いる必要があります。
 
 
-## プロジェクト説明ヘルパー{#project-description-helpers}
+## Project description helpers {#project-description-helpers}
 
-プロジェクト記述ヘルパーは、マニフェストファイルがインポートできるモジュール`ProjectDescriptionHelpers` にコンパイルされる
-Swift ファイルです。モジュールは、`Tuist/ProjectDescriptionHelpers`
-ディレクトリにあるすべてのファイルを集めることによってコンパイルされます。
+Project description helpers は、マニフェストファイルがインポートできるモジュール `ProjectDescriptionHelpers` にコンパイルされる Swift ファイルです。このモジュールは、`Tuist/ProjectDescriptionHelpers` ディレクトリ内のすべてのファイルを集めてコンパイルされます。
 
-ファイルの先頭に import ステートメントを追加することで、それらをマニフェストファイルにインポートすることができます：
+ファイルの先頭に import 文を追加することで、マニフェストファイルにインポートできます。
 
 ```swift
 // Project.swift
@@ -37,17 +34,16 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` は以下のマニフェストで利用できます：
-- `プロジェクト.swift`
-- `Package.swift` (`#TUIST` コンパイラフラグの後ろのみ)
-- `ワークスペース.swift`
+`ProjectDescriptionHelpers` は以下のマニフェストで利用可能です。
+- `Project.swift`
+- `Package.swift`（`#TUIST` コンパイラフラグを使用した場合のみ）
+- `Workspace.swift`
 
-## 例{#example}
+## 例 {#example}
 
-以下のスニペットには、`Project` モデルを拡張して静的コンストラクタを追加する方法と、`Project.swift`
-ファイルからそれらを使用する方法の例が含まれています：
+以下のスニペットは、`Project` モデルを拡張して静的コンストラクタを追加し、それを `Project.swift` ファイルから使用する方法の例です。
 
-コードグループ
+::: code-group
 ```swift [Tuist/Project+Templates.swift]
 import ProjectDescription
 
@@ -92,7 +88,6 @@ let project = Project.featureFramework(name: "MyFeature")
 :::
 
 > [!TIP]
-> **A Tool To Establish Conventions**
+> **規約を確立するためのツール**
 >
-> この関数を通して、ターゲットの名前、バンドル識別子、フォルダー構造に関する規約を定義していることに注目してほしい。
-
+> 関数を通じて、ターゲット名、バンドル識別子、フォルダー構造に関する規約を定義している点に注目してください。

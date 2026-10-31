@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Build insights · Features · Guides · Tuist",
-  "description": "Track build analytics for a Tuist-generated Xcode project on the Tuist dashboard."
+  "title": "生成されたXcodeプロジェクト",
+  "titleTemplate": ":title · ビルドインサイト · 機能 · ガイド · Tuist",
+  "description": "Tuistダッシュボードで、Tuistが生成したXcodeプロジェクトのビルド分析を追跡します。"
 }
 ---
 # 生成されたXcodeプロジェクト {#generated-xcode-project-build-insights}
@@ -11,9 +11,9 @@
 > 自動生成されたスキームには、`tuist inspect build` ポストアクションが自動的に含まれます。
 
 >
-> 生成されたスキームでビルドインサイトを追跡したくない場合は、[buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) を使用して無効にしてください。
+> 生成されたスキームでビルドインサイトをトラックしたくない場合は、[buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) を使用して無効にしてください。
 
-カスタムスキームを持つ生成されたプロジェクトを使用している場合は、ポストアクションを自分で追加する必要があります。[Mise](https://mise.jdx.dev/) の場合：
+カスタムスキームを含む生成プロジェクトを使用している場合は、ポストアクションを自分で追加する必要があります。[Mise](https://mise.jdx.dev/) の場合：
 
 ```swift
 let project = Project(
@@ -65,17 +65,17 @@ buildAction: .buildAction(
 
 ## CIでのビルドインサイト {#continuous-integration}
 
-CIでビルドインサイトを追跡するには、CIが <.localized_link href="/guides/integrations/continuous-integration#authentication">認証済み</.localized_link> であることを確認してください。
+CIでビルドインサイトをトラックするには、CIが <.localized_link href="/guides/integrations/continuous-integration#authentication">認証済み</.localized_link> であることを確認してください。
 
-Xcodebuild駆動のCIの場合、次のことを行う必要があります：
-- `xcodebuild` アクションを呼び出す際に <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> を使用します。
-- `xcodebuild` コマンドに `-resultBundlePath` を追加します。
+Xcodebuild主導のCIの場合、次の必要があります：
+- `xcodebuild` アクションを呼び出す際に、<.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> を使用してください。
+- `xcodebuild` コマンドに `-resultBundlePath` を追加してください。
 
 `-resultBundlePath` がないと、必要なアクティビティログと結果バンドルが生成されず、`tuist inspect build` でビルドを分析できません。
 
 ## マシンメトリクス {#machine-metrics}
 
-ビルドインサイトには、ビルド中にキャプチャされたマシンレベルのパフォーマンスメトリクス（CPU、メモリ、ネットワーク、およびディスク使用量）を含めることができます。これを有効にするには、システムメトリクスを継続的にサンプリングする軽量なバックグラウンドデーモンを設定します：
+ビルドインサイトには、ビルド中にキャプチャされたマシンレベルのパフォーマンスメトリクス（CPU、メモリ、ネットワーク、ディスク使用量）を含めることができます。これを有効にするには、システムメトリクスを継続的にサンプリングする軽量なバックグラウンドデーモンを設定してください：
 
 ```bash
 tuist setup insights
@@ -86,31 +86,31 @@ tuist setup insights
 > [!TIP]
 > **Ci**
 >
-> マシンメトリクスをそこでもキャプチャするために、ビルド前にCIマシンで `tuist setup insights` を実行します。
+> ビルド前にCIマシンで `tuist setup insights` を実行し、そこでもマシンメトリクスをキャプチャしてください。
 
-マシンメトリクスの収集を停止するには、次を実行します：
+マシンメトリクスの収集を停止するには、次を実行してください：
 
 ```bash
 tuist teardown insights
 ```
 
-これにより、デーモンのLaunchAgentがアンロードされ、そのplistが削除され、サンプリングされたメトリクスとデーモンログが `~/.local/state` から削除されるため、バックグラウンドで実行されているものは何も残りません。
+これにより、デーモンのLaunchAgentがアンロードされ、そのplistが削除され、サンプリングされたメトリクスとデーモンログが `~/.local/state` から削除されるため、バックグラウンドで実行されているものは残りません。
 
 
 ## カスタムメタデータ {#custom-metadata}
 
-フィルタリングを改善するために、環境変数を使用してビルドにメタデータを添付できます。
+環境変数を使用してビルドにメタデータを添付し、フィルタリングを改善できます。
 
 ### 環境変数
 
 | 変数 | 形式 | 説明 |
 |----------|--------|-------------|
 | `TUIST_BUILD_TAGS` | カンマ区切り | 1つの変数に複数のタグ。 |
-| `TUIST_BUILD_VALUE_*` | 単一値 | サフィックスがキーであるキー・バリューペア。 |
+| `TUIST_BUILD_VALUE_*` | 単一値 | サフィックスがキーとなるキーと値のペア。 |
 
 ### 例
 
-ビルドを呼び出す前に、CIまたはシェルでこれらの値を設定します：
+ビルドを呼び出す前に、CIまたはシェルでこれらの値を設定してください：
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"

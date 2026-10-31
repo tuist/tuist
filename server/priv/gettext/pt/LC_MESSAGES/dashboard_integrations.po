@@ -42,12 +42,12 @@ msgstr "Escolher um repositório"
 #: lib/tuist_web/live/integrations_live.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
-msgstr "Escolher repositório para conectar"
+msgstr "Escolher o repositório para conectar"
 
 #: lib/tuist_web/live/integrations_live.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "Conecte qualquer um dos seus repositórios GitHub a um projeto"
+msgstr "Conecte qualquer um dos seus repositórios do GitHub a um projeto"
 
 #: lib/tuist_web/live/integrations_live.ex:699
 #, elixir-autogen, elixir-format
@@ -63,7 +63,7 @@ msgstr "Conectado %{time_ago} por %{name}"
 #: lib/tuist_web/live/integrations_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
-msgstr "Criar Conexão"
+msgstr "Criar conexão"
 
 #: lib/tuist_web/live/integrations_live.html.heex:13
 #, elixir-autogen, elixir-format
@@ -73,7 +73,7 @@ msgstr "GitHub"
 #: lib/tuist_web/live/integrations_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
-msgstr "Instalar Aplicação GitHub"
+msgstr "Instalar aplicativo do GitHub"
 
 #: lib/tuist_web/live/integrations_live.ex:78
 #, elixir-autogen, elixir-format
@@ -128,7 +128,7 @@ msgstr "URL do servidor"
 #: lib/tuist_web/live/integrations_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Enterprise server"
-msgstr "Servidor empresarial"
+msgstr "Servidor Enterprise"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:212
 #, elixir-autogen, elixir-format
@@ -138,12 +138,12 @@ msgstr "Continuar"
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:211
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server"
-msgstr "A redirecionar para o GitHub Enterprise Server"
+msgstr "Redirecionando para o GitHub Enterprise Server"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:209
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
-msgstr "A redirecionar para o GitHub Enterprise Server para registar a aplicação Tuist…"
+msgstr "Redirecionando para o GitHub Enterprise Server para registrar o aplicativo Tuist…"
 
 #: lib/tuist_web/live/integrations_live.ex:746
 #, elixir-autogen, elixir-format
@@ -169,7 +169,7 @@ msgstr "Leia o guia de configuração"
 #: lib/tuist_web/live/integrations_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
-msgstr "Este servidor Tuist precisa da sua própria aplicação GitHub no github.com antes de poder instalar uma. Registe a aplicação e, em seguida, defina TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET e TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 e reinicie o servidor."
+msgstr "Este servidor Tuist precisa da sua própria aplicação GitHub no github.com antes de poder instalar uma. Registe a aplicação, depois defina TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET e TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 e reinicie o servidor."
 
 #: lib/tuist_web/live/integrations_live.ex:834
 #, elixir-autogen, elixir-format
@@ -180,7 +180,7 @@ msgstr "Buildkite"
 #: lib/tuist_web/live/integrations_live.html.heex:778
 #, elixir-autogen, elixir-format
 msgid "Cluster agent token"
-msgstr "Token do agente de cluster"
+msgstr "Token do agente do cluster"
 
 #: lib/tuist_web/components/amp_integration.ex:129
 #: lib/tuist_web/components/amp_integration.ex:240
@@ -195,12 +195,12 @@ msgstr "Ligar"
 #: lib/tuist_web/live/integrations_live.html.heex:737
 #, elixir-autogen, elixir-format
 msgid "Connect Buildkite"
-msgstr "Conectar ao Buildkite"
+msgstr "Conectar o Buildkite"
 
 #: lib/tuist_web/live/integrations_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
-msgstr "Crie um token de agente em 'Agent Tokens' do seu cluster no Buildkite. Os jobs são capturados das filas self-hosted nomeadas conforme os seus perfis de runner."
+msgstr "Crie um token de agente em Agent Tokens do seu cluster no Buildkite. Os jobs são obtidos de filas auto-hospedadas com os mesmos nomes dos seus perfis de runner."
 
 #: lib/tuist_web/components/amp_integration.ex:121
 #: lib/tuist_web/components/amp_integration.ex:249
@@ -219,7 +219,7 @@ msgstr "Slug da organização"
 #: lib/tuist_web/live/integrations_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
-msgstr "Execute jobs do Buildkite nos runners do Tuist. O Tuist monitora as filas self-hosted no seu cluster e executa o que encontrar lá."
+msgstr "Execute jobs do Buildkite nos runners da Tuist. A Tuist monitora as filas auto-hospedadas no seu cluster e executa o que encontrar lá."
 
 #: lib/tuist_web/components/amp_integration.ex:224
 #: lib/tuist_web/live/integrations_live.html.heex:781
@@ -252,7 +252,7 @@ msgstr "Conectar GitLab CI"
 #: lib/tuist_web/live/integrations_live.html.heex:611
 #, elixir-autogen, elixir-format
 msgid "Disconnecting: waiting for GitLab to settle queued assignments."
-msgstr "Desconectando: aguardando o GitLab finalizar as atribuições na fila."
+msgstr "Desconectando: aguardando o GitLab concluir as atribuições em fila."
 
 #: lib/tuist_web/live/integrations_live.html.heex:494
 #, elixir-autogen, elixir-format
@@ -279,22 +279,22 @@ msgstr "Verifique a URL do GitLab e o token de autenticação do runner."
 #: lib/tuist_web/live/integrations_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
-msgstr "Crie um runner do GitLab com as tags do seu perfil Tuist, desabilite trabalhos sem tag e cole o token aqui. Selecione a máquina no seu pipeline com tags como [tuist-macos]."
+msgstr "Crie um runner do GitLab com as tags do seu perfil Tuist, desative jobs sem tag e cole o token aqui. Selecione a máquina no seu pipeline com tags como [tuist-macos]."
 
 #: lib/tuist_web/live/integrations_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
-msgstr "Execute jobs do GitLab CI em runners do Tuist. Escolha uma máquina para cada job usando tags de pipeline."
+msgstr "Execute jobs do GitLab CI nos runners da Tuist. Escolha uma máquina para cada job usando tags de pipeline."
 
 #: lib/tuist_web/live/integrations_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "The selected repository is not accessible to this account's GitHub App installation."
-msgstr "O repositório selecionado não está acessível à instalação do GitHub App desta conta."
+msgstr "O repositório selecionado não está acessível à instalação do aplicativo GitHub desta conta."
 
 #: lib/tuist_web/live/integrations_live.ex:457
 #, elixir-autogen, elixir-format
 msgid "The project connection could not be created."
-msgstr "Não foi possível criar a conexão do projeto."
+msgstr "Não foi possível criar a conexão com o projeto."
 
 #: lib/tuist_web/live/integrations_live.ex:358
 #, elixir-autogen, elixir-format
@@ -331,7 +331,7 @@ msgstr "GitHub Enterprise Server"
 #: lib/tuist_web/live/integrations_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
-msgstr "A URL base da API REST que os servidores Tuist podem acessar, incluindo /api/v3. Deixe em branco para usar a URL do Servidor seguida por /api/v3."
+msgstr "A URL base da API REST que os servidores Tuist podem acessar, incluindo /api/v3. Deixe em branco para usar a URL do Servidor seguida de /api/v3."
 
 #: lib/tuist_web/live/integrations_live.ex:170
 #, elixir-autogen, elixir-format
@@ -351,12 +351,12 @@ msgstr "Registre um aplicativo Origin e configure TUIST_ORIGIN_APP_ID e TUIST_OR
 #: lib/tuist_web/live/integrations_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Choose a native Origin repository available to your connected account. GitHub mirrors use the GitHub integration."
-msgstr "Escolha um repositório Origin nativo disponível para sua conta conectada. Os espelhos do GitHub usam a integração do GitHub."
+msgstr "Escolha um repositório Origin nativo disponível para sua conta conectada. Os espelhos GitHub usam a integração com GitHub."
 
 #: lib/tuist_web/live/integrations_live.ex:587
 #, elixir-autogen, elixir-format
 msgid "Could not load Origin repositories"
-msgstr "Não foi possível carregar os repositórios Origin"
+msgstr "Não foi possível carregar repositórios Origin"
 
 #: lib/tuist_web/live/integrations_live.ex:580
 #, elixir-autogen, elixir-format
@@ -409,7 +409,7 @@ msgstr "Token de acesso à API"
 #: lib/tuist_web/live/integrations_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
-msgstr "Permita que os pipelines de solicitação de merge salvem volumes de cache. Requer o escopo read_api."
+msgstr "Permite que os pipelines de merge request salvem volumes de cache. Requer o escopo read_api."
 
 #: lib/tuist_web/components/amp_integration.ex:178
 #, elixir-autogen, elixir-format
@@ -424,7 +424,7 @@ msgstr "Copie o token do provedor e cole-o abaixo. O Tuist executará o provedor
 #: lib/tuist_web/components/amp_integration.ex:51
 #, elixir-autogen, elixir-format
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
-msgstr "Não foi possível salvar a conexão. Verifique o token do seu provedor, as permissões da conta e se este provedor já está conectado a outra conta."
+msgstr "Não foi possível salvar a conexão. Verifique seu token do provedor, as permissões da conta e se este provedor já está conectado a outra conta."
 
 #: lib/tuist_web/components/amp_integration.ex:201
 #, elixir-autogen, elixir-format
@@ -450,7 +450,7 @@ msgstr "Execute os Orbs do seu workspace Amp em sandboxes do Tuist."
 #: lib/tuist_web/components/amp_integration.ex:149
 #, elixir-autogen, elixir-format
 msgid "Tuist could not prepare or stop the provider. Retrying automatically."
-msgstr "O Tuist não conseguiu preparar ou parar o provedor. Tentando novamente automaticamente."
+msgstr "O Tuist não pôde preparar ou parar o provedor. Tentando novamente automaticamente."
 
 #: lib/tuist_web/components/amp_integration.ex:251
 #, elixir-autogen, elixir-format

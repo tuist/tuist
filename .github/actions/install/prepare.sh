@@ -60,7 +60,7 @@ scratch="$package/.build"
 package_relative=${package#"$workspace"}
 key=${TUIST_INSTALL_CACHE_KEY:-}
 if [[ -z "$key" ]]; then
-  key="tuist-install-v1-${GITHUB_JOB:?GITHUB_JOB is required}"
+  key="install-v1-${GITHUB_JOB:?GITHUB_JOB is required}"
   location=${package_relative#/}
   if [[ -n "$location" ]]; then
     key+="-$(printf '%s' "$location" | tr -c 'a-zA-Z0-9_./-' '-')"

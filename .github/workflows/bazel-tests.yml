@@ -1,0 +1,44 @@
+name: rules_tuist Tests
+
+on:
+  pull_request:
+    paths:
+      - bazel/**
+      - LICENSE.md
+      - .github/workflows/bazel*.yml
+      - .github/scripts/bazel*.py
+  push:
+    branches: [main]
+    paths:
+      - bazel/**
+      - LICENSE.md
+      - .github/workflows/bazel*.yml
+      - .github/scripts/bazel*.py
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    env:
+      USE_BAZEL_VERSION: 9.3.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Exercise the release scripts in disposable repositories
+        run: python3 .github/scripts/bazel-release.test.py
+      - name: Portable preview tests
+        run: python3 -m unittest discover -s bazel/tests -p 'test_*.py'
+      - uses: bazel-contrib/setup-bazel@0.15.0
+        with:
+          bazelisk-version: 1.29.0
+          bazelisk-cache: true
+      - name: Public companion launchers with directory and manifest-only runfiles
+        working-directory: bazel
+        run: python3 tests/runtime/runtime_test.py

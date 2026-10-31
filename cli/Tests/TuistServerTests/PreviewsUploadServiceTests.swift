@@ -87,6 +87,7 @@ struct PreviewsUploadServiceTests {
                 buildVersion: .any,
                 bundleIdentifier: .any,
                 supportedPlatforms: .any,
+                supportedArchitectures: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,
@@ -99,6 +100,77 @@ struct PreviewsUploadServiceTests {
             .willReturn(
                 AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id")
             )
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [nil, UInt16(62), UInt16(183)])
+    func uploads_a_distribution_with_its_entry_point_resources_and_target(machine: UInt16?) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let distribution = directory.appending(component: "Tool Distribution")
+        let entryPoint = try RelativePath(validating: "bin/tool")
+        let executable = distribution.appending(entryPoint)
+        try await fileSystem.makeDirectory(at: executable.parentDirectory)
+        var contents = Data("#!/bin/sh\nexit 0\n".utf8)
+        if let machine {
+            contents = Data(repeating: 0, count: 64)
+            contents.replaceSubrange(0 ..< 6, with: [0x7F, 0x45, 0x4C, 0x46, 2, 1])
+            contents[18] = UInt8(machine)
+        }
+        try contents.write(to: executable.url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.pathString)
+        try await fileSystem.writeText("bundled resource", at: distribution.appending(component: "resource.txt"))
+        try FileManager.default.createSymbolicLink(
+            atPath: distribution.appending(components: "bin", "resource-link").pathString, withDestinationPath: "../resource.txt"
+        )
+        let archiverFactory = FileArchivingFactory()
+        let subject = PreviewsUploadService(
+            fileSystem: fileSystem,
+            fileArchiver: archiverFactory,
+            multipartUploadStartPreviewsService: multipartUploadStartPreviewsService,
+            multipartUploadGenerateURLPreviewsService: multipartUploadGenerateURLPreviewsService,
+            multipartUploadArtifactService: multipartUploadArtifactService,
+            multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
+            uploadPreviewIconService: uploadPreviewIconService,
+            commandRunner: commandRunner,
+            precompiledMetadataProvider: precompiledMetadataProvider
+        )
+        let uploadedArchive = directory.appending(component: "uploaded.zip")
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(artifactPath: .any, generateUploadURL: .any, updateProgress: .any)
+            .willProduce { archive, _, _ in
+                try FileManager.default.copyItem(at: archive.url, to: uploadedArchive.url)
+                return [(etag: "etag", partNumber: 1)]
+            }
+
+        let preview = try await subject.uploadPreview(
+            .executable(path: distribution, entryPoint: entryPoint),
+            fullHandle: "tuist/tuist", serverURL: serverURL,
+            gitBranch: nil, gitCommitSHA: nil, gitRef: nil, track: nil, updateProgress: { _ in }
+        )
+        #expect(preview.url == shareURL.absoluteString)
+        let architectures = machine.map { $0 == 62 ? ["x86_64"] : ["arm64"] } ?? []
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .value(.executable), displayName: .value("tool"), version: .any, buildVersion: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .value(machine == nil ? [.macos] : [.linux]),
+                supportedArchitectures: .value(architectures),
+                gitBranch: .any, gitCommitSHA: .any, gitRef: .any, binaryId: .any,
+                fullHandle: .value("tuist/tuist"), serverURL: .value(serverURL), track: .any, releaseNotes: .any
+            )
+            .called(1)
+        let unarchiver = try FileUnarchiver(path: uploadedArchive)
+        let unpacked = try await unarchiver.unzipSelfContained()
+        let manifest: ExecutablePreviewManifest = try await fileSystem.readJSONFile(
+            at: unpacked.appending(component: ExecutablePreviewManifest.filename)
+        )
+        #expect(try manifest.executable == RelativePath(validating: "Tool Distribution/bin/tool"))
+        let uploadedExecutable = unpacked.appending(manifest.executable)
+        #expect(FileManager.default.isExecutableFile(atPath: uploadedExecutable.pathString))
+        #expect(try Data(contentsOf: uploadedExecutable.url) == contents)
+        let resourceLink = unpacked.appending(components: "Tool Distribution", "bin", "resource-link")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: resourceLink.pathString) == "../resource.txt")
+        #expect(try await fileSystem.readTextFile(at: resourceLink) == "bundled resource")
+        try await unarchiver.delete()
     }
 
     @Test func upload_single_app_bundle() async throws {
@@ -165,6 +237,7 @@ struct PreviewsUploadServiceTests {
                     buildVersion: .any,
                     bundleIdentifier: .any,
                     supportedPlatforms: .value([.ios_simulator]),
+                    supportedArchitectures: .value([]),
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
@@ -215,6 +288,7 @@ struct PreviewsUploadServiceTests {
                     buildVersion: .any,
                     bundleIdentifier: .any,
                     supportedPlatforms: .any,
+                    supportedArchitectures: .value([]),
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
@@ -257,6 +331,7 @@ struct PreviewsUploadServiceTests {
                     buildVersion: .any,
                     bundleIdentifier: .any,
                     supportedPlatforms: .any,
+                    supportedArchitectures: .value([]),
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
@@ -392,6 +467,7 @@ struct PreviewsUploadServiceTests {
                     buildVersion: .value("1"),
                     bundleIdentifier: .value("dev.tuist.App"),
                     supportedPlatforms: .value([.ios]),
+                    supportedArchitectures: .value([]),
                     gitBranch: .value("main"),
                     gitCommitSHA: .value("commit-sha"),
                     gitRef: .value("git-ref"),
@@ -464,6 +540,7 @@ struct PreviewsUploadServiceTests {
                 buildVersion: .any,
                 bundleIdentifier: .any,
                 supportedPlatforms: .any,
+                supportedArchitectures: .value([]),
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,
@@ -532,6 +609,7 @@ struct PreviewsUploadServiceTests {
                 buildVersion: .any,
                 bundleIdentifier: .any,
                 supportedPlatforms: .any,
+                supportedArchitectures: .value([]),
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,
@@ -544,7 +622,7 @@ struct PreviewsUploadServiceTests {
             .called(1)
     }
 
-    @Test(.inTemporaryDirectory) func upload_macos_app_bundle_extracts_binary_id() async throws {
+    @Test(.inTemporaryDirectory) func upload_macos_app_bundle_extracts_binary_id_and_architecture() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
         // Given: macOS bundle with Contents/MacOS/ layout
@@ -552,6 +630,8 @@ struct PreviewsUploadServiceTests {
         let preview = temporaryDirectory.appending(component: "\(appName).app")
         let contentsDir = preview.appending(component: "Contents")
         try await fileSystem.makeDirectory(at: contentsDir.appending(component: "MacOS"))
+        try Data([0xCF, 0xFA, 0xED, 0xFE, 7, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0])
+            .write(to: contentsDir.appending(components: "MacOS", appName).url)
 
         let expectedUUID = UUID()
 
@@ -576,7 +656,10 @@ struct PreviewsUploadServiceTests {
 
         // When
         _ = try await subject.uploadPreview(
-            .appBundles([.test(path: preview, infoPlist: .test(name: appName, executableName: appName))]),
+            .appBundles([.test(
+                path: preview,
+                infoPlist: .test(name: appName, executableName: appName, supportedPlatforms: [.device(.macOS)])
+            )]),
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
             gitBranch: nil,
@@ -594,7 +677,8 @@ struct PreviewsUploadServiceTests {
                 version: .any,
                 buildVersion: .any,
                 bundleIdentifier: .any,
-                supportedPlatforms: .any,
+                supportedPlatforms: .value([.macos]),
+                supportedArchitectures: .value(["x86_64"]),
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,
@@ -689,6 +773,7 @@ struct PreviewsUploadServiceTests {
                 buildVersion: .any,
                 bundleIdentifier: .any,
                 supportedPlatforms: .any,
+                supportedArchitectures: .value([]),
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,
@@ -784,6 +869,7 @@ struct PreviewsUploadServiceTests {
                 buildVersion: .value("42"),
                 bundleIdentifier: .value("com.example.app"),
                 supportedPlatforms: .value([.android]),
+                supportedArchitectures: .value([]),
                 gitBranch: .value("main"),
                 gitCommitSHA: .value("abc123"),
                 gitRef: .value("refs/heads/main"),
@@ -895,6 +981,7 @@ struct PreviewsUploadServiceTests {
                 buildVersion: .any,
                 bundleIdentifier: .any,
                 supportedPlatforms: .any,
+                supportedArchitectures: .value([]),
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 gitRef: .any,

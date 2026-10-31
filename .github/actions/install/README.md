@@ -37,7 +37,7 @@ required CLI and Swift toolchain installed.
 | --- | --- | --- |
 | `path` | `.` | Project directory inside `GITHUB_WORKSPACE`, relative to it or absolute. Subdirectories follow Tuist's root lookup. |
 | `cache` | `auto` | `auto` selects Tuist volumes or GitHub caching. `external` leaves `.build` persistence to the runner; see [Runners that persist `.build`](#runners-that-persist-build). |
-| `cache-key` | Generated | Override the cache namespace to share a compatible workspace between jobs, or rotate it. Ignored for external caching. |
+| `cache-key` | Generated | Override the cache namespace to share a compatible workspace between jobs, or rotate it. On Tuist runners, keys starting with `tuist-` are reserved for Tuist. Ignored for external caching. |
 | `size` | 20gb for new volumes | Volume capacity on Tuist runners, from `1gb` to `100gb`. Raise it when `.build` nears the volume's size: a volume stops saving at 99% full. Changing it keeps the saved contents. Ignored for GitHub and external caching. |
 
 The action follows Tuist's root markers (`Tuist/`, `Tuist.swift`, `tuist.toml`,
@@ -45,9 +45,9 @@ The action follows Tuist's root markers (`Tuist/`, `Tuist.swift`, `tuist.toml`,
 `Package.swift`. For a standalone project without a root marker, `path` must
 contain `Package.swift`. It retains `.build` beside the selected package.
 
-The default key is `tuist-install-v1-<job>`, followed by the package's
+The default key is `install-v1-<job>`, followed by the package's
 checkout-relative location when it is not the checkout root, for example
-`tuist-install-v1-build-Tuist`. It excludes the toolchain, `Package.swift`, the
+`install-v1-build-Tuist`. It excludes the toolchain, `Package.swift`, the
 lockfile, branch, run ID, and absolute checkout path: `tuist install` and SwiftPM
 update the retained state when dependencies or the toolchain change. Clear a
 volume from the Tuist dashboard to start it fresh. Volume storage also scopes keys by repository, account, platform,

@@ -1,0 +1,319 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "5feccbbba8d9aac59692e53f26b476b12cecaefe8ff6eca68d386c5b9ddc3eda",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Grafana integration {#grafana}": {
+                  "content_hash": "572896b69fc9682cef2c5e668689dc307d6975209197ecd63d9f6f5cd2616d30"
+                },
+                "## Alerts and Slack {#alerts-and-slack}": {
+                  "content_hash": "229d38d8a5b7f05caac0cb062094e545776242f0e231422b07100849fd5f8fc4"
+                },
+                "## Authentication {#authentication}": {
+                  "content_hash": "ba603a5fbdf336b4ec737c14579e4ecf8e6e1c95eb6530394bf9d4e77be9a6f4"
+                },
+                "## Available metrics {#metric-definitions}": {
+                  "content_hash": "d3e8d2985b191ef0f46c98acef6cf61ba1a32c39a7df08b858683b39c5137549"
+                },
+                "## Build systems {#build-systems}": {
+                  "content_hash": "ad7ad4add47bfd2e6cef0ba50cff702427c59e95c694955889f0876aa01713f1"
+                },
+                "## Configuration {#configuration}": {
+                  "content_hash": "bf2f2c000a9191664924b7213b78505b69cbc2cde4c593fc680d5c749b69f07b"
+                },
+                "## Installation {#installation}": {
+                  "content_hash": "38eff2edc396d31900323cf9113affbce2edab998f27f0b18324b181667e33d9"
+                },
+                "## Query options {#query-options}": {
+                  "content_hash": "d8f1c4128cf0f1d10ad0ff84d94b051ee7dcc42c5e9548e087e836247be2e266"
+                },
+                "## Reporting custom metadata {#custom-metadata}": {
+                  "content_hash": "42ad2f7053ae1a160875aa1f031f62a4b5158f483f414d1bf95b45707a16dbc4"
+                },
+                "## Requirements {#requirements}": {
+                  "content_hash": "b7fb28acc0b41173a113bc749dbd6f35259e99ea3b51e54a4621dcbb0e8981dd"
+                },
+                "## Standard dashboard {#what-you-can-query}": {
+                  "content_hash": "531a85b030fe16cf3e464ebdcabd2eb191da42f7f2b7c355a97830dca7d458d3"
+                },
+                "## Upgrading existing dashboards {#upgrading}": {
+                  "content_hash": "3edff52e3b1b64594900fe8571a4fc6505982047a0b14adc91a40c827f0b73c1"
+                },
+                "### Before it is published (self-hosted Grafana) {#before-it-is-published-self-hosted-grafana}": {
+                  "content_hash": "ff1aeeed59970199a94adae79c66d851281d7ca3d3cbac5acae18770a266c24a"
+                },
+                "### Build and test durations": {
+                  "content_hash": "037cc28594426eb5230eab3abb551724d90b8fc05ee909c3abec44b9625a7205"
+                },
+                "### Build counts and reliability": {
+                  "content_hash": "656be1571054227faf59993974cbe2640d54dbb9854b3fdfdbd37a873dd62318"
+                },
+                "### Cache savings": {
+                  "content_hash": "23c8f75bbe4f1d3dde50333ac3a5b0d7bf9fcfa3980343cf2b75403ada42571f"
+                },
+                "### Dashboard variables": {
+                  "content_hash": "7e71c7f9289d865c7cfcb77d7c24df4f054ae42d3192f19027f8aa50e2a4d7e9"
+                },
+                "### Failure categories": {
+                  "content_hash": "1d17498a266b577094323340003cf1a023fd62d7b02113b1bcc88d14cb94f103"
+                },
+                "### From the Grafana catalog {#from-the-grafana-catalog}": {
+                  "content_hash": "4766a89b227cc0be45f53e0d45bce714cc2bfe2bb56f5e3a8090c98effeecb03"
+                },
+                "### Tables": {
+                  "content_hash": "04aa47be1d1959e3f970b01604e9ed5cb33a0c40c0e6d2ae85d199079a5612b6"
+                },
+                "Preamble": {
+                  "content_hash": "b945af03c93e4a7ff10cd8457a182ff5d7ca9035d02fe0038d4d31f39a01e103"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "37d26c99ae38d67c80580e2d526bfb7d3ba8ff5c75fe682d8b572b3610c2014a",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/integrations/grafana.md",
+          "metadata": {
+            "content_hash": "f88a7dceda0fea782be796b769157b706f79e8f70b16353a143009965e0117ad"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "ea807e03ab874a403357624533d4a0f7e830c3cd046465c30fda20ff37607487",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Japanese",
+            "locale": "ja",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/ja.md": {
+                    "content_hash": "5629fcbb0285e1f0faefc3d6f44b4735e0b6c6eaac295c464f3d90e91d526076",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "17e737112f8411f4f09ba7f107a21fbd25b81df631a52ec5bc5bdb7a0c220cc2"
+                      },
+                      "## Japanese-specific translation rules": {
+                        "content_hash": "352bb35133b9575cbef564f18a2bbbe5ffa8f7cc7da672d2682f2b7c9f60182e"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "aa8a8c4c5b73b38b5d3b55095c374b5eb949d9c6a558300126fb51673dc3d37f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "99818e8be9753aacbc770998555826317dc931970415e6f431ba43402fb5b7c4",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "6b5810aaba6807ba4bf866c12bb0d4dbf3dd7e031c37e39529e9c61325b9bbf2"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "cefc8f720ca2e7c42bb4de2ebd8a95ad94de89aff7eb55a6b9b32b429fd72589"
+                      },
+                      "entry:f6977d4134bbe756e3aef4854d9ae407992551711ab5839ab61f114d6812132c": {
+                        "case_sensitive": false,
+                        "definition_hash": "9aac3cff7abfbe0b8aeea38965ad9095c891253fe2e76e7e584ee6ba8218a4c7",
+                        "term_hash": "c03dac40bf52cb692381200e184b33074a9b26e2fe0985463bd31f00c52a52c6",
+                        "translation_hash": "870b52e91e2bf947b7e80cb43b9764fac099a289850685e671c5cf1338e00328"
+                      }
+                    }
+                  },
+                  "hash": "739b93a5ec4c63062d2575c580f6da81ee0651c6119f7227bc3d632ba9c767c5",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "14a1a5c5a4461b10fee75f331e5d80ef345242e119ec36acb91337c0f6c00e4c"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "85c2f30b04238fb5d0bf017be814ed6f475f5cc1b865dd3240e63f803e944b44",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "69641141b33d74f8ab0eccb962ccd65fe7d8be5c6ba1e7b2f0d67549db615ab0",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "5feccbbba8d9aac59692e53f26b476b12cecaefe8ff6eca68d386c5b9ddc3eda",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/integrations/grafana.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "66856876bffc37eae5e3ce4225985ff3874ede7f9a4d96fddd4716767c4421d3",
+  "output_path": "server/priv/docs/ja/guides/integrations/grafana.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [
+        "repo:cache-hit",
+        "repo:tests"
+      ],
+      "content_hash": "14a1a5c5a4461b10fee75f331e5d80ef345242e119ec36acb91337c0f6c00e4c",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "e2d83711f920ed81085070185d1fe39a6f166821",
+  "source_path": "server/priv/docs/en/guides/integrations/grafana.md",
+  "translated_at": "2026-10-29T16:51:09.239816Z",
+  "translation_session_id": "01a18889-9abd-7cd5-93c7-fbe3f8e92b65"
+}

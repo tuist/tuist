@@ -1,44 +1,37 @@
 ---
 {
-  "title": "Editing",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
+  "title": "편집",
+  "titleTemplate": ":title · 프로젝트 · 기능 · 가이드 · Tuist",
+  "description": "Xcode 자동 완성 및 빌드 검증 기능을 활용해 Tuist 프로젝트 매니페스트를 편집합니다."
 }
 ---
-# 편집 {#editing}
+# 편집하기 {#editing}
 
-Xcode의 UI를 통해서 모든 변경 사항이 이루어지는 기본 Xcode 프로젝트나 Swift 패키지와는 다르게, , Tuist로 관리되는
-프로젝트들은 **Manifest 파일들**에 들어있는 Swift 코드로 정의 됩니다. 만약 Swift 패키지와 `Package.swift`
-파일에 익숙하다면, Tuist의 방식도 유사 합니다.
+Xcode의 UI를 통해 변경하는 기존 Xcode 프로젝트나 Swift Package와 달리, Tuist로 관리되는 프로젝트는 **매니페스트 파일**에 포함된 Swift 코드로 정의됩니다. Swift Package와 `Package.swift` 파일에 익숙하다면 접근 방식이 매우 유사합니다.
 
-이 파일들은 어떤 편집기로도 수정할 수 있지만, Tuist가 제공하는 방법인 `tuist edit`의 사용하는 것을 권장 합니다. 이 과정은
-모든 Manifest 파일들을 가진 Xcode 프로젝트를 생성하고 편집 및 컴파일 할 수 있게 해줍니다. Xcode 덕분에, 여러분은 **코드
-완성, 문법 강조, 그리고 오류 확인** 등의 모든 편의 기능을 사용할 수 있습니다.
+텍스트 편집기로 이 파일들을 편집할 수 있지만, Tuist가 제공하는 워크플로우인 `tuist edit`를 사용하는 것을 권장합니다. 이 워크플로우는 모든 매니페스트 파일을 포함하는 Xcode 프로젝트를 생성하고, 이를 편집하고 컴파일할 수 있게 해줍니다. Xcode를 사용함으로써 **코드 자동 완성, 구문 강조, 오류 검사**의 모든 이점을 누릴 수 있습니다.
 
-## 프로젝트 편집 {#edit-the-project}
+## 프로젝트 편집하기 {#edit-the-project}
 
-프로젝트를 편집하기 위해, Tuist 프로젝트 디렉토리나 하위 디렉토리에서 다 명령어를 사용할 수 있습니다:
+프로젝트를 편집하려면 Tuist 프로젝트 디렉터리 또는 하위 디렉터리에서 다음 명령어를 실행하세요:
 
 ```bash
 tuist edit
 ```
 
-이 명령어는 전역 디렉토리에 Xcode 프로젝트를 생성하고 Xcode에서 엽니다. 생성된 프로젝트는 모든 Manifest가 유효한 것을 보장하기
-위해 빌드 할 수 있는 `Manifests` 디렉토리를 가집니다.
+이 명령어는 전역 디렉터리에 Xcode 프로젝트를 생성하고 Xcode에서 엽니다. 프로젝트에는 모든 매니페스트가 유효한지 확인하기 위해 빌드할 수 있는 `Manifests` 디렉터리가 포함되어 있습니다.
 
 > [!NOTE]
-> **Glob으로 처리된 Manifest**
+> **Glob으로 해결된 매니페스트**
 >
-> `tuist edit` 는 최상위(유일하게 `Tuist.swift` 파일을 가지는) 디렉토리에서 `**/{Manifest}.swift`
-> Glob을 사용해서 Manifest들을 처리 합니다. 최상위 디렉토리에 올바른 `Tuist.swift`가 있는지 확인하세요.
+> `tuist edit`는 프로젝트 루트 디렉터리(`Tuist.swift` 파일이 있는 디렉터리)에서 `**/{Manifest}.swift` glob 패턴을 사용하여 포함할 매니페스트를 해결합니다. 프로젝트 루트에 유효한 `Tuist.swift`가 있는지 확인하세요.
 
 
-### Manifest 파일 무시하기 {#ignoring-manifest-files}
+### 매니페스트 파일 무시하기 {#ignoring-manifest-files}
 
-만약 프로젝트가 실제로 Tuist Manifest는 아니지만 Manifest 파일들과 같은 이름의 Swift 파일들을 하위 디렉토리에
-가진다면(예를 들어, `Project.swift`), 프로젝트 수정에서 제외하기 위해 `.tuistignore` 를 최상위에 만들 수 있습니다.
+프로젝트의 하위 디렉터리에 실제 Tuist 매니페스트가 아닌 매니페스트 파일과 동일한 이름(예: `Project.swift`)의 Swift 파일이 포함된 경우, 프로젝트 루트에 `.tuistignore` 파일을 생성하여 편집 프로젝트에서 제외할 수 있습니다.
 
-`.tuistignore` 파일은 어떤 파일이 무시 되어야 하는지 지정하기 위해 Glob 패턴을 사용합니다:
+`.tuistignore` 파일은 glob 패턴을 사용하여 무시할 파일을 지정합니다:
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -48,13 +41,10 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-이것은 특히 Tuist Manifest 파일들과 같은 작명 규칙을 사용하는 test fixtures를 가지거나 예제 코드를 가졌을 때 유용
-합니다.
+이는 테스트 픽스처나 예제 코드가 우연히 Tuist 매니페스트 파일과 동일한 명명 규칙을 사용하는 경우에 특히 유용합니다.
 
-## 수정과 생성 과정 {#edit-and-generate-workflow}
+## 편집 및 생성 워크플로우 {#edit-and-generate-workflow}
 
-보셔셔 아시겠지만, 생성된 Xcode 프로젝트에서는 수정할 수 없습니다. 여러분이 미래에 적은 노력으로도 Tuist에서 (다른 것으로)전환할 수
-있도록, 생성된 프로젝트가 Tuist에 의존하지 않게 한 설계 입니다.
+알아차렸겠지만, 편집은 생성된 Xcode 프로젝트에서 수행할 수 없습니다. 이는 생성된 프로젝트가 Tuist에 의존하지 않도록 설계된 것으로, 향후 Tuist에서 쉽게 전환할 수 있도록 하기 위함입니다.
 
-프로젝트를 반복할 때, 한 터미널에서는 Xcode 프로젝트를 수정하기 위해 `tuist edit` 를, 다른 터미널에서는 `tuist
-generate`를 실행하는 것을 권장합니다.
+프로젝트를 반복 작업할 때는 터미널 세션에서 `tuist edit`를 실행하여 프로젝트를 편집할 Xcode 프로젝트를 얻고, 다른 터미널 세션에서 `tuist generate`를 실행하는 것을 권장합니다.

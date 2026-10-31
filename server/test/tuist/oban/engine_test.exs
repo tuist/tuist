@@ -119,6 +119,44 @@ defmodule Tuist.Oban.EngineTest do
     assert producer == Oban.Registry.whereis(@oban_name, {:producer, "engine_integration"})
   end
 
+  test "puts back a job whose worker this node does not have, without spending an attempt" do
+    start_oban(Tuist.Repo, engine_integration: [limit: 1, paused: true])
+
+    {:ok, job} =
+      Oban.insert(
+        @oban_name,
+        Job.new(%{}, worker: "Tuist.Oban.EngineTest.WorkerFromNewerRelease", queue: "engine_integration")
+      )
+
+    assert {:ok, {_meta, []}} = Engine.fetch_jobs(Oban.config(@oban_name), fetch_meta(), %{})
+
+    put_back = Repo.get!(Job, job.id)
+    assert put_back.state == "scheduled"
+    assert put_back.attempt == 0
+    assert put_back.errors == []
+    assert DateTime.after?(put_back.scheduled_at, DateTime.utc_now())
+  end
+
+  test "runs a job whose worker is unknown once it outlived any rollout" do
+    start_oban(Tuist.Repo, engine_integration: [limit: 1, paused: true])
+
+    {:ok, job} =
+      Oban.insert(@oban_name, Job.new(%{}, worker: "Tuist.Oban.EngineTest.RemovedWorker", queue: "engine_integration"))
+
+    Repo.update_all(from(j in Job, where: j.id == ^job.id),
+      set: [inserted_at: DateTime.add(DateTime.utc_now(), -3, :hour)]
+    )
+
+    assert {:ok, {_meta, [%Job{id: id, state: "executing", attempt: 1}]}} =
+             Engine.fetch_jobs(Oban.config(@oban_name), fetch_meta(), %{})
+
+    assert id == job.id
+  end
+
+  defp fetch_meta do
+    %{queue: "engine_integration", limit: 1, paused: false, node: "test", uuid: Ecto.UUID.generate()}
+  end
+
   defp start_oban(repo, queues) do
     start_supervised!(
       {Oban,

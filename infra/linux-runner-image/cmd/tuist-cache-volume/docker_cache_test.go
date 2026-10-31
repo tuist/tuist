@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -314,10 +315,24 @@ func TestPlanDockerMergeMovesTheSmallerSide(t *testing.T) {
 	flutter := dockerImage{ID: dockerID("a"), Size: 6_000_000_000}
 	postgres := dockerImage{ID: dockerID("b"), Size: 450_000_000}
 	alpine := dockerImage{ID: dockerID("c"), Size: 8_000_000}
+	redis := dockerImage{ID: dockerID("d"), Size: 5_000_000}
 	for name, test := range map[string]struct {
+		base         []string
 		branch, head []dockerImage
 		want         dockerMergePlan
 	}{
+		"an image the job removed is not brought back from the head": {
+			base:   []string{postgres.ID, flutter.ID},
+			branch: []dockerImage{postgres, alpine},
+			head:   []dockerImage{postgres, flutter, redis},
+			want:   dockerMergePlan{Into: "branch", Move: []string{redis.ID}},
+		},
+		"an image the head removed is not brought back from the job": {
+			base:   []string{postgres.ID, flutter.ID},
+			branch: []dockerImage{postgres, flutter, alpine},
+			head:   []dockerImage{postgres},
+			want:   dockerMergePlan{Into: "branch"},
+		},
 		"a small new image goes into the saved head": {
 			branch: []dockerImage{postgres, alpine},
 			head:   []dockerImage{postgres, flutter},
@@ -339,8 +354,56 @@ func TestPlanDockerMergeMovesTheSmallerSide(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := planDockerMerge(test.branch, test.head); !reflect.DeepEqual(got, test.want) {
+			if got := planDockerMerge(test.base, test.branch, test.head); !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("plan %+v", got)
+			}
+		})
+	}
+}
+
+func TestPlanBuildkitMergeResolvesEachVolumeAgainstTheBase(t *testing.T) {
+	for name, test := range map[string]struct {
+		base, branch, head map[string]string
+		into               string
+		copies, removals   []string
+	}{
+		"the job's removal holds when the head left the volume alone": {
+			base: map[string]string{"old": "1"}, branch: map[string]string{}, head: map[string]string{"old": "1"},
+			into: "branch",
+		},
+		"the job's removal reaches the head": {
+			base: map[string]string{"old": "1"}, branch: map[string]string{}, head: map[string]string{"old": "1"},
+			into: "head", removals: []string{"old"},
+		},
+		"the head's removal reaches the job's data root": {
+			base: map[string]string{"old": "1"}, branch: map[string]string{"old": "1"}, head: map[string]string{},
+			into: "branch", removals: []string{"old"},
+		},
+		"the head's update beats the job's removal": {
+			base: map[string]string{"old": "1"}, branch: map[string]string{}, head: map[string]string{"old": "2"},
+			into: "branch", copies: []string{"old"},
+		},
+		"the job's update beats the head's removal": {
+			base: map[string]string{"old": "1"}, branch: map[string]string{"old": "2"}, head: map[string]string{},
+			into: "head", copies: []string{"old"},
+		},
+		"the job's version wins when both changed": {
+			base: map[string]string{"old": "1"}, branch: map[string]string{"old": "2"}, head: map[string]string{"old": "3"},
+			into: "branch",
+		},
+		"an identical volume is not copied": {
+			base: map[string]string{}, branch: map[string]string{"new": "1"}, head: map[string]string{"new": "1"},
+			into: "branch",
+		},
+		"each side's additions are kept": {
+			base: map[string]string{}, branch: map[string]string{"job": "1"}, head: map[string]string{"saved": "1"},
+			into: "head", copies: []string{"job"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			copies, removals := planBuildkitMerge(test.into, test.base, test.branch, test.head)
+			if !slices.Equal(copies, test.copies) || !slices.Equal(removals, test.removals) {
+				t.Fatalf("copies %v, removals %v", copies, removals)
 			}
 		})
 	}

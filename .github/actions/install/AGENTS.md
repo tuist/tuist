@@ -16,7 +16,8 @@ Source for the standalone `tuist/install` composite action. See
 - `size` passes straight to `tuist/cache-volume`; the client validates it. Never
   forward it to the GitHub archive backend, which has no capacity.
 - Default keys are stable names: job plus the relative package path when it is not
-  the checkout root. Never include toolchain versions, manifest or lockfile
+  the checkout root. They go through `tuist/cache-volume`, so they must satisfy its
+  key contract, including the reserved `tuist-` prefix. Never include toolchain versions, manifest or lockfile
   contents, checkout location or volatile CI metadata. Archive keys append platform/architecture and lockfile hash, with a
   compatible restore prefix; keep archive paths relative and escape glob syntax.
 - Always force pinned installation, including hits and forks. Publication is a

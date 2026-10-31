@@ -36,7 +36,7 @@ msgstr "构建时间"
 #: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
-msgstr "Bundle 标识符"
+msgstr "Bundle ID"
 
 #: lib/tuist_web/live/preview_live.html.heex:161
 #: lib/tuist_web/live/previews_live.html.heex:91
@@ -197,22 +197,22 @@ msgstr "跟踪"
 #: lib/tuist_web/live/preview_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Package name"
-msgstr "软件包名称"
+msgstr "包名称"
 
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "在您的 Android 设备上扫描此二维码以下载并安装此版本的应用"
+msgstr "在 Android 设备上扫描此二维码，以下载并安装此版本的应用"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "此预览的 APK 已不再可用"
+msgstr "此预览的 APK 已不可用"
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
-msgstr "此预览不可下载"
+msgstr "此预览无法下载"
 
 #: lib/tuist_web/live/preview_live.ex:56
 #, elixir-autogen, elixir-format

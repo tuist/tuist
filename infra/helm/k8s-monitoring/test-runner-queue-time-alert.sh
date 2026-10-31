@@ -10,14 +10,14 @@ jq -e 'length == 1 and all(.[];
   .condition == "D" and .for == "30m" and .labels.severity == "warning" and
   .noDataState == "OK" and .execErrState == "Error" and
   (.data[] | select(.refId == "C") | .model.expression) == "1 - $A / $B" and
-  (.data[] | select(.refId == "D") | .model.expression) == "$C > 0.1 && $B >= 20")' "${source}" >/dev/null
+  (.data[] | select(.refId == "D") | .model.expression) == "$B - $A > 0.1 * $B && $B >= 20")' "${source}" >/dev/null
 
 # Grafana's math expressions match series on their labels like PromQL's
 # binary operators, so D translates to one PromQL condition.
 jq '.[0] as $rule | ($rule.data | map({(.refId): .model.expr}) | add) as $q |
   {groups: [{name: "Runners", interval: "1m", rules: [{
     alert: $rule.uid,
-    expr: "(1 - (\($q.A)) / (\($q.B))) > 0.1 and (\($q.B)) >= 20",
+    expr: "((\($q.B)) - (\($q.A))) > 0.1 * (\($q.B)) and (\($q.B)) >= 20",
     for: $rule.for, labels: $rule.labels
   }]}]}' "${source}" > "${temporary}/rules.json"
 
@@ -29,7 +29,8 @@ jq -n --arg rules "${temporary}/rules.json" --arg uid "$(jq -r '.[0].uid' "${sou
     ["on_target", "macos", 10, 10, 0, false],
     ["at_target", "linux", 10, 9, 0, false],
     ["too_few_jobs", "macos", 0.25, 0.125, 0, false],
-    ["held_jobs_left_out", "linux", 10, 10, 10, false]
+    ["held_jobs_left_out", "linux", 10, 10, 10, false],
+    ["only_held_jobs", "linux", 0, 0, 10, false]
   ] | map(
     . as [$name, $platform, $jobs, $fast, $held, $firing] |
     "tuist_runners_job_executor_queue_time_milliseconds" as $metric |

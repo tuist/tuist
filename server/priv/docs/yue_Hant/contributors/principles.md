@@ -1,157 +1,68 @@
 ---
 {
-  "title": "Principles",
-  "titleTemplate": ":title · Contributors · Tuist",
-  "description": "This document describes the principles that guide the development of Tuist."
+  "title": "原則",
+  "titleTemplate": ":title · 貢獻者 · Tuist",
+  "description": "本文檔闡述指導 Tuist 開發的原則。"
 }
 ---
-# Principles {#principles}
+# 原則 {#principles}
 
-This page describes principles that are pillars to the design and development of
-Tuist. They evolve with the project and are meant to ensure a sustainable growth
-that is well-aligned with the project foundation.
+本頁介紹構成 Tuist 設計與開發基石的原則。這些原則會隨項目演進，旨在確保可持續增長，並與項目基礎保持一致。
 
-## Default to conventions {#default-to-conventions}
+## 預設採用約定 {#default-to-conventions}
 
-One of the reasons why Tuist exists is because Xcode is weak in conventions and
-that leads to complex projects that are hard to scale up and maintain. For that
-reason, Tuist takes a different approach by defaulting to simple and thoroughly
-designed conventions. **Developers can opt-out from the conventions, but that’s
-a conscious decision that doesn’t feel natural.**
+Tuist 存在的原因之一，是 Xcode 在約定方面較弱，導致項目複雜、難以擴展和維護。因此，Tuist 採取不同做法，預設採用簡單且經過精心設計的約定。**開發者可以選擇不遵循這些約定，但這是需要刻意做出的決定，感覺並不自然。**
 
-For example, there’s a convention for defining dependencies between targets by
-using the provided public interface. By doing that, Tuist ensures that the
-projects are generated with the right configurations for the linking to work.
-Developers have the option to define the dependencies through build settings,
-but they’d be doing it implicitly and therefore breaking Tuist features such as
-`tuist graph` or `tuist cache` that rely on some conventions being followed.
+例如，有一項約定是透過提供的公開介面來定義目標之間的依賴關係。這樣做可確保 Tuist 生成的項目具備正確的設定，使連結能夠正常運作。開發者也可以透過建置設定來定義依賴關係，但這種做法是隱式的，因而會破壞依賴某些約定的 Tuist 功能，例如 `tuist graph` 或 `tuist cache`。
 
-The reason why we default to conventions is that the more decision we can make
-on behalf of the developers, the more focus they’ll have crafting features for
-their apps. When we are left with no conventions like it’s the case in many
-projects, we have to make decisions that will end up not being consistent with
-other decisions and as a consequence, there’ll be an accidental complexity that
-will be hard to manage.
+我們預設採用約定的原因在於：我們能替開發者做出的決定越多，他們就越能專注於為應用程式打造功能。當像許多項目那樣缺乏約定時，我們不得不做出與其他決定不一致的決策，結果就會產生難以管理的意外複雜性。
 
-## Manifests are the source of truth {#manifests-are-the-source-of-truth}
+## Manifest 檔案是唯一事實來源 {#manifests-are-the-source-of-truth}
 
-Having many layers of configurations and contracts between them results in a
-project setup that is hard to reason about and maintain. Think for a second on
-an average project. The definition of the project lives in the `.xcodeproj`
-directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in
-pipelines. Those are three layers with contracts between them that we need to
-maintain. *How often have you been in a situation where you changed something in
-your projects, and then a week later you realized that the release scripts
-broke?*
+多層設定及其之間的合約會導致項目設置難以理解和維護。試想一個普通項目：項目定義位於 `.xcodeproj` 目錄中，CLI 邏輯位於腳本（例如 `Fastfiles`）中，而 CI 邏輯位於管線中。這是三個需要維護且彼此存在合約的層級。*你有多常遇到這種情況：修改了項目中的某些內容，一周後才發現發布腳本出錯？*
 
-We can simplify this by having a single source of truth, the manifest files.
-Those files provide Tuist with the information that it needs to generate Xcode
-projects that developers can use to edit their files. Moreover, it allows having
-standard commands for building projects from a local or CI environment.
+我們可以透過單一事實來源（即 manifest 檔案）來簡化這一點。這些檔案為 Tuist 提供生成 Xcode 項目所需的資訊，讓開發者可以用來編輯檔案。此外，它也允許使用標準命令從本地或 CI 環境建置項目。
 
-**Tuist should own the complexity and expose a simple, safe, and enjoyable
-interface to describe their projects as explicitly as possible.**
+**Tuist 應承擔複雜性，並提供簡單、安全且易用的介面，盡可能明確地描述項目。**
 
-## Make the implicit explicit {#make-the-implicit-explicit}
+## 將隱式行為顯式化 {#make-the-implicit-explicit}
 
-Xcode supports implicit configurations. A good example of that is inferring the
-implicitly defined dependencies. While implicitness is fine for small projects,
-where configurations are simple, as projects get larger it might cause slowness
-or odd behaviors.
+Xcode 支援隱式設定。一個很好的例子是推斷隱式定義的依賴關係。雖然隱式行為在設定簡單的小型項目中可以接受，但隨著項目變大，可能會導致速度變慢或出現異常行為。
 
-Tuist should provide explicit APIs for implicit Xcode behaviors. It should also
-support defining Xcode implicitness but implemented in such a way that
-encourages developers to opt for the explicit approach. Supporting Xcode
-implicitness and intricacies facilitates the adoption of Tuist, after which
-teams can take some time to get rid of the implicitness.
+Tuist 應為隱式的 Xcode 行為提供顯式 API。它也應支援定義 Xcode 的隱式行為，但以鼓勵開發者選擇顯式方式的方式實作。支援 Xcode 的隱式行為和複雜細節有助於推動 Tuist 的採用，之後團隊可以花時間逐步消除隱式行為。
 
-The definition of dependencies is a good example of that. While developers can
-define dependencies through build settings and phases, Tuist provides a
-beautiful API that encourages its adoption.
+依賴關係的定義就是一個很好的例子。雖然開發者可以透過建置設定和階段來定義依賴關係，但 Tuist 提供了優雅的 API，鼓勵大家採用。
 
-**Designing the API to be explicit allows Tuist to run some checks and
-optimizations on the projects that otherwise wouldn’t be possible.** Moreover,
-it enables features like `tuist graph`, which exports a representation of the
-dependency graph, or `tuist cache`, which caches all the targets as binaries.
+**將 API 設計為顯式，讓 Tuist 能夠對項目執行一些否則無法實現的檢查和最佳化。** 此外，它還啟用了诸如 `tuist graph`（匯出依賴關係圖的表示）或 `tuist cache`（將所有目標快取為二進位檔）等功能。
 
 > [!TIP]
-> We should treat each request to port features from Xcode as an opportunity to
-> simplify concepts with simple and explicit APIs.
+> 我們應將每個從 Xcode 移植功能的要求視為一個機會，透過簡單且顯式的 API 來簡化概念。
 
 
-## Keep it simple {#keep-it-simple}
+## 保持簡單 {#keep-it-simple}
 
-One of the main challenges when scaling Xcode projects comes from the fact that
-**Xcode exposes a lot of complexity to the users.** Due to that, teams have a
-high bus factor and only a few people in the team understand the project and the
-errors that the build system throws. That’s a bad situation to be in because the
-team relies on a few people.
+擴展 Xcode 項目時的主要挑戰之一來自於**Xcode 向用戶暴露了大量複雜性。** 因此，團隊的「巴士係數」很高，只有少數人理解項目以及建置系統拋出的錯誤。這是一種糟糕的情況，因為團隊過度依賴少數人。
 
-Xcode is a great tool, but so many years of improvements, new platforms, and
-programming languages, are reflected on their surface, which struggled to remain
-simple.
+Xcode 是一款出色的工具，但多年的改進、新平台和程式語言都反映在其表面上，使其難以保持簡單。
 
-Tuist should take the opportunity to keep things simple because working on
-simple things is fun and motivates us. No one wants to spend time trying to
-debug an error that happens at the very end of the compilation process, or
-understanding why they are not able to run the app on their devices. Xcode
-delegates the tasks to its underlying build system and in some cases it does a
-very poor job translating errors into actionable items. Have you ever got a
-*“framework X not found”* error and you didn’t know what to do? Imagine if we
-got a list of potential root causes for the bug.
+Tuist 應把握機會保持簡單，因為處理簡單的事物既有趣又能激勵我們。沒有人願意花時間去除錯編譯過程最後階段發生的錯誤，或搞懂為何無法在裝置上運行應用程式。Xcode 將任務委派給其底層的建置系統，而在某些情況下，它在將錯誤轉化為可操作項目方面做得非常差。你是否曾經遇到 *「找不到 framework X」* 錯誤卻不知如何處理？想像一下，如果我們能得到一份潛在根本原因的清單，情況會好得多。
 
-## Start from the developer’s experience {#start-from-the-developers-experience}
+## 從開發者體驗出發 {#start-from-the-developers-experience}
 
-Part of the reason why there is a lack of innovation around Xcode, or put
-differently, not as much as in other programming environments, is because **we
-often start analyzing problems from existing solutions.** As a consequence, most
-of the solutions that we find nowadays revolve around the same ideas and
-workflows. While it’s good to include existing solutions in the equations, we
-should not let them constrain our creativity.
+Xcode 周圍缺乏創新（或者換句話說，不如其他程式環境那麼多）的部分原因在於，**我們經常從現有解決方案開始分析問題。** 結果，如今我們找到的大多數解決方案都圍繞著相同的想法和工作流程。雖然將現有解決方案納入考量是件好事，但不應讓它們限制我們的創造力。
 
-We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in
-[this podcast](https://tom.preston-werner.com/): *“Most things can be achieved,
-whatever you have in your head you can probably pull off with code as long as is
-possible within the constrains of the universe”.* If **we imagine how we’d like
-the developer experience to be**, it’s just a matter of time to pull it off — by
-starting to analyze the problems from the developer experience gives us a unique
-point of view that will lead us to solutions that users will love to use.
+我們喜歡[Tom Preston](https://tom.preston-werner.com/)在[這集播客](https://tom.preston-werner.com/)中所說的觀點：*「大多數事情都能實現，只要在你腦海中的想法符合宇宙的限制，你就很可能用程式碼把它做出來。」* 如果**我們想像理想的開發者體驗是什麼樣子**，實現它只是時間問題——從開發者體驗出發分析問題，為我們提供了獨特的視角，引導我們打造出用戶喜愛的解決方案。
 
-We might feel tempted to follow what everyone is doing, even if that means
-sticking with the inconveniences that everyone continues to complain about.
-Let’s not do that. How do I imagine archiving my app? How would I love code
-signing to be? What processes can I help streamline with Tuist? For example,
-adding support for [Fastlane](https://fastlane.tools/) is a solution to a
-problem that we need to understand first. We can get to the root of the problem
-by asking “why” questions. Once we narrow down where the motivation comes from,
-we can think of how Tuist can help them best. Maybe the solution is integrating
-with Fastlane, but it’s important we don’t disregard other equally valid
-solutions that we can put on the table before making trade-offs.
+我們可能會忍不住跟隨大眾的做法，即使這意味著要忍受大家一直抱怨的不便。讓我們不要這樣做。我期望如何封存我的應用程式？我希望程式碼簽署流程是什麼樣子？我可以透過 Tuist 簡化哪些流程？例如，加入對 [Fastlane](https://fastlane.tools/) 的支援是解決某個問題的方案，但我們需要先理解該問題。我們可以透過不斷問「為什麼」來找出問題的根本原因。一旦釐清動機來源，我們就能思考 Tuist 如何提供最佳協助。解決方案或許是與 Fastlane 整合，但在做出取捨之前，務必不要忽視其他同樣可行的方案。
 
-## Errors can and will happen {#errors-can-and-will-happen}
+## 錯誤難免發生 {#errors-can-and-will-happen}
 
-We, developers, have an inherent temptation to disregard that errors can happen.
-As a result, we design and test software only considering the ideal scenario.
+我們開發者天生容易忽視錯誤發生的可能性。結果，我們在設計和測試軟體時，往往只考慮理想情況。
 
-Swift, its type system, and a well-architected code might help prevent some
-errors, but not all of them because some are out of our control. We can’t assume
-the user will always have an internet connection, or that the system commands
-will return successfully. The environments in which Tuist runs are not sandboxes
-that we control, and hence we need to make an effort to understand how they
-might change and impact Tuist.
+Swift、其類型系統以及架構良好的程式碼有助於防止某些錯誤，但無法防止所有錯誤，因為有些因素超出我們的控制範圍。我們不能假設用戶永遠有網路連線，或系統指令一定會成功執行。Tuist 運行的環境並非我們控制的沙盒，因此我們需要努力了解這些環境可能如何變化並影響 Tuist。
 
-Poorly handled errors result in bad user experience, and users might lose trust
-in the project. We want users to enjoy every single piece of Tuist, even the way
-we present errors to them.
+處理不當的錯誤會導致糟糕的用戶體驗，用戶可能會因此對項目失去信任。我們希望用戶享受 Tuist 的每一個環節，包括我們呈現錯誤的方式。
 
-We should put ourselves in the shoes of users and imagine what we’d expect the
-error to tell us. If the programming language is the communication channel
-through which errors propagate, and the users are the destination of the errors,
-they should be written in the same language that the target (users) speak. They
-should include enough information to know what happened and hide the information
-that is not relevant. Also, they should be actionable by telling users what
-steps they can take to recover from them.
+我們應該換位思考，想像我們期望錯誤訊息告訴我們什麼。如果程式語言是錯誤傳播的溝通渠道，而用戶是錯誤的接收者，那麼錯誤訊息就應該用目標對象（用戶）理解的語言來撰寫。它們應包含足夠資訊讓用戶了解發生了什麼事，並隱藏不相關的資訊。此外，它們應具備可操作性，告訴用戶可以採取哪些步驟來恢復正常。
 
-And last but not least, our test cases should contemplate failing scenarios. Not
-only they ensure that we are handling errors as we are supposed to, but prevent
-future developers from breaking that logic.
+最後但同樣重要的是，我們的測試案例應涵蓋失敗情境。這不僅能確保我們按預期處理錯誤，也能防止未來的開發者破壞這些邏輯。

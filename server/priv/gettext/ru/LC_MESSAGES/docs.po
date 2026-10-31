@@ -51,7 +51,7 @@ msgstr "Общайтесь с сообществом Tuist в реальном �
 #: lib/tuist_web/live/docs_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
-msgstr "Присоединяйтесь к тысячам разработчиков, которые выпускают лучшие приложения с помощью Tuist. Получайте помощь, делитесь успехами и формируйте будущее инструментов для разработки приложений."
+msgstr "Присоединяйтесь к тысячам разработчиков, которые выпускают лучшие приложения с Tuist. Получайте помощь, делитесь успехами и влияйте на будущее инструментов для разработки приложений."
 
 #: lib/tuist_web/live/docs_live.ex:529
 #: lib/tuist_web/live/docs_live.ex:806
@@ -95,19 +95,19 @@ msgstr "Нестабильность"
 #: lib/tuist_web/live/docs_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Follow Tuist on LinkedIn for news and updates."
-msgstr "Следите за Tuist в LinkedIn, чтобы быть в курсе новостей и обновлений."
+msgstr "Подпишитесь на Tuist в LinkedIn, чтобы следить за новостями и обновлениями."
 
 #: lib/tuist_web/live/docs_live.ex:582
 #: lib/tuist_web/live/docs_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "Follow us on Bluesky to stay up to date with our work."
-msgstr "Подпишитесь на нас в Bluesky, чтобы быть в курсе нашей работы."
+msgstr "Подписывайтесь на нас в Bluesky, чтобы быть в курсе нашей работы."
 
 #: lib/tuist_web/live/docs_live.ex:594
 #: lib/tuist_web/live/docs_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Follow us on Mastodon to stay up to date with our work."
-msgstr "Подпишитесь на нас в Mastodon, чтобы быть в курсе нашей работы."
+msgstr "Подписывайтесь на нас в Mastodon, чтобы быть в курсе нашей работы."
 
 #: lib/tuist_web/docs/layouts.ex:47
 #: lib/tuist_web/docs/layouts/root.html.heex:170
@@ -133,13 +133,13 @@ msgstr "Аналитика"
 #: lib/tuist_web/live/docs_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
-msgstr "Учитесь на реальных примерах и вдохновляйтесь возможностями, которые открываются, когда ваш инструментарий работает без сбоев."
+msgstr "Учитесь на реальных примерах и вдохновляйтесь возможностями, которые открывает исправно работающий инструментарий."
 
 #: lib/tuist_web/live/docs_live.ex:570
 #: lib/tuist_web/live/docs_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Learn from videos from the Tuist team and the community."
-msgstr "Учитесь по видео от команды Tuist и сообщества."
+msgstr "Смотрите видео от команды Tuist и сообщества."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:109
 #: lib/tuist_web/docs/layouts/root.html.heex:269
@@ -260,7 +260,7 @@ msgstr "Просмотр в формате Markdown"
 #: lib/tuist_web/docs/components/toc.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "View this page as plain text"
-msgstr "Просмотр этой страницы в виде обычного текста"
+msgstr "Просмотреть эту страницу как обычный текст"
 
 #: lib/tuist_web/docs/layouts.ex:35
 #: lib/tuist_web/docs/layouts/root.html.heex:128
@@ -281,7 +281,7 @@ msgstr "Перейти"
 #: lib/tuist_web/docs/components/search_modal.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "No search history"
-msgstr "История поиска отсутствует"
+msgstr "Нет истории поиска"
 
 #: lib/tuist_web/docs/layouts/root.html.heex:385
 #, elixir-autogen, elixir-format
@@ -306,7 +306,7 @@ msgstr "Последнее обновление: %{date}"
 #: lib/tuist_web/live/docs_live.ex:640
 #, elixir-autogen, elixir-format
 msgid "View"
-msgstr "Просмотреть"
+msgstr "Просмотр"
 
 #: lib/tuist_web/live/docs_live.ex:642
 #, elixir-autogen, elixir-format
@@ -359,7 +359,7 @@ msgstr "Единая платформа для ускорения инструм
 #: lib/tuist_web/live/docs_live.ex:754
 #, elixir-autogen, elixir-format
 msgid "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
-msgstr "Запускайте только затронутые тесты, обнаруживая изменения с момента последнего успешного запуска — как локально, так и в непрерывной интеграции."
+msgstr "Запускайте только затронутые тесты, определяя изменения с момента последнего успешного запуска — как локально, так и в непрерывной интеграции."
 
 #: lib/tuist_web/live/docs_live.ex:356
 #: lib/tuist_web/live/docs_live.ex:748
@@ -371,31 +371,31 @@ msgstr "Запускайте важные тесты, выявляйте нес�
 #: lib/tuist_web/live/docs_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
-msgstr "Делитесь результатами сборки между машинами разработчиков, системами непрерывной интеграции, раннерами и агентами кодирования, а затем используйте аналитику для поиска регрессий."
+msgstr "Делитесь результатами сборки между машинами разработчиков, системами непрерывной интеграции, раннерами и AI-агентами, а затем используйте аналитику для поиска регрессий."
 
 #: lib/tuist_web/live/docs_live.ex:436
 #: lib/tuist_web/live/docs_live.ex:777
 #, elixir-autogen, elixir-format
 msgid "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
-msgstr "Поделитесь приложением по ссылке, чтобы другие могли запустить его на своём устройстве или симуляторе без настройки TestFlight."
+msgstr "Поделитесь приложением по ссылке, чтобы другие могли запустить его на своём устройстве или в симуляторе без настройки TestFlight."
 
 #: lib/tuist_web/live/docs_live.ex:295
 #: lib/tuist_web/live/docs_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
-msgstr "Ускоряйте сборки, повышайте надёжность тестов, анализируйте производительность и запускайте рабочие процессы на инфраструктуре, разработанной для вашей системы сборки."
+msgstr "Ускоряйте сборки, повышайте надёжность тестов, анализируйте производительность и выполняйте рабочие процессы на инфраструктуре, созданной для вашего тулчейна."
 
 #: lib/tuist_web/live/docs_live.ex:408
 #: lib/tuist_web/live/docs_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
-msgstr "Отслеживайте производительность тестов, вовремя выявляйте медленные тесты и отлаживайте сбои непрерывной интеграции с помощью журналов в реальном времени."
+msgstr "Отслеживайте производительность тестов, вовремя выявляйте медленные тесты и отлаживайте сбои в CI/CD с помощью журналов в реальном времени."
 
 #: lib/tuist_web/live/docs_live.ex:341
 #: lib/tuist_web/live/docs_live.ex:741
 #, elixir-autogen, elixir-format
 msgid "Understand build performance across local and continuous integration environments before slowdowns affect your team."
-msgstr "Анализируйте производительность сборки в локальных средах и средах непрерывной интеграции, чтобы замедления не влияли на вашу команду."
+msgstr "Оценивайте производительность сборок в локальной среде и в CI/CD до того, как замедления повлияют на вашу команду."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:300
 #, elixir-autogen, elixir-format
@@ -431,7 +431,7 @@ msgstr "Начать"
 #: lib/tuist_web/live/docs_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
-msgstr "Установите Tuist CLI"
+msgstr "Установить CLI Tuist"
 
 #: lib/tuist_web/live/docs_live.ex:163
 #, elixir-autogen, elixir-format
@@ -464,19 +464,19 @@ msgstr "Раннеры"
 #: lib/tuist_web/live/docs_live.ex:784
 #, elixir-autogen, elixir-format
 msgid "Run workflows on managed compute with cache infrastructure colocated for the best performance."
-msgstr "Запускайте рабочие процессы на управляемых вычислительных ресурсах с инфраструктурой кэширования, расположенной рядом для максимальной производительности."
+msgstr "Запускайте рабочие процессы на управляемых вычислительных ресурсах с инфраструктурой кэширования, размещённой рядом для максимальной производительности."
 
 #: lib/tuist_web/live/docs_live.ex:467
 #: lib/tuist_web/live/docs_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
-msgstr "Запускайте рабочие процессы непрерывной интеграции на управляемых раннерах macOS и Linux с инфраструктурой кэширования, расположенной рядом с вычислительными ресурсами для достижения наилучших результатов и доступной также для ваших рабочих машин разработчиков."
+msgstr "Запускайте рабочие процессы непрерывной интеграции на управляемых раннерах macOS и Linux, где инфраструктура кэширования расположена рядом с вычислительными ресурсами для достижения наилучших результатов и используется совместно с машинами разработчиков."
 
 #: lib/tuist_web/live/docs_live.ex:192
 #: lib/tuist_web/live/docs_live.ex:713
 #, elixir-autogen, elixir-format
 msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
-msgstr "Код создается быстрее и в больших объемах, чем когда-либо прежде. Tuist интегрируется с уже используемыми вами системами сборки для проектов на Xcode, Gradle, Bazel, Elixir и Rust, предоставляя инфраструктуру, которая позволяет интеграции и доставке программного обеспечения идти в ногу со временем."
+msgstr "Код создаётся быстрее и в большем объёме, чем когда-либо. Tuist интегрируется с уже используемыми вами системами сборки для проектов на Xcode, Gradle, Bazel, Elixir и Rust, предоставляя инфраструктуру, которая позволяет интеграции и доставке программного обеспечения идти в ногу со временем."
 
 #: lib/tuist_web/live/docs_live.ex:323
 #: lib/tuist_web/live/docs_live.ex:736

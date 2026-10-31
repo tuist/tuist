@@ -891,6 +891,70 @@ func TestAutoscaler_LearnedSpareOutranksSiblingHeadroom(t *testing.T) {
 	}
 }
 
+// TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse: on a rack short of
+// seats, a pool whose jobs are arriving keeps its learned spare, and a pool
+// with no job in the last hour gives up its floor for it.
+func TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse(t *testing.T) {
+	const fleet = "runners-macos"
+	inUse := macosFleetPool("macos-in-use", fleet, 0, 0, 9)
+	inUse.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
+	idle := macosFleetPool("macos-idle", fleet, 0, 0, 9)
+	idle.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
+	// 4 single-guest hosts = 4 slots: the running job and its spare of 3.
+	var nodes []client.Object
+	for i := 1; i <= 4; i++ {
+		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := []client.Object{inUse, idle}
+	objs = append(objs, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-in-use": {Fleet: "macos-in-use", Claimed: 1, Occupied: 1, P95ConcurrentLastHour: 1, LearnedWarmFloor: 3},
+		"macos-idle":   {Fleet: "macos-idle", LearnedWarmFloor: 3},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-in-use")
+	reconcileOnce(t, r, "macos-idle")
+
+	gotInUse := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-in-use", Namespace: "tuist-runners"}, gotInUse)
+	gotIdle := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-idle", Namespace: "tuist-runners"}, gotIdle)
+
+	if gotInUse.Spec.Replicas != 4 {
+		t.Errorf("in-use Replicas = %d, want 4 (its job and its whole spare)", gotInUse.Spec.Replicas)
+	}
+	if gotIdle.Spec.Replicas != 0 {
+		t.Errorf("idle Replicas = %d, want 0 (no seat left for a floor nobody is using)", gotIdle.Spec.Replicas)
+	}
+}
+
 // TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable verifies
 // the uncontended path: with idle siblings and slack hosts, an
 // autoscaling macOS pool gets its full speculative warm buffer.

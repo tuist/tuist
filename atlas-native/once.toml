@@ -5,8 +5,14 @@ exclude = ["**/Cargo.toml"]
 [modules]
 paths = ["modules/*.star"]
 
+[infrastructure]
+publish_on_build = ["AtlasIOS", "AtlasAndroid"]
+
 [infrastructure.cache]
 provider = "tuist"
+
+[infrastructure.artifacts]
+name = "tuist"
 
 [infrastructures.tuist]
 kind = "tuist"

@@ -1,29 +1,29 @@
 ---
 {
-  "title": "Xcode Build Insights",
-  "titleTemplate": ":title · Build Insights · Features · Guides · Tuist",
-  "description": "Track Xcode build analytics in the Tuist dashboard to monitor local and CI build performance."
+  "title": "Xcode-ის ბილდების ანალიტიკა",
+  "titleTemplate": ":title · ბილდების ანალიტიკა · ფუნქციები · სახელმძღვანელოები · Tuist",
+  "description": "თვალყური ადევნეთ Xcode-ის ბილდების ანალიტიკას Tuist-ის დაშბორდში, რათა შეაფასოთ ლოკალური და CI ბილდების შესრულება."
 }
 ---
-# Xcode-ის აგების ინსაიტები {#xcode-build-insights}
+# Xcode-ის ბილდების ინსაიტები {#xcode-build-insights}
 
-დიდ პროექტებზე მუშაობა არ უნდა მოითხოვდეს ერთი და იმავე კოდის ხელახლა აგებას. Tuist Build Insights საშუალებას გაძლევთ თვალი ადევნოთ აგების ანალიტიკას, რათა გამოავლინოთ ტენდენციები სანამ ლოკალური და CI აგების დრო ბოთლneck-ად გადაიქცევა.
+დიდ პროექტებზე მუშაობა არ უნდა მოითხოვდეს ერთი და იმავე კოდის ხელახლა კომპილაციას. Tuist Build Insights საშუალებას გაძლევთ თვალი ადევნოთ ბილდების ანალიტიკას, რათა ტენდენციები გამოავლინოთ სანამ ლოკალური და CI ბილდების დრო შეფერხებად გადაიქცევა.
 
-აგების ინსაიტებს მართავს `tuist inspect build` ბრძანება, რომელიც ჩვეულებრივ ემატება თქვენი სქემის post-action-ს.
+ბილდების ინსაიტებს ამუშავებს `tuist inspect build` ბრძანება, რომელიც ჩვეულებრივ ემატება თქვენი სქემის post-action-ში.
 
-ლოკალური აგების დროის თვალყურის დევნის დასაწყებად, შეგიძლიათ გამოიყენოთ `tuist inspect build` ბრძანება, დაამატეთ ის თქვენი სქემის post-action-ში:
+ლოკალური ბილდების დროის თვალყურის დევნის დასაწყებად, შეგიძლიათ გამოიყენოთ `tuist inspect build` ბრძანება მისი თქვენი სქემის post-action-ში დამატებით:
 
-![Post-action აგების შესამოწმებლად](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
-
-> [!NOTE]
-> დააყენეთ ველი "Provide build settings from" შესრულებად ფაილზე ან თქვენს ძირითად აგების სამიზნეზე, რათა დაიჭიროთ აგების კონფიგურაცია.
-
+![Post-action ბილდების შესწავლისთვის](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 > [!NOTE]
-> post-scheme action არ სრულდება, როდესაც აგება ვერ ხერხდება.
+> ბილდის კონფიგურაციის დასაჭერად, ველი „Provide build settings from“ მიანიჭეთ executable-ს ან თქვენს ძირითად ბილდის target-ს.
+
+
+> [!NOTE]
+> post-scheme action არ სრულდება, როცა ბილდი ვერ ხერხდება.
 
 >
-> ამ შემთხვევაში შეგიძლიათ შეასრულოთ ის, დააყენოთ `runPostActionsOnFailure` მნიშვნელობაზე `YES` შესაბამის `project.pbxproj` `BuildAction`-ში:
+> ამ შემთხვევაში მისი შესრულება შეგიძლიათ `runPostActionsOnFailure`-ის `YES`-ზე დაყენებით შესაბამის `project.pbxproj` `BuildAction`-ში:
 >
 > ```diff
 > <BuildAction
@@ -32,7 +32,7 @@
 > +  runPostActionsOnFailure="YES">
 > ```
 
-[Mise](https://mise.jdx.dev/)-ისთვის, გაააქტიურეთ `tuist` post-action გარემოში:
+[Mise](https://mise.jdx.dev/)-ისთვის, post-action გარემოში გაააქტიურეთ `tuist`:
 
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
@@ -41,18 +41,18 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
 > [!TIP]
-> **Mise ბილიკის გარჩევა**
+> **Mise-ის გზის რეზოლუცია**
 >
-> თქვენი გარემოს `PATH` არ გადაეცემა სქემის post action-ს, ამიტომ გამოიყენეთ Mise-ის აბსოლუტური ბილიკი. ეს დამოკიდებულია იმაზე, თუ როგორ დააინსტალირეთ Mise. აგების პარამეტრები უნდა გადაეცემოდეს სამიზნიდან, რათა `mise` შეძლოს გაშვება `$SRCROOT`-დან.
+> თქვენი გარემოს `PATH` არ გადაეცემა სქემის post action-ს, ამიტომ გამოიყენეთ Mise-ის აბსოლუტური გზა. ეს დამოკიდებულია Mise-ის ინსტალაციის წესზე. ბილდის პარამეტრები უნდა გადაეცემოდეს target-დან, რათა `mise` შეძლოს `$SRCROOT`-დან გაშვება.
 
-[Homebrew](https://brew.sh/)-ისთვის, დაამატეთ Homebrew-ის ბილიკები post-action გარემოში:
+[Homebrew](https://brew.sh/)-ისთვის, post-action გარემოში დაამატეთ Homebrew-ის გზები:
 
 ```sh
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 tuist inspect build
 ```
 
-Actor claims ნაგულისხმევად გამორთულია. სქემის post-action-ისთვის ერთის კონფიგურაციისთვის, დააყენეთ `TUIST_ACTOR_ID` ამ სკრიპტში shell export-ებზე დაყრდნობის ნაცვლად. Dock-დან გაშვებული Xcode არ იღებს ცვლადებს `~/.zshrc`-დან. Homebrew-ით კონფიგურირებული claim-ის ცალსახად ჩასახშობად, გამოიყენეთ:
+Actor claims ნაგულისხმევად გამორთულია. სქემის post-action-ისთვის ერთ-ერთის კონფიგურაციისას, სკრიპტში დააყენეთ `TUIST_ACTOR_ID` shell export-ებზე დაყრდნობის ნაცვლად. Dock-დან გაშვებული Xcode არ იღებს ცვლადებს `~/.zshrc`-დან. Homebrew-ით კონფიგურირებული claim-ის ცალსახად ჩასახშობად, გამოიყენეთ:
 
 ```sh
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
@@ -60,35 +60,35 @@ export TUIST_ACTOR_ID=""
 tuist inspect build
 ```
 
-Mise-ით, გადაფარეთ მნიშვნელობა Mise-ის გარემოს ჩატვირთვის შემდეგ:
+Mise-ით, გადაწერეთ მნიშვნელობა Mise-ის გარემოს ჩატვირთვის შემდეგ:
 
 ```sh
 $HOME/.local/bin/mise x -C "$SRCROOT" -- env TUIST_ACTOR_ID="" tuist inspect build
 ```
 
-გამოიყენეთ ცალსახა ლეიბლი ცარიელი მნიშვნელობის ნაცვლად opt-in-ისთვის.
+ჩართვისთვის, ცარიელი მნიშვნელობის ნაცვლად გამოიყენეთ ცალსახა ლეიბლი.
 
-შესვლის შემდეგ, ლოკალური აგებები თვალყურს ედევნება და ხელმისაწვდომია Tuist dashboard-დან:
+შესვლის შემდეგ, ლოკალური ბილდები ფიქსირდება და ხელმისაწვდომია Tuist-ის დაშბორდიდან:
 
 > [!TIP]
-> dashboard-თან სწრაფი წვდომისთვის, გაუშვით `tuist project show --web` CLI-დან.
+> დაშბორდთან სწრაფი წვდომისთვის, CLI-დან გაუშვით `tuist project show --web`.
 
 
-![Dashboard აგების ინსაიტებით](/images/guides/features/build-insights/builds-dashboard.png)
+![დაშბორდი ბილდების ინსაიტებით](/images/guides/features/build-insights/builds-dashboard.png)
 
-## აგების ინსაიტები CI-ში {#continuous-integration}
+## Build Insights CI-ში {#continuous-integration}
 
-CI-ზე აგების ინსაიტების თვალყურის დევნისთვის, დარწმუნდით, რომ CI არის <.localized_link href="/guides/integrations/continuous-integration#authentication">აუთენტიფიცირებული</.localized_link>.
+CI-ზე ბილდების ინსაიტების თვალყურის დევნისთვის, დარწმუნდით, რომ CI არის <.localized_link href="/guides/integrations/continuous-integration#authentication">ავტორიზებული</.localized_link>.
 
-Xcodebuild-ით მართული CI-ისთვის საჭიროა:
-- გამოიყენეთ <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> `xcodebuild` actions-ის გამოძახებისას.
-- დაამატეთ `-resultBundlePath` თქვენს `xcodebuild` ბრძანებას.
+Xcodebuild-ით მართული CI-სთვის საჭიროა:
+- `xcodebuild` ქმედებების გამოძახებისას გამოიყენეთ <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link>.
+- თქვენს `xcodebuild` ბრძანებას დაამატეთ `-resultBundlePath`.
 
-`-resultBundlePath`-ის გარეშე, საჭირო activity logs და result bundles არ გენერირდება და `tuist inspect build` ვერ აანალიზებს აგებას.
+`-resultBundlePath`-ის გარეშე, საჭირო აქტივობის ჟურნალები და შედეგების ბანდლები არ გენერირდება და `tuist inspect build` ვერ აანალიზებს ბილდს.
 
-## Credential-free რეპორტინგი კერძო ქსელში {#network-trusted-publishing}
+## კრედენშალების გარეშე რეპორტინგი პირად ქსელში {#network-trusted-publishing}
 
-self-hosted განლაგებას შეუძლია დაუშვას დეველოპერებმა გამოაქვეყნონ დასრულებული რეპორტები შესვლის გარეშე. ოპერატორმა უნდა დააკონფიგურიროს `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true` ინსტანციაზე და გადატვირთოს ის, როგორც აღწერილია <.localized_link href="/guides/server/self-host/server#network-trusted-access">self-hosting guide</.localized_link>-ში. ეს ვრცელდება ყველა მხარდაჭერილ პროექტზე; dashboard-ში პარამეტრი არ არსებობს. დააკონფიგურირეთ self-hosted URL და პროექტი გარემოში, რომელსაც იყენებს თქვენი სქემის post-action ან ტერმინალი. CLI ავტომატურად აღმოაჩენს ინსტანციის პოლიტიკას, როდესაც credentials არ არის:
+self-hosted განლაგებას შეუძლია დეველოპერებს შესაძლებლობა მისცეს დასრულებული რეპორტების გამოქვეყნებისა შესვლის გარეშე. ოპერატორმა უნდა დააკონფიგურიროს `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true` ინსტანსზე და გადატვირთოს ის, როგორც აღწერილია <.localized_link href="/guides/server/self-host/server#network-trusted-access">self-hosting სახელმძღვანელოში</.localized_link>. ეს ვრცელდება ყველა მხარდაჭერილ პროექტზე; დაშბორდზე შესაბამისი პარამეტრი არ არსებობს. დააკონფიგურირეთ self-hosted URL და პროექტი იმ გარემოში, რომელსაც იყენებს თქვენი სქემის post-action ან ტერმინალი. CLI ავტომატურად აღმოაჩენს ინსტანსის პოლიტიკას, როცა კრედენშალები არ არის:
 
 ```sh
 export TUIST_URL="https://tuist.internal.example"
@@ -97,43 +97,43 @@ tuist inspect build
 tuist inspect test
 ```
 
-ნამდვილად არარსებული credentials-ით, activity logs და XCResult bundles იპარსება ლოკალურად და იგზავნება სტრუქტურირებული რეპორტების სახით. raw archive, attachment, coverage/history upload, remote processor, shard reference ან selective-execution evidence არ იგზავნება. რეპორტები რჩება ხილული, მაგრამ ვერ აახლებენ აუთენტიფიცირებული testcase state-ს ან არ ამუშავებენ quarantine/failure automations-ს. Dashboards და სხვა привилეგიური ბრძანებები კვლავ მოითხოვენ შესვლას. შეინახეთ cache integration გამორთული, თუ ინსტანცია ცალკე არ ააქტიურებს network-trusted cache access-ს ან credentials არ არის მოწოდებული.
+კრედენშალების ნამდვილად არარსებობისას, აქტივობის ჟურნალები და XCResult ბანდლები იპარსება ლოკალურად და იგზავნება სტრუქტურირებული რეპორტების სახით. არ იგზავნება raw archive, დანართი, coverage/history ატვირთვა, remote processor, shard reference ან selective-execution მტკიცებულება. რეპორტები ხილული რჩება, მაგრამ ვერ ანახლებს ავტორიზებული test case-ის მდგომარეობას ან არ მართავს quarantine/failure ავტომატიზაციებს. დაშბორდებს და სხვა პრივილეგირებულ ბრძანებებს კვლავ სჭირდებათ შესვლა. დატოვეთ cache ინტეგრაცია გამორთული, თუ ინსტანსი ცალკე არ ააქტიურებს ქსელის ნდობით cache-ზე წვდომას ან კრედენშალები არ არის მიწოდებული.
 
-არსებული credentials რჩება აუთენტიფიცირებული. არასწორი, დაზიანებული, ცარიელი ან rejected-refresh credentials იხურება და რჩება დისკზე, ასე რომ მოგვიანებით ბრძანებები არ ხდება ჩუმად unsigned. ხელახლა შედით ან ცალსახად გამოდით, როგორც განზრახული აღდგენის მოქმედება. განაახლეთ ყველა server replica discovery-capable ვერსიამდე credential-free clients-ის განახლებამდე და დააკონფიგურირეთ საბოლოო server URL redirects-ის გარეშე. უფრო ძველი servers discovery-ს გარეშე, გამორთული instances და discovery failures კვლავ მოითხოვენ აუთენტიფიკაციას. client-side opt-in არ არის საჭირო. დააყენეთ `TUIST_ACTOR_ID=""` დამოუკიდებლად, რათა გამოტოვოთ კონფიგურირებული actor claim; verified credential identity უცვლელი რჩება.
+არსებული კრედენშალები რჩება ავტორიზებული. არასწორი, დაზიანებული, ცარიელი ან უარყოფილი-განახლების კრედენშალები იკეტება და რჩება დისკზე, რათა მომდევნო ბრძანებები ჩუმად არ გახდეს ხელმოუწერელი. ხელახლა შედით ან ცალსახად გამოდით, როგორც განზრახული აღდგენის ქმედება. განაახლეთ ყველა სერვერის რეპლიკა discovery-ს მხარდაჭერის მქონე ვერსიამდე, სანამ განაახლებთ კრედენშალების გარეშე კლიენტებს, და დააკონფიგურირეთ საბოლოო სერვერის URL გადამისამარებების გარეშე. ძველ სერვერებს discovery-ს გარეშე, გამორთულ ინსტანსებს და discovery-ს შეცდომებს კვლავ სჭირდებათ ავტორიზაცია. კლიენტის მხრიდან opt-in არ არის საჭირო. `TUIST_ACTOR_ID=""` დამოუკიდებლად დააყენეთ, რათა გამოტოვოთ კონფიგურირებული actor claim; დადასტურებული კრედენშალის იდენტობა უცვლელი რჩება.
 
-## Machine metrics {#machine-metrics}
+## მანქანის მეტრიკები {#machine-metrics}
 
-აგების ინსაიტებმა შეიძლება მოიცვას machine-level performance metrics (CPU, მეხსიერება, ქსელი და დისკის გამოყენება), რომლებიც იჭერება აგების დროს. ამის ჩასართავად, დააყენეთ მსუბუქი background daemon, რომელიც უწყვეტად იღებს სისტემის metrics-ს:
+ბილდების ინსაიტებში შეიძლება შედიოდეს მანქანის დონის შესრულების მეტრიკები (CPU, მეხსიერება, ქსელი და დისკის გამოყენება), რომლებიც ფიქსირდება ბილდის დროს. ამის ჩასართავად, დააყენეთ მსუბუქი ფონური daemon, რომელიც უწყვეტად იღებს სისტემის მეტრიკებს:
 
 ```bash
 tuist setup insights
 ```
 
-ეს უშვებს ლოკალურ daemon-ს, რომელიც იღებს metrics-ს ფონურად. მონაცემები ავტომატურად იღებს `tuist inspect build` და იტვირთება აგების რეპორტთან ერთად.
+ეს აწარმოებს ლოკალურ daemon-ს, რომელიც ფონურად იღებს მეტრიკებს. მონაცემებს ავტომატურად იღებს `tuist inspect build` და ატვირთავს ბილდის რეპორტთან ერთად.
 
 > [!TIP]
-> **Ci**
+> **CI**
 >
-> გაუშვით `tuist setup insights` თქვენს CI მანქანებზე აგებამდე, რათა ასევე დაიჭიროთ machine metrics იქ.
+> გაუშვით `tuist setup insights` თქვენს CI მანქანებზე ბილდამდე, რათა იქაც დაიჭიროთ მანქანის მეტრიკები.
 
-machine metrics-ის შეგროვების შესაჩერებლად, გაუშვით:
+მანქანის მეტრიკების შეგროვების შესაჩერებლად, გაუშვით:
 
 ```bash
 tuist teardown insights
 ```
 
-ეს ტვირთავს daemon-ის LaunchAgent-ს, აშორებს მის plist-ს და შლის შეგროვებულ metrics-ს და daemon logs-ს `~/.local/state`-დან, ასე რომ ფონში არაფერი რჩება გაშვებული.
+ეს ხსნის daemon-ის LaunchAgent-ს, შლის მის plist-ს და შლის აღებულ მეტრიკებსა და daemon-ის ჟურნალებს `~/.local/state`-დან, რათა ფონზე არაფერი დარჩეს გაშვებული.
 
 
-## Report actor claim {#report-actor-claim}
+## რეპორტის actor claim {#report-actor-claim}
 
-რეპორტის შექმნის მოთხოვნები შეიცავს optional `x-tuist-actor-id` header-ს მხოლოდ მაშინ, როდესაც ცალსახად აყენებთ `TUIST_ACTOR_ID` organization-scoped ლეიბლზე, მაგალითად `TUIST_ACTOR_ID=employee-123 tuist inspect build`. ლეიბლი ნაგულისხმევად არ იგზავნება და Tuist არ ადგენს operating-system username-ს. ცარიელი `TUIST_ACTOR_ID` გამოტოვებს reported identifier-ს, მაგრამ არ აშორებს credential-based verified identity-ს. Identifiers უნდა იყოს 1–128 ბაიტი non-space printable ASCII; არასწორი overrides გამოტოვებულია fallback-ის გარეშე. თუ custom proxy უარყოფს უცნობ headers-ს, opt out ცარიელი environment override-ით.
+რეპორტის შექმნის მოთხოვნები მოიცავს არააუცილებელ `x-tuist-actor-id` header-ს მხოლოდ მაშინ, როცა ცალსახად აყენებთ `TUIST_ACTOR_ID`-ს ორგანიზაციის მასშტაბის ლეიბლზე, მაგალითად `TUIST_ACTOR_ID=employee-123 tuist inspect build`. ლეიბლი ნაგულისხმევად არ იგზავნება და Tuist არ აღმოაჩენს ოპერაციული სისტემის მომხმარებლის სახელს. ცარიელი `TUIST_ACTOR_ID` ტოვებს რეპორტირებულ იდენტიფიკატორს, მაგრამ არ შლის კრედენშალზე დაფუძნებულ დადასტურებულ იდენტობას. იდენტიფიკატორები უნდა იყოს 1–128 ბაიტი არა-სივრცითი ბეჭდვადი ASCII; არასწორი გადაწერები გამოტოვებულია fallback-ის გარეშე. თუ მორგებული proxy უარყოფს უცნობ header-ებს, opt out გააკეთეთ ცარიელი გარემოს გადაწერით.
 
-Verified individual credentials აქვთ უპირატესობა; client-reported identifiers წარმოდგენილია როგორც **Unverified** და არასდროს ანიჭებენ ნებართვებს ან არ აკავშირებენ ავტომატურად მომხმარებლებთან. Identifiers ხილულია ყველასთვის, ვისაც შეუძლია ნახოს პროექტის რეპორტები, მათ შორის public viewers, როდესაც პროექტი საჯაროა, და შედის data exports-ში, ამიტომ არ შეიტანოთ secrets. ეს ვრცელდება აგების, ტესტის და command-event რეპორტებზე. ძველი servers იგნორირებენ optional header-ს და ახალი servers იღებენ ძველ clients-ს მის გარეშე. ახალი shared-token რეპორტები identifier-ის გარეშე აჩვენებენ **Unknown**, publishing organization-ის ნაცვლად; ისტორიულ რეპორტებს ინარჩუნებენ წინა attribution-ს. აგების და ტესტის სიები განასხვავებენ verified users-ს unverified reported identifiers-გან. აუთენტიფიკაცია რჩება საჭირო, თუ self-hosted instance ცალსახად არ ააქტიურებს credential-free reporting-ს და client აღმოაჩენს ამ პოლიტიკას.
+დადასტურებულ ინდივიდუალურ კრედენშალებს აქვთ უპირატესობა; კლიენტის მიერ რეპორტირებული იდენტიფიკატორები სხვა შემთხვევაში ჩანს, როგორც **Unverified** და არასდროს ანიჭებენ ნებართვებს ან არ აკავშირებენ ავტომატურად მომხმარებლებთან. იდენტიფიკატორები ხილულია ნებისმიერისთვის, ვისაც შეუძლია ნახოს პროექტის რეპორტები, მათ შორის საჯარო მაყურებლებისთვის, როცა პროექტი საჯაროა, და შედის მონაცემთა ექსპორტებში, ამიტომ არ შეიტანოთ საიდუმლოებები. ეს ვრცელდება ბილდის, ტესტის და ბრძანების მოვლენების რეპორტებზე. ძველი სერვერები იგნორირებენ არააუცილებელ header-ს, ახალი სერვერები კი იღებენ ძველ კლიენტებს მის გარეშე. ახალი shared-token რეპორტები იდენტიფიკატორის გარეშე აჩვენებენ **Unknown**-ს, გამომქვეყნებელი ორგანიზაციის ნაცვლად; ისტორიულ რეპორტებს ინარჩუნებენ წინა მიკუთვნებას. ბილდებისა და ტესტების სიები ასხვავებენ დადასტურებულ მომხმარებლებს დაუდასტურებელი რეპორტირებული იდენტიფიკატორებისგან. ავტორიზაცია რჩება საჭირო, თუ self-hosted ინსტანსი ცალსახად არ ააქტიურებს კრედენშალების გარეშე რეპორტინგს და კლიენტი არ აღმოაჩენს ამ პოლიტიკას.
 
-## Custom metadata {#custom-metadata}
+## მორგებული მეტამონაცემები {#custom-metadata}
 
-შეგიძლიათ აგებებს მიამაგროთ მეტამონაცემები გარემოს ცვლადების საშუალებით, რათა გაუმჯობესდეთ ფილტრაცია.
+შეგიძლიათ ბილდებს მიაბათ მეტამონაცემები გარემოს ცვლადების საშუალებით, რათა გააუმჯობესოთ ფილტრაცია.
 
 ### გარემოს ცვლადები
 
@@ -144,7 +144,7 @@ Verified individual credentials აქვთ უპირატესობა; 
 
 ### მაგალითები
 
-დააყენეთ ეს მნიშვნელობები CI-ში ან თქვენს shell-ში აგების გამოძახებამდე:
+დააყენეთ ეს მნიშვნელობები CI-ში ან თქვენს shell-ში ბილდის გამოძახებამდე:
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"

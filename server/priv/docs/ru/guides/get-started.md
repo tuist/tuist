@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Get started",
-  "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, Elixir, Rust, or Bazel."
+  "title": "Начало работы",
+  "titleTemplate": ":title · Начало работы · Руководства · Tuist",
+  "description": "Выберите подход Tuist, соответствующий текущему способу сборки вашего приложения: Xcode, генерируемые проекты Xcode, Gradle, Elixir, Rust или Bazel."
 }
 ---
 # Начало работы {#get-started}
 
-Выберите путь, соответствующий тому, как ваше приложение собирается сейчас. Каждый вариант подробно описывает, что нужно установить, как включить кэширование, аналитику и функции тестирования, а также как проверить настройку от начала до конца. Вы можете внедрять их по отдельности или комбинировать, если выпускаете приложение для нескольких платформ.
+Выберите путь, соответствующий тому, как ваше приложение собирается сегодня. В каждом разделе описано, что нужно установить, как включить кэширование, аналитику и возможности тестирования, а также как проверить настройку от начала до конца. Вы можете внедрять их по отдельности или комбинировать, если выпускаете обновления для нескольких платформ.
 
 ## Проект Xcode {#existing-xcode-project}
 
@@ -17,7 +17,7 @@
 
 ## Сгенерированный проект Xcode {#generated-xcode-project}
 
-Позвольте Tuist определять и генерировать ваш проект Xcode из манифестов Swift. Сгенерированные проекты сводят сложность модульных проектов Xcode к лаконичному декларативному описанию графа и являются строгим требованием для <.localized_link href="/guides/features/cache/module-cache">кэша модулей</.localized_link> и <.localized_link href="/guides/features/selective-testing/generated-xcode-project">выборочного тестирования</.localized_link>.
+Позвольте Tuist определить и сгенерировать ваш проект Xcode из манифестов Swift. Сгенерированные проекты сводят сложность модульных проектов Xcode к лаконичному декларативному описанию графа и являются строгим требованием для <.localized_link href="/guides/features/cache/module-cache">кэша модулей</.localized_link> и <.localized_link href="/guides/features/selective-testing/generated-xcode-project">выборочного тестирования</.localized_link>.
 
 <.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated project →</.localized_link>
 
@@ -41,8 +41,8 @@
 
 ## Проект Bazel {#bazel-project}
 
-Настройте рабочее пространство Bazel на использование кэша Remote Execution API и сервиса Build Event Service от Tuist, чтобы делиться попаданиями в кэш и аналитикой между вашей командой и CI.
+Направьте рабочее пространство Bazel на кэш Remote Execution API и сервис Build Event Service от Tuist, чтобы делиться попаданиями в кэш и аналитикой между вашей командой и CI.
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
-Перед началом работы <.localized_link href="/guides/install-tuist">установите интерфейс командной строки Tuist</.localized_link>. Проекты Elixir являются исключением: им достаточно пакета Hex.
+Прежде чем приступать к любому из этих вариантов, <.localized_link href="/guides/install-tuist">установите интерфейс командной строки Tuist</.localized_link>. Проекты Elixir — исключение: им достаточно пакета Hex.

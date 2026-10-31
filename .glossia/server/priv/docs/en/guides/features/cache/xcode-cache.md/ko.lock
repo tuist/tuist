@@ -1,12 +1,74 @@
 {
   "baseline_schema_version": 1,
-  "hash": "1b27d450c6c619310974a7cc566a889c8d02577db51c33d043eb97b5fa474a1e",
+  "hash": "fa4c99280bb73dfdb08de8cf4c7f736c2117ca842f72eb615acc30a3bf36a634",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "1a36e843f78e1058e71c6a2cfafa40cccda0a2b77fa29e40d26a1b10f7a03e58",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Xcode cache {#xcode-cache}": {
+                  "content_hash": "c64333a3e647e86066125b7cd175649d8efe0faf0ee4b3490afce5965ff37ac3"
+                },
+                "## Setup {#setup}": {
+                  "content_hash": "4ed39d7069b1db8538d2ccf19610d1512ae1d565db0e79c1cdb7786fbfdd1585"
+                },
+                "## Troubleshooting {#troubleshooting}": {
+                  "content_hash": "8aaf5c9abf7b8885bbf50c115f609fb241f85145e2d4cc9ee125b3c522b1c1b5"
+                },
+                "### Builds are extremely slow and emit `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}": {
+                  "content_hash": "07984400da01fe3224d028aa8f1b1d538b40c6de24deb3c10ef105da2ee49996"
+                },
+                "### Builds warn that the Xcode cache proxy failed {#cas-proxy-failed}": {
+                  "content_hash": "ecfe23787a29c595c8240da456ae28b547483c6d9f899474672e083405dd96c4"
+                },
+                "### Cache upload policy {#cache-upload-policy}": {
+                  "content_hash": "3009a2ef8c54db478ffed927d0d1f83ac24ac0803a92f76719f3b33673f97ce1"
+                },
+                "### Compilation cache store on CI {#compilation-cache-store-on-ci}": {
+                  "content_hash": "c73cba4b794bf58ce1f5ec537a3582c0373c14d06d4c174ecefc0b58a5a34a9a"
+                },
+                "### Configure Xcode Build Settings {#configure-xcode-build-settings}": {
+                  "content_hash": "1f0a51713a8e4223ce92b0833e7ee8aa8aa74b0c305a2364b58fc3545a1f9e31"
+                },
+                "### Continuous integration {#continuous-integration}": {
+                  "content_hash": "406e327a5494d066cc580e8f0fd683dcf87058d9fc7fd7897a2911710e3c0359"
+                },
+                "### Coverage with prefix mapping {#coverage-with-prefix-mapping}": {
+                  "content_hash": "eb7bc6ed5f13d1d5acb0b2ffe0ec842230f00b1b3eeaa9bce7b1528f18efe9a0"
+                },
+                "### Debugging generated projects {#debugging-generated-projects}": {
+                  "content_hash": "8d1496e12ba51f0a823d04b335c46baade5fdb465cc4819e8ae5fe43f47ced4f"
+                },
+                "### Module cache hashes {#module-cache-hashes}": {
+                  "content_hash": "ec0ba53ab9444d5cf43c3123279d5d56244293ed1cde97a65d7d01b71cc71921"
+                },
+                "### Reusing parts of large outputs {#reusing-parts-of-large-outputs}": {
+                  "content_hash": "2993f8026f03e9101f7de5faf67731d1117e6bfee5ecb341de1c69aa952d5697"
+                },
+                "### Store size limit {#store-size-limit}": {
+                  "content_hash": "6ef3f8aeb863f2cdab351212aa6419d20cf63e4f53b6283907fd394bfb9a2a03"
+                },
+                "### Updating the cache components {#updating-the-cache-components}": {
+                  "content_hash": "87fd9f8f5cff540292ba4b6d86c8a6589144b94d0363d51500cd7d6282e0ff50"
+                },
+                "### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}": {
+                  "content_hash": "fe40442337c4f91709be8040cf901caab9af2065afcb4554a5ee799f88c3a347"
+                },
+                "#### Stateful store {#stateful-store}": {
+                  "content_hash": "b33bb4f403a255f079113580560611d385e5ce78bac15c810678979f52f3f349"
+                },
+                "Preamble": {
+                  "content_hash": "bb613ce91648f3490fb53092d1cea60ac995aff0eb3232be186a8509886ed9ce"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "7228f7e233f2b05d0bb8b9aede4dcdbe95ef84fcbe35f87f373bf0e8e54aa891",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
           "metadata": {
@@ -15,13 +77,21 @@
         },
         {
           "children": [],
-          "hash": "3f16b8914d585c52f3a750026a156273e223a74240f3eae972dde37bd1e0e5b0",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "614555da8db82e589f1c5dd888ea43679f1b7dbd40fdc69d356f14f7c450fe6d",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
             "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "format": "markdown",
-            "frontmatter_mode": "preserve",
+            "frontmatter_mode": "translate",
             "language": "Korean",
             "locale": "ko",
             "model": "",
@@ -31,34 +101,136 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
               "children": [],
-              "hash": "11fc978d9700fdbd045538c6c2c8f5670a045e29fd697ea84635a6f5511c23ca",
+              "details": {
+                "content_hash": {
+                  "server/L10N/ko.md": {
+                    "content_hash": "cbb32b4b9b9fbafdceb05de50df78e36578c8d35da11979aae773268db02e2cc",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# 한국어 번역 규칙": {
+                        "content_hash": "6a7b29b6ed314aa3018cfe2c25f605438bb2a0904da023dee09044a75553e18f"
+                      },
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "40e3300913a85d2a91e405b6e27e52e45aed3870b94a91e588eae0ed4a85974e"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "c6832ce85be2ceed678c19744bc581bebbe0a9b21281ae273895097a5ca4169d"
+                      },
+                      "## 마케팅(Marketing) 페이지 전용 규칙": {
+                        "content_hash": "cebc2acd1bc3ebc7f133faf9604eef40c89efe14518e17bddafe8cd572af248d"
+                      },
+                      "## 모든 페이지 대상 규칙": {
+                        "content_hash": "a36730726d1504cd1f05e3620f775b985ce171391de57f1d3bce5bf2a214848c"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "50c087c61c19324ce7983d60f0aa4f08170ef5f11c3f3a9c06673c1fbc8f6de0",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "5f9caeb82e74b87e633f84e456ee4b1dd537d0ac859e3cd98372827782a0427f"
+                "content_hash": "e4557cb5bea4262fa93f24fc553b77c729ab0098c3baa5fc48f30ffb9731563d"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,15 +239,32 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "1fe6ff166a50bcb70c5ba123dfcab89dbcf4ae1c383c607d0e0ee290415fef9a"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "60588e84943d7d6e9a6cfa7cd9e7214a74f00d7b394c2e8680eebce228afd518"
+                      }
+                    }
+                  },
+                  "hash": "079756dbb153a9721613f70a415ee53f1360bc4327483206941cbfe82c248d2a",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                    "content_hash": "b03b209d959f09cc773df20c6e8bd5621347e7dd079e28e23a8a07f567efee99"
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "9954d7fa91bef10a679027c9af048ed2cb3bf6cdd1a73b9db6b2d66ab35db476",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,28 +273,33 @@
               }
             }
           ],
-          "hash": "b4ee33045ed4dd2a171c82e378be3998e10f07c215633cf9aed27c00899034d1",
+          "details": {},
+          "hash": "67295aef25171f908672732154c9d926a8487b064f38d1c0a185933ea8300bba",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "1b27d450c6c619310974a7cc566a889c8d02577db51c33d043eb97b5fa474a1e",
+      "details": {},
+      "hash": "fa4c99280bb73dfdb08de8cf4c7f736c2117ca842f72eb615acc30a3bf36a634",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "7108c26d088af1e43731e2aaf97259cfacdc9cbebe48b53548b0fa0632678520",
+  "output_hash": "3ff11988db3a958cdd83886bbcdff3f700730eb4a10855cba7bf99ad34b2b3b9",
   "output_path": "server/priv/docs/ko/guides/features/cache/xcode-cache.md",
   "protection_state": "recorded",
   "provider": "",
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [],
-      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "applied": [
+        "repo:features",
+        "repo:tests"
+      ],
+      "content_hash": "b03b209d959f09cc773df20c6e8bd5621347e7dd079e28e23a8a07f567efee99",
       "shadowed": [],
       "version": null
     },
@@ -115,8 +309,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ac5621d6fc381019e365d14d8a4ad0f1f71d5d1b",
+  "source_commit_sha": "224df5a9a809da6fb43951e91d50b2314ac738ba",
   "source_path": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
-  "translated_at": "2026-10-27T18:17:51.099429Z",
-  "translation_session_id": "01a17e82-ed11-7ef4-8bba-9f2a3d22f8ab"
+  "translated_at": "2026-10-30T14:23:45.341584Z",
+  "translation_session_id": "01a18d2a-60c1-763a-9c19-b5a583c68084"
 }

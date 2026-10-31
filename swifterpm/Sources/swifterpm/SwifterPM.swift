@@ -290,7 +290,7 @@ public struct SwifterPM: Sendable {
                registryConfig: registryConfig
            )
         {
-            let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+            var resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,
                 cacheDir: cacheRoot,
@@ -303,6 +303,12 @@ public struct SwifterPM: Sendable {
                 forceResolvedVersions: request.forceResolvedVersions,
                 forwardOutput: !request.quiet
             )
+            if request.writeResolvedFile, !request.forceResolvedVersions {
+                // SwiftPM omits originHash below tools version 5.10 and skips the write when the
+                // pins are unchanged, so stamp ours as the restoration path does.
+                resolved.originHash = try await ResolvedFile.packageOriginHash(packageDir: package)
+                try await ResolvedFile.write(packageDir: package, resolved: resolved, mirrors: mirrors)
+            }
             let cache = try await Cache(root: cacheRoot)
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,

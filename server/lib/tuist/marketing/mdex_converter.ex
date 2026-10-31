@@ -43,7 +43,7 @@ defmodule Tuist.Marketing.MDExConverter do
   def convert(_path, body, _attrs, _opts), do: body
 
   def compile_markdown(markdown, path, live?) do
-    document = build_document(markdown)
+    document = build_document(markdown, path)
     html = MDEx.to_html!(document)
 
     template =
@@ -54,7 +54,7 @@ defmodule Tuist.Marketing.MDExConverter do
     {html, template}
   end
 
-  defp build_document(markdown) do
+  defp build_document(markdown, path) do
     [markdown: markdown]
     |> Keyword.merge(@mdex_options)
     |> MDEx.new()
@@ -63,7 +63,36 @@ defmodule Tuist.Marketing.MDExConverter do
       katex_block_attrs: &katex_block_attrs/1,
       katex_inline_attrs: &katex_inline_attrs/1
     )
-    |> MDEx.Document.append_steps(wrap_code_blocks: &wrap_code_blocks/1)
+    |> MDEx.Document.append_steps(
+      wrap_tables: &wrap_tables(&1, path),
+      wrap_code_blocks: &wrap_code_blocks/1
+    )
+  end
+
+  defp wrap_tables(document, path) do
+    {document, _index} =
+      MDEx.traverse_and_update(document, 0, fn
+        %MDEx.Table{} = table, index ->
+          html = MDEx.to_html!(%MDEx.Document{nodes: [table]}, @mdex_options)
+          id = "marketing-markdown-table-#{:erlang.phash2(path)}-#{index}"
+
+          block = %MDEx.HtmlBlock{
+            literal: """
+            <div id="#{id}" class="noora-table" phx-hook="NooraTable" phx-no-curly-interpolation>
+              <div data-part="scroll-container">#{html}</div>
+              <div data-part="scrollbar" aria-hidden="true"><div data-part="scrollbar-content"></div></div>
+              <div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>
+            </div>
+            """
+          }
+
+          {block, index + 1}
+
+        node, index ->
+          {node, index}
+      end)
+
+    document
   end
 
   defp katex_block_attrs(sequence) do
