@@ -84,6 +84,28 @@ these schemas persist volume identities and per-job uses.
   `recorded execution from GitHub API` says which status bound it.
   An agent that is still answered 425 at its deadline reports `execution_pending`
   (macOS reason, Linux 425 to the guest), never `denied`.
+- The one job-supplied input that may bind a session is a GitHub Actions OIDC
+  token the job minted for the `tuist-runner-cache` audience
+  (`Runners.ExecutionTokens`). The job-started hook requests it when the
+  workflow grants `id-token: write`, before any attach, and the agent forwards it
+  unread to `/runners/cache-volumes/execution`. Its `check_run_id` must be a
+  GitHub job of the session's account in the claimed repository that no other
+  open session is bound to. With `FeatureFlags.runner_oidc_execution_enabled?/1`
+  it binds through `Dispatch.record_execution/3`; without it the job is only
+  logged (`execution token names a job (not binding)`) beside the session's
+  binding. Never accept any other claim or variable from the job this way.
+  A token that binds also stores its claims on the session
+  (`execution_identity`, tied to the job it named). `Identity.resolve/1` takes a
+  push, schedule or workflow_dispatch job's identity from them without reading
+  the run; only the default branch comes from GitHub's repository (cached for an
+  hour), or from the volumes' recorded `default_branch` when GitHub cannot
+  answer. A pull request job still reads the run to tell a fork apart, and when
+  GitHub cannot answer it attaches read-only (`same_repository` false, no writer
+  branch), so its custom volumes and checkout still read and its Docker volume
+  stays unavailable. A checkout needs a known default branch.
+- GitLab's identity is captured when the job is acquired
+  (`Identity.capture_gitlab/1`, `runner_gitlab_jobs.cache_volume_identity`), so
+  allocation does not call GitLab; it resolves live only when that capture failed.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity

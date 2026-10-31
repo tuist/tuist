@@ -1150,6 +1150,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/checkout", RunnerCacheVolumesController, :checkout
     post "/runners/cache-volumes/docker", RunnerCacheVolumesController, :docker
     post "/runners/cache-volumes/docker-seen", RunnerCacheVolumesController, :docker_seen
+    post "/runners/cache-volumes/execution", RunnerCacheVolumesController, :execution
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
