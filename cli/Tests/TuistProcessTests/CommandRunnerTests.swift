@@ -96,7 +96,7 @@ import Testing
         let output = Mutex("")
         let count = Mutex(0)
         let incomplete = Mutex(false)
-        let start = Date()
+        let primaryExiting = Mutex<Date?>(nil)
         defer {
             if let pid = Int32(output.withLock { $0.trimmingCharacters(in: .whitespacesAndNewlines) }), pid > 0 {
                 _ = kill(pid, SIGTERM)
@@ -112,7 +112,9 @@ import Testing
                 onIncompleteOutput: { incomplete.withLock { $0 = true } }
             ) { event in
                 switch event {
-                case let .standardOutput(bytes): output.withLock { $0.append(String(decoding: bytes, as: UTF8.self)) }
+                case let .standardOutput(bytes):
+                    primaryExiting.withLock { $0 = $0 ?? Date() }
+                    output.withLock { $0.append(String(decoding: bytes, as: UTF8.self)) }
                 case let .standardError(bytes): count.withLock { $0 += bytes.count }
                 }
             }
@@ -123,7 +125,10 @@ import Testing
         #expect(incomplete.withLock { $0 })
         #expect(count.withLock { $0 } > 0)
         #expect(count.withLock { $0 } < 8_000_000)
-        #expect(Date().timeIntervalSince(start) < 5)
+        // Measured from the pid the primary prints right before exiting, so spawn latency on a loaded runner
+        // doesn't count against the post-exit drain deadline.
+        let drainStart = try #require(primaryExiting.withLock { $0 })
+        #expect(Date().timeIntervalSince(drainStart) < 5)
     }
 
     @Test(.inTemporaryDirectory) func preservesBufferedTailWhenTheOutputHandlerIsStalled() async throws {
