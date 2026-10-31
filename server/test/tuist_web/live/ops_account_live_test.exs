@@ -12,6 +12,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.PlacementProposal
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -241,6 +242,33 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       assert html =~ summary
     end
+  end
+
+  test "restores a region placement gave up", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Environment, :dev?, fn -> false end)
+    stub(Tuist.Environment, :test?, fn -> false end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+    kura_server(user, "us-east")
+
+    Repo.insert!(%PlacementProposal{
+      account_id: user.account.id,
+      kind: :retire,
+      from_region: "eu-west",
+      evidence: %{"signal" => "hits_below_floor"},
+      status: :applied,
+      resolved_by: "automatic",
+      resolved_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -86_400, :second), :second)
+    })
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html = lv |> element("#kura-restorable-regions-table button", "Restore") |> render_click()
+
+    assert html =~ "Placement added eu-west."
+    refute has_element?(lv, "#kura-restorable-regions-table")
+    assert "eu-west" in PlacerRegions.serving_regions(user.account)
   end
 
   defp kura_server(user, region) do

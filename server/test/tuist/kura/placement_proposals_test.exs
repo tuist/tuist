@@ -512,6 +512,52 @@ defmodule Tuist.Kura.PlacementProposalsTest do
     end
   end
 
+  describe "restore_placement_region/3" do
+    test "serves the account from a region placement gave up again" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+      given_up!(account, "eu-west", days_ago: 10)
+
+      assert %{"eu-west" => given_up_on} = Kura.restorable_placement_regions(account)
+
+      assert {:ok, %{kind: :expand, to_region: "eu-west"}} =
+               Kura.restore_placement_region(account, "eu-west", "operator@tuist.dev")
+
+      assert "eu-west" in PlacerRegions.serving_regions(account)
+      assert Kura.restorable_placement_regions(account) == %{}
+
+      assert %PlacementProposal{status: :applied, resolved_by: "operator@tuist.dev", evidence: evidence} =
+               Repo.get_by(PlacementProposal, account_id: account.id, kind: :expand)
+
+      assert evidence == %{"signal" => "operator_restore", "given_up_on" => Date.to_iso8601(given_up_on)}
+    end
+
+    test "refuses a region placement did not give up" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+
+      assert Kura.restore_placement_region(account, "eu-west", "operator@tuist.dev") == {:error, :not_restorable}
+    end
+
+    test "refuses a region given up before the reopening window, which placement can reopen itself" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+      given_up!(account, "eu-west", days_ago: 91)
+
+      assert Kura.restorable_placement_regions(account) == %{}
+    end
+
+    test "waits for an open proposal to be resolved" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+      given_up!(account, "eu-west", days_ago: 10)
+      Repo.insert!(%PlacementProposal{account_id: account.id, kind: :expand, to_region: "us-west"})
+
+      assert Kura.restore_placement_region(account, "eu-west", "operator@tuist.dev") == {:error, :open_proposal}
+      refute "eu-west" in PlacerRegions.serving_regions(account)
+    end
+  end
+
   describe "the automatic budget" do
     test "counts only what the sweep applied on its own" do
       account = paid_account()
@@ -691,6 +737,18 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       end
 
     Repo.insert_all(OriginRollup, rows)
+  end
+
+  defp given_up!(account, region, days_ago: days_ago) do
+    Repo.insert!(%PlacementProposal{
+      account_id: account.id,
+      kind: :retire,
+      from_region: region,
+      evidence: %{"signal" => "hits_below_floor"},
+      status: :applied,
+      resolved_by: "automatic",
+      resolved_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -days_ago * 86_400, :second), :second)
+    })
   end
 
   defp seed_rollups(account, region, days, hits_per_day) do
