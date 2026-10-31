@@ -90,7 +90,7 @@ defmodule Tuist.Shards.StorageTest do
     assert {:ok, %S3Target{}} = ShardStorage.resolve_for_request(plan, ctx.account, ctx.grant)
 
     for grant <- [nil, CacheGrant.mint(42, site: "other", platform: :linux)] do
-      assert {:error, :shard_storage_unavailable} = ShardStorage.resolve_for_request(plan, ctx.account, grant)
+      assert {:error, :shard_storage_site_required} = ShardStorage.resolve_for_request(plan, ctx.account, grant)
     end
   end
 
