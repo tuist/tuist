@@ -1000,3 +1000,9 @@ With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON t
 REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain module usage attribution. Other clients remain attributed to `reapi`; the hint does not change authentication or CAS storage. CAS batch requests count once per batch, and already-present blob uploads do not add usage.
 
 A `GetActionResult` carrying `x-tuist-lookup: presence` only reports whether the entry is still served. It does not extend the lifetime of the entry or of the blobs it references, so a client can check for evicted entries without keeping them alive. Other lookups extend lifetimes as before.
+
+Shared disk is disabled by default. Controller-managed opt-in instances set
+`KURA_DISK_BUDGET_FILE` (read-only host budget JSON) and `KURA_DISK_VOLUME_ID`
+(pod UID) together, with an explicit `KURA_CAS_CAPACITY_BYTES` ceiling. Expired
+budgets refuse new commits while existing reads remain available. See the
+[floor/ceiling policy and local qualification](../infra/kura-controller/shared-disk-capacity.md).

@@ -16,6 +16,7 @@ mod config;
 mod connectivity;
 mod constants;
 mod control_plane_http;
+mod disk_budget;
 mod enrollment;
 mod failpoints;
 mod file_cache;

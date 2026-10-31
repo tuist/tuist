@@ -253,4 +253,9 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   OnDelete hosts require a drained backfill and transport validation. Check
   shared capacity and enrollment with `helm/linux-vrack.sh`.
 
+The optional `kura-disk-agent` DaemonSet is disabled by default. Enabling it
+requires an explicit compatible image and physical reserve, and only selects
+nodes labelled `tuist.dev/kura-shared-disk=true`. Do not infer qualification
+from a pool name or enable floor-based admission on unqualified nodes. Its
+Kubernetes permissions are read-only; host privileges enforce XFS project quotas.
 - Managed Linux pools inherit KVM through `runnersFleetLinux.nestedVirtualization.defaultEnabled`; false rolls idle runners back without removing host prerequisites. Device allocations follow each Node’s Pod capacity. Validate defaults, rollback revisions and the preparation gate with `bash infra/mise/tasks/helm/nested-kvm.sh`.

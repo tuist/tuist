@@ -482,6 +482,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => claim,
+          "storageFloor" => entitlements.storage_floor,
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
@@ -617,6 +618,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
       memory: memory,
+      storage_floor:
+        if(Regions.shared_disk?(region), do: Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size),
       cpu_ceiling_milli: cpu_ceiling_milli,
       replication_pull: mesh_enabled?(region)
     }
@@ -660,8 +663,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
+      shared_disk_revision(entitlements.storage_floor) <>
       egress_revision_suffix(egress) <> private_endpoint_revision_suffix(region)
   end
+
+  defp shared_disk_revision(nil), do: ""
+  defp shared_disk_revision(floor), do: "-shared-disk-v1-#{floor}"
 
   # Reapply existing private instances when replicas or their entrance changes.
   defp private_endpoint_revision_suffix(region) do

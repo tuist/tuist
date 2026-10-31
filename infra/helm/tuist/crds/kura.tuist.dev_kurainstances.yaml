@@ -302,6 +302,9 @@ spec:
                   type: string
                 storageSize:
                   type: string
+                storageFloor:
+                  type: string
+                  description: Initial PVC and scheduling reservation for opt-in node-managed shared disk; storageSize remains the ceiling.
                 nodeSelector:
                   type: object
                   additionalProperties:

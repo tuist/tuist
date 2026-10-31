@@ -4170,6 +4170,14 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 		)
 	}
 	applyPodDNS(instance, &template.Spec)
+	if sharedDiskEnabled(instance) {
+		template.Spec.InitContainers = append(template.Spec.InitContainers, corev1.Container{
+			Name: "disk-budget", Image: instance.Spec.Image,
+			Command:      []string{"/bin/sh", "-ec", `until test -s "/run/kura-disk/$VOLUME_ID.json" && grep -q '"allow_writes":true' "/run/kura-disk/$VOLUME_ID.json"; do sleep 1; done`},
+			Env:          []corev1.EnvVar{{Name: "VOLUME_ID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}}},
+			VolumeMounts: []corev1.VolumeMount{{Name: "disk-budgets", MountPath: "/run/kura-disk", ReadOnly: true}},
+		})
+	}
 	return template
 }
 
@@ -4212,9 +4220,16 @@ func podAnnotations(instance *kurav1alpha1.KuraInstance, sharedSecretsResourceVe
 	for key, value := range instance.Spec.PodAnnotations {
 		annotations[key] = value
 	}
+	delete(annotations, "kura.tuist.dev/disk-floor-bytes")
+	delete(annotations, "kura.tuist.dev/disk-ceiling-bytes")
 	annotations["prometheus.io/scrape"] = "true"
 	annotations["prometheus.io/port-name"] = "http"
 	annotations["prometheus.io/path"] = "/metrics"
+	if sharedDiskEnabled(instance) {
+		floor, ceiling := storageQuantity(instance), storageCeilingQuantity(instance)
+		annotations["kura.tuist.dev/disk-floor-bytes"] = strconv.FormatInt(floor.Value(), 10)
+		annotations["kura.tuist.dev/disk-ceiling-bytes"] = strconv.FormatInt(ceiling.Value(), 10)
+	}
 	if value, ok := egressClassPodAnnotation(instance); ok {
 		annotations[egressClassAnnotation] = value
 	}
@@ -4736,12 +4751,15 @@ func defaultNodeSelector() map[string]string {
 }
 
 func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
-	if len(instance.Spec.NodeSelector) == 0 {
-		return defaultNodeSelector()
-	}
 	selector := make(map[string]string, len(instance.Spec.NodeSelector))
+	if len(instance.Spec.NodeSelector) == 0 {
+		selector = defaultNodeSelector()
+	}
 	for key, value := range instance.Spec.NodeSelector {
 		selector[key] = value
+	}
+	if sharedDiskEnabled(instance) {
+		selector["tuist.dev/kura-shared-disk"] = "true"
 	}
 	return selector
 }
@@ -4885,7 +4903,24 @@ func podEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, envi
 	if gatewayGRPC {
 		env = append(env, corev1.EnvVar{Name: gatewayGRPCPortEnvVar, Value: fmt.Sprintf("%d", gatewayGRPCPort)})
 	}
-	return append(env, instance.Spec.ExtraEnv...)
+	env = append(env, instance.Spec.ExtraEnv...)
+	if sharedDiskEnabled(instance) {
+		filtered := env[:0]
+		for _, value := range env {
+			if value.Name != "KURA_DISK_VOLUME_ID" && value.Name != "KURA_DISK_BUDGET_FILE" && value.Name != "KURA_CAS_CAPACITY_BYTES" && value.Name != "KURA_TMP_DIR_MAX_BYTES" {
+				filtered = append(filtered, value)
+			}
+		}
+		ceiling := storageCeilingQuantity(instance)
+		floor := storageQuantity(instance)
+		env = append(filtered,
+			corev1.EnvVar{Name: "KURA_DISK_VOLUME_ID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+			corev1.EnvVar{Name: "KURA_DISK_BUDGET_FILE", Value: "/run/kura-disk/$(KURA_DISK_VOLUME_ID).json"},
+			corev1.EnvVar{Name: "KURA_CAS_CAPACITY_BYTES", Value: strconv.FormatInt(ceiling.Value()/5*4, 10)},
+			corev1.EnvVar{Name: "KURA_TMP_DIR_MAX_BYTES", Value: strconv.FormatInt(min(floor.Value()/4, 2*1024*1024*1024), 10)},
+		)
+	}
+	return env
 }
 
 func managedCacheEnvDefaults() []corev1.EnvVar {
@@ -4925,6 +4960,9 @@ func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
 		{Name: "data", MountPath: "/var/cache/kura"},
 		{Name: peerTLSVolumeName, MountPath: peerTLSMountPath, ReadOnly: true},
 	}
+	if sharedDiskEnabled(instance) {
+		mounts = append(mounts, corev1.VolumeMount{Name: "disk-budgets", MountPath: "/run/kura-disk", ReadOnly: true})
+	}
 	return mounts
 }
 
@@ -4935,6 +4973,9 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 			SecretName: peerTLSSecretName(instance),
 		}},
 	}}
+	if sharedDiskEnabled(instance) {
+		volumes = append(volumes, corev1.Volume{Name: "disk-budgets", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: "/run/kura-disk", Type: ptr(corev1.HostPathDirectory)}}})
+	}
 	return volumes
 }
 
@@ -4954,6 +4995,22 @@ func dataVolumeClaim(instance *kurav1alpha1.KuraInstance) corev1.PersistentVolum
 }
 
 func storageQuantity(instance *kurav1alpha1.KuraInstance) resource.Quantity {
+	if sharedDiskEnabled(instance) {
+		return resource.MustParse(instance.Spec.StorageFloor)
+	}
+	return storageCeilingQuantity(instance)
+}
+
+func sharedDiskEnabled(instance *kurav1alpha1.KuraInstance) bool {
+	floor, err := resource.ParseQuantity(instance.Spec.StorageFloor)
+	ceiling := storageCeilingQuantity(instance)
+	// Managed instances must retain the full 2 GiB staged-request budget in
+	// addition to the minimum segment ring, rotation and metadata allowances.
+	return err == nil && floor.Value() >= 8*1024*1024*1024 && floor.Cmp(ceiling) <= 0 &&
+		floor.Value()%(1024*1024) == 0 && ceiling.Value()%(1024*1024) == 0 && ceiling.Value() <= 1<<50
+}
+
+func storageCeilingQuantity(instance *kurav1alpha1.KuraInstance) resource.Quantity {
 	if instance.Spec.StorageSize != "" {
 		if storage, err := resource.ParseQuantity(instance.Spec.StorageSize); err == nil {
 			return storage
