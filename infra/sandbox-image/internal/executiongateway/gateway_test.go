@@ -2,7 +2,9 @@ package executiongateway
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net"
@@ -349,5 +351,104 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 				t.Fatalf("endpoint: %v", dialed.Load())
 			}
 		})
+	}
+}
+
+type blobStore struct {
+	re.UnimplementedContentAddressableStorageServer
+	blobs map[string][]byte
+	auth  atomic.Value
+}
+
+func (b *blobStore) put(data []byte) *re.Digest {
+	h := sha256.Sum256(data)
+	d := &re.Digest{Hash: hex.EncodeToString(h[:]), SizeBytes: int64(len(data))}
+	b.blobs[d.Hash] = data
+	return d
+}
+
+func (b *blobStore) message(m proto.Message) *re.Digest {
+	data, _ := proto.Marshal(m)
+	return b.put(data)
+}
+
+func (b *blobStore) BatchReadBlobs(ctx context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	b.auth.Store(append(md.Get("authorization"), md.Get("x-tuist-account-handle")...))
+	response := &re.BatchReadBlobsResponse{}
+	for _, d := range r.Digests {
+		item := &re.BatchReadBlobsResponse_Response{Digest: d, Status: &rpc.Status{}}
+		if data, ok := b.blobs[d.Hash]; ok {
+			item.Data = data
+		} else {
+			item.Status.Code = int32(codes.NotFound)
+		}
+		response.Responses = append(response.Responses, item)
+	}
+	return response, nil
+}
+
+func TestExecuteSendsPrefetchedInputs(t *testing.T) {
+	store := &blobStore{blobs: map[string][]byte{}}
+	file := store.put([]byte("input"))
+	leaf := store.message(&re.Directory{Files: []*re.FileNode{{Name: "input", Digest: file}}})
+	root := store.message(&re.Directory{Directories: []*re.DirectoryNode{{Name: "out", Digest: leaf}}})
+	command := store.message(&re.Command{Arguments: []string{"true"}})
+	action := store.message(&re.Action{CommandDigest: command, InputRootDigest: root})
+	l := bufconn.Listen(1 << 20)
+	s := grpc.NewServer()
+	re.RegisterContentAddressableStorageServer(s, store)
+	go s.Serve(l)
+	t.Cleanup(s.Stop)
+	g := New("https://control.example")
+	g.Dial = func(string) (*grpc.ClientConn, error) {
+		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
+	}
+	bodies := make(chan map[string]any, 2)
+	client, capabilities := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/capabilities") {
+			return response(200, `{"image":"sha-x","cas_endpoint":"grpcs://cache.example"}`), nil
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies <- body
+		return response(202, `{"id":"`+id+`","state":"completed","done":true}`), nil
+	})
+	execute := func() map[string]any {
+		stream, err := client.Execute(authenticated(), &re.ExecuteRequest{InstanceName: "app", ActionDigest: action})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result, err := stream.Recv(); err != nil || !result.Done {
+			t.Fatalf("result: %v %v", result, err)
+		}
+		return <-bodies
+	}
+	if _, ok := execute()["inputs"]; ok {
+		t.Fatal("prefetched before the project's cache endpoint was known")
+	}
+	if _, err := capabilities.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"}); err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := execute()["inputs"].(string)
+	b, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seed re.BatchUpdateBlobsRequest
+	if err := proto.Unmarshal(b, &seed); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, r := range seed.Requests {
+		got[r.Digest.Hash] = string(r.Data) == string(store.blobs[r.Digest.Hash])
+	}
+	for _, d := range []*re.Digest{action, command, root, leaf, file} {
+		if !got[d.Hash] {
+			t.Fatalf("missing prefetched blob %s: %v", d.Hash, got)
+		}
+	}
+	if auth, _ := store.auth.Load().([]string); len(auth) != 2 || auth[0] != "Bearer secret" || auth[1] != "tuist" {
+		t.Fatalf("credentials: %v", auth)
 	}
 }

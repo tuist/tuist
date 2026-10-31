@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -34,6 +35,7 @@ type CAS struct {
 	Actions     re.ActionCacheClient
 	Blobs       re.ContentAddressableStorageClient
 	noBatch     atomic.Bool
+	seeded      map[string][]byte
 	mu          sync.Mutex
 	transferred int64
 }
@@ -48,17 +50,45 @@ const inputBatchFileBytes = 64 << 10
 
 var errBatchUnsupported = errors.New("CAS batch reads unsupported")
 
+// MaxSeed bounds the encoded blobs the gateway may prefetch for one action.
+const MaxSeed = 512 << 10
+
+// Seed adds blobs the gateway already read for this action. Only entries that
+// match their digest are used; anything else is read from the CAS as usual.
+func (c *CAS) Seed(encoded string) {
+	b, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(b) > MaxSeed {
+		return
+	}
+	var seed re.BatchUpdateBlobsRequest
+	if proto.Unmarshal(b, &seed) != nil {
+		return
+	}
+	c.seeded = make(map[string][]byte, len(seed.Requests))
+	for _, r := range seed.Requests {
+		d := r.GetDigest()
+		h := sha256.Sum256(r.Data)
+		if ValidDigest(d) && int64(len(r.Data)) == d.SizeBytes && hex.EncodeToString(h[:]) == d.Hash {
+			c.seeded[d.Hash] = r.Data
+		}
+	}
+}
+
+func (c *CAS) seededBlob(d *re.Digest) ([]byte, bool) {
+	b, ok := c.seeded[d.Hash]
+	return b, ok && int64(len(b)) == d.SizeBytes
+}
+
 // ReadBatch holds at most one bounded response in memory. Duplicate inputs are
 // requested once, but charged per file, just like the streaming download path.
+// Seeded blobs are served without a request.
 func (c *CAS) ReadBatch(ctx context.Context, digests []*re.Digest) ([][]byte, error) {
-	if c.Blobs == nil || c.noBatch.Load() {
-		return nil, errBatchUnsupported
-	}
 	if len(digests) > inputBatchEntries {
 		return nil, status.Error(codes.ResourceExhausted, "too many batch inputs")
 	}
 	var total int64
 	unique := map[string]*re.Digest{}
+	data := map[string][]byte{}
 	request := &re.BatchReadBlobsRequest{InstanceName: c.Instance, DigestFunction: re.DigestFunction_SHA256}
 	for _, d := range digests {
 		if !ValidDigest(d) || d.SizeBytes > inputBatchFileBytes {
@@ -69,49 +99,28 @@ func (c *CAS) ReadBatch(ctx context.Context, digests []*re.Digest) ([][]byte, er
 			if old.SizeBytes != d.SizeBytes {
 				return nil, status.Error(codes.InvalidArgument, "inconsistent input digest size")
 			}
+			continue
+		}
+		unique[d.Hash] = d
+		if b, ok := c.seededBlob(d); ok {
+			data[d.Hash] = b
 		} else {
-			unique[d.Hash] = d
 			request.Digests = append(request.Digests, d)
 		}
 	}
 	if total > inputBatchBytes {
 		return nil, status.Error(codes.ResourceExhausted, "input batch too large")
 	}
+	if len(request.Digests) > 0 && (c.Blobs == nil || c.noBatch.Load()) {
+		return nil, errBatchUnsupported
+	}
 	if err := c.reserve(total); err != nil {
 		return nil, err
 	}
-	// Identity only. Leave generous protobuf overhead below the worker's normal
-	// metadata cap; a malformed peer cannot return an unbounded response.
-	response, err := c.Blobs.BatchReadBlobs(ctx, request, grpc.MaxCallRecvMsgSize(2*inputBatchBytes))
-	if status.Code(err) == codes.Unimplemented {
-		c.noBatch.Store(true)
-		c.mu.Lock()
-		c.transferred -= total // No blob response; streaming will reserve instead.
-		c.mu.Unlock()
-		return nil, errBatchUnsupported
-	}
-	if err != nil {
-		return nil, err
-	}
-	data := make(map[string][]byte, len(unique))
-	for _, item := range response.GetResponses() {
-		d := item.GetDigest()
-		if !ValidDigest(d) {
-			return nil, status.Error(codes.DataLoss, "invalid batch response digest")
+	if len(request.Digests) > 0 {
+		if err := c.readBatch(ctx, request, unique, data, total); err != nil {
+			return nil, err
 		}
-		want, ok := unique[d.Hash]
-		_, duplicate := data[d.Hash]
-		if !ok || want.SizeBytes != d.SizeBytes || duplicate || item.Status == nil {
-			return nil, status.Error(codes.DataLoss, "unexpected batch response")
-		}
-		if err := status.FromProto(item.Status).Err(); err != nil {
-			return nil, missingBlob(err, d)
-		}
-		h := sha256.Sum256(item.Data)
-		if item.Compressor != re.Compressor_IDENTITY || int64(len(item.Data)) != d.SizeBytes || hex.EncodeToString(h[:]) != d.Hash {
-			return nil, status.Error(codes.DataLoss, "batch CAS digest mismatch")
-		}
-		data[d.Hash] = item.Data
 	}
 	if len(data) != len(unique) {
 		return nil, status.Error(codes.DataLoss, "incomplete batch response")
@@ -121,6 +130,42 @@ func (c *CAS) ReadBatch(ctx context.Context, digests []*re.Digest) ([][]byte, er
 		result[i] = data[d.Hash]
 	}
 	return result, nil
+}
+
+func (c *CAS) readBatch(ctx context.Context, request *re.BatchReadBlobsRequest, unique map[string]*re.Digest, data map[string][]byte, total int64) error {
+	// Identity only. Leave generous protobuf overhead below the worker's normal
+	// metadata cap; a malformed peer cannot return an unbounded response.
+	response, err := c.Blobs.BatchReadBlobs(ctx, request, grpc.MaxCallRecvMsgSize(2*inputBatchBytes))
+	if status.Code(err) == codes.Unimplemented {
+		c.noBatch.Store(true)
+		c.mu.Lock()
+		c.transferred -= total // No blob response; streaming will reserve instead.
+		c.mu.Unlock()
+		return errBatchUnsupported
+	}
+	if err != nil {
+		return err
+	}
+	for _, item := range response.GetResponses() {
+		d := item.GetDigest()
+		if !ValidDigest(d) {
+			return status.Error(codes.DataLoss, "invalid batch response digest")
+		}
+		want, ok := unique[d.Hash]
+		_, duplicate := data[d.Hash]
+		if !ok || want.SizeBytes != d.SizeBytes || duplicate || item.Status == nil {
+			return status.Error(codes.DataLoss, "unexpected batch response")
+		}
+		if err := status.FromProto(item.Status).Err(); err != nil {
+			return missingBlob(err, d)
+		}
+		h := sha256.Sum256(item.Data)
+		if item.Compressor != re.Compressor_IDENTITY || int64(len(item.Data)) != d.SizeBytes || hex.EncodeToString(h[:]) != d.Hash {
+			return status.Error(codes.DataLoss, "batch CAS digest mismatch")
+		}
+		data[d.Hash] = item.Data
+	}
+	return nil
 }
 
 func ValidDigest(d *re.Digest) bool {
@@ -146,6 +191,10 @@ func (c *CAS) Read(ctx context.Context, d *re.Digest, out io.Writer) error {
 		return status.Error(codes.InvalidArgument, "invalid SHA-256 digest")
 	}
 	if err := c.reserve(d.SizeBytes); err != nil {
+		return err
+	}
+	if b, ok := c.seededBlob(d); ok {
+		_, err := out.Write(b)
 		return err
 	}
 	r, err := c.Stream.Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/blobs/%s/%d", c.Instance, d.Hash, d.SizeBytes)})

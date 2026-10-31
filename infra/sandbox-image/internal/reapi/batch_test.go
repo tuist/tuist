@@ -2,6 +2,7 @@ package reapi
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
@@ -258,5 +259,40 @@ func TestInputTreeUsesUnaryReadsAndBatchesSubdirectories(t *testing.T) {
 	}
 	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != "chained\nother\n" {
 		t.Fatal("wrong output")
+	}
+}
+
+func TestSeededInputsAvoidCASRoundTrips(t *testing.T) {
+	w, m := harness(t)
+	var batches, streams atomic.Int32
+	m.batchRead = func(_ context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
+		batches.Add(1)
+		return batchResponse(m, r), nil
+	}
+	m.beforeRead = func(context.Context, string) error { streams.Add(1); return nil }
+	input := m.put([]byte("seeded\n"))
+	d := action(t, m, "cat input > result", &re.Directory{Files: []*re.FileNode{{Name: "input", Digest: input}}}, []string{"result"})
+	seed := &re.BatchUpdateBlobsRequest{}
+	for hash, data := range m.blobs {
+		if hash == input.Hash {
+			// A corrupt entry is ignored and read from the CAS instead.
+			data = []byte("tampered")
+		}
+		seed.Requests = append(seed.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: &re.Digest{Hash: hash, SizeBytes: int64(len(m.blobs[hash]))}, Data: data})
+	}
+	b, err := proto.Marshal(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.CAS.Seed(base64.StdEncoding.EncodeToString(b))
+	response, _ := w.Execute(context.Background(), d, true)
+	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("execute: %v", response)
+	}
+	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != "seeded\n" {
+		t.Fatal("wrong output")
+	}
+	if batches.Load() != 1 || streams.Load() != 0 {
+		t.Fatalf("batches=%d streams=%d", batches.Load(), streams.Load())
 	}
 }

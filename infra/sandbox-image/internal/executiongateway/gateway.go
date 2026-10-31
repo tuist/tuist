@@ -43,10 +43,17 @@ type Gateway struct {
 	pending      sync.WaitGroup
 	mu           sync.Mutex
 	conns        map[string]*grpc.ClientConn
+	// Each project's cache endpoint, learned from capability checks.
+	endpoints map[string]endpoint
+}
+
+type endpoint struct {
+	url     string
+	expires time.Time
 }
 
 func New(serverURL string) *Gateway {
-	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, 128), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}}
+	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, 128), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
@@ -139,9 +146,11 @@ func (g *Gateway) GetCapabilities(ctx context.Context, r *re.GetCapabilitiesRequ
 	if err != nil {
 		return nil, err
 	}
-	if _, err = g.call(ctx, http.MethodGet, account, r.InstanceName, "/capabilities", auth, nil); err != nil {
+	op, err := g.call(ctx, http.MethodGet, account, r.InstanceName, "/capabilities", auth, nil)
+	if err != nil {
 		return nil, err
 	}
+	g.remember(account, r.InstanceName, op.CASEndpoint)
 	return &re.ServerCapabilities{LowApiVersion: &semver.SemVer{Major: 2}, HighApiVersion: &semver.SemVer{Major: 2, Minor: 3}, ExecutionCapabilities: &re.ExecutionCapabilities{ExecEnabled: true, DigestFunction: re.DigestFunction_SHA256, DigestFunctions: []re.DigestFunction_Value{re.DigestFunction_SHA256}}}, nil
 }
 
@@ -170,7 +179,11 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	if r.ExecutionPolicy.GetPriority() != 0 || r.ResultsCachePolicy.GetPriority() != 0 {
 		return status.Error(codes.InvalidArgument, "execution priorities are not supported")
 	}
-	op, err := g.call(s.Context(), http.MethodPost, account, r.InstanceName, "/operations", auth, map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup})
+	body := map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup}
+	if inputs := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest); inputs != "" {
+		body["inputs"] = inputs
+	}
+	op, err := g.call(s.Context(), http.MethodPost, account, r.InstanceName, "/operations", auth, body)
 	if err != nil {
 		return err
 	}
