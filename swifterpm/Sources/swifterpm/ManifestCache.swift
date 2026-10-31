@@ -72,6 +72,10 @@ enum ManifestCache {
     }
 
     static func inputs(packageDir: URL, disableSandbox: Bool) async throws -> String {
+        try await ManifestEnvironmentFingerprint.digest(for: inputValues(packageDir: packageDir, disableSandbox: disableSandbox))
+    }
+
+    private static func inputValues(packageDir: URL, disableSandbox: Bool) async throws -> [String: String] {
         let identity: String
         if let toolchain {
             identity = try await toolchain.value()
@@ -88,18 +92,38 @@ enum ManifestCache {
         ]
         // Hash every candidate, including its name: adding or removing a version-specific
         // manifest can change SwiftPM's selection without modifying Package.swift.
-        let manifests = try await fileSystem.contentsOfDirectory(at: packageDir).filter {
-            $0.lastPathComponent == "Package.swift"
-                || ($0.lastPathComponent.hasPrefix("Package@swift-") && $0.pathExtension == "swift")
-        }
-        for manifest in manifests {
+        for manifest in try await manifestCandidates(packageDir: packageDir) {
             inputs[manifest.lastPathComponent] = try await Hashing.sha256Hex(fileSystem.readFile(at: manifest.absolutePath))
             inputs["path:\(manifest.lastPathComponent)"] = PathCanonicalizer.realpath(manifest).path
         }
         guard inputs["Package.swift"] != nil else {
             throw ToolError.message("no Package.swift in \(packageDir.path)")
         }
-        return ManifestEnvironmentFingerprint.digest(for: inputs)
+        return inputs
+    }
+
+    /// The shared-cache entry for dumping `packageDir`, when it resolves into a pinned source
+    /// snapshot of the shared cache. SwiftPM evaluates a manifest at its real path, so the dump of a
+    /// snapshot does not depend on the scratch directory that links to it, and every scratch
+    /// directory can reuse it. Directories copied into a scratch directory are not shared.
+    static func sharedEntry(packageDir: URL, disableSandbox: Bool) async -> (file: URL, inputs: String)? {
+        guard let sharedCacheDirectory else { return nil }
+        let sources = PathCanonicalizer.realpath(sharedCacheDirectory.appendingPathComponent("sources")).path
+        guard PathCanonicalizer.realpath(packageDir).path.hasPrefix(sources + "/"),
+              var values = try? await inputValues(packageDir: packageDir, disableSandbox: disableSandbox)
+        else { return nil }
+        values.removeValue(forKey: "packagePath")
+        let inputs = ManifestEnvironmentFingerprint.digest(for: values)
+        let file = sharedCacheDirectory.appendingPathComponent("manifest-dumps")
+            .appendingPathComponent(inputs).appendingPathComponent(ManifestLoader.cacheFile)
+        return (file, inputs)
+    }
+
+    static func manifestCandidates(packageDir: URL) async throws -> [URL] {
+        try await fileSystem.contentsOfDirectory(at: packageDir).filter {
+            $0.lastPathComponent == "Package.swift"
+                || ($0.lastPathComponent.hasPrefix("Package@swift-") && $0.pathExtension == "swift")
+        }
     }
 
     static func read(at cache: URL, inputs: String) async -> Data? {

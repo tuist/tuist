@@ -52,28 +52,31 @@ enum WorkspaceRestorer {
         let registryPins = resolved.pins.filter { PinKind.isRegistry($0.kind) }
         let skipped = resolved.pins.count - sourcePins.count - registryPins.count
 
-        async let restoredSources = restoreSourcePins(
-            sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors,
-            ownedCheckouts: resolved.nativeOwnedCheckouts
-        )
-        async let restoredRegistry = restoreRegistryPins(
-            registryPins,
-            scratchDir: scratchDir,
-            cache: cache,
-            registryConfig: registryConfig
-        )
+        let (sourceResults, registryResults) = try await PhaseTiming.measure("restoring package sources") {
+            async let restoredSources = restoreSourcePins(
+                sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors,
+                ownedCheckouts: resolved.nativeOwnedCheckouts
+            )
+            async let restoredRegistry = restoreRegistryPins(
+                registryPins,
+                scratchDir: scratchDir,
+                cache: cache,
+                registryConfig: registryConfig
+            )
+            return try await (restoredSources, restoredRegistry)
+        }
 
-        let (sourceResults, registryResults) = try await (restoredSources, restoredRegistry)
-
-        try await restoreBinaryArtifacts(
-            scratchDir: scratchDir,
-            packageDir: packageDir,
-            cache: cache,
-            mirrors: mirrors,
-            resolved: resolved,
-            disableSandbox: disableSandbox,
-            progress: progress
-        )
+        try await PhaseTiming.measure("restoring binary artifacts") {
+            try await restoreBinaryArtifacts(
+                scratchDir: scratchDir,
+                packageDir: packageDir,
+                cache: cache,
+                mirrors: mirrors,
+                resolved: resolved,
+                disableSandbox: disableSandbox,
+                progress: progress
+            )
+        }
 
         guard let progress else { return }
         for (identity, source) in sourceResults {
@@ -1546,7 +1549,7 @@ enum WorkspaceRestorer {
         try? await ManifestCache.prune(scratchDirectory: scratchDir, keeping: retainedPackages)
     }
 
-    private static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
+    static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
         let statePath = scratchDir.appendingPathComponent("workspace-state.json")
         guard try await fileSystem.exists(statePath.absolutePath) else { return [] }
 
