@@ -233,3 +233,30 @@ func TestBatchByteBoundAndActiveCancellation(t *testing.T) {
 		}
 	})
 }
+
+func TestInputTreeUsesUnaryReadsAndBatchesSubdirectories(t *testing.T) {
+	w, m := harness(t)
+	var batches, streams atomic.Int32
+	m.batchRead = func(_ context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
+		batches.Add(1)
+		return batchResponse(m, r), nil
+	}
+	m.beforeRead = func(context.Context, string) error { streams.Add(1); return nil }
+	leaf := &re.Directory{Files: []*re.FileNode{{Name: "input", Digest: m.put([]byte("chained\n"))}}}
+	sibling := &re.Directory{Files: []*re.FileNode{{Name: "other", Digest: m.put([]byte("other\n"))}}}
+	middle := &re.Directory{Directories: []*re.DirectoryNode{{Name: "leaf", Digest: m.message(t, leaf)}, {Name: "sibling", Digest: m.message(t, sibling)}}}
+	root := &re.Directory{Directories: []*re.DirectoryNode{{Name: "out", Digest: m.message(t, middle)}}}
+	d := action(t, m, "cat out/leaf/input out/sibling/other > result", root, []string{"result"})
+	response, _ := w.Execute(context.Background(), d, true)
+	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("execute: %v", response)
+	}
+	// The action; its command with the input root; out; out's two subdirectories
+	// together; then each leaf directory's file.
+	if batches.Load() != 6 || streams.Load() != 0 {
+		t.Fatalf("batches=%d streams=%d", batches.Load(), streams.Load())
+	}
+	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != "chained\nother\n" {
+		t.Fatal("wrong output")
+	}
+}

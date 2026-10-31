@@ -69,7 +69,8 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 		return nil, false, false, err
 	}
 	var command re.Command
-	if err := w.CAS.Message(ctx, action.CommandDigest, &command); err != nil {
+	var input re.Directory
+	if err := w.CAS.Messages(ctx, []*re.Digest{action.CommandDigest, action.InputRootDigest}, []proto.Message{&command, &input}); err != nil {
 		return nil, false, false, err
 	}
 	if err := w.validate(&action, &command); err != nil {
@@ -95,7 +96,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	if err = w.own(root, "."); err != nil {
 		return nil, false, false, err
 	}
-	if err = w.materialize(ctx, root, ".", action.InputRootDigest, 0); err != nil {
+	if err = w.materialize(ctx, root, ".", &input, 0); err != nil {
 		return nil, false, false, err
 	}
 	metadata.InputFetchCompletedTimestamp = timestamppb.Now()
@@ -286,15 +287,11 @@ func (w *Worker) mkdir(root *os.Root, p string) error {
 	return nil
 }
 
-func (w *Worker) materialize(ctx context.Context, root *os.Root, p string, digest *re.Digest, depth int) error {
+func (w *Worker) materialize(ctx context.Context, root *os.Root, p string, dir *re.Directory, depth int) error {
 	if depth > 128 {
 		return status.Error(codes.ResourceExhausted, "input tree too deep")
 	}
 	if err := w.count(); err != nil {
-		return err
-	}
-	var dir re.Directory
-	if err := w.CAS.Message(ctx, digest, &dir); err != nil {
 		return err
 	}
 	seen := map[string]bool{}
@@ -317,13 +314,37 @@ func (w *Worker) materialize(ctx context.Context, root *os.Root, p string, diges
 		if err := check(d.Name); err != nil {
 			return err
 		}
-		child := path.Join(p, d.Name)
-		if err := w.mkdir(root, child); err != nil {
+	}
+	// Sibling directories are read together, a bounded batch at a time, so
+	// at most one batch per level is held while descending.
+	for start := 0; start < len(dir.Directories); {
+		end := start
+		var size int64
+		for end < len(dir.Directories) && end-start < inputBatchEntries && size+dir.Directories[end].Digest.GetSizeBytes() <= inputBatchBytes {
+			size += dir.Directories[end].Digest.GetSizeBytes()
+			end++
+		}
+		end = max(end, start+1)
+		nodes := dir.Directories[start:end]
+		digests := make([]*re.Digest, len(nodes))
+		children := make([]proto.Message, len(nodes))
+		for i, d := range nodes {
+			digests[i] = d.Digest
+			children[i] = &re.Directory{}
+		}
+		if err := w.CAS.Messages(ctx, digests, children); err != nil {
 			return err
 		}
-		if err := w.materialize(ctx, root, child, d.Digest, depth+1); err != nil {
-			return err
+		for i, d := range nodes {
+			child := path.Join(p, d.Name)
+			if err := w.mkdir(root, child); err != nil {
+				return err
+			}
+			if err := w.materialize(ctx, root, child, children[i].(*re.Directory), depth+1); err != nil {
+				return err
+			}
 		}
+		start = end
 	}
 	for _, s := range dir.Symlinks {
 		if err := check(s.Name); err != nil {
@@ -359,7 +380,7 @@ func (w *Worker) materializeFiles(ctx context.Context, root *os.Root, p string, 
 			size += files[end].Digest.SizeBytes
 			end++
 		}
-		if end-start < 2 {
+		if end == start {
 			streaming = append(streaming, files[start])
 			start++
 			continue

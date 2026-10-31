@@ -201,15 +201,43 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 }
 
 func (c *CAS) Message(ctx context.Context, d *re.Digest, m proto.Message) error {
-	if !ValidDigest(d) || d.SizeBytes > MaxMetadata {
-		return status.Error(codes.InvalidArgument, "invalid metadata digest")
+	return c.Messages(ctx, []*re.Digest{d}, []proto.Message{m})
+}
+
+// Messages reads small protobufs with one unary batch call. Larger ones, or
+// peers without BatchReadBlobs, use one ByteStream read each.
+func (c *CAS) Messages(ctx context.Context, digests []*re.Digest, messages []proto.Message) error {
+	batch := len(digests) <= inputBatchEntries
+	var total int64
+	for _, d := range digests {
+		if !ValidDigest(d) || d.SizeBytes > MaxMetadata {
+			return status.Error(codes.InvalidArgument, "invalid metadata digest")
+		}
+		total += d.SizeBytes
+		batch = batch && d.SizeBytes <= inputBatchFileBytes
 	}
-	var b boundedBuffer
-	if err := c.Read(ctx, d, &b); err != nil {
-		return err
+	if batch && total <= inputBatchBytes {
+		data, err := c.ReadBatch(ctx, digests)
+		if err == nil {
+			for i, b := range data {
+				if err := proto.Unmarshal(b, messages[i]); err != nil {
+					return status.Error(codes.InvalidArgument, "invalid CAS protobuf")
+				}
+			}
+			return nil
+		}
+		if !errors.Is(err, errBatchUnsupported) {
+			return err
+		}
 	}
-	if err := proto.Unmarshal(b.data, m); err != nil {
-		return status.Error(codes.InvalidArgument, "invalid CAS protobuf")
+	for i, d := range digests {
+		var b boundedBuffer
+		if err := c.Read(ctx, d, &b); err != nil {
+			return err
+		}
+		if err := proto.Unmarshal(b.data, messages[i]); err != nil {
+			return status.Error(codes.InvalidArgument, "invalid CAS protobuf")
+		}
 	}
 	return nil
 }
