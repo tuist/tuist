@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/kura-volumes-csi
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
@@ -14,3 +14,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
 )
+
+godebug default=go1.25

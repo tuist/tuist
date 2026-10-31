@@ -4,8 +4,8 @@
 # losetup, mount and mkfs.xfs, and noble ships the same cryptsetup and
 # xfsprogs generation as the hosts, so LUKS2 headers and XFS feature flags
 # written from the container match what the host tooling expects.
-ARG GO_VERSION=1.25
-ARG ALPINE_VERSION=3.22
+ARG GO_VERSION=1.26.10
+ARG ALPINE_VERSION=3.23
 ARG UBUNTU_VERSION=24.04
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder

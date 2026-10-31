@@ -427,7 +427,7 @@ jobs:
           tags: kura-borrowed-csi:fixture-${{ github.sha }}
           outputs: type=docker,dest=/tmp/kura-borrowed-csi.tar
           build-args: |
-            GO_VERSION=1.26
+            GO_VERSION=1.26.10
             VERSION=borrowed-fixture-${{ github.sha }}
       - uses: actions/upload-artifact@v4
         with:
