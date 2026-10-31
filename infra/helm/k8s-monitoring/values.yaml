@@ -60,6 +60,13 @@ hcloudLoadBalancerExporter:
       cpu: 250m
       memory: 192Mi
 
+# Serves the Alloy receiver to the tailnet from a Tailscale ProxyGroup of type
+# `ingress` instead of a standalone proxy; see
+# templates/alloy-receiver-tailnet.yaml. Empty keeps whatever the receiver's
+# own Service annotations ask for.
+alloyReceiverTailnet:
+  proxyGroup: ""
+
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
 # https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring
