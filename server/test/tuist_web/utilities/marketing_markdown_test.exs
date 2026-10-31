@@ -268,7 +268,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "test-target granularity"
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "not Bazel today"
     assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "quarantine is not applied there yet"
-    assert MarketingMarkdown.get("/solutions/ci-costs") =~ "access is invite-only, and per-minute rates are on the [pricing page]"
+
+    assert MarketingMarkdown.get("/solutions/ci-costs") =~
+             "access is invite-only, and per-minute rates are on the [pricing page]"
   end
 
   test "comparisons disclose their perspective, primary sources, and review date" do
