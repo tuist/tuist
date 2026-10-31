@@ -167,6 +167,27 @@ enum SystemProcess {
         ).stdoutString
     }
 
+    /// Returns once `executable` has started, or failed to start, without waiting for it to
+    /// finish. The child runs in its own session with its output discarded, so it outlives this
+    /// process and the terminal that started it.
+    static func spawnDetached(_ executable: String, _ arguments: [String]) async {
+        let (started, signal) = AsyncStream<Void>.makeStream()
+        Task.detached(priority: .background) {
+            var platformOptions = PlatformOptions()
+            platformOptions.createSession = true
+            _ = try? await Subprocess.run(
+                subprocessExecutable(executable),
+                arguments: Arguments(arguments),
+                platformOptions: platformOptions,
+                input: .none,
+                output: .discarded,
+                error: .discarded
+            ) { _ in signal.finish() }
+            signal.finish()
+        }
+        for await _ in started {}
+    }
+
     private static func subprocessExecutable(_ executable: String) -> Executable {
         executable.contains("/") ? .path(FilePath(executable)) : .name(executable)
     }

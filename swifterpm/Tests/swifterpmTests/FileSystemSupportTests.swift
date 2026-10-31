@@ -156,4 +156,53 @@ struct FileSystemSupportTests {
             )
         }
     }
+
+    @Test
+    func scratchTrashMovesDirectoriesAsideAndRemovesLinksInPlace() async throws {
+        try await withTemporaryDirectory { root in
+            let trash = ScratchTrash(scratchDir: root.appendingPathComponent("scratch"))
+            let directory = root.appendingPathComponent("scratch/checkouts/Dependency")
+            try await fileSystem.atomicWrite("private", to: directory.appendingPathComponent("Sources/file.swift"))
+            let target = root.appendingPathComponent("cache/Dependency")
+            try await fileSystem.atomicWrite("shared", to: target.appendingPathComponent("file.swift"))
+            let link = root.appendingPathComponent("scratch/checkouts/Linked")
+            try await fileSystem.createSymbolicLink(from: link.absolutePath, to: target.absolutePath)
+            let directoryInode = try #require(inode(directory))
+
+            try await trash.discard(directory)
+            try await trash.discard(link)
+            try await trash.discard(root.appendingPathComponent("scratch/checkouts/Missing"))
+
+            #expect(!fileSystem.existsIncludingSymlinks(directory))
+            #expect(!fileSystem.existsIncludingSymlinks(link))
+            #expect(try await fileSystem.readTextFile(at: target.appendingPathComponent("file.swift").absolutePath) == "shared")
+            let entries = try await fileSystem.contentsOfDirectory(at: trash.directory)
+            #expect(entries.map { inode($0) } == [directoryInode])
+            #expect(try await fileSystem.readTextFile(
+                at: try #require(entries.first).appendingPathComponent("Sources/file.swift").absolutePath
+            ) == "private")
+        }
+    }
+
+    @Test
+    func scratchTrashPurgeDeletesEntriesAfterReturning() async throws {
+        try await withTemporaryDirectory { root in
+            let trash = ScratchTrash(scratchDir: root)
+            await trash.purge()
+            #expect(!fileSystem.existsIncludingSymlinks(trash.directory))
+
+            for index in 0 ..< 3 {
+                let directory = root.appendingPathComponent("checkouts/Dependency\(index)")
+                try await fileSystem.atomicWrite("private", to: directory.appendingPathComponent("Sources/file.swift"))
+                try await trash.discard(directory)
+            }
+            let leftover = trash.directory.appendingPathComponent("interrupted/Sources")
+            try await fileSystem.atomicWrite("leftover", to: leftover.appendingPathComponent("file.swift"))
+
+            await trash.purge()
+
+            #expect(try await trashIsPurged(trash))
+            #expect(fileSystem.isDirectoryAndNotSymlink(root.appendingPathComponent("checkouts")))
+        }
+    }
 }
