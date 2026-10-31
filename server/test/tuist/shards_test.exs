@@ -2458,6 +2458,64 @@ defmodule Tuist.ShardsTest do
   end
 
   describe "get_shard/4" do
+    test "reads a newly created module shard when separate assignment rows are not visible" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      stub(Tuist.FeatureFlags, :immutable_shard_reports_enabled?, fn _account -> false end)
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{reference: "module-replica-lag", modules: ["AppTests"], shard_total: 1})
+
+      assert plan.reporting_version == 0
+
+      stub(IngestRepo, :preload, fn plan, _preloads -> %{plan | modules: [], test_suites: []} end)
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      assert {:ok, %{modules: ["AppTests"]}} = Shards.get_shard(project, account, plan.reference, 0)
+      assert {:ok, %{modules: ["AppTests"]}} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
+
+      for index <- [-1, 1] do
+        assert {:error, :invalid_shard_index} = Shards.get_shard_for_plan_id(project, account, plan.id, index)
+      end
+    end
+
+    test "preserves suite selection and catch-all downloads when separate assignment rows are not visible" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      stub(Tuist.FeatureFlags, :immutable_shard_reports_enabled?, fn _account -> false end)
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{
+          reference: "suite-replica-lag",
+          modules: ["AppTests", "NewTests"],
+          test_suites: ["AppTests/First", "AppTests/Second"],
+          granularity: "suite",
+          shard_total: 2
+        })
+
+      assert plan.reporting_version == 0
+
+      stub(IngestRepo, :preload, fn plan, _preloads -> %{plan | modules: [], test_suites: []} end)
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      assert {:ok, %{modules: ["AppTests"], suites: %{"AppTests" => ["First"]}}} =
+               Shards.get_shard(project, account, plan.reference, 0, suite_catch_all?: true)
+
+      assert {:ok, catch_all} = Shards.get_shard_for_plan_id(project, account, plan.id, 1, suite_catch_all?: true)
+      assert catch_all.modules == []
+      assert catch_all.skip == ["AppTests/First"]
+
+      prefix = "#{account.id}/#{project.id}/shards/#{plan.id}/"
+
+      assert Enum.sort(catch_all.download_urls) == [
+               prefix <> "modules/AppTests.aar",
+               prefix <> "modules/NewTests.aar",
+               prefix <> "shared.aar"
+             ]
+    end
+
     test "returns the requested plan when multiple plans share a reference" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
