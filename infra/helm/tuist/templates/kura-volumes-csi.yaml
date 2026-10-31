@@ -4,9 +4,11 @@ kura-volumes.tuist.dev: the CSI driver behind the kura-encrypted-nvme
 StorageClass (infra/kura-volumes-csi). Each Kura data volume is a LUKS2
 container on a logical volume in the node's kuraVolumesCSI.volumeGroup, or on a
 preallocated file under /data/kura-volumes on a node without one, opened with a
-key the node plugin fetches from the server per stage, authenticated by its projected
-ServiceAccount token. The server authorizes those requests by the token's
-username, so the namespace and ServiceAccount names below are part of the
+key the node plugin fetches from the server per stage, authenticated by a
+ServiceAccount token it mints for its own pod and that request's key
+(TokenRequest, restricted by kura-volumes-csi-token-requests). Responses are
+authenticated by the pinned kuraVolumesCSI.keyServicePublicKey. The server
+authorizes those requests by the token's username, so the namespace and ServiceAccount names below are part of the
 contract and not configurable.
 
 The provisioner runs as a sidecar on every node (--node-deployment): the volume
@@ -161,6 +163,37 @@ subjects:
     name: kura-volumes-csi-node
     namespace: kura-volumes
 ---
+# Key-service tokens are minted per request for the plugin's own pod and key;
+# kura-volumes-csi-token-requests restricts each request.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kura-volumes-csi-key-tokens
+  namespace: {{ $namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+rules:
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    resourceNames: [{{ $name }}]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kura-volumes-csi-key-tokens
+  namespace: {{ $namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kura-volumes-csi-key-tokens
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
@@ -293,7 +326,6 @@ spec:
             - --node-id=$(NODE_NAME)
             - --state-dir=/data/kura-volumes
             - --key-service-url={{ $keyServiceUrl }}
-            - --token-path=/var/run/secrets/kura-volume-keys/token
             {{- with .Values.kuraVolumesCSI.volumeGroup }}
             - --volume-group={{ . }}
             {{- end }}
@@ -310,6 +342,27 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Key-service tokens are minted for this exact pod.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: SERVICE_ACCOUNT_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.serviceAccountName
+            {{- with .Values.kuraVolumesCSI.keyServicePublicKey }}
+            - name: KEY_SERVICE_PUBLIC_KEY
+              value: {{ . | quote }}
+            {{- end }}
           securityContext:
             # Loop devices, dm-crypt and mounts that propagate back to kubelet.
             privileged: true
@@ -329,9 +382,6 @@ spec:
             # metadata locks.
             - name: lvm-lock
               mountPath: /run/lock/lvm
-            - name: volume-key-token
-              mountPath: /var/run/secrets/kura-volume-keys
-              readOnly: true
           resources:
             {{- toYaml .Values.kuraVolumesCSI.resources.driver | nindent 12 }}
         - name: node-driver-registrar
@@ -396,12 +446,5 @@ spec:
           hostPath:
             path: /dev
             type: Directory
-        - name: volume-key-token
-          projected:
-            sources:
-              - serviceAccountToken:
-                  audience: kura-volume-keys.tuist.dev
-                  expirationSeconds: 600
-                  path: token
 {{- end }}
 {{- end }}

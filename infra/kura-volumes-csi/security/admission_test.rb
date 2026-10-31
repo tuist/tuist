@@ -69,6 +69,17 @@ File.write(file.path,config.to_yaml)
   check.call('change readiness',false,'patch','node',node,'--subresource=status','--type=merge','-p',JSON.generate({'status'=>{'conditions'=>[{'type'=>'Ready','status'=>'False'}]}}))
   check.call('remove own capacity',true,'patch','node',node,'--subresource=status','--type=merge','-p',JSON.generate({'status'=>{'capacity'=>{'tuist.dev/kura-disk'=>nil}}}))
   check.call('delete own PV',true,'delete','pv',pv['metadata']['name'],'--wait=false')
+  apply({'apiVersion'=>'v1','kind'=>'Pod','metadata'=>{'name'=>'identity-other','namespace'=>'kura-volumes'},'spec'=>{'serviceAccountName'=>'kura-volumes-csi-node','nodeName'=>'other-node','containers'=>[{'name'=>'pause','image'=>'registry.k8s.io/pause:3.10'}]}})
+  other_uid=JSON.parse(kube('get','pod','identity-other','-n','kura-volumes','-o','json')[0]).dig('metadata','uid')
+  audience="--audience=kura-volume-keys.tuist.dev/v2/#{'ab'*32}"
+  mint=['create','token','kura-volumes-csi-node','-n','kura-volumes']
+  own=['--bound-object-kind=Pod','--bound-object-name=identity',"--bound-object-uid=#{uid}"]
+  check.call('mint own request token',true,*mint,audience,'--duration=10m',*own)
+  check.call('mint for another pod',false,*mint,audience,'--duration=10m','--bound-object-kind=Pod','--bound-object-name=identity-other',"--bound-object-uid=#{other_uid}")
+  check.call('mint unbound token',false,*mint,audience,'--duration=10m')
+  check.call('mint other audience',false,*mint,'--audience=kura-volume-keys.tuist.dev','--duration=10m',*own)
+  check.call('mint two audiences',false,*mint,audience,'--audience=https://kubernetes.default.svc','--duration=10m',*own)
+  check.call('mint long-lived token',false,*mint,audience,'--duration=1h',*own)
   puts JSON.pretty_generate(results)
 ensure
   file.unlink

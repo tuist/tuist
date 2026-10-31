@@ -70,21 +70,28 @@ CreateVolume and DeleteVolume run on the node that owns the volume.
 
 ## Key fetch
 
-`POST <--key-service-url>/_internal/kura/volume-keys` with
-`Authorization: Bearer <projected token>` (audience
-`kura-volume-keys.tuist.dev`, read from `--token-path` on every request) and
-`{"volume_id", "public_key", "key_version"}`, where `public_key` is a fresh
-X25519 key per request and `key_version` is omitted when the volume has no
-recorded version yet (the server then uses the account's active key). The
-server answers `{"key_version", "ephemeral_public_key", "nonce",
-"ciphertext"}`. The client derives
-`HKDF-SHA256(X25519 shared, salt = server_eph_pub || client_pub,
-info = "kura-volume-key-transport/v1", 32)` and opens AES-256-GCM with
-AAD = volume id; the plaintext is the 32-byte LUKS passphrase. 5xx and
-network errors are retried and surface as `Unavailable`; 401/403 become
-`PermissionDenied`, 404 `NotFound`. A response without a positive
-`key_version`, or with a different version than the one requested, is an
-`Internal` error.
+The fetch is authenticated end to end, independent of TLS terminators on the
+path. Per request the plugin generates an X25519 key, mints a ServiceAccount
+token for its own pod (TokenRequest from `POD_*`/`SERVICE_ACCOUNT_NAME`, 600 s)
+with the single audience `kura-volume-keys.tuist.dev/v2/<hex SHA-256 of the
+public key>`, and sends `POST <--key-service-url>/_internal/kura/volume-keys`
+with `{"volume_id", "public_key", "server_public_key", "key_version"}`.
+`server_public_key` is the pinned `KEY_SERVICE_PUBLIC_KEY`; `key_version` is
+omitted when the volume has no recorded version yet (the server then uses the
+account's active key). The server answers `{"key_version",
+"ephemeral_public_key", "nonce", "ciphertext"}`. The client derives
+`HKDF-SHA256(X25519(eph) || X25519(static), salt = server_eph_pub ||
+client_pub || server_static_pub, info = "kura-volume-key-transport/v2", 32)`
+and opens AES-256-GCM with AAD = volume id || 0x00 || decimal key version; the
+plaintext is the 32-byte LUKS passphrase. The controller docs in
+`TuistWeb.Internal.KuraVolumeKeysController` are the wire contract.
+
+Without a pinned key, or without its pod identity, the plugin still unstages
+and deletes but every fetch fails. 5xx, throttled TokenRequests and network
+errors are retried and surface as `Unavailable`; 401/403 and refused
+TokenRequests become `PermissionDenied`, 404 `NotFound`. A response that does
+not open, lacks a positive `key_version` or differs from the requested version
+is an `Internal` error.
 
 ## Deletion
 
@@ -172,9 +179,10 @@ load test, not a production health probe.
 ## Key custody and admission
 
 [Security runbook and tests](security/AGENTS.md) cover OpenBao Transit wrapping, resumable
-rewrap and recovery gates. The main chart owns three retained fail-closed
+rewrap and recovery gates. The main chart owns four retained fail-closed
 admission policies restricting the shared CSI identity to its token-bound node,
-immutable PV/PVC ownership and its own disk-capacity field. PVC writes/events
+immutable PV/PVC ownership, its own disk-capacity field and short-lived
+key-service tokens bound to its own pod. PVC writes/events
 are namespaced to `kura`. Cluster administrators and privileged host access
 remain trusted. Never claim hosted OpenBao custody before the live migration gates
 in `security/key-management.md` pass.

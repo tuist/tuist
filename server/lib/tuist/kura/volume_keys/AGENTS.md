@@ -19,5 +19,8 @@ volume passphrases and key-service sealing.
   rewrapping; disable OpenBao only after inventory and re-stage checks pass.
 - Adding/removing a share or rotating a compromised share requires a separate
   volume/keyslot migration. Rewrap alone does not remediate leaked plaintext.
+- Issuance must stay independent of TLS terminators: TokenReview only for the
+  audience derived from the request key, and seal with the pinned transport key
+  plus volume id and key version as AAD. Never accept a key-independent audience.
 - An already-mounted LUKS volume remains accessible after key-service denial.
   Never promise immediate revocation or protection against a privileged node.

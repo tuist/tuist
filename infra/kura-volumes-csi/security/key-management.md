@@ -349,14 +349,28 @@ pending claim; checking only PV node affinity does not establish cross-node
 isolation. A check inside that same compromised plugin is insufficient. Trusted
 admission/provisioning must validate the claim/node relationship before production.
 
-**Open transport gap:** the default key-service URL still uses the public edge.
-X25519 sealing protects passive response logs, but the bearer token is not bound
-to the request key. An active TLS terminator can reuse it with a different key.
-All terminators remain trusted until a private, authenticated HTTPS path is
-implemented and tested. Changing the URL to plain HTTP is not an acceptable fix.
+**Key-service transport (implemented, not yet deployed):** the key service no
+longer trusts the TLS terminators on the public edge. Each fetch mints a
+pod-bound token whose only audience is the SHA-256 of that request's X25519 key,
+so a terminator replaying the token with its own key fails TokenReview, and a
+replay with the original key yields only a response sealed to the plugin. The
+response is additionally keyed by a static server X25519 key that the plugin
+pins, and the AAD binds volume id and key version, so a terminator cannot forge
+or relabel a passphrase. A terminator still sees request metadata (volume ids,
+timing) and can deny service. A compromised node plugin can still fetch keys for
+volumes pinned to its own node; that boundary is unchanged.
+
+Enabling it per environment requires an operator, in order: generate an X25519
+keypair offline; store the base64 private key in the environment vault as item
+`KURA_VOLUME_TRANSPORT_KEYS`, field `value`; set
+`server.config.kuraVolumeTransportKeys.enabled` and deploy the server; then set
+`kuraVolumesCSI.keyServicePublicKey` and explicitly upgrade the CSI digest.
+Server and plugin speak only the v2 protocol, so stages fail between the
+server deploy and the CSI upgrade; mounted volumes are unaffected. To rotate,
+prepend the new private key, deploy, re-pin the plugin, then remove the old key.
 
 RBAC still lets the distributed provisioner manage cluster-scoped PVs, which
-cannot be namespace-scoped. Three fail-closed ValidatingAdmissionPolicies add
+cannot be namespace-scoped. Four fail-closed ValidatingAdmissionPolicies add
 field/node restrictions for its exact ServiceAccount:
 
 - PV create/update/delete must reference a Kura claim and the caller's bound
@@ -366,6 +380,10 @@ field/node restrictions for its exact ServiceAccount:
   ownership fields, and selecting/releasing only the caller's own node.
 - Node-status updates can modify only `tuist.dev/kura-disk` capacity on the
   caller's node. CPU/memory, readiness and other status/metadata remain unchanged.
+- TokenRequests must be bound to the caller's own pod (name and UID from its
+  token), carry exactly one `kura-volume-keys.tuist.dev/v2/<sha256>` audience
+  and expire within ten minutes. A namespaced Role grants `create` on only the
+  plugin's own `serviceaccounts/token`.
 
 PVC write/event permissions now live in a `kura` Role; snapshot permissions are
 removed. The driver retains cluster-wide informer reads needed by the upstream

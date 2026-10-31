@@ -48,13 +48,13 @@ defmodule Tuist.Kura.VolumeKeys do
   @passphrase_bytes 32
   @tenant_key_aad_prefix "kura-tenant-key/v1|"
   @volume_key_salt "kura-volume-key/v1"
-  @transport_info "kura-volume-key-transport/v1"
+  @transport_info "kura-volume-key-transport/v2"
   @transport_nonce_bytes 12
   @transport_tag_bytes 16
   @x25519_public_key_bytes 32
 
   @driver "kura-volumes.tuist.dev"
-  @audience "kura-volume-keys.tuist.dev"
+  @audience_prefix "kura-volume-keys.tuist.dev/v2/"
   @node_topology_key "topology.kura-volumes.tuist.dev/node"
   @node_name_extra "authentication.kubernetes.io/node-name"
   @kura_namespace "kura"
@@ -135,24 +135,29 @@ defmodule Tuist.Kura.VolumeKeys do
   end
 
   @doc """
-  Issues the passphrase of `volume_id`, sealed to `client_public_key`, to the
-  CSI node plugin presenting `token`.
+  Issues the passphrase of `volume_id`, sealed to `client_public_key` with the
+  transport key behind the pinned `server_public_key`, to the CSI node plugin
+  presenting `token`.
 
   The caller must be the configured node plugin ServiceAccount, its token must
-  be bound to a node, and the PersistentVolume must be a `kura-volumes`
-  volume pinned to that node whose claim is a live Kura replica's. The
+  be bound to a node and minted for the audience naming `client_public_key`,
+  and the PersistentVolume must be a `kura-volumes` volume pinned to that node
+  whose claim is a live Kura replica's. The
   account is the one whose Kura instance owns the claim.
   """
-  def issue(token, volume_id, client_public_key, opts \\ []) do
+  def issue(token, volume_id, client_public_key, server_public_key, opts \\ []) do
     with :ok <- validate_volume_id(volume_id),
          :ok <- validate_public_key(client_public_key),
+         {:ok, {_public, static_private} = transport_key} <- transport_key(server_public_key),
+         # Rejects low-order keys before any TokenReview.
+         {:ok, _static_shared} <- shared_secret(client_public_key, static_private),
          :ok <- ensure_available(),
-         {:ok, node_name} <- authenticate(token),
+         {:ok, node_name} <- authenticate(token, audience(client_public_key)),
          {:ok, claim_ref, parent_id} <- authorize_volume(volume_id, node_name),
          {:ok, account} <- claim_account(claim_ref, parent_id),
          {:ok, tenant_key} <- tenant_key(account, Keyword.get(opts, :key_version)),
          {:ok, passphrase} <- volume_passphrase(account, tenant_key, volume_id),
-         {:ok, sealed} <- seal(passphrase, volume_id, client_public_key) do
+         {:ok, sealed} <- seal(passphrase, volume_id, tenant_key.version, client_public_key, transport_key) do
       Logger.info(
         "[Kura.VolumeKeys] issued key version #{tenant_key.version} of account #{account.id} for volume #{volume_id} on node #{node_name}"
       )
@@ -194,41 +199,65 @@ defmodule Tuist.Kura.VolumeKeys do
   end
 
   @doc """
-  Seals `passphrase` to the holder of the X25519 private key behind
-  `client_public_key`. See `TuistWeb.Internal.KuraVolumeKeysController` for
-  the format.
+  The token audience that authorizes a request for `client_public_key`.
   """
-  def seal(passphrase, volume_id, client_public_key) do
-    {server_public_key, server_private_key} = :crypto.generate_key(:ecdh, :x25519)
+  def audience(client_public_key),
+    do: @audience_prefix <> Base.encode16(:crypto.hash(:sha256, client_public_key), case: :lower)
 
-    with {:ok, sealing_key} <- transport_key(client_public_key, server_private_key, server_public_key) do
-      nonce = :crypto.strong_rand_bytes(@transport_nonce_bytes)
+  @doc """
+  Seals `passphrase` of `key_version` to the holder of the X25519 private key
+  behind `client_public_key`, authenticated by the static `{public, private}`
+  transport key. See `TuistWeb.Internal.KuraVolumeKeysController` for the format.
+  """
+  def seal(passphrase, volume_id, key_version, client_public_key, {static_public_key, static_private_key}) do
+    {ephemeral_public_key, ephemeral_private_key} = :crypto.generate_key(:ecdh, :x25519)
 
-      {ciphertext, tag} =
-        :crypto.crypto_one_time_aead(
-          :aes_256_gcm,
-          sealing_key,
-          nonce,
-          passphrase,
-          volume_id,
-          @transport_tag_bytes,
-          true
+    with {:ok, ephemeral_shared} <- shared_secret(client_public_key, ephemeral_private_key),
+         {:ok, static_shared} <- shared_secret(client_public_key, static_private_key) do
+      sealing_key =
+        HKDF.derive(
+          ephemeral_shared <> static_shared,
+          ephemeral_public_key <> client_public_key <> static_public_key,
+          @transport_info,
+          32
         )
 
-      {:ok, %{ephemeral_public_key: server_public_key, nonce: nonce, ciphertext: ciphertext <> tag}}
+      nonce = :crypto.strong_rand_bytes(@transport_nonce_bytes)
+      aad = volume_id <> <<0>> <> Integer.to_string(key_version)
+
+      {ciphertext, tag} =
+        :crypto.crypto_one_time_aead(:aes_256_gcm, sealing_key, nonce, passphrase, aad, @transport_tag_bytes, true)
+
+      {:ok, %{ephemeral_public_key: ephemeral_public_key, nonce: nonce, ciphertext: ciphertext <> tag}}
     end
   end
 
   # OpenSSL refuses to derive from a low-order point, whose shared secret would
   # be all zeros; both outcomes are rejected.
-  defp transport_key(client_public_key, server_private_key, server_public_key) do
-    case :crypto.compute_key(:ecdh, client_public_key, server_private_key, :x25519) do
+  defp shared_secret(client_public_key, private_key) do
+    case :crypto.compute_key(:ecdh, client_public_key, private_key, :x25519) do
       <<0::256>> -> {:error, :invalid_public_key}
-      shared -> {:ok, HKDF.derive(shared, server_public_key <> client_public_key, @transport_info, 32)}
+      shared -> {:ok, shared}
     end
   rescue
     ErlangError -> {:error, :invalid_public_key}
   end
+
+  defp transport_key(<<_::binary-size(@x25519_public_key_bytes)>> = server_public_key) do
+    case Environment.kura_volume_transport_keys() do
+      [] ->
+        Logger.error("[Kura.VolumeKeys] transport keys are not configured; refusing to issue volume keys")
+        {:error, :transport_keys_unavailable}
+
+      keys ->
+        case List.keyfind(keys, server_public_key, 0) do
+          {_public, _private} = key -> {:ok, key}
+          nil -> {:error, :unknown_server_public_key}
+        end
+    end
+  end
+
+  defp transport_key(_server_public_key), do: {:error, :invalid_server_public_key}
 
   defp create_active_key(account) do
     tenant_id = Identity.tenant_id(account)
@@ -318,10 +347,10 @@ defmodule Tuist.Kura.VolumeKeys do
     end
   end
 
-  defp authenticate(token) when is_binary(token) and token != "" do
+  defp authenticate(token, audience) when is_binary(token) and token != "" do
     expected_username = Environment.kura_volumes_csi_node_username()
 
-    case Client.create_bound_token_review(token, @audience, timeout: @kubernetes_timeout_ms) do
+    case Client.create_bound_token_review(token, audience, timeout: @kubernetes_timeout_ms) do
       {:ok, %{username: ^expected_username, extra: %{@node_name_extra => [node_name]}}}
       when is_binary(node_name) and node_name != "" ->
         {:ok, node_name}
@@ -337,7 +366,7 @@ defmodule Tuist.Kura.VolumeKeys do
     end
   end
 
-  defp authenticate(_token), do: {:error, :unauthenticated}
+  defp authenticate(_token, _audience), do: {:error, :unauthenticated}
 
   # A child identity embeds its parent permanently. Authorization follows the
   # live parent PV/PVC on every reopen; derivation and sealing still use the FULL

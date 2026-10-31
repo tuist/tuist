@@ -206,4 +206,59 @@ spec:
   policyName: kura-csi-capacity-boundary
   validationActions:
   - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-csi-token-requests
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - serviceaccounts/token
+      operations:
+      - CREATE
+  matchConditions:
+  - name: kura-csi-only
+    expression: request.userInfo.username == 'system:serviceaccount:kura-volumes:kura-volumes-csi-node'
+  variables:
+  - name: podName
+    expression: "'authentication.kubernetes.io/pod-name' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/pod-name']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/pod-name'][0] : ''"
+  - name: podUID
+    expression: "'authentication.kubernetes.io/pod-uid' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/pod-uid']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/pod-uid'][0] : ''"
+  validations:
+  - expression: variables.podName != '' && variables.podUID != ''
+    message: Kura CSI requires a pod-bound identity to mint tokens.
+  - expression: has(object.spec.boundObjectRef) && object.spec.boundObjectRef.kind ==
+      'Pod' && object.spec.boundObjectRef.apiVersion == 'v1' && object.spec.boundObjectRef.name
+      == variables.podName && has(object.spec.boundObjectRef.uid) && object.spec.boundObjectRef.uid
+      == variables.podUID
+    message: Kura CSI can mint tokens only bound to its own pod.
+  - expression: size(object.spec.audiences) == 1 && object.spec.audiences[0].matches('^kura-volume-keys[.]tuist[.]dev/v2/[0-9a-f]{64}$')
+    message: Kura CSI can mint tokens only for one key-service request.
+  - expression: has(object.spec.expirationSeconds) && object.spec.expirationSeconds
+      <= 600
+    message: Kura CSI tokens must expire within ten minutes.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kura-csi-token-requests
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  policyName: kura-csi-token-requests
+  validationActions:
+  - Deny
 {{- end }}

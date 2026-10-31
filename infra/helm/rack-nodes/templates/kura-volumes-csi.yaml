@@ -74,7 +74,6 @@ spec:
             - --node-id=$(NODE_NAME)
             - --state-dir=/data/kura-volumes
             - --key-service-url={{ $keyServiceUrl }}
-            - --token-path=/var/run/secrets/kura-volume-keys/token
             {{- with .Values.kuraVolumesCSI.volumeGroup }}
             - --volume-group={{ . }}
             {{- end }}
@@ -91,6 +90,27 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Key-service tokens are minted for this exact pod.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: SERVICE_ACCOUNT_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.serviceAccountName
+            {{- with .Values.kuraVolumesCSI.keyServicePublicKey }}
+            - name: KEY_SERVICE_PUBLIC_KEY
+              value: {{ . | quote }}
+            {{- end }}
           securityContext:
             # Loop devices, dm-crypt and mounts that propagate back to kubelet.
             privileged: true
@@ -110,9 +130,6 @@ spec:
             # metadata locks.
             - name: lvm-lock
               mountPath: /run/lock/lvm
-            - name: volume-key-token
-              mountPath: /var/run/secrets/kura-volume-keys
-              readOnly: true
           resources:
             {{- toYaml .Values.kuraVolumesCSI.resources.driver | nindent 12 }}
         - name: node-driver-registrar
@@ -177,11 +194,4 @@ spec:
           hostPath:
             path: /dev
             type: Directory
-        - name: volume-key-token
-          projected:
-            sources:
-              - serviceAccountToken:
-                  audience: kura-volume-keys.tuist.dev
-                  expirationSeconds: 600
-                  path: token
 {{- end }}

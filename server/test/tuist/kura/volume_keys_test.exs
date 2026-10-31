@@ -171,32 +171,51 @@ defmodule Tuist.Kura.VolumeKeysTest do
     end
   end
 
-  describe "seal/3" do
-    test "seals the passphrase to the client's X25519 key" do
+  describe "seal/5" do
+    test "seals the passphrase to the client key, authenticated by the transport key and key version" do
       {client_public, client_private} = :crypto.generate_key(:ecdh, :x25519)
+      {static_public, _} = static_key = :crypto.generate_key(:ecdh, :x25519)
       passphrase = :crypto.strong_rand_bytes(32)
 
-      assert {:ok, %{ephemeral_public_key: server_public, nonce: nonce, ciphertext: sealed}} =
-               VolumeKeys.seal(passphrase, "pvc-a", client_public)
+      assert {:ok, %{ephemeral_public_key: ephemeral_public, nonce: nonce, ciphertext: sealed}} =
+               VolumeKeys.seal(passphrase, "pvc-a", 3, client_public, static_key)
 
-      assert byte_size(server_public) == 32
+      assert byte_size(ephemeral_public) == 32
       assert byte_size(nonce) == 12
       assert byte_size(sealed) == 32 + 16
-      assert open(sealed, nonce, server_public, client_public, client_private, "pvc-a") == passphrase
-      assert open(sealed, nonce, server_public, client_public, client_private, "pvc-b") == :error
+      opened = &open(sealed, nonce, ephemeral_public, &1, client_public, client_private, &2)
+      assert opened.(static_public, "pvc-a\0" <> "3") == passphrase
+      assert opened.(static_public, "pvc-b\0" <> "3") == :error
+      assert opened.(static_public, "pvc-a\0" <> "4") == :error
+      assert opened.(elem(:crypto.generate_key(:ecdh, :x25519), 0), "pvc-a\0" <> "3") == :error
     end
 
     test "rejects a low-order public key" do
-      assert VolumeKeys.seal(:crypto.strong_rand_bytes(32), "pvc-a", <<0::256>>) == {:error, :invalid_public_key}
+      static_key = :crypto.generate_key(:ecdh, :x25519)
+
+      assert VolumeKeys.seal(:crypto.strong_rand_bytes(32), "pvc-a", 1, <<0::256>>, static_key) ==
+               {:error, :invalid_public_key}
+    end
+  end
+
+  describe "audience/1" do
+    test "names the lowercase hex SHA-256 of the request key" do
+      key = :crypto.strong_rand_bytes(32)
+
+      assert VolumeKeys.audience(key) ==
+               "kura-volume-keys.tuist.dev/v2/" <> Base.encode16(:crypto.hash(:sha256, key), case: :lower)
     end
   end
 
   # The client side of the transport, written out from the documented format.
-  def open(sealed, nonce, server_public, client_public, client_private, volume_id) do
-    shared = :crypto.compute_key(:ecdh, server_public, client_private, :x25519)
-    key = HKDF.derive(shared, server_public <> client_public, "kura-volume-key-transport/v1", 32)
+  def open(sealed, nonce, ephemeral_public, static_public, client_public, client_private, aad) do
+    ikm =
+      :crypto.compute_key(:ecdh, ephemeral_public, client_private, :x25519) <>
+        :crypto.compute_key(:ecdh, static_public, client_private, :x25519)
+
+    key = HKDF.derive(ikm, ephemeral_public <> client_public <> static_public, "kura-volume-key-transport/v2", 32)
     ciphertext = binary_part(sealed, 0, byte_size(sealed) - 16)
     tag = binary_part(sealed, byte_size(sealed), -16)
-    :crypto.crypto_one_time_aead(:aes_256_gcm, key, nonce, ciphertext, volume_id, tag, false)
+    :crypto.crypto_one_time_aead(:aes_256_gcm, key, nonce, ciphertext, aad, tag, false)
   end
 end

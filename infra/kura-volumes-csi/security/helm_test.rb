@@ -17,12 +17,25 @@ Dir.mktmpdir('kura-security-chart') do |chart|
   raise 'missing OpenBao mount' unless pod['containers'][0]['volumeMounts'].any? { |v| v['name']=='kura-openbao-identity' && v['readOnly'] }
   raise 'OpenBao writes not enabled by default' unless pod['containers'][0]['env'].any? { |v| v['name']=='TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES' && v['value']=='true' }
   raise 'exportable root still synced' if out.include?('TUIST_KURA_VOLUME_ROOT_KEYS')
-  raise 'missing fail-closed policies' unless docs.count { |d| d['kind']=='ValidatingAdmissionPolicy' && d.dig('spec','failurePolicy')=='Fail' } == 3
+  raise 'missing fail-closed policies' unless docs.count { |d| d['kind']=='ValidatingAdmissionPolicy' && d.dig('spec','failurePolicy')=='Fail' } == 4
   cluster_role=docs.find { |d| d['kind']=='ClusterRole' && d.dig('metadata','name')=='kura-volumes-csi-node' }
   raise 'cluster-wide PVC writes' if cluster_role['rules'].any? { |r| r['resources'].include?('persistentvolumeclaims') && (r['verbs'] & %w(update patch create delete)).any? }
   raise 'CSI Secret access' if cluster_role['rules'].any? { |r| (r['resources'] & %w(secrets *)).any? }
   namespaced=docs.find { |d| d['kind']=='Role' && d.dig('metadata','name')=='kura-volumes-csi-claims' }
   raise 'claim role not scoped to kura' unless namespaced.dig('metadata','namespace')=='kura'
+  tokens=docs.find { |d| d['kind']=='Role' && d.dig('metadata','name')=='kura-volumes-csi-key-tokens' }
+  raise 'token minting not limited to the plugin identity' unless tokens['rules']==[{'apiGroups'=>[''],'resources'=>['serviceaccounts/token'],'resourceNames'=>['kura-volumes-csi-node'],'verbs'=>['create']}]
+  raise 'cluster-wide token minting' if cluster_role['rules'].any? { |r| r['resources'].include?('serviceaccounts/token') }
+  driver=docs.find { |d| d['kind']=='DaemonSet' && d.dig('metadata','name')=='kura-volumes-csi-node' }.dig('spec','template','spec','containers',0)
+  raise 'static key-service token still projected' if out.include?('audience: kura-volume-keys.tuist.dev')
+  raise 'pod identity missing' unless (%w(POD_NAMESPACE POD_NAME POD_UID SERVICE_ACCOUNT_NAME) - driver['env'].map { |e| e['name'] }).empty?
+  raise 'unpinned key rendered' if driver['env'].any? { |e| e['name']=='KEY_SERVICE_PUBLIC_KEY' }
+  raise 'transport keys synced by default' if out.include?('KURA_VOLUME_TRANSPORT_KEYS/value')
+  out,err,status=Open3.capture3(*args,'--set','kuraVolumesCSI.keyServicePublicKey=cGlubmVk','--set','server.config.kuraVolumeTransportKeys.enabled=true')
+  raise err unless status.success?
+  driver=YAML.load_stream(out).compact.find { |d| d['kind']=='DaemonSet' && d.dig('metadata','name')=='kura-volumes-csi-node' }.dig('spec','template','spec','containers',0)
+  raise 'pinned key not passed' unless driver['env'].include?({'name'=>'KEY_SERVICE_PUBLIC_KEY','value'=>'cGlubmVk'})
+  raise 'transport keys not synced' unless out.include?('KURA_VOLUME_TRANSPORT_KEYS/value')
   _,_,status=Open3.capture3(*args,'--set','server.config.kuraVolumeOpenBao.role=')
   raise 'accepted OpenBao without role' if status.success?
   out,err,status=Open3.capture3(*args,'--set','server.config.kuraVolumeOpenBao.caConfigMap=openbao-ca')
@@ -43,6 +56,6 @@ Dir.mktmpdir('kura-security-chart') do |chart|
   out,err,status=Open3.capture3(*args,'--set','server.config.kuraVolumeOpenBao.enabled=false')
   raise err unless status.success?
   raise 'disabled provider still mounts identity' if out.include?('kura-openbao-identity') || out.include?('TUIST_KURA_VOLUME_OPENBAO_')
-  puts 'PASS: projected identity, private CA, disabled defaults, root removal, OpenBao fail-closed config, CSI admission and namespaced RBAC'
+  puts 'PASS: projected identity, private CA, disabled defaults, root removal, OpenBao fail-closed config, CSI admission, key-bound token minting and namespaced RBAC'
 
 end

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/ecdh"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/driver"
+	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/kubeapi"
 	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/nodecapacity"
 	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/volumekeys"
 )
@@ -37,7 +39,8 @@ func main() {
 	reserveBytes := flag.Int64("reserve-bytes", 20<<30, "bytes CreateVolume leaves free on the state dir filesystem")
 	volumeGroup := flag.String("volume-group", "", "LVM volume group new volumes are created in when the node has it; empty keeps backing files")
 	keyServiceURL := flag.String("key-service-url", "", "base URL of the Tuist server that serves volume keys")
-	tokenPath := flag.String("token-path", "/var/run/secrets/kura-volume-keys/token", "projected service account token presented to the key service")
+	// Accepted so a chart rendered for an older plugin still starts this one.
+	_ = flag.String("token-path", "", "ignored")
 	logLevel := flag.String("log-level", "info", "debug, info, warn or error")
 	advertiseInterval := flag.Duration("advertise-interval", time.Minute, "how often the node's Kura disk capacity is advertised; 0 disables it")
 	thinPool := flag.String("thin-pool", "", "explicitly prepared thin pool; empty disables thin provisioning")
@@ -52,19 +55,41 @@ func main() {
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, *tokenPath, *advertiseInterval, driver.ThinConfig{Pool: *thinPool, DataReserveBytes: *thinDataReserve, MetadataReserveBytes: *thinMetadataReserve, MaxVolumes: *thinMaxVolumes}); err != nil {
+	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, os.Getenv("KEY_SERVICE_PUBLIC_KEY"), *advertiseInterval, driver.ThinConfig{Pool: *thinPool, DataReserveBytes: *thinDataReserve, MetadataReserveBytes: *thinMetadataReserve, MaxVolumes: *thinMaxVolumes}); err != nil {
 		logger.Error("kura-volumes-csi failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, tokenPath string, advertiseInterval time.Duration, thin driver.ThinConfig) error {
+func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, keyServicePublicKey string, advertiseInterval time.Duration, thin driver.ThinConfig) error {
 	socket, err := socketPath(endpoint)
 	if err != nil {
 		return err
 	}
 	if err := checkKeyServiceURL(keyServiceURL); err != nil {
 		return err
+	}
+	// Without a pinned key the plugin keeps serving unstage and delete; only
+	// key fetches fail.
+	var serverPublic *ecdh.PublicKey
+	if keyServicePublicKey == "" {
+		logger.Error("KEY_SERVICE_PUBLIC_KEY is not set; volumes cannot be created or staged")
+	} else if serverPublic, err = volumekeys.ParseServerPublicKey(keyServicePublicKey); err != nil {
+		logger.Error("KEY_SERVICE_PUBLIC_KEY is invalid; volumes cannot be created or staged", "error", err)
+	}
+	api, err := kubeapi.NewInCluster()
+	if err != nil {
+		return err
+	}
+	tokens := volumekeys.PodTokenSource{
+		API:            api,
+		Namespace:      os.Getenv("POD_NAMESPACE"),
+		ServiceAccount: os.Getenv("SERVICE_ACCOUNT_NAME"),
+		PodName:        os.Getenv("POD_NAME"),
+		PodUID:         os.Getenv("POD_UID"),
+	}
+	if err := tokens.Validate(); err != nil {
+		logger.Error("volumes cannot be created or staged", "error", err)
 	}
 	if thin.Pool == "" {
 		thin, err = driver.LoadThinConfig(stateDir)
@@ -79,7 +104,7 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 		ReserveBytes: reserveBytes,
 		VolumeGroup:  volumeGroup,
 		Version:      version,
-		Keys:         volumekeys.New(keyServiceURL, tokenPath, volumekeys.WithLogger(logger)),
+		Keys:         volumekeys.New(keyServiceURL, serverPublic, tokens, volumekeys.WithLogger(logger)),
 		Runner:       driver.ExecRunner{},
 		Mounts:       driver.ProcMountTable{Path: "/proc/self/mountinfo"},
 		Host:         driver.OSHost{},
@@ -114,11 +139,7 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 		}()
 	}
 	if advertiseInterval > 0 {
-		patcher, err := nodecapacity.NewInClusterPatcher()
-		if err != nil {
-			return err
-		}
-		advertiser := &nodecapacity.Advertiser{Node: nodeID, Measure: d.KuraDiskCapacity, Patcher: patcher, Interval: advertiseInterval, Logger: logger}
+		advertiser := &nodecapacity.Advertiser{Node: nodeID, Measure: d.KuraDiskCapacity, Patcher: nodecapacity.NewInClusterPatcher(api), Interval: advertiseInterval, Logger: logger}
 		go advertiser.Run(ctx)
 	}
 	go func() {

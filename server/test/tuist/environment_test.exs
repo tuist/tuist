@@ -69,6 +69,31 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "kura_volume_transport_keys/1" do
+    test "reads private keys in order with their X25519 public keys" do
+      {public_a, private_a} = :crypto.generate_key(:ecdh, :x25519)
+      {public_b, private_b} = :crypto.generate_key(:ecdh, :x25519)
+
+      assert Environment.parse_kura_volume_transport_keys("#{Base.encode64(private_b)}, #{Base.encode64(private_a)}") ==
+               [{public_b, private_b}, {public_a, private_a}]
+    end
+
+    test "is empty when any entry is malformed" do
+      key = Base.encode64(:crypto.strong_rand_bytes(32))
+
+      assert Environment.parse_kura_volume_transport_keys("#{Base.encode64("short")},#{key}") == []
+      assert Environment.parse_kura_volume_transport_keys("not base64") == []
+    end
+
+    test "derives a stable development key from the secret key base when unset" do
+      secrets = %{"secret_key" => %{"base" => "development-base"}}
+
+      assert [{public, private}] = Environment.kura_volume_transport_keys(secrets)
+      assert {^public, ^private} = :crypto.generate_key(:ecdh, :x25519, private)
+      assert Environment.kura_volume_transport_keys(secrets) == [{public, private}]
+    end
+  end
+
   describe "runners_rented_macos_fleet?/1" do
     test "rents a macOS fleet unless the deployment says it has none" do
       assert Environment.runners_rented_macos_fleet?(%{})

@@ -25,9 +25,17 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
     account = AccountsFixtures.account_fixture()
     server = KuraFixtures.active_server_fixture(account)
     {client_public, client_private} = :crypto.generate_key(:ecdh, :x25519)
+    {static_public, _static_private} = static_key = :crypto.generate_key(:ecdh, :x25519)
+    stub(Environment, :kura_volume_transport_keys, fn -> [static_key] end)
+    audience = "kura-volume-keys.tuist.dev/v2/" <> Base.encode16(:crypto.hash(:sha256, client_public), case: :lower)
 
-    stub(Client, :create_bound_token_review, fn "node-token", "kura-volume-keys.tuist.dev", _opts ->
-      {:ok, %{username: @username, uid: "uid", extra: %{"authentication.kubernetes.io/node-name" => [@node]}}}
+    # The apiserver only authenticates a token for the audience it was minted for.
+    stub(Client, :create_bound_token_review, fn
+      "node-token", ^audience, _opts ->
+        {:ok, %{username: @username, uid: "uid", extra: %{"authentication.kubernetes.io/node-name" => [@node]}}}
+
+      _token, _audience, _opts ->
+        {:error, :unauthenticated}
     end)
 
     stub(Client, :get_persistent_volume, fn @volume_id, _opts -> {:ok, persistent_volume()} end)
@@ -36,7 +44,13 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
       {:ok, claim(server.provisioner_node_ref)}
     end)
 
-    %{account: account, server: server, client_public: client_public, client_private: client_private}
+    %{
+      account: account,
+      server: server,
+      client_public: client_public,
+      client_private: client_private,
+      static_public: static_public
+    }
   end
 
   test "issues the volume passphrase sealed to the caller", %{conn: conn, account: account} = context do
@@ -51,6 +65,8 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
     second = conn |> recycle() |> request(context) |> json_response(200)
     assert second["ephemeral_public_key"] != response["ephemeral_public_key"]
     assert open(second, context) == passphrase
+    assert open(second, context, @volume_id, 2) == :error
+    assert open(second, %{context | static_public: elem(:crypto.generate_key(:ecdh, :x25519), 0)}) == :error
   end
 
   test "serves an explicitly requested key version, and 404s an unknown one", %{conn: conn} = context do
@@ -138,6 +154,16 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
       end)
 
       assert conn |> request(context) |> json_response(401) == %{"error" => "unauthenticated"}
+    end
+
+    test "rejects a token minted for another request key", %{conn: conn} = context do
+      reject(&Client.get_persistent_volume/2)
+      {other_public, other_private} = :crypto.generate_key(:ecdh, :x25519)
+
+      assert conn
+             |> request(%{context | client_public: other_public, client_private: other_private})
+             |> json_response(401) ==
+               %{"error" => "unauthenticated"}
     end
 
     test "rejects a token that is not bound to exactly one node", %{conn: conn} = context do
@@ -237,7 +263,24 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
       end
     end
 
+    test "rejects a malformed or unknown server public key", %{conn: conn} = context do
+      reject(&Client.create_bound_token_review/3)
+
+      for {server_public_key, code} <- [
+            {nil, "invalid_server_public_key"},
+            {Base.encode64(:crypto.strong_rand_bytes(31)), "invalid_server_public_key"},
+            {Base.encode64(:crypto.strong_rand_bytes(32)), "unknown_server_public_key"}
+          ] do
+        assert conn
+               |> recycle()
+               |> request(context, %{"server_public_key" => server_public_key})
+               |> json_response(400) == %{"error" => code}
+      end
+    end
+
     test "rejects a low-order public key", %{conn: conn} = context do
+      reject(&Client.create_bound_token_review/3)
+
       assert conn |> request(%{context | client_public: <<0::256>>}) |> json_response(400) ==
                %{"error" => "invalid_public_key"}
     end
@@ -251,7 +294,8 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
                |> put_req_header("authorization", "Bearer node-token")
                |> post(~p"/_internal/kura/volume-keys", %{
                  "volume_id" => volume_id,
-                 "public_key" => Base.encode64(context.client_public)
+                 "public_key" => Base.encode64(context.client_public),
+                 "server_public_key" => Base.encode64(context.static_public)
                })
                |> json_response(400) == %{"error" => "invalid_volume_id"}
       end
@@ -260,6 +304,13 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
 
   test "fails closed without root keys", %{conn: conn} = context do
     stub(Environment, :kura_volume_root_keys, fn -> [] end)
+    reject(&Client.create_bound_token_review/3)
+
+    assert conn |> request(context) |> json_response(503) == %{"error" => "unavailable"}
+  end
+
+  test "fails closed without transport keys", %{conn: conn} = context do
+    stub(Environment, :kura_volume_transport_keys, fn -> [] end)
     reject(&Client.create_bound_token_review/3)
 
     assert conn |> request(context) |> json_response(503) == %{"error" => "unavailable"}
@@ -299,20 +350,33 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
     post(
       conn,
       ~p"/_internal/kura/volume-keys",
-      Map.merge(%{"volume_id" => @volume_id, "public_key" => Base.encode64(context.client_public)}, extra)
+      Map.merge(
+        %{
+          "volume_id" => @volume_id,
+          "public_key" => Base.encode64(context.client_public),
+          "server_public_key" => Base.encode64(context.static_public)
+        },
+        extra
+      )
     )
   end
 
-  defp open(response, %{client_public: client_public, client_private: client_private}, volume_id \\ @volume_id) do
-    server_public = Base.decode64!(response["ephemeral_public_key"])
+  # The client side of the transport, written out from the documented format.
+  defp open(response, context, volume_id \\ @volume_id, key_version \\ nil) do
+    %{client_public: client_public, client_private: client_private, static_public: static_public} = context
+    ephemeral_public = Base.decode64!(response["ephemeral_public_key"])
     nonce = Base.decode64!(response["nonce"])
     sealed = Base.decode64!(response["ciphertext"])
 
-    shared = :crypto.compute_key(:ecdh, server_public, client_private, :x25519)
-    key = HKDF.derive(shared, server_public <> client_public, "kura-volume-key-transport/v1", 32)
-    <<ciphertext::binary-size(32), tag::binary-size(16)>> = sealed
+    ikm =
+      :crypto.compute_key(:ecdh, ephemeral_public, client_private, :x25519) <>
+        :crypto.compute_key(:ecdh, static_public, client_private, :x25519)
 
-    passphrase = :crypto.crypto_one_time_aead(:aes_256_gcm, key, nonce, ciphertext, volume_id, tag, false)
+    key = HKDF.derive(ikm, ephemeral_public <> client_public <> static_public, "kura-volume-key-transport/v2", 32)
+    <<ciphertext::binary-size(32), tag::binary-size(16)>> = sealed
+    aad = volume_id <> <<0>> <> Integer.to_string(key_version || response["key_version"])
+
+    passphrase = :crypto.crypto_one_time_aead(:aes_256_gcm, key, nonce, ciphertext, aad, tag, false)
     assert passphrase == :error or byte_size(passphrase) == 32
     passphrase
   end

@@ -5,26 +5,19 @@
 package nodecapacity
 
 import (
-	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
-	"net"
 	"net/http"
-	"os"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/kubeapi"
 )
 
 // Resource is the extended resource Kura pods on a volume group request.
 const Resource = "tuist.dev/kura-disk"
-
-const serviceAccountDir = "/var/run/secrets/kubernetes.io/serviceaccount"
 
 // Measure returns the bytes the node's volume group holds for Kura volumes,
 // and false when the node has no volume group.
@@ -81,55 +74,15 @@ func (a *Advertiser) Once(ctx context.Context) error {
 }
 
 // InClusterPatcher talks to the API server with the pod's ServiceAccount.
-type InClusterPatcher struct {
-	baseURL   string
-	client    *http.Client
-	tokenPath string
-}
+type InClusterPatcher struct{ api *kubeapi.Client }
 
-func NewInClusterPatcher() (*InClusterPatcher, error) {
-	host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
-	if host == "" || port == "" {
-		return nil, fmt.Errorf("KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT are not set")
-	}
-	ca, err := os.ReadFile(serviceAccountDir + "/ca.crt")
-	if err != nil {
-		return nil, fmt.Errorf("read cluster CA: %w", err)
-	}
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(ca) {
-		return nil, fmt.Errorf("cluster CA has no certificates")
-	}
-	return &InClusterPatcher{
-		baseURL: "https://" + net.JoinHostPort(host, port),
-		client: &http.Client{
-			Timeout:   10 * time.Second,
-			Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}},
-		},
-		tokenPath: serviceAccountDir + "/token",
-	}, nil
+func NewInClusterPatcher(api *kubeapi.Client) *InClusterPatcher {
+	return &InClusterPatcher{api: api}
 }
 
 func (p *InClusterPatcher) PatchNodeStatus(ctx context.Context, node string, patch []byte) error {
-	// The projected token rotates, so it is read per request.
-	token, err := os.ReadFile(p.tokenPath)
-	if err != nil {
-		return fmt.Errorf("read service account token: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, p.baseURL+"/api/v1/nodes/"+node+"/status", bytes.NewReader(patch))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
-	req.Header.Set("Content-Type", "application/merge-patch+json")
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("patch node %s status: %s: %s", node, resp.Status, strings.TrimSpace(string(body)))
+	if _, err := p.api.Do(ctx, http.MethodPatch, "/api/v1/nodes/"+node+"/status", "application/merge-patch+json", patch); err != nil {
+		return fmt.Errorf("patch node %s status: %w", node, err)
 	}
 	return nil
 }

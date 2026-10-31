@@ -400,6 +400,10 @@ kuraVolumesCSI:
     pullPolicy: IfNotPresent
   # Where the node plugin fetches volume keys. Defaults to server.appUrl.
   keyServiceUrl: ""
+  # Base64 X25519 public key of the server's TUIST_KURA_VOLUME_TRANSPORT_KEYS
+  # entry that authenticates key-service responses. Without it the plugin
+  # still unstages and deletes volumes but cannot create or stage them.
+  keyServicePublicKey: ""
   # The LVM volume group a node provisions for Kura volumes. A node that has
   # it gets new volumes as logical volumes; one without it keeps backing files
   # under /data/kura-volumes, whose double journal flush makes small synced
@@ -834,6 +838,12 @@ server:
     # `value`). Off until the item exists in the environment's vault: a missing
     # field fails the whole sync.
     kuraVolumeRootKeys:
+      enabled: false
+    # Static keys authenticating sealed volume-key responses
+    # (TUIST_KURA_VOLUME_TRANSPORT_KEYS, 1Password item KURA_VOLUME_TRANSPORT_KEYS,
+    # field `value`: comma-separated base64 32-byte X25519 private keys, the
+    # pinned one included). Off until the item exists in the environment's vault.
+    kuraVolumeTransportKeys:
       enabled: false
     # OpenBao and legacy roots coexist only during a verified rewrap migration.
     # Disable root-key sync AFTER all live shares use OpenBao and restart every

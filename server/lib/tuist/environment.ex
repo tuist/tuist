@@ -2230,6 +2230,44 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Static X25519 keys that authenticate sealed Kura volume-key responses
+  (`TUIST_KURA_VOLUME_TRANSPORT_KEYS`), as `[{public_key, private_key}]`. The
+  value is comma-separated base64 32-byte private keys. The CSI node plugin pins
+  one public key; keep the previous key listed until every plugin pins its
+  replacement.
+
+  Development and test derive a key from secret_key_base when unset; hosted
+  environments require explicit keys.
+  """
+  def kura_volume_transport_keys(secrets \\ secrets()) do
+    case get([:kura, :volume_transport_keys], secrets) do
+      value when is_binary(value) and value != "" -> parse_kura_volume_transport_keys(value)
+      _ -> fallback_kura_volume_transport_keys(secrets)
+    end
+  end
+
+  @doc false
+  def parse_kura_volume_transport_keys(value) do
+    entries = value |> String.split(",", trim: true) |> Enum.map(&(&1 |> String.trim() |> Base.decode64()))
+
+    if entries != [] and Enum.all?(entries, &match?({:ok, <<_::binary-size(32)>>}, &1)) do
+      Enum.map(entries, fn {:ok, private_key} -> :crypto.generate_key(:ecdh, :x25519, private_key) end)
+    else
+      []
+    end
+  end
+
+  defp fallback_kura_volume_transport_keys(secrets) do
+    case {env(), secret_key_base(secrets)} do
+      {env, base} when env in [:dev, :test] and is_binary(base) and base != "" ->
+        [:crypto.generate_key(:ecdh, :x25519, :crypto.hash(:sha256, "kura-volume-transport-key/dev|" <> base))]
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
   Username of the ServiceAccount the Kura volumes CSI node plugin presents to
   `POST /_internal/kura/volume-keys` (`TUIST_KURA_VOLUMES_CSI_NODE_USERNAME`).
   """

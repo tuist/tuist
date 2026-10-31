@@ -62,5 +62,29 @@
   {
     "name": "delete own PV",
     "result": "allowed"
+  },
+  {
+    "name": "mint own request token",
+    "result": "allowed"
+  },
+  {
+    "name": "mint for another pod",
+    "result": "denied"
+  },
+  {
+    "name": "mint unbound token",
+    "result": "denied"
+  },
+  {
+    "name": "mint other audience",
+    "result": "denied"
+  },
+  {
+    "name": "mint two audiences",
+    "result": "denied"
+  },
+  {
+    "name": "mint long-lived token",
+    "result": "denied"
   }
 ]
