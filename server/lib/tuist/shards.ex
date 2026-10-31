@@ -13,12 +13,12 @@ defmodule Tuist.Shards do
   alias Tuist.ClickHouseRepo
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
-  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards.BinPacker
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
+  alias Tuist.Shards.ShardPlanRoute
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
@@ -34,7 +34,6 @@ defmodule Tuist.Shards do
   @min_parallelism_factor 0.5
   @max_parallelism_factor 16.0
   @concurrency_shard_runs 50
-  @upload_route_cache [persist_across_deployments: true, ttl: to_timeout(hour: 1)]
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
   def create_shard_plan(%Project{} = project, params, opts \\ []) do
@@ -114,8 +113,8 @@ defmodule Tuist.Shards do
         plan
       end
 
+    insert_upload_route!(plan)
     {:ok, plan} = IngestRepo.insert(plan)
-    remember_upload_route(project, plan)
     if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
     if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
 
@@ -255,36 +254,42 @@ defmodule Tuist.Shards do
     end
   end
 
-  # The shared store carries a new plan's upload routing through replication; older plans fall
-  # back to ClickHouse. A reference resolves to its latest plan, as in `get_plan/2`.
-  defp remember_upload_route(project, plan) do
-    KeyValueStore.put(plan_id_key(project.id, plan.reference), plan.id, @upload_route_cache)
-
-    if ShardStorage.routable?(project) do
-      KeyValueStore.put(storage_target_key(project.id, plan.id), plan.storage_target, @upload_route_cache)
-    end
+  # Postgres carries a new plan's upload routing until every ClickHouse replica has the plan;
+  # plans older than the route retention fall back to ClickHouse. A reference resolves to its
+  # latest plan, as in `get_plan/2`.
+  defp insert_upload_route!(plan) do
+    Repo.insert!(%ShardPlanRoute{
+      plan_id: plan.id,
+      project_id: plan.project_id,
+      reference: plan.reference,
+      storage_target: plan.storage_target,
+      inserted_at: DateTime.from_naive!(plan.inserted_at, "Etc/UTC")
+    })
   end
 
   defp upload_plan_id(project_id, reference) do
-    case KeyValueStore.get(plan_id_key(project_id, reference), @upload_route_cache) do
-      plan_id when is_binary(plan_id) ->
-        plan_id
+    route_plan_id =
+      Repo.one(
+        from(r in ShardPlanRoute,
+          where: r.project_id == ^project_id and r.reference == ^reference,
+          order_by: [desc: r.inserted_at],
+          limit: 1,
+          select: r.plan_id
+        )
+      )
 
-      _ ->
-        case get_plan(project_id, reference) do
-          nil -> nil
-          plan -> plan.id
-        end
+    with nil <- route_plan_id,
+         %ShardPlan{id: plan_id} <- get_plan(project_id, reference) do
+      plan_id
     end
   end
 
-  defp plan_id_key(project_id, reference), do: [__MODULE__, :plan_id, project_id, reference]
-
   defp storage_target(project_id, plan_id) do
-    case KeyValueStore.get(storage_target_key(project_id, plan_id), @upload_route_cache) do
-      target when is_binary(target) ->
-        target
-
+    with {:ok, plan_id} <- Ecto.UUID.cast(plan_id),
+         %ShardPlanRoute{storage_target: target} <-
+           Repo.get_by(ShardPlanRoute, plan_id: plan_id, project_id: project_id) do
+      target
+    else
       _ ->
         case get_plan_by_id(project_id, plan_id) do
           nil -> nil
@@ -292,8 +297,6 @@ defmodule Tuist.Shards do
         end
     end
   end
-
-  defp storage_target_key(project_id, plan_id), do: [__MODULE__, :storage_target, project_id, plan_id]
 
   # Each shard downloads only the products it needs: a single `shared` artifact (frameworks,
   # dylibs, the xctestrun, etc.) plus one per-module artifact for each module assigned to the
