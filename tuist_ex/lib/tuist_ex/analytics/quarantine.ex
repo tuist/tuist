@@ -9,16 +9,20 @@ defmodule TuistEx.Analytics.Quarantine do
   # `inspect/1` prints it, the describe block ("" outside one), and the
   # test's own name, without ExUnit's type and describe prefixes.
   #
-  # ExUnit filters match one tag at a time, so a skipped test is excluded by
-  # its full name (`test:"test <describe> <name>"`), the only tag that names
-  # it. A test of the same full name in another module is excluded with it,
-  # and a test of another type (`property`, `feature`) is not excluded; the
-  # formatter names both after the run.
+  # Skipped tests are tagged as their modules compile (`Tagger`) and left
+  # out by that tag. Where ExUnit no longer collects tests the way the tagger
+  # reads them, a skipped test is excluded by its full name instead
+  # (`test:"test <describe> <name>"`): ExUnit filters match one tag at a
+  # time, and the name is the only one that names it. A test of the same
+  # full name in another module is then excluded with it, and a test of
+  # another type (`property`, `feature`) is not; the formatter names both
+  # after the run.
 
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
+  alias TuistEx.Analytics.Quarantine.Tagger
 
-  defstruct muted: MapSet.new(), skipped: MapSet.new()
+  defstruct muted: MapSet.new(), skipped: MapSet.new(), tagged: false
 
   @page_size 500
   # The same bound the command line tool applies to a Bazel policy: a policy
@@ -89,15 +93,33 @@ defmodule TuistEx.Analytics.Quarantine do
     do: MapSet.size(muted) == 0 and MapSet.size(skipped) == 0
 
   @doc """
+  Tags the skipped tests in the test modules compiled from now on, when this
+  ExUnit lets them be tagged.
+  """
+  def tag_skipped(%__MODULE__{skipped: skipped} = policy) do
+    if MapSet.size(skipped) > 0 and Tagger.available?() do
+      Tagger.install(skipped)
+      %{policy | tagged: true}
+    else
+      policy
+    end
+  end
+
+  @doc """
   The `mix test` arguments that leave the skipped tests out.
   """
+  def exclude_args(%__MODULE__{tagged: true}), do: ["--exclude", "tuist_quarantine:skipped"]
+
   def exclude_args(policy) do
     policy |> excluded_names() |> Enum.sort() |> Enum.flat_map(&["--exclude", "test:" <> &1])
   end
 
   @doc """
-  The full ExUnit names of the skipped tests, as `test.name` holds them.
+  The full ExUnit names of the skipped tests, as `test.name` holds them, when
+  they are excluded by name.
   """
+  def excluded_names(%__MODULE__{tagged: true}), do: MapSet.new()
+
   def excluded_names(%__MODULE__{skipped: skipped}) do
     MapSet.new(skipped, fn
       {_module, "", name} -> "test " <> name
