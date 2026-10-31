@@ -3,7 +3,9 @@ package executor
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"sync"
+	"syscall"
 	"time"
 
 	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
@@ -52,6 +54,7 @@ func (s *Session) Prepare(parent context.Context, endpoint string) error {
 		}
 		state := s.conn.GetState()
 		if state == connectivity.Ready {
+			warm(ctx)
 			return nil
 		}
 		if !s.conn.WaitForStateChange(ctx, state) {
@@ -60,6 +63,18 @@ func (s *Session) Prepare(parent context.Context, endpoint string) error {
 			return fmt.Errorf("CAS preparation unavailable")
 		}
 	}
+}
+
+// warm runs a trivial shell pipeline as the build user. A guest restored from
+// the template snapshot faults in every page on first touch; doing that for the
+// shell, loader and process setup here keeps it off the action's path. It runs
+// before any credential or input exists and is best-effort.
+func warm(ctx context.Context) {
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "cat /dev/null")
+	cmd.Dir = "/"
+	cmd.Env = []string{"PATH=/usr/bin:/bin"}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Credential: &syscall.Credential{Uid: 1000, Gid: 1000}}
+	_ = cmd.Run()
 }
 
 func (s *Session) takeClient(endpoint string) (*grpc.ClientConn, error) {
