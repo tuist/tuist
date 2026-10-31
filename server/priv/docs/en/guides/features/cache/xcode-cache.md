@@ -72,7 +72,7 @@ COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dyl
 COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
 COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
-OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
+OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project -driver-batch-count 6
 ```
 
 Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH`, and `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
@@ -97,6 +97,11 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `C
 >
 > `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` runs the remote cache lookups the build system makes for each compilation alongside the rest of the build, instead of a few at a time on the build's execution lanes. Builds that miss or restore many compilations from a distant cache finish sooner.
 
+> [!NOTE]
+> **Same cache keys on every machine size**
+>
+> Xcode compiles a module's Swift files in batches, and by default the number of batches follows the machine's CPU core count. Each batch's cache key depends on which files are in it, so machines with different core counts can't share the compilations of modules with more than a few files. `-driver-batch-count 6` gives every machine the same batches. Use the same value on every machine that shares the cache. `tuist generate` and Tuist Runners use 6.
+
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
 
 ```
@@ -107,7 +112,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
     COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
-    'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'
+    'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project -driver-batch-count 6'
 ```
 
 > [!NOTE]
@@ -257,7 +262,7 @@ While no build is running, Tuist checks each of the project's stores every 10 mi
 
 ### Module cache hashes {#module-cache-hashes}
 
-Compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, and every `-cas-plugin-option` flag with its value, out of the hash. Turning `enableCaching` on or off, or changing the upload policy, keeps your targets' hashes, so the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries you already warmed stay valid. You can compare builds with and without the Xcode cache against the same module cache.
+Compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, every `-cas-plugin-option` flag with its value, and `-driver-batch-count` with its value, out of the hash. Turning `enableCaching` on or off, or changing the upload policy, keeps your targets' hashes, so the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries you already warmed stay valid. You can compare builds with and without the Xcode cache against the same module cache.
 
 > [!NOTE]
 > **Prefix mapping settings are hashed**

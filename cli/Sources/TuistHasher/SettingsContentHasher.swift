@@ -92,6 +92,8 @@ public struct SettingsContentHasher: SettingsContentHashing {
 
     private static let swiftWarningsAsErrorsFlags: Set<String> = ["-warnings-as-errors", "-no-warnings-as-errors"]
 
+    private static let productNeutralFlagsWithValue: Set<String> = ["-cas-plugin-option", "-driver-batch-count"]
+
     private func filterProductNeutralFlags(from value: SettingValue, key: String) -> SettingValue? {
         guard case let .array(elements) = value else {
             return value
@@ -110,12 +112,14 @@ public struct SettingsContentHasher: SettingsContentHashing {
     /// documented `xcodeCache(upload: Environment.isCI)` policy sets it on developer
     /// machines and not on CI, which would otherwise give the two disjoint cache keys
     /// and deny developers every artifact CI warmed.
+    ///
+    /// Also drops `-driver-batch-count <n>`, which only regroups Swift compiler invocations.
     private func filterCASPluginOptions(from elements: [String]) -> [String] {
         var result: [String] = []
         var index = 0
 
         while index < elements.count {
-            if elements[index] == "-cas-plugin-option", index + 1 < elements.count {
+            if Self.productNeutralFlagsWithValue.contains(elements[index]), index + 1 < elements.count {
                 index += 2
                 continue
             }
