@@ -197,6 +197,9 @@ on producer paths, opt into reuse between different checkout locations:
 cache: [portable: true]
 ```
 
+Configured values that embed the checkout path, such as paths built from
+`__DIR__` in `config/config.exs`, don't change portable keys.
+
 Cached BEAMs retain producer debug/source paths and compile-time `__DIR__`,
 `__ENV__.file` and `File.cwd!()` values. Portable reuse does not rewrite them.
 Resource links point to the current source checkout. Upstream BEAM bytes also
