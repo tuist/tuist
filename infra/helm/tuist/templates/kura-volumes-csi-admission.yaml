@@ -61,6 +61,65 @@ spec:
   validationActions:
   - Deny
 ---
+# Each Kura claim is evaluated as a param. A volume may name a claim only once
+# the scheduler selected the caller's node for it, so a node plugin cannot
+# pre-bind a pending claim to itself.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-csi-pv-claim-node
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - persistentvolumes
+      operations:
+      - CREATE
+  matchConditions:
+  - name: kura-csi-only
+    expression: request.userInfo.username == 'system:serviceaccount:kura-volumes:kura-volumes-csi-node'
+  variables:
+  - name: node
+    expression: "'authentication.kubernetes.io/node-name' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/node-name']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/node-name'][0] : ''"
+  - name: names
+    expression: has(object.spec.claimRef) && object.spec.claimRef.namespace == params.metadata.namespace
+      && object.spec.claimRef.name == params.metadata.name
+  validations:
+  - expression: "!variables.names || (variables.node != '' && object.spec.claimRef.uid
+      == params.metadata.uid && has(params.metadata.annotations) && 'volume.kubernetes.io/selected-node'
+      in params.metadata.annotations && params.metadata.annotations['volume.kubernetes.io/selected-node']
+      == variables.node)"
+    message: Kura CSI can create a volume only for a claim scheduled to its own node.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kura-csi-pv-claim-node
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  policyName: kura-csi-pv-claim-node
+  validationActions:
+  - Deny
+  paramRef:
+    namespace: kura
+    selector:
+      matchLabels:
+        app.kubernetes.io/managed-by: kura-controller
+    parameterNotFoundAction: Deny
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -110,12 +169,14 @@ spec:
       && variables.annotations.filter(k, k != 'volume.kubernetes.io/selected-node').all(k,
       k in variables.oldAnnotations)
     message: Kura CSI can change only the selected-node annotation.
-  - expression: "('volume.kubernetes.io/selected-node' in variables.oldAnnotations
-      ? variables.oldAnnotations['volume.kubernetes.io/selected-node'] == variables.node
-      : true) && ('volume.kubernetes.io/selected-node' in variables.annotations ?
-      variables.annotations['volume.kubernetes.io/selected-node'] == variables.node
-      : 'volume.kubernetes.io/selected-node' in variables.oldAnnotations)"
-    message: Kura CSI can select or release only its own node.
+  # Kura classes bind WaitForFirstConsumer: only the scheduler selects a node.
+  # The node plugin may release a selection of its own node, never set one.
+  - expression: "'volume.kubernetes.io/selected-node' in variables.annotations ?
+      ('volume.kubernetes.io/selected-node' in variables.oldAnnotations && variables.annotations['volume.kubernetes.io/selected-node']
+      == variables.oldAnnotations['volume.kubernetes.io/selected-node']) : (!('volume.kubernetes.io/selected-node'
+      in variables.oldAnnotations) || variables.oldAnnotations['volume.kubernetes.io/selected-node']
+      == variables.node)"
+    message: Kura CSI can only release its own node's selection.
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding

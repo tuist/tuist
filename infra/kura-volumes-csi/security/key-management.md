@@ -342,12 +342,17 @@ volumes fail closed. Revoking a wrapper does not revoke mounted plaintext.
 
 ## CSI boundary and access review
 
-**Open isolation gap:** these policies do not cross-check PV creation against
-the scheduler's live PVC selection. The CSI identity can also select an unassigned
-claim. A compromised node plugin can therefore attempt to pre-bind a foreign
-pending claim; checking only PV node affinity does not establish cross-node
-isolation. A check inside that same compromised plugin is insufficient. Trusted
-admission/provisioning must validate the claim/node relationship before production.
+**Claim/node binding (2026-11-01):** a compromised node plugin could previously
+select an unassigned claim for its own node and pre-bind it. The plugin may now
+only release a selection of its own node (Kura classes bind
+`WaitForFirstConsumer`, so only the scheduler selects), and
+`kura-csi-pv-claim-node` evaluates every claim labelled
+`app.kubernetes.io/managed-by: kura-controller` in `kura` as a param: a PV may name
+one only when its UID matches and the scheduler selected the caller's node. The
+API server reads params through an informer, so a selection that just moved can
+be observed a few seconds late; a claim without that label is not covered
+(the controller's claim templates always carry it). Local kind 1.34 harness
+only; not yet installed on a hosted cluster.
 
 **Key-service transport (implemented, not yet deployed):** the key service no
 longer trusts the TLS terminators on the public edge. Each fetch mints a
@@ -370,7 +375,7 @@ server deploy and the CSI upgrade; mounted volumes are unaffected. To rotate,
 prepend the new private key, deploy, re-pin the plugin, then remove the old key.
 
 RBAC still lets the distributed provisioner manage cluster-scoped PVs, which
-cannot be namespace-scoped. Four fail-closed ValidatingAdmissionPolicies add
+cannot be namespace-scoped. Five fail-closed ValidatingAdmissionPolicies (the claim/node policy above and four below) add
 field/node restrictions for its exact ServiceAccount:
 
 - PV create/update/delete must reference a Kura claim and the caller's bound

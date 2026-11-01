@@ -25,7 +25,7 @@
   },
   {
     "name": "select own node",
-    "result": "allowed"
+    "result": "denied"
   },
   {
     "name": "change claim tenant",
@@ -33,6 +33,18 @@
   },
   {
     "name": "select foreign node",
+    "result": "denied"
+  },
+  {
+    "name": "create PV for a claim selected on own node",
+    "result": "allowed"
+  },
+  {
+    "name": "create PV for a claim selected on another node",
+    "result": "denied"
+  },
+  {
+    "name": "create PV for an unscheduled claim",
     "result": "denied"
   },
   {

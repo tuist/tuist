@@ -24,7 +24,7 @@ node='kura-key-security-control-plane'
   kube('patch','pv',"pvc-#{id}",'--type=merge','-p','{"metadata":{"finalizers":[]}}')
   kube('delete','pv',"pvc-#{id}",'--ignore-not-found','--wait=false')
 end
-kube('delete','pvc','test-claim','-n','kura','--ignore-not-found','--wait=false')
+%w(test-claim other-claim pending-claim).each { |c| kube('delete','pvc',c,'-n','kura','--ignore-not-found','--wait=false') }
 apply({'apiVersion'=>'v1','kind'=>'Node','metadata'=>{'name'=>'other-node'}})
 
 apply({'apiVersion'=>'v1','kind'=>'Pod','metadata'=>{'name'=>'identity','namespace'=>'kura-volumes'},'spec'=>{'serviceAccountName'=>'kura-volumes-csi-node','nodeName'=>node,'containers'=>[{'name'=>'pause','image'=>'registry.k8s.io/pause:3.10'}]}})
@@ -43,6 +43,8 @@ make_pv=lambda do |id,n|
  {'apiVersion'=>'v1','kind'=>'PersistentVolume','metadata'=>{'name'=>"pvc-#{id}"},'spec'=>{'capacity'=>{'storage'=>'1Gi'},'accessModes'=>['ReadWriteOnce'],'persistentVolumeReclaimPolicy'=>'Retain','storageClassName'=>'kura-encrypted-nvme','csi'=>{'driver'=>'kura-volumes.tuist.dev','volumeHandle'=>"pvc-#{id}"},'claimRef'=>{'namespace'=>'kura','name'=>"data-#{id}",'uid'=>id},'nodeAffinity'=>{'required'=>{'nodeSelectorTerms'=>[{'matchExpressions'=>[{'key'=>'topology.kura-volumes.tuist.dev/node','operator'=>'In','values'=>[n]}]}]}}}}
 end
 begin
+  claim={'apiVersion'=>'v1','kind'=>'PersistentVolumeClaim','metadata'=>{'name'=>'test-claim','namespace'=>'kura','labels'=>{'app.kubernetes.io/instance'=>'tenant-a','app.kubernetes.io/managed-by'=>'kura-controller'}},'spec'=>{'accessModes'=>['ReadWriteOnce'],'storageClassName'=>'none','resources'=>{'requests'=>{'storage'=>'1Gi'}}}}
+  apply(claim)
   pv=make_pv.call('11111111-1111-4111-8111-111111111111',node)
   foreign=make_pv.call('22222222-2222-4222-8222-222222222222','other-node')
 unbound,err,ok=kube('create','token','kura-volumes-csi-node','-n','kura-volumes'); raise err unless ok
@@ -57,11 +59,26 @@ File.write(file.path,config.to_yaml)
   check.call('delete foreign PV',false,'delete','pv',foreign['metadata']['name'],'--wait=false')
   check.call('change own PV claim ownership',false,'patch','pv',pv['metadata']['name'],'--type=merge','-p',JSON.generate({'spec'=>{'claimRef'=>{'uid'=>'33333333-3333-4333-8333-333333333333'}}}))
   check.call('update own PV finalizer',true,'patch','pv',pv['metadata']['name'],'--type=merge','-p',JSON.generate({'metadata'=>{'finalizers'=>['external-provisioner.volume.kubernetes.io/finalizer']}}))
-  claim={'apiVersion'=>'v1','kind'=>'PersistentVolumeClaim','metadata'=>{'name'=>'test-claim','namespace'=>'kura','labels'=>{'app.kubernetes.io/instance'=>'tenant-a'}},'spec'=>{'accessModes'=>['ReadWriteOnce'],'storageClassName'=>'none','resources'=>{'requests'=>{'storage'=>'1Gi'}}}}
-  apply(claim)
-  check.call('select own node',true,'patch','pvc','test-claim','-n','kura','--type=merge','-p',JSON.generate({'metadata'=>{'annotations'=>{'volume.kubernetes.io/selected-node'=>node}}}))
+  # Only the scheduler selects a node for a WaitForFirstConsumer claim.
+  check.call('select own node',false,'patch','pvc','test-claim','-n','kura','--type=merge','-p',JSON.generate({'metadata'=>{'annotations'=>{'volume.kubernetes.io/selected-node'=>node}}}))
+  select_node=lambda do |name,n|
+    _,err,ok=kube('patch','pvc',name,'-n','kura','--type=merge','-p',JSON.generate({'metadata'=>{'annotations'=>{'volume.kubernetes.io/selected-node'=>n}}})); raise err unless ok
+    # The policy reads claims through the API server's param informer.
+    sleep 2
+  end
+  claim_pv=lambda do |name|
+    claim_uid=JSON.parse(kube('get','pvc',name,'-n','kura','-o','json')[0]).dig('metadata','uid')
+    volume=make_pv.call(claim_uid,node); volume['spec']['claimRef']['name']=name; volume
+  end
+  select_node.call('test-claim',node)
   check.call('change claim tenant',false,'patch','pvc','test-claim','-n','kura','--type=merge','-p',JSON.generate({'metadata'=>{'labels'=>{'app.kubernetes.io/instance'=>'tenant-b'}}}))
   check.call('select foreign node',false,'patch','pvc','test-claim','-n','kura','--type=merge','-p',JSON.generate({'metadata'=>{'annotations'=>{'volume.kubernetes.io/selected-node'=>'other-node'}}}))
+  check.call('create PV for a claim selected on own node',true,'create','-f','-',input:JSON.generate(claim_pv.call('test-claim')))
+  apply(claim.merge('metadata'=>claim['metadata'].merge('name'=>'other-claim')))
+  select_node.call('other-claim','other-node')
+  check.call('create PV for a claim selected on another node',false,'create','-f','-',input:JSON.generate(claim_pv.call('other-claim')))
+  apply(claim.merge('metadata'=>claim['metadata'].merge('name'=>'pending-claim')))
+  check.call('create PV for an unscheduled claim',false,'create','-f','-',input:JSON.generate(claim_pv.call('pending-claim')))
   check.call('release own selection',true,'patch','pvc','test-claim','-n','kura','--type=merge','-p',JSON.generate({'metadata'=>{'annotations'=>{'volume.kubernetes.io/selected-node'=>nil}}}))
   check.call('publish own capacity',true,'patch','node',node,'--subresource=status','--type=merge','-p',JSON.generate({'status'=>{'capacity'=>{'tuist.dev/kura-disk'=>'1234'}}}))
   check.call('publish foreign node capacity',false,'patch','node','other-node','--subresource=status','--type=merge','-p',JSON.generate({'status'=>{'capacity'=>{'tuist.dev/kura-disk'=>'1234'}}}))

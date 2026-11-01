@@ -25,7 +25,9 @@ Dir.mktmpdir('kura-security-chart') do |chart|
   raise 'missing OpenBao mount' unless pod['containers'][0]['volumeMounts'].any? { |v| v['name']=='kura-openbao-identity' && v['readOnly'] }
   raise 'OpenBao writes not enabled by default' unless pod['containers'][0]['env'].any? { |v| v['name']=='TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES' && v['value']=='true' }
   raise 'exportable root still synced' if out.include?('TUIST_KURA_VOLUME_ROOT_KEYS')
-  raise 'missing fail-closed policies' unless docs.count { |d| d['kind']=='ValidatingAdmissionPolicy' && d.dig('spec','failurePolicy')=='Fail' } == 4
+  raise 'missing fail-closed policies' unless docs.count { |d| d['kind']=='ValidatingAdmissionPolicy' && d.dig('spec','failurePolicy')=='Fail' } == 5
+  claim_node=docs.find { |d| d['kind']=='ValidatingAdmissionPolicyBinding' && d.dig('metadata','name')=='kura-csi-pv-claim-node' }
+  raise 'claim-node policy not bound to Kura claims' unless claim_node.dig('spec','paramRef') == {'namespace'=>'kura','selector'=>{'matchLabels'=>{'app.kubernetes.io/managed-by'=>'kura-controller'}},'parameterNotFoundAction'=>'Deny'}
   cluster_role=docs.find { |d| d['kind']=='ClusterRole' && d.dig('metadata','name')=='kura-volumes-csi-node' }
   raise 'cluster-wide PVC writes' if cluster_role['rules'].any? { |r| r['resources'].include?('persistentvolumeclaims') && (r['verbs'] & %w(update patch create delete)).any? }
   raise 'CSI Secret access' if cluster_role['rules'].any? { |r| (r['resources'] & %w(secrets *)).any? }
