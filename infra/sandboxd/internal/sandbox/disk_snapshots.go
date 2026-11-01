@@ -270,22 +270,30 @@ func (m *Manager) createFromDiskSnapshot(ctx context.Context, sb *Sandbox, args 
 	sb.meta.Tag = snap.Tag
 	sb.mu.Unlock()
 
+	return m.coldCreate(ctx, sb, log.With("snapshot", args.FromDiskSnapshot, "slot", slot))
+}
+
+// coldCreate boots a new sandbox whose jail already holds its kernel and
+// disks, and records it as running. The caller holds sb.opMu and discards
+// the sandbox when this fails.
+func (m *Manager) coldCreate(ctx context.Context, sb *Sandbox, log *slog.Logger) (protocol.CreateResult, error) {
 	bootStart := time.Now()
 	inst, _, err := m.boot(ctx, sb, log)
 	if err != nil {
-		return res, err
+		return protocol.CreateResult{}, err
 	}
 	sb.mu.Lock()
 	sb.meta.State = protocol.StateRunning
 	sb.meta.Generation = 0
 	sb.meta.Error = ""
+	meta := sb.meta
 	err = sb.meta.Save(sb.root)
 	sb.mu.Unlock()
 	if err != nil {
-		return res, err
+		return protocol.CreateResult{}, err
 	}
 	m.refreshGauges()
-	log.Info("sandbox created from disk snapshot", "snapshot", args.FromDiskSnapshot, "template", snap.Template, "tag", snap.Tag, "slot", slot, "boot", time.Since(bootStart), "pid", inst.PID())
+	log.Info("sandbox created on its own disks", "template", meta.Template, "tag", meta.Tag, "boot", time.Since(bootStart), "pid", inst.PID())
 	return protocol.CreateResult{BootMs: time.Since(bootStart).Milliseconds()}, nil
 }
 

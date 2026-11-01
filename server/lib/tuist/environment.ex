@@ -2022,6 +2022,19 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_SANDBOXES_NAMESPACE", "tuist-sandboxes")
   end
 
+  @doc """
+  Hours an Amp Orb stays paused on its node before its disks are archived
+  to object storage and the node copy is deleted
+  (`Tuist.Sandboxes.Archives`). Unset or `0` keeps paused Orbs on their
+  nodes.
+  """
+  def sandbox_archive_after_hours do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_AFTER_HOURS", "")) do
+      {hours, ""} when hours > 0 -> hours
+      _ -> nil
+    end
+  end
+
   def amp_provider_config do
     %{
       image: System.get_env("TUIST_AMP_PROVIDER_IMAGE"),

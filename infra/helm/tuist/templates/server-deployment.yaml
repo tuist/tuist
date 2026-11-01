@@ -326,6 +326,12 @@ spec:
             # on the sandboxd node connection's TokenReview.
             - name: TUIST_SANDBOXES_NAMESPACE
               value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+            {{- with .Values.sandboxes.archiveAfterHours }}
+            # Hours an Amp Orb stays paused on its node before its disks move
+            # to object storage (Tuist.Sandboxes.Archives).
+            - name: TUIST_SANDBOX_ARCHIVE_AFTER_HOURS
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
