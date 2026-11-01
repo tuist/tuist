@@ -360,7 +360,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
   (`COMPILATION_CACHE_*` exported as plain env vars does nothing). The xcconfig
   deliberately does **not** set `COMPILATION_CACHE_ENABLE_CACHING`: enabling the
   cache stays the project's opt-in, and this only says *where* an
-  already-caching build keeps its store. `XCODE_XCCONFIG_FILE` is an OVERRIDES
+  already-caching build keeps its store. For a caching build it also appends
+  `-driver-batch-count 6` to `OTHER_SWIFT_FLAGS` (after `$(inherited)`):
+  swift-driver otherwise splits a module into `max(-j, ceil(files / 25))`
+  batches, Xcode passes `-j` as the machine's core count, and a batch's cache
+  key names its files, so runner sizes would not share the compile keys of
+  modules with 7 to 300 files. `XCODE_XCCONFIG_FILE` is an OVERRIDES
   layer (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
   project and target settings, `-xcconfig` and the command line alike. The
   escape hatches are a workflow's own xcconfig, which `tuist-runner-cache`
