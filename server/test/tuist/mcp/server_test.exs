@@ -109,7 +109,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.44.0"
+      assert server.version == "1.45.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
@@ -138,6 +138,19 @@ defmodule Tuist.MCP.ServerTest do
 
       stub(Environment, :tuist_hosted?, fn -> false end)
       refute "search_tuist" in Map.keys(Server.server().tools)
+    end
+
+    test "offers report_feedback only on the hosted installation with Atlas configured" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :atlas_support_ingest_token, fn -> "token" end)
+      assert "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token, fn -> nil end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :atlas_support_ingest_token, fn -> "token" end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
     end
 
     test "offers codebase tools only when the hosted codebase service is configured" do
