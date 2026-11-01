@@ -257,7 +257,7 @@ ENV NODE_OPTIONS=--use-openssl-ca \
 # land as `fix(linux-runner-image): …` and route through the
 # release flow same as `RUNNER_VERSION`.
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=1.37.0
+ARG KUBECTL_VERSION=1.37.2
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=4.3.0
 # renovate: datasource=github-releases depName=cli/cli
