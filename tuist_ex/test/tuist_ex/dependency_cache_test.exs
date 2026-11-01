@@ -1596,6 +1596,44 @@ defmodule TuistEx.DependencyCacheTest do
     assert second["value"] == 1
   end
 
+  test "portable keys ignore the checkout path inside configured values", %{
+    project: project,
+    dir: dir
+  } do
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false", "remote: false, portable: true")
+    )
+
+    File.write!(Path.join(project, "config/config.exs"), """
+    import Config
+    config :dep_probe, value: 1
+    config :cache_fixture,
+      assets: [cd: Path.expand("../assets", __DIR__), root: Path.expand("..", __DIR__)],
+      env: %{"NODE_PATH" => Path.expand("../deps", __DIR__) <> ":/usr/lib/node"}
+    """)
+
+    assert [%{"outcome" => "miss", "key" => key}] = run!(project)["dependency_cache"]
+    relocated = Path.join(dir, "relocated")
+    File.cp_r!(project, relocated)
+    File.rm_rf!(Path.join(relocated, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(relocated)["dependency_cache"]
+  end
+
+  test "scheduler counts do not change the key", %{project: project} do
+    assert [%{"outcome" => "miss", "key" => key}] =
+             run!(project, [], ["--erl", "+S 2:2"])["dependency_cache"]
+
+    File.rm_rf!(Path.join(project, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(project, [], ["--erl", "+S 3:3"])["dependency_cache"]
+  end
+
   test "unmodeled source links and custom compiler inputs bypass caching", %{project: project} do
     run!(project)
     File.rm_rf!(Path.join(project, "_build"))
@@ -2276,15 +2314,15 @@ defmodule TuistEx.DependencyCacheTest do
     File.write!(root, String.replace(File.read!(root), "dependencies: [:dep_probe], ", ""))
   end
 
-  defp run!(project, env \\ []) do
-    {output, status} = run(project, env)
+  defp run!(project, env \\ [], vm_args \\ []) do
+    {output, status} = run(project, env, vm_args)
     assert status == 0, output
     assert File.exists?(Path.join(project, "result.json")), output
     result = JSON.decode!(File.read!(Path.join(project, "result.json")))
     Map.put(result, "output", output)
   end
 
-  defp run(project, env \\ []) do
+  defp run(project, env \\ [], vm_args \\ []) do
     ebin = :tuist_ex |> :code.lib_dir() |> to_string() |> Path.join("ebin")
 
     script = """
@@ -2312,7 +2350,7 @@ defmodule TuistEx.DependencyCacheTest do
     end)
     """
 
-    System.cmd(System.find_executable("elixir"), ["-pa", ebin, "-e", script],
+    System.cmd(System.find_executable("elixir"), vm_args ++ ["-pa", ebin, "-e", script],
       cd: project,
       env:
         [
