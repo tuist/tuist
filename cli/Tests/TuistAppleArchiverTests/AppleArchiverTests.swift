@@ -4,6 +4,8 @@ import Foundation
 import Path
 import Testing
 import TuistAppleArchiver
+import TuistLoggerTesting
+import TuistLogging
 
 struct AppleArchiverTests {
     let subject = AppleArchiver()
@@ -30,7 +32,8 @@ struct AppleArchiverTests {
         #expect(content == "hello world")
     }
 
-    @Test(.inTemporaryDirectory) func compress_and_decompress_preserves_symlinks() async throws {
+    @Test(.inTemporaryDirectory, .withMockedLogger()) func compress_and_decompress_preserves_symlinks() async throws {
+        Logger.testingLogHandler.logLevel = .debug
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
 
@@ -44,6 +47,8 @@ struct AppleArchiverTests {
 
         let archivePath = temporaryDirectory.appending(component: "archive.aar")
         try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
+
+        #expect(Logger.testingLogHandler.collected[.debug]?.contains { $0.contains("input: 14 bytes") } == true)
 
         let extractDir = temporaryDirectory.appending(component: "extracted")
         try await fileSystem.makeDirectory(at: extractDir)
@@ -82,7 +87,8 @@ struct AppleArchiverTests {
         #expect(deepContent == "deep")
     }
 
-    @Test(.inTemporaryDirectory) func compress_excludes_matching_patterns() async throws {
+    @Test(.inTemporaryDirectory, .withMockedLogger()) func compress_excludes_matching_patterns() async throws {
+        Logger.testingLogHandler.logLevel = .debug
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
 
@@ -102,6 +108,14 @@ struct AppleArchiverTests {
             to: archivePath,
             excludePatterns: [".dSYM", ".swiftmodule"]
         )
+
+        let archiveBytes = try Data(contentsOf: URL(fileURLWithPath: archivePath.pathString)).count
+        let compressionLog = try #require(Logger.testingLogHandler.collected[.debug]?
+            .first { $0.hasPrefix("Compressed archive") })
+        #expect(compressionLog.contains(archivePath.pathString))
+        #expect(compressionLog.contains("input: 4 bytes, archive: \(archiveBytes) bytes"))
+        #expect(compressionLog.contains("compression: LZFSE"))
+        #expect(compressionLog.range(of: #"in \d+\.\d{2}s wall time"#, options: .regularExpression) != nil)
 
         let extractDir = temporaryDirectory.appending(component: "extracted")
         try await fileSystem.makeDirectory(at: extractDir)
@@ -295,7 +309,9 @@ struct AppleArchiverTests {
     /// The shard split archives one module's `.xctest` out of a products directory that also holds
     /// the other modules and the shared bundle. The archive must carry the `.xctest`'s full path
     /// relative to the products root (so it merges back in place), while nothing else is read.
-    @Test(.inTemporaryDirectory) func compress_subdirectory_preservesRelativePath_andPrunesSiblings() async throws {
+    @Test(.inTemporaryDirectory, .withMockedLogger())
+    func compress_subdirectory_preservesRelativePath_andPrunesSiblings() async throws {
+        Logger.testingLogHandler.logLevel = .debug
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
 
@@ -317,6 +333,8 @@ struct AppleArchiverTests {
 
         let archivePath = temporaryDirectory.appending(component: "FooTests.aar")
         try await subject.compress(subdirectory: targetXCTest, relativeTo: productsDir, to: archivePath)
+
+        #expect(Logger.testingLogHandler.collected[.debug]?.contains { $0.contains("input: 10 bytes") } == true)
 
         let extractDir = temporaryDirectory.appending(component: "extracted")
         try await fileSystem.makeDirectory(at: extractDir)
