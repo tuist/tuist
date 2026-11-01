@@ -47,6 +47,33 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "thin_volumes?/1" do
+    test "marks only enrolled node-local regions as thin-capable, leaving their storage unchanged" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> [] end)
+      before = Regions.get("eu-west")
+      refute Regions.thin_volumes?(before)
+
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west", "hetzner-staging-runners"] end)
+      region = Regions.get("eu-west")
+
+      assert Regions.thin_volumes?(region)
+      assert region.provisioner_config.storage_class == before.provisioner_config.storage_class
+      assert Regions.disk_resource(region) == Regions.disk_resource(before)
+      assert region.provisioner_config.replicas == before.provisioner_config.replicas
+      refute Regions.thin_volumes?(Regions.get("us-east"))
+      refute Regions.thin_volumes?(Regions.get("hetzner-staging-runners"))
+    end
+
+    test "combines with LVM enrollment" do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      region = Regions.get("eu-west")
+
+      assert Regions.thin_volumes?(region)
+      assert region.provisioner_config.storage_class == "kura-lvm-nvme"
+    end
+  end
+
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)
