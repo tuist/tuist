@@ -19,9 +19,32 @@ defmodule Tuist.XcresultDrainTest do
     assert {:noreply, ^state} = XcresultDrain.handle_info(:poll, state)
   end
 
-  test "a new queue resumes locally only without a drain request", %{state: state} do
+  test "a new queue marks the VM serving before it resumes locally", %{directory: dir, state: state} do
     expect(Oban, :check_queue, fn _ -> %{paused: true, running: []} end)
-    expect(Oban, :resume_queue, fn [queue: :process_xcresult, local_only: true] -> :ok end)
+
+    expect(Oban, :resume_queue, fn [queue: :process_xcresult, local_only: true] ->
+      assert File.exists?(Path.join(dir, "serving"))
+      :ok
+    end)
+
+    assert {:noreply, ^state} = XcresultDrain.handle_info(:poll, state)
+  end
+
+  test "a request that arrives while marking serving keeps the queue paused", %{directory: dir, state: state} do
+    expect(Oban, :check_queue, fn _ ->
+      File.write!(Path.join(dir, "drain-request"), @uid)
+      %{paused: true, running: []}
+    end)
+
+    reject(Oban, :resume_queue, 1)
+    assert {:noreply, ^state} = XcresultDrain.handle_info(:poll, state)
+    assert File.exists?(Path.join(dir, "serving"))
+  end
+
+  test "a VM without its status share never resumes", %{state: state} do
+    state = %{state | directory: Path.join(state.directory, "missing")}
+    expect(Oban, :check_queue, fn _ -> %{paused: true, running: []} end)
+    reject(Oban, :resume_queue, 1)
     assert {:noreply, ^state} = XcresultDrain.handle_info(:poll, state)
   end
 
