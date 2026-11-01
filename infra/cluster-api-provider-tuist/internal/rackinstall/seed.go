@@ -15,9 +15,14 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
+// KuraStorageLayoutAnnotation explicitly enrolls a replacement host in LVM.
+const KuraStorageLayoutAnnotation = "tuist.dev/kura-storage-layout"
+
 // Seed is everything one install is rendered from.
 type Seed struct {
-	Host string
+	// KuraLVM requires an explicitly enrolled replacement host; false preserves shared XFS.
+	KuraLVM bool
+	Host    string
 	// Role is the host's role. A storage node gets a quotaed /data for cache
 	// volumes; the others take Ubuntu's direct layout.
 	Role string
@@ -255,6 +260,7 @@ autoinstall:
     - ca-certificates
     - jq
     - ethtool
+    - lvm2
     - iputils-arping
   updates: security
   shutdown: reboot
@@ -321,7 +327,7 @@ autoinstall:
 %[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
-		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role, s.ResidentInstaller), dataMounts(s.Role),
+		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayoutForSeed(s), dataMounts(s.Role),
 		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit()), nil
 }
 
@@ -540,11 +546,8 @@ done
 `
 }
 
-// storageLayout is the autoinstall storage section for role. A storage node
-// serves cache volumes, which are local-path directories with an XFS project
-// quota each, so its largest disk gets a separate XFS /data mounted with
-// prjquota beside a capped ext4 /. The quota option can only be set when the
-// filesystem is mounted, and the layout cannot change without a reinstall.
+// storageLayout preserves the full shared-XFS data partition for legacy storage
+// hosts. storageLayoutForSeed applies the explicit install-time LVM opt-in.
 // Every other role takes Ubuntu's direct layout.
 //
 // A box with a resident installer keeps partition 1 of its boot drive, the
@@ -594,6 +597,16 @@ func storageLayout(role string, resident bool) string {
       - {type: mount, id: esp-mount, device: esp-fs, path: /boot/efi}
       - {type: mount, id: data-mount, device: data-fs, path: /data, options: "defaults,prjquota"}
 `
+}
+
+func storageLayoutForSeed(s Seed) string {
+	layout := storageLayout(s.Role, s.ResidentInstaller)
+	if !s.KuraLVM || s.Role != "storage" {
+		return layout
+	}
+	return strings.Replace(layout,
+		"      - {type: format, id: data-fs, volume: data, fstype: xfs}",
+		"      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}\n      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: 128G}\n      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}", 1)
 }
 
 // dataMounts puts a storage node's kubelet root, containerd root and the

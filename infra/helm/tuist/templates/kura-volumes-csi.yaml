@@ -1,0 +1,260 @@
+{{- if .Values.kuraVolumesCSI.enabled }}
+{{- /*
+kura-volumes.tuist.dev: the CSI driver behind the kura-encrypted-nvme
+StorageClass (infra/kura-volumes-csi). Each Kura data volume is a LUKS2
+container on a logical volume in the node's kuraVolumesCSI.volumeGroup, or on a
+preallocated file under /data/kura-volumes on a node without one, opened with a
+key the node plugin fetches from the server per stage, authenticated by a
+ServiceAccount token it mints for its own pod and that request's key
+(TokenRequest, restricted by kura-volumes-csi-token-requests). Responses are
+authenticated by the pinned kuraVolumesCSI.keyServicePublicKey. The server
+authorizes those requests by the token's username, so the namespace and ServiceAccount names below are part of the
+contract and not configurable.
+
+The node plugin DaemonSets (with the provisioner as a sidecar on every node,
+--node-deployment, since the volume is node-local) live in the unwaited
+rack-nodes release (infra/helm/rack-nodes/templates/kura-volumes-csi.yaml), so a
+broken Kura node never rolls a server deploy back. They use the identity,
+RBAC and admission policies here.
+
+Nothing provisions on this class until the server places Kura instances on it
+through regional LVM enrollment or the legacy account encryption flag, so the
+driver can be deployed first.
+
+Every object here is helm.sh/resource-policy: keep. A release whose chart
+lacks them (a rollback, or a branch cut before them) would otherwise remove
+the driver while volumes exist, and only the driver can unmount, close and
+delete those: their mounts and dm-crypt mappings would stay open on the node
+and their PVs stay Released. Retiring the driver is a manual step once no PV
+of the class is left.
+*/ -}}
+{{- $namespace := "kura-volumes" }}
+{{- $name := "kura-volumes-csi-node" }}
+{{- $driver := "kura-volumes.tuist.dev" }}
+{{- $pools := include "tuist.kuraCachePools" . | fromJsonArray }}
+{{- $rackPools := .Values.kuraVolumesCSI.rackPools | default list }}
+{{- $pools = without $pools "" }}
+{{- range $rackPools }}
+{{- $pools = without $pools . }}
+{{- end }}
+{{- if not (or $pools $rackPools) }}
+{{- fail "kuraVolumesCSI.enabled needs at least one Kura cache pool (kuraFleet, ovhFleet, ovhFleets or vultrFleets) to run the node plugin on" }}
+{{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+    # Privileged, bidirectional mount propagation and host devices.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+---
+# The external-provisioner's runner role (kubernetes-csi/external-provisioner
+# v5.3.0, deploy/kubernetes/rbac.yaml). Its namespaced role is not needed: a
+# node deployment runs no leader election and this driver publishes no
+# CSIStorageCapacity.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, create, patch, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [csinodes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+  # The node plugin advertises its volume group's room for Kura volumes as
+  # the tuist.dev/kura-disk extended resource.
+  - apiGroups: [""]
+    resources: [nodes/status]
+    verbs: [patch]
+  - apiGroups: [storage.k8s.io]
+    resources: [volumeattachments]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kura-volumes-csi-claims
+  namespace: kura
+  annotations:
+    helm.sh/resource-policy: keep
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [update]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch, create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kura-volumes-csi-claims
+  namespace: kura
+  annotations:
+    helm.sh/resource-policy: keep
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kura-volumes-csi-claims
+subjects:
+  - kind: ServiceAccount
+    name: kura-volumes-csi-node
+    namespace: kura-volumes
+---
+# Key-service tokens are minted per request for the plugin's own pod and key;
+# kura-volumes-csi-token-requests restricts each request.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kura-volumes-csi-key-tokens
+  namespace: {{ $namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+rules:
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    resourceNames: [{{ $name }}]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kura-volumes-csi-key-tokens
+  namespace: {{ $namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kura-volumes-csi-key-tokens
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ $driver }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+spec:
+  attachRequired: false
+  podInfoOnMount: true
+  volumeLifecycleModes: [Persistent]
+  # The volume is a LUKS container the driver formats itself; kubelet must not
+  # chown it on every mount.
+  fsGroupPolicy: None
+  storageCapacity: false
+  requiresRepublish: false
+  seLinuxMount: false
+---
+# Same lifecycle as scw-local-nvme: a volume is carved on the node the Kura pod
+# lands on and is disposable cache, so it is deleted with its claim and never
+# expanded in place (the controller replaces it one replica at a time instead).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-encrypted-nvme
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+provisioner: {{ $driver }}
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+---
+# Unencrypted Kura volumes as plain XFS logical volumes in the node's volume
+# group. Only nodes with the group can hold one, and the region's Kura pods
+# request tuist.dev/kura-disk, which only those nodes advertise.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-lvm-nvme
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+provisioner: {{ $driver }}
+parameters:
+  encryption: none
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+---
+# Immutable thin layout; selecting it is a separate per-instance rollout.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kura-thin-encrypted-nvme
+  annotations:
+    helm.sh/resource-policy: keep
+provisioner: {{ $driver }}
+parameters:
+  layout: thin-luks-xfs-v1
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: topology.kura-volumes.tuist.dev/node-layout
+        values: [thin-luks-xfs-v1]
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+{{- end }}

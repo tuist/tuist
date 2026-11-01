@@ -66,11 +66,18 @@ spec:
         - name: server
           image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          {{- with .Values.server.seedAccountCredentials.secretName }}
+          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeOpenBao.enabled }}
           volumeMounts:
+            {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
+            - name: kura-openbao-identity
+              mountPath: /var/run/tuist/kura-openbao
+              readOnly: true
+            {{- end }}
+            {{- with .Values.server.seedAccountCredentials.secretName }}
             - name: seed-account-credentials
               mountPath: /var/run/tuist/seed-account
               readOnly: true
+            {{- end }}
           {{- end }}
           command:
             - /app/bin/tuist
@@ -91,6 +98,29 @@ spec:
               containerPort: {{ .Values.server.cluster.distributionPort }}
             {{- end }}
           env:
+            {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
+            {{- if not (kindIs "bool" .Values.server.config.kuraVolumeOpenBao.wrapNewShares) }}
+            {{- fail "kuraVolumeOpenBao.wrapNewShares must be a boolean" }}
+            {{- end }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES
+              value: {{ .Values.server.config.kuraVolumeOpenBao.wrapNewShares | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_ADDRESS
+              value: {{ required "kuraVolumeOpenBao.address is required" .Values.server.config.kuraVolumeOpenBao.address | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_KEY_NAME
+              value: {{ required "kuraVolumeOpenBao.keyName is required" .Values.server.config.kuraVolumeOpenBao.keyName | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_ROLE
+              value: {{ required "kuraVolumeOpenBao.role is required" .Values.server.config.kuraVolumeOpenBao.role | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_TRANSIT_MOUNT
+              value: {{ required "kuraVolumeOpenBao.transitMount is required" .Values.server.config.kuraVolumeOpenBao.transitMount | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_AUTH_MOUNT
+              value: {{ required "kuraVolumeOpenBao.authMount is required" .Values.server.config.kuraVolumeOpenBao.authMount | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_DECRYPT_KEY_NAMES
+              value: {{ join "," .Values.server.config.kuraVolumeOpenBao.decryptKeyNames | quote }}
+            {{- if .Values.server.config.kuraVolumeOpenBao.caConfigMap }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_CA_CERT_FILE
+              value: /var/run/tuist/kura-openbao/ca.crt
+            {{- end }}
+            {{- end }}
             {{- if .Values.server.externalSecrets.shardStorage.item }}
             - name: TUIST_SHARD_STORAGE_TARGETS
               valueFrom:
@@ -501,6 +531,17 @@ spec:
               value: {{ .Values.cache.s3.bucket | quote }}
             - name: TUIST_CACHE_XCODE_S3_BUCKET_NAME
               value: {{ .Values.cache.s3.xcodeCacheBucket | quote }}
+            {{- with .Values.kuraVolumesCSI.lvmRegions }}
+            - name: TUIST_KURA_LVM_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.kuraVolumesCSI.thinRegions }}
+            {{- if not $.Values.kuraVolumesCSI.enabled }}
+            {{- fail "kuraVolumesCSI.thinRegions requires kuraVolumesCSI.enabled, which installs the kura-thin-encrypted-nvme StorageClass" }}
+            {{- end }}
+            - name: TUIST_KURA_THIN_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- with .Values.server.kuraEndpointUrls }}
             - name: TUIST_KURA_ENDPOINTS
               value: {{ join "," . | quote }}
@@ -604,11 +645,30 @@ spec:
                 command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
-      {{- with .Values.server.seedAccountCredentials.secretName }}
+      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeOpenBao.enabled }}
       volumes:
+        {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
+        - name: kura-openbao-identity
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: openbao.kura.tuist.dev
+                  expirationSeconds: 3600
+                  path: token
+              {{- with .Values.server.config.kuraVolumeOpenBao.caConfigMap }}
+              - configMap:
+                  name: {{ . | quote }}
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              {{- end }}
+
+        {{- end }}
+        {{- with .Values.server.seedAccountCredentials.secretName }}
         - name: seed-account-credentials
           secret:
             secretName: {{ . }}
             optional: true
+        {{- end }}
       {{- end }}
 {{- end }}

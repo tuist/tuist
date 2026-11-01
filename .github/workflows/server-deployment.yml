@@ -60,6 +60,10 @@ on:
       staging_platform_revision:
         description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
         required: false
+      kura_volumes_csi_image_digest:
+        description: Explicit CSI upgrade digest (sha256:...); omit to preserve the installed driver independently of the server
+        required: false
+        type: string
       kura_controller_image_tag:
         description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
         required: false
@@ -144,6 +148,10 @@ on:
           Pre-built image tag to deploy. When set, the build job is
           skipped and the deploy job uses this tag directly. When unset,
           the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+      kura_volumes_csi_image_digest:
+        description: Explicit CSI upgrade digest (sha256:...); omit to preserve the installed driver independently of the server
         required: false
         type: string
       kura_controller_image_tag:
@@ -277,6 +285,7 @@ env:
   REGISTRY_IMAGE_NAME: tuist/registry
   CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  KURA_VOLUMES_CSI_IMAGE_NAME: tuist/kura-volumes-csi
   EGRESS_TREE_AGENT_IMAGE_NAME: tuist/egress-tree-agent
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
@@ -951,6 +960,7 @@ jobs:
       SANDBOXD_IMAGE_TAG: ${{ inputs.sandboxd_image_tag || needs.build-sandboxd.outputs.image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+      KURA_VOLUMES_CSI_IMAGE_DIGEST_INPUT: ${{ inputs.kura_volumes_csi_image_digest }}
       KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
       MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
@@ -1243,6 +1253,9 @@ jobs:
 
           echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
           echo "Kura controller: ${controller_source} image tag ${controller_tag}"
+
+      - name: Preserve or explicitly upgrade the Kura CSI image
+        run: bash .github/scripts/kura-csi-image.sh
       - name: Resolve egress-tree-agent image tag
         # The git-tag resolution above returns nothing for a commit that
         # predates the first `egress-tree-agent@` release — a re-promote or
@@ -1604,6 +1617,13 @@ jobs:
             egress_tree_agent_image_tag="${EGRESS_TREE_AGENT_TAG:-}"
           fi
           add_set "egressTreeAgent.image.tag" "$egress_tree_agent_image_tag"
+          if [ -n "${KURA_VOLUMES_CSI_IMAGE_DIGEST:-}" ]; then
+            add_set "kuraVolumesCSI.image.digest" "$KURA_VOLUMES_CSI_IMAGE_DIGEST"
+          elif [ -n "${KURA_VOLUMES_CSI_IMAGE_TAG:-}" ]; then
+            add_set "kuraVolumesCSI.image.tag" "$KURA_VOLUMES_CSI_IMAGE_TAG"
+          else
+            image_sets+=(--set "kuraVolumesCSI.enabled=false")
+          fi
 
           registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
           registry_render="$(mktemp)"
@@ -1984,6 +2004,13 @@ jobs:
           # nodes that are up, and on the others when they return. After the
           # upgrade above, so they move only with an operator that rolled out.
           rack_node_sets=()
+          if [ -n "${KURA_VOLUMES_CSI_IMAGE_DIGEST:-}" ]; then
+            rack_node_sets+=(--set "kuraVolumesCSI.image.digest=$KURA_VOLUMES_CSI_IMAGE_DIGEST")
+          elif [ -n "${KURA_VOLUMES_CSI_IMAGE_TAG:-}" ]; then
+            rack_node_sets+=(--set "kuraVolumesCSI.image.tag=$KURA_VOLUMES_CSI_IMAGE_TAG")
+          else
+            rack_node_sets+=(--set "kuraVolumesCSI.enabled=false")
+          fi
           if [ -n "$capi_image_tag" ]; then
             rack_node_sets+=(--set "macosFleet.image.tag=$capi_image_tag")
           fi
@@ -1995,6 +2022,19 @@ jobs:
           if [ -n "${MACOS_RUNNER_IMAGE_TAG_INPUT:-}" ]; then
             rack_node_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$MACOS_RUNNER_IMAGE_TAG_INPUT")
           fi
+          rack_node_sets+=(--set tuistRelease="$HELM_RELEASE_NAME")
+          # The rented Kura CSI plugin moved here from the tuist release, which
+          # keeps the live DaemonSet; hand it over before the release adopts it.
+          echo "::group::Move rack-node objects from the tuist release"
+          move_render="$(mktemp)"
+          helm template "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            "${helm_values_args[@]}" \
+            "${rack_node_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$move_render"
+          bash .github/scripts/helm-move-release-objects.sh "$move_render" "$HELM_RELEASE_NAME" "$HELM_RELEASE_NAME-rack-nodes" "$NAMESPACE"
+          rm -f "$move_render"
+          echo "::endgroup::"
           helm upgrade --install "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
             --namespace "$NAMESPACE" \
             -f "$HELM_CHART_PATH/values.yaml" \

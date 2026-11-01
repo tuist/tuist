@@ -576,7 +576,9 @@ where
 
         Box::pin(async move {
             let response = crate::serving_authority::scope(permit.clone(), future).await?;
-            if permit.as_ref().is_some_and(|p| p.check().is_err()) {
+            if (mutation && crate::migration::acknowledge(&state).await.is_err())
+                || permit.as_ref().is_some_and(|p| p.check().is_err())
+            {
                 return Ok(Status::unavailable("serving grant expired")
                     .into_http::<tonic::body::Body>()
                     .map(|body| {

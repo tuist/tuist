@@ -123,6 +123,12 @@ jobs:
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
+      - name: Validate the runtime candidate
+        run: |
+          mise run --skip-tools format -- --check
+          mise run --skip-tools clippy
+          mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
+
       - name: Build the Kura binary with Bazel
         run: |
           mise run --skip-tools compile

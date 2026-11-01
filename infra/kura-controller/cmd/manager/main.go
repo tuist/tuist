@@ -140,6 +140,7 @@ func main() {
 		PrivateReplication:               privateReplication,
 		MetricsClient:                    metricsClient,
 		NodeLocalRuntimeStatusClient:     nodeLocalStatusClient,
+		PublicConnectionRetirer:          nodeLocalStatusClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
 		ConnectivityDiagnosticsExpiresAt: probeExpiry,
 		ConnectivityDiagnosticsPrepare:   connectivityDiagnosticsPrepare,

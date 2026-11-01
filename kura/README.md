@@ -1005,3 +1005,9 @@ With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON t
 REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain module usage attribution. Other clients remain attributed to `reapi`; the hint does not change authentication or CAS storage. CAS batch requests count once per batch, and already-present blob uploads do not add usage.
 
 A `GetActionResult` carrying `x-tuist-lookup: presence` only reports whether the entry is still served. It does not extend the lifetime of the entry or of the blobs it references, so a client can check for evicted entries without keeping them alive. Other lookups extend lifetimes as before.
+
+Planned legacy thin-storage moves use a destination-bound write bridge before
+changing endpoints. It verifies retained content and live mutation completion;
+closing old connections alone does not synchronize asynchronous replicas. See
+[thin storage handoff](../infra/kura-controller/thin-migration.md) for protocol
+bounds, pause behavior, safe preparation retry and qualification limits.

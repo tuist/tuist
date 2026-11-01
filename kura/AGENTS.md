@@ -254,3 +254,65 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 - Linux builds keep content-addressed Bazel downloads and action outputs under `~/.cache/tuist/bazel`, configured in `.bazelrc`. CI mounts that directory directly; do not persist the output base or generated remote credentials. Disk-cache idle GC is a soft 12 GiB/seven-day target within the 20 GB volume.
 
 - Bazel failure analytics retain bounded structured failure codes as `tuist.detected_failure_category`, and the BuildStarted user as `tuist.reported_user` (128 bytes maximum), within the existing custom metadata limit. Classify compiler/test nonzero exits only with recognized action mnemonics; arbitrary commands remain unknown. Infrastructure evidence takes precedence. Never retain FailureDetail messages or stack traces for classification.
+
+Planned thin-storage migration retires public connection reuse before terminating
+its donor. `/_internal/connections/retire` is internal/mTLS only and requires the
+process's `connection_incarnation` from rollout status. It swaps a bounded
+connection cohort once, keeps serving/admission/replication unchanged, and makes
+HTTP/1 responses close after completion (including accelerated GETs). The receipt
+counts connections accepted before retirement, including TLS handshakes; newer
+health probes cannot keep that cohort alive. HTTP/2 connections in the retired
+cohort, on every public listener that leases into it, get a GOAWAY at retirement
+and close after their in-flight streams; the client's connection preface, not a
+request, identifies them. This is unit-tested with a real h2c client and not
+rehearsed on staging. Retirement is not draining or serving-authority permission.
+Never substitute a timer or Kubernetes readiness for an empty cohort receipt.
+An empty cohort is also not a data-transfer receipt: staging still observed
+fresh-write GET misses at handoff. Zero-error migration needs destination-bound
+write completion and serving coordination; do not claim asynchronous replication
+is synchronized by closing the donor's connections.
+
+The pending migration acknowledgment path in `src/migration.rs` binds a legacy
+storage move to one destination process. Preparation hashes retained records and
+verifies them on that peer; armed HTTP/gRPC mutation completion checks committed
+feed records against actual destination content. Feed cursors alone never prove
+retention. A fixed deadline per preparation attempt, bounded verification
+batches and a single verification worker prevent unbounded work. The retained
+walk resumes: after each verified page the source saves the index key it
+reached (a position, never a set of verified keys), and the feed position its
+pin started from covers writes the newest-first walk passed. A prepare for the
+same source process and destination process after a failed, unarmed attempt
+that advanced continues from there under a new deadline; one that advanced
+nothing keeps returning its failure. Feed history below the saved position
+restarts the walk from the top, and reset, rebind and another destination never
+inherit progress. Only a complete walk plus the pinned-feed proof reports ready.
+Resumption is unit-tested, not rehearsed on staging. Acknowledgments group-commit:
+only a run whose feed head was taken after a write committed may prove it, and
+the bridge loop forces a run to probe an idle destination. Polling or resetting
+a preparation must tolerate the other clearing or restarting it, never panic.
+This is not a serving grant or permission to bypass cache capacity. Its
+implementation is still awaiting Linux tests, failure recovery qualification and
+live staging rehearsal.
+
+A ready migration bridge must survive the preparation deadline and controller
+pauses. Its bounded weak-reference task retains the feed pin until draining;
+release that pin on draining and on a failed preparation that made no progress.
+A failed attempt that advanced keeps it as a snapshot consumer, which the feed
+cap and stale window still bound and the drain gate never waits for. The internal reset API may
+clear only a completed failed unarmed attempt and must serialize with write
+acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
+The internal abort API clears the attempt for its exact target in any state:
+it disarms first (so acknowledgments waiting on the bridge complete as ordinary
+writes), then takes the gate, discards resume progress and releases the pin.
+Preparation, bridge-loop and re-proof tasks check their attempt or migration id
+and exit without writing state back. It is safe only while the source was never
+demoted, so routing never moved; the controller enforces that, the runtime
+cannot. Abort is unit-tested and not rehearsed on staging.
+A destination process restart is recovered with the internal rebind API: only an
+armed bridge may move to a new incarnation at the same URL, it stays armed, and
+it reports ready only after re-proving every retained record and the pinned feed
+on the new process. Never carry proof from one destination process to another.
+Bridge state is exported as `kura_migration_*` (armed, ready, last-proof age,
+walk progress, verified records, re-proof failures) and drives the proposed
+armed-but-not-ready rule in `../infra/helm/k8s-monitoring/alerts.md`; a ready
+bridge whose destination dies shows only as a growing last-proof age.

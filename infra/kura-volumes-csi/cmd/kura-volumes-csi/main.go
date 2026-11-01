@@ -1,0 +1,192 @@
+// kura-volumes-csi is the node plugin behind the kura-volumes.tuist.dev
+// StorageClass. See infra/kura-volumes-csi/AGENTS.md for the contract.
+package main
+
+import (
+	"context"
+	"crypto/ecdh"
+	"errors"
+	"flag"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"net"
+	"net/url"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
+
+	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/driver"
+	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/kubeapi"
+	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/nodecapacity"
+	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/volumekeys"
+)
+
+var version = "dev"
+
+const shutdownGrace = 30 * time.Second
+
+func main() {
+	endpoint := flag.String("endpoint", "unix:///csi/csi.sock", "CSI gRPC endpoint (unix socket)")
+	nodeID := flag.String("node-id", "", "Kubernetes node name, also the topology value")
+	stateDir := flag.String("state-dir", "/data/kura-volumes", "canonical directory holding the volume backing files")
+	reserveBytes := flag.Int64("reserve-bytes", 20<<30, "bytes CreateVolume leaves free on the state dir filesystem")
+	volumeGroup := flag.String("volume-group", "", "LVM volume group new volumes are created in when the node has it; empty keeps backing files")
+	keyServiceURL := flag.String("key-service-url", "", "base URL of the Tuist server that serves volume keys")
+	// Accepted so a chart rendered for an older plugin still starts this one.
+	_ = flag.String("token-path", "", "ignored")
+	logLevel := flag.String("log-level", "info", "debug, info, warn or error")
+	advertiseInterval := flag.Duration("advertise-interval", time.Minute, "how often the node's Kura disk capacity is advertised; 0 disables it")
+	thinPool := flag.String("thin-pool", "", "explicitly prepared thin pool; empty disables thin provisioning")
+	thinDataReserve := flag.Int64("thin-data-reserve-bytes", 1<<30, "physical pool data safety reserve")
+	thinMetadataReserve := flag.Int64("thin-metadata-reserve-bytes", 64<<20, "physical pool metadata safety reserve")
+	thinMaxVolumes := flag.Int("thin-max-volumes", 128, "maximum thin devices including pending and retained volumes")
+	flag.Parse()
+
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(*logLevel)); err != nil {
+		fmt.Fprintf(os.Stderr, "invalid --log-level %q: %v\n", *logLevel, err)
+		os.Exit(2)
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, os.Getenv("KEY_SERVICE_PUBLIC_KEY"), *advertiseInterval, driver.ThinConfig{Pool: *thinPool, DataReserveBytes: *thinDataReserve, MetadataReserveBytes: *thinMetadataReserve, MaxVolumes: *thinMaxVolumes}); err != nil {
+		logger.Error("kura-volumes-csi failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, keyServicePublicKey string, advertiseInterval time.Duration, thin driver.ThinConfig) error {
+	socket, err := socketPath(endpoint)
+	if err != nil {
+		return err
+	}
+	if err := checkKeyServiceURL(keyServiceURL); err != nil {
+		return err
+	}
+	// Without a pinned key the plugin keeps serving unstage and delete; only
+	// key fetches fail.
+	var serverPublic *ecdh.PublicKey
+	if keyServicePublicKey == "" {
+		logger.Error("KEY_SERVICE_PUBLIC_KEY is not set; volumes cannot be created or staged")
+	} else if serverPublic, err = volumekeys.ParseServerPublicKey(keyServicePublicKey); err != nil {
+		logger.Error("KEY_SERVICE_PUBLIC_KEY is invalid; volumes cannot be created or staged", "error", err)
+	}
+	api, err := kubeapi.NewInCluster()
+	if err != nil {
+		return err
+	}
+	tokens := volumekeys.PodTokenSource{
+		API:            api,
+		Namespace:      os.Getenv("POD_NAMESPACE"),
+		ServiceAccount: os.Getenv("SERVICE_ACCOUNT_NAME"),
+		PodName:        os.Getenv("POD_NAME"),
+		PodUID:         os.Getenv("POD_UID"),
+	}
+	if err := tokens.Validate(); err != nil {
+		logger.Error("volumes cannot be created or staged", "error", err)
+	}
+	if thin.Pool == "" {
+		thin, err = driver.LoadThinConfig(stateDir)
+		if err != nil {
+			return err
+		}
+	}
+	d, err := driver.New(driver.Config{
+		Thin:         thin,
+		NodeID:       nodeID,
+		StateDir:     stateDir,
+		ReserveBytes: reserveBytes,
+		VolumeGroup:  volumeGroup,
+		Version:      version,
+		Keys:         volumekeys.New(keyServiceURL, serverPublic, tokens, volumekeys.WithLogger(logger)),
+		Runner:       driver.ExecRunner{},
+		Mounts:       driver.ProcMountTable{Path: "/proc/self/mountinfo"},
+		Host:         driver.OSHost{},
+		Logger:       logger,
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := os.Remove(socket); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove stale socket: %w", err)
+	}
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", socket, err)
+	}
+	defer os.Remove(socket)
+
+	server := grpc.NewServer(grpc.UnaryInterceptor(logCalls(logger)))
+	csi.RegisterIdentityServer(server, d)
+	csi.RegisterControllerServer(server, d)
+	csi.RegisterNodeServer(server, d)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	if thin.Pool != "" {
+		go func() {
+			if err := d.ServeThinAPI(ctx); err != nil {
+				logger.Error("thin allocator API failed", "error", err)
+				stop()
+			}
+		}()
+	}
+	if advertiseInterval > 0 {
+		advertiser := &nodecapacity.Advertiser{Node: nodeID, Measure: d.KuraDiskCapacity, Patcher: nodecapacity.NewInClusterPatcher(api), Interval: advertiseInterval, Logger: logger}
+		go advertiser.Run(ctx)
+	}
+	go func() {
+		<-ctx.Done()
+		logger.Info("shutting down")
+		stopped := make(chan struct{})
+		go func() {
+			server.GracefulStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-time.After(shutdownGrace):
+			server.Stop()
+		}
+	}()
+
+	logger.Info("serving", "driver", driver.Name, "version", version, "node_id", nodeID, "socket", socket, "state_dir", stateDir, "volume_group", volumeGroup)
+	return server.Serve(listener)
+}
+
+func socketPath(endpoint string) (string, error) {
+	path, ok := strings.CutPrefix(endpoint, "unix://")
+	if !ok || !strings.HasPrefix(path, "/") {
+		return "", fmt.Errorf("--endpoint %q must be unix:///absolute/path", endpoint)
+	}
+	return path, nil
+}
+
+func checkKeyServiceURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("--key-service-url %q must be an https URL", raw)
+	}
+	return nil
+}
+
+func logCalls(logger *slog.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		start := time.Now()
+		resp, err := handler(ctx, req)
+		attrs := []any{"method", info.FullMethod, "duration_ms", time.Since(start).Milliseconds()}
+		if err != nil {
+			logger.Warn("csi call failed", append(attrs, "code", status.Code(err).String(), "error", err)...)
+		} else if !strings.HasPrefix(info.FullMethod, "/csi.v1.Identity/") {
+			logger.Debug("csi call", attrs...)
+		}
+		return resp, err
+	}
+}

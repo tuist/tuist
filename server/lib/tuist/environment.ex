@@ -507,6 +507,22 @@ defmodule Tuist.Environment do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
 
+  def kura_lvm_region_ids do
+    "TUIST_KURA_LVM_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def kura_thin_region_ids do
+    "TUIST_KURA_THIN_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_available_region_ids do
     "TUIST_KURA_AVAILABLE_REGIONS"
     |> System.get_env("")
@@ -2096,6 +2112,169 @@ defmodule Tuist.Environment do
   """
   def runners_rented_macos_fleet?(environment \\ System.get_env()) do
     Map.get(environment, "TUIST_RUNNERS_RENTED_MACOS_FLEET") != "false"
+  end
+
+  @doc """
+  OpenBao Transit and dedicated projected Kubernetes identity. Any partial
+  configuration fails closed. Persisted key IDs pin the HTTPS origin, mount
+  and key, so changing an endpoint cannot silently redirect existing shares.
+  """
+  def kura_volume_openbao(environment \\ System.get_env()) do
+    prefix = "TUIST_KURA_VOLUME_OPENBAO_"
+    configured = Enum.any?(environment, fn {key, _} -> String.starts_with?(key, prefix) end)
+
+    if configured do
+      address = environment |> Map.get(prefix <> "ADDRESS", "") |> String.trim_trailing("/")
+      uri = URI.parse(address)
+      key_name = Map.get(environment, prefix <> "KEY_NAME", "")
+      role = Map.get(environment, prefix <> "ROLE", "")
+      transit_mount = Map.get(environment, prefix <> "TRANSIT_MOUNT", "transit")
+      auth_mount = Map.get(environment, prefix <> "AUTH_MOUNT", "kubernetes")
+      token_file = Map.get(environment, prefix <> "TOKEN_FILE", "/var/run/tuist/kura-openbao/token")
+      ca_cert_file = Map.get(environment, prefix <> "CA_CERT_FILE")
+      wrap_new_shares = Map.get(environment, prefix <> "WRAP_NEW_SHARES", "true")
+
+      decrypt_names =
+        environment
+        |> Map.get(prefix <> "DECRYPT_KEY_NAMES", "")
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
+
+      names = [key_name, role, transit_mount, auth_mount | decrypt_names]
+
+      if valid_openbao_origin?(uri) and
+           Enum.all?(names, &Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_-]*\z/, &1)) and
+           Path.type(token_file) == :absolute and
+           (is_nil(ca_cert_file) or Path.type(ca_cert_file) == :absolute) and
+           wrap_new_shares in ["true", "false"] do
+        key_id = "#{address}/v1/#{transit_mount}/keys/#{key_name}"
+
+        {:ok,
+         %{
+           address: address,
+           key_id: key_id,
+           key_name: key_name,
+           transit_mount: transit_mount,
+           auth_mount: auth_mount,
+           role: role,
+           token_file: token_file,
+           ca_cert_file: ca_cert_file,
+           wrap_new_shares: wrap_new_shares == "true",
+           decrypt_keys: Map.new([key_name | decrypt_names], &{"#{address}/v1/#{transit_mount}/keys/#{&1}", &1})
+         }}
+      else
+        {:error, :invalid_openbao_configuration}
+      end
+    else
+      :disabled
+    end
+  rescue
+    _ -> {:error, :invalid_openbao_configuration}
+  end
+
+  defp valid_openbao_origin?(uri) do
+    uri.scheme == "https" and is_binary(uri.host) and uri.host != "" and
+      uri.path in [nil, ""] and is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment)
+  end
+
+  @doc """
+  Legacy wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
+  The first wraps new shares when OpenBao is disabled or explicitly configured
+  for decrypt-only migration; all entries decrypt.
+  Prepending a replacement does not rewrap existing shares. Use
+  `Tuist.Kura.VolumeKeys.Rotation` before retiring a root, including backups.
+
+  Outside canary/production an unset value derives a development root from
+  secret_key_base. Canary/production require explicit roots or OpenBao.
+  """
+  def kura_volume_root_keys(secrets \\ secrets()) do
+    case get([:kura, :volume_root_keys], secrets) do
+      value when is_binary(value) and value != "" -> parse_kura_volume_root_keys(value)
+      _ -> fallback_kura_volume_root_keys(secrets)
+    end
+  end
+
+  @doc false
+  def parse_kura_volume_root_keys(value) do
+    entries = value |> String.split(",", trim: true) |> Enum.map(&parse_kura_volume_root_key/1)
+    ids = for {:ok, {id, _key}} <- entries, do: id
+
+    if entries != [] and Enum.all?(entries, &match?({:ok, _}, &1)) and length(Enum.uniq(ids)) == length(ids) do
+      Enum.map(entries, fn {:ok, entry} -> entry end)
+    else
+      []
+    end
+  end
+
+  defp parse_kura_volume_root_key(entry) do
+    with [id, encoded] when id != "" <- entry |> String.trim() |> String.split(":", parts: 2),
+         {:ok, <<_::binary-size(32)>> = key} <- Base.decode64(String.trim(encoded)) do
+      {:ok, {id, key}}
+    else
+      _ -> :error
+    end
+  end
+
+  defp fallback_kura_volume_root_keys(secrets) do
+    case {env(), secret_key_base(secrets)} do
+      {env, _} when env in [:can, :prod] ->
+        []
+
+      {_env, base} when is_binary(base) and base != "" ->
+        [{"dev", :crypto.hash(:sha256, "kura-volume-root-key/dev|" <> base)}]
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Static X25519 keys that authenticate sealed Kura volume-key responses
+  (`TUIST_KURA_VOLUME_TRANSPORT_KEYS`), as `[{public_key, private_key}]`. The
+  value is comma-separated base64 32-byte private keys. The CSI node plugin pins
+  one public key; keep the previous key listed until every plugin pins its
+  replacement.
+
+  Development and test derive a key from secret_key_base when unset; hosted
+  environments require explicit keys.
+  """
+  def kura_volume_transport_keys(secrets \\ secrets()) do
+    case get([:kura, :volume_transport_keys], secrets) do
+      value when is_binary(value) and value != "" -> parse_kura_volume_transport_keys(value)
+      _ -> fallback_kura_volume_transport_keys(secrets)
+    end
+  end
+
+  @doc false
+  def parse_kura_volume_transport_keys(value) do
+    entries = value |> String.split(",", trim: true) |> Enum.map(&(&1 |> String.trim() |> Base.decode64()))
+
+    if entries != [] and Enum.all?(entries, &match?({:ok, <<_::binary-size(32)>>}, &1)) do
+      Enum.map(entries, fn {:ok, private_key} -> :crypto.generate_key(:ecdh, :x25519, private_key) end)
+    else
+      []
+    end
+  end
+
+  defp fallback_kura_volume_transport_keys(secrets) do
+    case {env(), secret_key_base(secrets)} do
+      {env, base} when env in [:dev, :test] and is_binary(base) and base != "" ->
+        [:crypto.generate_key(:ecdh, :x25519, :crypto.hash(:sha256, "kura-volume-transport-key/dev|" <> base))]
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Username of the ServiceAccount the Kura volumes CSI node plugin presents to
+  `POST /_internal/kura/volume-keys` (`TUIST_KURA_VOLUMES_CSI_NODE_USERNAME`).
+  """
+  def kura_volumes_csi_node_username do
+    case System.get_env("TUIST_KURA_VOLUMES_CSI_NODE_USERNAME") do
+      username when is_binary(username) and username != "" -> username
+      _ -> "system:serviceaccount:kura-volumes:kura-volumes-csi-node"
+    end
   end
 
   @doc false

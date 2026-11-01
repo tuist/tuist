@@ -91,6 +91,9 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: false # Enable only after this environment's wrapping-key prerequisite is ready.
     originAppKey:
       enabled: true
     atlasEmail:
@@ -502,6 +505,12 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
+
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
+kuraVolumesCSI:
+  enabled: false # Separate infrastructure opt-in; tenant enrollment stays independent.
+  thinRegions: []
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming

@@ -385,6 +385,67 @@ egressTreeAgent:
     limits:
       memory: 128Mi
 
+kuraVolumesCSI:
+  # Pools served by the independent rack-nodes release; excluded from the
+  # waited main release. Enroll only after preparing and checking the hosts.
+  rackPools: []
+  # Opt in only after the region's nodes advertise tuist.dev/kura-disk.
+  lvmRegions: []
+  # Regions whose instances may use kura-thin-encrypted-nvme. Listing a region
+  # changes nothing on its own: only accounts on :kura_thin_volumes move there.
+  # Opt in only after at least one of its nodes is labelled
+  # tuist.dev/kura-thin-ready=true.
+  thinRegions: []
+  # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
+  # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
+  # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
+  # own: accounts move under :kura_encrypted_volumes, their entire region moves
+  # to LVM through lvmRegions after its nodes are prepared, or an account on
+  # :kura_thin_volumes moves to thin volumes in thinRegions.
+  enabled: false
+  # Upgrades use an independently qualified immutable digest. The tag fallback
+  # preserves existing installations; ordinary server deploys do not upgrade CSI.
+  image:
+    repository: ghcr.io/tuist/kura-volumes-csi
+    digest: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Where the node plugin fetches volume keys. Defaults to server.appUrl.
+  keyServiceUrl: ""
+  # Base64 X25519 public key of the server's TUIST_KURA_VOLUME_TRANSPORT_KEYS
+  # entry that authenticates key-service responses. Without it the plugin
+  # still unstages and deletes volumes but cannot create or stage them.
+  keyServicePublicKey: ""
+  # The LVM volume group a node provisions for Kura volumes. A node that has
+  # it gets new volumes as logical volumes; one without it keeps backing files
+  # under /data/kura-volumes, whose double journal flush makes small synced
+  # writes about twice as slow. Empty disables LVM everywhere.
+  volumeGroup: kura-volumes
+  # Explicit opt-in only on prepared nodes. This does not create/convert pools.
+  # Use a separately scoped plugin deployment while migrating mixed fleets.
+  thin:
+    pool: ""
+    dataReserveBytes: 1073741824
+    metadataReserveBytes: 67108864
+    maxVolumes: 128
+  nodeDriverRegistrar:
+    image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
+  provisioner:
+    image: registry.k8s.io/sig-storage/csi-provisioner:v5.3.0
+  resources:
+    driver:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        memory: 512Mi
+    sidecar:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+
 kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
@@ -784,6 +845,35 @@ server:
     cacheTokenKey:
       enabled: false
       signing: false
+    # Root keys that wrap per-tenant Kura volume keys
+    # (TUIST_KURA_VOLUME_ROOT_KEYS, 1Password item KURA_VOLUME_ROOT_KEYS, field
+    # `value`). Off until the item exists in the environment's vault: a missing
+    # field fails the whole sync.
+    kuraVolumeRootKeys:
+      enabled: false
+    # Static keys authenticating sealed volume-key responses
+    # (TUIST_KURA_VOLUME_TRANSPORT_KEYS, 1Password item KURA_VOLUME_TRANSPORT_KEYS,
+    # field `value`: comma-separated base64 32-byte X25519 private keys, the
+    # pinned one included). Off until the item exists in the environment's vault.
+    kuraVolumeTransportKeys:
+      enabled: false
+    # OpenBao and legacy roots coexist only during a verified rewrap migration.
+    # Disable root-key sync AFTER all live shares use OpenBao and restart every
+    # consumer of server-config. Retain old roots offline for backup recovery.
+    kuraVolumeOpenBao:
+      enabled: false
+      # Keep OpenBao decrypt access while rewrapping back to legacy roots.
+      # Disable only after all web replicas use this mode and inventory is clear.
+      wrapNewShares: true
+      # HTTPS origin only. Keep stable: stored share IDs pin origin/mount/key.
+      address: ""
+      keyName: "kura-volume-root"
+      transitMount: "transit"
+      authMount: "kubernetes"
+      role: ""
+      decryptKeyNames: []
+      # Optional ConfigMap containing ca.crt for a private OpenBao CA.
+      caConfigMap: ""
     externalSecrets:
       refreshInterval: "1h"
       storeRef:

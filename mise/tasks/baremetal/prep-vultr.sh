@@ -51,5 +51,5 @@ script="$root/infra/cluster-api-provider-tuist/controllers/linux/vultr_convert.s
 
 # The reconciler embeds this same file and runs it as its Converting stage, so
 # out-of-band prep and the controller cannot drift apart.
-ssh -i "$key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-  -o ConnectTimeout=20 "root@$host" 'bash -s' < "$script"
+cat "$root/infra/cluster-api-provider-tuist/controllers/linux/kura_lvm_setup.sh" "$script" | ssh -i "$key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+  -o ConnectTimeout=20 "root@$host" 'bash -s'

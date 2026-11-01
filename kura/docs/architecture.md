@@ -479,3 +479,42 @@ REAPI module-cache traffic uses the same action cache and content-addressed blob
 ## Account identity
 
 The configured tenant remains the permanent storage and peer identity across account renames. A separate atomic snapshot of the current authorization handle, retained aliases and ready endpoint targets is refreshed by enrollment, heartbeat and managed discovery. HTTP and REAPI use current grants while retaining the original key namespace. With the default-off per-account endpoint-migration gate enabled, regional client hostnames follow the current name after DNS/HTTPS activation; historical client names remain covered by DNS, TLS and ingress for 90 days after renaming away from them. Name reservations and analytics attribution survive URL expiry. Only explicitly capable HTTP clients receive non-cacheable 307 redirects, while gRPC uses routing aliases. The control plane reserves historical handles against reuse. See [account renames](account-renames.md) for compatibility, migration audits and rollout gates.
+
+### Planned thin-storage connection handoff
+
+After the controller observes Service and peer endpoint handoff, it calls the
+internal mTLS `POST /_internal/connections/retire` through its kubelet tunnel,
+with the process incarnation
+reported by `/status/rollout`. The runtime continues serving and replicating,
+but HTTP/1 responses close their connection after the complete response. An
+accept-time lease counts the old connection cohort through response completion;
+new probes do not keep that cohort alive. HTTP/2 connections in the old cohort,
+on every public listener including the gateway gRPC port, receive a GOAWAY at
+retirement and close once their in-flight streams finish; the protocol comes
+from the client's connection preface. Draining and connection aging are
+unchanged. Only a matching incarnation with zero old connections lets
+the controller delete the thin-migration donor. An old runtime, failed call, or
+process restart holds the move. This complements catch-up and endpoint checks;
+it neither fences serving authority nor adds synchronous replication guarantees.
+The repeated staging rehearsal still observed immediate GET misses after
+successful PUTs at handoff. Closing the PUT response can send its following GET
+to the replacement before asynchronous replication arrives. An empty cohort is
+therefore not a data-transfer receipt; zero-error live-write migration remains
+unqualified until destination-bound write completion and serving ownership are
+coordinated. See the [thin qualification report](../../infra/kura-volumes-csi/thin/validation.md).
+
+### Planned legacy thin-storage handoff
+
+`migration.rs` binds a temporary write bridge to a named peer process. A bounded
+retained-content walk plus a pinned feed closes the live-write window before
+the controller changes endpoints. HTTP and REAPI mutation completion verify
+actual destination content while armed; cursor advancement alone is insufficient.
+Each preparation attempt has a fixed deadline; a retry for the same source and
+destination processes continues the walk from its saved index position and the
+same feed pin when the failed attempt advanced. A successful bridge persists through controller pauses until the donor drains,
+with a weak-reference background task retaining the feed pin. Only a completed,
+failed unarmed preparation can be reset, serialized against acknowledgments.
+Abort clears a migration in any state for a source that was never demoted,
+returning it to ordinary asynchronous acknowledgments.
+This does not change serving-authority grants, cache capacity policy or ordinary
+asynchronous replication. See the [handoff protocol](../../infra/kura-controller/thin-migration.md).

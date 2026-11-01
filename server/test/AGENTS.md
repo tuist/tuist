@@ -145,6 +145,12 @@
 
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
 
+- Kura wrapping-key tests must preserve passphrases through root/OpenBao rewrap,
+  include retired versions, refuse concurrent overwrite, and cover unavailable
+  keys and recovery from an older key record. OpenBao HTTP fakes assert pinned backend,
+  context, projected identity and sanitized failures. The disposable integration
+  check exercises real Kubernetes login and Transit; it is not evidence of
+  hosted recovery, audit delivery or database backup restore success.
 - Linux runner tests preserve shared profile/legacy pool selection across accounts and direct regional Kura endpoint selection. Helm checks preserve one runner cohort with no relay or account-path configuration.
 
 - SSO switch regressions use `existing_sso_configuration` to seed already-enabled policies without writing the removed compatibility column. Historical migration tests recreate the old column only inside serialized sandbox transactions; the drop migration is tested against a connection-local temporary table. Cover member-only discovery, linked sign-in/enforcement, denied unverified enrollment/account creation, signed-in link confirmation, editable saved policies, and materialization of implicit memberships without overwriting explicit roles.

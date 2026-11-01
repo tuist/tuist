@@ -53,6 +53,159 @@ defmodule Tuist.Kura.CapacityTest do
     stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, machines)}])
   end
 
+  describe "LVM disk accounting" do
+    setup do
+      stub(Environment, :kura_lvm_region_ids, fn -> [@region] end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, fun -> fun.() end)
+      :ok
+    end
+
+    test "totals read LVM capacity and requests independently of the data filesystem" do
+      box = pool_box("box-1", allocatable: %{"tuist.dev/kura-disk" => "600Gi", "ephemeral-storage" => "100Gi"})
+      stub(Client, :list_nodes, fn _ -> {:ok, %{"items" => [pool_node(box)]}} end)
+      stub_region_pods([pool_pod(%{"tuist.dev/kura-disk" => "40Gi", "ephemeral-storage" => "2Gi"})])
+      stub_region_node_names(["box-1"])
+      stub_volumes([local_volume("retained", "box-1", "10Gi", "Released", "topology.kura-volumes.tuist.dev/node")])
+      assert Capacity.allocatable_gib(@region) == 600
+      assert Capacity.reserved_gib(@region) == 50
+      assert Capacity.reserved_gib_by_instance(@region)[nil] == 40
+    end
+
+    test "placement cannot spend unused ephemeral storage when the volume group is full" do
+      box =
+        pool_box("box-1",
+          allocatable: %{"tuist.dev/kura-disk" => "40Gi"},
+          pods: [pool_pod(%{"tuist.dev/kura-disk" => "30Gi"})]
+        )
+
+      stub_pool([box])
+      assert Capacity.placeable?(region(), claim(placement_account(), "8Gi")) == false
+      assert Capacity.room_for?(@region, :air) == false
+    end
+
+    test "placement uses the volume group even when the data filesystem is small" do
+      box = pool_box("box-1", allocatable: %{"tuist.dev/kura-disk" => "40Gi", "ephemeral-storage" => "1Gi"})
+      stub_pool([box])
+      assert Capacity.placeable?(region(), claim(placement_account(), "8Gi")) == true
+      assert Capacity.room_for?(@region, :air) == true
+    end
+
+    test "claim growth releases and recharges the LVM reservation for each replica" do
+      account = placement_account()
+
+      pods =
+        for ordinal <- [0, 1], do: kura_pod(account, 0, ordinal: ordinal, requests: %{"tuist.dev/kura-disk" => "8Gi"})
+
+      for {capacity, fits} <- [{32, true}, {24, false}] do
+        stub_pool([pool_box("box-1", allocatable: %{"tuist.dev/kura-disk" => "#{capacity}Gi"}, pods: pods)])
+        stub_data_volumes(%{data_claim(account, 0) => "8Gi", data_claim(account, 1) => "8Gi"})
+        assert Capacity.placeable?(region(), claim(account, "16Gi")) == fits
+      end
+    end
+
+    test "a node without the advertised resource admits no LVM replica" do
+      stub_pool([pool_box("legacy-box")])
+      assert Capacity.placeable?(region(), claim(placement_account(), "8Gi")) == false
+    end
+  end
+
+  describe "thin volume accounting" do
+    # diskReservation in infra/kura-controller/controllers/disk_resource.go,
+    # evaluated for each claim.
+    @thin_8gi 11_475_615_744
+    @thin_16gi 20_535_312_384
+    @thin_50gi 58_854_473_728
+
+    setup do
+      stub(Environment, :kura_thin_region_ids, fn -> [@region] end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, fun -> fun.() end)
+      selected = placement_account()
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn %Account{id: id} -> id == selected.id end)
+      %{selected: selected}
+    end
+
+    test "reserves what the controller requests for each claim" do
+      for {claim, reservation} <- [
+            {1 * @gib, 3_623_878_656},
+            {8 * @gib, @thin_8gi},
+            {16 * @gib, @thin_16gi},
+            {50 * @gib, @thin_50gi},
+            {100 * @gib, 115_225_919_488},
+            {2500 * 1024 * 1024, 5_234_491_392},
+            {20_000_000_000, 23_488_102_400}
+          ] do
+        assert Capacity.thin_reservation_bytes(claim) == reservation
+      end
+    end
+
+    test "charges a selected account's instance the thin reservation of every replica", %{selected: selected} do
+      instance = claim(selected, "50Gi")
+
+      assert Capacity.resident_bytes(region(), instance) == @thin_50gi * 2
+      assert Capacity.resident_gib(region(), instance) == 110
+
+      unloaded = %Server{account_id: selected.id, storage_claim_size: "50Gi"}
+      assert Capacity.resident_bytes(region(), unloaded) == @thin_50gi * 2
+    end
+
+    test "charges other accounts and regions that are not thin-capable their claim", %{selected: selected} do
+      assert Capacity.resident_gib(region(), claim(placement_account(), "50Gi")) == 50 * 2
+      assert Capacity.resident_bytes(region(), claim(placement_account(), "50Gi")) == 50 * 2 * @gib
+
+      stub(Environment, :kura_thin_region_ids, fn -> [] end)
+      assert Capacity.resident_gib(region(), claim(selected, "50Gi")) == 50 * 2
+    end
+
+    test "places a selected account's replicas against the thin pool", %{selected: selected} do
+      for {capacity, fits} <- [{@thin_50gi * 2, true}, {@thin_50gi * 2 - 1, false}] do
+        stub_pool([thin_box("box-1", capacity)])
+        assert Capacity.placeable?(region(), claim(selected, "50Gi")) == fits
+      end
+
+      stub_pool([pool_box("legacy-box")])
+      assert Capacity.placeable?(region(), claim(selected, "8Gi")) == false
+      assert Capacity.placeable?(region(), claim(placement_account(), "8Gi")) == true
+    end
+
+    test "places thin replicas only on thin-ready nodes", %{selected: selected} do
+      stub_pool([pool_box("lvm-box", allocatable: %{"tuist.dev/kura-disk" => "800Gi"})])
+      assert Capacity.placeable?(region(), claim(selected, "8Gi")) == false
+
+      stub_pool([
+        pool_box("lvm-box", allocatable: %{"tuist.dev/kura-disk" => "800Gi"}),
+        thin_box("thin-box", @thin_8gi * 2)
+      ])
+
+      assert Capacity.placeable?(region(), claim(selected, "8Gi")) == true
+    end
+
+    test "grows a placed thin instance one replica at a time", %{selected: selected} do
+      pods =
+        for ordinal <- [0, 1],
+            do: kura_pod(selected, 0, ordinal: ordinal, requests: %{"tuist.dev/kura-disk" => "#{@thin_8gi}"})
+
+      for {capacity, fits} <- [{@thin_16gi * 2, true}, {@thin_16gi * 2 - 1, false}] do
+        stub_pool([thin_box("box-1", capacity, pods: pods)])
+        stub_data_volumes(%{data_claim(selected, 0) => "8Gi", data_claim(selected, 1) => "8Gi"})
+        assert Capacity.placeable?(region(), claim(selected, "16Gi")) == fits
+      end
+
+      stub_pool([thin_box("box-1", @thin_8gi * 2, pods: pods)])
+      stub_data_volumes(%{data_claim(selected, 0) => "8Gi", data_claim(selected, 1) => "8Gi"})
+      assert Capacity.placeable?(region(), claim(selected, "8Gi")) == true
+    end
+
+    defp thin_box(name, kura_disk_bytes, opts \\ []) do
+      pool_box(
+        name,
+        Keyword.merge(opts,
+          allocatable: %{"tuist.dev/kura-disk" => "#{kura_disk_bytes}"},
+          labels: %{"tuist.dev/kura-thin-ready" => "true"}
+        )
+      )
+    end
+  end
+
   describe "resident_gib/2" do
     test "counts the instance's own claim, not the region's" do
       # us-east co-locates an account's two replicas on one box, so each claim
@@ -136,6 +289,14 @@ defmodule Tuist.Kura.CapacityTest do
       stub_region_pods([reserved_pod(50)])
       stub_region_node_names(["box-1"])
       stub_volumes([local_volume("pvc-quarantined", "box-1", "64Gi", "Released")])
+
+      assert Capacity.reserved_gib(@region) == 114
+    end
+
+    test "counts a retained encrypted volume, which the kura-volumes driver pins by its own topology key" do
+      stub_region_pods([reserved_pod(50)])
+      stub_region_node_names(["box-1"])
+      stub_volumes([local_volume("pvc-encrypted", "box-1", "64Gi", "Released", "topology.kura-volumes.tuist.dev/node")])
 
       assert Capacity.reserved_gib(@region) == 114
     end
@@ -360,9 +521,9 @@ defmodule Tuist.Kura.CapacityTest do
 
   defp stub_volumes(volumes), do: stub(Client, :list_persistent_volumes, fn _opts -> {:ok, volumes} end)
 
-  # A volume as the local-path provisioner creates it: a directory on one node,
-  # pinned there by a required hostname affinity.
-  defp local_volume(name, node, size, phase) do
+  # A volume as a node-local provisioner creates it: on one node, pinned there
+  # by a required affinity on the provisioner's node key.
+  defp local_volume(name, node, size, phase, key \\ "kubernetes.io/hostname") do
     %{
       "metadata" => %{"name" => name},
       "spec" => %{
@@ -370,7 +531,7 @@ defmodule Tuist.Kura.CapacityTest do
         "nodeAffinity" => %{
           "required" => %{
             "nodeSelectorTerms" => [
-              %{"matchExpressions" => [%{"key" => "kubernetes.io/hostname", "operator" => "In", "values" => [node]}]}
+              %{"matchExpressions" => [%{"key" => key, "operator" => "In", "values" => [node]}]}
             ]
           }
         }
@@ -1105,13 +1266,14 @@ defmodule Tuist.Kura.CapacityTest do
       ready?: Keyword.get(opts, :ready?, true),
       unschedulable?: Keyword.get(opts, :unschedulable?, false),
       allocatable: allocatable,
+      labels: Keyword.get(opts, :labels, %{}),
       pods: Keyword.get(opts, :pods, [])
     }
   end
 
   defp pool_node(box) do
     %{
-      "metadata" => %{"name" => box.name},
+      "metadata" => %{"name" => box.name, "labels" => box.labels},
       "spec" => %{"unschedulable" => box.unschedulable?},
       "status" => %{
         "conditions" => [%{"type" => "Ready", "status" => if(box.ready?, do: "True", else: "False")}],
