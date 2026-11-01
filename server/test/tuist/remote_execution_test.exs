@@ -200,6 +200,32 @@ defmodule Tuist.RemoteExecutionTest do
     assert_receive {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"]}}
   end
 
+  test "an action no node has room for runs as soon as the account frees one", %{project: project} do
+    stub(Nodes, :connected_nodes, fn ->
+      [
+        %{
+          name: "reserved-linux",
+          execution_deadlines: true,
+          execution_slots: 1,
+          capacity: %{cpus: 8, memory_bytes: 32 * 1024 * 1024 * 1024},
+          templates: [%{name: "bazel", tag: @image, ready: true}],
+          disk: %{}
+        }
+      ]
+    end)
+
+    # The account has room for a second VM, but the node is still deleting the first.
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, delete: {:error, :timeout})
+    assert {:ok, %{done: true}} = submit(project)
+    assert {:ok, %{done: false, state: "queued", id: id}} = submit(project, %{"size" => 11}, wait: 300)
+
+    stub_node()
+    [row] = Enum.filter(vm_rows(project), & &1.node_name)
+    send(Scheduler.whereis(project.account_id), {:destroy, row.id})
+    assert {:ok, %{id: ^id}} = RemoteExecution.await(project, id, "queued", wait: 2_000)
+    assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing", wait: 2_000)
+  end
+
   test "a warm VM is kept ready and taken by the next action", %{project: project} do
     {:ok, _} = configure(project, warm_pool_size: 1)
     stub_node()

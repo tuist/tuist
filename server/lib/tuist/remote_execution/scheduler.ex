@@ -116,7 +116,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
            vms: %{},
            tasks: %{},
            tokens: %{},
-           reserve_blocked?: false,
+           blocked_on: nil,
            prepare_after: now_ms(),
            active_at: now_ms()
          }, {:continue, :reconcile}}
@@ -247,7 +247,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
         op.state == :completed and op.waiters == [] and now - op.completed_mono > @retain_completed_ms
       end)
 
-    state = reconcile(%{state | ops: ops, reserve_blocked?: false})
+    state = reconcile(%{state | ops: ops, blocked_on: nil})
 
     if idle?(state, now), do: {:stop, :normal, state}, else: {:noreply, state}
   end
@@ -405,6 +405,13 @@ defmodule Tuist.RemoteExecution.Scheduler do
       {:ok, sandbox} ->
         dispatch(put_vm(state, %{id: sandbox.id, sandbox: sandbox, state: :ready, renewed_at: now_ms()}))
 
+      # No node had room. Nothing was created, so this waits for one of the
+      # account's placed VMs to free a node, or for the next tick.
+      {:error, sandbox, nil} ->
+        %{state | blocked_on: :node}
+        |> put_vm(%{id: sandbox.id, sandbox: sandbox, state: :retiring, renewed_at: now_ms()})
+        |> retire(sandbox.id, nil)
+
       # Unavailable nodes must not turn into a create/delete loop.
       {:error, sandbox, not_before} ->
         %{state | prepare_after: now_ms() + @prepare_backoff_ms}
@@ -413,15 +420,18 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
       # At the cap: other VMs of the account are still being deleted.
       :busy ->
-        %{state | reserve_blocked?: true}
+        %{state | blocked_on: :cap}
 
       _ ->
         state
     end
   end
 
+  # Any deletion frees an account slot; only a placed VM's frees node room.
   defp handle_task({:destroy, vm_id}, :ok, state) do
-    reconcile(%{state | vms: Map.delete(state.vms, vm_id), reserve_blocked?: false})
+    placed = match?(%{sandbox: %{node_name: node}} when is_binary(node), Map.get(state.vms, vm_id))
+    blocked_on = if state.blocked_on == :node and not placed, do: :node
+    reconcile(%{state | vms: Map.delete(state.vms, vm_id), blocked_on: blocked_on})
   end
 
   defp handle_task({:destroy, vm_id}, _error, state) do
@@ -505,7 +515,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
     desired = min(settings.max_concurrency, count.([:busy]) + queued + settings.warm_pool_size)
     room = min(desired - count.([:reserving, :ready, :busy]), settings.max_concurrency - map_size(state.vms))
 
-    if room > 0 and not state.reserve_blocked? and now_ms() >= state.prepare_after do
+    if room > 0 and is_nil(state.blocked_on) and now_ms() >= state.prepare_after do
       Enum.reduce(1..room, state, fn _, state -> start_prepare(state) end)
     else
       state
