@@ -8,6 +8,9 @@ on:
       - infra/runner-image/go.*
       - infra/linux-runner-image/go.*
       - infra/certificate-trust/**
+      - infra/runner-image/runner.pkr.hcl
+      - infra/xcresult-processor-image/xcresult-processor.pkr.hcl
+      - mise/tasks/release/components.json
       - go.work
       - infra/**/go.mod
       - kube-impersonator/go.mod
@@ -29,6 +32,9 @@ on:
       - infra/runner-image/go.*
       - infra/linux-runner-image/go.*
       - infra/certificate-trust/**
+      - infra/runner-image/runner.pkr.hcl
+      - infra/xcresult-processor-image/xcresult-processor.pkr.hcl
+      - mise/tasks/release/components.json
       - go.work
       - infra/**/go.mod
       - kube-impersonator/go.mod
@@ -100,7 +106,7 @@ jobs:
       - name: Race-test cache-volume HTTPS clients and wire controls
         run: go -C ../linux-runner-image test -race -count=1 ./cmd/tuist-cache-volume
       - name: Check shell syntax
-        run: bash -n pem-store.sh && bash -n java-store.sh
+        run: bash -n pem-store.sh && bash -n java-store.sh && bash -n macos-guest-trust.sh
       - name: Qualify compiler distrust with retained runtime defaults
         run: |
           for baseline in go1.25 go1.23; do
