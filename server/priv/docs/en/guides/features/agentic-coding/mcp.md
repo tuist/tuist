@@ -216,6 +216,14 @@ This read-only tool searches Tuist's documentation, [application programming int
 |------|-------------|---------------------|
 | `search_tuist` | Search public Tuist documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
+#### Feedback
+
+Agents can tell the Tuist team when a Tuist tool or prompt did not work the way they expected, such as a confusing result, an error, missing data, or a missing capability. Each report opens a conversation with Tuist support, who may reply to you by email, so agents are asked to tell you when they send one. A report includes what the agent expected, what happened, an optional suggestion, and your Tuist user ID and email. Only agents signed in as a Tuist user can send reports, and each user can open up to 10 reports per hour. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `report_feedback` | Report a problem with a Tuist tool or prompt. Optionally name the `tool_name` and add a `suggestion`. | `category`, `expected`, `actual` |
+
 #### Source-backed answers
 
 These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.

@@ -46,6 +46,14 @@ Authenticated-subject snapshots are also stored in the separate ephemeral node-l
 
 ## Exportable Data
 
+### Agent feedback reported through the MCP server
+
+The hosted Model Context Protocol server's `report_feedback` tool does not store
+reports in the Tuist server database. It sends the reporting user's email and
+ID, the agent-written message and the optional tool name and category to Atlas,
+which stores each report as a support conversation. Retention and export are
+documented in `atlas/data-export.md` under "Agent feedback support conversations".
+
 ### Atlas signals and business routing profiles
 
 Atlas's separate PostgreSQL database stores opt-in business routing metadata in

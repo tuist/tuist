@@ -14,7 +14,7 @@ defmodule Atlas.Support.Notifier do
 
   @app_key :company
   @event_type "atlas_support_event"
-  @events ~w(inbound_received chat_received reply_delivered note_added status_changed assigned)
+  @events ~w(inbound_received chat_received agent_feedback_received reply_delivered note_added status_changed assigned)
 
   def notify(%Thread{} = thread, event, opts \\ []) when event in @events do
     with {:ok, channel_id} <- channel_id(thread, event, opts) do
@@ -197,6 +197,7 @@ defmodule Atlas.Support.Notifier do
 
   defp event_title("inbound_received"), do: "New support email"
   defp event_title("chat_received"), do: "New support chat"
+  defp event_title("agent_feedback_received"), do: "New agent feedback"
   defp event_title("reply_delivered"), do: "Support reply sent"
   defp event_title("note_added"), do: "Private support note added"
   defp event_title("status_changed"), do: "Support conversation updated"
@@ -308,6 +309,10 @@ defmodule Atlas.Support.Notifier do
   end
 
   defp event_detail_block(_thread, "chat_received", opts) do
+    inbound_message_block(opts)
+  end
+
+  defp event_detail_block(_thread, "agent_feedback_received", opts) do
     inbound_message_block(opts)
   end
 

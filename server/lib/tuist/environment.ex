@@ -1977,6 +1977,19 @@ defmodule Tuist.Environment do
 
   def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
+  def atlas_url(secrets \\ secrets()) do
+    get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
+  end
+
+  @doc """
+  Bearer token for Atlas' support ingest endpoint, where agent feedback reported
+  through the MCP server is published. The `report_feedback` tool is only
+  offered when it is set.
+  """
+  def atlas_support_ingest_token(secrets \\ secrets()) do
+    get([:atlas, :support_ingest_token], secrets)
+  end
+
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end

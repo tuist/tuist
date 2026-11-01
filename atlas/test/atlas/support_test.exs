@@ -142,6 +142,51 @@ defmodule Atlas.SupportTest do
     end
   end
 
+  describe "receive_agent_feedback/1" do
+    test "opens a conversation for the reporting user, linked to their account" do
+      suffix = System.unique_integer([:positive])
+      account = insert_account!("customer-#{suffix}.example")
+
+      assert {:ok, %{thread: thread, message: message}} =
+               Support.receive_agent_feedback(%{
+                 "name" => "Maya Chen",
+                 "email" => "Maya@Customer-#{suffix}.example",
+                 "body" => "Expected: test runs filtered by branch\n\nActual: the branch was ignored",
+                 "context" => %{
+                   "tool_name" => "list_test_runs",
+                   "category" => "missing_data",
+                   "tuist_user_id" => "42",
+                   "unexpected" => "dropped"
+                 }
+               })
+
+      assert thread.account_id == account.id
+      assert thread.subject == "Agent feedback: list_test_runs"
+      assert thread.customer_email == "maya@customer-#{suffix}.example"
+
+      assert thread.metadata == %{
+               "channel" => "agent_feedback",
+               "email_verified" => true,
+               "tool_name" => "list_test_runs",
+               "category" => "missing_data",
+               "tuist_user_id" => "42"
+             }
+
+      assert message.kind == "chat"
+      assert message.body =~ "the branch was ignored"
+
+      assert_enqueued(
+        worker: PostNotification,
+        args: %{"event" => "agent_feedback_received", "thread_id" => thread.id, "message_id" => message.id}
+      )
+    end
+
+    test "rejects reports without an email or body" do
+      assert {:error, :email_required} = Support.receive_agent_feedback(%{"body" => "Something broke."})
+      assert {:error, :body_required} = Support.receive_agent_feedback(%{"email" => "maya@example.com", "body" => " "})
+    end
+  end
+
   describe "receive_chat/1 and receive_chat/2" do
     test "delivers replies in chat until the customer confirms their email" do
       suffix = System.unique_integer([:positive])

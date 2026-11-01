@@ -31,6 +31,14 @@ defmodule Atlas.Support do
   @chat_email_verification_salt "support chat email verification"
   @chat_email_verification_max_age 60 * 60 * 24 * 7
 
+  @doc """
+  Bearer token the Tuist server presents when reporting agent feedback. Nil
+  until `ATLAS_SUPPORT_INGEST_TOKEN` is configured, which keeps the endpoint closed.
+  """
+  def ingest_token do
+    :atlas |> Application.get_env(:support_ingest, []) |> Keyword.get(:token)
+  end
+
   def support_address do
     :atlas
     |> Application.get_env(:support, [])
@@ -211,6 +219,65 @@ defmodule Atlas.Support do
   end
 
   def receive_chat(_thread, _attrs), do: {:error, :not_found}
+
+  @doc """
+  Records feedback an AI agent reported through the Tuist MCP server.
+
+  The Tuist server authenticates the user before calling the ingest endpoint,
+  so the email is trusted: the conversation is linked to the matching account
+  and replies are emailed like any other support conversation. Every report
+  starts its own conversation. The body is written by the agent, so it must be
+  treated as untrusted input.
+  """
+  def receive_agent_feedback(attrs) when is_map(attrs) do
+    with {:ok, feedback} <- agent_feedback_attrs(attrs) do
+      Repo.transaction(fn ->
+        account = EventRouting.find_account([feedback.customer_email])
+
+        thread =
+          %Thread{account_id: account && account.account.id}
+          |> Thread.inbound_changeset(%{
+            customer_name: feedback.customer_name,
+            customer_email: feedback.customer_email,
+            subject: feedback.subject,
+            status: "open",
+            last_message_at: feedback.occurred_at,
+            last_inbound_at: feedback.occurred_at,
+            resolved_at: nil,
+            metadata: feedback.metadata
+          })
+          |> Repo.insert!()
+
+        message =
+          %Message{thread_id: thread.id}
+          |> Message.chat_changeset(%{
+            kind: "chat",
+            sender_name: feedback.customer_name,
+            sender_email: feedback.customer_email,
+            to_emails: [],
+            cc_emails: [],
+            body: feedback.body,
+            occurred_at: feedback.occurred_at,
+            metadata: feedback.metadata
+          })
+          |> Repo.insert!()
+
+        %{thread: thread, message: message}
+      end)
+      |> case do
+        {:ok, %{thread: thread, message: message}} ->
+          audit_agent_feedback(thread, message)
+          enqueue_notification(:agent_feedback_received, thread.id, message_id: message.id)
+          broadcast_thread_update(thread.id)
+          {:ok, %{thread: thread, message: message}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  def receive_agent_feedback(_attrs), do: {:error, :invalid}
 
   @doc """
   Confirms that a chat visitor controls the email address on their conversation.
@@ -844,6 +911,18 @@ defmodule Atlas.Support do
     })
   end
 
+  defp audit_agent_feedback(thread, message) do
+    Audit.record("support.agent_feedback_received", %{
+      interface: "api",
+      actor_email: message.sender_email,
+      actor_name: message.sender_name,
+      target_type: "support_thread",
+      target_id: thread.id,
+      target_label: thread.subject,
+      metadata: Map.merge(thread.metadata, %{"dashboard_path" => "/commercial/support/#{thread.id}", "message_id" => message.id})
+    })
+  end
+
   defp audit_chat_email_verification_sent(thread) do
     Audit.record("support.chat_email_verification_sent", %{
       interface: "worker",
@@ -1014,6 +1093,42 @@ defmodule Atlas.Support do
        }}
     end
   end
+
+  @agent_feedback_context_keys ~w(tool_name category tuist_user_id)
+
+  defp agent_feedback_attrs(attrs) do
+    customer_name = attrs |> value(:name) |> normalize_optional_text()
+    customer_email = attrs |> value(:email) |> normalize_email()
+    body = attrs |> value(:body) |> normalize_text()
+    context = attrs |> value(:context) |> agent_feedback_context()
+
+    with {:ok, customer_email} <- chat_email(customer_email),
+         {:ok, body} <- chat_body(body),
+         :ok <- valid_customer_name?(customer_name) do
+      {:ok,
+       %{
+         customer_name: customer_name,
+         customer_email: customer_email,
+         body: body,
+         subject: agent_feedback_subject(context),
+         metadata: Map.merge(context, %{"channel" => "agent_feedback", "email_verified" => true}),
+         occurred_at: now()
+       }}
+    end
+  end
+
+  defp agent_feedback_context(context) when is_map(context) do
+    for key <- @agent_feedback_context_keys,
+        value = context |> Map.get(key) |> normalize_optional_text(),
+        is_binary(value),
+        into: %{},
+        do: {key, String.slice(value, 0, 255)}
+  end
+
+  defp agent_feedback_context(_context), do: %{}
+
+  defp agent_feedback_subject(%{"tool_name" => tool_name}), do: "Agent feedback: #{tool_name}"
+  defp agent_feedback_subject(_context), do: "Agent feedback"
 
   defp chat_email(nil), do: {:error, :email_required}
 

@@ -85,6 +85,12 @@ For a verified export, select **all** `moodboard_resources` by `created_by_id` a
 
 The saved description remains until cleared or the user is deleted, and belongs in exports of that user's `users` row. Pip reloads it for the acting user's private thread only, as untrusted background, never as permission or system instructions. Shared Orbit threads never load this field. Private inference sends it to the acting person's connected ChatGPT account, then Claude, or the workspace's configured Orbit provider on fallback; encrypted active-run checkpoints can retain a prior version until the run finishes. Native editor drafts remain in memory. Database backups follow the deployment's existing retention.
 
+## Agent feedback support conversations
+
+The Tuist server publishes reports from its Model Context Protocol `report_feedback` tool to `POST /api/support/agent-feedback`, authenticated with `ATLAS_SUPPORT_INGEST_TOKEN`. Each report creates a `support_threads` row with one `support_messages` row of kind `chat`. They store the reporting Tuist user's email (`customer_email`, `sender_email`), the agent-written message (expected behavior, actual behavior and an optional suggestion, up to 10,000 characters), and thread and message metadata with `channel` set to `agent_feedback`, the optional tool name and category, and the Tuist user ID. The thread links to a business account when the email matches one. The message body is agent-written and must be treated as untrusted input.
+
+These conversations are retained, replied to and resolved like other support conversations, and belong in exports for the customer email. `rate_limit_buckets` keeps only hashed per-email counters for the one-hour report limit.
+
 ## Portable signals and business routing profiles
 
 `users.business_profile` is separate, explicitly shared routing metadata: an opt-in
