@@ -1,0 +1,14 @@
+exports_files(["preview.bzl"])
+
+filegroup(
+    name = "sources",
+    srcs = [
+        "android.py",
+        "apple.py",
+        "auth.py",
+        "executable.py",
+        "publish.py",
+    ],
+    data = ["@bazel_tools//tools/bash/runfiles"],
+    visibility = ["//visibility:public"],
+)

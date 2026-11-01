@@ -16,8 +16,7 @@ defmodule TuistWeb.PreviewLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
-    preview =
-      get_current_preview(preview_id)
+    preview = get_current_preview(preview_id, selected_project)
 
     layout =
       if TuistWeb.Authentication.authenticated?(socket.assigns) or
@@ -129,8 +128,9 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-  defp get_current_preview(preview_id) do
+  defp get_current_preview(preview_id, selected_project) do
     case AppBuilds.preview_by_id(preview_id,
+           project_id: selected_project.id,
            preload: [:created_by_account, :app_builds, project: [:account]]
          ) do
       {:error, :not_found} ->

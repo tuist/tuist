@@ -211,3 +211,20 @@ func swiftSyntaxPin(version: String) -> ResolvedPin {
         state: ResolvedState(branch: nil, revision: "abcdef1234567890", version: version)
     )
 }
+
+func inode(_ url: URL) -> UInt64? {
+    var stats = stat()
+    guard url.path.withCString({ lstat($0, &stats) }) == 0 else { return nil }
+    return UInt64(stats.st_ino)
+}
+
+/// Waits for the detached deletion `ScratchTrash.purge` starts.
+func trashIsPurged(_ trash: ScratchTrash, timeout: Duration = .seconds(30)) async throws -> Bool {
+    let clock = ContinuousClock()
+    let deadline = clock.now + timeout
+    while clock.now < deadline {
+        if (try? await fileSystem.contentsOfDirectory(at: trash.directory))?.isEmpty ?? true { return true }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    return false
+}

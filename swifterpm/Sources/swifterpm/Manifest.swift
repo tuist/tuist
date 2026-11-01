@@ -133,6 +133,14 @@ enum ManifestLoader {
         if let inputs, let cached = await ManifestCache.read(at: cache, inputs: inputs) {
             return (cached, inputs)
         }
+        var shared: (file: URL, inputs: String)?
+        if let inputs {
+            shared = await ManifestCache.sharedEntry(packageDir: packageDir, disableSandbox: disableSandbox)
+            if let shared, let cached = await ManifestCache.read(at: shared.file, inputs: shared.inputs) {
+                try? await ManifestCache.write(cached, at: cache, inputs: inputs)
+                return (cached, inputs)
+            }
+        }
 
         var args = ["package"]
         if let sharedCacheDirectory = ManifestCache.sharedCacheDirectory {
@@ -152,6 +160,9 @@ enum ManifestLoader {
            (try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)) == inputs
         {
             try? await ManifestCache.write(result.stdout, at: cache, inputs: inputs)
+            if let shared {
+                try? await ManifestCache.write(result.stdout, at: shared.file, inputs: shared.inputs)
+            }
             return (result.stdout, inputs)
         }
         return (result.stdout, nil)

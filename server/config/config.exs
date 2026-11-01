@@ -589,6 +589,8 @@ config :tuist, :urls,
   feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
   shop: "https://shop.tuist.dev"
 
+config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
+
 config :tuist_common, finch_name: Tuist.Finch
 
 config :tzdata, :http_client, Tuist.Tzdata.HTTPClient

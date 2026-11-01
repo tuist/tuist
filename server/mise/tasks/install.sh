@@ -63,4 +63,8 @@ if ! clickhouse_database_exists; then
 fi
 
 mise run db:migrate
-mise run db:seed
+
+# Amp orb setup seeds separately, only when the database is empty.
+if [ "${1:-}" != "--no-seed" ]; then
+  mise run db:seed
+fi

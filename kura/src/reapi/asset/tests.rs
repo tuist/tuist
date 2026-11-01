@@ -29,6 +29,9 @@ async fn origin() -> Origin {
     let connections = Arc::new(Mutex::new(std::collections::HashSet::new()));
     let peers = connections.clone();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    // A second port is a distinct origin without relying on `localhost`, which
+    // can resolve to an unrelated [::1] listener on the same port number.
+    let other_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let router = Router::new()
         .route(
@@ -87,10 +90,7 @@ async fn origin() -> Origin {
         .route(
             "/other-origin",
             get({
-                let target = format!(
-                    "http://localhost:{}/headers",
-                    listener.local_addr().unwrap().port()
-                );
+                let target = format!("http://{}/headers", other_listener.local_addr().unwrap());
                 move || {
                     let target = target.clone();
                     async move { axum::response::Redirect::temporary(&target) }
@@ -116,12 +116,17 @@ async fn origin() -> Origin {
             }),
         );
     let task = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-        )
-        .await
-        .unwrap();
+        let serve = |listener| {
+            axum::serve(
+                listener,
+                router
+                    .clone()
+                    .into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+        };
+        let (primary, other) = tokio::join!(serve(listener), serve(other_listener));
+        primary.unwrap();
+        other.unwrap();
     });
     Origin {
         url,
@@ -810,10 +815,7 @@ async fn untrusted_tls_is_not_retried_and_another_mirror_can_succeed() {
     .unwrap()
     .get_inner();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let uri = format!(
-        "https://localhost:{}/file",
-        listener.local_addr().unwrap().port()
-    );
+    let uri = format!("https://{}/file", listener.local_addr().unwrap());
     let connections = Arc::new(AtomicUsize::new(0));
     let counter = connections.clone();
     let server = tokio::spawn(async move {

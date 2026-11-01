@@ -188,10 +188,16 @@ kuraController:
       enabled: false
       storeName: onepassword
       item: ""
-  # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
-  # changes the pod template and rolls these instances. No RBAC grant needed.
-  # Requires a Kura runtime image with built-in connectivity telemetry.
+  # Fixed, locally expiring timing observations in the existing Kura logs.
+  # Activation only patches live Pod annotations; it never rolls runtimes.
   connectivityDiagnostics:
+    # First deploy this controller with preparation off and establish it as the
+    # rollback floor. Enable separately; projection adoption then waits for an
+    # ordinary runtime image change (or a new StatefulSet). Keep false by default.
+    prepare: false
+    # Absolute RFC3339 deadline, at most 24 hours ahead. Missing/invalid/expired
+    # deadlines disable sampling without affecting controller availability.
+    expiresAt: ""
     # Keep identifying selections out of tracked values. The existing Secret
     # must contain an instances key with comma-separated exact instance names.
     # Provision it in the controller namespace before setting this reference.

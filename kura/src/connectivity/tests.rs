@@ -67,6 +67,210 @@ fn profiles_are_fixed_and_include_absolute_names() {
 }
 
 #[test]
+fn selection_rejects_invalid_unbounded_or_expired_configuration() {
+    let now = UNIX_EPOCH + Duration::from_secs(1_900_000_000);
+    for (profile, seconds, valid) in [
+        ("production", 1_900_000_000, false),
+        ("canary", 1_900_000_001, true),
+        ("staging", 1_900_086_400, true),
+        ("production", 1_900_086_401, false),
+        ("http://example.com", 1_900_000_060, false),
+        ("production", u64::MAX, false),
+    ] {
+        let selection = Selection {
+            profile: profile.into(),
+            expires_at_unix_seconds: seconds,
+        };
+        assert_eq!(selection.remaining(now).is_some(), valid);
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("selection.json");
+    assert!(read_selection(&path).is_none());
+    for invalid in [
+        "".into(),
+        "{}".into(),
+        r#"{"profile":"production"}"#.into(),
+        r#"{"profile":"production","expires_at_unix_seconds":1900000001,"url":"http://example.com"}"#.into(),
+        " ".repeat(513),
+    ] {
+        std::fs::write(&path, invalid).unwrap();
+        assert!(read_selection(&path).is_none());
+    }
+    std::fs::write(
+        &path,
+        r#"{"profile":"production","expires_at_unix_seconds":1900000001}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        read_selection(&path).unwrap().remaining(now),
+        Some(Duration::from_secs(1))
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn expiry_cancels_work_without_controller_updates_and_cannot_rearm() {
+    let expires = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 10;
+    let (events, mut observed) = tokio::sync::mpsc::unbounded_channel();
+    struct Cancel(tokio::sync::mpsc::UnboundedSender<&'static str>);
+    impl Drop for Cancel {
+        fn drop(&mut self) {
+            let _ = self.0.send("cancelled");
+        }
+    }
+    let worker = tokio::spawn(watch_selection(
+        move || {
+            Some(Selection {
+                profile: "production".into(),
+                expires_at_unix_seconds: expires,
+            })
+        },
+        SystemTime::now,
+        move |_| {
+            let events = events.clone();
+            async move {
+                events.send("started").unwrap();
+                let _cancel = Cancel(events);
+                pending::<()>().await;
+            }
+        },
+    ));
+    assert_eq!(observed.recv().await, Some("started"));
+    tokio::time::advance(Duration::from_secs(11)).await;
+    assert_eq!(observed.recv().await, Some("cancelled"));
+    // The wall clock is unchanged under paused Tokio time: this also exercises
+    // a still-present file after a backward clock adjustment at local expiry.
+    tokio::time::advance(Duration::from_secs(120)).await;
+    assert!(observed.try_recv().is_err());
+    worker.abort();
+    let _ = worker.await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn changing_or_removing_selection_cancels_work_without_bypassing_cooldown() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("selection.json");
+    let expires = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 600;
+    let select = |profile| {
+        std::fs::write(
+            &path,
+            serde_json::json!({"profile": profile, "expires_at_unix_seconds": expires}).to_string(),
+        )
+        .unwrap();
+    };
+    select("production");
+    let (events, mut observed) = tokio::sync::mpsc::unbounded_channel();
+    struct Cancel(tokio::sync::mpsc::UnboundedSender<&'static str>);
+    impl Drop for Cancel {
+        fn drop(&mut self) {
+            let _ = self.0.send("cancelled");
+        }
+    }
+    let read_path = path.clone();
+    let worker = tokio::spawn(watch_selection(
+        move || read_selection(&read_path),
+        SystemTime::now,
+        move |host| {
+            let events = events.clone();
+            async move {
+                events.send(host).unwrap();
+                let _cancel = Cancel(events);
+                pending::<()>().await;
+            }
+        },
+    ));
+    assert_eq!(
+        observed.recv().await,
+        Some("tuist-tuist-server.tuist.svc.cluster.local")
+    );
+    select("canary");
+    assert_eq!(observed.recv().await, Some("cancelled"));
+    tokio::time::advance(Duration::from_secs(59)).await;
+    assert!(observed.try_recv().is_err());
+    assert_eq!(
+        observed.recv().await,
+        Some("tuist-tuist-server.tuist-canary.svc.cluster.local")
+    );
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(observed.recv().await, Some("cancelled"));
+    tokio::time::advance(Duration::from_secs(120)).await;
+    assert!(observed.try_recv().is_err());
+    worker.abort();
+    let _ = worker.await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn wall_clock_changes_cannot_extend_or_rearm_a_cancelled_window() {
+    use std::sync::{Mutex, atomic::AtomicU64};
+
+    for scenario in ["profile_change", "removed", "initially_expired"] {
+        let wall = Arc::new(AtomicU64::new(1_900_000_000));
+        let selected = Arc::new(Mutex::new(Some(Selection {
+            profile: "production".into(),
+            expires_at_unix_seconds: if scenario == "initially_expired" {
+                1_899_999_999
+            } else {
+                1_900_000_120
+            },
+        })));
+        let original = selected.lock().unwrap().clone();
+        let starts = Arc::new(AtomicUsize::new(0));
+        let (reads, mut observed) = tokio::sync::mpsc::unbounded_channel();
+        let source = selected.clone();
+        let clock = wall.clone();
+        let counter = starts.clone();
+        let worker = tokio::spawn(watch_selection(
+            move || {
+                let selection = source.lock().unwrap().clone();
+                let _ = reads.send(());
+                selection
+            },
+            move || UNIX_EPOCH + Duration::from_secs(clock.load(Ordering::SeqCst)),
+            move |_| {
+                counter.fetch_add(1, Ordering::SeqCst);
+                pending()
+            },
+        ));
+        observed.recv().await.unwrap();
+        assert_eq!(
+            starts.load(Ordering::SeqCst),
+            usize::from(scenario != "initially_expired")
+        );
+        wall.store(1_899_999_000, Ordering::SeqCst);
+        if scenario == "profile_change" {
+            selected.lock().unwrap().as_mut().unwrap().profile = "canary".into();
+        } else if scenario == "removed" {
+            *selected.lock().unwrap() = None;
+        }
+        tokio::time::advance(Duration::from_secs(5)).await;
+        observed.recv().await.unwrap();
+        tokio::time::advance(Duration::from_secs(130)).await;
+        observed.recv().await.unwrap();
+        *selected.lock().unwrap() = original;
+        tokio::time::advance(Duration::from_secs(5)).await;
+        observed.recv().await.unwrap();
+        // Cross the cooldown too: the original monotonic expiry, not a new
+        // wall-clock conversion after cancellation, must govern reactivation.
+        let before = starts.load(Ordering::SeqCst);
+        tokio::time::advance(Duration::from_secs(120)).await;
+        observed.recv().await.unwrap();
+        assert_eq!(starts.load(Ordering::SeqCst), before, "{scenario}");
+        if scenario == "initially_expired" {
+            assert_eq!(before, 0);
+        }
+        worker.abort();
+        let _ = worker.await;
+    }
+}
+
+#[test]
 fn worker_panic_does_not_propagate_to_its_owner() {
     let mut diagnostics = spawn_worker(|_| panic!("injected diagnostic failure")).unwrap();
     assert!(diagnostics._thread.take().unwrap().join().is_ok());

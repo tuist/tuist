@@ -265,6 +265,41 @@ class TokenProviderTest {
         assertEquals("new-refresh", stored?.refreshToken)
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `refresh preserves a session changed during the exchange`(sameRefreshToken: Boolean) {
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
+        val peerCredentials = Credentials(validJwt(), if (sameRefreshToken) "refresh-token" else "peer-refresh")
+        val refreshService = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
+                store.write(serverURL, peerCredentials)
+                return AuthenticationTokens(createJwt(System.currentTimeMillis() / 1000 + 7200), "stale-refresh")
+            }
+        }
+        val provider = createProvider(refreshService = refreshService, credentialStore = store)
+
+        assertEquals(peerCredentials.accessToken, provider.getToken())
+        assertEquals(peerCredentials, store.readValidated(serverURL))
+    }
+
+    @Test
+    fun `refresh does not resurrect credentials removed during the exchange`() {
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
+        val refreshService = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
+                Files.delete(File(tempDir, "credentials/tuist.dev.json").toPath())
+                return AuthenticationTokens(validJwt(), "stale-refresh")
+            }
+        }
+        val provider = createProvider(refreshService = refreshService, credentialStore = store)
+
+        assertFailsWith<TokenProvider.NotAuthenticatedException> { provider.getToken() }
+        assertNull(store.readValidated(serverURL))
+        assertFailsWith<TokenProvider.NotAuthenticatedException> { provider.getToken() }
+    }
+
     @Test
     fun `expired token without refresh token throws NotAuthenticatedException`() {
         val store = createCredentialStore()

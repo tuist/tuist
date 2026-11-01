@@ -698,10 +698,10 @@ defmodule Tuist.Runners.CacheVolumesTest do
   end
 
   test "lists a Node only the repositories placed on it, with every volume of one together", %{job: job} do
-    now = DateTime.utc_now()
     app = published_mac_volumes(job, ~w(xcode module))
     other_job = %{job | repository: "org/other", workflow_job_id: job.workflow_job_id + 1}
     other = published_mac_volumes(other_job, ~w(other-xcode))
+    now = DateTime.utc_now()
     weights = Map.new(@peers, &{&1, 1})
     app_holders = VolumePlacement.holders("#{job.account_id}/#{job.repository}", weights, 2)
     other_holders = VolumePlacement.holders("#{job.account_id}/org/other", weights, 2)

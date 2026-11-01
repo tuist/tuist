@@ -1,6 +1,7 @@
 # Tuist (Business Logic)
 
 - Keep domain rules in contexts here; HTTP handling, controllers, and LiveView belong in `server/lib/tuist_web`.
+- Reach the web endpoint and router through `Tuist.Web.endpoint/0` and `Tuist.Web.router/0` (tokens, URLs, endpoint config), never by naming `TuistWeb.Endpoint` or `TuistWeb.Router`. A named reference puts every web module into the runtime closure of core, so a one-template edit recompiles every module that uses core at compile time.
 - Put environment/runtime configuration in `server/config`, not domain modules.
 - Keep schemas here and migrations in `server/priv/repo/migrations` (PostgreSQL) or `server/priv/ingest_repo/migrations` (ClickHouse).
 
