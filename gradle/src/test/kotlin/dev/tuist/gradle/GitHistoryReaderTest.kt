@@ -181,6 +181,29 @@ class GitHistoryReaderTest {
     }
 
     @Test
+    fun `leaves out a head a depth-one pull request merge checkout does not have`() {
+        // `actions/checkout`'s default: `refs/pull/N/merge` at depth 1, with the merge commit, not the
+        // pull request's head the run reports.
+        val origin = origin()
+        val checkout = fixture.init(File(tempDir, "checkout"))
+        fixture.git(checkout, "remote", "add", "origin", origin.url)
+        fixture.git(checkout, "fetch", "-q", "--depth=1", "origin", "+main:refs/remotes/origin/main")
+        val (reader, runner) = reader(checkout)
+
+        val history = reader.read(origin.feature, "main", GitHistoryLimits())
+
+        assertEquals(origin.feature, history.headSha)
+        assertNull(history.mergeBaseSha)
+        assertEquals(origin.mainHead, history.baseHeadSha)
+        assertEquals(
+            "shallow clone: the merge base with main is not in the checkout; ${origin.feature.take(12)} is not in the checkout",
+            history.fallbackReason
+        )
+        assertEquals(listOf(origin.mainHead), history.commits.map { it.sha })
+        assertTrue(runner.remoteCommands.isEmpty())
+    }
+
+    @Test
     fun `isRepository tells a checkout from a plain directory`() {
         val repository = fixture.init(File(tempDir, "repository"))
         val plain = File(tempDir, "plain").apply { mkdirs() }
@@ -195,6 +218,7 @@ class GitHistoryReaderTest {
 
         override fun capture(args: List<String>): String = when {
             args == listOf("rev-parse", "--show-object-format") -> "sha1\n"
+            args == listOf("rev-parse", "--verify", "--quiet", "head^{commit}") -> "head\n"
             args.first() == "log" && args.contains("--format=%H %P %ct") -> "head 1700000000\n"
             else -> throw GitCommandException("git ${args.first()} failed")
         }
