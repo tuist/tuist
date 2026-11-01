@@ -72,8 +72,8 @@ defmodule Tuist.Shards.StorageRoutingTest do
     assert {:ok, %{download_url: "get-url"}} =
              Shards.get_shard_for_plan_id(ctx.project, ctx.account, plan.id, 0, ctx.opts)
 
-    assert {:error, :shard_storage_unavailable} = Shards.start_upload_for_plan_id(ctx.project, ctx.account, plan.id)
-    assert {:error, :shard_storage_unavailable} = Shards.get_shard_for_plan_id(ctx.project, ctx.account, plan.id, 0)
+    assert {:error, :shard_storage_site_required} = Shards.start_upload_for_plan_id(ctx.project, ctx.account, plan.id)
+    assert {:error, :shard_storage_site_required} = Shards.get_shard_for_plan_id(ctx.project, ctx.account, plan.id, 0)
   end
 
   test "uploads a just-created plan to its store before any ClickHouse replica returns it", ctx do

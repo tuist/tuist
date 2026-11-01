@@ -246,6 +246,9 @@ defmodule TuistWeb.API.ShardsController do
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
 
+      {:error, :shard_storage_site_required} ->
+        shard_storage_site_required(conn)
+
       {:error, _reason} ->
         StorageError.render(conn)
     end
@@ -308,28 +311,7 @@ defmodule TuistWeb.API.ShardsController do
 
     opts = [suite_catch_all?: suite_catch_all_supported?(conn), runner_grant: runner_grant(conn)]
 
-    result =
-      case Map.get(query_params, "shard_plan_id") do
-        plan_id when is_binary(plan_id) and plan_id != "" ->
-          Shards.get_shard_for_plan_id(
-            selected_project,
-            selected_project.account,
-            plan_id,
-            shard_index,
-            opts
-          )
-
-        _ ->
-          Shards.get_shard(
-            selected_project,
-            selected_project.account,
-            reference,
-            shard_index,
-            opts
-          )
-      end
-
-    case result do
+    case get_shard(selected_project, Map.get(query_params, "shard_plan_id"), reference, shard_index, opts) do
       {:ok, result} ->
         json(conn, %{
           shard_plan_id: result.shard_plan_id,
@@ -349,6 +331,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:not_found)
         |> json(%{message: "The shard index is out of range."})
+
+      {:error, :shard_storage_site_required} ->
+        shard_storage_site_required(conn)
 
       {:error, :shard_storage_unavailable} ->
         StorageError.render(conn)
@@ -453,6 +438,9 @@ defmodule TuistWeb.API.ShardsController do
     case result do
       {:ok, url} ->
         json(conn, %{data: %{url: url}})
+
+      {:error, :shard_storage_site_required} ->
+        shard_storage_site_required(conn)
 
       {:error, :shard_storage_unavailable} ->
         StorageError.render(conn)
@@ -589,9 +577,29 @@ defmodule TuistWeb.API.ShardsController do
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
 
+      {:error, :shard_storage_site_required} ->
+        shard_storage_site_required(conn)
+
       {:error, _reason} ->
         StorageError.render(conn)
     end
+  end
+
+  defp get_shard(project, plan_id, _reference, shard_index, opts) when is_binary(plan_id) and plan_id != "" do
+    Shards.get_shard_for_plan_id(project, project.account, plan_id, shard_index, opts)
+  end
+
+  defp get_shard(project, _plan_id, reference, shard_index, opts) do
+    Shards.get_shard(project, project.account, reference, shard_index, opts)
+  end
+
+  defp shard_storage_site_required(conn) do
+    conn
+    |> put_status(:forbidden)
+    |> json(%{
+      message:
+        "This shard plan's build is in runner-local storage, which only Tuist runners at the same site as the build job can reach. Run this job on such a runner, or rerun the build job."
+    })
   end
 
   defp runner_grant(conn) do
