@@ -76,13 +76,7 @@ defmodule Tuist.Cargo do
           })
         end)
 
-      if rows != [] do
-        Compilation.Buffer.insert_all(rows)
-
-        if build_entry.command != "nextest" and BuildEntities.enabled?(build_entry.project_id) do
-          BuildEntities.Producers.cargo_build(build_entry, rows)
-        end
-      end
+      record_compilations(build_entry, rows)
 
       {:ok, id}
     else
@@ -198,6 +192,16 @@ defmodule Tuist.Cargo do
       end)
 
     ClickHouseRepo.all(query)
+  end
+
+  defp record_compilations(_build, []), do: :ok
+
+  defp record_compilations(build, rows) do
+    Compilation.Buffer.insert_all(rows)
+
+    if build.command != "nextest" and BuildEntities.enabled?(build.project_id) do
+      BuildEntities.Producers.cargo_build(build, rows)
+    end
   end
 
   defp build_query(project_id), do: from(b in Build, where: b.project_id == ^project_id and b.command != "nextest")
