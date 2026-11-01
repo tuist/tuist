@@ -437,6 +437,12 @@ defmodule Tuist.Kura do
   defdelegate placement_regions(account), to: PlacerRegions, as: :all_for
 
   @doc """
+  The regions placement gave up for the account and keeps shut, with the date
+  it left each one.
+  """
+  defdelegate restorable_placement_regions(account), to: PlacementProposals, as: :restorable_regions
+
+  @doc """
   Where the account's cache traffic came from over the last `days`, busiest
   first.
   """
@@ -646,6 +652,36 @@ defmodule Tuist.Kura do
       {:ok, {:applied, outcome}} -> {:ok, outcome}
       {:ok, {:stale, _proposal}} -> {:error, :stale_proposal}
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Serves the account from a region placement gave up again, as an applied
+  expansion `resolved_by` the operator, so the history shows who reversed what.
+
+  Only a region `restorable_placement_regions/1` lists: one the reopening
+  window keeps placement from opening itself. The expansion's own premises
+  still hold it to room and residency, and the region is held from today, so
+  the retirement rungs give it their full window before judging it again.
+  """
+  def restore_placement_region(%Account{} = account, region, resolved_by) when is_binary(resolved_by) do
+    case Map.fetch(PlacementProposals.restorable_regions(account), region) do
+      :error ->
+        {:error, :not_restorable}
+
+      {:ok, given_up_on} ->
+        %PlacementProposal{}
+        |> PlacementProposal.changeset(%{
+          account_id: account.id,
+          kind: :expand,
+          to_region: region,
+          evidence: %{"signal" => "operator_restore", "given_up_on" => Date.to_iso8601(given_up_on)}
+        })
+        |> Repo.insert()
+        |> case do
+          {:ok, proposal} -> apply_placement_proposal(proposal, resolved_by)
+          {:error, _changeset} -> {:error, :open_proposal}
+        end
     end
   end
 

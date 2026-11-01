@@ -77,6 +77,20 @@ defmodule Tuist.Kura.PlacementProposals do
   end
 
   @doc """
+  The regions the account gave up inside the reopening window and does not
+  hold again, with the date it left each one. Placement keeps these shut, so
+  an operator restore is the only way back before the window passes.
+  """
+  def restorable_regions(%Account{id: account_id} = account, today \\ Date.utc_today()) do
+    claimed = claimed_regions(account)
+
+    [account_id]
+    |> given_up(today, Placement.served_policy())
+    |> Map.get(account_id, %{})
+    |> Map.drop(claimed)
+  end
+
+  @doc """
   How many proposals of each kind the sweep may apply on its own in a day, with
   every kind present. A count, or `:unlimited` for a kind with no fleet-wide
   ceiling.

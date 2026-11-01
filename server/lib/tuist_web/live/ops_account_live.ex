@@ -395,6 +395,41 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("restore_kura_placement_region", %{"region" => region}, socket) do
+    account = socket.assigns.account
+
+    case Kura.restore_placement_region(account, region, socket.assigns.current_user.email) do
+      {:ok, outcome} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, kura_placement_message(outcome))}
+
+      {:error, :open_proposal} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(
+           :error,
+           dgettext("dashboard", "Apply or dismiss the open placement proposal before restoring a region.")
+         )}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard",
+             "%{region} cannot be restored right now: it has no room for the account's instance, or the account already holds it.",
+             region: region
+           )
+         )}
+    end
+  end
+
+  @impl true
   def handle_event("update_kura_egress_limits", %{"account" => params}, socket) do
     save_kura_egress_limits(socket, params)
   end
@@ -908,6 +943,14 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_traffic_mix, Kura.placement_traffic_mix(account, @kura_traffic_mix_days))
     |> assign(:kura_placement_proposal, Kura.placement_proposal_for(account))
     |> assign(:kura_placement_history, Kura.placement_history(account, @kura_claim_history_limit))
+    |> assign(:kura_restorable_regions, kura_restorable_regions(account))
+  end
+
+  defp kura_restorable_regions(account) do
+    account
+    |> Kura.restorable_placement_regions()
+    |> Enum.sort()
+    |> Enum.map(fn {region, given_up_on} -> %{id: region, region: region, given_up_on: given_up_on} end)
   end
 
   # One entry per egress-governed region the account holds an instance in, each
@@ -1330,6 +1373,10 @@ defmodule TuistWeb.OpsAccountLive do
       share: round((evidence["share"] || 0) * 100),
       days: evidence["window_days"]
     )
+  end
+
+  def placement_history_reason(%{kind: :expand, evidence: %{"signal" => "operator_restore"} = evidence}) do
+    dgettext("dashboard", "Restored a region placement gave up on %{date}", date: evidence["given_up_on"])
   end
 
   def placement_history_reason(%{kind: :expand, evidence: evidence}) do
