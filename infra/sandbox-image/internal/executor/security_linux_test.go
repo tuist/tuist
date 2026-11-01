@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -13,24 +14,33 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func noNewPrivs(t *testing.T, start func(*exec.Cmd) error) bool {
+	t.Helper()
+	var status bytes.Buffer
+	cmd := exec.Command("/bin/cat", "/proc/self/status")
+	cmd.Stdout = &status
+	if err := start(cmd); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	return strings.Contains(status.String(), "NoNewPrivs:\t1")
+}
+
 func TestNoNewPrivilegesSurvivesSchedulingAndExec(t *testing.T) {
 	if os.Getenv("SBX_TEST_SECURITY_CHILD") == "1" {
-		// The subprocess keeps this irreversible thread attribute out of
-		// the test runner. Exercise the same preparation used by run().
-		if err := prepareExecution(); err != nil {
-			t.Fatal(err)
-		}
-		defer runtime.UnlockOSThread()
-		thread := unix.Gettid()
-		for i := 0; i < 100; i++ {
+		// The subprocess keeps any leaked thread attribute out of the test
+		// runner. Commands started without the helper, on whatever threads
+		// remain, must never inherit it.
+		for i := 0; i < 50; i++ {
+			if !noNewPrivs(t, startWithoutNewPrivileges) {
+				t.Fatal("child privilege restriction missing")
+			}
 			runtime.Gosched()
-		}
-		if unix.Gettid() != thread {
-			t.Fatal("execution moved to another thread")
-		}
-		output, err := exec.Command("/bin/cat", "/proc/self/status").Output()
-		if err != nil || !strings.Contains(string(output), "NoNewPrivs:\t1") {
-			t.Fatalf("child privilege restriction missing: %v", err)
+			if noNewPrivs(t, (*exec.Cmd).Start) {
+				t.Fatal("privilege restriction leaked to another thread")
+			}
 		}
 		return
 	}

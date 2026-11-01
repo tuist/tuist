@@ -31,7 +31,9 @@ type Worker struct {
 	// Production always drops to the unprivileged build user. Tests run as
 	// their invoking user, against a temporary directory and an in-memory CAS.
 	Credential *syscall.Credential
-	entries    int
+	// Start launches the action's command; nil uses exec.Cmd.Start.
+	Start   func(*exec.Cmd) error
+	entries int
 }
 
 // Execute reports whether the result may be published to the action cache.
@@ -154,7 +156,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 		Stdout: &limitedLog{file: stdout}, Stderr: &limitedLog{file: stderr},
 		SysProcAttr: &syscall.SysProcAttr{Setpgid: true, Credential: w.Credential}, WaitDelay: time.Second}
 	started := time.Now()
-	if err = cmd.Start(); err != nil {
+	if err = w.start(cmd); err != nil {
 		return nil, false, false, err
 	}
 	done := make(chan error, 1)
@@ -211,6 +213,13 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	metadata.OutputUploadCompletedTimestamp = timestamppb.Now()
 	metadata.WorkerCompletedTimestamp = timestamppb.Now()
 	return result, false, result.ExitCode == 0 && !action.DoNotCache, nil
+}
+
+func (w *Worker) start(cmd *exec.Cmd) error {
+	if w.Start != nil {
+		return w.Start(cmd)
+	}
+	return cmd.Start()
 }
 
 func (w *Worker) validate(a *re.Action, c *re.Command) error {

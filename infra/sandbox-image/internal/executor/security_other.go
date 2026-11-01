@@ -2,6 +2,11 @@
 
 package executor
 
-import "fmt"
+import (
+	"fmt"
+	"os/exec"
+)
 
-func prepareExecution() error { return fmt.Errorf("remote execution requires Linux") }
+func startWithoutNewPrivileges(*exec.Cmd) error {
+	return fmt.Errorf("remote execution requires Linux")
+}

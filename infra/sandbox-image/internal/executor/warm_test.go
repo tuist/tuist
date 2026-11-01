@@ -7,7 +7,7 @@ import (
 )
 
 func TestWarmActionExecutesThroughTheWorker(t *testing.T) {
-	response, err := warmAction(context.Background(), filepath.Join(t.TempDir(), "warm"), nil)
+	response, err := warmAction(context.Background(), filepath.Join(t.TempDir(), "warm"), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

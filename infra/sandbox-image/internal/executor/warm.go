@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"syscall"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -27,11 +28,11 @@ const warmRoot = "/workspace/warm"
 // that. The action's CAS is an in-process server on loopback; nothing leaves
 // the guest. It is best-effort.
 func warm(ctx context.Context) {
-	_, _ = warmAction(ctx, warmRoot, &syscall.Credential{Uid: 1000, Gid: 1000})
+	_, _ = warmAction(ctx, warmRoot, &syscall.Credential{Uid: 1000, Gid: 1000}, startWithoutNewPrivileges)
 	_ = os.RemoveAll(warmRoot)
 }
 
-func warmAction(ctx context.Context, root string, credential *syscall.Credential) (*re.ExecuteResponse, error) {
+func warmAction(ctx context.Context, root string, credential *syscall.Credential, start func(*exec.Cmd) error) (*re.ExecuteResponse, error) {
 	cas := loopbackCAS{blobs: map[string][]byte{}}
 	input := cas.put([]byte("warm\n"))
 	inputRoot := cas.putMessage(&re.Directory{Files: []*re.FileNode{{Name: "in", Digest: input}}})
@@ -59,7 +60,7 @@ func warmAction(ctx context.Context, root string, credential *syscall.Credential
 		return nil, err
 	}
 	defer conn.Close()
-	w := worker.Worker{CAS: worker.NewCAS(conn, "warm"), Root: root, Image: "warm", Credential: credential}
+	w := worker.Worker{CAS: worker.NewCAS(conn, "warm"), Root: root, Image: "warm", Credential: credential, Start: start}
 	response, _ := w.Execute(ctx, action, false)
 	return response, nil
 }
