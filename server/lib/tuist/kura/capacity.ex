@@ -102,12 +102,22 @@ defmodule Tuist.Kura.Capacity do
   @egress "tuist.dev/egress-mbps"
   @pods "pods"
   @kura_disk "tuist.dev/kura-disk"
+  @thin_extent_bytes 64 * 1024 * 1024
+  @thin_ready_label "tuist.dev/kura-thin-ready"
   @scheduled_resources [@cpu, @memory, @ephemeral_storage, @kura_disk, @memory_ceiling, @egress, @pods]
 
   @doc """
-  Bytes of the region's disk one instance reserves, across every replica.
+  Bytes of disk one instance reserves, across every replica.
+
+  An instance selected for thin volumes (`Regions.thin_volumes?/2`) reserves
+  `thin_reservation_bytes/1` of its claim per replica on `tuist.dev/kura-disk`,
+  which is what the kura-controller requests for it.
   """
-  def resident_bytes(region, server), do: resident_gib(region, server) * @gib
+  def resident_bytes(%Regions{} = region, %Server{} = server) do
+    if thin_volumes?(region, server),
+      do: thin_reservation_bytes(instance_claim_bytes(region, server)) * replicas(region),
+      else: resident_gib(region, server) * @gib
+  end
 
   @doc """
   Gibibytes of the region's disk one instance reserves.
@@ -119,9 +129,35 @@ defmodule Tuist.Kura.Capacity do
   reserves less than an Enterprise one and the two cannot be counted with a
   single per-region figure. The replica count stays a property of the region.
   An instance that carries no claim of its own falls back to what its region
-  declares.
+  declares. A thin instance's reservation is rounded up to whole gibibytes.
   """
-  def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region)
+  def resident_gib(%Regions{} = region, %Server{} = server) do
+    if thin_volumes?(region, server),
+      do: div(resident_bytes(region, server) + @gib - 1, @gib),
+      else: claim_gib(region, server) * replicas(region)
+  end
+
+  @doc """
+  Bytes of `tuist.dev/kura-disk` one thin replica with a claim of `claim_bytes`
+  reserves: the whole virtual device, cache ceiling plus workspace and
+  metadata, rounded to the pool's 64 MiB extents. Mirrors `diskReservation` in
+  `infra/kura-controller/controllers/disk_resource.go`, which mirrors the CSI's
+  `ThinVirtualBytes`.
+  """
+  def thin_reservation_bytes(claim_bytes) when is_integer(claim_bytes) and claim_bytes > 0 do
+    cache = div(claim_bytes + @mib - 1, @mib) * @mib
+    size = cache + 2 * @gib + 288 * @mib + div(cache + 19, 20)
+    div(size + @thin_extent_bytes - 1, @thin_extent_bytes) * @thin_extent_bytes
+  end
+
+  defp thin_volumes?(region, %Server{account: %Account{} = account}), do: Regions.thin_volumes?(region, account)
+
+  defp thin_volumes?(region, %Server{account_id: account_id}) when is_integer(account_id),
+    do: Regions.thin_volumes?(region, %Account{id: account_id})
+
+  defp thin_volumes?(_region, %Server{}), do: false
+
+  defp claim_gib(%Regions{} = region, %Server{} = server), do: div(instance_claim_bytes(region, server), @gib)
 
   # Through the same quantity parser the node and pod readings use, not a
   # Gi-only one. A claim is persisted in any unit Kubernetes accepts, and one
@@ -129,10 +165,10 @@ defmodule Tuist.Kura.Capacity do
   # reads it as unparseable and silently substitutes the region's claim — an
   # instance counted at a fraction of what it reserves, in the direction that
   # overcommits.
-  defp claim_gib(%Regions{} = region, %Server{storage_claim_size: size}) when is_binary(size) do
+  defp instance_claim_bytes(%Regions{} = region, %Server{storage_claim_size: size}) when is_binary(size) do
     case parse_quantity(size) do
-      bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
-      _ -> claim_gib(region)
+      bytes when is_integer(bytes) and bytes > 0 -> bytes
+      _ -> claim_gib(region) * @gib
     end
   end
 
@@ -140,18 +176,18 @@ defmodule Tuist.Kura.Capacity do
   # carrying none is read the way the manifest renders it rather than at the
   # controller's 200Gi fallback, which would overstate it by an order of
   # magnitude. The archival loop preloads the account this reads.
-  defp claim_gib(%Regions{} = region, %Server{account: %Account{} = account}) do
+  defp instance_claim_bytes(%Regions{} = region, %Server{account: %Account{} = account}) do
     if Regions.storage_governed?(region) do
       case parse_quantity(Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size) do
-        bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
-        _ -> claim_gib(region)
+        bytes when is_integer(bytes) and bytes > 0 -> bytes
+        _ -> claim_gib(region) * @gib
       end
     else
-      claim_gib(region)
+      claim_gib(region) * @gib
     end
   end
 
-  defp claim_gib(%Regions{} = region, %Server{}), do: claim_gib(region)
+  defp instance_claim_bytes(%Regions{} = region, %Server{}), do: claim_gib(region) * @gib
 
   defp claim_gib(%Regions{provisioner_config: %{storage_size: size}}) when is_binary(size) do
     case parse_quantity(size) do
@@ -654,41 +690,58 @@ defmodule Tuist.Kura.Capacity do
   """
   def placeable?(%Regions{} = region, %Server{} = server) do
     with handle when is_binary(handle) <- account_handle(server),
-         claim when claim > 0 <- claim_gib(region, server) * @gib,
+         %{request: request} = sizing when request > 0 <- replica_sizing(region, server),
          %{nodes: [_ | _] = nodes, accounts_off_pool: %MapSet{} = off_pool} <- node_headroom(region),
          false <- MapSet.member?(off_pool, handle) do
-      fits?(nodes, handle, claim, replicas(region), Regions.disk_resource(region))
+      nodes
+      |> Enum.filter(&(&1.thin_ready? or not sizing.thin?))
+      |> fits?(handle, sizing, replicas(region))
     else
       _ -> nil
     end
   end
 
-  defp fits?(nodes, handle, claim, replicas, disk) do
+  # A thin replica asks for its virtual device on `tuist.dev/kura-disk` and,
+  # through the controller's node selector, lands only on thin-ready nodes.
+  defp replica_sizing(region, server) do
+    if thin_volumes?(region, server) do
+      claim = instance_claim_bytes(region, server)
+      %{thin?: true, disk: @kura_disk, request: thin_reservation_bytes(claim), claim: claim}
+    else
+      claim = claim_gib(region, server) * @gib
+      %{thin?: false, disk: Regions.disk_resource(region), request: claim, claim: claim}
+    end
+  end
+
+  # `request` is what each replica asks the scheduler for on `disk`; `claim` is
+  # what its data volume asks for, which decides whether a replica is rebuilt.
+  defp fits?(nodes, handle, %{disk: disk, request: request} = sizing, replicas) do
     case placed_replicas(nodes, handle) do
       [] ->
-        nodes |> Enum.map(&div(max(disk_available(&1), 0), claim)) |> Enum.sum() >= replicas
+        nodes |> Enum.map(&div(max(disk_available(&1, disk), 0), request)) |> Enum.sum() >= replicas
 
       placed ->
         with %{} = volumes <- data_volume_bytes(placed) do
-          grows?(nodes, handle, placed, volumes, claim, replicas, disk)
+          grows?(nodes, handle, placed, volumes, sizing, replicas)
         end
     end
   end
 
-  defp grows?(nodes, handle, [%{requests: requests} | _] = placed, volumes, claim, replicas, disk) do
-    request = requests |> Map.put(@ephemeral_storage, 0) |> Map.put(disk, claim)
+  defp grows?(nodes, handle, [%{requests: requests} | _] = placed, volumes, sizing, replicas) do
+    %{disk: disk, request: disk_request, claim: claim} = sizing
+    request = requests |> Map.put(@ephemeral_storage, 0) |> Map.put(disk, disk_request)
     unplaced = List.duplicate(%{node: nil, requests: %{}}, max(replicas - length(placed), 0))
 
     {kept, rebuilt} =
       placed
-      |> Enum.filter(&(Map.fetch!(&1.requests, disk) < claim))
+      |> Enum.filter(&(Map.fetch!(&1.requests, disk) < disk_request))
       |> Enum.split_with(&(Map.get(volumes, &1.volume, 0) >= claim))
 
     (Enum.map(unplaced ++ rebuilt, &{:rebuilt, &1}) ++ Enum.map(kept, &{:kept, &1}))
     |> Enum.reduce_while(Map.new(nodes, &{&1.name, &1}), fn {kind, replica}, nodes ->
       nodes = release(nodes, handle, replica)
 
-      case landing(kind, replica, nodes, handle, request) do
+      case landing(kind, replica, nodes, handle, request, disk) do
         nil -> {:halt, :unplaceable}
         name -> {:cont, charge(nodes, name, handle, request)}
       end
@@ -765,22 +818,22 @@ defmodule Tuist.Kura.Capacity do
   # goes where the scheduler puts it: beside the account's other replicas when
   # that node has room, as the controller's affinity prefers, and otherwise on
   # the node with the most disk left.
-  defp landing(:kept, %{node: name}, nodes, _handle, request) do
+  defp landing(:kept, %{node: name}, nodes, _handle, request, _disk) do
     if replicas_fitting(Map.fetch!(nodes, name), request) >= 1, do: name
   end
 
-  defp landing(:rebuilt, _replica, nodes, handle, request) do
+  defp landing(:rebuilt, _replica, nodes, handle, request, disk) do
     nodes
     |> Map.values()
     |> Enum.filter(&(replicas_fitting(&1, request) >= 1))
-    |> Enum.sort_by(&{Map.get(&1.kura_replicas, handle, []) == [], -disk_available(&1), &1.name})
+    |> Enum.sort_by(&{Map.get(&1.kura_replicas, handle, []) == [], -disk_available(&1, disk), &1.name})
     |> case do
       [%{name: name} | _] -> name
       [] -> nil
     end
   end
 
-  defp disk_available(%{allocatable: allocatable, reserved: reserved, disk_resource: disk}) do
+  defp disk_available(%{allocatable: allocatable, reserved: reserved}, disk) do
     Map.fetch!(allocatable, disk) - Map.fetch!(reserved, disk)
   end
 
@@ -1078,7 +1131,7 @@ defmodule Tuist.Kura.Capacity do
       %{
         name: name,
         allocatable: allocatable,
-        disk_resource: disk,
+        thin_ready?: get_in(node, ["metadata", "labels", @thin_ready_label]) == "true",
         reserved: pods |> pods_requested() |> Map.update!(disk, &(&1 + Map.get(retained, name, 0))),
         kura_replicas: kura_replicas(pods, region_id)
       }
