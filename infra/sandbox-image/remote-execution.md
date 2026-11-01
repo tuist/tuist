@@ -18,6 +18,13 @@ plus the account feature flag for submission. Reading an existing operation does
 not require the flag, so active builds drain after it is disabled. The account
 metadata header selects a scope; it does not authenticate it.
 
+Before submitting, the gateway reads the action, its command, the input tree and
+small files from Kura with the client's credential, within 50 ms and 255 KiB. The
+server passes those blobs to the action's VM, which uses only the ones that match
+their digests and reads anything else from Kura itself. A failed or partial read
+only means the VM fetches more. Operations queued behind the account's
+concurrency drop their prefetched blobs.
+
 ### Scheduling
 
 Each account has one `Tuist.RemoteExecution.Scheduler` process in the server
@@ -69,7 +76,21 @@ reused. The scheduler keeps `busy + queued + warm_pool_size` VMs (capped at
 prepared VM holds only the pristine image and workspace. It receives a CAS
 credential and action data only when the scheduler assigns it to one action.
 Idle VMs beyond the warm target, and VMs whose image or node no longer matches
-the settings, are retired. Failed preparation backs off for five seconds.
+the settings, are retired. Failed preparation backs off for five seconds. When
+no node has room, nothing is created: the scheduler retries once one of the
+account's placed VMs is deleted, or on its five-second tick.
+
+Preparing a VM connects it to the CAS endpoint and executes one throwaway action
+through the guest worker, against a CAS server inside the guest. A VM restored
+from the template snapshot faults in each memory page on first touch; this moves
+that cost off the admitted action. Nothing leaves the guest and no credential
+exists yet.
+
+A used VM keeps its slot until the node confirms deletion, and its replacement
+takes about as long again to create and prepare. A serial chain of short actions
+therefore needs several times more slots than it has actions in flight: in the
+native benchmark, about ten slots and six warm VMs kept every action of an
+eight-action chain on a prepared VM.
 
 The scheduler issues one project cache credential (30-minute TTL) and reuses it
 for that project's VMs while at least 13 minutes remain. Each VM is single-use
