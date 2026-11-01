@@ -321,7 +321,12 @@ test. The same image then passed live staging checks:
   after **275 seconds**, within the existing five-minute maximum connection age.
   The harness's initial 240-second observation deadline was too short; an extended
   observer watched the same uninterrupted run complete. This was not a runtime
-  restart or a replay of failed traffic.
+  restart or a replay of failed traffic. Since 2026-11-01, retirement also sends
+  HTTP/2 connections in the retired cohort a GOAWAY on every public listener,
+  including the gateway gRPC port, so the cohort empties once in-flight streams
+  finish instead of at the connection age. A unit test with a real h2c client
+  shows an in-flight request completing and the cohort reaching zero; this is
+  not rehearsed on staging and the 275-second figure has not been re-measured.
 
 Together with the migration, these three runs produced **60,210 live requests,
 zero failures and 20,070 successful writes**, followed by **60,210 independent

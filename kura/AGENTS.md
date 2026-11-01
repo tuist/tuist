@@ -261,8 +261,11 @@ process's `connection_incarnation` from rollout status. It swaps a bounded
 connection cohort once, keeps serving/admission/replication unchanged, and makes
 HTTP/1 responses close after completion (including accelerated GETs). The receipt
 counts connections accepted before retirement, including TLS handshakes; newer
-health probes cannot keep that cohort alive. HTTP/2 retains its existing bounded
-connection aging. Retirement is not draining or serving-authority permission.
+health probes cannot keep that cohort alive. HTTP/2 connections in the retired
+cohort, on every public listener that leases into it, get a GOAWAY at retirement
+and close after their in-flight streams; the client's connection preface, not a
+request, identifies them. This is unit-tested with a real h2c client and not
+rehearsed on staging. Retirement is not draining or serving-authority permission.
 Never substitute a timer or Kubernetes readiness for an empty cohort receipt.
 An empty cohort is also not a data-transfer receipt: staging still observed
 fresh-write GET misses at handoff. Zero-error migration needs destination-bound

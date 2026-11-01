@@ -480,8 +480,11 @@ with the process incarnation
 reported by `/status/rollout`. The runtime continues serving and replicating,
 but HTTP/1 responses close their connection after the complete response. An
 accept-time lease counts the old connection cohort through response completion;
-new probes do not keep that cohort alive. HTTP/2 connections retain their bounded
-connection lifetime. Only a matching incarnation with zero old connections lets
+new probes do not keep that cohort alive. HTTP/2 connections in the old cohort,
+on every public listener including the gateway gRPC port, receive a GOAWAY at
+retirement and close once their in-flight streams finish; the protocol comes
+from the client's connection preface. Draining and connection aging are
+unchanged. Only a matching incarnation with zero old connections lets
 the controller delete the thin-migration donor. An old runtime, failed call, or
 process restart holds the move. This complements catch-up and endpoint checks;
 it neither fences serving authority nor adds synchronous replication guarantees.

@@ -32,7 +32,11 @@ lost feed history, an unavailable peer or changed identity fails closed.
 Only the ready receipt permits `lvm-rebuild`. Primary selection pins the verified
 destination; endpoint observation must name its exact pod UID. The existing peer
 handoff, original connection-cohort retirement, donor deletion, replacement
-catch-up and OnDelete/template safeguards still apply. This is a planned legacy
+catch-up and OnDelete/template safeguards still apply. Retirement closes HTTP/1
+connections after their next response and sends HTTP/2 connections, gateway
+gRPC included, a GOAWAY, so the cohort empties once in-flight streams finish
+rather than at the five-minute connection age (unit-tested, not rehearsed on
+staging). This is a planned legacy
 cache migration protocol, not a new crash-consistency or global serving grant.
 
 ## Bounds, pauses and failures

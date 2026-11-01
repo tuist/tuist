@@ -61,16 +61,38 @@ impl TrafficState {
 // Each public connection keeps its cohort alive until all response bytes finish.
 // Retirement swaps cohorts once, so health probes and new connections cannot
 // hide an old keep-alive connection or prevent the old cohort from draining.
-#[derive(Default)]
-struct PublicConnections {
-    current: Arc<AtomicUsize>,
-    retired: Option<Arc<AtomicUsize>>,
+struct Cohort {
+    open: AtomicUsize,
+    retired: tokio::sync::watch::Sender<bool>,
 }
 
-pub(crate) struct PublicConnectionLease(Arc<AtomicUsize>);
+impl Default for Cohort {
+    fn default() -> Self {
+        Self {
+            open: AtomicUsize::new(0),
+            retired: tokio::sync::watch::Sender::new(false),
+        }
+    }
+}
+
+#[derive(Default)]
+struct PublicConnections {
+    current: Arc<Cohort>,
+    retired: Option<Arc<Cohort>>,
+}
+
+pub(crate) struct PublicConnectionLease(Arc<Cohort>);
+
+impl PublicConnectionLease {
+    /// Becomes true when this connection's cohort is retired.
+    pub(crate) fn retirement(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.0.retired.subscribe()
+    }
+}
+
 impl Drop for PublicConnectionLease {
     fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::AcqRel);
+        self.0.open.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
@@ -135,7 +157,7 @@ impl RuntimeState {
             .public_connections
             .lock()
             .expect("connection cohort lock");
-        connections.current.fetch_add(1, Ordering::AcqRel);
+        connections.current.open.fetch_add(1, Ordering::AcqRel);
         PublicConnectionLease(connections.current.clone())
     }
 
@@ -149,13 +171,16 @@ impl RuntimeState {
             .lock()
             .expect("connection cohort lock");
         if connections.retired.is_none() {
-            connections.retired = Some(std::mem::take(&mut connections.current));
+            let retired = std::mem::take(&mut connections.current);
             self.retiring_connections.store(true, Ordering::Release);
+            retired.retired.send_replace(true);
+            connections.retired = Some(retired);
         }
         connections
             .retired
             .as_ref()
             .expect("retired cohort")
+            .open
             .load(Ordering::Acquire)
     }
 
@@ -676,6 +701,8 @@ mod tests {
         assert!(runtime.retiring_connections());
         assert!(!runtime.is_draining());
         let replacement = runtime.public_connection();
+        assert!(*first.retirement().borrow());
+        assert!(!*replacement.retirement().borrow());
         drop(first);
         assert_eq!(runtime.retire_public_connections(), 1);
         drop(second);
