@@ -29,25 +29,83 @@ pub struct Target {
     pub incarnation: String,
 }
 
+/// Where the retained walk continues on the current destination process. The
+/// walk is newest-first by index key; records written after it started sort
+/// before `after` and are covered by the feed from `Active::confirmed`.
+#[derive(Default)]
+struct Walk {
+    after: Option<Vec<u8>>,
+    complete: bool,
+}
+
 struct Active {
     target: Target,
+    /// Identifies the preparation, retry or rebind that owns the walk. A
+    /// superseded worker can neither save progress nor report a result.
+    attempt: u64,
     deadline: Instant,
     confirmed: u64,
     /// Feed head through which a completed run verified every record and then
     /// the destination identity. Any write committed at or below it is proven.
     proven: u64,
+    walk: Walk,
+    /// Retained records verified since the walk last started from the top.
+    walked: u64,
+    /// Whether the current attempt moved the walk or the feed proof forward.
+    advanced: bool,
     ready: bool,
     error: Option<String>,
+}
+
+impl Active {
+    fn new(target: Target, attempt: u64, deadline: Instant, confirmed: u64) -> Self {
+        Self {
+            target,
+            attempt,
+            deadline,
+            confirmed,
+            proven: 0,
+            walk: Walk::default(),
+            walked: 0,
+            advanced: false,
+            ready: false,
+            error: None,
+        }
+    }
+
+    fn restart_walk(&mut self) {
+        self.walk = Walk::default();
+        self.walked = 0;
+    }
 }
 
 #[derive(Default)]
 pub struct MigrationState {
     armed: AtomicBool,
     active: Mutex<Option<Active>>,
+    attempts: std::sync::atomic::AtomicU64,
     gate: tokio::sync::Mutex<()>,
     verification_gate: tokio::sync::Mutex<()>,
     #[cfg(test)]
     verifications: std::sync::atomic::AtomicU64,
+    #[cfg(test)]
+    verified_records: std::sync::atomic::AtomicU64,
+    #[cfg(test)]
+    deadline: Mutex<Option<Duration>>,
+}
+
+impl MigrationState {
+    fn preparation_deadline(&self) -> Duration {
+        #[cfg(test)]
+        if let Some(deadline) = *self.deadline.lock().expect("migration deadline lock") {
+            return deadline;
+        }
+        DEADLINE
+    }
+
+    fn next_attempt(&self) -> u64 {
+        self.attempts.fetch_add(1, Ordering::Relaxed) + 1
+    }
 }
 
 #[derive(Deserialize)]
@@ -88,61 +146,81 @@ pub async fn prepare(
         ));
     }
     let migration = &state.runtime.migration;
-    let mut start = false;
+    let mut start = None;
     {
         let mut active = migration.active.lock().expect("migration lock");
-        match active.as_ref() {
+        let feed = state.store.sync_feed();
+        match active.as_mut() {
             Some(active) if active.target != request.target => {
                 return Err(conflict("another destination owns migration".into()));
             }
-            Some(_) => {}
-            None => {
-                if !state.store.sync_feed().enabled() {
+            // A retry continues a failed attempt that made progress. One that
+            // made none keeps its failure, so a stuck move does not loop.
+            Some(active)
+                if active.error.is_some()
+                    && active.advanced
+                    && !migration.armed.load(Ordering::Acquire) =>
+            {
+                if !feed.enabled() {
                     return Err(conflict("replica feed is not active".into()));
                 }
-                let confirmed = state.store.sync_feed().head();
-                *active = Some(Active {
-                    target: request.target.clone(),
-                    deadline: Instant::now() + DEADLINE,
+                // Writes since the saved feed position may be gone, so the
+                // walk behind it no longer covers everything.
+                if active.confirmed < feed.floor() {
+                    active.restart_walk();
+                    active.confirmed = feed.head();
+                    active.proven = 0;
+                }
+                active.attempt = migration.next_attempt();
+                active.deadline = Instant::now() + migration.preparation_deadline();
+                active.advanced = false;
+                active.error = None;
+                feed.note_consumer(&consumer(&state), active.confirmed);
+                start = Some((active.attempt, active.deadline));
+            }
+            Some(_) => {}
+            None => {
+                if !feed.enabled() {
+                    return Err(conflict("replica feed is not active".into()));
+                }
+                let confirmed = feed.head();
+                let created = Active::new(
+                    request.target.clone(),
+                    migration.next_attempt(),
+                    Instant::now() + migration.preparation_deadline(),
                     confirmed,
-                    proven: 0,
-                    ready: false,
-                    error: None,
-                });
-                state
-                    .store
-                    .sync_feed()
-                    .note_consumer(&consumer(&state), confirmed);
-                start = true;
+                );
+                start = Some((created.attempt, created.deadline));
+                *active = Some(created);
+                feed.note_consumer(&consumer(&state), confirmed);
             }
         }
     }
-    if start {
+    if let Some((attempt, deadline)) = start {
         let worker = state.clone();
         tokio::spawn(async move {
-            let result = tokio::time::timeout(DEADLINE, prepare_inner(&worker))
+            let result = tokio::time::timeout_at(deadline, prepare_inner(&worker, attempt))
                 .await
                 .unwrap_or_else(|_| Err("migration preparation expired".into()));
-            let mut active = worker
-                .runtime
-                .migration
-                .active
-                .lock()
-                .expect("migration lock");
+            let migration = &worker.runtime.migration;
+            let mut active = migration.active.lock().expect("migration lock");
             let mut maintain = false;
-            if let Some(active) = active.as_mut() {
+            if let Some(active) = active.as_mut().filter(|active| active.attempt == attempt) {
                 match result {
                     Ok(()) => {
                         active.ready = true;
                         maintain = true;
                     }
                     Err(error) => {
-                        worker
-                            .runtime
-                            .migration
-                            .armed
-                            .store(false, Ordering::Release);
-                        worker.store.sync_feed().forget_consumer(&consumer(&worker));
+                        migration.armed.store(false, Ordering::Release);
+                        let feed = worker.store.sync_feed();
+                        if active.advanced {
+                            // Keeps the feed position for a retry without
+                            // holding up a drain; trimming past it restarts.
+                            feed.note_consumer_snapshot(&consumer(&worker), active.confirmed);
+                        } else {
+                            feed.forget_consumer(&consumer(&worker));
+                        }
                         active.error = Some(error);
                     }
                 }
@@ -271,23 +349,25 @@ pub async fn rebind(
             .as_mut()
             .ok_or_else(|| conflict("no migration".into()))?;
         if active.target == request.replacement {
-            false
+            None
         } else if active.target != request.target {
             return Err(conflict("another destination owns migration".into()));
         } else {
             active.target = request.replacement.clone();
+            active.attempt = migration.next_attempt();
+            active.restart_walk();
             active.proven = 0;
             active.ready = false;
             active.error = None;
-            true
+            Some(active.attempt)
         }
     };
-    if start {
+    if let Some(attempt) = start {
         tracing::warn!(
             event.name = "kura.migration.destination_rebound",
             "Migration destination restarted; re-proving retained records on the new process"
         );
-        reprove(std::sync::Arc::downgrade(&state), request.replacement);
+        reprove(std::sync::Arc::downgrade(&state), attempt);
     }
     let active = migration.active.lock().expect("migration lock");
     let active = active
@@ -299,8 +379,9 @@ pub async fn rebind(
 }
 
 // A rebound bridge has no deadline: it keeps refusing unproven writes, so
-// retrying is never worse than giving up. A later rebind supersedes this one.
-fn reprove(state: std::sync::Weak<crate::state::AppState>, target: Target) {
+// retrying is never worse than giving up. Each retry continues the walk on the
+// same process. A later rebind supersedes this one.
+fn reprove(state: std::sync::Weak<crate::state::AppState>, attempt: u64) {
     tokio::spawn(async move {
         let mut previous_error = None;
         loop {
@@ -308,7 +389,7 @@ fn reprove(state: std::sync::Weak<crate::state::AppState>, target: Target) {
             if state.runtime.is_draining() {
                 break;
             }
-            let result = prove(&state).await;
+            let result = prove(&state, attempt).await;
             {
                 let mut guard = state
                     .runtime
@@ -316,7 +397,7 @@ fn reprove(state: std::sync::Weak<crate::state::AppState>, target: Target) {
                     .active
                     .lock()
                     .expect("migration lock");
-                let Some(active) = guard.as_mut().filter(|active| active.target == target) else {
+                let Some(active) = guard.as_mut().filter(|active| active.attempt == attempt) else {
                     break;
                 };
                 match result {
@@ -362,21 +443,53 @@ fn target(state: &SharedState) -> Result<Target, String> {
     Ok(active.target.clone())
 }
 
-async fn prepare_inner(state: &SharedState) -> Result<(), String> {
+async fn prepare_inner(state: &SharedState, attempt: u64) -> Result<(), String> {
     // Public writes continue during the bounded retained walk. Once armed,
     // every successful mutation waits for verification, including requests that
     // entered before arming. The feed then closes the walk's live-write window.
-    prove(state).await?;
-    state.runtime.migration.armed.store(true, Ordering::Release);
+    prove(state, attempt).await?;
+    {
+        let active = state
+            .runtime
+            .migration
+            .active
+            .lock()
+            .expect("migration lock");
+        if active
+            .as_ref()
+            .is_none_or(|active| active.attempt != attempt)
+        {
+            return Err(SUPERSEDED.into());
+        }
+        state.runtime.migration.armed.store(true, Ordering::Release);
+    }
     acknowledge(state).await
 }
 
+const SUPERSEDED: &str = "migration attempt was superseded";
+
 /// Verifies every retained record, then the pinned feed through its head, on
-/// the current destination process.
-async fn prove(state: &SharedState) -> Result<(), String> {
-    let mut after = None;
+/// the current destination process. The walk resumes from the position the
+/// last attempt on this process saved after each verified page.
+async fn prove(state: &SharedState, attempt: u64) -> Result<(), String> {
     loop {
-        target(state)?;
+        let after = {
+            let active = state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .expect("migration lock");
+            let active = active
+                .as_ref()
+                .filter(|active| active.attempt == attempt)
+                .ok_or(SUPERSEDED)?;
+            if active.walk.complete {
+                break;
+            }
+            active.walk.after.clone()
+        };
+        let target = target(state)?;
         state.store.sync_feed().refresh_consumer(&consumer(state));
         let page = state.store.backfill_index_page(after.as_deref(), PAGE)?;
         let mut records = Vec::new();
@@ -387,11 +500,24 @@ async fn prove(state: &SharedState) -> Result<(), String> {
                 records.push(descriptor);
             }
         }
-        verify_remote(state, records).await?;
-        match page.next_after {
-            Some(next) => after = Some(next),
-            None => break,
-        }
+        let verified = records.len() as u64;
+        verify_remote(state, &target, records).await?;
+        let mut active = state
+            .runtime
+            .migration
+            .active
+            .lock()
+            .expect("migration lock");
+        let active = active
+            .as_mut()
+            .filter(|active| active.attempt == attempt && active.target == target)
+            .ok_or(SUPERSEDED)?;
+        active.walk = Walk {
+            complete: page.next_after.is_none(),
+            after: page.next_after,
+        };
+        active.walked += verified;
+        active.advanced = true;
     }
     acknowledge_inner(state, true).await
 }
@@ -426,7 +552,7 @@ async fn acknowledge_inner(state: &SharedState, force: bool) -> Result<(), Strin
     feed.settle().await;
     let committed = feed.head();
     let _gate = state.runtime.migration.gate.lock().await;
-    target(state)?;
+    let target = target(state)?;
     if !force && active_field(state, |active| active.proven)? >= committed {
         return Ok(());
     }
@@ -439,7 +565,7 @@ async fn acknowledge_inner(state: &SharedState, force: bool) -> Result<(), Strin
         }
         feed.note_consumer(&consumer(state), confirmed);
         if confirmed >= head {
-            verify_remote(state, Vec::new()).await?;
+            verify_remote(state, &target, Vec::new()).await?;
             let mut active = state
                 .runtime
                 .migration
@@ -465,21 +591,23 @@ async fn acknowledge_inner(state: &SharedState, force: bool) -> Result<(), Strin
                 records.push(descriptor);
             }
         }
-        verify_remote(state, records).await?;
+        verify_remote(state, &target, records).await?;
         // Trimming or a feed reset during I/O must not turn omitted rows into
         // proof. Verification never changes cache admission or capacity policy.
         if !feed.enabled() || confirmed < feed.floor() {
             return Err("migration feed history was lost".into());
         }
-        state
-            .runtime
-            .migration
-            .active
-            .lock()
-            .expect("migration lock")
-            .as_mut()
-            .ok_or("no migration")?
-            .confirmed = next;
+        {
+            let mut active = state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .expect("migration lock");
+            let active = active.as_mut().ok_or("no migration")?;
+            active.confirmed = next;
+            active.advanced = true;
+        }
         feed.note_consumer(&consumer(state), next);
     }
 }
@@ -494,8 +622,15 @@ fn active_field(state: &SharedState, field: impl FnOnce(&Active) -> u64) -> Resu
     Ok(field(active.as_ref().ok_or("no migration")?))
 }
 
-async fn verify_remote(state: &SharedState, records: Vec<Record>) -> Result<(), String> {
+async fn verify_remote(
+    state: &SharedState,
+    destination: &Target,
+    records: Vec<Record>,
+) -> Result<(), String> {
     let target = target(state)?;
+    if target != *destination {
+        return Err("migration destination changed".into());
+    }
     let request = VerifyRequest {
         incarnation: target.incarnation.clone(),
         records,
@@ -558,9 +693,15 @@ pub async fn verify(
         .migration
         .verifications
         .fetch_add(1, Ordering::Relaxed);
-    for expected in request.records {
-        verify_record(&state, &expected).await.map_err(conflict)?;
+    for expected in &request.records {
+        verify_record(&state, expected).await.map_err(conflict)?;
     }
+    #[cfg(test)]
+    state
+        .runtime
+        .migration
+        .verified_records
+        .fetch_add(request.records.len() as u64, Ordering::Relaxed);
     Ok(Json(
         serde_json::json!({"incarnation":state.runtime.connection_incarnation(),"verified":true}),
     ))
@@ -853,14 +994,12 @@ mod tests {
         let destination = test_context(|_| {}).await;
         let (url, server) = serve(destination.state.clone()).await;
         let target = activate(&source.state, url, &destination.state);
-        *source.state.runtime.migration.active.lock().unwrap() = Some(Active {
-            target: target.clone(),
-            deadline: Instant::now() - Duration::from_secs(1),
-            confirmed: 0,
-            proven: 0,
-            ready: false,
-            error: None,
-        });
+        *source.state.runtime.migration.active.lock().unwrap() = Some(Active::new(
+            target.clone(),
+            0,
+            Instant::now() - Duration::from_secs(1),
+            0,
+        ));
         let request = || PrepareRequest {
             incarnation: source.state.runtime.connection_incarnation().to_owned(),
             target: target.clone(),
@@ -949,12 +1088,8 @@ mod tests {
         };
         for _ in 0..2_000 {
             *source.state.runtime.migration.active.lock().unwrap() = Some(Active {
-                target: target.clone(),
-                deadline: Instant::now() + DEADLINE,
-                confirmed: 0,
-                proven: 0,
-                ready: false,
                 error: Some("injected failure".into()),
+                ..Active::new(target.clone(), 0, Instant::now() + DEADLINE, 0)
             });
             let polled = tokio::spawn(prepare(State(source.state.clone()), Json(request())));
             let cleared = tokio::spawn(reset(State(source.state.clone()), Json(request())));
@@ -1073,12 +1208,8 @@ mod tests {
             incarnation: "restarted".into(),
         };
         *source.state.runtime.migration.active.lock().unwrap() = Some(Active {
-            target: target.clone(),
-            deadline: Instant::now() + DEADLINE,
-            confirmed: 0,
-            proven: 0,
-            ready: false,
             error: Some("injected failure".into()),
+            ..Active::new(target.clone(), 0, Instant::now() + DEADLINE, 0)
         });
         assert!(
             rebind(
@@ -1089,6 +1220,238 @@ mod tests {
             .is_err(),
             "a failed unarmed preparation is reset, not rebound"
         );
+    }
+
+    fn prepare_request(source: &SharedState, target: &Target) -> PrepareRequest {
+        PrepareRequest {
+            incarnation: source.runtime.connection_incarnation().to_owned(),
+            target: target.clone(),
+        }
+    }
+
+    async fn wait_failed(source: &SharedState) -> String {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let error = source
+                    .runtime
+                    .migration
+                    .active
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .and_then(|active| active.error.clone());
+                if let Some(error) = error {
+                    return error;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap()
+    }
+
+    // Three walk pages, newest first; `missing` is left off the destination.
+    async fn seed(source: &SharedState, destination: &SharedState, missing: &[u64]) {
+        for i in 0..40 {
+            put(source, &format!("record-{i:02}"), 1000 + i).await;
+            if !missing.contains(&i) {
+                put(destination, &format!("record-{i:02}"), 1000 + i).await;
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_retried_preparation_resumes_after_its_deadline_and_proves_interrupted_writes() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        // Record 15 sits on the second page of the newest-first walk.
+        seed(&source.state, &destination.state, &[15]).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        *source.state.runtime.migration.deadline.lock().unwrap() = Some(Duration::from_secs(2));
+        let records = &destination.state.runtime.migration.verified_records;
+        let poll = || {
+            prepare(
+                State(source.state.clone()),
+                Json(prepare_request(&source.state, &target)),
+            )
+        };
+
+        assert_eq!(poll().await.unwrap()["ready"], false);
+        let interrupted = wait_failed(&source.state).await;
+        assert!(interrupted.contains("expired"), "{interrupted}");
+        assert_eq!(records.load(Ordering::Relaxed), 16, "one page verified");
+
+        // Written while no attempt runs, and newer than the saved position.
+        put(&source.state, "interrupted", 5000).await;
+        put(&destination.state, "record-15", 1015).await;
+        assert_eq!(
+            poll()
+                .await
+                .expect("a retry resumes a failed attempt that made progress")["ready"],
+            false
+        );
+        let missing = wait_failed(&source.state).await;
+        assert!(missing.contains("expired"), "{missing}");
+        assert_eq!(
+            records.load(Ordering::Relaxed),
+            40,
+            "the retry continued after the first page instead of restarting"
+        );
+
+        put(&destination.state, "interrupted", 5000).await;
+        wait_ready(&source.state, &target).await;
+        assert_eq!(
+            records.load(Ordering::Relaxed),
+            41,
+            "the interrupted write was proven through the pinned feed"
+        );
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_retry_after_feed_history_loss_restarts_the_walk() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        seed(&source.state, &destination.state, &[15]).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        *source.state.runtime.migration.deadline.lock().unwrap() = Some(Duration::from_secs(2));
+        let records = &destination.state.runtime.migration.verified_records;
+        let _ = prepare(
+            State(source.state.clone()),
+            Json(prepare_request(&source.state, &target)),
+        )
+        .await
+        .expect("prepare accepted");
+        wait_failed(&source.state).await;
+        assert_eq!(records.load(Ordering::Relaxed), 16);
+
+        // The write's feed row is trimmed before the retry, so the saved walk
+        // position no longer covers it.
+        put(&source.state, "interrupted", 5000).await;
+        put(&destination.state, "interrupted", 5000).await;
+        put(&destination.state, "record-15", 1015).await;
+        let feed = source.state.store.sync_feed();
+        feed.raise_floor(feed.head());
+        wait_ready(&source.state, &target).await;
+        assert_eq!(
+            records.load(Ordering::Relaxed),
+            16 + 41,
+            "the retry walked every retained record again"
+        );
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_stuck_attempt_keeps_failing_and_a_new_destination_restarts_from_zero() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        // The newest record opens the walk, so nothing can be verified.
+        seed(&source.state, &destination.state, &[39, 15]).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        *source.state.runtime.migration.deadline.lock().unwrap() = Some(Duration::from_secs(1));
+        let _ = prepare(
+            State(source.state.clone()),
+            Json(prepare_request(&source.state, &target)),
+        )
+        .await
+        .expect("prepare accepted");
+        wait_failed(&source.state).await;
+        let calls = destination
+            .state
+            .runtime
+            .migration
+            .verifications
+            .load(Ordering::Relaxed);
+        for _ in 0..3 {
+            assert!(
+                prepare(
+                    State(source.state.clone()),
+                    Json(prepare_request(&source.state, &target)),
+                )
+                .await
+                .is_err(),
+                "an attempt that made no progress is not retried"
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            destination
+                .state
+                .runtime
+                .migration
+                .verifications
+                .load(Ordering::Relaxed),
+            calls
+        );
+
+        // Reset discards the attempt; the next one verifies the first page and
+        // stops at record 15, leaving resumable progress for this target.
+        let _ = reset(
+            State(source.state.clone()),
+            Json(prepare_request(&source.state, &target)),
+        )
+        .await
+        .expect("reset accepted");
+        put(&destination.state, "record-39", 1039).await;
+        let other = test_context(|_| {}).await;
+        for i in 0..40 {
+            put(&other.state, &format!("record-{i:02}"), 1000 + i).await;
+        }
+        let _ = prepare(
+            State(source.state.clone()),
+            Json(prepare_request(&source.state, &target)),
+        )
+        .await
+        .expect("prepare accepted");
+        wait_failed(&source.state).await;
+
+        // Moving to another destination never carries that progress along.
+        let (other_url, other_server) = serve(other.state.clone()).await;
+        let replacement = Target {
+            url: other_url.clone(),
+            incarnation: other.state.runtime.connection_incarnation().to_owned(),
+        };
+        let mut peers = (**source.state.peer_views.load()).clone();
+        peers.push(PeerView {
+            url: other_url,
+            topology: None,
+            private_healthy: false,
+            region: source.state.config.region.clone(),
+            serving: true,
+            draining: false,
+        });
+        source.state.peer_views.store(std::sync::Arc::new(peers));
+        assert!(
+            prepare(
+                State(source.state.clone()),
+                Json(prepare_request(&source.state, &replacement)),
+            )
+            .await
+            .is_err(),
+            "another destination waits for the failed attempt to be reset"
+        );
+        let _ = reset(
+            State(source.state.clone()),
+            Json(prepare_request(&source.state, &target)),
+        )
+        .await
+        .expect("reset accepted");
+        wait_ready(&source.state, &replacement).await;
+        assert_eq!(
+            other
+                .state
+                .runtime
+                .migration
+                .verified_records
+                .load(Ordering::Relaxed),
+            40,
+            "the new destination is walked from the first record"
+        );
+        server.abort();
+        other_server.abort();
     }
 
     #[tokio::test]

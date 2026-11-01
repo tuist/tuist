@@ -276,8 +276,17 @@ The pending migration acknowledgment path in `src/migration.rs` binds a legacy
 storage move to one destination process. Preparation hashes retained records and
 verifies them on that peer; armed HTTP/gRPC mutation completion checks committed
 feed records against actual destination content. Feed cursors alone never prove
-retention. A fixed preparation deadline, bounded verification batches and a
-single verification worker prevent unbounded work. Acknowledgments group-commit:
+retention. A fixed deadline per preparation attempt, bounded verification
+batches and a single verification worker prevent unbounded work. The retained
+walk resumes: after each verified page the source saves the index key it
+reached (a position, never a set of verified keys), and the feed position its
+pin started from covers writes the newest-first walk passed. A prepare for the
+same source process and destination process after a failed, unarmed attempt
+that advanced continues from there under a new deadline; one that advanced
+nothing keeps returning its failure. Feed history below the saved position
+restarts the walk from the top, and reset, rebind and another destination never
+inherit progress. Only a complete walk plus the pinned-feed proof reports ready.
+Resumption is unit-tested, not rehearsed on staging. Acknowledgments group-commit:
 only a run whose feed head was taken after a write committed may prove it, and
 the bridge loop forces a run to probe an idle destination. Polling or resetting
 a preparation must tolerate the other clearing or restarting it, never panic.
@@ -287,7 +296,9 @@ live staging rehearsal.
 
 A ready migration bridge must survive the preparation deadline and controller
 pauses. Its bounded weak-reference task retains the feed pin until draining;
-release that pin on failed preparation or draining. The internal reset API may
+release that pin on draining and on a failed preparation that made no progress.
+A failed attempt that advanced keeps it as a snapshot consumer, which the feed
+cap and stale window still bound and the drain gate never waits for. The internal reset API may
 clear only a completed failed unarmed attempt and must serialize with write
 acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
 A destination process restart is recovered with the internal rebind API: only an

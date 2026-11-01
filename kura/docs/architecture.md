@@ -501,7 +501,9 @@ coordinated. See the [thin qualification report](../../infra/kura-volumes-csi/th
 retained-content walk plus a pinned feed closes the live-write window before
 the controller changes endpoints. HTTP and REAPI mutation completion verify
 actual destination content while armed; cursor advancement alone is insufficient.
-A successful bridge persists through controller pauses until the donor drains,
+Each preparation attempt has a fixed deadline; a retry for the same source and
+destination processes continues the walk from its saved index position and the
+same feed pin when the failed attempt advanced. A successful bridge persists through controller pauses until the donor drains,
 with a weak-reference background task retaining the feed pin. Only a completed,
 failed unarmed preparation can be reset, serialized against acknowledgments.
 This does not change serving-authority grants, cache capacity policy or ordinary

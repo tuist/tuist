@@ -41,7 +41,22 @@ cache migration protocol, not a new crash-consistency or global serving grant.
 
 ## Bounds, pauses and failures
 
-Preparation has one fixed 20-minute deadline. Verification uses batches of at
+Each preparation attempt has its own fixed 20-minute deadline; polling a running
+attempt never extends it. A retained walk that cannot finish in one attempt
+resumes: after every verified page the source keeps the index position it
+reached and the feed position its pin started from, so writes the newest-first
+walk already passed are proven from the feed. A later
+`POST /_internal/migration/prepare` for the same source process and the same
+destination `{url, incarnation}` after a failed attempt that advanced starts a
+new attempt from that position. A failed attempt that advanced nothing (for
+example, the destination lacks the record at the resume position) keeps
+returning its failure instead of re-hashing the corpus. The failed attempt's
+feed pin stays registered for the retry, bounded by the feed cap and the stale
+consumer window, without holding up a drain. If the feed was trimmed past the
+saved position, the retry walks from the top again. Reset, a rebind and a
+different destination never inherit progress, and only a complete walk plus the
+pinned-feed proof reports ready. This is unit-tested and has not been rehearsed
+on staging. Verification uses batches of at
 most 16 descriptors and existing 64 KiB hashing buffers. Destination verification
 is serialized, but write acknowledgments group-commit: concurrent completions
 queue on one gate, and a run that took its feed head after a write committed
@@ -86,9 +101,10 @@ A failed **unarmed preparation** can be retried without restarting the writer:
 3. Through the same authenticated peer connection, send
    `POST /_internal/migration/reset` with the same `{incarnation, target}` JSON
    used for preparation. It serializes against acknowledgments and only clears
-   a completed failed preparation. A running preparation, ready/armed bridge,
-   wrong source process or wrong destination returns conflict. No keys or data
-   are deleted. An already empty state is idempotent.
+   a completed failed preparation, including its saved walk progress and feed
+   pin. A running preparation, ready/armed bridge, wrong source process or wrong
+   destination returns conflict. No keys or data are deleted. An already empty
+   state is idempotent.
 4. After a successful reset, remove only that source pod's write-target
    annotation using a resource-version-guarded update. Recheck identities,
    destination capacity and catch-up, then reselect the source node. This creates
