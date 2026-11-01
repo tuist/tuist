@@ -180,6 +180,61 @@ defmodule Tuist.ContentCacheTest do
     assert ContentCache.get(:missing_content_cache, :key, fn -> "value" end) == "value"
   end
 
+  @tag :tmp_dir
+  test "compile-time loaders wait for modules that are still compiling", %{cache: cache, tmp_dir: tmp_dir} do
+    id = System.unique_integer([:positive])
+    caller = Module.concat(__MODULE__, "CompileTimeCaller#{id}")
+    dependency = Module.concat(__MODULE__, "CompilingDependency#{id}")
+    test_process = :"#{__MODULE__}.Process#{id}"
+    Process.register(self(), test_process)
+
+    caller_path = Path.join(tmp_dir, "caller.ex")
+    dependency_path = Path.join(tmp_dir, "dependency.ex")
+
+    File.write!(caller_path, """
+    defmodule #{inspect(caller)} do
+      @value Tuist.ContentCache.get(#{inspect(cache)}, :key, fn ->
+               send(#{inspect(test_process)}, :loader_started)
+               #{inspect(dependency)}.value()
+             end)
+
+      def value, do: @value
+    end
+    """)
+
+    File.write!(dependency_path, """
+    defmodule #{inspect(dependency)} do
+      send(#{inspect(test_process)}, {:dependency_compiling, self()})
+
+      receive do
+        :continue -> :ok
+      end
+
+      def value, do: "value"
+    end
+    """)
+
+    on_exit(fn ->
+      for module <- [caller, dependency] do
+        :code.purge(module)
+        :code.delete(module)
+      end
+    end)
+
+    compilation =
+      Task.async(fn ->
+        Kernel.ParallelCompiler.compile([caller_path, dependency_path], return_diagnostics: true)
+      end)
+
+    assert_receive :loader_started
+    assert_receive {:dependency_compiling, dependency_compiler}
+    send(dependency_compiler, :continue)
+
+    assert {:ok, modules, _diagnostics} = Task.await(compilation)
+    assert Enum.sort(modules) == Enum.sort([caller, dependency])
+    assert caller.value() == "value"
+  end
+
   defp start_cache(opts \\ []) do
     cache = String.to_atom("content_cache_#{System.unique_integer([:positive])}")
     start_supervised!({ContentCache, Keyword.put(opts, :name, cache)})
