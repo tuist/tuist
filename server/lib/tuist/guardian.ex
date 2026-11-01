@@ -53,7 +53,8 @@ defmodule Tuist.Guardian do
            all_projects: Map.get(claims, "all_projects", false),
            project_ids: extract_project_ids(claims),
            issued_by: user,
-           agent_registration_id: claims["agent_registration_id"]
+           agent_registration_id: claims["agent_registration_id"],
+           withheld_scopes: extract_withheld_scopes(claims)
          }}
 
       {:error, :not_found} ->
@@ -75,6 +76,9 @@ defmodule Tuist.Guardian do
   defp extract_project_ids(%{"project_ids" => project_ids}) when is_list(project_ids), do: project_ids
   defp extract_project_ids(%{"project_id" => project_id}) when not is_nil(project_id), do: [project_id]
   defp extract_project_ids(_), do: nil
+
+  defp extract_withheld_scopes(%{"withheld_scopes" => withheld}) when is_map(withheld), do: withheld
+  defp extract_withheld_scopes(_), do: %{}
 
   def after_encode_and_sign(resource, claims, token, _options) do
     with {:ok, _} <-
