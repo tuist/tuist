@@ -48,6 +48,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
     {"@daily", PruneExpiredSubscriptionsWorker},
     {"@hourly", PruneJobKeysWorker},
+    {"@hourly", Tuist.Shards.Workers.PruneRecentShardPlansWorker},
     {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker}
   ]
 

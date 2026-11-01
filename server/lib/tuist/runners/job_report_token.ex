@@ -14,11 +14,11 @@ defmodule Tuist.Runners.JobReportToken do
 
   def mint(%Job{workflow_job_id: id, account_id: account_id, url: url}, payload) do
     claims = Map.merge(%{workflow_job_id: id, account_id: account_id}, cache_scope(url, payload))
-    Phoenix.Token.sign(TuistWeb.Endpoint, @salt, claims)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), @salt, claims)
   end
 
   def verify(token) when is_binary(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @salt, token, max_age: @max_age) do
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @salt, token, max_age: @max_age) do
       {:ok, %{workflow_job_id: id, account_id: account_id} = identity} ->
         if Repo.exists?(from(j in Job, where: j.workflow_job_id == ^id and j.account_id == ^account_id)),
           do: {:ok, Map.put(identity, :provider, :gitlab)},

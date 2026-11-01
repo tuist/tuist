@@ -401,6 +401,14 @@ The fixed profile compares server `/ready` and Alloy `/v1/traces` header timings
 including normal and absolute DNS names. Alloy receives unauthenticated GETs on
 port 4318, never spans. Six serial samples precede a 60-second pause; there is no
 additional worker, retry queue or application startup dependency.
+Equipped pods watch a bounded fixed-path DownwardAPI file carrying the live-Pod
+selection annotation. Absolute expiry has a local monotonic deadline independent
+of controller availability. Configuration changes preserve the single DNS permit
+and sampling cooldown. The controller prepares the inert projection only on
+creation or ordinary image upgrades, after a separate compatibility-floor
+deployment. Activation and removal patch live metadata, never the StatefulSet
+template. Unsupported legacy processes retain their previous behavior until a
+normal runtime upgrade; no diagnostic action forces their replacement.
 
 Each node exposes:
 
