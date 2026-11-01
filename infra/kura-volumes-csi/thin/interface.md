@@ -182,7 +182,11 @@ remain trusted; project quotas are not a boundary against either.
    topology and reports pool capacity. Read `/v1/node`, validate local quota,
    encryption, restart/reclaim behavior, then explicitly mark the node
    `tuist.dev/kura-thin-ready=true`. Do not label unqualified capacity as ready.
-4. Select the thin class for an isolated instance. Preserve the existing
+4. Select the thin class for an isolated instance: list its region in the tuist
+   chart's `kuraVolumesCSI.thinRegions` and enable its account on the
+   `kura_thin_volumes` flag
+   ([procedure](../../kura-controller/thin-migration.md#selecting-an-account-in-one-region)).
+   No other instance's manifest changes. Preserve the existing
    `tuist.dev/kura-lvm-migrate=true` single-source cordon gate. Thick source PVs
    do not bypass it. Catch-up, endpoint handoff, single-copy standby, retained
    claims, partition pauses and deletion safeguards still apply. Transition one
