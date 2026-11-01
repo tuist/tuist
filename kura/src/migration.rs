@@ -40,6 +40,9 @@ struct Walk {
 
 struct Active {
     target: Target,
+    /// Identifies this migration across retries and rebinds; its bridge loop
+    /// exits once the migration is aborted or replaced.
+    id: u64,
     /// Identifies the preparation, retry or rebind that owns the walk. A
     /// superseded worker can neither save progress nor report a result.
     attempt: u64,
@@ -61,6 +64,7 @@ impl Active {
     fn new(target: Target, attempt: u64, deadline: Instant, confirmed: u64) -> Self {
         Self {
             target,
+            id: attempt,
             attempt,
             deadline,
             confirmed,
@@ -223,12 +227,12 @@ pub async fn prepare(
                 .unwrap_or_else(|_| Err("migration preparation expired".into()));
             let migration = &worker.runtime.migration;
             let mut active = migration.active.lock().expect("migration lock");
-            let mut maintain = false;
+            let mut maintain = None;
             if let Some(active) = active.as_mut().filter(|active| active.attempt == attempt) {
                 match result {
                     Ok(()) => {
                         active.ready = true;
-                        maintain = true;
+                        maintain = Some(active.id);
                     }
                     Err(error) => {
                         migration.armed.store(false, Ordering::Release);
@@ -245,8 +249,8 @@ pub async fn prepare(
                 }
             }
             drop(active);
-            if maintain {
-                maintain_bridge(std::sync::Arc::downgrade(&worker));
+            if let Some(id) = maintain {
+                maintain_bridge(std::sync::Arc::downgrade(&worker), id);
             }
         });
     }
@@ -272,12 +276,23 @@ pub async fn prepare(
 // Preparation has a fixed deadline. Once routing may have moved, keep the
 // bridge and feed pin until the donor drains. A controller pause must not
 // turn a healthy writer into an outage when that deadline elapses.
-fn maintain_bridge(state: std::sync::Weak<crate::state::AppState>) {
+fn maintain_bridge(state: std::sync::Weak<crate::state::AppState>, id: u64) {
     tokio::spawn(async move {
         let mut previous_error = None;
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let Some(state) = state.upgrade() else { break };
+            let current = state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .expect("migration lock")
+                .as_ref()
+                .is_some_and(|active| active.id == id);
+            if !current {
+                break;
+            }
             if state.runtime.is_draining() {
                 state.store.sync_feed().forget_consumer(&consumer(&state));
                 break;
@@ -294,6 +309,62 @@ fn maintain_bridge(state: std::sync::Weak<crate::state::AppState>) {
             previous_error = error;
         }
     });
+}
+
+/// Clears the migration for exactly this target in any state: running,
+/// failed, ready or armed. It disarms the bridge, discards resume progress and
+/// releases the feed pin; the preparation, bridge loop and re-proof tasks see
+/// their attempt gone and exit without writing state back.
+///
+/// The controller calls this only while the source was never demoted (no
+/// `kura.tuist.dev/lvm-rebuild` annotation), so routing never moved through the
+/// migration. Disarming then returns the source to ordinary asynchronous
+/// replication, which is how it served before preparation. Never abort a
+/// bridge that may protect a moved endpoint.
+///
+/// Disarming comes first, so an acknowledgment already waiting on the bridge
+/// completes as an ordinary write instead of failing; the gate is then taken
+/// so no acknowledgment run that started before the abort outlives it.
+pub async fn abort(
+    State(state): State<SharedState>,
+    Json(request): Json<PrepareRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if request.incarnation != state.runtime.connection_incarnation() {
+        return Err(conflict("migration source changed".into()));
+    }
+    let migration = &state.runtime.migration;
+    let feed = state.store.sync_feed();
+    let aborted = {
+        let mut active = migration.active.lock().expect("migration lock");
+        match active.as_ref() {
+            Some(current) if current.target != request.target => {
+                return Err(conflict("another destination owns migration".into()));
+            }
+            Some(_) => {
+                migration.armed.store(false, Ordering::Release);
+                *active = None;
+                *migration.last_proof.lock().expect("migration proof lock") = None;
+                feed.forget_consumer(&consumer(&state));
+                true
+            }
+            None => false,
+        }
+    };
+    if aborted {
+        let _gate = migration.gate.lock().await;
+        // An acknowledgment that read the bridge before it was cleared may
+        // have re-registered the pin; a newer preparation owns it otherwise.
+        if migration.active.lock().expect("migration lock").is_none() {
+            feed.forget_consumer(&consumer(&state));
+        }
+        tracing::warn!(
+            event.name = "kura.migration.aborted",
+            "Migration aborted; writes acknowledge without destination proof"
+        );
+    }
+    Ok(Json(
+        serde_json::json!({"incarnation": state.runtime.connection_incarnation(), "aborted": true}),
+    ))
 }
 
 /// Only a completed, failed preparation can be reset. An armed bridge may
@@ -654,16 +725,17 @@ async fn verify_remote(
     destination: &Target,
     records: Vec<Record>,
 ) -> Result<(), String> {
-    let target = target(state)?;
-    if target != *destination {
-        return Err("migration destination changed".into());
-    }
+    let target = destination;
     let request = VerifyRequest {
         incarnation: target.incarnation.clone(),
         records,
     };
     let deadline = Instant::now() + ACK_TIMEOUT;
     loop {
+        // Rechecked on every retry, so an abort or rebind stops waiting here.
+        if self::target(state)? != *target {
+            return Err("migration destination changed".into());
+        }
         let response = state
             .peer_request(
                 reqwest::Method::POST,
@@ -1572,6 +1644,210 @@ mod tests {
         assert_eq!(
             metric(&source.state, "kura_migration_bridge_ready"),
             Some(0.0)
+        );
+        server.abort();
+    }
+
+    fn abort_request(source: &SharedState, target: &Target) -> Json<PrepareRequest> {
+        Json(prepare_request(source, target))
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn aborting_an_armed_bridge_releases_writes_without_destination_proof() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        wait_ready(&source.state, &target).await;
+        put(&source.state, "unproven", 1000).await;
+        let state = source.state.clone();
+        let blocked = tokio::spawn(async move { acknowledge(&state).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!blocked.is_finished(), "the bridge holds the write");
+
+        let receipt = abort(
+            State(source.state.clone()),
+            abort_request(&source.state, &target),
+        )
+        .await
+        .expect("abort accepted");
+        assert_eq!(receipt["aborted"], true);
+        assert_eq!(
+            receipt["incarnation"],
+            source.state.runtime.connection_incarnation()
+        );
+        tokio::time::timeout(Duration::from_secs(1), blocked)
+            .await
+            .expect("the waiting write is released promptly")
+            .unwrap()
+            .expect("the waiting write completes as an ordinary write");
+        put(&source.state, "after-abort", 2000).await;
+        acknowledge(&source.state).await.unwrap();
+
+        // Nothing comes back: no bridge, no pin, no destination traffic.
+        let calls = destination
+            .state
+            .runtime
+            .migration
+            .verifications
+            .load(Ordering::Relaxed);
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        assert!(!source.state.runtime.migration.armed.load(Ordering::Acquire));
+        assert!(
+            source
+                .state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            source
+                .state
+                .store
+                .sync_feed()
+                .consumers()
+                .iter()
+                .all(|(name, _)| *name != consumer(&source.state))
+        );
+        assert_eq!(
+            destination
+                .state
+                .runtime
+                .migration
+                .verifications
+                .load(Ordering::Relaxed),
+            calls
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn abort_is_bound_to_the_source_and_target_and_idempotent() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let target = activate(
+            &source.state,
+            "http://127.0.0.1:1".into(),
+            &destination.state,
+        );
+        for _ in 0..2 {
+            let receipt = abort(
+                State(source.state.clone()),
+                abort_request(&source.state, &target),
+            )
+            .await
+            .expect("aborting nothing succeeds");
+            assert_eq!(receipt["aborted"], true);
+        }
+        *source.state.runtime.migration.active.lock().unwrap() =
+            Some(Active::new(target.clone(), 1, Instant::now() + DEADLINE, 0));
+        let other = Target {
+            url: target.url.clone(),
+            incarnation: "another-process".into(),
+        };
+        let error = abort(
+            State(source.state.clone()),
+            abort_request(&source.state, &other),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.0, StatusCode::CONFLICT);
+        let error = abort(
+            State(source.state.clone()),
+            Json(PrepareRequest {
+                incarnation: "previous-process".into(),
+                target: target.clone(),
+            }),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.0, StatusCode::CONFLICT);
+        assert!(
+            source
+                .state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .unwrap()
+                .is_some()
+        );
+        let _ = abort(
+            State(source.state.clone()),
+            abort_request(&source.state, &target),
+        )
+        .await
+        .expect("abort accepted");
+        assert!(
+            source
+                .state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn abort_stops_a_running_preparation_and_the_next_one_starts_from_zero() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        seed(&source.state, &destination.state, &[15]).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        let migration = &destination.state.runtime.migration;
+        let _ = prepare(
+            State(source.state.clone()),
+            Json(prepare_request(&source.state, &target)),
+        )
+        .await
+        .expect("prepare accepted");
+        // The first page verifies, then the walk retries the missing record.
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while migration.verifications.load(Ordering::Relaxed) < 4 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(migration.verified_records.load(Ordering::Relaxed), 16);
+
+        let _ = abort(
+            State(source.state.clone()),
+            abort_request(&source.state, &target),
+        )
+        .await
+        .expect("abort accepted");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let calls = migration.verifications.load(Ordering::Relaxed);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(
+            migration.verifications.load(Ordering::Relaxed),
+            calls,
+            "the aborted walk stopped"
+        );
+        assert!(
+            source
+                .state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+
+        put(&destination.state, "record-15", 1015).await;
+        wait_ready(&source.state, &target).await;
+        assert_eq!(
+            migration.verified_records.load(Ordering::Relaxed),
+            16 + 40,
+            "the next preparation walked from the first record"
         );
         server.abort();
     }

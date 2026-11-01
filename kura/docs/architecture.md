@@ -506,5 +506,7 @@ destination processes continues the walk from its saved index position and the
 same feed pin when the failed attempt advanced. A successful bridge persists through controller pauses until the donor drains,
 with a weak-reference background task retaining the feed pin. Only a completed,
 failed unarmed preparation can be reset, serialized against acknowledgments.
+Abort clears a migration in any state for a source that was never demoted,
+returning it to ordinary asynchronous acknowledgments.
 This does not change serving-authority grants, cache capacity policy or ordinary
 asynchronous replication. See the [handoff protocol](../../infra/kura-controller/thin-migration.md).

@@ -121,6 +121,32 @@ An armed handoff has no reset shortcut. Preserve the destination and donor and
 complete or explicitly recover the handoff; clearing the bridge would reintroduce
 the successful-PUT/missing-GET race.
 
+### Abort before demotion
+
+`POST /_internal/migration/abort` (internal peer mTLS only) takes the same
+`{incarnation, target}` body as prepare and reset and answers
+`{"incarnation": "<source connection_incarnation>", "aborted": true}`. It
+clears the migration for exactly that target whatever its state (running,
+failed, ready or armed):
+
+- the bridge is disarmed first, so acknowledgments already waiting on it
+  complete as ordinary asynchronous writes instead of failing;
+- it then serializes with acknowledgments through the same gate, discards the
+  saved walk progress and releases the feed pin;
+- a running preparation, the bridge loop and a re-proof notice the migration
+  is gone and exit without writing state back; a later prepare walks from the
+  first record.
+
+With nothing active it is idempotent (200). A wrong source incarnation or a
+different target that owns the migration returns 409.
+
+It is safe only while the source was never demoted (no
+`kura.tuist.dev/lvm-rebuild` annotation): routing never moved through the
+migration, and disarming returns the source to the ordinary asynchronous
+replication it served with before preparation. The runtime cannot check that
+precondition; the caller must. Abort is unit-tested and has not been rehearsed
+on staging.
+
 ### Destination process restart
 
 When the destination pod keeps its UID and URL but reports a new

@@ -301,6 +301,13 @@ A failed attempt that advanced keeps it as a snapshot consumer, which the feed
 cap and stale window still bound and the drain gate never waits for. The internal reset API may
 clear only a completed failed unarmed attempt and must serialize with write
 acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
+The internal abort API clears the attempt for its exact target in any state:
+it disarms first (so acknowledgments waiting on the bridge complete as ordinary
+writes), then takes the gate, discards resume progress and releases the pin.
+Preparation, bridge-loop and re-proof tasks check their attempt or migration id
+and exit without writing state back. It is safe only while the source was never
+demoted, so routing never moved; the controller enforces that, the runtime
+cannot. Abort is unit-tested and not rehearsed on staging.
 A destination process restart is recovered with the internal rebind API: only an
 armed bridge may move to a new incarnation at the same URL, it stays armed, and
 it reports ready only after re-proving every retained record and the pinned feed
