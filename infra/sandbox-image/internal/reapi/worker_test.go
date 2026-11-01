@@ -40,6 +40,7 @@ type memoryCAS struct {
 	beforeRead   func(context.Context, string) error
 	batchRead    func(context.Context, *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error)
 	beforeUpdate func()
+	beforeWrite  func() error
 }
 
 func (m *memoryCAS) BatchReadBlobs(ctx context.Context, request *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
@@ -82,6 +83,11 @@ func (m *memoryCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
 }
 func (m *memoryCAS) Write(s bs.ByteStream_WriteServer) error {
 	m.writes.Add(1)
+	if m.beforeWrite != nil {
+		if err := m.beforeWrite(); err != nil {
+			return err
+		}
+	}
 	var data []byte
 	var resource string
 	for {
@@ -493,5 +499,46 @@ func TestConcurrentTransfersCannotExceedActionBudget(t *testing.T) {
 	workers.Wait()
 	if int64(successes.Load()) != MaxTransfer/MaxBlob || cas.transferred != MaxTransfer {
 		t.Fatalf("transfer limit escaped: successes=%d bytes=%d", successes.Load(), cas.transferred)
+	}
+}
+
+// Each new blob costs the CAS a durable write; concurrent uploads share it.
+func TestOutputsUploadConcurrently(t *testing.T) {
+	w, m := harness(t)
+	var inFlight atomic.Int32
+	all := make(chan struct{})
+	m.beforeWrite = func() error {
+		if inFlight.Add(1) == 3 {
+			close(all)
+		}
+		select {
+		case <-all:
+			return nil
+		case <-time.After(2 * time.Second):
+			return status.Error(codes.DeadlineExceeded, "outputs were uploaded one at a time")
+		}
+	}
+	d := action(t, m, "printf a > a; printf b > b; printf c > c", &re.Directory{}, []string{"a", "b", "c"})
+	result, _ := w.Execute(context.Background(), d, false)
+	if result.Status.Code != 0 || len(result.Result.OutputFiles) != 3 {
+		t.Fatalf("execution: %v", result)
+	}
+	for _, f := range result.Result.OutputFiles {
+		if _, ok := m.blobs[f.Digest.Hash]; !ok {
+			t.Fatalf("output %s missing from CAS", f.Path)
+		}
+	}
+}
+
+func TestIdenticalOutputsUploadOnce(t *testing.T) {
+	w, m := harness(t)
+	d := action(t, m, "printf same > a; printf same > b; mkdir c; printf same > c/d", &re.Directory{}, []string{"a", "b", "c"})
+	result, _ := w.Execute(context.Background(), d, false)
+	if result.Status.Code != 0 || len(result.Result.OutputFiles) != 2 || len(result.Result.OutputDirectories) != 1 {
+		t.Fatalf("execution: %v", result)
+	}
+	// One file blob and one tree.
+	if got := m.writes.Load(); got != 2 {
+		t.Fatalf("uploaded %d blobs, want 2", got)
 	}
 }

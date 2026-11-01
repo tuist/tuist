@@ -189,19 +189,23 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	if timedOut {
 		result.ExitCode = 124
 	}
-	if result.StdoutDigest, err = w.uploadLog(ctx, stdout); err != nil {
+	uploads := newOutputUploads(w.CAS)
+	if result.StdoutDigest, err = uploads.log(stdout); err != nil {
 		return nil, false, false, err
 	}
-	if result.StderrDigest, err = w.uploadLog(ctx, stderr); err != nil {
+	if result.StderrDigest, err = uploads.log(stderr); err != nil {
 		return nil, false, false, err
 	}
 	for _, p := range outputs {
-		if err = w.collect(ctx, root, path.Join(working, p), p, result); err != nil {
+		if err = w.collect(root, path.Join(working, p), p, result, uploads); err != nil {
 			return nil, false, false, err
 		}
 		if proto.Size(result) > MaxResponse {
 			return nil, false, false, status.Error(codes.ResourceExhausted, "action result too large")
 		}
+	}
+	if err = uploads.send(ctx); err != nil {
+		return nil, false, false, err
 	}
 	if timedOut {
 		metadata.OutputUploadCompletedTimestamp = timestamppb.Now()
@@ -491,7 +495,7 @@ func (w *Worker) materializeContent(root *os.Root, p string, f *re.FileNode, rea
 	return w.own(root, p)
 }
 
-func (w *Worker) collect(ctx context.Context, root *os.Root, p, output string, result *re.ActionResult) error {
+func (w *Worker) collect(root *os.Root, p, output string, result *re.ActionResult, uploads *outputUploads) error {
 	info, err := root.Lstat(p)
 	if os.IsNotExist(err) {
 		return nil
@@ -512,12 +516,12 @@ func (w *Worker) collect(ctx context.Context, root *os.Root, p, output string, r
 	}
 	if info.IsDir() {
 		tree := &re.Tree{}
-		dir, err := w.outputDirectory(ctx, root, p, tree, 0)
+		dir, err := w.outputDirectory(root, p, tree, 0, uploads)
 		if err != nil {
 			return err
 		}
 		tree.Root = dir
-		digest, err := w.CAS.WriteMessage(ctx, tree)
+		digest, err := uploads.message(tree)
 		if err != nil {
 			return err
 		}
@@ -527,12 +531,7 @@ func (w *Worker) collect(ctx context.Context, root *os.Root, p, output string, r
 	if !info.Mode().IsRegular() {
 		return status.Error(codes.InvalidArgument, "unsupported output file type")
 	}
-	f, err := root.Open(p)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	digest, err := w.CAS.Write(ctx, f)
+	digest, err := uploads.file(root, p)
 	if err != nil {
 		return err
 	}
@@ -540,7 +539,7 @@ func (w *Worker) collect(ctx context.Context, root *os.Root, p, output string, r
 	return nil
 }
 
-func (w *Worker) outputDirectory(ctx context.Context, root *os.Root, p string, tree *re.Tree, depth int) (*re.Directory, error) {
+func (w *Worker) outputDirectory(root *os.Root, p string, tree *re.Tree, depth int, uploads *outputUploads) (*re.Directory, error) {
 	if depth > 128 {
 		return nil, status.Error(codes.ResourceExhausted, "output tree too deep")
 	}
@@ -575,23 +574,18 @@ func (w *Worker) outputDirectory(ctx context.Context, root *os.Root, p string, t
 				}
 				dir.Symlinks = append(dir.Symlinks, &re.SymlinkNode{Name: e.Name(), Target: target})
 			case info.IsDir():
-				sub, err := w.outputDirectory(ctx, root, child, tree, depth+1)
+				sub, err := w.outputDirectory(root, child, tree, depth+1, uploads)
 				if err != nil {
 					return nil, err
 				}
-				digest, err := w.CAS.WriteMessage(ctx, sub)
+				digest, err := uploads.message(sub)
 				if err != nil {
 					return nil, err
 				}
 				tree.Children = append(tree.Children, sub)
 				dir.Directories = append(dir.Directories, &re.DirectoryNode{Name: e.Name(), Digest: digest})
 			case info.Mode().IsRegular():
-				file, err := root.Open(child)
-				if err != nil {
-					return nil, err
-				}
-				digest, err := w.CAS.Write(ctx, file)
-				file.Close()
+				digest, err := uploads.file(root, child)
 				if err != nil {
 					return nil, err
 				}
@@ -653,18 +647,4 @@ func commandPath(program string, env []string, cwd string) (string, error) {
 		}
 	}
 	return "", status.Error(codes.InvalidArgument, fmt.Sprintf("executable %q is absent from action PATH", program))
-}
-
-// REAPI represents an empty log with neither inline bytes nor a digest. Avoid
-// two authenticated CAS uploads for the common case of a silent compiler.
-// Non-empty logs still live in CAS, outside the bounded control-plane response.
-func (w *Worker) uploadLog(ctx context.Context, file *os.File) (*re.Digest, error) {
-	info, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if info.Size() == 0 {
-		return nil, nil
-	}
-	return w.CAS.Write(ctx, file)
 }
