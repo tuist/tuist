@@ -9,8 +9,12 @@ defmodule TuistWeb.IntegrationsLiveTest do
   alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runners.Bitrise
+  alias Tuist.Runners.Bitrise.Client, as: BitriseClient
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -1121,6 +1125,148 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
+  end
+
+  describe "Bitrise" do
+    setup do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
+      :ok
+    end
+
+    test "connects with only an API token and shows the workspace it belongs to", %{conn: conn, account: account} do
+      expect(BitriseClient, :list_workspaces, fn "bitwat_private" ->
+        {:ok, [%{slug: "6f7fab30975d4c3a", name: "Acme Workspace"}]}
+      end)
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:ok, []} end)
+
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert html =~ "connect-bitrise-form"
+
+      assert html |> Floki.parse_document!() |> Floki.find("input#bitrise-api-token") |> Floki.attribute("type") == [
+               "password"
+             ]
+
+      html = lv |> form("#connect-bitrise-form", %{api_token: "bitwat_private"}) |> render_submit()
+
+      assert %{workspace_slug: "6f7fab30975d4c3a", api_token: "bitwat_private"} = Bitrise.get_connection(account.id)
+      refute html =~ "bitwat_private"
+      assert html =~ "Connected to Acme Workspace."
+      refute has_element?(lv, "#connect-bitrise-form")
+
+      assert render_async(lv) =~ "This workspace has no self-hosted runner pools yet."
+    end
+
+    test "asks for the workspace when the token sees several", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn "personal" ->
+        {:ok, [%{slug: "a1", name: "Acme"}, %{slug: "b2", name: "Beta"}]}
+      end)
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:ok, []} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      html = lv |> form("#connect-bitrise-form", %{api_token: "personal"}) |> render_submit()
+      document = Floki.parse_document!(html)
+
+      assert Bitrise.get_connection(account.id) == nil
+      assert Floki.find(document, "#bitrise-workspace") != []
+      assert Floki.find(document, "#bitrise-api-token") == []
+
+      lv |> element("#connect-bitrise-form") |> render_submit(%{workspace_slug: "b2"})
+
+      assert %{workspace_slug: "b2", api_token: "personal"} = Bitrise.get_connection(account.id)
+    end
+
+    test "explains a rejected token", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:error, :unauthorized} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      html = lv |> form("#connect-bitrise-form", %{api_token: "revoked"}) |> render_submit()
+
+      assert html =~ "Bitrise rejected this API token."
+      assert Bitrise.get_connection(account.id) == nil
+    end
+
+    test "pairs a pool picked from Bitrise with a profile, keeps its token secret, and removes it", %{
+      conn: conn,
+      account: account
+    } do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:ok, [%{slug: "a1", name: "Acme"}]} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "bitwat_private")
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection ->
+        {:ok, [%{stack_identifier: "agent-pool-a0c641c0", name: "tuist-macos"}]}
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      render_async(lv)
+
+      assert has_element?(lv, ~s(#bitrise-pool-profile option[selected][value="tuist-macos"]))
+
+      label = account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1) |> List.first()
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{
+          stack_identifier: "agent-pool-a0c641c0",
+          profile_label: label,
+          intro_secret: "bitrise-private-intro"
+        })
+        |> render_submit()
+
+      assert [%{id: pool_id, name: "tuist-macos", stack_identifier: "agent-pool-a0c641c0", profile_label: ^label}] =
+               Bitrise.list_pools(account.id)
+
+      refute html =~ "bitrise-private-intro"
+      assert has_element?(lv, "#bitrise-pool-#{pool_id} [data-part=name]", "tuist-macos")
+
+      assert render_async(lv) =~ "Every runner pool in this workspace is paired."
+
+      lv |> element("#bitrise-pool-#{pool_id} button[phx-click=remove-bitrise-pool]") |> render_click()
+      assert Bitrise.list_pools(account.id) == []
+
+      lv |> element("button[phx-click=disconnect-bitrise]") |> render_click()
+      assert Bitrise.get_connection(account.id) == nil
+      assert has_element?(lv, "#connect-bitrise-form")
+    end
+
+    test "rotates the API token only for the connected workspace", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn
+        "first" -> {:ok, [%{slug: "a1", name: "Acme"}]}
+        "rotated" -> {:ok, [%{slug: "a1", name: "Acme"}]}
+        "elsewhere" -> {:ok, [%{slug: "b2", name: "Beta"}]}
+      end)
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:ok, []} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "first")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html = lv |> form("#bitrise-token-form", %{api_token: "elsewhere"}) |> render_submit()
+      assert html =~ "This API token can&#39;t see the connected workspace."
+      assert Bitrise.get_connection(account.id).api_token == "first"
+
+      html = lv |> form("#bitrise-token-form", %{api_token: "rotated"}) |> render_submit()
+      assert html =~ "Bitrise API token updated."
+      refute html =~ "rotated"
+      assert Bitrise.get_connection(account.id).api_token == "rotated"
+    end
+
+    test "falls back to typing the stack ID when Bitrise cannot list pools", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:ok, [%{slug: "a1", name: "Acme"}]} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "bitwat_private")
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:error, {:transport, :timeout}} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert render_async(lv) =~ "Enter the pool&#39;s stack ID"
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{stack_identifier: "agent-pool-a0c641c0", intro_secret: ""})
+        |> render_submit()
+
+      assert html =~ "Choose a runner pool and paste its pool token."
+      assert Bitrise.list_pools(account.id) == []
+    end
   end
 
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do

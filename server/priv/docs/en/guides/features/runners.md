@@ -114,6 +114,11 @@ SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` 
     link="/guides/features/runners/ci-providers/gitlab-ci"
 />
   <.home_card
+    title="Bitrise"
+    details="Connect your workspace and run builds of your self-hosted runner pools on Tuist profiles."
+    link="/guides/features/runners/ci-providers/bitrise"
+/>
+  <.home_card
     title="Profiles"
     details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
     link="/guides/features/runners/profiles"

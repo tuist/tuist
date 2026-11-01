@@ -107,6 +107,7 @@ defmodule Tuist.Runners do
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
@@ -1007,7 +1008,7 @@ defmodule Tuist.Runners do
   end
 
   defp handle_serve_claim({:error, {mint_failure, exclusion_scope}}, context)
-       when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] and
+       when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed, :bitrise_mint_failed] and
               exclusion_scope in [:account, :repository, :workflow_job] do
     retry_claim_and_serve(context, exclusion_scope)
   end
@@ -1437,6 +1438,7 @@ defmodule Tuist.Runners do
   defp job_trusted?(candidate, account) do
     case provider(candidate) do
       "gitlab" -> false
+      "bitrise" -> false
       "buildkite" -> Buildkite.job_trusted?(account.id, candidate.workflow_job_id)
       _github -> github_job_trusted?(candidate, account)
     end
@@ -1520,6 +1522,9 @@ defmodule Tuist.Runners do
   # claimed. Buildkite mints a token against one job UUID, so it cannot.
   defp mint_credential(account, candidate, name_prefix, dispatch_label, runner_labels) do
     case provider(candidate) do
+      "bitrise" ->
+        mint_bitrise_acquisition(account, candidate, name_prefix)
+
       "gitlab" ->
         mint_gitlab_acquisition(account, candidate, name_prefix)
 
@@ -1542,6 +1547,13 @@ defmodule Tuist.Runners do
     case GitLab.mint_acquisition(account.id, candidate.workflow_job_id) do
       {:ok, acquisition} -> {:ok, Map.put(acquisition, :kind, :gitlab), runner_name(name_prefix)}
       {:error, reason} -> {:error, {:gitlab_mint_failed, mint_failure_scope(reason)}}
+    end
+  end
+
+  defp mint_bitrise_acquisition(account, candidate, name_prefix) do
+    case Bitrise.mint_acquisition(account.id, candidate.workflow_job_id) do
+      {:ok, acquisition} -> {:ok, Map.put(acquisition, :kind, :bitrise), runner_name(name_prefix)}
+      {:error, reason} -> {:error, {:bitrise_mint_failed, mint_failure_scope(reason)}}
     end
   end
 
