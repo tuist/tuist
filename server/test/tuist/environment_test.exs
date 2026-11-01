@@ -1,7 +1,28 @@
 defmodule Tuist.EnvironmentTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Environment
+
+  describe "kura_thin_region_ids/0" do
+    test "reads the trimmed region IDs enrolled in thin Kura volumes" do
+      stub(System, :get_env, fn
+        "TUIST_KURA_THIN_REGIONS", _default -> " eu-west, ,us-east ,"
+        name, default -> Mimic.call_original(System, :get_env, [name, default])
+      end)
+
+      assert Environment.kura_thin_region_ids() == ["eu-west", "us-east"]
+    end
+
+    test "enrolls no region when unset" do
+      stub(System, :get_env, fn
+        "TUIST_KURA_THIN_REGIONS", default -> default
+        name, default -> Mimic.call_original(System, :get_env, [name, default])
+      end)
+
+      assert Environment.kura_thin_region_ids() == []
+    end
+  end
 
   describe "network_trusted_cache_access_enabled?/2" do
     test "only an explicit boolean on a self-hosted instance enables cache access" do

@@ -5,6 +5,37 @@ It does not enable physical overcommit or positive-fence serving. See
 [storage qualification](../kura-volumes-csi/thin/validation.md) for the current
 rollout decision and measured limits.
 
+## Selecting an account in one region
+
+The server renders the thin class for an account's instance in a region only
+when both opt-ins hold:
+
+1. The region is listed in the tuist chart's `kuraVolumesCSI.thinRegions`,
+   rendered as the server's comma-separated `TUIST_KURA_THIN_REGIONS`. The chart
+   refuses the list unless `kuraVolumesCSI.enabled` installs the class. Only
+   regions on a node-local class (`scw-local-nvme`, or `kura-lvm-nvme` once
+   enrolled in `lvmRegions`) take it; others ignore it. Listing a region changes
+   no manifest. List it only once at least one of its nodes is labelled
+   `tuist.dev/kura-thin-ready=true`.
+2. The account is enabled as an actor on the default-off `kura_thin_volumes`
+   flag, through the audited Atlas flag control or `/ops/flags`.
+
+That account's `KuraInstance` in that region then renders
+`storageClassName: kura-thin-encrypted-nvme` and
+`diskResource: tuist.dev/kura-disk`, and its manifest revision ends in
+`+thin-volumes-v1` in place of any `+encrypted-volumes-v1` or `+lvm-volumes-v1`
+suffix. Every other account's manifest, revision included, is unchanged, so
+nothing else rolls. The controller holds the new class until an operator selects
+and cordons one source node with `tuist.dev/kura-lvm-migrate=true`, then moves
+it as described below. Capacity admission charges the enrolled instance what the
+controller requests: the thin reservation of its claim (`diskReservation`) on
+`tuist.dev/kura-disk` for each replica, so placement only fits it on thin-ready
+nodes with that much pool capacity.
+
+Disabling the flag or delisting the region renders the previous class and
+revision again, which the controller sees as another storage change. To pause,
+stop selecting source nodes instead.
+
 ## Why connection retirement is insufficient
 
 A Service update changes new connections. An existing connection can still

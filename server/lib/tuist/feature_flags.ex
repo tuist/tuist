@@ -68,6 +68,19 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to thin encrypted Kura volumes
+  (`kura-thin-encrypted-nvme`). It applies only in regions listed in
+  `TUIST_KURA_THIN_REGIONS` (`Tuist.Kura.Regions.thin_volumes?/2`).
+  """
+  def kura_thin_volumes_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :kura_thin_volumes,
+      account,
+      flag_enabled?(:kura_thin_volumes, account, flags)
+    )
+  end
+
+  @doc """
   Whether legacy endpoint discovery may hand out the stable hostname. Canary
   enables this automatically; other environments use the account/global flag.
   DNS publication is independent because new CLIs derive that hostname locally.

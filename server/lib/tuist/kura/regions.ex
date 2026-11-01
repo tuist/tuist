@@ -1020,13 +1020,37 @@ defmodule Tuist.Kura.Regions do
   defp managed_regions do
     Enum.map(
       Enum.map(@managed_region_specs, &managed_region/1) ++ Enum.map(@private_region_specs, &private_region/1),
-      &configure_lvm/1
+      &(&1 |> configure_lvm() |> configure_thin())
     )
   end
 
   @doc "The node resource used to admit data volumes in this region."
   def disk_resource(%__MODULE__{provisioner_config: config}) do
     config[:disk_resource] || "ephemeral-storage"
+  end
+
+  @doc """
+  Whether the region is listed in `TUIST_KURA_THIN_REGIONS` and runs on a
+  node-local class, so its accounts may be selected for thin volumes.
+  """
+  def thin_volumes?(%__MODULE__{provisioner_config: config}), do: config[:thin_volumes] == true
+
+  @doc """
+  Whether `account`'s instance in the region is built on
+  `kura-thin-encrypted-nvme`: the region is thin-capable and the account is on
+  the `kura_thin_volumes` flag. The flag is read only in thin-capable regions.
+  """
+  def thin_volumes?(%__MODULE__{} = region, account) do
+    thin_volumes?(region) and Tuist.FeatureFlags.kura_thin_volumes_enabled?(account)
+  end
+
+  defp configure_thin(%__MODULE__{provisioner_config: config} = region) do
+    if region.id in Tuist.Environment.kura_thin_region_ids() and
+         config[:storage_class] in ["scw-local-nvme", "kura-lvm-nvme"] do
+      %{region | provisioner_config: Map.put(config, :thin_volumes, true)}
+    else
+      region
+    end
   end
 
   defp configure_lvm(%__MODULE__{provisioner_config: config} = region) do

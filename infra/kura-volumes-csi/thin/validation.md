@@ -73,9 +73,17 @@ a fresh hosted staging rehearsal or a production performance measurement.
 3. Prepare selected replacement hosts with the explicit layout annotation;
    evacuate existing hosts before reinstalling them. The annotation is not an
    online conversion command. Prepare thin pools only from unused extents.
-4. Do not enable the current region-wide enrollment as a substitute for the
-   required Tuist-first account/region canary. Implement and rehearse that path,
-   armed-handoff recovery, standby, endpoint continuity and safe deletion first.
+4. Do not enable the region-wide LVM enrollment as a substitute for the
+   required Tuist-first account/region canary. That opt-in now exists (2026-11-01,
+   server unit tests only, not rehearsed on staging): list the region in
+   `kuraVolumesCSI.thinRegions` (`TUIST_KURA_THIN_REGIONS`) and enable the
+   account as an actor on the `kura_thin_volumes` flag. Only that account's
+   instance there moves to `kura-thin-encrypted-nvme`; see
+   [selecting an account](../../kura-controller/thin-migration.md#selecting-an-account-in-one-region).
+   Production, canary and staging keep the list empty: staging's Paris
+   thin-ready label was removed after its last rehearsal. Rehearse this path,
+   armed-handoff recovery, standby, endpoint continuity and safe deletion on
+   staging before enrolling Tuist in production.
 5. Pausing enrollment must retain CSI, its installed image, storage records,
    mappings, key access and admission safeguards while any encrypted PV exists.
 

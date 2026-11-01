@@ -273,6 +273,10 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   It defaults empty and must be enabled per environment only with the matching
   node-layout rollout. Both `kura-lvm-nvme` and `kura-encrypted-nvme` need the CSI
   driver retained across rollback.
+- `kuraVolumesCSI.thinRegions` renders `TUIST_KURA_THIN_REGIONS` and requires
+  `kuraVolumesCSI.enabled`. It only makes a region thin-capable; accounts move
+  through the `kura_thin_volumes` flag. Keep it empty in every managed overlay
+  until a region has `tuist.dev/kura-thin-ready=true` nodes.
 
 - `server.config.kuraVolumeOpenBao` adds a dedicated projected Kubernetes token
   to the web server, with explicit HTTPS origin, Transit/auth mounts, key names

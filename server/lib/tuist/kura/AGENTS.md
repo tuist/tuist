@@ -68,6 +68,19 @@
   use the region's disk resource; they must never substitute `/data` free space
   for missing LVM capacity.
 
+- Thin volumes need two opt-ins: `TUIST_KURA_THIN_REGIONS` marks a node-local
+  region thin-capable (`Regions.thin_volumes?/1`), and the account flag
+  `kura_thin_volumes` selects the account (`Regions.thin_volumes?/2`). Only then
+  does that instance render `kura-thin-encrypted-nvme`, `diskResource:
+  tuist.dev/kura-disk` and a storage revision of `+thin-volumes-v1`. Evaluate
+  the flag only in thin-capable regions, and keep every other account's
+  manifest and revision byte-identical when a region is listed, so listing it
+  rolls nothing. Capacity charges an enrolled instance
+  `Capacity.thin_reservation_bytes/1` of its claim per replica on
+  `tuist.dev/kura-disk`, placing it only on `tuist.dev/kura-thin-ready=true`
+  nodes; that formula mirrors the controller's `diskReservation` and must move
+  with it. See `infra/kura-controller/thin-migration.md`.
+
 - [Volume-key providers](volume_keys/AGENTS.md) support `openbao` with pinned HTTPS
   origin/mount/key identities and a dedicated projected Kubernetes identity. Partial configuration
   fails closed. `VolumeKeys.Rotation` rewraps the SAME plaintext shares with a

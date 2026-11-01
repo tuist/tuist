@@ -515,6 +515,14 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
+  def kura_thin_region_ids do
+    "TUIST_KURA_THIN_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_available_region_ids do
     "TUIST_KURA_AVAILABLE_REGIONS"
     |> System.get_env("")

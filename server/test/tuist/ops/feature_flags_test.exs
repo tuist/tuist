@@ -25,21 +25,24 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     gate(:runners, :boolean, nil, true)
     gate(:runners, :actor, "account:#{excluded.id}", false)
     gate(:runner_site_cache, :actor, "account:#{included.id}", true)
+    gate(:kura_thin_volumes, :actor, "account:#{included.id}", true)
     reject(FunWithFlags, :enabled?, 1)
     reject(FunWithFlags, :enabled?, 2)
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => excluded.id})
     assert result.resource == %{account_id: excluded.id, project_id: nil}
     assert result.environment == "prod"
-    assert length(result.evaluations) == 19
+    assert length(result.evaluations) == 20
     refute enabled?(result, "runner_shard_storage")
     refute Enum.any?(result.evaluations, &(&1.actor_type == "project"))
     refute enabled?(result, "runners")
     refute enabled?(result, "runner_site_cache")
+    refute enabled?(result, "kura_thin_volumes")
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => included.id})
     assert enabled?(result, "runners")
     assert enabled?(result, "runner_site_cache")
+    assert enabled?(result, "kura_thin_volumes")
   end
 
   test "the persisted batch excludes other actors and flags outside the catalog" do
@@ -71,7 +74,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"project_id" => project.id})
     assert result.resource == %{account_id: project.account_id, project_id: project.id}
-    assert length(result.evaluations) == 20
+    assert length(result.evaluations) == 21
     assert enabled?(result, "build_entities")
     assert enabled?(result, "runner_site_cache")
     assert Enum.find(result.evaluations, &(&1.name == "runner_site_cache")).actor_id == project.account_id

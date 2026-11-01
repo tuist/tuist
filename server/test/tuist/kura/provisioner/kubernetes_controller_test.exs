@@ -18,6 +18,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup do
     stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
+    stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
 
     stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
@@ -2179,6 +2180,80 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert KubernetesController.manifest_revision(%Server{account: account}, region) ==
                manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
+    end
+
+    test "builds a selected account's instance in a thin region on the thin class" do
+      region = thin_region(region_with_storage_class("scw-local-nvme"))
+      before = revision(region)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn %{name: "tuist"} -> true end)
+
+      manifest = render(region)
+      assert manifest["spec"]["storageClassName"] == "kura-thin-encrypted-nvme"
+      assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+      assert revision(region) == before <> "+thin-volumes-v1"
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
+    end
+
+    test "selects the thin class over encrypted and LVM storage" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> true end)
+      legacy = region_with_storage_class("scw-local-nvme")
+
+      lvm = %{
+        legacy
+        | provisioner_config:
+            Map.merge(legacy.provisioner_config, %{storage_class: "kura-lvm-nvme", disk_resource: "tuist.dev/kura-disk"})
+      }
+
+      for region <- [thin_region(legacy), thin_region(lvm)] do
+        manifest = render(region)
+        assert manifest["spec"]["storageClassName"] == "kura-thin-encrypted-nvme"
+        assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+        refute revision(region) =~ "+encrypted-volumes-v1"
+        refute revision(region) =~ "+lvm-volumes-v1"
+        assert String.ends_with?(revision(region), "+thin-volumes-v1")
+      end
+    end
+
+    test "renders unselected accounts in a thin region byte-identically" do
+      for {encrypted, storage_class} <- [{false, "scw-local-nvme"}, {true, "scw-local-nvme"}, {false, "kura-lvm-nvme"}] do
+        stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> encrypted end)
+        stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+        region = region_with_storage_class(storage_class)
+
+        assert render(thin_region(region)) == render(region)
+
+        assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, thin_region(region)) ==
+                 KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
+      end
+    end
+
+    test "ignores the account flag in regions that are not thin-capable" do
+      for storage_class <- ["scw-local-nvme", "hcloud-volumes"] do
+        region = region_with_storage_class(storage_class)
+        stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+        unselected = render(region)
+        stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> true end)
+
+        assert render(region) == unselected
+      end
+    end
+
+    test "enrolls the account through the thin region list" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn %Account{name: "tuist"} -> true end)
+      stub(StableEndpoint, :intent, fn server, region -> StableEndpoint.intent(server, region, []) end)
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+
+      manifest = KubernetesController.manifest("kura-tuist-eu-west", "0.5.2", account, Regions.get("eu-west"), %Server{})
+      assert manifest["spec"]["storageClassName"] == "kura-thin-encrypted-nvme"
+
+      other = KubernetesController.manifest("kura-tuist-us-east", "0.5.2", account, Regions.get("us-east"), %Server{})
+      assert other["spec"]["storageClassName"] == "scw-local-nvme"
+    end
+
+    defp thin_region(region) do
+      %{region | provisioner_config: Map.put(region.provisioner_config, :thin_volumes, true)}
     end
 
     defp region_with_storage_class(storage_class) do
