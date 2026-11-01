@@ -47,13 +47,18 @@ type Gateway struct {
 	endpoints map[string]endpoint
 }
 
+const maxStreams = 128
+
 type endpoint struct {
 	url     string
 	expires time.Time
 }
 
 func New(serverURL string) *Gateway {
-	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, 128), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}}
+	// Every admitted stream may hold a server connection, including long polls.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = maxStreams
+	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
