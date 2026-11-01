@@ -1,0 +1,17 @@
+# NEW store on the dedicated OVH Gravelines host, deployed with the server.
+replicas: 1
+region: ""
+serverNamespace: tuist-canary
+nodeSelector:
+  node.cluster.x-k8s.io/pool: shard-storage
+privateNetwork: pn-2024092
+externalSecrets:
+  enabled: false
+generateCredentials: true
+target:
+  id: gra-canary-v1
+  site: gra
+  enabled: true
+  privateNetworkReady: true
+lifecycle:
+  expirationDays: 3

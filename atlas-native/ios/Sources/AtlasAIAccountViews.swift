@@ -112,7 +112,7 @@ struct AtlasClaudeAccountView: View {
             if accounts.account("claude")?.credentialConfigured == true {
                 Section {
                     Button("Disconnect Claude", role: .destructive) { confirmingDisconnect = true }
-                        .disabled(accounts.busy)
+                        .disabled(accounts.busy || accounts.cached)
                 }
             }
         }
@@ -156,7 +156,7 @@ struct AtlasClaudeAccountView: View {
     }
 
     private var canSave: Bool {
-        !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !accounts.busy && !saving
+        !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !accounts.busy && !accounts.cached && !saving
     }
 
     private func save() {
@@ -233,7 +233,7 @@ struct AtlasChatGPTAccountView: View {
             if accounts.account("chatgpt")?.credentialConfigured == true {
                 Section {
                     Button("Disconnect ChatGPT", role: .destructive) { confirmingDisconnect = true }
-                        .disabled(accounts.busy)
+                        .disabled(accounts.busy || accounts.cached)
                 }
             }
         }
@@ -281,7 +281,9 @@ struct AtlasChatGPTAccountView: View {
                 } else {
                     Button {
                         Task {
-                            if accounts.account("chatgpt") == nil { await accounts.load() } else { await accounts.startChatGPT() }
+                            if accounts.account("chatgpt") == nil || accounts.cached {
+                                await accounts.load()
+                            } else { await accounts.startChatGPT() }
                         }
                     } label: {
                         HStack {
@@ -305,7 +307,7 @@ struct AtlasChatGPTAccountView: View {
     }
 
     private var startLabel: String {
-        if accounts.account("chatgpt") == nil { return "Load connection status" }
+        if accounts.account("chatgpt") == nil || accounts.cached { return "Load connection status" }
         return accounts.busy ? "Please wait…" : "Sign in with ChatGPT"
     }
 }

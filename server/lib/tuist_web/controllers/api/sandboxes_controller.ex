@@ -156,7 +156,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:dispatch_amp_orb,
     summary: "Dispatch a self-hosted Amp Orb lifecycle job.",
     description:
-      "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.",
+      "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it.",
     operation_id: "dispatchAmpOrb",
     parameters:
       @account_parameters ++
@@ -176,7 +176,12 @@ defmodule TuistWeb.API.SandboxesController do
            Map.merge(@shape_properties, %{
              operation: %Schema{type: :string, enum: ["spawn", "pause", "delete"]},
              orb_token: %Schema{type: :string, minLength: 1, maxLength: 16_384, writeOnly: true},
-             amp_url: %Schema{type: :string, format: :uri, pattern: "^https://", maxLength: 2048}
+             amp_url: %Schema{type: :string, format: :uri, pattern: "^https://", maxLength: 2048},
+             snapshot_id: %Schema{
+               type: :string,
+               pattern: "^[A-Za-z0-9._:-]{1,255}$",
+               description: "Amp's project snapshot identifier (ORB_SNAPSHOT_ID)."
+             }
            }),
          required: [:operation]
        }},

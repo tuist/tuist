@@ -14,7 +14,7 @@ msgstr "Language: yue_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset
 #: lib/tuist_web/components/chart_type_toggle.ex:39
 #, elixir-autogen, elixir-format
 msgid "Group by:"
-msgstr "分組依據："
+msgstr "分組方式："
 
 #: lib/tuist_web/components/chart_type_toggle.ex:53
 #, elixir-autogen, elixir-format

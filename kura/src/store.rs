@@ -7317,6 +7317,10 @@ impl Store {
             return Ok(());
         }
 
+        #[cfg(test)]
+        self.failpoints
+            .hit_blocking(FailpointName::BeforeUsageOutboxAppend)?;
+
         let mut batch = WriteBatch::default();
         for rollup in rollups {
             let value = serde_json::to_vec(rollup)
@@ -17276,16 +17280,22 @@ mod tests {
         );
 
         *store.handover_hold.lock().unwrap() = None;
-        tokio::time::timeout(Duration::from_secs(5), async {
-            while store.segment_path(&segment_id).exists() {
+        // Wait for the report, not the unlink: the worker still commits the
+        // ring state after removing the file, and records the eviction last.
+        let reports = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let reports = store.take_pending_capacity_evictions();
+                if !reports.is_empty() {
+                    break reports;
+                }
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
         .expect("released hold must let the worker reclaim the retired segment");
         worker.abort();
+        assert!(!store.segment_path(&segment_id).exists());
         assert!(store.manifest(&manifest.artifact_id).unwrap().is_none());
-        let reports = store.take_pending_capacity_evictions();
         assert_eq!(reports.len(), 1);
         assert_eq!(reports[0].segment_id, segment_id);
         assert_eq!(reports[0].artifact_count, 1);
@@ -23415,17 +23425,23 @@ mod tests {
         );
 
         *store.handover_hold.lock().unwrap() = None;
-        tokio::time::timeout(Duration::from_secs(5), async {
-            while store.segment_path(&victim_segment).exists() {
+        // Wait for the report, not the unlink: the worker still commits the
+        // ring state after removing the file, and records the eviction last.
+        let reports = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let reports = store.take_pending_capacity_evictions();
+                if !reports.is_empty() {
+                    break reports;
+                }
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
         .expect("released hold must let the worker reclaim the retired segment");
         worker.abort();
+        assert!(!store.segment_path(&victim_segment).exists());
         assert!(store.manifest(&victim.artifact_id).unwrap().is_none());
         assert!(store.manifest(&source.artifact_id).unwrap().is_some());
-        let reports = store.take_pending_capacity_evictions();
         assert_eq!(reports.len(), 1);
         assert_eq!(reports[0].segment_id, victim_segment);
     }

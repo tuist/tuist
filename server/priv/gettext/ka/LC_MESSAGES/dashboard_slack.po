@@ -50,7 +50,7 @@ msgstr "გაფრთხილების წესი ვერ მოიძ
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "ავტორიზაციის მოთხოვნის ვადა ამოიწურა. გთხოვთ, Slack-თან კავშირის პროცესი ხელახლა დაიწყოთ."
+msgstr "ავტორიზაციის მოთხოვნა ამოიწურა. გთხოვთ, Slack-თან კავშირის პროცესი თავიდან დაიწყოთ."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format

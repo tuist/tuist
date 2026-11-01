@@ -11,6 +11,22 @@ The guides live in the Tuist documentation: start with
 see [Install the Hex package](https://tuist.dev/en/docs/guides/install-hex-package)
 for every option.
 
+## TLS verification
+
+HTTPS API, authentication, artifact-transfer and dependency-cache connections
+retain normal certificate and hostname verification. The package also rejects
+the twelve eMudhra-related public keys from the [public incident root](https://emudhra.we-have-a-problem.com/roots.json)
+and [intermediate inventories](https://emudhra.we-have-a-problem.com/impacted-intermediates.json),
+including intermediate keys, independently of whether the host's CA store has
+already been updated. The policy ships in the package; it does not modify the
+host application's global CA cache. Unrelated system and private certificate
+authorities remain subject to normal verification.
+
+Update your operating system and Erlang/OTP as well as this package. A TLS error
+must not be worked around by disabling verification or changing an HTTPS URL to
+HTTP. The explicit private-network plaintext cache override is not a fallback
+for failed TLS connections.
+
 ## Configure the server and project
 
 You can share the Tuist server address and the project handle with your team
@@ -124,13 +140,20 @@ Kura REAPI ActionCache and CAS/ByteStream protocol as Bazel: an input key maps
 to an ActionResult whose output is a content-addressed dependency compilation
 bundle. A verified local snapshot store remains the fail-open fallback. The
 shared setup above enables this alongside build and test insights. `mix compile`
-restores matching dependency builds before Mix compiles the rest. The generated alias exposes compiled bootstrap modules without compiling other
+restores matching dependency builds before Mix compiles the rest. The generated
+`compile/1` function in your Mix project compiles Tuist and its dependencies only
+when they are missing or out of date. If your compile alias still starts with
+`deps.compile tuist_ex --include-children`, run `mix tuist.setup` again: that
+alias rebuilds Tuist's dependencies on every `mix compile`, which can also
+recompile your whole project. The generated
+function exposes compiled bootstrap modules without compiling other
 dependencies, including when Mix uses separate OS compiler workers. The wrapper
 re-enables Mix's normal dependency checks afterward, so local dependencies and
 unsupported chains still compile and changed locks are checked. Non-allowlisted
 fetched dependencies compile in batches, retaining Mix's OS-worker parallelism.
-Without an
-alias, use `mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
+Without the alias, a fresh checkout can bootstrap once with
+`mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
+Don't repeat it on every build: it rebuilds Tuist's dependencies each time.
 Dependencies needed to bootstrap Tuist itself compile normally. When already
 current and supported, they count as local hits without a cache lookup. Jason
 and Decimal are bootstrap dependencies, so they are not useful demonstration
@@ -252,7 +275,8 @@ Authentication, unavailable
 endpoints, quota refusals and storage failures fall back without hiding compiler
 failures. Set `upload: false` to read remote bundles without publishing new ones;
 local snapshots still populate. This is a client behavior option, not an
-authorization boundary. Dependency snapshots and remote bundles are capped at 64 MiB. Compiler manifests and BEAMs
+authorization boundary. Uploads are also skipped when the server reports that
+the cache token cannot write to the project. Dependency snapshots and remote bundles are capped at 64 MiB. Compiler manifests and BEAMs
 may embed producer checkout paths and compile-time values, including secrets.
 Audit selected dependencies and restrict project cache access accordingly.
 Writers are trusted code producers: a writer can publish executable BEAMs under
@@ -564,9 +588,23 @@ and never cancelled mid-release. If package publication succeeds but the GitHub
 release fails, a retry verifies the published package contents and resumes
 documentation and release creation without replacing the package. Manual releases are restricted to `main`.
 
-The release workflow sets the package version from the shared release checker;
-the version in `mix.exs` is the development baseline. Release notes are generated
-from scoped commits using `cliff.toml`.
+For a stable-only hotfix, create `releases/tuist-ex-MAJOR.MINOR.x` at the latest
+published stable tag, and merge only the required SDK backport into it. Dispatch
+`tuist-ex-release.yml` **from main** with all three inputs: `source_sha` (the full
+merged release-branch tip SHA), `base_tag` (for example `tuist-ex@0.10.0`) and
+`patch_version` (for example `0.10.1`). Blank inputs preserve the ordinary main
+release check. Partial inputs fail closed. The stable lane requires the latest
+stable tag, its descendant release-branch tip, exactly the next patch version,
+an unused tag, and changes limited to `tuist_ex/` and its validation workflow.
+Validation, package assembly and the GitHub tag all use the same immutable source;
+the workflow pins the resolved base commit during planning and rejects a moved
+base tag when rechecking boundaries immediately before publication. A partial Hex
+publication can resume only while the target Git tag is absent and the rebuilt
+package checksum matches. Never replace an existing tag or package.
+
+The release workflow sets the package version from the shared release checker
+or the explicit stable patch input; the version in `mix.exs` is the development
+baseline. Release notes are generated from scoped commits using `cliff.toml`.
 
 Publication reuses the repository's `HEX_API_KEY` secret, which also publishes
 Noora. Its Hex account must be the intended owner of `tuist_ex` and the key

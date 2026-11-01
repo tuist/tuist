@@ -178,6 +178,8 @@ type KuraInstanceReconciler struct {
 	// every instance on the cold-start constant.
 	MetricsClient                    PodMetricsClient
 	ConnectivityDiagnosticsInstances []string
+	ConnectivityDiagnosticsExpiresAt time.Time
+	ConnectivityDiagnosticsPrepare   bool
 	gatewayCacheMu                   sync.Mutex
 	gatewayCache                     map[string]gatewaySnapshot
 	clientDNSCache                   map[string]clientDNSObservation
@@ -705,6 +707,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// Optional diagnostics cannot delay routing, recovery or status publication.
+	if err := r.reconcileConnectivityDiagnostics(ctx, instance, pods); err != nil {
+		logger.Error(err, "update optional connectivity diagnostics")
 	}
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
@@ -3419,7 +3426,7 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 		previousTemplate := sts.Spec.Template.DeepCopy()
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
 		sts.Spec.Template.Spec.Tolerations = tolerations
-		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
+		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template, previousTemplate)
 		if err := r.configurePrivateReplication(ctx, instance, &sts.Spec.Template, previousTemplate); err != nil {
 			return err
 		}
@@ -4210,7 +4217,9 @@ func applyPodDNS(instance *kurav1alpha1.KuraInstance, spec *corev1.PodSpec) {
 func podAnnotations(instance *kurav1alpha1.KuraInstance, sharedSecretsResourceVersion string) map[string]string {
 	annotations := map[string]string{}
 	for key, value := range instance.Spec.PodAnnotations {
-		annotations[key] = value
+		if key != connectivityAnnotation {
+			annotations[key] = value
+		}
 	}
 	annotations["prometheus.io/scrape"] = "true"
 	annotations["prometheus.io/port-name"] = "http"

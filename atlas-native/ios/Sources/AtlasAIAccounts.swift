@@ -25,6 +25,8 @@ final class AtlasAIAccounts: ObservableObject {
     @Published private var activeRequests = 0
     var busy: Bool { activeRequests > 0 }
     @Published private(set) var errorMessage: String?
+    @Published private(set) var cached = false
+    var cachedRequest: AtlasReadCache.Request?
     private let request: Request
     private var generation = 0
     private var loginDeadline: ContinuousClock.Instant?
@@ -47,18 +49,39 @@ final class AtlasAIAccounts: ObservableObject {
     }
 
     func load() async {
+        let current = generation
         activeRequests += 1
         defer { activeRequests -= 1 }
         do {
             struct Response: Decodable { let providers: [AtlasAIAccount] }
+            if accounts.isEmpty, let data = await cachedRequest?(["action": "list"]),
+               let saved = try? decoder.decode(Response.self, from: data), current == generation, !Task.isCancelled {
+                accounts = saved.providers
+                cached = true
+            }
+            guard current == generation else { return }
             let data = try await request(["action": "list"])
+            guard current == generation, !Task.isCancelled else { return }
             accounts = try decoder.decode(Response.self, from: data).providers
+            cached = false
             errorMessage = nil
-        } catch { show(error) }
+        } catch {
+            guard current == generation else { return }
+            if AtlasReadCache.accessDenied(error) { accounts = []; cached = false }
+            show(error)
+        }
+    }
+
+    func invalidate() {
+        generation += 1
+        accounts = []
+        login = nil
+        cached = false
+        errorMessage = nil
     }
 
     func saveClaude(_ token: String) async -> Bool {
-        guard !busy else { return false }
+        guard !busy, !cached else { return false }
         let context = errorGeneration
         activeRequests += 1
         defer { activeRequests -= 1 }
@@ -73,7 +96,7 @@ final class AtlasAIAccounts: ObservableObject {
     }
 
     func startChatGPT() async {
-        guard !busy, login == nil else { return }
+        guard !busy, !cached, login == nil else { return }
         if cancellationId != nil {
             await cancelLogin()
             guard !busy, login == nil, cancellationId == nil else { return }
@@ -157,7 +180,7 @@ final class AtlasAIAccounts: ObservableObject {
     }
 
     func disconnect(_ provider: String) async {
-        guard !busy else { return }
+        guard !busy, !cached else { return }
         activeRequests += 1
         defer { activeRequests -= 1 }
         if provider == "chatgpt" { await cancelLogin() }

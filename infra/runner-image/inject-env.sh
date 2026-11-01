@@ -13,6 +13,11 @@
 
 set -euo pipefail
 
+STATUS_SHARE="/Volumes/My Shared Files/status"
+if [ -d "${STATUS_SHARE}" ]; then
+  : >"${STATUS_SHARE}/boot-agent" 2>/dev/null || true
+fi
+
 ENV_FILE="/etc/tuist.env"
 SA_TOKEN_FILE="/etc/tuist-sa-token"
 

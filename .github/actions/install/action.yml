@@ -1,5 +1,5 @@
 name: Tuist install
-description: Install pinned generated-project dependencies, automatically using Tuist volumes or GitHub caching.
+description: Install pinned generated-project dependencies, automatically using Tuist volumes or GitHub caching, or a .build directory the runner already persists.
 branding:
   icon: download
   color: purple
@@ -7,17 +7,20 @@ inputs:
   path:
     description: Project directory inside the checkout, relative to GITHUB_WORKSPACE or absolute.
     default: .
+  cache:
+    description: auto selects Tuist volumes or GitHub caching. external skips the action's caching for runners that already persist the package .build directory, and uses symlink materialization.
+    default: auto
   cache-key:
     description: Override the generated cache namespace, for example to share a compatible workspace between jobs.
   size:
-    description: Volume capacity on Tuist runners, a whole number of GB from 1gb to 100gb, such as 30gb. New volumes start at 20gb when omitted. Ignored for GitHub caching.
+    description: Volume capacity on Tuist runners, a whole number of GB from 1gb to 100gb, such as 30gb. New volumes start at 20gb when omitted. Ignored for GitHub and external caching.
     default: ""
 outputs:
   cache-hit:
-    description: Whether a volume snapshot or exact GitHub archive key was restored. Installation always runs.
+    description: Whether a volume snapshot or exact GitHub archive key was restored. Always false for external caching. Installation always runs.
     value: ${{ steps.volume.outputs.cache-hit == 'true' || steps.archive.outputs.cache-hit == 'true' }}
   cache-backend:
-    description: Automatically selected cache backend, volume or github.
+    description: Selected cache backend, one of volume, github, or external.
     value: ${{ steps.prepare.outputs.backend }}
   cache-path:
     description: Absolute dependency-cache path for subsequent SwiftPM commands.
@@ -29,6 +32,7 @@ runs:
       shell: bash
       env:
         TUIST_INSTALL_PATH: ${{ inputs.path }}
+        TUIST_INSTALL_CACHE: ${{ inputs.cache }}
         TUIST_INSTALL_CACHE_KEY: ${{ inputs.cache-key }}
         TUIST_INSTALL_ACTION_PATH: ${{ github.action_path }}
       run: bash "$TUIST_INSTALL_ACTION_PATH/prepare.sh"

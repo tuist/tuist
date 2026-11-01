@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -108,6 +109,7 @@ func newHarness(t *testing.T) *harness {
 	m := New(Config{
 		JailBase: jailBase, FirecrackerBin: "/fc", JailerBin: "/jailer", JailerEnabled: true, UIDBase: 10000,
 		DNS: []string{"10.128.0.10"}, DefaultTemplate: "default", BootTimeout: 5 * time.Second, StopWorkerGrace: 2 * time.Second,
+		SnapshotDir: filepath.Join(dataDir, "snapshots"),
 	}, Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: net, Slots: slots, Agent: agent,
 		Metrics: NewMetrics(nil), Events: events.add,
@@ -696,9 +698,17 @@ func (f *fakeOps) Resume(ctx context.Context, id string) (protocol.ResumeResult,
 	f.calls = append(f.calls, "resume "+id)
 	return protocol.ResumeResult{RestoreMs: 7}, nil
 }
-func (f *fakeOps) Pause(ctx context.Context, id string) (protocol.PauseResult, error) {
-	f.calls = append(f.calls, "pause "+id)
+func (f *fakeOps) PauseWith(ctx context.Context, args protocol.PauseArgs) (protocol.PauseResult, error) {
+	f.calls = append(f.calls, fmt.Sprintf("pause %s sync=%t", args.SandboxID, args.SyncDisks))
 	return protocol.PauseResult{}, ErrBusy
+}
+func (f *fakeOps) SaveDisks(ctx context.Context, args protocol.SaveDisksArgs) (protocol.SaveDisksResult, error) {
+	f.calls = append(f.calls, "save_disks "+args.SandboxID+" "+args.SnapshotID)
+	return protocol.SaveDisksResult{DurationMs: 9}, nil
+}
+func (f *fakeOps) DeleteDisks(ctx context.Context, id string) error {
+	f.calls = append(f.calls, "delete_disks "+id)
+	return nil
 }
 func (f *fakeOps) Delete(ctx context.Context, id string) error {
 	f.calls = append(f.calls, "delete "+id)
@@ -751,7 +761,7 @@ func TestDispatch(t *testing.T) {
 	if !res.OK || res.Data.(protocol.ResumeResult).RestoreMs != 7 {
 		t.Fatalf("resume result %+v", res)
 	}
-	res, _ = run("pause", `{"sandbox_id":"s1"}`)
+	res, _ = run("pause", `{"sandbox_id":"s1","sync_disks":true}`)
 	if res.OK || !strings.Contains(res.Error, "worker or exec running") {
 		t.Fatalf("pause result %+v", res)
 	}
@@ -774,6 +784,14 @@ func TestDispatch(t *testing.T) {
 	if !res.OK || res.Data.(protocol.SandboxInfo).State != protocol.StateRunning {
 		t.Fatalf("status result %+v", res)
 	}
+	res, _ = run("save_disks", `{"sandbox_id":"s1","snapshot_id":"snap1"}`)
+	if !res.OK || res.Data.(protocol.SaveDisksResult).DurationMs != 9 {
+		t.Fatalf("save_disks result %+v", res)
+	}
+	res, _ = run("delete_disks", `{"snapshot_id":"snap1"}`)
+	if !res.OK {
+		t.Fatalf("delete_disks result %+v", res)
+	}
 	res, _ = run("delete", `{"sandbox_id":"s1"}`)
 	if !res.OK {
 		t.Fatalf("delete result %+v", res)
@@ -790,7 +808,7 @@ func TestDispatch(t *testing.T) {
 	if res.OK || !strings.Contains(res.Error, "decoding args") {
 		t.Fatalf("bad args result %+v", res)
 	}
-	if strings.Join(ops.calls, ",") != "create s1,resume s1,pause s1,exec s1,start_worker s1,stop_worker s1,status s1,delete s1" {
+	if strings.Join(ops.calls, ",") != "create s1,resume s1,pause s1 sync=true,exec s1,start_worker s1,stop_worker s1,status s1,save_disks s1 snap1,delete_disks snap1,delete s1" {
 		t.Fatalf("calls %v", ops.calls)
 	}
 	data, _ := json.Marshal(Dispatch(context.Background(), ops, protocol.Command{ID: "x", Op: "delete", Args: json.RawMessage(`{"sandbox_id":"s1"}`)}, nil))

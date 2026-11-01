@@ -45,9 +45,9 @@ public struct RunCommand: AsyncParsableCommand {
             "Run a preview by passing a preview URL or an app specifier (e.g. App@latest). You can also run a scheme from a Tuist-generated project."
     #else
         private static let runnableHelp =
-            "A preview URL or app name with a specifier such as App@latest or App@feature-branch."
+            "A preview URL for an Android app or Linux CLI distribution."
         private static let discussionText =
-            "Run a preview by passing a preview URL or an app specifier (e.g. App@latest)."
+            "Run a preview by passing its URL. Forward CLI arguments after --."
     #endif
 
     @Option(
@@ -91,14 +91,14 @@ public struct RunCommand: AsyncParsableCommand {
             help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
         )
         var rosetta: Bool = false
-
-        @Argument(
-            parsing: .captureForPassthrough,
-            help: "Arguments to pass to the application during execution. All arguments after the scheme name are forwarded to the app. Example: tuist run MyApp --verbose --config debug",
-            envKey: .runArguments
-        )
-        var arguments: [String] = []
     #endif
+
+    @Argument(
+        parsing: .captureForPassthrough,
+        help: "Arguments to forward to the app or CLI. Example: tuist run <preview-url> -- --help",
+        envKey: .runArguments
+    )
+    var arguments: [String] = []
 
     public func run() async throws {
         #if os(macOS)
@@ -117,7 +117,8 @@ public struct RunCommand: AsyncParsableCommand {
             try await RunCommandService().run(
                 path: path,
                 runnable: runnable,
-                device: device
+                device: device,
+                arguments: arguments
             )
         #endif
     }

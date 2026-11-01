@@ -1,0 +1,125 @@
+name: Linux Shard Storage Smoke
+
+# Plans a two-shard Mix suite on an environment's Linux runners and checks
+# where each shard downloaded the build from. With the account's
+# `runner_shard_storage` flag on, that is the environment's Garage store;
+# with it off, default storage.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Runners and server to exercise
+        type: choice
+        options: [canary, production]
+        default: canary
+      project:
+        description: Existing Mix project, in an account with the flag on, that this repository's OIDC token may report to
+        type: string
+        default: tuist/server
+      expect_runner_local:
+        description: Fail unless every shard downloads from the runner-local store
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  plan:
+    name: Select environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      label: ${{ steps.select.outputs.label }}
+      server: ${{ steps.select.outputs.server }}
+    steps:
+      - id: select
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "${ENVIRONMENT}" in
+            canary) echo "label=tuist-canary-linux" >> "$GITHUB_OUTPUT"; echo "server=https://canary.tuist.dev" >> "$GITHUB_OUTPUT" ;;
+            production) echo "label=tuist-linux" >> "$GITHUB_OUTPUT"; echo "server=https://tuist.dev" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
+          esac
+
+  build:
+    name: Build and plan shards
+    needs: plan
+    runs-on: ${{ needs.plan.outputs.label }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    env:
+      TUIST_URL: ${{ needs.plan.outputs.server }}
+      TUIST_PROJECT: ${{ inputs.project }}
+      TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-shard-storage-smoke
+    defaults:
+      run:
+        working-directory: tuist_ex/.shard-smoke
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Create the fixture project
+        working-directory: tuist_ex
+        run: bash ../.github/scripts/shard-storage-smoke-fixture.sh .shard-smoke
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      - run: mix deps.get
+      - id: build
+        run: mix tuist.test.build --shard-total 2
+
+  shard:
+    name: Shard ${{ matrix.shard }}
+    needs: [plan, build]
+    runs-on: ${{ needs.plan.outputs.label }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.build.outputs.matrix) }}
+    env:
+      TUIST_URL: ${{ needs.plan.outputs.server }}
+      TUIST_PROJECT: ${{ inputs.project }}
+      TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-shard-storage-smoke
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+      TUIST_DEBUG: "1"
+    defaults:
+      run:
+        working-directory: tuist_ex/.shard-smoke
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Create the fixture project
+        working-directory: tuist_ex
+        run: bash ../.github/scripts/shard-storage-smoke-fixture.sh .shard-smoke
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      - run: mix deps.get
+      - name: Run the shard
+        run: |
+          set -o pipefail
+          mix tuist.test 2>&1 | tee "$RUNNER_TEMP/shard.log"
+      - name: Check where the build came from
+        env:
+          EXPECT_RUNNER_LOCAL: ${{ inputs.expect_runner_local }}
+        run: |
+          origin=$(sed -n 's/^Downloading the shard build from //p' "$RUNNER_TEMP/shard.log" | tail -1)
+          echo "Shard build origin: ${origin:-none}"
+          if [ "${EXPECT_RUNNER_LOCAL}" = true ] && [ "${origin}" != "http://shard-storage.kura.svc.cluster.local:3900" ]; then
+            echo "::error::The shard did not download its build from the runner-local store"
+            exit 1
+          fi

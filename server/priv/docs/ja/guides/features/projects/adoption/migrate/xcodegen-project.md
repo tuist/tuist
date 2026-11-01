@@ -1,28 +1,27 @@
 ---
 {
-  "title": "Migrate an XcodeGen project",
-  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
-  "description": "Learn how to migrate your projects from XcodeGen to Tuist."
+  "title": "XcodeGen プロジェクトの移行",
+  "titleTemplate": ":title · 移行 · 導入 · プロジェクト · 機能 · ガイド · Tuist",
+  "description": "プロジェクトを XcodeGen から Tuist に移行する方法を学びます。"
 }
 ---
-# XcodeGenプロジェクトの移行{#migrate-an-xcodegen-project}
+# XcodeGen プロジェクトの移行 {#migrate-an-xcodegen-project}
 
-[XcodeGen](https://github.com/yonaskolb/XcodeGen)は、Xcodeプロジェクトを定義するための[設定フォーマット](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md)としてYAMLを使用するプロジェクト生成ツールです。多くの組織は、**、Xcodeプロジェクトで作業するときに発生する頻繁なGitの衝突から逃れようとして、これを採用しました。**
-しかし、頻繁なGitの衝突は、組織が経験する多くの問題の一つに過ぎません。Xcodeは、開発者に多くの複雑さと暗黙的なコンフィギュレーションを提供し、大規模なプロジェクトを維持し最適化することを難しくしている。XcodeGenは、プロジェクトマネージャではなく、Xcodeプロジェクトを生成するツールであるため、設計上、そこでは不十分である。Xcodeプロジェクトを生成する以上のツールが必要な場合は、Tuistを検討するとよいだろう。
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) は、YAML を [設定フォーマット](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) として使用して Xcode プロジェクトを定義するプロジェクト生成ツールです。多くの組織は、**Xcode プロジェクトの作業中に頻繁に発生する Git の競合を回避しようとして、これを採用しました。** しかし、頻繁な Git の競合は、組織が経験する多くの問題の一つにすぎません。Xcode は開発者に多くの複雑さと暗黙的な設定をさらし、大規模なプロジェクトの維持と最適化を困難にします。XcodeGen は Xcode プロジェクトを生成するツールであり、プロジェクトマネージャーではないという設計上、この点で不足しています。Xcode プロジェクトの生成を超えて支援するツールが必要な場合は、Tuist を検討することをお勧めします。
 
 > [!TIP]
-> **Swift Over Yaml**
+> **YAML より Swift**
 >
-> 多くの組織がプロジェクト生成ツールとしてもTuistを好むのは、Swiftを構成フォーマットとして使用しているからだ。Swiftは、開発者が慣れ親しんでいるプログラミング言語であり、Xcodeのオートコンプリート、タイプチェック、検証機能を使用する利便性を提供する。
+> 多くの組織は、Tuist をプロジェクト生成ツールとしても好んでいます。これは、Swift を設定フォーマットとして使用しているためです。Swift は開発者にとって馴染みのあるプログラミング言語であり、Xcode の自動補完、型チェック、検証機能を使用する利便性を提供します。
 
 
-以下は、XcodeGenからTuistへプロジェクトを移行する際に役立ついくつかの考慮事項とガイドラインです。
+以下では、XcodeGen から Tuist へプロジェクトを移行するための考慮事項とガイドラインを紹介します。
 
-## プロジェクト・ジェネレーション{#project-generation}
+## プロジェクト生成 {#project-generation}
 
-TuistもXcodeGenも、`generate` コマンドを提供し、プロジェクト宣言をXcodeプロジェクトとワークスペースに変換します。
+Tuist と XcodeGen の両方は、プロジェクト宣言を Xcode プロジェクトとワークスペースに変換する `generate` コマンドを提供します。
 
-コードグループ
+::: code-group
 
 ```bash [XcodeGen]
 xcodegen generate
@@ -34,17 +33,13 @@ tuist generate
 <!-- -->
 :::
 
-違いは、編集体験にある。Tuistでは、`tuist edit`
-コマンドを実行すると、Xcodeプロジェクトがその場で生成され、それを開いて作業を始めることができる。これは、プロジェクトに素早く変更を加えたいときに特に便利です。
+違いは編集体験にあります。Tuist では、`tuist edit` コマンドを実行でき、これによりその場で Xcode プロジェクトを生成し、開いて作業を開始できます。これは、プロジェクトに迅速な変更を加えたい場合に特に役立ちます。
 
 ## `project.yaml` {#projectyaml}
 
-XcodeGen の`project.yaml` 記述ファイルは、`Project.swift`
-になります。さらに、ワークスペースでプロジェクトをグループ化する方法をカスタマイズする方法として、`Workspace.swift`
-を持つことができます。また、他のプロジェクトのターゲットを参照するターゲットを持つプロジェクト`Project.swift`
-を持つこともできます。このような場合、Tuistはすべてのプロジェクトを含むXcode Workspaceを生成します。
+XcodeGen の `project.yaml` 記述ファイルは `Project.swift` になります。さらに、プロジェクトがワークスペース内でどのようにグループ化されるかをカスタマイズする方法として `Workspace.swift` を使用できます。また、他のプロジェクトのターゲットを参照するターゲットを持つプロジェクト `Project.swift` を作成することもできます。そのような場合、Tuist はすべてのプロジェクトを含む Xcode ワークスペースを生成します。
 
-コードグループ
+::: code-group
 
 ```bash [XcodeGen directory structure]
 /
@@ -61,18 +56,16 @@ XcodeGen の`project.yaml` 記述ファイルは、`Project.swift`
 :::
 
 > [!TIP]
-> **Xcode's Language**
+> **Xcode の言語**
 >
-> XcodeGenとTuistの両方がXcodeの言語とコンセプトを受け入れている。しかし、TuistのSwiftベースのコンフィギュレーションは、Xcodeのオートコンプリート、タイプチェック、検証機能を使用する利便性を提供します。
+> XcodeGen と Tuist の両方は、Xcode の言語と概念を取り入れています。しかし、Tuist の Swift ベースの設定は、Xcode の自動補完、型チェック、検証機能を使用する利便性を提供します。
 
 
-## 仕様テンプレート{#spec-templates}
+## 仕様テンプレート {#spec-templates}
 
-プロジェクト設定のための言語としてのYAMLの欠点の1つは、YAMLファイル間での再利用性をサポートしていないことです。これはプロジェクトを記述するときの共通のニーズであり、XcodeGen
-は*"templates"*
-という独自のソリューションで解決しなければなりませんでした。Tuistの再利用性は言語そのものであるSwiftに組み込まれており、<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>というSwiftモジュールを通して、すべてのマニフェストファイルにわたってコードを再利用することができます。
+プロジェクト設定の言語としての YAML の欠点の一つは、すぐに使える形で YAML ファイル間での再利用をサポートしていないことです。これはプロジェクトを記述する際の一般的なニーズであり、XcodeGen は独自のプロプライエタリなソリューションである *「テンプレート」* でこれを解決していました。Tuist では、再利用性が言語自体である Swift に組み込まれており、<.localized_link href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</.localized_link> という Swift モジュールを通じて、すべてのマニフェストファイル間でコードを再利用できます。
 
-コードグループ
+::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
 import ProjectDescription
 

@@ -17,7 +17,15 @@ var customCacheDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Name: "tuist_runner_cache_volume_operation_duration_seconds", Help: "Custom cache volume phase duration, including unsuccessful attempts.", Buckets: []float64{0.1, 1, 5, 10, 25, 60, 300},
 }, []string{"operation", "source"})
 
-func init() { metrics.Registry.MustRegister(customCacheOperations, customCacheDuration) }
+// customCachePrefetchedBytes adds up the saved heads' measured used bytes, which bound
+// what their compressed archives moved over the network.
+var customCachePrefetchedBytes = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "tuist_runner_cache_volume_prefetched_bytes_total", Help: "Used bytes of the saved heads background prefetch installed, by why: job (a job started without it), refresh (a newer head of a master here), prewarm or recent (the server's listing).",
+}, []string{"reason"})
+
+func init() {
+	metrics.Registry.MustRegister(customCacheOperations, customCacheDuration, customCachePrefetchedBytes)
+}
 
 // The result category bounds the metric. The log line also carries the volume's
 // subject and the error, which runner-cache keeps free of signed URLs and

@@ -73,7 +73,7 @@ test('root package and default key survive checkout moves, lock changes and CI m
   f.pkg();
   const first = success(f.prepare());
   assert.equal(first['cache-path'], `${f.workspace}/.build/dependency-cache`);
-  assert.equal(first.key, 'tuist-install-v1-generate');
+  assert.equal(first.key, 'install-v1-generate');
   f.write(path.join(f.workspace, 'Package.resolved'), 'changed pins');
   assert.equal(success(f.prepare({ GITHUB_REF: 'another-branch', GITHUB_RUN_ID: '999' })).key, first.key);
   const moved = path.join(f.root, 'other-checkout');
@@ -85,16 +85,31 @@ test('keys separate jobs and package locations, not toolchains or manifest conte
   const f = fixture(t);
   f.pkg();
   const key = success(f.prepare()).key;
-  assert.equal(success(f.prepare({ GITHUB_JOB: 'test' })).key, 'tuist-install-v1-test');
+  assert.equal(success(f.prepare({ GITHUB_JOB: 'test' })).key, 'install-v1-test');
   assert.equal(success(f.prepare({ FAKE_SWIFT_VERSION: 'Swift 7', FAKE_XCODE_VERSION: 'Xcode 28' })).key, key);
   f.write(path.join(f.workspace, 'Package.swift'), 'changed package structure');
   assert.equal(success(f.prepare()).key, key);
   f.pkg('apps/ios app');
   f.write(path.join(f.workspace, 'apps/ios app', 'Tuist.swift'));
-  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'apps/ios app' })).key, 'tuist-install-v1-generate-apps/ios-app');
+  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'apps/ios app' })).key, 'install-v1-generate-apps/ios-app');
   f.pkg('Tuist');
-  assert.equal(success(f.prepare()).key, 'tuist-install-v1-generate-Tuist');
+  assert.equal(success(f.prepare()).key, 'install-v1-generate-Tuist');
   assert.notEqual(f.prepare({ GITHUB_JOB: 'j'.repeat(200) }).status, 0);
+});
+
+test('default keys pass the tuist/cache-volume key contract', t => {
+  const f = fixture(t);
+  f.pkg();
+  f.pkg('Tuist');
+  const attach = path.join(action, '../cache-volume/attach.sh');
+  for (const job of ['generate', 'build']) {
+    const outputs = success(f.prepare({ GITHUB_JOB: job }));
+    const result = spawnSync('bash', [attach], {
+      cwd: f.root, encoding: 'utf8',
+      env: { ...f.env, TUIST_VOLUME_KEY: outputs.key, TUIST_VOLUME_PATH: outputs['scratch-path'], TUIST_VOLUME_SIZE: '' },
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }
 });
 
 test('Tuist package takes precedence; nested input locates the project root', t => {
@@ -243,4 +258,44 @@ test('size reaches the cache volume and never the GitHub archive', () => {
   assert.match(definition, /\n  size:\n    description: [^\n]+\n    default: ""\n/);
   assert.match(step('volume'), /^        size: \$\{\{ inputs\.size \}\}$/m);
   assert.doesNotMatch(step('archive'), /size/);
+});
+
+test('external cache skips volumes and archives, keeps persisted .build, and symlinks', t => {
+  const f = fixture(t);
+  const pkg = f.pkg();
+  f.write(path.join(pkg, '.build/workspace-state.json'), 'persisted');
+  const outputs = success(f.prepare({ TUIST_INSTALL_CACHE: 'external', RUNNER_OS: '', RUNNER_ARCH: '' }));
+  assert.equal(outputs.backend, 'external');
+  assert.equal(outputs.materialization, 'symlink');
+  assert.equal(outputs['archive-key'], '');
+  assert.equal(outputs['archive-prefix'], '');
+  assert.equal(outputs['cache-path'], `${pkg}/.build/dependency-cache`);
+  success(f.install(outputs));
+  assert.match(fs.readFileSync(f.env.CAPTURE_ARGS, 'utf8'), /--force-resolved-versions\0--scratch-path\0[^\0]+\/\.build\0/);
+  assert.match(fs.readFileSync(f.env.CAPTURE_ARGS, 'utf8'), /--cached-directory-materialization=symlink\0/);
+  assert.equal(fs.readFileSync(path.join(pkg, '.build/workspace-state.json'), 'utf8'), 'persisted');
+  fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: 'external' })).backend, 'external');
+});
+
+test('cache defaults to automatic selection and rejects unknown modes', t => {
+  const f = fixture(t);
+  f.pkg();
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: '' })).backend, 'volume');
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: 'auto' })).backend, 'volume');
+  for (const mode of ['volume', 'github', 'none', 'External', 'external\nbackend=github']) {
+    const result = f.prepare({ TUIST_INSTALL_CACHE: mode });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /cache must be auto or external/);
+    assert.deepEqual(result.outputs, {});
+  }
+});
+
+test('cache input reaches prepare and defaults to auto', () => {
+  const definition = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
+  const step = id => definition.split(/\n    - /).find(s => s.startsWith(`id: ${id}\n`));
+  assert.match(definition, /\n  cache:\n    description: [^\n]+\n    default: auto\n/);
+  assert.match(step('prepare'), /^        TUIST_INSTALL_CACHE: \$\{\{ inputs\.cache \}\}$/m);
+  assert.match(step('volume'), /^      if: steps\.prepare\.outputs\.backend == 'volume'$/m);
+  assert.match(step('archive'), /^      if: steps\.prepare\.outputs\.backend == 'github'$/m);
 });

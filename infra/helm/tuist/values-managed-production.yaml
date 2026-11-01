@@ -111,6 +111,8 @@ server:
   externalSecrets:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
+    shardStorage:
+      secret: shard-storage-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
@@ -445,6 +447,13 @@ kuraController:
   # Off the processor pool, which has no memory to spare beside the processor.
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
+  # Incident-only Alloy timeout investigation; selections stay in private config.
+  # Collect for one hour from the first selected pod's port-4318 sample.
+  # No automatic expiry: remove this block through a follow-up PR and normal
+  # rollout, then verify profiles are absent and new samples have stopped.
+  # Provision the private Secret's instances key before deploying this reference.
+  connectivityDiagnostics:
+    existingSecret: kura-connectivity-diagnostics
   # Instance activation remains explicit; keep renewal enabled after activation.
   servingAuthority:
     enabled: true
@@ -1206,6 +1215,31 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
+  # Dedicated Garage host for Linux shard archives: ns3027117.ip-91-134-8.eu
+  # (ADVANCE-4, EPYC 4585PX, 64 GB, 4x1.92 TB NVMe RAID10, ~3.4 TiB XFS /data,
+  # 25 Gbit/s vRack). Not a Kura region: the shard-storage chart's production
+  # overlay selects this pool and leaves `tuist.dev/region` unset.
+  shard-storage:
+    enabled: true
+    # The box must carry the adoption marker before this deploys, or the
+    # MachineDeployment sits at 0/1 and wedges `helm --wait`.
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: shard-storage
+    machine:
+      # Disjoint from the Kura region and Linux runner adoption prefixes.
+      adoptDisplayNamePrefix: tuist-shards-ovh-production
+      offer: "ADVANCE-4 | AMD EPYC 4585PX"
+      datacenter: gra
+      os: ubuntu_24.04
+      # The Linux runners' vRack, so they reach Garage privately.
+      vRackID: pn-2024093
+      # The default cache taint enables quota-backed /data and its exporter.
+      # This host does not run Kata or join the Linux runner pool.
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # OVH RISE-L bare metal in Gravelines: Ryzen 9 9950X, 16c/32t, 128 GB,
   # 2x960 GB NVMe soft RAID. Two shape properties worth knowing:
   #
@@ -1242,6 +1276,9 @@ ovhFleets:
     endpoint: ovh-us
     # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
+    # Jobs reach the gra shard store privately once the provider attests the
+    # node's vRack routes (tuist.dev/private-network).
+    shardStorageSite: gra
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-production
       # Backfill existing OnDelete hosts during drained network enrollment.
@@ -1501,9 +1538,12 @@ rackFleet:
     maxPods: 5
     # Shared built-in/custom cache budget on the 1858 GiB disk, enforced by
     # tart-kubelet (`--runner-cache-budget-gib`). Planning allowance: 512 GiB
-    # cache + up to 540 GiB goldens (`goldenBudget` below) + 280 GiB guest
-    # disks + 100 GiB host data, which stays above the
-    # 15% (279 GiB) free floor cache admission and the golden GC keep.
+    # cache + up to 540 GiB goldens (`goldenBudget` below) + 372 GiB guest
+    # disks (two of the runner image's 200 GB, `disk_size_gb` in
+    # infra/runner-image/runner.pkr.hcl) + 100 GiB host data = 1524 GiB,
+    # which stays above the 15% (279 GiB) free floor cache admission and the
+    # golden GC keep. A bigger guest disk has to come out of the cache or
+    # golden budget.
     #
     # The volume's APFS quota is half the disk (929 GiB), fixed when the
     # volume is created, so a budget up to that applies with the next
@@ -1570,6 +1610,20 @@ rackFleet:
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 3
           maxReplicas: 32
+      # 27.0's 12 vCPU pool keeps one warm guest, a whole host, whatever its
+      # history, and learns up to three for its fan-outs. Its demand is
+      # starting from no history, and a cold 12 vCPU job has to wait for a
+      # whole host to free up before it boots (p50 41 s, up to 110 s, in the
+      # week to 2026-10-29 on 27.1's pool). The other Xcodes' 12 vCPU pools
+      # keep the shape's scaling below.
+      "27.0":
+        shapes:
+          12vcpu-28gb:
+            autoscaling:
+              enabled: true
+              minWarmPoolFloor: 1
+              maxLearnedWarmPoolFloor: 3
+              maxReplicas: 16
     shapes:
       12vcpu-28gb:
         autoscaling:
@@ -2097,7 +2151,7 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
-    "27.2-beta":
+    "27.2":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -2191,29 +2245,20 @@ runnersFleet:
 # macosFleet and runnersFleet hosts run. Production is the only env
 # that runs a builder (staging/canary disable theirs to avoid the
 # shared `vm-image-builder` org label routing release jobs cross-env).
-# Sized at 2 so the release's two parallel image bakes (runner image +
-# xcresult processor image) run concurrently instead of serializing on
-# one host. Each builder needs the one-time Local Network access grant
-# (see vm-image-builder.md) before it can reach its Tart guests over
-# SSH. Retire the hand-bootstrapped `vm-image-builder-01` host per the
-# "Migrating from hand-bootstrapped hosts" section of
-# vm-image-builder.md once these cluster-managed builders are
-# comfortably taking jobs.
 #
-# Shares the `tuist-pool-` host pool with macosFleet (2) and
-# runnersFleet (10), so this fleet adds 2 to the pool-demand
-# total. The operator's pre-order job for production already
-# tracks the macos + runners side; bump it by 2 ahead of the
-# `helm upgrade` that applies this replica count.
+# Shares the `tuist-pool-` host pool with macosFleet and runnersFleet.
 #
 # The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
 # to a new macOS release" in vm-image-builder.md. The two Tahoe builders
-# keep their own os pin and runner labels. Machines created from here on
-# adopt a Golden Gates host and register without `vm-image-builder`, so
-# they take no image jobs until that label is added to their runner.
+# keep their own os pin and the `vm-image-builder` label, and run the
+# Layer 1, xcresult processor and opt-in standalone builds. Machines
+# created from here on adopt a Golden Gates host and register with
+# `macos-27`, so they take a release's stacked builds, one at a time
+# each. Three macOS 27 builders run a release's nine stacked builds in
+# three rounds.
 buildersFleet:
   enabled: true
-  replicas: 3
+  replicas: 5
   adoptPoolPrefix: "tuist-pool-"
   ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
   machine:
@@ -2231,7 +2276,7 @@ sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
   image:
-    tag: "sha-3b10e1eddbaf"
+    tag: "sha-1949e6dfc6f9"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:

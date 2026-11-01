@@ -102,6 +102,22 @@ groups preserve missing/false/zero distinctions. Unsupported unions, arrays, ref
 optional object groups and required empty groups fall back to web. Native validation
 is only usability: the pinned server contract remains authoritative.
 
+## TLS policy
+
+`certificate_trust.rs` embeds the twelve-key SPKI deny independently of host trust.
+Keep Rustls/WebPKI pins qualified, filter candidate anchors and preserve ordinary
+certificate, hostname and handshake-signature verification. HTTP uses the pooled
+protected client. Presence, Orbit and blocking Automation watches must pass the
+explicit protected WSS configuration, never library-default roots. TLS failures
+stop live reconnect loops with fixed errors; never log credential-bearing errors
+or fall back to another transport. Native image clients retain separate OS trust.
+
+`certificate_trust_tests.rs` uses real policy DER and otherwise-accepted private
+leaf/intermediate/absent-root denies through production HTTP and WSS factories.
+Set `TUIST_TRUST_LIVE=1` for public HTTP/WSS controls with default and restored
+incident roots. Declare policy sources and fixtures in Once targets. These checks
+do not qualify signed mobile artifacts, external browsers or every platform.
+
 ## Build and test
 
 The root Once graph has independent host, iOS and Android Cargo dependency targets,
@@ -150,9 +166,13 @@ identity includes exact body, files, and mention IDs, so identical names/text wi
 different invitees cannot reuse a confirmed send. Uncertain retries retain those exact
 identities, and successful sends preserve newer drafts/mentions. Empty mention IDs
 are omitted from HTTP requests for compatibility. Messages default omitted additions
-to `notice_kind: null` and `mentioned_user_ids: []`; retain only the known `handoff`
-notice and valid UUID entries. Promotion to participant-scoped shared, title derivation,
-notification delivery, and factual handoff text belong to Atlas, never client inference.
+to `notice_kind: null` and `mentioned_user_ids: []`; retain only known `handoff`,
+`joined`, `private_handoff` notices and valid UUID entries. The server filters
+recipient-only history; never download all recaps and filter locally. Threads retain
+only known nullable `now`/`today`/`later` priorities. Merged list pages sort by priority,
+then recency/ID, matching the server. Promotion to participant-scoped shared, title
+derivation, notification delivery, and factual catch-up text belong to Atlas, never
+client inference.
 
 ## Orbit attachments and tool hierarchy
 

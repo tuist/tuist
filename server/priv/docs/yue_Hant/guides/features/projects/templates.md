@@ -1,38 +1,26 @@
 ---
 {
-  "title": "Templates",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to create and use templates in Tuist to generate code in your projects."
+  "title": "範本",
+  "titleTemplate": ":title · 專案 · 功能 · 指南 · Tuist",
+  "description": "學習如何在 Tuist 中建立和使用範本，以在專案中產生程式碼。"
 }
 ---
-# Templates {#templates}
+# 範本 {#templates}
 
-In projects with an established architecture, developers might want to bootstrap
-new components or features that are consistent with the project. With `tuist
-scaffold` you can generate files from a template. You can define your own
-templates or use the ones that are vendored with Tuist. These are some scenarios
-where scaffolding might be useful:
+在已有既定架構的項目中，開發人員可能希望建立與項目一致的新元件或功能。使用 `tuist scaffold` 你可以從範本產生檔案。你可以定義自己的範本，或使用 Tuist 內建的範本。以下係一些適合使用 scaffolding 的情況：
 
-- Create a new feature that follows a given architecture: `tuist scaffold viper
-  --name MyFeature`.
-- Create new projects: `tuist scaffold feature-project --name Home`
+- 建立符合指定架構的新功能：`tuist scaffold viper --name MyFeature`。
+- 建立新項目：`tuist scaffold feature-project --name Home`
 
 > [!NOTE]
-> **Non-opinionated**
+> **非強制性**
 >
-> Tuist is not opinionated about the content of your templates, and what you use
-> them for. They are only required to be in a specific directory.
+> Tuist 不會對你範本的內容及用途施加限制。唯一要求係將它們放在指定目錄中。
 
 
-## Defining a template {#defining-a-template}
+## 定義範本 {#defining-a-template}
 
-To define templates, you can run
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template`
-under `Tuist/Templates` that represents your template. Templates need a manifest
-file, `name_of_template.swift` that describes the template. So if you are
-creating a template called `framework`, you should create a new directory
-`framework` at `Tuist/Templates` with a manifest file called `framework.swift`
-that could look like this:
+要定義範本，你可以執行 <.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link>，然後在 `Tuist/Templates` 底下建立一個名為 `name_of_template` 的目錄來代表你的範本。範本需要一個描述範本的清單檔案 `name_of_template.swift`。因此，如果你要建立一個名為 `framework` 的範本，你應該在 `Tuist/Templates` 建立一個新目錄 `framework`，並加入一個名為 `framework.swift` 的清單檔案，內容可能如下：
 
 
 ```swift
@@ -63,35 +51,25 @@ let template = Template(
 )
 ```
 
-## Using a template {#using-a-template}
+## 使用範本 {#using-a-template}
 
-After defining the template, we can use it from the `scaffold` command:
+定義範本後，我們可以透過 `scaffold` 指令來使用它：
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
 > [!NOTE]
-> Since platform is an optional argument, we can also call the command without the
-> `--platform macos` argument.
+> 由於 platform 係可選參數，我們亦可以唔帶 `--platform macos` 參數來執行指令。
 
 
-If `.string` and `.files` don't provide enough flexibility, you can leverage the
-[Stencil](https://stencil.fuller.li/en/latest/) templating language via the
-`.file` case. Besides that, you can also use additional filters defined here.
+如果 `.string` 同 `.files` 提供的彈性不足，你可以透過 `.file` 選項使用 [Stencil](https://stencil.fuller.li/en/latest/) 範本語言。此外，你亦可以使用此處定義的其他過濾器。
 
-Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name
-}}`. If you'd like to use Stencil filters in the template definition, you can
-use that interpolation manually and add any filters you like. For example, you
-might use `{ { name | lowercase } }` instead of `\(nameAttribute)` to get the
-lowercased value of the name attribute.
+使用字串插值時，上面的 `\(nameAttribute)` 會解析為 `{{ name }}`。如果你想在範本定義中使用 Stencil 過濾器，可以手動使用該插值並加入任何你想要的過濾器。例如，你可以使用 `{ { name | lowercase } }` 代替 `\(nameAttribute)` 來取得 name 屬性的小寫值。
 
-You can also use `.directory` which gives the possibility to copy entire folders
-to a given path.
+你亦可以使用 `.directory`，它可以將整個資料夾複製到指定路徑。
 
 > [!TIP]
 > **Project Description Helpers**
 >
-> Templates support the use of
-> <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to reuse code across templates.
-
+> 範本支援使用 <.localized_link href="/guides/features/projects/code-sharing">project description helpers</.localized_link>，以便在不同範本之間重複使用程式碼。

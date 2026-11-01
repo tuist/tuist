@@ -188,10 +188,21 @@ kuraController:
       enabled: false
       storeName: onepassword
       item: ""
-  # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
-  # changes the pod template and rolls these instances. No RBAC grant needed.
-  # Requires a Kura runtime image with built-in connectivity telemetry.
+  # Fixed, locally expiring timing observations in the existing Kura logs.
+  # Activation only patches live Pod annotations; it never rolls runtimes.
   connectivityDiagnostics:
+    # First deploy this controller with preparation off and establish it as the
+    # rollback floor. Enable separately; projection adoption then waits for an
+    # ordinary runtime image change (or a new StatefulSet). Keep false by default.
+    prepare: false
+    # Absolute RFC3339 deadline, at most 24 hours ahead. Missing/invalid/expired
+    # deadlines disable sampling without affecting controller availability.
+    expiresAt: ""
+    # Keep identifying selections out of tracked values. The existing Secret
+    # must contain an instances key with comma-separated exact instance names.
+    # Provision it in the controller namespace before setting this reference.
+    # Mutually exclusive with the inline list; the chart never creates it.
+    existingSecret: ""
     instances: []
   # Enable managed gateway readiness reads and its Cilium backend policy.
   privateGateway:
@@ -623,6 +634,12 @@ server:
     cacheGrant:
       item: ""
       field: password
+    # JSON map of immutable target IDs to runner-local S3 configuration, from a
+    # 1Password item or the shard-storage chart's in-namespace Secret.
+    shardStorage:
+      item: ""
+      field: password
+      secret: ""
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:
@@ -1907,9 +1924,11 @@ rackFleet:
     # rollout:
     #   maxConcurrentPercent: 5
     # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
-    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
-    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
-    # from `guestShapes` below.
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`, and
+    # `shapes.<vcpus>vcpu-<gb>gb.autoscaling`, which replaces `shapes` below
+    # for that Xcode's pool of the shape. The image, runner labels and pod
+    # sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart from
+    # `guestShapes` below.
     xcodeOverrides: {}
     # A bigger guest on this fleet for a catalog shape, keyed
     # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
@@ -2557,8 +2576,8 @@ sandboxes:
   enabled: false
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
-  # server deploys publish/select the guest template automatically; sandboxd
-  # remains explicitly pinned. Empty tags are a render-time failure.
+  # server deploys publish and select both; environment values pin only the
+  # versions a first install starts from. Empty tags are a render-time failure.
   image:
     repository: ghcr.io/tuist/sandboxd
     tag: ""
@@ -2850,8 +2869,9 @@ runnersFleet:
       memoryGb: 14
       default: true
     # A non-default entry may carry its own `autoscaling` block, which
-    # is the only place a shape's scaling is configured (`xcodeOverrides`
-    # tunes the default shape's pools). Without one the pool renders
+    # scales every Xcode's pool of the shape. An Xcode's
+    # `xcodeOverrides.<xcode>.shapes.<vcpus>vcpu-<gb>gb.autoscaling`
+    # replaces it for that Xcode's pool. Without either the pool renders
     # static at replicas 0.
     #
     # - vcpus: 12

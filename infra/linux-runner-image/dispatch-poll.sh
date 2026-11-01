@@ -116,6 +116,19 @@ stage_setup_info() {
   fi
 }
 
+stage_cache_grant() {
+  # Same job-scoped shared volume as the JIT; never print the signed grant.
+  cache_grant=$(jq -r '.cache_signing_grant // empty' /tmp/dispatch.json)
+  grant_path="${JIT_OUTPUT_PATH}.cache-grant"
+  rm -f "${grant_path}"
+  if [ -n "${cache_grant}" ]; then
+    if ! { printf '%s' "${cache_grant}" >"${grant_path}.tmp" && chmod 0644 "${grant_path}.tmp" && mv -f "${grant_path}.tmp" "${grant_path}"; }; then
+      rm -f "${grant_path}.tmp"
+      echo "dispatch-poll: could not stage cache grant; using default shard storage"
+    fi
+  fi
+}
+
 while true; do
   attempt=$((attempt + 1))
   # `-f` intentionally omitted so 4xx/5xx land in $http instead of
@@ -218,6 +231,7 @@ while true; do
           exit 1
         fi
         stage_cache_endpoint
+        stage_cache_grant
         stage_setup_info
         echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
         exit 0

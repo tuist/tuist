@@ -14,6 +14,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.LiveHooks.PublicPageChallenge
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.AtlasRateLimitPlug
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
@@ -82,7 +83,8 @@ defmodule TuistWeb.Router do
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://glossia.ai https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
+      frame_src:
+        "'self' https://atlas.tuist.dev https://*.tuist.dev https://www.youtube-nocookie.com https://newassets.hcaptcha.com#{turnstile_source}",
       connect_src: "'self' https://glossia.ai https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
@@ -298,10 +300,16 @@ defmodule TuistWeb.Router do
     plug :put_request_kind, "atlas_internal_api"
     plug :accepts, ["json"]
     plug TuistWeb.WarningsHeaderPlug
-    plug TuistWeb.Plugs.AtlasRateLimitPlug
+    plug AtlasRateLimitPlug
     plug TuistWeb.Plugs.InternalAtlasAuthPlug
     plug SentryContextPlug
     plug ObservabilityContextPlug
+  end
+
+  pipeline :environment_provider_api do
+    plug :put_request_kind, "environment_provider_api"
+    plug :accepts, ["json"]
+    plug AtlasRateLimitPlug
   end
 
   pipeline :api_catalog do
@@ -1042,6 +1050,14 @@ defmodule TuistWeb.Router do
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
         end
 
+        scope "/artifacts" do
+          get "/", ArtifactsController, :capabilities
+          get "/publications/:key", ArtifactsController, :show
+          post "/publications/:key", ArtifactsController, :commit
+          post "/publications/:key/content/:digest", ArtifactsController, :upload
+          get "/publications/:key/content/:digest", ArtifactsController, :download
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
@@ -1145,6 +1161,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/docker-seen", RunnerCacheVolumesController, :docker_seen
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
+    get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
     get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
@@ -1161,6 +1178,15 @@ defmodule TuistWeb.Router do
     post "/amp-orbs/:orb_id", AmpOrbsController, :dispatch
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
     post "/sandboxes/allocation", SandboxAllocationsController, :update
+  end
+
+  scope "/api/environment-providers/atlas/:account_handle/:environment_id", TuistWeb do
+    pipe_through :environment_provider_api
+
+    put "/", AtlasEnvironmentsController, :start, log: false
+    post "/exec", AtlasEnvironmentsController, :exec, log: false
+    post "/pause", AtlasEnvironmentsController, :pause, log: false
+    delete "/", AtlasEnvironmentsController, :delete, log: false
   end
 
   scope "/api/internal", TuistWeb.Internal do

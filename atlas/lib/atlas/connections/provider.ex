@@ -53,8 +53,13 @@ defmodule Atlas.Connections.Provider do
     end
   end
 
-  def authorization_url(provider, redirect_uri, state, verifier) do
+  def authorization_url(provider, redirect_uri, state, verifier, opts \\ []) do
     with {:ok, config} <- configured(provider) do
+      scopes =
+        if provider == "google" and Keyword.get(opts, :gmail, false),
+          do: config.scopes ++ ["https://www.googleapis.com/auth/gmail.readonly"],
+          else: config.scopes
+
       params = %{
         "client_id" => config.client_id,
         "redirect_uri" => redirect_uri,
@@ -71,7 +76,7 @@ defmodule Atlas.Connections.Provider do
             challenge = :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false)
 
             params
-            |> Map.put("scope", Enum.join(config.scopes, " "))
+            |> Map.put("scope", Enum.join(scopes, " "))
             |> Map.put("code_challenge", challenge)
             |> Map.put("code_challenge_method", "S256")
         end

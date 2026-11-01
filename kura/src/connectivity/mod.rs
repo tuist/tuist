@@ -5,12 +5,13 @@ use std::{
     io::{Read, Write},
     net::{IpAddr, SocketAddr, ToSocketAddrs},
     panic::{AssertUnwindSafe, catch_unwind},
+    path::Path,
     sync::Arc,
     thread::JoinHandle,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -20,6 +21,38 @@ use tokio::{
 const INTERVAL: Duration = Duration::from_secs(60);
 const OVERALL_TIMEOUT: Duration = Duration::from_secs(5);
 const HEADER_LIMIT: usize = 8192;
+const CONFIG_FILE: &str = "/etc/kura/connectivity/selection.json";
+const CONFIG_POLL: Duration = Duration::from_secs(5);
+const MAX_WINDOW: Duration = Duration::from_secs(24 * 60 * 60);
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+struct Selection {
+    profile: String,
+    expires_at_unix_seconds: u64,
+}
+
+impl Selection {
+    fn remaining(&self, now: SystemTime) -> Option<Duration> {
+        profile_host(&self.profile)?;
+        let expiry = UNIX_EPOCH.checked_add(Duration::from_secs(self.expires_at_unix_seconds))?;
+        let remaining = expiry.duration_since(now).ok()?;
+        (!remaining.is_zero() && remaining <= MAX_WINDOW).then_some(remaining)
+    }
+}
+
+fn read_selection(path: &Path) -> Option<Selection> {
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .ok()?
+        .take(513)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if bytes.len() > 512 {
+        return None;
+    }
+    serde_json::from_slice(&bytes).ok()
+}
 
 pub(crate) struct Diagnostics {
     stop: Option<oneshot::Sender<()>>,
@@ -36,7 +69,11 @@ impl Drop for Diagnostics {
 }
 
 pub(crate) fn start_from_env() -> Option<Diagnostics> {
-    start(std::env::var("KURA_CONNECTIVITY_PROFILE").ok().as_deref())
+    start(
+        std::env::var("KURA_CONNECTIVITY_CONFIG_FILE")
+            .ok()
+            .as_deref(),
+    )
 }
 
 fn profile_host(profile: &str) -> Option<&'static str> {
@@ -48,9 +85,10 @@ fn profile_host(profile: &str) -> Option<&'static str> {
     }
 }
 
-fn start(profile: Option<&str>) -> Option<Diagnostics> {
-    let profile = profile?;
-    let host = profile_host(profile)?;
+fn start(config_file: Option<&str>) -> Option<Diagnostics> {
+    if config_file != Some(CONFIG_FILE) {
+        return None;
+    }
     spawn_worker(move |stop| {
         let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -62,7 +100,15 @@ fn start(profile: Option<&str>) -> Option<Diagnostics> {
             );
             return;
         };
-        runtime.block_on(until_stopped(stop, observe(host)));
+        let resolver = Resolver::default();
+        runtime.block_on(until_stopped(
+            stop,
+            watch_selection(
+                || read_selection(Path::new(CONFIG_FILE)),
+                SystemTime::now,
+                |host| observe(host, &resolver),
+            ),
+        ));
         // libc DNS cannot be cancelled. One outstanding lookup is permitted,
         // and even that lookup must not hold application shutdown hostage.
         runtime.shutdown_background();
@@ -86,6 +132,53 @@ async fn until_stopped(stop: oneshot::Receiver<()>, work: impl Future<Output = (
         biased;
         _ = stop => {},
         _ = work => {},
+    }
+}
+
+async fn watch_selection<F: Future<Output = ()>>(
+    read: impl Fn() -> Option<Selection>,
+    now: impl Fn() -> SystemTime,
+    work: impl Fn(&'static str) -> F,
+) {
+    // Carry time forward even while selection is absent or malformed. A wall
+    // clock rollback must not extend an accepted window or rearm an expired one.
+    let mut wall = now();
+    let mut at = tokio::time::Instant::now();
+    let mut monotonic_now = || {
+        let current = tokio::time::Instant::now();
+        wall = now().max(wall + current.duration_since(at));
+        at = current;
+        wall
+    };
+    let mut next_cycle = tokio::time::Instant::now();
+    loop {
+        if let Some(selection) = read()
+            && let Some(remaining) = selection.remaining(monotonic_now())
+        {
+            let deadline = tokio::time::Instant::now() + remaining;
+            let host = profile_host(&selection.profile).expect("validated fixed profile");
+            tokio::select! {
+                biased;
+                _ = tokio::time::sleep_until(deadline) => {},
+                _ = async {
+                    loop {
+                        tokio::time::sleep(CONFIG_POLL).await;
+                        if selection.remaining(monotonic_now()).is_none()
+                            || read().as_ref() != Some(&selection) {
+                            break;
+                        }
+                    }
+                } => {},
+                _ = async {
+                    tokio::time::sleep_until(next_cycle).await;
+                    work(host).await;
+                } => {},
+            }
+            // Config churn cannot bypass the normal pause, including when a
+            // selection cancels an in-progress cycle rather than its sleep.
+            next_cycle = tokio::time::Instant::now() + INTERVAL;
+        }
+        tokio::time::sleep(CONFIG_POLL).await;
     }
 }
 
@@ -123,8 +216,7 @@ fn resolver_config() -> (String, bool) {
     (String::from_utf8_lossy(&bytes).into_owned(), readable)
 }
 
-async fn observe(host: &'static str) {
-    let resolver = Resolver::default();
+async fn observe(host: &'static str, resolver: &Resolver) {
     let mut record = ResolverRecord::default();
     loop {
         let (config, readable) = resolver_config();

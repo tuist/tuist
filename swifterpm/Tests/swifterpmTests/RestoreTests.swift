@@ -1296,6 +1296,67 @@ struct RestoreTests {
     }
 
     @Test
+    func restorePackageAfterNativeRunMovesPrivateCopiesAsideAndPurgesThem() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let pin = ResolvedPin(
+                identity: "dependency",
+                kind: "remoteSourceControl",
+                location: "https://example.invalid/Dependency.git",
+                state: ResolvedState(branch: nil, revision: "abcdef1234567890", version: "1.0.0")
+            )
+            let cachedSource = try cache.sourcePath(pin: pin)
+            try await writeMinimalPackageManifest(at: cachedSource, name: "Dependency")
+            try await fileSystem.atomicWrite(
+                pin.revision(),
+                to: cachedSource.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename)
+            )
+            let zipPath = try await makeXCFrameworkZip(root: root, targetName: "Foo")
+            try await writeCachedManifest(
+                localBinaryTargetManifest(name: "Foo", path: "Foo.zip"),
+                packageDir: package,
+                disableSandbox: true
+            )
+            try await fileSystem.write(
+                await fileSystem.readFile(at: zipPath.absolutePath),
+                to: package.appendingPathComponent("Foo.zip")
+            )
+            var resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+            let restore = { (resolved: ResolvedPins) in
+                try await WorkspaceRestorer.restorePackage(
+                    scratchDir: scratch,
+                    packageDir: package,
+                    cache: cache,
+                    registryConfig: RegistryConfig(),
+                    mirrors: MirrorConfig(),
+                    resolved: resolved,
+                    progress: nil,
+                    disableSandbox: true
+                )
+            }
+            try await restore(resolved)
+            resolved.nativeOwnedCheckouts = try await NativeWorkspace.prepare(scratchDir: scratch)
+            let checkout = scratch.appendingPathComponent("checkouts/Dependency")
+            let artifact = scratch.appendingPathComponent("artifacts/package/Foo")
+            #expect(fileSystem.isDirectoryAndNotSymlink(checkout))
+            #expect(fileSystem.isDirectoryAndNotSymlink(artifact))
+
+            try await restore(resolved)
+
+            #expect(fileSystem.isSymlink(checkout))
+            #expect(checkout.resolvingSymlinksInPath().path == cachedSource.resolvingSymlinksInPath().path)
+            #expect(fileSystem.isSymlink(artifact))
+            #expect(try await fileSystem.exists(artifact.appendingPathComponent("Foo.xcframework").absolutePath))
+            #expect(try await fileSystem.contentsOfDirectory(at: checkout.deletingLastPathComponent())
+                .map(\.lastPathComponent) == ["Dependency"])
+            #expect(try await trashIsPurged(ScratchTrash(scratchDir: scratch)))
+            #expect(try await fileSystem.exists(cachedSource.appendingPathComponent("Package.swift").absolutePath))
+        }
+    }
+
+    @Test
     func restorePackageSerializesDuplicateLocalBinaryArchiveExtraction() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")
@@ -1681,8 +1742,8 @@ struct RestoreTests {
         ]
     }
 
-    @Test
-    func cacheNativeRegistryDownloadsSeedsTheCacheAndLinksTheDownloadBack() async throws {
+    @Test(arguments: ["example/package/1.1.4", "localhost-12345678/example/package/1.1.4"])
+    func cacheNativeRegistryDownloadsSeedsTheCacheAndLinksTheDownloadBack(subpath: String) async throws {
         try await withLocalHTTPServer { server in
             try await withTemporaryDirectory { root in
                 let checksum = "c944238d439d1d98c9a2f81200299429de52108fee1d82ef395f0a158f6cc77f"
@@ -1699,8 +1760,22 @@ struct RestoreTests {
                 )
 
                 let scratch = root.appendingPathComponent("scratch")
-                let download = scratch.appendingPathComponent("registry/downloads/example/package/1.1.4")
+                let download = scratch.appendingPathComponent("registry/downloads/\(subpath)")
                 try await writeMinimalPackageManifest(at: download, name: "Package")
+                try await fileSystem.atomicWrite(
+                    JSONFormatter.prettyData([
+                        "version": 7,
+                        "object": [
+                            "dependencies": [[
+                                "packageRef": ["identity": "example.package", "kind": "registry"],
+                                "state": ["name": "registryDownload", "version": "1.1.4"],
+                                "subpath": subpath,
+                            ]],
+                            "artifacts": [],
+                        ],
+                    ]),
+                    to: scratch.appendingPathComponent("workspace-state.json")
+                )
                 let cache = try await Cache(root: root.appendingPathComponent("cache"))
                 let registryConfig = try await RegistryConfig.load(
                     packageDir: root,
@@ -1735,6 +1810,28 @@ struct RestoreTests {
                 // layout Xcode expects from a registry download.
                 #expect(fileSystem.isDirectoryAndNotSymlink(download))
                 #expect(fileSystem.isSymlink(download.appendingPathComponent("Package.swift")))
+
+                try await writeMinimalPackageManifest(at: root, name: "Root")
+                try await fileSystem.removePath(download)
+                try await WorkspaceRestorer.restorePackage(
+                    scratchDir: scratch, packageDir: root, cache: cache, registryConfig: registryConfig,
+                    mirrors: MirrorConfig(), resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3),
+                    progress: nil, disableSandbox: true
+                )
+                #expect(try await fileSystem.exists(download.appendingPathComponent("Package.swift").absolutePath))
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: root, scratchDir: scratch, mirrors: MirrorConfig(),
+                    resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3), disableSandbox: true
+                )
+                let workspace = try #require(
+                    JSONSerialization.jsonObject(
+                        with: try await fileSystem
+                            .readFile(at: scratch.appendingPathComponent("workspace-state.json").absolutePath)
+                    ) as? [String: Any]
+                )
+                let object = try #require(workspace["object"] as? [String: Any])
+                let dependencies = try #require(object["dependencies"] as? [[String: Any]])
+                #expect(dependencies.first?["subpath"] as? String == subpath)
             }
         }
     }

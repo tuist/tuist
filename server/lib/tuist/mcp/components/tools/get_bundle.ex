@@ -31,6 +31,12 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
         "git_branch" => %{"type" => ["string", "null"]},
         "git_commit_sha" => %{"type" => ["string", "null"]},
         "git_ref" => %{"type" => ["string", "null"]},
+        "custom_metadata" => %{
+          "type" => "object",
+          "properties" => %{"tags" => %{"type" => "array", "items" => %{"type" => "string"}}},
+          "required" => ["tags"],
+          "additionalProperties" => false
+        },
         "inserted_at" => %{"type" => "string"}
       },
       "required" => [
@@ -83,6 +89,7 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
          git_branch: bundle.git_branch,
          git_commit_sha: bundle.git_commit_sha,
          git_ref: bundle.git_ref,
+         custom_metadata: %{tags: bundle.custom_tags},
          inserted_at: Formatter.iso8601(bundle.inserted_at)
        }}
     end

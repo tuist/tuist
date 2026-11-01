@@ -13,7 +13,7 @@ public protocol HeadersContentHashing {
 /// `HeadersContentHashing`
 /// is responsible for computing a hash that uniquely identifies a list of headers
 public struct HeadersContentHasher: HeadersContentHashing {
-    static let swiftPackageLayoutVersion = "swift-package-source-headers-v2"
+    static let swiftPackageLayoutVersion = "swift-package-source-headers-v3"
     private let contentHasher: ContentHashing
     private let fileSystem: FileSysteming
 

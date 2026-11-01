@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
+import Synchronization
 import Testing
 @testable import TuistCargoCommand
 @testable import TuistREAPI
@@ -328,20 +329,39 @@ struct CargoRemoteCacheTests {
         try JSONSerialization.data(withJSONObject: [
             "process": ProcessInfo.processInfo.processIdentifier, "identity": UUID().uuidString,
         ]).write(to: broker.appendingPathComponent("server.json"))
-        let cache = CargoRemoteCache(directory: broker)
-        let read = Task { try await cache.actionResult(for: REAPI.emptyBlob) }
-        defer { read.cancel() }
-        try await Self.waitUntil { (try? Self.pendingFiles(broker).count) == 1 }
-        let name = try #require(Self.pendingFiles(broker).first)
-        let request = broker.appendingPathComponent(name)
-        try await Task.sleep(for: .milliseconds(300))
-        try Data("\"actionResult\"".utf8).write(to: request.deletingPathExtension().appendingPathExtension("active"))
-        try await Task.sleep(for: .milliseconds(800))
         let expected = REAPI.ActionResult.with { $0.stdoutRaw = Data("cached result".utf8) }
-        try JSONSerialization.data(withJSONObject: [
+        let response = try JSONSerialization.data(withJSONObject: [
             "result": expected.serializedData().base64EncodedString(), "available": [], "failures": [],
-        ]).write(to: request.deletingPathExtension().appendingPathExtension("response"), options: .atomic)
-        #expect(try await read.value == expected)
+        ])
+        let start = ContinuousClock.now
+        let now = Mutex(start)
+        let acceptedAt = start + .milliseconds(300)
+        let allowance = REAPICacheClient.metadataReadAllowance(timeout: CargoRemoteCache.metadataTimeout) + .seconds(1)
+        let beforeResponse = start + allowance + .milliseconds(100)
+        let deliveredAt = start + allowance + .milliseconds(200)
+        let timing = CargoRemoteCache.Timing(now: { now.withLock { $0 } }, sleep: { _ in
+            try Task.checkCancellation()
+            let instant = now.withLock { instant in
+                if instant < acceptedAt { instant = acceptedAt }
+                else if instant < beforeResponse { instant = beforeResponse }
+                else { instant = deliveredAt }
+                return instant
+            }
+            let name = try #require(FileManager.default.contentsOfDirectory(atPath: broker.path).first {
+                $0.hasSuffix(".request")
+            })
+            let request = broker.appendingPathComponent(name).deletingPathExtension()
+            if instant == acceptedAt {
+                try Data("\"actionResult\"".utf8).write(to: request.appendingPathExtension("active"), options: .atomic)
+            } else if instant == deliveredAt {
+                try response.write(to: request.appendingPathExtension("response"), options: .atomic)
+            }
+        })
+        // Poll beyond a budget started at publication, but deliver within the budget started at acceptance.
+        let result = try await CargoRemoteCache.$timing.withValue(timing) {
+            try await CargoRemoteCache(directory: broker).actionResult(for: REAPI.emptyBlob)
+        }
+        #expect(result == expected)
     }
 
     @Test(.inTemporaryDirectory, arguments: [false, true])

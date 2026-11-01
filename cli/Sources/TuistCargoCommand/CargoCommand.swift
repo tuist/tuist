@@ -8,13 +8,18 @@ public struct CargoCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "cargo",
         abstract: "Run Cargo with Tuist build and test insights.",
-        discussion: "Cargo arguments are forwarded unchanged except Tuist shard options. Use 'test --no-run --shard-max N' to plan target-level shards, then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for 'test'. Plain tests apply mute/skip quarantine; TUIST_TEST_SKIP_QUARANTINE=1 disables it. 'test-build' and 'nextest run' retain archive-based sharding."
+        discussion: "Cargo arguments are forwarded unchanged except Tuist shard options. Use 'test --no-run --shard-max N' to plan target-level shards, then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for 'test'. Plain tests apply mute/skip quarantine; TUIST_TEST_SKIP_QUARANTINE=1 disables it."
     )
 
     private static let testBuildHelp = """
-    OVERVIEW: Compile nextest binaries once and create a Tuist shard plan.
+    OVERVIEW: Legacy archive-based Cargo shard planning.
 
     USAGE: tuist cargo [+toolchain] test-build [Cargo build options] [shard options]
+
+    This compatibility command requires a separately installed archive runner.
+    For native Cargo sharding, use:
+      tuist cargo test --no-run --shard-max N
+    Then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for tuist cargo test.
 
     SHARD OPTIONS:
       --shard-total <count>              Create exactly this many shards.
@@ -24,7 +29,7 @@ public struct CargoCommand: AsyncParsableCommand {
 
     Counts must be positive. Set TUIST_PROJECT or configure a project in tuist.toml.
     Set TUIST_SHARD_REFERENCE to associate the plan with subsequent workers.
-    Remaining arguments are forwarded to cargo nextest archive.
+    Remaining arguments are forwarded to the archive build command.
 
     """
 

@@ -12,7 +12,6 @@ import TuistCI
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
-import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGenerator
@@ -29,6 +28,7 @@ import TuistXCResultService
 import XcodeGraph
 import XCResultParser
 import XCTest
+@testable import TuistCore
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -6582,21 +6582,149 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_the_passthrough_derived_data() async throws {
-        // Given
-        let path = try temporaryPath()
-        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
-        try await fileSystem.makeDirectory(at: testProductsPath)
-        try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
-            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
-        try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
-        let resultBundlePath = path.appending(component: "Shard.xcresult")
-        let derivedDataPath = path.appending(component: "DerivedData")
-        let session = TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:])
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+            Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
+            // Given
+            let path = try temporaryPath()
+            let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+            try await fileSystem.makeDirectory(at: testProductsPath)
+            try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
+                .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+            try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+            let resultBundlePath = path.appending(component: "Shard.xcresult")
+            let derivedDataPath = path.appending(component: "DerivedData")
+            let session = TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:])
+            let (testCoverageEvidenceService, coverageExportService) = givenCoverageCollection(path: path)
+            let arguments = givenXcodebuildWritingDerivedData()
+
+            // When
+            try await AlertController.$current.withValue(AlertController()) {
+                try await testRun(
+                    path: path,
+                    action: .testWithoutBuilding,
+                    resultBundlePath: resultBundlePath,
+                    passthroughXcodeBuildArguments: [
+                        "-testProductsPath", testProductsPath.pathString,
+                        "-destination", "platform=iOS Simulator,id=device-id",
+                        "-derivedDataPath", derivedDataPath.pathString,
+                    ],
+                    mode: .remote
+                )
+            }
+
+            // Then
+            verify(testCoverageEvidenceService)
+                .prepare(platform: .value(.iOSSimulator), config: .any)
+                .called(1)
+            verify(testCoverageEvidenceService)
+                .record(
+                    session: .value(session),
+                    resultBundlePath: .value(resultBundlePath),
+                    derivedDataDirectory: .value(derivedDataPath)
+                )
+                .called(1)
+            verify(coverageExportService)
+                .export(
+                    resultBundlePath: .value(resultBundlePath),
+                    derivedDataDirectory: .value(derivedDataPath),
+                    config: .any,
+                    runStartedAt: .any
+                )
+                .called(1)
+            XCTAssertEqual(arguments.value.filter { $0 == "-derivedDataPath" }.count, 1)
+            let derivedDataPathExists = try await fileSystem.exists(derivedDataPath)
+            XCTAssertTrue(derivedDataPathExists)
+        }
+    }
+
+    func test_run_shard_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed() async throws {
+        for uploadsCoverage in [true, false] {
+            try await withMockedEnvironment {
+                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+                Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+                // Given
+                let path = try temporaryPath()
+                try givenShardWithFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+                let runDerivedDataPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                    .appending(components: "run-\(uploadsCoverage)", "DerivedData")
+                let (testCoverageEvidenceService, coverageExportService) = givenCoverageCollection(path: path)
+                let arguments = givenXcodebuildWritingDerivedData()
+
+                // When
+                try await AlertController.$current.withValue(AlertController()) {
+                    try await testRun(
+                        runId: "run-\(uploadsCoverage)",
+                        path: path,
+                        platform: "macos",
+                        action: .testWithoutBuilding,
+                        resultBundlePath: path.appending(component: "Shard.xcresult"),
+                        shardIndex: 0,
+                        mode: .remote
+                    )
+                }
+
+                // Then
+                try await assertCollectedCoverage(
+                    under: uploadsCoverage ? runDerivedDataPath : nil,
+                    arguments: arguments.value,
+                    testCoverageEvidenceService: testCoverageEvidenceService,
+                    coverageExportService: coverageExportService
+                )
+            }
+        }
+    }
+
+    func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed(
+    ) async throws {
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+            Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
+            // Given
+            let path = try temporaryPath()
+            let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+            try await fileSystem.makeDirectory(at: testProductsPath)
+            try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
+                .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+            try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+            let runDerivedDataPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                .appending(components: "bundle-run", "DerivedData")
+            let (testCoverageEvidenceService, coverageExportService) = givenCoverageCollection(path: path)
+            let arguments = givenXcodebuildWritingDerivedData()
+
+            // When
+            try await AlertController.$current.withValue(AlertController()) {
+                try await testRun(
+                    runId: "bundle-run",
+                    path: path,
+                    action: .testWithoutBuilding,
+                    resultBundlePath: path.appending(component: "Shard.xcresult"),
+                    passthroughXcodeBuildArguments: [
+                        "-testProductsPath", testProductsPath.pathString,
+                        "-destination", "platform=iOS Simulator,id=device-id",
+                    ],
+                    mode: .remote
+                )
+            }
+
+            // Then
+            try await assertCollectedCoverage(
+                under: runDerivedDataPath,
+                arguments: arguments.value,
+                testCoverageEvidenceService: testCoverageEvidenceService,
+                coverageExportService: coverageExportService
+            )
+        }
+    }
+
+    private func givenCoverageCollection(
+        path: AbsolutePath
+    ) -> (MockTestCoverageEvidenceServicing, MockCoverageExportServicing) {
         let testCoverageEvidenceService = MockTestCoverageEvidenceServicing()
         let coverageExportService = MockCoverageExportServicing()
         given(testCoverageEvidenceService)
             .prepare(platform: .any, config: .any)
-            .willReturn(session)
+            .willReturn(TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:]))
         given(testCoverageEvidenceService)
             .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any)
             .willReturn(nil)
@@ -6607,45 +6735,52 @@ final class TestServiceTests: TuistUnitTestCase {
             testCoverageEvidenceService: testCoverageEvidenceService,
             coverageExportService: coverageExportService
         )
+        return (testCoverageEvidenceService, coverageExportService)
+    }
+
+    /// Stubs xcodebuild to write the profile where it would, so the test sees what is left behind.
+    private func givenXcodebuildWritingDerivedData() -> LockedValue<[String]> {
+        let arguments = LockedValue<[String]>([])
         xcodebuildController.reset()
         given(xcodebuildController)
             .run(arguments: .any)
-            .willReturn(())
+            .willProduce { runArguments in
+                arguments.mutate { $0 = runArguments }
+                if let index = runArguments.firstIndex(of: "-derivedDataPath") {
+                    try FileManager.default.createDirectory(
+                        atPath: "\(runArguments[index + 1])/Build/ProfileData",
+                        withIntermediateDirectories: true
+                    )
+                }
+            }
+        return arguments
+    }
 
-        // When
-        try await AlertController.$current.withValue(AlertController()) {
-            try await testRun(
-                path: path,
-                action: .testWithoutBuilding,
-                resultBundlePath: resultBundlePath,
-                passthroughXcodeBuildArguments: [
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-destination", "platform=iOS Simulator,id=device-id",
-                    "-derivedDataPath", derivedDataPath.pathString,
-                ],
-                mode: .remote
-            )
-        }
-
-        // Then
+    private func assertCollectedCoverage(
+        under derivedDataPath: AbsolutePath?,
+        arguments: [String],
+        testCoverageEvidenceService: MockTestCoverageEvidenceServicing,
+        coverageExportService: MockCoverageExportServicing,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let passedDerivedDataPath = arguments.firstIndex(of: "-derivedDataPath").map { arguments[$0 + 1] }
+        XCTAssertEqual(passedDerivedDataPath, derivedDataPath?.pathString, file: file, line: line)
         verify(testCoverageEvidenceService)
-            .prepare(platform: .value(.iOSSimulator), config: .any)
-            .called(1)
-        verify(testCoverageEvidenceService)
-            .record(
-                session: .value(session),
-                resultBundlePath: .value(resultBundlePath),
-                derivedDataDirectory: .value(derivedDataPath)
-            )
+            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .value(derivedDataPath))
             .called(1)
         verify(coverageExportService)
             .export(
-                resultBundlePath: .value(resultBundlePath),
+                resultBundlePath: .any,
                 derivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 runStartedAt: .any
             )
             .called(1)
+        if let derivedDataPath {
+            let exists = try await fileSystem.exists(derivedDataPath)
+            XCTAssertFalse(exists, "The run-scoped derived data is left behind", file: file, line: line)
+        }
     }
 
     private func subjectCollectingCoverage(
@@ -9170,5 +9305,300 @@ private final class LockedValue<Value>: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         transform(&storage)
+    }
+}
+
+struct TestServiceTargetQueryTests {
+    private enum Failure: Error {
+        case unexpectedTestExecution
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [
+        "tag:snapshot", "AppTests/Suite/testView",
+    ], [false, true])
+    func disjointShardSkipsSuccessfully(query: String, callerOwnedProducts: Bool) async throws {
+        let shard = try await makeShard(identifiers: ["OtherTests/Suite"])
+        let (subject, _) = makeSubject(shard: shard)
+
+        try await run(subject, productsPath: shard.testProductsPath, included: [query], callerOwnedProducts: callerOwnedProducts)
+
+        #expect(try await FileSystem().exists(shard.testProductsPath) == callerOwnedProducts)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [
+        (["tag:missing"], [], false),
+        (["tag:snapshot"], [], true),
+        ([], ["tag:snapshot"], true),
+    ], [false, true])
+    func invalidFiltersRespectProductsOwnership(
+        selection: (included: [String], excluded: [String], legacy: Bool),
+        callerOwnedProducts: Bool
+    ) async throws {
+        let shard = try await makeShard(identifiers: ["AppTests/Suite"], legacy: selection.legacy)
+        let (subject, _) = makeSubject(shard: shard)
+
+        if selection.legacy {
+            await #expect(throws: TestIdentifier.Error.self) {
+                try await run(
+                    subject,
+                    productsPath: shard.testProductsPath,
+                    included: selection.included,
+                    excluded: selection.excluded,
+                    callerOwnedProducts: callerOwnedProducts
+                )
+            }
+        } else {
+            await #expect(throws: FocusTargetsGraphMappersError.noTargetsFound) {
+                try await run(
+                    subject,
+                    productsPath: shard.testProductsPath,
+                    included: selection.included,
+                    excluded: selection.excluded,
+                    callerOwnedProducts: callerOwnedProducts
+                )
+            }
+        }
+
+        #expect(try await FileSystem().exists(shard.testProductsPath) == callerOwnedProducts)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [
+        ([], ["AppTests/Suite", "OtherTests"], ["AppTests/Suite", "OtherTests"]),
+        (["tag:snapshot"], ["AppTests/Suite", "OtherTests"], ["AppTests/Suite"]),
+        (["AppTests/Suite/testView"], ["AppTests/Suite", "OtherTests"], ["AppTests/Suite/testView"]),
+        (["tag:snapshot"], [], ["AppTests"]),
+    ])
+    func shardSelectionDoesNotWiden(
+        selection: (included: [String], assigned: [String], expected: [String])
+    ) async throws {
+        let shard = try await makeShard(identifiers: selection.assigned)
+        let (subject, command) = makeSubject(shard: shard)
+        command.reset()
+        given(command).run(arguments: .any).willReturn()
+
+        try await run(subject, productsPath: shard.testProductsPath, included: selection.included)
+
+        verify(command).run(arguments: .matching { arguments in
+            let identifiers = arguments.indices.filter { arguments[$0] == "-only-testing" }.map { arguments[$0 + 1] }
+            return identifiers == selection.expected
+                && arguments.containsConsecutive("-skip-testing", "AppTests/SkippedSuite")
+        }).called(1)
+        #expect(try await !FileSystem().exists(shard.testProductsPath))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger(), arguments: [
+        XcodeBuildTestAction.test, .build,
+    ])
+    func generatedProjectResolvesTagsBeforeFilteringCachedTargets(action: XcodeBuildTestAction) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(component: "Tests.xctestproducts")
+        try await FileSystem().makeDirectory(at: products)
+        let app = Target.test(
+            name: "AppTests", product: .unitTests, bundleId: "io.tuist.AppTests", metadata: .metadata(tags: ["snapshot"])
+        )
+        let cached = Target.test(
+            name: "CachedTests", product: .unitTests, bundleId: "io.tuist.CachedTests", metadata: .metadata(tags: ["snapshot"])
+        )
+        let scheme = Scheme.test(name: "Tests", testAction: .test(targets: [
+            .test(target: .init(projectPath: directory, name: app.name)),
+        ]))
+        let graph = Graph.test(
+            workspace: .test(schemes: [scheme]),
+            projects: [directory: .test(path: directory, targets: [app])]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            workspace: .test(schemes: [.test(name: "Tests", testAction: .test(targets: [
+                .test(target: .init(projectPath: directory, name: app.name)),
+                .test(target: .init(projectPath: directory, name: cached.name)),
+            ]))]),
+            projects: [directory: .test(path: directory, targets: [app, cached])]
+        )
+        let generator = MockGenerating()
+        given(generator).generateWithGraph(path: .any, options: .any).willReturn((directory, graph, environment))
+        let factory = MockGeneratorFactorying()
+        given(factory).testing(
+            config: .any,
+            testPlan: .any,
+            includedTargets: .any,
+            excludedTargets: .any,
+            skipUITests: .any,
+            skipUnitTests: .any,
+            configuration: .any,
+            ignoreBinaryCache: .any,
+            ignoreSelectiveTesting: .any,
+            cacheStorage: .any,
+            destination: .any,
+            schemeName: .any,
+            coverage: .any
+        ).willReturn(generator)
+        let inspector = MockBuildGraphInspecting()
+        given(inspector).testableSchemes(graphTraverser: .any).willReturn([])
+        given(inspector).workspaceSchemes(graphTraverser: .any).willReturn([scheme])
+        given(inspector).testableTarget(
+            scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any, action: .any
+        ).willReturn(.test(target: app))
+        given(inspector).buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any).willReturn([])
+        let config = MockConfigLoading()
+        given(config).loadConfig(path: .any).willReturn(.test(project: .testGeneratedProject()))
+        let cache = MockCacheStoring()
+        given(cache).store(.any, cacheCategory: .any).willReturn([])
+        let caches = MockCacheStorageFactorying()
+        given(caches).cacheStorage(config: .any).willReturn(cache)
+        let directories = MockCacheDirectoriesProviding()
+        given(directories).cacheDirectory(for: .any).willReturn(directory)
+        let derivedData = MockDerivedDataLocating()
+        given(derivedData).locate(for: .any).willReturn(directory.appending(component: "DerivedData"))
+        let command = MockXcodeBuildControlling()
+        given(command).test(
+            .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+            derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+            testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any, passthroughXcodeBuildArguments: .any
+        ).willReturn()
+        let subject = TestService(
+            generatorFactory: factory,
+            cacheStorageFactory: caches,
+            xcodebuildController: command,
+            buildGraphInspector: inspector,
+            cacheDirectoriesProvider: directories,
+            configLoader: config,
+            derivedDataLocator: derivedData
+        )
+
+        try await run(
+            subject,
+            productsPath: products,
+            included: ["tag:snapshot"],
+            excluded: ["tag:snapshot/SkippedSuite"],
+            callerOwnedProducts: true,
+            action: action,
+            shardIndex: nil
+        )
+
+        verify(command).test(
+            .any, scheme: .value("Tests"), clean: .any, destination: .any, action: .value(action), rosetta: .any,
+            derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+            testTargets: .value([try TestIdentifier(string: "AppTests")]),
+            skipTestTargets: .value([
+                try TestIdentifier(string: "AppTests/SkippedSuite"), try TestIdentifier(string: "CachedTests/SkippedSuite"),
+            ]),
+            testPlanConfiguration: .any, passthroughXcodeBuildArguments: .any
+        ).called(1)
+        #expect(Logger.testingLogHandler.collected[.notice, ==].contains(
+            "The following targets have not changed since the last successful run and will be skipped: CachedTests"
+        ))
+        if action == .build {
+            let metadata: SelectiveTestingGraph = try await FileSystem().readJSONFile(
+                at: products.appending(component: SelectiveTestingGraph.fileName)
+            )
+            #expect(metadata.testTargetTags == ["AppTests": ["snapshot"], "CachedTests": ["snapshot"]])
+            #expect(metadata.requestedTestIdentifiers == ["AppTests", "CachedTests"])
+        }
+    }
+
+    private func makeShard(identifiers: [String], legacy: Bool = false) async throws -> Shard {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(component: "Tests.xctestproducts")
+        try await FileSystem().makeDirectory(at: products)
+        return Shard(
+            reference: "ref",
+            shardPlanId: "plan",
+            testProductsPath: products,
+            testIdentifiers: identifiers,
+            skipTestIdentifiers: ["AppTests/SkippedSuite"],
+            modules: ["AppTests", "OtherTests"],
+            selectiveTestingGraph: SelectiveTestingGraph(
+                testTargetHashes: [:],
+                testTargetTags: legacy ? nil : ["AppTests": ["snapshot"], "OtherTests": []]
+            )
+        )
+    }
+
+    private func makeSubject(shard: Shard) -> (TestService, MockXcodeBuildControlling) {
+        let configLoader = MockConfigLoading()
+        given(configLoader).loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "org/project"))
+        let shards = MockShardServicing()
+        given(shards).shard(
+            shardIndex: .any,
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardPlanId: .any,
+            testProductsPath: .any,
+            testProductsArchivePath: .any
+        ).willReturn(shard)
+        let command = MockXcodeBuildControlling()
+        given(command).run(arguments: .any).willThrow(Failure.unexpectedTestExecution)
+        let server = MockServerEnvironmentServicing()
+        given(server).url(configServerURL: .any).willReturn(URL(string: "https://tuist.dev")!)
+        let directories = MockCacheDirectoriesProviding()
+        given(directories).cacheDirectory(for: .any).willReturn(shard.testProductsPath.parentDirectory)
+        let cache = MockCacheStorageFactorying()
+        given(cache).cacheStorage(config: .any).willReturn(MockCacheStoring())
+        let git = MockGitControlling()
+        given(git).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(git).topLevelGitDirectory(workingDirectory: .any).willReturn(shard.testProductsPath.parentDirectory)
+        let results = MockXCResultServicing()
+        given(results).parse(path: .any, rootDirectory: .any).willReturn(nil)
+        return (
+            TestService(
+                cacheStorageFactory: cache,
+                xcodebuildController: command,
+                cacheDirectoriesProvider: directories,
+                configLoader: configLoader,
+                xcResultService: results,
+                gitController: git,
+                serverEnvironmentService: server,
+                shardService: shards
+            ),
+            command
+        )
+    }
+
+    private func run(
+        _ subject: TestService,
+        productsPath: AbsolutePath,
+        included: [String],
+        excluded: [String] = [],
+        callerOwnedProducts: Bool = false,
+        action: XcodeBuildTestAction = .testWithoutBuilding,
+        shardIndex: Int? = 0
+    ) async throws {
+        var arguments = ["-destination", "platform=macOS"]
+        if callerOwnedProducts {
+            arguments += ["-testProductsPath", productsPath.pathString]
+        }
+        try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
+            try await subject.run(
+                runId: "run",
+                schemeName: nil,
+                clean: false,
+                noUpload: false,
+                configuration: nil,
+                path: productsPath.parentDirectory,
+                deviceName: nil,
+                platform: nil,
+                osVersion: nil,
+                action: action,
+                rosetta: false,
+                skipUITests: false,
+                skipUnitTests: false,
+                resultBundlePath: nil,
+                derivedDataPath: nil,
+                retryCount: 0,
+                testTargets: try included.map(TestIdentifier.init(string:)),
+                skipTestTargets: try excluded.map(TestIdentifier.init(string:)),
+                testPlanConfiguration: nil,
+                ignoreBinaryCache: true,
+                ignoreSelectiveTesting: true,
+                generateOnly: false,
+                passthroughXcodeBuildArguments: arguments,
+                skipQuarantine: true,
+                shardReference: "ref",
+                shardIndex: shardIndex,
+                mode: .local
+            )
+        }
     }
 }

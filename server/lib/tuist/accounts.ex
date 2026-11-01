@@ -24,6 +24,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Base64
@@ -731,6 +732,7 @@ defmodule Tuist.Accounts do
     {:ok, _} =
       result =
       Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
       |> Multi.run(:delete_command_events, fn _repo, _changes ->
         CommandEvents.delete_account_events(account.id)
         {:ok, :deleted}
@@ -746,7 +748,13 @@ defmodule Tuist.Accounts do
   def delete_organization!(%Organization{} = organization) do
     account = get_account_from_organization(organization)
     destroy_account_kura_servers(account)
-    deleted = Repo.delete!(organization)
+
+    {:ok, %{delete_organization: deleted}} =
+      Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
+      |> Multi.delete(:delete_organization, organization)
+      |> Repo.transaction()
+
     purge_account_storage(account)
     deleted
   end
@@ -2218,12 +2226,22 @@ defmodule Tuist.Accounts do
       Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
 
       {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-      Repo.insert!(user_token)
+      user_token = Repo.insert!(user_token)
 
-      UserNotifier.deliver_reset_password_instructions(%{
-        user: user,
-        reset_password_url: reset_password_url.(encoded_token)
-      })
+      case UserNotifier.deliver_reset_password_instructions(%{
+             user: user,
+             reset_password_url: reset_password_url.(encoded_token)
+           }) do
+        {:ok, email} ->
+          email
+
+        {:error, _reason} ->
+          # Do not let an undelivered token suppress retries during the cooldown.
+          Repo.delete!(user_token, allow_stale: true)
+          # Bamboo API errors may include the recipient and reset URL.
+          Logger.error("Password reset email delivery failed")
+          {:error, :delivery_failed}
+      end
     end
   end
 

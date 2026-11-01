@@ -62,7 +62,7 @@ msgstr "详情"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "尚未安装 Tuist 应用？"
+msgstr "未安装 Tuist 应用？"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:89
@@ -202,7 +202,7 @@ msgstr "包名称"
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "在 Android 设备上扫描此二维码，下载并安装此版本的应用"
+msgstr "在 Android 设备上扫描此二维码，以下载并安装此版本的应用"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format
@@ -227,4 +227,4 @@ msgstr "预览"
 #: lib/tuist_web/live/preview_live.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Release notes"
-msgstr "版本说明"
+msgstr "发布说明"

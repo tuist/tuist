@@ -10,6 +10,15 @@ pub(crate) enum Action {
     List {
         session: Session,
     },
+    Repositories {
+        session: Session,
+        installation_id: Option<String>,
+    },
+    UpdateRepositories {
+        session: Session,
+        installation_id: Option<String>,
+        default_repository: Option<String>,
+    },
     Register {
         session: Session,
         id: String,
@@ -65,6 +74,12 @@ pub(crate) enum Action {
         thread_id: String,
         environment_id: Option<String>,
         project_id: Option<String>,
+        repository: Option<String>,
+    },
+    StartProvider {
+        session: Session,
+        thread_id: String,
+        provider: String,
     },
     Open {
         session: Session,
@@ -92,6 +107,10 @@ pub(crate) struct Configuration {
 struct Project {
     id: String,
     name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coding: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repository: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -100,12 +119,24 @@ struct Environment {
     #[serde(flatten)]
     configuration: Configuration,
     online: bool,
+    #[serde(default)]
+    provider: Option<String>,
+    #[serde(default)]
+    provider_state: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Provider {
+    id: String,
+    name: String,
 }
 
 #[derive(Deserialize, Serialize)]
 struct Overview {
     owner_id: String,
     environments: Vec<Environment>,
+    #[serde(default)]
+    providers: Vec<Provider>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -120,7 +151,7 @@ pub(super) struct Command {
     claim_token: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, PartialEq, Eq)]
 enum Tool {
     #[serde(rename = "environment_read_file")]
     ReadFile,
@@ -128,6 +159,14 @@ enum Tool {
     ListDirectory,
     #[serde(rename = "environment_terminal")]
     Terminal,
+    #[serde(rename = "read")]
+    Read,
+    #[serde(rename = "bash")]
+    Bash,
+    #[serde(rename = "edit")]
+    Edit,
+    #[serde(rename = "write")]
+    Write,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -138,6 +177,27 @@ struct Arguments {
     path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thread_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    offset: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    edits: Option<Vec<Edit>>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Edit {
+    old_text: String,
+    new_text: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -195,6 +255,31 @@ struct Selected {
     environment_id: Option<String>,
     environment_name: Option<String>,
     project_id: Option<String>,
+    repository: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct RepositorySettings {
+    installation_id: Option<String>,
+    default_repository: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Installation {
+    id: String,
+    name: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Repository {
+    full_name: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct RepositoryCatalog {
+    settings: RepositorySettings,
+    installations: Vec<Installation>,
+    repositories: Vec<Repository>,
 }
 
 pub(crate) fn execute(action: Action) -> Result<Value> {
@@ -226,6 +311,37 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
             None,
             "list",
         ),
+        Action::Repositories {
+            session,
+            installation_id,
+        } => {
+            let path = match installation_id {
+                Some(id) => {
+                    validate_installation(&id)?;
+                    format!("api/me/coding-repositories?installation_id={id}")
+                }
+                None => "api/me/coding-repositories".into(),
+            };
+            (session, Method::GET, path, None, "repositories")
+        }
+        Action::UpdateRepositories {
+            session,
+            installation_id,
+            default_repository,
+        } => {
+            let settings = RepositorySettings {
+                installation_id,
+                default_repository,
+            };
+            validate_repository_settings(&settings)?;
+            (
+                session,
+                Method::PUT,
+                "api/me/coding-repositories/settings".into(),
+                Some(json!(settings)),
+                "repository_settings",
+            )
+        }
         Action::Register {
             session,
             id,
@@ -361,11 +477,27 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
                 "selection",
             )
         }
+        Action::StartProvider {
+            session,
+            thread_id,
+            provider,
+        } => {
+            validate_id(&thread_id)?;
+            validate_provider(&provider)?;
+            (
+                session,
+                Method::PATCH,
+                format!("api/native/orbit/threads/{thread_id}/environment"),
+                Some(json!({"provider":provider})),
+                "selection",
+            )
+        }
         Action::Select {
             session,
             thread_id,
             environment_id,
             project_id,
+            repository,
         } => {
             validate_id(&thread_id)?;
             if environment_id.is_some() != project_id.is_some() {
@@ -377,11 +509,21 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
             if let Some(id) = &project_id {
                 validate_id(id)?;
             }
+            if repository
+                .as_deref()
+                .is_some_and(|name| !valid_repository(name))
+            {
+                return Err(invalid());
+            }
+            let mut payload = json!({"environment_id":environment_id,"project_id":project_id});
+            if let Some(repository) = repository {
+                payload["repository"] = json!(repository);
+            }
             (
                 session,
                 Method::PATCH,
                 format!("api/native/orbit/threads/{thread_id}/environment"),
-                Some(json!({"environment_id":environment_id,"project_id":project_id})),
+                Some(payload),
                 "selection",
             )
         }
@@ -397,7 +539,11 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
             method,
             token: &session.access_token,
             payload,
-            failure: response_failure,
+            failure: if matches!(shape, "repositories" | "repository_settings") {
+                repository_failure
+            } else {
+                response_failure
+            },
         },
     )?;
     sanitize(value, shape)
@@ -405,15 +551,56 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
 
 fn sanitize(value: Value, shape: &str) -> Result<Value> {
     match shape {
+        "repositories" => {
+            let result: RepositoryCatalog = serde_json::from_value(value).map_err(|_| invalid())?;
+            validate_repository_settings(&result.settings)?;
+            if result.installations.len() > 5_000 || result.repositories.len() > 5_000 {
+                return Err(invalid());
+            }
+            for installation in &result.installations {
+                validate_installation(&installation.id)?;
+                if !valid_name(&installation.name) {
+                    return Err(invalid());
+                }
+            }
+            if result
+                .repositories
+                .iter()
+                .any(|repo| !valid_repository(&repo.full_name))
+            {
+                return Err(invalid());
+            }
+            serde_json::to_value(result).map_err(|_| invalid())
+        }
+        "repository_settings" => {
+            let result: RepositorySettings =
+                serde_json::from_value(value).map_err(|_| invalid())?;
+            validate_repository_settings(&result)?;
+            serde_json::to_value(result).map_err(|_| invalid())
+        }
         "list" => {
             let result: Overview = serde_json::from_value(value).map_err(|_| invalid())?;
             validate_id(&result.owner_id)?;
-            if result.environments.len() > 32 {
+            if result.environments.len() > 32 || result.providers.len() > 20 {
                 return Err(invalid());
+            }
+            for provider in &result.providers {
+                validate_provider(&provider.id)?;
+                if !valid_name(&provider.name) {
+                    return Err(invalid());
+                }
             }
             for environment in &result.environments {
                 validate_id(&environment.id)?;
                 validate_configuration(&environment.configuration)?;
+                if let Some(provider) = &environment.provider {
+                    validate_provider(provider)?;
+                }
+                if environment.provider_state.as_deref().is_some_and(|state| {
+                    !["starting", "ready", "stopping", "paused", "error"].contains(&state)
+                }) {
+                    return Err(invalid());
+                }
             }
             serde_json::to_value(result).map_err(|_| invalid())
         }
@@ -444,7 +631,7 @@ fn sanitize(value: Value, shape: &str) -> Result<Value> {
                     || !valid_command_text(&job.command)
                     || job.output.len() > 48 * 1024
                     || job.progress_sequence > i64::MAX as u64
-                    || job.execution_timeout_seconds != 1800
+                    || ![600, 1800].contains(&job.execution_timeout_seconds)
                     || matches!(job.status, JobStatus::Settled) != job.success.is_some()
                     || result.commands[..index]
                         .iter()
@@ -463,6 +650,14 @@ fn sanitize(value: Value, shape: &str) -> Result<Value> {
             }
             if let Some(id) = &result.thread.project_id {
                 validate_id(id)?;
+            }
+            if result
+                .thread
+                .repository
+                .as_deref()
+                .is_some_and(|name| !valid_repository(name))
+            {
+                return Err(invalid());
             }
             serde_json::to_value(result).map_err(|_| invalid())
         }
@@ -498,36 +693,96 @@ fn validate_command(command: &Command) -> Result<()> {
     validate_id(&command.id)?;
     validate_id(&command.arguments.project_id)?;
     validate_digest(&command.digest)?;
+    let args = &command.arguments;
+    let coding = matches!(
+        command.tool,
+        Tool::Read | Tool::Bash | Tool::Edit | Tool::Write
+    );
+    if coding {
+        validate_id(args.thread_id.as_deref().ok_or_else(invalid)?)?;
+        if args
+            .title
+            .as_ref()
+            .is_none_or(|s| !text(s, 1, 800) || s.chars().count() > 200)
+        {
+            return Err(invalid());
+        }
+    }
+    let allowed = match command.tool {
+        Tool::Bash => vec!["command", "timeout"],
+        Tool::Terminal => vec!["command"],
+        Tool::Read => vec!["path", "offset", "limit"],
+        Tool::Edit => vec!["path", "edits"],
+        Tool::Write => vec!["path", "content"],
+        _ => vec!["path"],
+    };
+    let serialized = serde_json::to_value(args).map_err(|_| invalid())?;
+    if serialized
+        .as_object()
+        .ok_or_else(invalid)?
+        .keys()
+        .any(|key| {
+            key != "project_id"
+                && !allowed.contains(&key.as_str())
+                && !(coding && ["thread_id", "title"].contains(&key.as_str()))
+        })
+    {
+        return Err(invalid());
+    }
     match command.tool {
-        Tool::Terminal => {
+        Tool::Terminal | Tool::Bash => {
             if command.execution_timeout_seconds != 1800
-                || command.arguments.path.is_some()
-                || command
-                    .arguments
-                    .command
-                    .as_ref()
-                    .is_none_or(|s| !valid_command_text(s))
+                || args.command.as_ref().is_none_or(|s| !valid_command_text(s))
+                || args.timeout.is_some_and(|v| !(1..=1800).contains(&v))
             {
                 return Err(invalid());
             }
         }
         _ => {
-            if command.arguments.command.is_some()
-                || command
-                    .arguments
-                    .path
-                    .as_ref()
-                    .is_none_or(|s| s.len() > 4096 || s.contains('\0'))
+            if args.path.as_ref().is_none_or(|s| !text(s, 1, 4096))
+                || (coding && command.execution_timeout_seconds != 60)
+                || args.offset.is_some_and(|v| !(1..=1_000_000).contains(&v))
+                || args.limit.is_some_and(|v| !(1..=2000).contains(&v))
             {
                 return Err(invalid());
             }
         }
     }
+    if command.tool == Tool::Write && args.content.as_ref().is_none_or(|s| !text(s, 0, 65536)) {
+        return Err(invalid());
+    }
+    if command.tool == Tool::Edit {
+        let edits = args.edits.as_ref().ok_or_else(invalid)?;
+        if !(1..=16).contains(&edits.len())
+            || serde_json::to_vec(edits).map_err(|_| invalid())?.len() > 131_072
+            || edits
+                .iter()
+                .any(|edit| !text(&edit.old_text, 1, 65536) || !text(&edit.new_text, 0, 65536))
+        {
+            return Err(invalid());
+        }
+    }
     Ok(())
+}
+
+fn text(value: &str, minimum: usize, maximum: usize) -> bool {
+    (minimum..=maximum).contains(&value.len()) && !value.contains('\0')
 }
 
 fn valid_command_text(value: &str) -> bool {
     !value.trim().is_empty() && value.len() <= 8000 && !value.contains('\0')
+}
+
+fn validate_provider(value: &str) -> Result<()> {
+    if value.is_empty()
+        || value.len() > 100
+        || !value
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn validate_configuration(value: &Configuration) -> Result<()> {
@@ -536,10 +791,54 @@ fn validate_configuration(value: &Configuration) -> Result<()> {
     }
     for (index, project) in value.projects.iter().enumerate() {
         validate_id(&project.id)?;
-        if !valid_name(&project.name) || value.projects[..index].iter().any(|p| p.id == project.id)
+        if !valid_name(&project.name)
+            || value.projects[..index].iter().any(|p| p.id == project.id)
+            || project
+                .repository
+                .as_ref()
+                .is_some_and(|name| project.coding != Some(true) || !valid_repository(name))
         {
             return Err(invalid());
         }
+    }
+    Ok(())
+}
+
+fn valid_repository(value: &str) -> bool {
+    let Some((owner, repository)) = value.split_once('/') else {
+        return false;
+    };
+    (1..=39).contains(&owner.len())
+        && owner.as_bytes()[0].is_ascii_alphanumeric()
+        && owner
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-')
+        && (1..=100).contains(&repository.len())
+        && repository
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
+}
+
+fn validate_installation(value: &str) -> Result<()> {
+    if !(1..=20).contains(&value.len())
+        || value.starts_with('0')
+        || !value.bytes().all(|c| c.is_ascii_digit())
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn validate_repository_settings(value: &RepositorySettings) -> Result<()> {
+    if let Some(id) = &value.installation_id {
+        validate_installation(id)?;
+    }
+    if value
+        .default_repository
+        .as_deref()
+        .is_some_and(|name| value.installation_id.is_none() || !valid_repository(name))
+    {
+        return Err(invalid());
     }
     Ok(())
 }
@@ -593,6 +892,32 @@ fn response_failure(status: u16, _bytes: &[u8]) -> crate::AuthError {
         ),
     };
     error(kind, message)
+}
+
+fn repository_failure(status: u16, bytes: &[u8]) -> crate::AuthError {
+    let reason = serde_json::from_slice::<Value>(bytes).ok();
+    match (
+        status,
+        reason.as_ref().and_then(|value| value["error"].as_str()),
+    ) {
+        (409, Some("github_connection_required")) => error(
+            "github_connection_required",
+            "Connect GitHub in Profile → Connections, then try again.",
+        ),
+        (409, Some("installation_unavailable" | "repository_unavailable")) => error(
+            "repository_unavailable",
+            "This GitHub selection is no longer available. Refresh and choose again.",
+        ),
+        (404 | 501, _) => error(
+            "unavailable",
+            "Update the Atlas server to use repository settings.",
+        ),
+        (401, _) => error("sign_in_required", "Sign in to Atlas again."),
+        _ => error(
+            "repositories_unavailable",
+            "Could not load or save GitHub repositories. Your selection is kept; try again.",
+        ),
+    }
 }
 
 #[cfg(test)]

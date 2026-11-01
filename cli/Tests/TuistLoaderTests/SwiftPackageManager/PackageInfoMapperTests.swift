@@ -2163,12 +2163,11 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        // A target's `exclude` paths must also drop matching headers, matching SwiftPM's discovery.
         let target = try #require(project?.targets.first)
         #expect(
             target.headers == .spmTarget(
                 headersPath.parentDirectory,
-                excluding: [
+                projectExcluding: [
                     .path(
                         basePath
                             .appending(try RelativePath(validating: "Package/Sources/Target1/\(excludedDirectory)/**"))
@@ -2177,6 +2176,63 @@ struct PackageInfoMapperTests {
                 ]
             )
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider)
+    func map_whenExcludedDirectoryIsUnderPublicHeaders_keepsItsHeadersPublic() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Package")
+        let targetPath = packagePath.appending(component: "src")
+        let publicHeader = targetPath.appending(components: "realm", "geospatial.hpp")
+        let vendoredHeader = targetPath.appending(components: "external", "mpark", "variant.hpp")
+        let vendoredSource = targetPath.appending(components: "external", "mpark", "variant.cpp")
+        try await fileSystem.makeDirectory(at: publicHeader.parentDirectory)
+        try await fileSystem.makeDirectory(at: vendoredHeader.parentDirectory)
+        try await fileSystem.writeText("#include <external/mpark/variant.hpp>\n", at: publicHeader)
+        try await fileSystem.writeText("#pragma once\n", at: vendoredHeader)
+        try await fileSystem.writeText("", at: vendoredSource)
+        try await fileSystem.writeText("", at: targetPath.appending(components: "realm", "geospatial.cpp"))
+        try await fileSystem.writeText("#include <realm/geospatial.hpp>\n", at: targetPath.appending(component: "realm.h"))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "RealmCore", type: .library(.automatic), targets: ["RealmCore"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "RealmCore",
+                            path: "src",
+                            exclude: ["external"],
+                            publicHeadersPath: ".",
+                            settings: [.init(tool: .cxx, name: .headerSearchPath, condition: nil, value: ["external"])]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        let headers = try await XcodeGraph.Headers.from(
+            manifest: try #require(target.headers),
+            generatorPaths: GeneratorPaths(manifestDirectory: packagePath, rootDirectory: basePath),
+            productName: target.productName,
+            fileSystem: fileSystem
+        )
+        #expect(headers.public.contains(publicHeader))
+        #expect(headers.public.contains(vendoredHeader))
+        let sourceGlobs = try #require(target.sources?.globs)
+        #expect(sourceGlobs.allSatisfy {
+            $0.excluding.contains(.path(targetPath.appending(components: "external", "**").pathString))
+        })
     }
 
     @Test(
@@ -9546,7 +9602,7 @@ extension ProjectDescription.Target {
 extension ProjectDescription.Headers {
     fileprivate static func spmTarget(
         _ targetBasePath: AbsolutePath,
-        excluding: [ProjectDescription.Path] = [],
+        projectExcluding: [ProjectDescription.Path] = [],
         publicDirectory: String = "include",
         moduleName: String? = nil,
         moduleMap: AbsolutePath? = nil,
@@ -9556,8 +9612,8 @@ extension ProjectDescription.Headers {
         let name = moduleName ?? targetBasePath.basename.replacingOccurrences(of: "-", with: "_")
         let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
         return .swiftPackageHeaders(
-            public: .list([.glob(.path("\(publicPath.pathString)/\(glob)"), excluding: excluding)]),
-            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: excluding)]),
+            public: .list([.glob(.path("\(publicPath.pathString)/\(glob)"))]),
+            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: projectExcluding)]),
             sourceLayout: .init(
                 root: .path(targetBasePath.pathString),
                 publicHeaders: .path(publicPath.pathString),
