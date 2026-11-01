@@ -16,7 +16,7 @@ msgstr ""
 msgid "%{app_name} icon"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.ex:42
+#: lib/tuist_web/live/preview_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
 msgstr ""
@@ -214,12 +214,12 @@ msgstr ""
 msgid "This preview isn't available for download"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.ex:59
+#: lib/tuist_web/live/preview_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "App preview"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.ex:52
+#: lib/tuist_web/live/preview_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "Preview"
 msgstr ""

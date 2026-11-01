@@ -1,5 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
   @moduledoc false
+  alias Tuist.Cargo.CacheDetails
   alias Tuist.Cargo.CacheMetrics
   alias Tuist.MCP.Tool
 
@@ -33,7 +34,11 @@ defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
       "properties" => %{
         "account_handle" => %{"type" => "string", "description" => "The account handle (organization or user)."},
         "project_handle" => %{"type" => "string", "description" => "The project handle."},
-        "build_id" => %{"type" => "string", "description" => "The Cargo build ID."}
+        "build_id" => %{"type" => "string", "description" => "The Cargo build ID."},
+        "include_cache_inspection" => %{
+          "type" => "boolean",
+          "description" => "Include validated task and CAS records (up to 4 MB). Defaults to false."
+        }
       },
       "required" => ["account_handle", "project_handle", "build_id"]
     }
@@ -55,7 +60,47 @@ defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
       |> Map.put("type", ["object", "null"])
 
     build = build()
-    %{build | "properties" => Map.put(build["properties"], "cache", cache), "required" => ["cache" | build["required"]]}
+
+    additions = %{
+      "cache" => cache,
+      "cache_inspection" => Tool.json_schema(%{CacheDetails.schema() | nullable: true}),
+      "compilations" => %{"type" => "array", "maxItems" => 500, "items" => compilation()},
+      "compilations_truncated" => %{"type" => "boolean"}
+    }
+
+    %{
+      build
+      | "properties" => Map.merge(build["properties"], additions),
+        "required" => Map.keys(additions) ++ build["required"]
+    }
+  end
+
+  defp compilation do
+    object(%{
+      "id" => %{"type" => "string"},
+      "name" => %{"type" => "string"},
+      "source" => %{"type" => "string"},
+      "kind" => %{"type" => "string"},
+      "dependencies" => %{"type" => "array", "items" => %{"type" => "string"}},
+      "start_offset_ms" => %{"type" => "integer", "minimum" => 0},
+      "duration_ms" => %{"type" => "integer", "minimum" => 0},
+      "status" => %{"type" => "string"},
+      "diagnostics" => %{
+        "type" => "array",
+        "maxItems" => 100,
+        "items" => %{
+          "type" => "object",
+          "properties" => %{
+            "severity" => %{"type" => "string"},
+            "message" => %{"type" => "string"},
+            "file" => @nullable_string,
+            "line" => %{"type" => ["integer", "null"], "minimum" => 0}
+          },
+          "required" => ["severity", "message"],
+          "additionalProperties" => false
+        }
+      }
+    })
   end
 
   defp build do
@@ -134,10 +179,10 @@ defmodule Tuist.MCP.Components.Tools.GetCargoBuild do
   @impl EMCP.Tool
   def description,
     do:
-      "Get a Cargo build with its aggregate cache counters. Estimated avoided compiler time is not wall-clock savings. Build IDs are unique within a project."
+      "Get a Cargo build with aggregate cache counters and up to 500 recorded rustc invocations, ordered by start offset and ID, with diagnostics. compilations_truncated indicates omitted invocations; diagnostics cover only returned invocations. Invocation durations are not per-file timings. Estimated avoided compiler time is not wall-clock savings. Build IDs are unique within a project."
 
-  def execute(_conn, %{"build_id" => build_id}, project) do
-    case Query.get_build(project.id, build_id) do
+  def execute(_conn, %{"build_id" => build_id} = args, project) do
+    case Query.get_build(project.id, build_id, include_cache_inspection: Map.get(args, "include_cache_inspection", false)) do
       {:ok, build} -> {:ok, build}
       {:error, :not_found} -> {:error, "Cargo build not found: #{build_id}"}
     end

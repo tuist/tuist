@@ -48,7 +48,10 @@ defmodule TuistWeb.API.CargoControllerIntegrationTest do
     payload = report()
     Tuist.PubSub.subscribe("projects.#{project.id}")
     conn = post(conn, "/api/projects/#{user.account.name}/#{project.name}/cargo/builds", payload)
-    assert json_response(conn, :created) == %{"id" => payload.id}
+    assert %{"id" => build_id, "actor" => actor} = json_response(conn, :created)
+    assert build_id == payload.id
+    assert actor["source"] == "verified"
+    assert actor["verified_account_handle"] == user.account.name
     assert_receive {:show, %{user: %{id: id}}}
     assert id == user.id
     assert {:ok, build} = Cargo.get_build(payload.id, project.id)
@@ -61,6 +64,56 @@ defmodule TuistWeb.API.CargoControllerIntegrationTest do
     assert [%{"severity" => "error", "line" => 7}] = JSON.decode!(compilation.diagnostics)
     assert {:error, :not_found} = Cargo.get_build(payload.id, project.id + 1)
     assert {[], _meta} = Cargo.list_builds(project.id + 1)
+  end
+
+  test "replays a public build report without duplicating its parent or compiler observations", %{
+    user: user,
+    project: project
+  } do
+    payload = report()
+    path = "/api/projects/#{user.account.name}/#{project.name}/cargo/builds"
+    {:ok, access_token, _} = Tuist.Guardian.encode_and_sign(user, %{}, token_type: "access_token")
+
+    conn =
+      build_conn()
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("authorization", "Bearer #{access_token}")
+
+    original =
+      conn
+      |> put_req_header("x-tuist-actor-id", "original-claim")
+      |> post(path, payload)
+      |> json_response(:created)
+
+    assert original["id"] == payload.id
+    assert original["actor"]["source"] == "verified"
+    assert original["actor"]["verified_account_handle"] == user.account.name
+    assert original["actor"]["claimed_actor_id"] == "original-claim"
+    assert {:ok, build} = Cargo.get_build(payload.id, project.id)
+    assert [compilation] = Cargo.compilations(build)
+
+    for _ <- 1..2 do
+      replayed =
+        conn
+        |> put_req_header("x-tuist-actor-id", "retry-claim")
+        |> post(path, payload)
+        |> json_response(:created)
+
+      assert replayed == original
+    end
+
+    Cargo.Build.Buffer.flush()
+    Cargo.Compilation.Buffer.flush()
+
+    assert [stored] =
+             ClickHouseRepo.all(from(b in Cargo.Build, where: b.project_id == ^project.id and b.id == ^payload.id))
+
+    assert stored.actor_account_id == user.account.id
+    assert stored.claimed_actor_id == "original-claim"
+    assert stored.submission_auth == "token"
+    assert [stored_compilation] = Cargo.compilations(stored)
+    assert stored_compilation.id == compilation.id
+    assert stored_compilation.name == "widgets"
   end
 
   test "persists bounded cache measurements without inventing local or remote hits", %{
@@ -79,7 +132,9 @@ defmodule TuistWeb.API.CargoControllerIntegrationTest do
       })
 
     conn = post(conn, "/api/projects/#{user.account.name}/#{project.name}/cargo/builds", payload)
-    assert json_response(conn, :created) == %{"id" => payload.id}
+    assert %{"id" => build_id, "actor" => %{"verified_account_handle" => handle}} = json_response(conn, :created)
+    assert build_id == payload.id
+    assert handle == user.account.name
     assert {:ok, build} = Cargo.get_build(payload.id, project.id)
     assert metrics = CacheMetrics.read(build)
     assert metrics.hits == 12
@@ -108,7 +163,9 @@ defmodule TuistWeb.API.CargoControllerIntegrationTest do
 
     payload = Map.put(report(), :cache, %{version: 1, hits: 1, details: details})
     conn = post(conn, "/api/projects/#{user.account.name}/#{project.name}/cargo/builds", payload)
-    assert json_response(conn, :created) == %{"id" => payload.id}
+    assert %{"id" => build_id, "actor" => %{"verified_account_handle" => handle}} = json_response(conn, :created)
+    assert build_id == payload.id
+    assert handle == user.account.name
     assert {:ok, build} = Cargo.get_build(payload.id, project.id)
     assert CacheMetrics.read(build).details == details
     assert {:error, :not_found} = Cargo.get_build(payload.id, project.id + 1)

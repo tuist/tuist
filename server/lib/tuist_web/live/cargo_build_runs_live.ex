@@ -9,7 +9,7 @@ defmodule TuistWeb.CargoBuildRunsLive do
 
   alias Noora.Filter
   alias Tuist.Cargo
-  alias Tuist.Repo
+  alias Tuist.ReportActor
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
@@ -102,7 +102,7 @@ defmodule TuistWeb.CargoBuildRunsLive do
     )
     |> assign_async(:cargo_build_runs, fn ->
       {builds, meta} = Cargo.list_builds(project_id, options)
-      {:ok, %{cargo_build_runs: %{builds: Repo.preload(builds, :ran_by_account), meta: meta, uri: uri}}}
+      {:ok, %{cargo_build_runs: %{builds: ReportActor.preload(builds), meta: meta, uri: uri}}}
     end)
   end
 

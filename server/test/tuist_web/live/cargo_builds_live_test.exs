@@ -33,6 +33,18 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     refute has_element?(view, "#build-environment")
   end
 
+  test "failed build details share the recorded failure category", %{conn: conn, user: user, project: project} do
+    id =
+      build(project, user, status: "failure", custom_metadata: %{values: %{"tuist.failure_category" => "verification"}})
+
+    {:ok, view, _} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}")
+    assert has_element?(view, "[data-part=build-details]", "Verification")
+
+    successful = build(project, user, custom_metadata: %{values: %{"tuist.failure_category" => "verification"}})
+    {:ok, view, _} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{successful}")
+    refute has_element?(view, "[data-part=build-details]", "Failure category")
+  end
+
   test "splits the Xcode-style Builds home from Build Runs", %{conn: conn, user: user, project: project} do
     build(project, user, command: "check", duration_ms: 90)
     {:ok, home, _} = live(conn, "/#{user.account.name}/#{project.name}/builds")

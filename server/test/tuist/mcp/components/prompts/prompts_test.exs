@@ -58,6 +58,78 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       end
     end
 
+    test "compares Cargo builds using project-scoped tools and aggregate measurements" do
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
+        %{default_branch: "develop", build_system: :cargo}
+      end)
+
+      %{messages: [%{content: %{text: text}}]} =
+        CompareBuilds.template(nil, %{
+          "account_handle" => "acme",
+          "project_handle" => "app",
+          "head" => "head-id"
+        })
+
+      assert text =~ "Project: `acme/app`"
+      assert text =~ "Base: latest build on develop"
+      assert text =~ "Head: head-id"
+      assert text =~ "list_cargo_builds"
+      assert text =~ "get_cargo_build"
+      assert text =~ "Pass account_handle and project_handle to every Cargo tool call"
+      assert text =~ "with build_id, not build_run_id"
+      assert text =~ "git_branch"
+
+      for field <-
+            ~w(command rust_version is_ci ci_provider custom_metadata duration_ms status hits task_misses hit_rate misses unconsulted verifications divergences prefetched_actions downloaded_bytes uploaded_bytes remote_failures background_upload_failures) do
+        assert text =~ "**#{field}**"
+      end
+
+      assert text =~ "measured elapsed build duration"
+      assert text =~ "estimated_compiler_duration_avoided_ns"
+      assert text =~ "not elapsed savings"
+      assert text =~ "Do not subtract it from duration_ms"
+      assert text =~ "missing values are unavailable, not zero"
+      assert text =~ "preserve explicitly measured zero values"
+      assert text =~ "hit-rate deltas only when both rates are available"
+      assert text =~ "Cargo timeline tools are not available yet"
+      assert text =~ "**compilations_truncated**"
+      assert text =~ "not per-file timing"
+      assert text =~ "do not infer a critical path"
+
+      for unsupported <-
+            ~w(list_xcode get_xcode list_gradle get_gradle list_bazel get_bazel list_cargo_build_steps get_cargo_build_step cacheable_tasks_count cacheable_task_local_hits_count) do
+        refute text =~ unsupported
+      end
+    end
+
+    test "resolves Cargo IDs, dashboard URLs and omitted builds within the project" do
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
+        %{default_branch: nil, build_system: :cargo}
+      end)
+
+      for {build_args, base, head} <- [
+            {%{}, "latest build on main", "latest build on the current branch"},
+            {%{"base" => "base-id", "head" => "head-id"}, "base-id", "head-id"},
+            {%{"base" => "release", "head" => "https://tuist.dev/acme/app/builds/cargo/head-id"}, "release",
+             "https://tuist.dev/acme/app/builds/cargo/head-id"}
+          ] do
+        %{messages: [%{content: %{text: text}}]} =
+          CompareBuilds.template(
+            nil,
+            Map.merge(build_args, %{"account_handle" => "acme", "project_handle" => "app"})
+          )
+
+        assert text =~ "Base: #{base}"
+        assert text =~ "Head: #{head}"
+        assert text =~ "For dashboard URLs, extract the build ID first"
+        assert text =~ "For branches, use `list_cargo_builds` with git_branch"
+        assert text =~ "git branch --show-current"
+        assert text =~ "ask which build to compare"
+        refute text =~ "list_xcode_builds"
+        refute text =~ "get_xcode_build"
+      end
+    end
+
     test "returns prompt messages with default branch" do
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
         %{default_branch: "develop", build_system: :xcode}

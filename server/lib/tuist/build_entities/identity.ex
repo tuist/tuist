@@ -22,6 +22,7 @@ defmodule Tuist.BuildEntities.Identity do
     xcode: %{"module" => ["project", "target"]},
     once: %{"action" => ["target_id", "capability", "action_index"]},
     bazel: %{"action" => ["target_label", "mnemonic", "primary_output"]},
+    cargo: %{"crate" => ["source", "name", "kind"]},
     mix: %{"file" => ["path"], "module" => ["module"]}
   }
 
