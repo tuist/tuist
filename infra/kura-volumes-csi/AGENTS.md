@@ -200,3 +200,5 @@ and skips `thin_check` on activation. The Docker build verifies the installed
 checker and pool preparation refuses to mutate a VG without it. Do not treat VM
 qualification with host-installed tooling as proof that the packaged image has
 those tools. Never run offline metadata checks against a live metadata device.
+
+- Borrowed child volumes (`internal/driver/borrowed.go`) are experimental and build only with `-tags kuraborrowed`; `borrowed_disabled.go` is the shipping behaviour and refuses them. Keep new borrowed code behind the tag and keep shared record types in `borrowed_shared.go`.

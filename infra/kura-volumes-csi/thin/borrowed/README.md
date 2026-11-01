@@ -2,7 +2,10 @@
 
 This is an opt-in CSI child-volume prototype with an experiment-only runtime.
 The driver remains `ceiling-backed-v1`; every existing child device is fully
-backed. Ordinary runtime builds and hosted enrollment do not enable it.
+backed. Ordinary runtime builds and hosted enrollment do not enable it, and the
+shipping CSI driver does not contain it: its implementation and tests build only
+with `-tags kuraborrowed`, which the qualification jobs pass. Without the tag the
+driver refuses `borrowed_units`, the units API and any borrowed volume record.
 Measurements, failed attempts and qualification limits are recorded in
 [validation.md](validation.md). See the candidate design in
 [sharing-compatibility.md](../sharing-compatibility.md).

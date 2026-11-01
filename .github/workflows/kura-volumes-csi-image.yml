@@ -197,7 +197,7 @@ jobs:
           chmod +x kura/bin/amd64/kura
           docker build -f kura/Dockerfile.release --build-arg TARGETARCH=amd64 -t kura:borrowed-prototype kura
           cd infra/kura-volumes-csi
-          go test -c -o /tmp/kura-borrowed-driver.test ./internal/driver
+          go test -tags kuraborrowed -c -o /tmp/kura-borrowed-driver.test ./internal/driver
           go build -o /tmp/kura-borrowed-cache-bench ./cmd/cache-bench
       - name: Check out the pinned sharing policy
         uses: actions/checkout@v4
@@ -429,6 +429,7 @@ jobs:
           build-args: |
             GO_VERSION=1.26.10
             VERSION=borrowed-fixture-${{ github.sha }}
+            GO_TAGS=kuraborrowed
       - uses: actions/upload-artifact@v4
         with:
           name: borrowed-csi-image
@@ -452,7 +453,7 @@ jobs:
           cache-dependency-path: infra/kura-volumes-csi/go.sum
       - name: Build real driver qualification
         working-directory: infra/kura-volumes-csi
-        run: go test -c -o /tmp/kura-borrowed-driver.test ./internal/driver
+        run: go test -tags kuraborrowed -c -o /tmp/kura-borrowed-driver.test ./internal/driver
       - name: Install disposable VM prerequisites
         run: |
           sudo apt-get update

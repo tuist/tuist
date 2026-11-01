@@ -34,6 +34,9 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	if childVolumeIDPattern.MatchString(req.GetName()) && ctx.Value(borrowedPoolLock{}) != true {
 		return nil, status.Error(codes.InvalidArgument, "children require the fenced unit API")
 	}
+	if req.GetParameters()["borrowed_units"] != "" && !borrowedUnitsBuild {
+		return nil, status.Error(codes.InvalidArgument, "borrowed units require the experimental driver build")
+	}
 	if mode := req.GetParameters()["borrowed_units"]; mode != "" && (mode != "v1" || req.GetParameters()["layout"] != ThinLayout) {
 		return nil, status.Error(codes.InvalidArgument, "borrowed units require the explicit thin parent profile")
 	}

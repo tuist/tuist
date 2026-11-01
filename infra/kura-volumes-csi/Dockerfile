@@ -19,10 +19,11 @@ COPY infra/kura-volumes-csi ./
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
+ARG GO_TAGS=""
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/kura-volumes-csi ./cmd/kura-volumes-csi
+    go build -trimpath -tags "${GO_TAGS}" -ldflags="-s -w -X main.version=${VERSION}" -o /out/kura-volumes-csi ./cmd/kura-volumes-csi
 
 FROM ubuntu:${UBUNTU_VERSION}
 

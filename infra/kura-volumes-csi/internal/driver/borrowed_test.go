@@ -1,3 +1,5 @@
+//go:build kuraborrowed
+
 package driver
 
 import (
