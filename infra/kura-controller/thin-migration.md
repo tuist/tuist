@@ -32,12 +32,31 @@ lost feed history, an unavailable peer or changed identity fails closed.
 Only the ready receipt permits `lvm-rebuild`. Primary selection pins the verified
 destination; endpoint observation must name its exact pod UID. The existing peer
 handoff, original connection-cohort retirement, donor deletion, replacement
-catch-up and OnDelete/template safeguards still apply. This is a planned legacy
+catch-up and OnDelete/template safeguards still apply. Retirement closes HTTP/1
+connections after their next response and sends HTTP/2 connections, gateway
+gRPC included, a GOAWAY, so the cohort empties once in-flight streams finish
+rather than at the five-minute connection age (unit-tested, not rehearsed on
+staging). This is a planned legacy
 cache migration protocol, not a new crash-consistency or global serving grant.
 
 ## Bounds, pauses and failures
 
-Preparation has one fixed 20-minute deadline. Verification uses batches of at
+Each preparation attempt has its own fixed 20-minute deadline; polling a running
+attempt never extends it. A retained walk that cannot finish in one attempt
+resumes: after every verified page the source keeps the index position it
+reached and the feed position its pin started from, so writes the newest-first
+walk already passed are proven from the feed. A later
+`POST /_internal/migration/prepare` for the same source process and the same
+destination `{url, incarnation}` after a failed attempt that advanced starts a
+new attempt from that position. A failed attempt that advanced nothing (for
+example, the destination lacks the record at the resume position) keeps
+returning its failure instead of re-hashing the corpus. The failed attempt's
+feed pin stays registered for the retry, bounded by the feed cap and the stale
+consumer window, without holding up a drain. If the feed was trimmed past the
+saved position, the retry walks from the top again. Reset, a rebind and a
+different destination never inherit progress, and only a complete walk plus the
+pinned-feed proof reports ready. This is unit-tested and has not been rehearsed
+on staging. Verification uses batches of at
 most 16 descriptors and existing 64 KiB hashing buffers. Destination verification
 is serialized, but write acknowledgments group-commit: concurrent completions
 queue on one gate, and a run that took its feed head after a write committed
@@ -49,6 +68,13 @@ Successful preparation cannot expire merely because the controller pauses: its
 bridge stays active until the donor drains, retaining its feed pin with one
 bounded background verification loop. The loop uses a weak runtime reference
 and releases the pin on draining. Ordinary instances do not run this loop.
+The source exports the bridge as `kura_migration_bridge_armed`,
+`kura_migration_bridge_ready`, `kura_migration_bridge_last_proof_age_seconds`,
+`kura_migration_preparation_walk_records` and the counters
+`kura_migration_preparation_records_verified_total` and
+`kura_migration_reproof_failures_total` (row "Storage migration bridge" on
+`Tuist Kura / Details`). The proposed alert for a bridge armed but not ready for
+15 minutes is described in `../helm/k8s-monitoring/alerts.md`.
 
 Pausing source-node enrollment stops new storage moves, but cannot cancel a pod
 or claim deletion already issued. Clearing the selection while the source has
@@ -88,9 +114,10 @@ A failed **unarmed preparation** can be retried without restarting the writer:
 3. Through the same authenticated peer connection, send
    `POST /_internal/migration/reset` with the same `{incarnation, target}` JSON
    used for preparation. It serializes against acknowledgments and only clears
-   a completed failed preparation. A running preparation, ready/armed bridge,
-   wrong source process or wrong destination returns conflict. No keys or data
-   are deleted. An already empty state is idempotent.
+   a completed failed preparation, including its saved walk progress and feed
+   pin. A running preparation, ready/armed bridge, wrong source process or wrong
+   destination returns conflict. No keys or data are deleted. An already empty
+   state is idempotent.
 4. After a successful reset, remove only that source pod's write-target
    annotation using a resource-version-guarded update. Recheck identities,
    destination capacity and catch-up, then reselect the source node. This creates
@@ -99,6 +126,32 @@ A failed **unarmed preparation** can be retried without restarting the writer:
 A demoted, armed handoff has no reset or abort shortcut. Preserve the destination
 and donor and complete or explicitly recover the handoff; clearing the bridge would reintroduce
 the successful-PUT/missing-GET race.
+
+### Abort before demotion
+
+`POST /_internal/migration/abort` (internal peer mTLS only) takes the same
+`{incarnation, target}` body as prepare and reset and answers
+`{"incarnation": "<source connection_incarnation>", "aborted": true}`. It
+clears the migration for exactly that target whatever its state (running,
+failed, ready or armed):
+
+- the bridge is disarmed first, so acknowledgments already waiting on it
+  complete as ordinary asynchronous writes instead of failing;
+- it then serializes with acknowledgments through the same gate, discards the
+  saved walk progress and releases the feed pin;
+- a running preparation, the bridge loop and a re-proof notice the migration
+  is gone and exit without writing state back; a later prepare walks from the
+  first record.
+
+With nothing active it is idempotent (200). A wrong source incarnation or a
+different target that owns the migration returns 409.
+
+It is safe only while the source was never demoted (no
+`kura.tuist.dev/lvm-rebuild` annotation): routing never moved through the
+migration, and disarming returns the source to the ordinary asynchronous
+replication it served with before preparation. The runtime cannot check that
+precondition; the caller must. Abort is unit-tested and has not been rehearsed
+on staging.
 
 ### Destination process restart
 

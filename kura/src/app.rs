@@ -2216,6 +2216,99 @@ mod tests {
         server.await.unwrap().unwrap();
     }
 
+    // Retirement must not wait for the five-minute connection age: an h2c
+    // connection in the retired cohort gets a GOAWAY, finishes the stream it
+    // is serving, and closes, on the co-hosted and gateway gRPC listeners.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn planned_retirement_recycles_http2_connections_after_in_flight_streams() {
+        use axum::{body::Body, http::Request, routing::get};
+        use hyper_util::rt::{TokioExecutor, TokioIo};
+
+        for gateway in [false, true] {
+            let context = test_context(|_| {}).await;
+            let state = context.state.clone();
+            let serving_config = if gateway {
+                gateway_grpc_serving_config(&state.config)
+            } else {
+                state.config.accelerated_file_serving.clone()
+            };
+            let (release_tx, release_rx) = watch::channel(false);
+            let router = axum::Router::new().route(
+                "/slow",
+                get(move || {
+                    let mut release = release_rx.clone();
+                    async move {
+                        let _ = release.wait_for(|released| *released).await;
+                        "done"
+                    }
+                }),
+            );
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let (shutdown, shutdown_rx) = watch::channel(false);
+            let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+                listener,
+                router,
+                state.clone(),
+                serving_config,
+                shutdown_rx,
+                public_drain_signal(state.runtime.clone()),
+                configure_http_builder,
+                accelerated_file_serving::ConnectionErrorLog::Debug,
+            ));
+            let stream = tokio::net::TcpStream::connect(address).await.unwrap();
+            let (mut sender, connection) =
+                hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(stream))
+                    .await
+                    .unwrap();
+            let connection = tokio::spawn(connection);
+            let in_flight = tokio::spawn(
+                sender.send_request(
+                    Request::builder()
+                        .uri(format!("http://{address}/slow"))
+                        .body(Body::empty())
+                        .unwrap(),
+                ),
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert!(!in_flight.is_finished());
+
+            assert_eq!(state.runtime.retire_public_connections(), 1);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert_eq!(
+                state.runtime.retire_public_connections(),
+                1,
+                "the in-flight stream keeps its connection open"
+            );
+            release_tx.send_replace(true);
+            let response = in_flight
+                .await
+                .unwrap()
+                .expect("the in-flight stream completes after the GOAWAY");
+            assert_eq!(response.status(), 200);
+            let body = http_body_util::BodyExt::collect(response.into_body())
+                .await
+                .unwrap()
+                .to_bytes();
+            assert_eq!(&body[..], b"done");
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while state.runtime.retire_public_connections() != 0 {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("the retired HTTP/2 cohort reaches zero before the connection age limit");
+            let closed = tokio::time::timeout(Duration::from_secs(5), connection)
+                .await
+                .expect("the client sees the connection close")
+                .unwrap();
+            assert!(closed.is_ok(), "clean GOAWAY close: {closed:?}");
+            assert!(!state.runtime.is_draining());
+            shutdown.send(true).unwrap();
+            server.await.unwrap().unwrap();
+        }
+    }
+
     // A Kura pod drains (preStop's SIGUSR1) well before it terminates, and
     // refuses every request in between. An HTTP/2 connection that was open
     // when the drain began must get a GOAWAY right then, so the gRPC channel

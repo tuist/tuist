@@ -326,6 +326,7 @@ fn internal_routes() -> Router<SharedState> {
             "/_internal/migration/rebind",
             post(crate::migration::rebind),
         )
+        .route("/_internal/migration/abort", post(crate::migration::abort))
         .route("/_internal/handover/verify", post(crate::handover::verify))
         .route(
             "/_internal/handover/descriptors",
@@ -6021,6 +6022,7 @@ mod tests {
             "/_internal/migration/verify",
             "/_internal/migration/reset",
             "/_internal/migration/rebind",
+            "/_internal/migration/abort",
         ] {
             let response = public_router(context.state.clone())
                 .oneshot(

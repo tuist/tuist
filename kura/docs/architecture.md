@@ -488,8 +488,11 @@ with the process incarnation
 reported by `/status/rollout`. The runtime continues serving and replicating,
 but HTTP/1 responses close their connection after the complete response. An
 accept-time lease counts the old connection cohort through response completion;
-new probes do not keep that cohort alive. HTTP/2 connections retain their bounded
-connection lifetime. Only a matching incarnation with zero old connections lets
+new probes do not keep that cohort alive. HTTP/2 connections in the old cohort,
+on every public listener including the gateway gRPC port, receive a GOAWAY at
+retirement and close once their in-flight streams finish; the protocol comes
+from the client's connection preface. Draining and connection aging are
+unchanged. Only a matching incarnation with zero old connections lets
 the controller delete the thin-migration donor. An old runtime, failed call, or
 process restart holds the move. This complements catch-up and endpoint checks;
 it neither fences serving authority nor adds synchronous replication guarantees.
@@ -506,8 +509,12 @@ coordinated. See the [thin qualification report](../../infra/kura-volumes-csi/th
 retained-content walk plus a pinned feed closes the live-write window before
 the controller changes endpoints. HTTP and REAPI mutation completion verify
 actual destination content while armed; cursor advancement alone is insufficient.
-A successful bridge persists through controller pauses until the donor drains,
+Each preparation attempt has a fixed deadline; a retry for the same source and
+destination processes continues the walk from its saved index position and the
+same feed pin when the failed attempt advanced. A successful bridge persists through controller pauses until the donor drains,
 with a weak-reference background task retaining the feed pin. Only a completed,
 failed unarmed preparation can be reset, serialized against acknowledgments.
+Abort clears a migration in any state for a source that was never demoted,
+returning it to ordinary asynchronous acknowledgments.
 This does not change serving-authority grants, cache capacity policy or ordinary
 asynchronous replication. See the [handoff protocol](../../infra/kura-controller/thin-migration.md).
