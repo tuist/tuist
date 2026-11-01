@@ -298,6 +298,18 @@ k8s-monitoring:
           regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|public_request_latency_by_transport_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
           action = "drop"
         }
+        // The public latency families also lose the buckets above 1.024 s,
+        // leaving 7. Over a week of production traffic 99.97% of public
+        // requests finished within 1.024 s (p95 sits between 1 and 4 ms), so
+        // those buckets only resolve p99.9 and beyond. A quantile past
+        // 1.024 s now reads as 1.024 s, which still trips the "Kura - public
+        // request latency high" alert at its 1 s threshold.
+        write_relabel_config {
+          source_labels = ["cluster", "__name__", "le"]
+          separator = ";"
+          regex = "tuist-production;kura_public_request_latency(_by_transport)?_seconds_bucket;(4.096|16.384|32.768)"
+          action = "drop"
+        }
         // The server's two exponential histograms grow each boundary by a
         // factor of 2 (runs) and 2.15 (HTTP client requests) across 15
         // boundaries, which is finer than any dashboard percentile needs.
