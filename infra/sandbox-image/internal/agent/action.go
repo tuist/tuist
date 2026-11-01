@@ -34,12 +34,6 @@ func (a *SingleAction) Prepare(ctx context.Context, req *protocol.Request, w *pr
 	if !os.IsNotExist(err) || a.PrepareCAS == nil || len(req.Env) != 0 {
 		return w.Send(protocol.Exit(req.ID, 1))
 	}
-	// Creating the claim is the action's first write to its filesystem. A
-	// sibling file faults that path in without consuming the claim.
-	if f, err := os.OpenFile(a.ClaimPath+".prepare", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600); err == nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
-	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if err := a.PrepareCAS(ctx, req.Cmd[2]); err != nil {
