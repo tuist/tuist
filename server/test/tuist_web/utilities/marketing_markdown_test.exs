@@ -268,7 +268,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "test-target granularity"
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "not Bazel today"
     assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "quarantine is not applied there yet"
-    assert MarketingMarkdown.get("/solutions/ci-costs") =~ "no public pricing"
+
+    assert MarketingMarkdown.get("/solutions/ci-costs") =~
+             "access is invite-only, and per-minute rates are on the [pricing page]"
   end
 
   test "comparisons disclose their perspective, primary sources, and review date" do
@@ -421,7 +423,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
   test "documents important feature-specific constraints" do
     assert MarketingMarkdown.get("/compute") =~ "invite-only"
-    assert MarketingMarkdown.get("/compute") =~ "Pricing is not public yet"
+    assert MarketingMarkdown.get("/compute") =~ "Per-minute macOS and Linux rates are listed on the [pricing page]"
     assert MarketingMarkdown.get("/tests") =~ "Tuist-generated Xcode projects"
     assert MarketingMarkdown.get("/previews") =~ "device builds must be correctly signed"
     assert MarketingMarkdown.get("/pricing") =~ "does not duplicate numeric rates"

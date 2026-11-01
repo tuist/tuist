@@ -31,6 +31,6 @@ Sources checked on **2026-10-08**: [Ubicloud repository](https://github.com/ubic
 
 ## Limitations
 
-Check required operating systems, regions, and hosted versus self-operated terms. Cache protocols, retention, and trust boundaries differ. Public source does not imply identical licenses or maintenance obligations. Tuist support varies by toolchain, and its runners remain invite-only with no public pricing. No universal performance or cost advantage is claimed.
+Check required operating systems, regions, and hosted versus self-operated terms. Cache protocols, retention, and trust boundaries differ. Public source does not imply identical licenses or maintenance obligations. Tuist support varies by toolchain, and its runners remain invite-only. Runner rates are listed per minute on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No universal performance or cost advantage is claimed.
 
 Related: [BuildJet](/marketing-markdown/compare/buildjet), [RunsOn](/marketing-markdown/compare/runs-on), and [all comparisons](/marketing-markdown/compare).

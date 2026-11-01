@@ -120,6 +120,30 @@ metered = [
     ]
   },
   %{
+    name: dgettext("marketing", "Tuist Runners"),
+    description:
+      dgettext(
+        "marketing",
+        "Managed macOS and Linux runners next to your cache, billed per minute of job time."
+      ),
+    hint: nil,
+    link: %{label: dgettext("marketing", "See every machine and rate"), href: "#runners"},
+    values: [
+      dgettext("marketing", "100 macOS minutes"),
+      %{
+        value: dgettext("marketing", "100 macOS minutes"),
+        description:
+          dgettext(
+            "marketing",
+            "+ from %{macos}/min on macOS and %{linux}/min on Linux",
+            macos: "$0.06",
+            linux: "$0.001"
+          )
+      },
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
     name: dgettext("marketing", "Test Insights"),
     description:
       dgettext(
@@ -270,7 +294,63 @@ included = [
   }
 ]
 
-features = base_price ++ metered ++ included %>
+features = base_price ++ metered ++ included
+
+runner_platforms = [
+  %{
+    id: "macos",
+    name: "macOS",
+    description: "Apple M5 Pro",
+    machines: [
+      %{vcpus: 8, memory_gb: 24, price: "$0.06"},
+      %{vcpus: 16, memory_gb: 48, price: "$0.12"}
+    ]
+  },
+  %{
+    id: "linux",
+    name: "Linux",
+    description: "x86-64",
+    machines: [
+      %{vcpus: 1, memory_gb: 2, price: "$0.001"},
+      %{vcpus: 2, memory_gb: 4, price: "$0.002"},
+      %{vcpus: 2, memory_gb: 8, price: "$0.0024"},
+      %{vcpus: 4, memory_gb: 8, price: "$0.004"},
+      %{vcpus: 4, memory_gb: 16, price: "$0.0048"},
+      %{vcpus: 8, memory_gb: 16, price: "$0.008"},
+      %{vcpus: 8, memory_gb: 32, price: "$0.0096"},
+      %{vcpus: 16, memory_gb: 32, price: "$0.016"},
+      %{vcpus: 16, memory_gb: 64, price: "$0.0192"}
+    ]
+  }
+]
+
+runner_terms = [
+  %{
+    title: dgettext("marketing", "100 free macOS minutes every month"),
+    description:
+      dgettext(
+        "marketing",
+        "Included on every plan, Air too."
+      )
+  },
+  %{
+    title: dgettext("marketing", "100 GB of cache volumes free"),
+    description:
+      dgettext(
+        "marketing",
+        "Keep dependencies and build outputs between jobs. Beyond 100 GB per account, storage is %{price} per GB-month.",
+        price: "$0.10"
+      )
+  },
+  %{
+    title: dgettext("marketing", "Yearly and volume discounts"),
+    description:
+      dgettext(
+        "marketing",
+        "Commit for a year or run at higher volume and we'll lower your rate."
+      )
+  }
+] %>
 <%!-- Redesigned pricing page (styles in css/routes/pricing.css). --%>
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-pricing">
@@ -427,6 +507,9 @@ features = base_price ++ metered ++ included %>
                         </span>
                       </:trigger>
                     </.tooltip>
+                    <a :if={feature[:link]} href={feature.link.href} data-part="feature-link">
+                      {feature.link.label}
+                    </a>
                   </th>
                   <td
                     :for={{value, index} <- Enum.with_index(feature.values)}
@@ -479,6 +562,82 @@ features = base_price ++ metered ++ included %>
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div data-part="runners" id="runners">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Compute")}</span>
+          <h2 data-part="title" id="pricing-runners-title">
+            {dgettext("marketing", "Tuist Runners pricing")}
+          </h2>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "Run macOS and Linux CI jobs next to your cache, on any plan. You pay per minute of job time with no rounding up to whole minutes, and machine boot and cleanup are on us."
+            )}
+          </p>
+        </div>
+
+        <div data-part="platforms">
+          <article
+            :for={platform <- runner_platforms}
+            data-part="platform"
+            data-platform={platform.id}
+            aria-labelledby={"pricing-runners-#{platform.id}"}
+          >
+            <div data-part="platform-head">
+              <h3 data-part="name" id={"pricing-runners-#{platform.id}"}>{platform.name}</h3>
+              <p data-part="description">{platform.description}</p>
+            </div>
+            <table data-part="machines">
+              <thead>
+                <tr>
+                  <th scope="col">{dgettext("marketing", "Machine")}</th>
+                  <th scope="col">{dgettext("marketing", "Price")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr :for={machine <- platform.machines}>
+                  <th scope="row">
+                    {dgettext("marketing", "%{vcpus} vCPU · %{memory} GB",
+                      vcpus: machine.vcpus,
+                      memory: machine.memory_gb
+                    )}
+                  </th>
+                  <td>
+                    {machine.price}<span data-part="unit">{dgettext("marketing", "/min")}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+          <ul data-part="terms">
+            <li :for={term <- runner_terms} data-part="term">
+              <.system_check />
+              <div>
+                <div data-part="term-title">{term.title}</div>
+                <div data-part="term-description">{term.description}</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div data-part="access">
+          <p data-part="access-text">
+            {dgettext(
+              "marketing",
+              "Tuist Runners are invite-only while we scale capacity. Tell us about your workloads and we'll get you set up, including yearly and volume pricing."
+            )}
+          </p>
+          <.button
+            href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="secondary"
+            size="large"
+            label={dgettext("marketing", "Request access")}
+          />
         </div>
       </div>
 

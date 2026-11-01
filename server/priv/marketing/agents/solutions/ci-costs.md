@@ -47,10 +47,10 @@ Ask for the largest observed source of avoidable work, one intervention, and the
 1. Choose one high-volume workflow and establish its cost and timing baseline.
 2. Reduce one source of duplicate work or retries using [Cache](/marketing-markdown/cache) or [Tests](/marketing-markdown/tests).
 3. Rerun equivalent workloads and include the new cache and service charges.
-4. Compare total cost and feedback time. If compute still dominates, review optional [Tuist Runners](/marketing-markdown/compute) against your required platforms and concurrency; access is invite-only and pricing is not public.
+4. Compare total cost and feedback time. If compute still dominates, review optional [Tuist Runners](/marketing-markdown/compute) against your required platforms and concurrency; access is invite-only, and per-minute rates are on the [pricing page](/pricing).
 
 ## Limitations
 
-The bill may rise because the team ships more or runs more verification, even if each job improves. Caching can cost more than rebuilding small outputs. Quarantine can hide regressions; sharding is not inherently cheaper. Toolchain support and billing models differ, so use current [pricing guidance](/marketing-markdown/pricing). Tuist Runners are invite-only and have no public pricing; this page does not claim they are cheaper than another provider or guarantee savings.
+The bill may rise because the team ships more or runs more verification, even if each job improves. Caching can cost more than rebuilding small outputs. Quarantine can hide regressions; sharding is not inherently cheaper. Toolchain support and billing models differ, so use current [pricing guidance](/marketing-markdown/pricing). Tuist Runners are invite-only, and yearly commitments and volume carry discounts, so a listed rate is not a quote. This page does not claim they are cheaper than another provider or guarantee savings.
 
 Related: [slow builds](/marketing-markdown/solutions/slow-builds), [slow tests](/marketing-markdown/solutions/slow-tests), and [flaky tests](/marketing-markdown/solutions/flaky-tests).

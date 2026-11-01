@@ -33,6 +33,6 @@ Sources checked on **2026-10-08**: [Appcircle documentation](https://docs.appcir
 
 ## Limitations
 
-An MCP endpoint is not proof of equivalent investigation depth or safe autonomous actions. Check authentication, supported tools, deployment requirements, and commercial terms. Tuist module caching and selective testing require generated Xcode projects. Tuist Runners are invite-only with no public pricing. No speedup, cost saving, or universal licensing advantage is claimed.
+An MCP endpoint is not proof of equivalent investigation depth or safe autonomous actions. Check authentication, supported tools, deployment requirements, and commercial terms. Tuist module caching and selective testing require generated Xcode projects. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No speedup, cost saving, or universal licensing advantage is claimed.
 
 Related: [Codemagic](/marketing-markdown/compare/codemagic), [Bitrise](/marketing-markdown/compare/bitrise), and [all comparisons](/marketing-markdown/compare).

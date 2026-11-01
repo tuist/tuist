@@ -33,6 +33,6 @@ Sources checked on **2026-10-08**: [RunsOn documentation](https://runs-on.com/do
 
 ## Limitations
 
-Platform support and commercial terms change. Customer-owned infrastructure still needs operational ownership. Tuist's Elixir integration provides insights, not remote build caching, and selective testing requires generated Xcode projects. Public source does not imply unrestricted server self-hosting. Tuist Runners are invite-only with no public pricing; no cheapest-runner claim is made.
+Platform support and commercial terms change. Customer-owned infrastructure still needs operational ownership. Tuist's Elixir integration provides insights, not remote build caching, and selective testing requires generated Xcode projects. Public source does not imply unrestricted server self-hosting. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No cheapest-runner claim is made.
 
 Related: [Cirun](/marketing-markdown/compare/cirun), [Ubicloud](/marketing-markdown/compare/ubicloud), and [all comparisons](/marketing-markdown/compare).

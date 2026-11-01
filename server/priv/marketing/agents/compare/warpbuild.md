@@ -31,6 +31,6 @@ Sources checked on **2026-10-08**: WarpBuild's [cloud runners](https://www.warpb
 
 ## Limitations
 
-Benchmark results, machine images, and integration scope change. MCP presence does not establish equivalent data or actions. Tuist module caching and selective testing require generated Xcode projects; ordinary compilation caching requires Xcode 26+. Licenses and self-hosting terms are component-specific. Tuist Runners are invite-only with no public pricing; no guaranteed speedup or cheapest-provider claim is made.
+Benchmark results, machine images, and integration scope change. MCP presence does not establish equivalent data or actions. Tuist module caching and selective testing require generated Xcode projects; ordinary compilation caching requires Xcode 26+. Licenses and self-hosting terms are component-specific. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No guaranteed speedup or cheapest-provider claim is made.
 
 Related: [Blacksmith](/marketing-markdown/compare/blacksmith), [Namespace](/marketing-markdown/compare/namespace), and [all comparisons](/marketing-markdown/compare).
