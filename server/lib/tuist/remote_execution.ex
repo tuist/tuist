@@ -6,7 +6,9 @@ defmodule Tuist.RemoteExecution do
   account's concurrency (`Tuist.RemoteExecution.VMs`).
   """
   alias Tuist.Accounts.Account
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.KeyValueStore
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
   alias Tuist.RemoteExecution.Scheduler
@@ -15,6 +17,8 @@ defmodule Tuist.RemoteExecution do
   alias Tuist.Repo
 
   @max_wait_ms 5_000
+  # Every action authorizes its project; the handles rarely change.
+  @project_ttl to_timeout(second: 10)
   # Base64 of the gateway's prefetched action metadata and small inputs.
   @max_inputs_bytes 349_528
 
@@ -42,8 +46,7 @@ defmodule Tuist.RemoteExecution do
   end
 
   def authorize(token, account_handle, project_handle, opts \\ []) do
-    with project when not is_nil(project) <-
-           Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
+    with project when not is_nil(project) <- project(account_handle, project_handle),
          %{active: true, cache_grants: grants} <-
            Introspection.token_response(token, project.account),
          handle = String.downcase("#{project.account.name}/#{project.name}"),
@@ -103,6 +106,19 @@ defmodule Tuist.RemoteExecution do
   end
 
   def maintain, do: VMs.reap()
+
+  defp project(account_handle, project_handle) do
+    lookup = fn -> Projects.get_project_by_account_and_project_handles(account_handle, project_handle) end
+
+    if Environment.test?(),
+      do: lookup.(),
+      else:
+        KeyValueStore.get_or_update(
+          [:remote_execution, :project, account_handle, project_handle],
+          [ttl: @project_ttl],
+          lookup
+        )
+  end
 
   defp wait(opts), do: opts |> Keyword.get(:wait, @max_wait_ms) |> max(0) |> min(@max_wait_ms)
 end
