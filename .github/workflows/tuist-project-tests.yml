@@ -20,7 +20,8 @@ name: tuist/tuist Tests
 #   and app tests run in full (`--no-selective-testing`) against that warm, and
 #   `tuist coverage complete` follows when both passed. Every merge runs on its
 #   own, so every merge is measured; the full runs hold two macOS runners for up
-#   to two hours. Acceptance runs alongside the warm, selectively.
+#   to two hours. Acceptance runs alongside the warm, selectively. The app's
+#   UI tests run only here, after the warm, outside the coverage signal.
 #
 # Nothing in a deploy or release waits on this workflow. The checkout is the
 # default one, so every job resolves the same commit: on main the pushed commit,
@@ -260,6 +261,46 @@ jobs:
           cache-key: app-macos-workspace-app-test
       - name: Run tests
         run: tuist test TuistApp ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+  # The iOS app's XCUITests in a simulator, on main only so a slow or flaky
+  # simulator never blocks a pull request. Outside the coverage signal: the
+  # scheme sets `coverage: false` and Complete Coverage doesn't wait for it.
+  app-ui-tests:
+    name: App UI Tests
+    needs: cache
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    if: >-
+      !cancelled() && github.repository == 'tuist/tuist' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: app-macos-workspace-app-ui-test
+      - name: Run tests
+        run: tuist test TuistAppUITests --platform iOS --no-selective-testing -- -retry-tests-on-failure -test-iterations 3 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   acceptance-tests-build:
     name: Build Acceptance Tests

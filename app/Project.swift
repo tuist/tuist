@@ -200,6 +200,18 @@ let project = Project(
             ]
         ),
         .target(
+            name: "TuistAppUITests",
+            destinations: .iOS,
+            product: .uiTests,
+            bundleId: "dev.tuist.app-ui-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistAppUITests/**"],
+            dependencies: [
+                .target(name: "TuistApp"),
+            ]
+        ),
+        .target(
             name: "TuistNoora",
             destinations: .iOS,
             product: .staticFramework,
@@ -311,6 +323,18 @@ let project = Project(
             name: "TuistPreviews",
             buildAction: .buildAction(targets: [.target("TuistPreviews")]),
             testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
+        ),
+        .scheme(
+            name: "TuistAppUITests",
+            buildAction: .buildAction(targets: [.target("TuistApp")]),
+            testAction: .targets(
+                [.testableTarget(target: "TuistAppUITests")],
+                // Explicit, so mise.toml's TUIST_COVERAGE_ENABLED doesn't add these runs to the app's coverage.
+                options: .options(
+                    language: "en",
+                    coverage: false
+                )
+            )
         ),
         .scheme(
             name: "TuistApp",
