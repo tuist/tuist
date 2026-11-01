@@ -70,6 +70,12 @@ final class CargoInputHasher {
     func withSharedDigests<T>(under root: URL, body: () throws -> T) throws -> T {
         guard let sharedDirectory, loadedTrees.insert(root).inserted else { return try body() }
         let memo = sharedDirectory.appendingPathComponent("tree-" + REAPI.digest(Data(root.path.utf8)).hash)
+        // Cargo starts many compilers at once. Without this lock each one hashes the whole toolchain
+        // before any of them publishes the memo; with it, one hashes and the rest reuse its records.
+        try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
+        let lock = open(memo.path + ".lock", O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        if lock >= 0 { _ = flock(lock, LOCK_EX) }
+        defer { if lock >= 0 { close(lock) } }
         let prefix = root.path + "/"
         var previous: [String: Entry] = [:]
         if let handle = try? FileHandle(forReadingFrom: memo) {

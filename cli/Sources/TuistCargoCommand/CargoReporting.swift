@@ -113,7 +113,15 @@ struct CargoReporting {
         if metadataLimit > 20, payload["custom_metadata"] == nil {
             AlertController.current.warning(.alert("Cargo build metadata is invalid and was omitted from the report."))
         }
-        if let cache = CargoCacheReport.read(root: root) { payload["cache"] = cache }
+        if let cache = CargoCacheReport.read(root: root) {
+            payload["cache"] = cache
+            if environment["TUIST_DEBUG"] == "1",
+               let tasks = (cache["details"] as? [String: Any])?["tasks"] as? [[String: Any]]
+            {
+                let lines = tasks.map { "Tuist Cargo cache: \($0["status"] ?? "") \($0["kind"] ?? "") \($0["name"] ?? "")\n" }
+                FileHandle.standardError.write(Data(lines.sorted().joined().utf8))
+            }
+        }
         await submit(payload, kind: "builds")
     }
 

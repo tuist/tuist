@@ -10,14 +10,17 @@ struct CargoCacheInvocation: CargoCacheAction {
     let compiler: URL
     let launcher: URL
     let toolchain: URL
+    /// `lib/rustlib/<host>` in the toolchain. Other installed targets and `rust-src` cannot affect host library builds.
+    let hostTarget: URL
     let output: URL
     let name: String
     let files: [String]
     var key: REAPI.Digest
     let inputHasher: CargoInputHasher
     var compilerInputs: CargoCacheInputs?
+    let relocation: CargoRelocation
 
-    static let keyVersion = "tuist-swift-cargo-cache-v4"
+    static let keyVersion = "tuist-swift-cargo-cache-v5"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
     static let ignoredEnvironment = Set([
@@ -88,11 +91,16 @@ struct CargoCacheInvocation: CargoCacheAction {
         let externs = try CargoCacheInputs.resolveExterns(
             arguments: arguments, environment: environment, directory: directory, inputHasher: inputHasher
         )
-        let sysroot = try await process.capture(
-            executable, arguments: ["--print", "sysroot"], environment: environment, directory: directory
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard sysroot.hasPrefix("/") else { return nil }
-        let toolchain = URL(fileURLWithPath: sysroot).standardizedFileURL
+        let paths = try await process.capture(
+            executable, arguments: ["--print", "sysroot", "--print", "target-libdir"],
+            environment: environment, directory: directory
+        ).split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard paths.count == 2, paths.allSatisfy({ $0.hasPrefix("/") }) else { return nil }
+        let toolchain = URL(fileURLWithPath: paths[0]).standardizedFileURL
+        let hostTarget = URL(fileURLWithPath: paths[1]).standardizedFileURL.deletingLastPathComponent()
+        guard hostTarget.deletingLastPathComponent() == toolchain.appendingPathComponent("lib/rustlib"),
+              hostTarget.appendingPathComponent("lib") == URL(fileURLWithPath: paths[1]).standardizedFileURL
+        else { return nil }
         let compiler = toolchain.appendingPathComponent("bin/rustc")
         guard let launcher = resolve(executable, environment: environment, directory: directory) else { return nil }
         if launcher != compiler.resolvingSymlinksInPath() {
@@ -102,11 +110,12 @@ struct CargoCacheInvocation: CargoCacheAction {
         let files = ["lib\(name)\(suffix).rlib", "lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
         var candidate = CargoCacheInvocation(
             arguments: arguments, environment: environment, directory: directory, package: package,
-            compiler: compiler, launcher: launcher, toolchain: toolchain,
+            compiler: compiler, launcher: launcher, toolchain: toolchain, hostTarget: hostTarget,
             output: URL(fileURLWithPath: out).standardizedFileURL,
             name: name, files: files, key: REAPI.emptyBlob,
             inputHasher: inputHasher,
-            compilerInputs: nil
+            compilerInputs: nil,
+            relocation: CargoRelocation(environment: environment, sysroot: toolchain)
         )
         if environment["OUT_DIR"] == nil,
            CargoCacheInputs.values("--extern", in: arguments).isEmpty,
@@ -150,48 +159,27 @@ struct CargoCacheInvocation: CargoCacheAction {
         }
         let libraries = toolchain.appendingPathComponent("lib")
         inputs += try inputHasher.withSharedDigests(under: libraries) {
-            try snapshot(libraries, budget: &budget)
+            // The compiler's own libraries, then the host target's standard library and runtime support.
+            // Its `bin` directory only serves linking, which library compilations never perform.
+            try snapshot(libraries, budget: &budget, recursive: false)
+                + snapshot(hostTarget, budget: &budget, excluding: "bin")
         }
         for executable in Set([compiler.resolvingSymlinksInPath(), launcher]).sorted(by: { $0.path < $1.path }) {
             let digest = try inputHasher.digest(executable, shared: true)
             inputs += [executable.path, digest.hash, String(digest.sizeBytes)]
         }
-        return REAPI.digest(try JSONEncoder().encode(inputs))
+        // Every path is keyed relative to its root; the compilation itself runs with matching remaps.
+        inputs.append(relocation.remapArguments.map(relocation.relative).joined(separator: " "))
+        return REAPI.digest(try JSONEncoder().encode(inputs.map(relocation.relative)))
     }
 
-    private static let sourceWords = [
-        "asm", "global_asm", "naked_asm", "link", "link_args", "concat_idents", "macro_metavar_expr_concat", "concat",
-    ].map { Array($0.utf8) }
+    var remapArguments: [String] { relocation.remapArguments }
 
-    /// Non-ASCII bytes conservatively delimit candidates; the regex still decides Unicode boundaries and whitespace.
-    private static func hasSourceWord(_ data: Data) -> Bool {
-        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> Bool in
-            func isWord(_ byte: UInt8) -> Bool {
-                (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 95
-            }
-            var index = 0
-            while index < bytes.count {
-                guard isWord(bytes[index]) else { index += 1; continue }
-                let start = index
-                repeat {
-                    index += 1
-                } while index < bytes.count && isWord(bytes[index])
-                let word = bytes[start ..< index]
-                if sourceWords.contains(where: { $0.count == word.count && word.elementsEqual($0) }) {
-                    return true
-                }
-            }
-            return false
-        }
-    }
+    func storedOutput(_ data: Data) -> Data? { relocation.relative(data) }
 
-    private static func validateSource(_ data: Data) throws {
-        guard hasSourceWord(data) else { return }
-        if let text = String(data: data, encoding: .utf8), text.range(
-            of: "\\b(asm|global_asm|naked_asm|link|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\$\\s*\\{\\s*concat\\b",
-            options: .regularExpression
-        ) != nil { throw CacheError.unsupported }
-    }
+    func unkeyedRoots(in data: Data) -> [String] { relocation.boundRoots(in: data).map(\.path) }
+
+    func restoredOutput(_ data: Data) -> Data? { relocation.absolute(data) }
 
     func acceptsOutput(_ file: String) -> Bool {
         if files.contains(file) { return true }
@@ -300,11 +288,14 @@ struct CargoCacheInvocation: CargoCacheAction {
         return result
     }
 
-    private func snapshot(_ root: URL, budget: inout Int, inspectSources: Bool = false) throws -> [String] {
+    private func snapshot(
+        _ root: URL, budget: inout Int, inspectSources: Bool = false, recursive: Bool = true, excluding: String? = nil
+    ) throws -> [String] {
         var failed = false
         guard try root.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true,
               let entries = FileManager.default.enumerator(
                   at: root, includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey],
+                  options: recursive ? [] : [.skipsSubdirectoryDescendants],
                   errorHandler: { _, _ in failed = true; return false }
               ) else { throw CacheError.unsupported }
         var files: [(file: URL, digest: REAPI.Digest)] = []
@@ -315,6 +306,12 @@ struct CargoCacheInvocation: CargoCacheAction {
                 .isSymbolicLinkKey,
                 .fileSizeKey,
             ])
+            if properties.isDirectory == true, file.lastPathComponent == excluding,
+               file.deletingLastPathComponent().standardizedFileURL == root.standardizedFileURL
+            {
+                entries.skipDescendants()
+                continue
+            }
             if properties.isSymbolicLink == true {
                 let target = file.resolvingSymlinksInPath()
                 guard !inspectSources, target.path.hasPrefix(toolchain.path + "/"),
@@ -335,7 +332,7 @@ struct CargoCacheInvocation: CargoCacheAction {
             if inspectSources, file.pathExtension == "rs" {
                 guard size <= 2_000_000 else { throw CacheError.unsupported }
                 digest = try inputHasher.sourceDigest(content) { data in
-                    guard let text = String(data: data, encoding: .utf8), text.range(
+                    guard let text = Self.code(data), text.range(
                         of: "\\b(asm|global_asm|naked_asm|link|link_args|extern|include|concat|concat_idents)\\b",
                         options: .regularExpression
                     ) == nil else { throw CacheError.unsupported }
@@ -361,8 +358,15 @@ struct CargoCacheInvocation: CargoCacheAction {
             .standardizedFileURL.resolvingSymlinksInPath()
     }
 
-    private static func isIgnored(_ name: String) -> Bool {
-        ignoredEnvironment.contains(name) || ignoredEnvironmentPrefixes.contains(where: name.hasPrefix)
+    /// Keys name only what rustc or the crate can read on purpose: Cargo's and rustc's own variables, deployment
+    /// targets, and the SDK. The rest of the shell (`HOME`, `PATH`, `USER`, ...) differs between machines; a crate that
+    /// reads one through `env!`/`option_env!` names it in dep-info and is never published.
+    static func isIgnored(_ name: String) -> Bool {
+        if ignoredEnvironment.contains(name) || ignoredEnvironmentPrefixes.contains(where: name.hasPrefix) { return true }
+        let keyed = ["CARGO_", "RUSTC_", "RUST_"].contains(where: name.hasPrefix)
+            || ["CARGO", "RUSTC", "RUSTFLAGS", "RUSTDOCFLAGS", "OUT_DIR", "SDKROOT", "RUSTUP_TOOLCHAIN"].contains(name)
+            || name.hasSuffix("_DEPLOYMENT_TARGET")
+        return !keyed
     }
 
     private static func option(_ name: String, in arguments: [String]) -> String? {
@@ -371,4 +375,134 @@ struct CargoCacheInvocation: CargoCacheAction {
     }
 
     enum CacheError: Error { case unsupported }
+}
+
+extension CargoCacheInvocation {
+    private static let sourceWords = [
+        "asm", "global_asm", "naked_asm", "link", "link_args", "concat_idents", "macro_metavar_expr_concat", "concat",
+    ].map { Array($0.utf8) }
+
+    /// Non-ASCII bytes conservatively delimit candidates; the regex still decides Unicode boundaries and whitespace.
+    private static func hasSourceWord(_ data: Data) -> Bool {
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> Bool in
+            func isWord(_ byte: UInt8) -> Bool {
+                (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 95
+            }
+            var index = 0
+            while index < bytes.count {
+                guard isWord(bytes[index]) else { index += 1; continue }
+                let start = index
+                repeat {
+                    index += 1
+                } while index < bytes.count && isWord(bytes[index])
+                let word = bytes[start ..< index]
+                if sourceWords.contains(where: { $0.count == word.count && word.elementsEqual($0) }) {
+                    return true
+                }
+            }
+            return false
+        }
+    }
+
+    private static func validateSource(_ data: Data) throws {
+        guard hasSourceWord(data) else { return }
+        guard let code = code(data), code.range(
+            of: "\\b(asm|global_asm|naked_asm|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\blink\\s*\\(|\\$\\s*\\{\\s*concat\\b",
+            options: .regularExpression
+        ) == nil else { throw CacheError.unsupported }
+    }
+
+    /// Rust source with comments and the contents of string, byte and character literals blanked, so admission
+    /// matches tokens rather than prose such as "symbolic link" or a `"asm"` file-type name. Returns `nil` when the
+    /// source does not lex, which callers treat as unsupported.
+    static func code(_ data: Data) -> String? {
+        var bytes = [UInt8](data)
+        let count = bytes.count
+        func isIdentifier(_ byte: UInt8) -> Bool {
+            (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 95 || byte >= 128
+        }
+        func blank(_ range: Range<Int>) {
+            for index in range where bytes[index] != 10 {
+                bytes[index] = 32
+            }
+        }
+        var index = 0
+        while index < count {
+            let byte = bytes[index]
+            let next = index + 1 < count ? bytes[index + 1] : 0
+            if byte == 47, next == 47 { // line comment
+                var end = index
+                while end < count, bytes[end] != 10 {
+                    end += 1
+                }
+                blank(index ..< end)
+                index = end
+            } else if byte == 47, next == 42 { // nested block comment
+                var depth = 0
+                var end = index
+                repeat {
+                    guard end + 1 < count else { return nil }
+                    if bytes[end] == 47, bytes[end + 1] == 42 {
+                        depth += 1
+                        end += 2
+                    } else if bytes[end] == 42, bytes[end + 1] == 47 {
+                        depth -= 1
+                        end += 2
+                    } else {
+                        end += 1
+                    }
+                } while depth > 0
+                blank(index ..< end)
+                index = end
+            } else if byte == 114, index == 0 || !isIdentifier(bytes[index - 1]) || (
+                index >= 1 && [98, 99].contains(bytes[index - 1]) && (index == 1 || !isIdentifier(bytes[index - 2]))
+            ), next == 34 || next == 35 { // raw string: r"..", r#".."#, br.., cr..
+                var hashes = 0
+                var start = index + 1
+                while start < count, bytes[start] == 35 {
+                    hashes += 1; start += 1
+                }
+                guard start < count, bytes[start] == 34 else { index += 1; continue } // raw identifier
+                var end = start + 1
+                while true {
+                    guard end < count else { return nil }
+                    if bytes[end] == 34, end + hashes < count, bytes[(end + 1) ..< (end + 1 + hashes)].allSatisfy({ $0 == 35 }) {
+                        break
+                    }
+                    end += 1
+                }
+                blank((start + 1) ..< end)
+                index = end + 1 + hashes
+            } else if byte == 34 { // string
+                var end = index + 1
+                while true {
+                    guard end < count else { return nil }
+                    if bytes[end] == 92 { end += 2; continue }
+                    if bytes[end] == 34 { break }
+                    end += 1
+                }
+                blank((index + 1) ..< end)
+                index = end + 1
+            } else if byte == 39 { // character literal or lifetime
+                var end = index + 1
+                if next == 92 {
+                    end += 2
+                    while end < count, end - index < 16, bytes[end] != 39 {
+                        end += 1
+                    }
+                    guard end < count, bytes[end] == 39 else { return nil }
+                } else {
+                    guard end < count else { return nil }
+                    let lead = bytes[end]
+                    end += lead < 0x80 ? 1 : lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : 2
+                    guard end < count, bytes[end] == 39 else { index += 1; continue } // lifetime or label
+                }
+                blank((index + 1) ..< end)
+                index = end + 1
+            } else {
+                index += 1
+            }
+        }
+        return String(bytes: bytes, encoding: .utf8)
+    }
 }

@@ -52,7 +52,7 @@ public struct CargoCommand: AsyncParsableCommand {
         do {
             try await CargoCommandService().run(arguments: arguments)
         } catch let CommandError.terminated(code, stderr, _) {
-            if arguments.first != "__compiler", arguments.first != "__native", !stderr.isEmpty {
+            if !["__compiler", "__native", "__script"].contains(arguments.first ?? ""), !stderr.isEmpty {
                 FileHandle.standardError.write(Data(stderr.utf8))
             }
             throw ExitCode(code)

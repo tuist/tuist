@@ -11,7 +11,7 @@ import TuistSupport
 private enum TuistCLI {
     static func main() async throws {
         if let arguments = CargoCommand.delegatedArguments(in: CommandLine.arguments),
-           arguments.first == "__compiler" || arguments.first == "__native"
+           ["__compiler", "__native", "__script"].contains(arguments.first ?? "")
         {
             do {
                 let command = try CargoCommand.parse(arguments)

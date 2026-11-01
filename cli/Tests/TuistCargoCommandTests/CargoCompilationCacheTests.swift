@@ -121,6 +121,10 @@ struct CargoCompilationCacheTests {
             "macro_rules! library { () => { core::arch::${concat(global_, a, sm)}!(\"nop\"); } }",
             "macro_rules! library { () => { $\u{2003}{\u{2003}concat(global_, a, sm)} } }",
             "#![feature(macro_metavar_expr_concat)]\nmacro_rules! library { () => { ${ /* gap */ concat(global_, a, sm)} } }",
+            "pub const OPEN: &str = \"/*\"; core::arch::global_asm!(\"nop\");",
+            "pub const QUOTE: char = '\"'; core::arch::global_asm!(\"nop\");",
+            "pub const RAW: &str = r#\"\"// \"#; core::arch::global_asm!(\"nop\");",
+            "/* unterminated asm",
         ] {
             try Data(source.utf8).write(to: fixture.source)
             await #expect(throws: CargoCacheInvocation.CacheError.self) {
@@ -133,6 +137,8 @@ struct CargoCompilationCacheTests {
             "pub fn library() -> Vec<u8> { [b\"tracked\", b\" input\"].concat() }",
             "pub fn blink() {} pub use core::concat;",
             "pub fn éasmé() {} pub use core::concat;",
+            "/// Follows a symbolic link, like the `asm` file type.\npub fn library<'a>(link: &'a str) -> &'a str { link }",
+            "pub const TYPES: &[&str] = &[\"asm\", r#\"link(\"#]; /* naked_asm /* nested */ */ pub use core::concat;",
         ] {
             try Data(source.utf8).write(to: fixture.source)
             #expect(try await fixture.prepare()?.compilerInputs != nil)
@@ -208,11 +214,12 @@ struct CargoCompilationCacheTests {
         let bin = fixture.root.appendingPathComponent("proxy-bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
         let rustup = bin.appendingPathComponent("rustup")
-        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)'\n".write(
-            to: rustup,
-            atomically: true,
-            encoding: .utf8
-        )
+        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)' '\(fixture.invocation.hostTarget.path)/lib'\n"
+            .write(
+                to: rustup,
+                atomically: true,
+                encoding: .utf8
+            )
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rustup.path)
         let rustc = bin.appendingPathComponent("rustc")
         try FileManager.default.createSymbolicLink(at: rustc, withDestinationURL: rustup)
@@ -237,11 +244,12 @@ struct CargoCompilationCacheTests {
         let bin = fixture.root.appendingPathComponent("proxy-bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
         let rustc = bin.appendingPathComponent("rustc")
-        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)'\n".write(
-            to: rustc,
-            atomically: true,
-            encoding: .utf8
-        )
+        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)' '\(fixture.invocation.hostTarget.path)/lib'\n"
+            .write(
+                to: rustc,
+                atomically: true,
+                encoding: .utf8
+            )
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rustc.path)
         var environment = fixture.invocation.environment
         environment["PATH"] = "\(bin.path):/usr/bin:/bin"
@@ -524,7 +532,7 @@ struct CargoCompilationCacheTests {
 
     @Test(.inTemporaryDirectory) func cacheFailureDoesNotReplaceCompilerExitStatus() async throws {
         let fixture = try await fixture()
-        let script = "#!/bin/sh\nif [ \"$1\" = --print ]; then printf '%s' '\(fixture.invocation.toolchain.path)'; else exit 31; fi\n"
+        let script = "#!/bin/sh\nif [ \"$1\" = --print ]; then printf '%s\\n' '\(fixture.invocation.toolchain.path)' '\(fixture.invocation.hostTarget.path)/lib'; else exit 31; fi\n"
         try script.write(to: fixture.invocation.compiler, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.invocation.compiler.path)
         do {
@@ -838,7 +846,8 @@ struct CargoCompilationCacheTests {
         let package = root.appendingPathComponent("cargo/registry/src/test/tiny")
         let toolchain = root.appendingPathComponent("toolchain")
         let output = root.appendingPathComponent("output")
-        for folder in [package, toolchain.appendingPathComponent("lib"), toolchain.appendingPathComponent("bin"), output] {
+        let hostLibraries = toolchain.appendingPathComponent("lib/rustlib/host/lib")
+        for folder in [package, hostLibraries, toolchain.appendingPathComponent("bin"), output] {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         }
         let source = package.appendingPathComponent("lib.rs")
@@ -848,7 +857,7 @@ struct CargoCompilationCacheTests {
         try "artifact: \(escaped)\n".write(to: root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8)
         try """
         #!/bin/sh
-        if [ "$1" = --print ]; then printf '%s' '\(toolchain.path)'; exit 0; fi
+        if [ "$1" = --print ]; then printf '%s\\n' '\(toolchain.path)' '\(hostLibraries.path)'; exit 0; fi
         for argument in "$@"; do
           case "$argument" in
             --emit=dep-info=*)
