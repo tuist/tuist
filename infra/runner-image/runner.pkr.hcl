@@ -206,7 +206,7 @@ source "tart-cli" "runner" {
   # what its job writes, so the size costs host disk only when a job fills
   # it; the rack's disk plan (`rackFleet.machine` in
   # values-managed-production.yaml) counts two guests at this size.
-  disk_size_gb = 200
+  disk_size_gb = 300
 }
 
 build {
@@ -757,20 +757,20 @@ build {
 
   # Disk budget. Every job VM is a fresh clone of this image, so the
   # space free here is the space a job starts with. Tuist commits to at
-  # least 45 GiB of it, and the build fails below 100 GiB so every job
-  # keeps that much room to write before the disk fills (a single job has
-  # written 66 GiB). Avail, not Size - Used: the System, Preboot, VM and
-  # Recovery volumes share the APFS container with the Data volume the
-  # job writes to. Runs last, after everything above has written to the
-  # disk.
+  # least 45 GiB of it, and the build fails below 200 GiB so every job
+  # keeps that much room to write before the disk fills (a single cache
+  # warm has written over 85 GiB). Avail, not Size - Used: the System,
+  # Preboot, VM and Recovery volumes share the APFS container with the
+  # Data volume the job writes to. Runs last, after everything above has
+  # written to the disk.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "df -h -t apfs",
       "avail_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 { print $4 }')",
       "avail_gib=$((avail_kib / 1048576))",
-      "echo \"disk budget: $${avail_gib} GiB available to a job, floor 100 GiB\"",
-      "[ \"$${avail_gib}\" -ge 100 ] || { echo \"disk budget: only $${avail_gib} GiB available, below the 100 GiB floor; shrink the image or raise disk_size_gb\" >&2; exit 1; }"
+      "echo \"disk budget: $${avail_gib} GiB available to a job, floor 200 GiB\"",
+      "[ \"$${avail_gib}\" -ge 200 ] || { echo \"disk budget: only $${avail_gib} GiB available, below the 200 GiB floor; shrink the image or raise disk_size_gb\" >&2; exit 1; }"
     ]
   }
 }
