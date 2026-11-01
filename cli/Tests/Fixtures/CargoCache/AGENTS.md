@@ -63,3 +63,12 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 This fixture exercises `cargo __native` with real Clang and verifies linked executable output against uncached Clang. It checks cold/warm reuse, corrupt-blob fallback, header edits, a newly present `__has_include` file without a corresponding `#include`, and an earlier search-path header shadowing an unchanged old header. SDK declaration asm labels and empty instruction templates remain eligible. Caller-owned dependency outputs and assembler `.include` inputs bypass caching; changing the assembler input still changes the program. The hook must work with an unavailable generic CLI state directory. Full public Cargo benchmarks separately qualify wrapper installation, normal build-script execution and remote storage.
 
 Header symlinks must support warm reuse and invalidate when retargeted. C23 digit separators must not hide assembly from source admission, and response files in option operands must bypass caching so caller-owned outputs are preserved. The small fixture runs local-only; remote native caching intentionally bypasses sources smaller than 32 KiB to avoid spending more on discovery and transfer than compilation.
+
+## Dependency units
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  python3 cli/Tests/Fixtures/CargoCache/units_e2e.py
+```
+
+Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib is never linked. Every build's program must print `42`.

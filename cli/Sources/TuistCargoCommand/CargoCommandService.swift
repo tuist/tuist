@@ -179,6 +179,15 @@ public struct CargoCommandService {
             }
             let started = Date()
             environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
+            var unitCache = cache == nil ? nil : await CargoUnitCache.prepare(
+                executable: context.executable, arguments: context.arguments, environment: environment,
+                directory: context.directory, process: CargoProcess(runner: runner)
+            )
+            if unitCache != nil, remoteEnvironment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil {
+                unitCache?.remote = try? await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4)
+            }
+            await unitCache?.restore()
+            let units = unitCache
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,
@@ -198,6 +207,7 @@ public struct CargoCommandService {
                 defer { group.cancelAll() }
                 try Task.checkCancellation()
                 try await executeSession(child, root: root, started: started, metadata: metadata)
+                await units?.store()
             }
         }
     }
