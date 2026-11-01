@@ -16,6 +16,7 @@ defmodule Atlas.Support.Workers.PostNotification do
   @events %{
     "inbound_received" => :inbound_received,
     "chat_received" => :chat_received,
+    "agent_feedback_received" => :agent_feedback_received,
     "reply_delivered" => :reply_delivered,
     "note_added" => :note_added,
     "status_changed" => :status_changed,

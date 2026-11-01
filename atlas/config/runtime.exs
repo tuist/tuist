@@ -229,6 +229,10 @@ if gtm_ingest_token = System.get_env("ATLAS_GTM_INGEST_TOKEN") do
   config :atlas, :gtm_ingest, token: gtm_ingest_token
 end
 
+if support_ingest_token = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN") do
+  config :atlas, :support_ingest, token: support_ingest_token
+end
+
 # Mailgun is the company's email provider: tuist.dev is already verified there
 # and has a sending history, which a second provider would not inherit. The
 # account is in Mailgun's EU region, so the base URL is not the default one.

@@ -183,6 +183,10 @@ defmodule AtlasWeb.Router do
     post "/email/transactional", GTMTransactionalController, :create
     post "/licenses/actions/validate-key", LicenseValidationController, :create
 
+    # Feedback AI agents report through the Tuist MCP server. The Tuist server
+    # authenticates the user and calls this with ATLAS_SUPPORT_INGEST_TOKEN.
+    post "/support/agent-feedback", SupportAgentFeedbackController, :create
+
     # Direct-to-storage document upload used by the `Local` storage backend in
     # dev and test. Production uses S3-compatible presigned URLs instead.
     put "/documents/uploads/local/:token", DocumentUploadController, :put
