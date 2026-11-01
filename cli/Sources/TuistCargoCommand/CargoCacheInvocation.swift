@@ -18,8 +18,9 @@ struct CargoCacheInvocation: CargoCacheAction {
     var key: REAPI.Digest
     let inputHasher: CargoInputHasher
     var compilerInputs: CargoCacheInputs?
+    let relocation: CargoRelocation
 
-    static let keyVersion = "tuist-swift-cargo-cache-v4"
+    static let keyVersion = "tuist-swift-cargo-cache-v5"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
     static let ignoredEnvironment = Set([
@@ -113,7 +114,8 @@ struct CargoCacheInvocation: CargoCacheAction {
             output: URL(fileURLWithPath: out).standardizedFileURL,
             name: name, files: files, key: REAPI.emptyBlob,
             inputHasher: inputHasher,
-            compilerInputs: nil
+            compilerInputs: nil,
+            relocation: CargoRelocation(environment: environment, sysroot: toolchain)
         )
         if environment["OUT_DIR"] == nil,
            CargoCacheInputs.values("--extern", in: arguments).isEmpty,
@@ -166,8 +168,18 @@ struct CargoCacheInvocation: CargoCacheAction {
             let digest = try inputHasher.digest(executable, shared: true)
             inputs += [executable.path, digest.hash, String(digest.sizeBytes)]
         }
-        return REAPI.digest(try JSONEncoder().encode(inputs))
+        // Every path is keyed relative to its root; the compilation itself runs with matching remaps.
+        inputs.append(relocation.remapArguments.map(relocation.relative).joined(separator: " "))
+        return REAPI.digest(try JSONEncoder().encode(inputs.map(relocation.relative)))
     }
+
+    var remapArguments: [String] { relocation.remapArguments }
+
+    func storedOutput(_ data: Data) -> Data? { relocation.relative(data) }
+
+    func unkeyedRoots(in data: Data) -> [String] { relocation.boundRoots(in: data).map(\.path) }
+
+    func restoredOutput(_ data: Data) -> Data? { relocation.absolute(data) }
 
     func acceptsOutput(_ file: String) -> Bool {
         if files.contains(file) { return true }
@@ -346,8 +358,15 @@ struct CargoCacheInvocation: CargoCacheAction {
             .standardizedFileURL.resolvingSymlinksInPath()
     }
 
-    private static func isIgnored(_ name: String) -> Bool {
-        ignoredEnvironment.contains(name) || ignoredEnvironmentPrefixes.contains(where: name.hasPrefix)
+    /// Keys name only what rustc or the crate can read on purpose: Cargo's and rustc's own variables, deployment
+    /// targets, and the SDK. The rest of the shell (`HOME`, `PATH`, `USER`, ...) differs between machines; a crate that
+    /// reads one through `env!`/`option_env!` names it in dep-info and is never published.
+    static func isIgnored(_ name: String) -> Bool {
+        if ignoredEnvironment.contains(name) || ignoredEnvironmentPrefixes.contains(where: name.hasPrefix) { return true }
+        let keyed = ["CARGO_", "RUSTC_", "RUST_"].contains(where: name.hasPrefix)
+            || ["CARGO", "RUSTC", "RUSTFLAGS", "RUSTDOCFLAGS", "OUT_DIR", "SDKROOT", "RUSTUP_TOOLCHAIN"].contains(name)
+            || name.hasSuffix("_DEPLOYMENT_TARGET")
+        return !keyed
     }
 
     private static func option(_ name: String, in arguments: [String]) -> String? {

@@ -29,6 +29,13 @@ public struct CargoCommandService {
             ? try CargoTestSelection.planning(arguments) : (arguments: arguments, options: [:])
         let invocation = CargoInvocation(parsed.arguments)
         if let toolchain = invocation.toolchain { environment["RUSTUP_TOOLCHAIN"] = toolchain }
+        if arguments.first == "__script", arguments.count >= 2 {
+            try await CargoBuildScript.run(
+                real: arguments[1], arguments: Array(arguments.dropFirst(2)), environment: environment,
+                directory: directory, runner: runner
+            )
+            return
+        }
         if arguments.first == "__compiler" || arguments.first == "__native" {
             try await CargoCompilerObserver(runner: runner).run(
                 Array(arguments.dropFirst()),
@@ -185,6 +192,15 @@ public struct CargoCommandService {
             )
             if unitCache != nil, remoteEnvironment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil {
                 unitCache?.remote = try? await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4)
+            }
+            if let unitCache {
+                environment["TUIST_CARGO_TARGET_DIR"] = unitCache.targetDirectory.path
+                environment["TUIST_CARGO_WORKSPACE_ROOT"] = unitCache.workspaceRoot.path
+                // Recorded compilations and build-script runs need relocatable roots, so they share its scope.
+                if let library = CargoReadRecorder.prepare(cacheDirectory: unitCache.root) {
+                    environment["TUIST_CARGO_RECORDER"] = library.path
+                    environment["TUIST_CARGO_SCRIPT"] = try? CargoProcess.ownExecutable()
+                }
             }
             await unitCache?.restore()
             let units = unitCache

@@ -9,7 +9,10 @@ struct CargoCompilerObserver {
 
     func run(_ arguments: [String], environment: [String: String], directory: AbsolutePath, native: Bool = false) async throws {
         guard let compiler = arguments.first else { throw CargoReportError(message: "Missing compiler executable.") }
-        let invocation: (any CargoCacheAction)?
+        var invocation: (any CargoCacheAction)?
+        var recorded: CargoRecordedInvocation?
+        var remote: (any REAPICacheStoring)?
+        var remoteResolved = false
         if native {
             invocation = try? await CargoClangInvocation.prepare(
                 arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
@@ -18,8 +21,22 @@ struct CargoCompilerObserver {
             invocation = try? await CargoCacheInvocation.prepare(
                 arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
             )
+            if invocation == nil {
+                recorded = try? await CargoRecordedInvocation.prepare(
+                    arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+                )
+            }
         }
-        let measurement = invocation.map(CargoCacheMeasurement.init)
+        if let candidate = recorded, let index = candidate.index {
+            var reads = await index.get(remote: nil)
+            if reads == nil {
+                remote = try? await Self.remote(environment)
+                remoteResolved = true
+                reads = await index.get(remote: remote)
+            }
+            invocation = reads.flatMap(candidate.with)
+        }
+        let measurement = (invocation ?? recorded).map(CargoCacheMeasurement.init)
         var cache: CargoCompilationCache?
         if let invocation, let measurement, let root = environment["TUIST_CARGO_CACHE_DIR"] {
             cache = try? CargoCompilationCache(
@@ -31,10 +48,10 @@ struct CargoCompilerObserver {
             measurement?.outcome(hit: true)
             return
         }
-        if cache != nil {
-            let remote = try? await Self.remote(environment)
-            cache?.remote = remote
+        if cache != nil || recorded != nil, !remoteResolved {
+            remote = try? await Self.remote(environment)
         }
+        cache?.remote = remote
         if let cache, try await cache.restoreRemotely() {
             measurement?.outcome(hit: true)
             return
@@ -42,9 +59,25 @@ struct CargoCompilerObserver {
         try Task.checkCancellation()
         if measurement?.hasRemoteFailure == true {
             cache?.remote = nil
+            remote = nil
             if let marker = Self.remoteFailureMarker(environment) { try? Data().write(to: marker, options: .atomic) }
         }
         measurement?.outcome(hit: false)
+        // A strict invocation runs as it was keyed; any other cacheable compilation runs recorded.
+        let strict = invocation is CargoCacheInvocation || invocation is CargoClangInvocation
+        let log = recorded.flatMap { _ in environment["TUIST_CARGO_SESSION"] }
+            .map { URL(fileURLWithPath: $0).appendingPathComponent("reads-\(UUID().uuidString).log") }
+        defer { if let log { try? FileManager.default.removeItem(at: log) } }
+        let compileEnvironment = !strict ? log.flatMap { recorded?.recordingEnvironment(log: $0) } ?? environment : environment
+        var remap = strict ? invocation?.remapArguments ?? [] : recorded?.remapArguments ?? []
+        if remap.isEmpty, !native, environment["TUIST_CARGO_WORKSPACE_ROOT"] != nil, arguments.contains("--crate-name"),
+           !arguments.contains(where: { $0.hasPrefix("--print") || $0.hasPrefix("--remap-path-prefix") }),
+           let identity = try? await CargoToolchainIdentity.resolve(
+               compiler, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+           )
+        {
+            remap = CargoRelocation(environment: environment, sysroot: identity.sysroot).remapArguments
+        }
         let started = Date()
         var stdout = Data()
         var stderr = Data()
@@ -55,8 +88,15 @@ struct CargoCompilerObserver {
         var pending = Data()
         do {
             for try await event in runner.run(
-                arguments: ["/usr/bin/env", wrapper ?? compiler] + (wrapper == nil ? Array(arguments.dropFirst()) : arguments),
-                environment: environment, workingDirectory: directory
+                // A recorded compiler starts directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
+                arguments: (!strict && log != nil ? [Self.executablePath(
+                    compiler,
+                    environment: environment,
+                    directory: directory
+                )]
+                    : ["/usr/bin/env", wrapper ?? compiler]) + (wrapper == nil ? Array(arguments.dropFirst()) : arguments)
+                    + remap,
+                environment: compileEnvironment, workingDirectory: directory
             ) {
                 switch event {
                 case let .standardOutput(bytes):
@@ -81,7 +121,31 @@ struct CargoCompilerObserver {
         } catch { executionError = error }
         record(arguments, environment: environment, started: started, failed: executionError != nil, diagnostics: diagnostics)
         if let executionError { throw executionError }
-        if bounded, let cache { try? await cache.store(stdout: stdout, stderr: stderr) }
+        if !native { try? await CargoBuildScript.install(
+            arguments,
+            environment: environment,
+            directory: directory,
+            process: CargoProcess(runner: runner)
+        ) }
+        guard bounded, let root = environment["TUIST_CARGO_CACHE_DIR"] else { return }
+        if strict, let cache {
+            try? await cache.store(stdout: stdout, stderr: stderr)
+        } else if let recorded, let log, let measurement, let finished = recorded.recorded(log: log, started: started),
+                  let reads = finished.reads, let index = finished.index
+        {
+            await index.put(reads, remote: remote, environment: environment)
+            try? await CargoCompilationCache(
+                invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
+            ).store(stdout: stdout, stderr: stderr)
+        }
+    }
+
+    private static func executablePath(_ executable: String, environment: [String: String], directory: AbsolutePath) -> String {
+        let base = URL(fileURLWithPath: directory.pathString, isDirectory: true)
+        if executable.contains("/") { return URL(fileURLWithPath: executable, relativeTo: base).standardizedFileURL.path }
+        return (environment["PATH"] ?? "").components(separatedBy: ":")
+            .map { URL(fileURLWithPath: $0.isEmpty ? "." : $0, relativeTo: base).appendingPathComponent(executable).path }
+            .first(where: FileManager.default.isExecutableFile(atPath:)) ?? executable
     }
 
     private static func remoteFailureMarker(_ environment: [String: String]) -> URL? {

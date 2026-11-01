@@ -36,7 +36,7 @@ The fixture clears GitHub and inherited internal cache settings; remote publicat
 
 Pass `--benchmark` to generate a standard Cargo local-registry leaf with substantial compiler work. This is an explicitly generated workload, not a representative real-world application. The driver compares three ordinary Cargo clean builds against three public-CLI local hits; timings include CLI setup/reporting. Chunked uploads leave transferred-byte provenance unknown rather than counting the full spliced parent size, so the benchmark does not require a positive cold upload counter; the subsequent remote hit after moving the publisher cache proves publication independently. Do not run benchmarks concurrently or present a small fixture's compiler avoidance as a wall-clock speedup. Tiny crates may cost less to compile than the cache/decorator overhead.
 
-These fixtures do not qualify cross-worker relocation: cache keys intentionally retain absolute paths and the effective environment. All cache logic remains Swift; the Rust sources here are only programs Cargo compiles.
+These fixtures do not qualify cross-worker relocation; keys are path-free, but only same-machine moved checkouts are exercised. All cache logic remains Swift; the Rust sources here are only programs Cargo compiles.
 
 ## Dependency and generated-input admission
 
@@ -72,3 +72,14 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 ```
 
 Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib is never linked. Every build's program must print `42`.
+
+## Recorded compilations and build-script runs
+
+On arm64 macOS:
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  python3 cli/Tests/Fixtures/CargoCache/recorded_e2e.py
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`, whose per-task cache lines the script reads. The workspace lives under `$TMPDIR` on purpose: macOS names it through both `/var` and `/private/var`, and it sits inside the recorder's writable temporary area, which must not hide its sources. A proc macro reads an undeclared file and environment variable, so only the read recorder can cache the library that uses it. Its build script stamps `OUT_DIR` with the current time: warm builds must keep the cold stamp (restored run) and an input change must produce a new one (rerun). Changing the macro's file or variable must miss and change the value; unchanged builds must hit. A moved checkout must read its own files. Expected values are computed in the script. The script generates a lockfile first, because recording shares the dependency-unit cache's lockfile-keyed scope.

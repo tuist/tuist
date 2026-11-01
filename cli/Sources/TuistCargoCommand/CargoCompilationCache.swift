@@ -21,6 +21,20 @@ protocol CargoCacheAction {
     func certifyOutputs(metadataOnly: Bool) throws
     func outputFiles() throws -> [String]
     func acceptsOutput(_ file: String) -> Bool
+    /// Extra compiler arguments the cached compilation runs with.
+    var remapArguments: [String] { get }
+    /// Dep-info and compiler messages, as stored (machine-specific roots replaced) and as restored.
+    func storedOutput(_ data: Data) -> Data?
+    func restoredOutput(_ data: Data) -> Data?
+    /// Machine roots an output names that its key does not; such an entry would behave differently elsewhere.
+    func unkeyedRoots(in data: Data) -> [String]
+}
+
+extension CargoCacheAction {
+    var remapArguments: [String] { [] }
+    func storedOutput(_ data: Data) -> Data? { data }
+    func restoredOutput(_ data: Data) -> Data? { data }
+    func unkeyedRoots(in _: Data) -> [String] { [] }
 }
 
 struct CargoCompilationCache {
@@ -102,9 +116,12 @@ struct CargoCompilationCache {
         guard try invocation.fingerprint() == invocation.key else { return }
         try? invocation.certifyOutputs(metadataOnly: false)
         guard stdout.isEmpty, stderr.count <= 1_000_000, Self.hasOnlyArtifactMessages(stderr) else { return }
+        guard let storedStderr = invocation.storedOutput(stderr) else { return }
         var result = REAPI.ActionResult()
         result.stdoutRaw = stdout
-        result.stderrRaw = stderr
+        result.stderrRaw = storedStderr
+        let relocated = root.appendingPathComponent("staging/" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: relocated) }
         var blobs: [REAPI.Digest: URL] = [:]
         var budget: Int64 = 250_000_000
         for name in try invocation.outputFiles() {
@@ -113,8 +130,16 @@ struct CargoCompilationCache {
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
                   let size = properties.fileSize, size <= 100_000_000, size <= budget else { return }
             budget -= Int64(size)
-            let digest = try REAPI.digest(file: file)
-            let blob = try publish(file, digest: digest)
+            var content = file
+            if !name.hasSuffix(".d"), !invocation.unkeyedRoots(in: try Data(contentsOf: file)).isEmpty { return }
+            if name.hasSuffix(".d") {
+                guard let stored = invocation.storedOutput(try Data(contentsOf: file)) else { return }
+                try FileManager.default.createDirectory(at: relocated, withIntermediateDirectories: true)
+                content = relocated.appendingPathComponent(name)
+                try stored.write(to: content)
+            }
+            let digest = try REAPI.digest(file: content)
+            let blob = try publish(content, digest: digest)
             blobs[digest] = blob
             result.outputFiles.append(.with { $0.path = name; $0.digest = digest })
             measurement.reference(digest)
@@ -218,7 +243,8 @@ struct CargoCompilationCache {
             guard complete else { measurement.failure(endpoint: !download.remoteFailures.isEmpty); return false }
         }
         try await invocation.validateDependencies(restoring: true)
-        guard try invocation.fingerprint() == invocation.key else { return false }
+        guard try invocation.fingerprint() == invocation.key,
+              let restoredStderr = invocation.restoredOutput(result.stderrRaw) else { return false }
         let properties = try invocation.output.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard properties.isDirectory == true, properties.isSymbolicLink != true else { return false }
         for file in result.outputFiles {
@@ -232,6 +258,10 @@ struct CargoCompilationCache {
             let properties = try temporary.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
                   try REAPI.digest(file: temporary) == file.digest else { return false }
+            if file.path.hasSuffix(".d") {
+                guard let restored = invocation.restoredOutput(try Data(contentsOf: temporary)) else { return false }
+                try restored.write(to: temporary)
+            }
         }
         try Task.checkCancellation()
         guard try invocation.fingerprint() == invocation.key else { return false }
@@ -244,7 +274,7 @@ struct CargoCompilationCache {
         try invocation.certifyOutputs(metadataOnly: false)
         try write(try result.serializedData(), to: index)
         FileHandle.standardOutput.write(result.stdoutRaw)
-        FileHandle.standardError.write(result.stderrRaw)
+        FileHandle.standardError.write(restoredStderr)
         return true
     }
 

@@ -13,7 +13,7 @@ import TuistREAPI
 /// target directory, here or on another machine, starts with them. Cargo stays the judge of freshness: restored
 /// units carry Cargo's own fingerprints, so a unit whose inputs differ here is rebuilt, never reused.
 struct CargoUnitCache {
-    static let version = "tuist-swift-cargo-units-v1"
+    static let version = "tuist-swift-cargo-units-v3"
 
     let profile: URL
     let root: URL
@@ -26,6 +26,7 @@ struct CargoUnitCache {
     let cargoHome: URL
     /// Units whose fingerprints predate this command are leftovers of earlier builds, which may not match it.
     let sessionStarted: Date
+    let relocation: CargoRelocation
     var remote: (any REAPICacheStoring)?
 
     struct Manifest: Codable, Equatable {
@@ -36,6 +37,9 @@ struct CargoUnitCache {
         var name: String
         var directories: [String]
         var files: [File]
+        /// Machine roots the unit's outputs name, such as a string from `env!("CARGO_MANIFEST_DIR")`; such a unit is
+        /// restored only where those roots are the same.
+        var bound: [String]?
     }
 
     struct File: Codable, Equatable {
@@ -43,6 +47,9 @@ struct CargoUnitCache {
         var hash: String
         var size: Int64
         var executable: Bool
+        /// The per-crate cache admitted this artifact in the session that built it; restoring re-issues its
+        /// session certificate so dependents remain cacheable.
+        var certified: Bool?
 
         var digest: REAPI.Digest { .with { $0.hash = hash; $0.sizeBytes = size } }
     }
@@ -81,7 +88,11 @@ struct CargoUnitCache {
             let lock = try? Data(contentsOf: URL(fileURLWithPath: workspace).appendingPathComponent("Cargo.lock")),
             let rustc = try? await process.capture(
                 environment["RUSTC"] ?? "rustc", arguments: ["-vV"], environment: environment, directory: directory
-            )
+            ),
+            let sysroot = try? await process.capture(
+                environment["RUSTC"] ?? "rustc", arguments: ["--print", "sysroot"], environment: environment,
+                directory: directory
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
         else { return nil }
         let profileName = profileDirectory(options: options, kind: kind)
         let flags = environment.filter { key, _ in
@@ -112,6 +123,12 @@ struct CargoUnitCache {
             workspaceRoot: URL(fileURLWithPath: workspace).standardizedFileURL,
             cargoHome: cargoHome,
             sessionStarted: Date(),
+            relocation: CargoRelocation(
+                environment: environment.merging(
+                    ["TUIST_CARGO_TARGET_DIR": target, "TUIST_CARGO_WORKSPACE_ROOT": workspace]
+                ) { $1 },
+                sysroot: URL(fileURLWithPath: sysroot).standardizedFileURL
+            ),
             remote: nil
         )
     }
@@ -180,8 +197,8 @@ extension CargoUnitCache {
             return 0
         }
         let missing = manifest.units.filter {
-            Self.isSafe($0) && !FileManager.default
-                .fileExists(atPath: profile.appendingPathComponent(".fingerprint/" + $0.name).path)
+            Self.isSafe($0) && Set($0.bound ?? []).isSubset(of: relocation.roots.map(\.path))
+                && !FileManager.default.fileExists(atPath: profile.appendingPathComponent(".fingerprint/" + $0.name).path)
         }
         guard !missing.isEmpty else {
             debug("all \(manifest.units.count) dependency units are present")
@@ -283,6 +300,13 @@ extension CargoUnitCache {
                     try FileManager.default.removeItem(at: destination)
                 }
                 try FileManager.default.moveItem(at: temporary, to: destination)
+                if file.certified == true, let proof = CargoCacheInputs.proofPath(file.digest, environment: environment) {
+                    try? FileManager.default.createDirectory(
+                        at: proof.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    try? Data(CargoCacheInvocation.keyVersion.utf8).write(to: proof, options: .atomic)
+                }
             }
             return true
         } catch {
@@ -455,6 +479,9 @@ extension CargoUnitCache {
             }
         }
         var files: [File] = []
+        var bound: Set<String> = []
+        // Cargo's own records and rustc's dep-info name paths by design; Cargo relocates a run's `OUT_DIR` itself.
+        let records = ["output", "root-output", "stderr", "invoked.timestamp"]
         for path in paths.sorted() {
             let file = profile.appendingPathComponent(path)
             guard let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
@@ -463,15 +490,26 @@ extension CargoUnitCache {
                   let digest = try? REAPI.digest(file: file), (try? publish(file, digest: digest)) != nil
             else { return nil }
             budget -= Int64(size)
+            if !path.hasPrefix(".fingerprint/"), !path.hasSuffix(".d"),
+               !(path.hasPrefix("build/") && records.contains(URL(fileURLWithPath: path).lastPathComponent))
+            {
+                guard let data = try? Data(contentsOf: file) else { return nil }
+                bound.formUnion(relocation.boundRoots(in: data).map(\.path))
+            }
+            let certified = CargoCacheInputs.proofPath(digest, environment: environment)
+                .map { FileManager.default.fileExists(atPath: $0.path) } == true
             files.append(File(
                 path: path,
                 hash: digest.hash,
                 size: digest.sizeBytes,
-                executable: FileManager.default.isExecutableFile(atPath: file.path)
+                executable: FileManager.default.isExecutableFile(atPath: file.path),
+                certified: certified ? true : nil
             ))
         }
         guard files.contains(where: { $0.path.hasPrefix(".fingerprint/") }) else { return nil }
-        return Unit(name: name, directories: directories.sorted(), files: files)
+        return Unit(
+            name: name, directories: directories.sorted(), files: files, bound: bound.isEmpty ? nil : bound.sorted()
+        )
     }
 }
 
