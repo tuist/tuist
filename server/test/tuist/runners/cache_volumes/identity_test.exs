@@ -215,6 +215,36 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     assert {:error, :unavailable} = Identity.resolve(job)
   end
 
+  test "GitLab captures the identity at acquisition and resolves it without asking GitLab again" do
+    {assigned, payload, remote} = gitlab()
+    assigned = %{assigned | account_id: 7, workflow_job_id: 10, payload: JSON.encode!(Map.put(payload, "token", "t"))}
+    expect(GitLab.Client, :get_running_job, fn "https://gitlab.com", "t" -> {:ok, remote} end)
+    expect(GitLab.Client, :cache_branches, fn _, "t", 123, "main" -> {:ok, [%{"name" => "main", "default" => true}]} end)
+
+    expect(GitLab, :store_cache_volume_identity, fn ^assigned, stored ->
+      send(self(), {:stored, stored})
+      {:ok, %{assigned | cache_volume_identity: stored}}
+    end)
+
+    Identity.capture_gitlab(assigned)
+    assert_received {:stored, %{"scope_id" => "123", "repository_id" => 123, "trusted" => true} = stored}
+
+    expect(GitLab, :get_job, fn 10 -> %{assigned | cache_volume_identity: stored} end)
+    reject(GitLab.Client, :get_running_job, 2)
+
+    assert {:ok, %{provider: "gitlab", scope_id: "123", repository_id: 123, trusted: true, writer_branch: "main"}} =
+             Identity.resolve(%{provider: "gitlab", account_id: 7, workflow_job_id: 10})
+  end
+
+  test "GitLab stores nothing when GitLab cannot answer at acquisition" do
+    {assigned, payload, _remote} = gitlab()
+    assigned = %{assigned | account_id: 7, payload: JSON.encode!(Map.put(payload, "token", "t"))}
+    expect(GitLab.Client, :get_running_job, fn _, _ -> {:error, :timeout} end)
+    reject(GitLab, :store_cache_volume_identity, 2)
+
+    assert :ok = Identity.capture_gitlab(assigned)
+  end
+
   test "GitLab API failures and invalid stored payloads cannot authorize allocation" do
     {assigned, payload, _remote} = gitlab()
     job = %{provider: "gitlab", account_id: 7, workflow_job_id: 10}

@@ -118,6 +118,17 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether a verified GitHub Actions OIDC token binds the account's runner
+  session to the job it names (`Tuist.Runners.ExecutionTokens.prove/1`).
+  Production requires the `:runner_oidc_execution` flag for the account during
+  the rollout; without it the server only logs the job a token names.
+  Other environments default to enabled.
+  """
+  def runner_oidc_execution_enabled?(account) do
+    Environment.env() != :prod or FunWithFlags.enabled?(:runner_oidc_execution, for: account)
+  end
+
+  @doc """
   Whether the account gets a node in the runner-cache region of each site its
   runners are racked at (`Tuist.Kura.Regions.site/1`). A site's region serves
   only that site's pools, so it holds nodes for the accounts the

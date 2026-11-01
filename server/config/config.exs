@@ -266,6 +266,8 @@ config :logger, :console,
     :grace_seconds,
     :delivery_id,
     :workflow_job_id,
+    # The binding a runner session had when a job's OIDC token named its job
+    :recorded_workflow_job_id,
     :repository,
     :conclusion,
     :ours,

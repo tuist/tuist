@@ -473,5 +473,81 @@
     "ruleGroup": "Runner cache volumes",
     "title": "Runner cache volume saves incomplete",
     "uid": "runner-cache-volume-saves-incomplete"
+  },
+  {
+    "annotations": {
+      "description": "{{ $values.A.Value }} times in the last 30 minutes a GitHub Actions OIDC token a job minted named a different job for its runner than GitHub's workflow_job in_progress webhook or jobs API did. The token binds the runner session at job start and its claims scope the job's cache volumes, so a disagreement means one source is wrong, which should never happen. The later binding replaces the token's and allocation stops using the token's claims, so the job falls back to GitHub's binding.\n\nFirst query (Loki, grafanacloud-logs): {cluster=\"tuist-production\", service_name=\"tuist\"} |= `execution token disagrees with the recorded execution`. Each line carries runner_name, workflow_job_id (the token's job) and recorded_workflow_job_id (the other source's). Compare both jobs' repository and run in runner_workflow_jobs and the session in runner_sessions.\n\nLikely causes:\n- check_run_id is not the workflow job id for some job kind (reusable workflows, matrix jobs).\n- A runner name collision within the account.\n- A token replayed from another job of the same repository.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-execution-token-disagrees-with-github",
+      "summary": "{{ $values.A.Value }} runner execution tokens disagreed with GitHub's job binding in the last 30 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({cluster=\"tuist-production\", service_name=\"tuist\"} |= `execution token disagrees with the recorded execution` [30m])) or vector(0)",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "A"
+        },
+        "queryType": "instant",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runner cache volumes",
+    "title": "Runner execution token disagrees with GitHub",
+    "uid": "runner-execution-token-disagrees"
   }
 ]

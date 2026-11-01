@@ -39,3 +39,11 @@ Running a job on the fleet takes three changes: connect GitHub, point `runs-on` 
 ## Cache volumes {#cache-volumes}
 
 Keep the Xcode, module and Gradle caches and other directories between jobs with <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link>. Add them after checkout and before the commands that use them.
+
+Grant the job `id-token: write` so its cache volumes and cached checkout attach as soon as it starts. Without it, the runner waits for GitHub to report which job it is running, and a job GitHub reports late starts with empty caches. A workflow that logs in to Tuist with OpenID Connect already grants it.
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```

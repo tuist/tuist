@@ -191,6 +191,52 @@ defmodule Tuist.OIDCTest do
     end
   end
 
+  describe "github_actions_claims/2" do
+    test "returns every claim of a GitHub Actions token minted for the audience" do
+      {token, jwks} =
+        generate_test_token_and_jwks(claims: %{"aud" => "tuist-runner-cache", "check_run_id" => "123"})
+
+      stub(Req, :get, fn _url, _opts -> {:ok, %{status: 200, body: jwks}} end)
+
+      assert {:ok, %{"check_run_id" => "123", "repository" => "tuist/tuist"}} =
+               OIDC.github_actions_claims(token, "tuist-runner-cache")
+    end
+
+    test "rejects a token minted for another audience, including Tuist login" do
+      {token, jwks} = generate_test_token_and_jwks()
+      stub(Req, :get, fn _url, _opts -> {:ok, %{status: 200, body: jwks}} end)
+
+      assert {:error, :invalid_audience} = OIDC.github_actions_claims(token, "tuist-runner-cache")
+    end
+
+    test "rejects tokens of other providers" do
+      {token, _jwks} =
+        generate_test_token_and_jwks(issuer: "https://token.builds.bitrise.io", claims: %{"aud" => "tuist-runner-cache"})
+
+      assert {:error, :unsupported_provider} = OIDC.github_actions_claims(token, "tuist-runner-cache")
+      assert {:error, :unsupported_provider} = OIDC.github_actions_claims(gitlab_token(), "tuist-runner-cache")
+    end
+
+    test "rejects expired tokens and malformed input" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          exp: DateTime.utc_now() |> DateTime.add(-60) |> DateTime.to_unix(),
+          claims: %{"aud" => "tuist-runner-cache"}
+        )
+
+      stub(Req, :get, fn _url, _opts -> {:ok, %{status: 200, body: jwks}} end)
+
+      assert {:error, :token_expired} = OIDC.github_actions_claims(token, "tuist-runner-cache")
+      assert {:error, :invalid_token} = OIDC.github_actions_claims("not-a-jwt", "tuist-runner-cache")
+      assert {:error, :invalid_token} = OIDC.github_actions_claims(nil, "tuist-runner-cache")
+    end
+  end
+
+  defp gitlab_token do
+    {token, _jwks} = generate_test_token_and_jwks(issuer: "https://gitlab.com", claims: %{"aud" => "tuist-runner-cache"})
+    token
+  end
+
   defp generate_test_token_and_jwks(opts \\ []) do
     jwk = JOSE.JWK.generate_key({:rsa, 2048})
 

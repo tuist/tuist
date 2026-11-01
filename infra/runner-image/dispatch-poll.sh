@@ -1182,6 +1182,12 @@ while true; do
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+# Hand the host the job's GitHub OIDC token before the checkout, so the server
+# learns which job this runner runs without waiting for GitHub's report. The
+# runner offers a token only to jobs granted id-token: write.
+if [ -n "\${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+  /usr/local/bin/tuist-cache-volume --prove-execution || true
+fi
 if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
   /usr/local/bin/tuist-cache-volume --checkout "\${GITHUB_WORKSPACE}" || true
 fi

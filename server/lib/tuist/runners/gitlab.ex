@@ -31,6 +31,7 @@ defmodule Tuist.Runners.GitLab do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.Workers.CaptureGitLabIdentityWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
@@ -50,6 +51,11 @@ defmodule Tuist.Runners.GitLab do
   def get_connection(id), do: Repo.get(Connection, id)
   # Internal lookup after dispatch or report authentication selected the job.
   def get_job(id), do: Repo.get(Job, id)
+
+  @doc "Stores the cache volume identity verified when the job was acquired."
+  def store_cache_volume_identity(%Job{} = job, identity) when is_map(identity) do
+    job |> Ecto.Changeset.change(cache_volume_identity: identity) |> Repo.update()
+  end
 
   def get_job_for_account(account_id, id) do
     Repo.one(
@@ -156,6 +162,8 @@ defmodule Tuist.Runners.GitLab do
       {{:ok, job}, {:ok, resolved}} ->
         # Best effort: the executor writes the same bytes before its own log.
         Client.write_trace(job.url, payload, waiting_trace(job, payload, resolved))
+        # Best effort: without it, allocation asks GitLab itself.
+        CaptureGitLabIdentityWorker.enqueue(job)
         {:ok, 1}
 
       {{:ok, job}, {:error, _}} ->
