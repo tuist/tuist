@@ -385,11 +385,17 @@ kuraVolumesCSI:
   rackPools: []
   # Opt in only after the region's nodes advertise tuist.dev/kura-disk.
   lvmRegions: []
+  # Regions whose instances may use kura-thin-encrypted-nvme. Listing a region
+  # changes nothing on its own: only accounts on :kura_thin_volumes move there.
+  # Opt in only after at least one of its nodes is labelled
+  # tuist.dev/kura-thin-ready=true.
+  thinRegions: []
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
   # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
   # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
-  # own: accounts move under :kura_encrypted_volumes, or their entire region
-  # moves to LVM through lvmRegions after its nodes are prepared.
+  # own: accounts move under :kura_encrypted_volumes, their entire region moves
+  # to LVM through lvmRegions after its nodes are prepared, or an account on
+  # :kura_thin_volumes moves to thin volumes in thinRegions.
   enabled: false
   # Upgrades use an independently qualified immutable digest. The tag fallback
   # preserves existing installations; ordinary server deploys do not upgrade CSI.

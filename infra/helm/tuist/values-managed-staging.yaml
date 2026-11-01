@@ -76,6 +76,8 @@ egressTreeAgent:
 # server deployments preserve its installed image; upgrades require an explicit digest.
 kuraVolumesCSI:
   enabled: true
+  # Paris thin-ready labels were removed after the last rehearsal.
+  thinRegions: []
 
 registry:
   publicHost: registry-staging.tuist.dev

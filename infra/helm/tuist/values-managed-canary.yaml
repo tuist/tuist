@@ -451,6 +451,7 @@ egressTreeAgent:
 # server deployments preserve its installed image; upgrades require an explicit digest.
 kuraVolumesCSI:
   enabled: false # Separate infrastructure opt-in; tenant enrollment stays independent.
+  thinRegions: []
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
