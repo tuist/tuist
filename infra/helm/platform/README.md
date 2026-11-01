@@ -83,6 +83,42 @@ platform values overlay and reproduces the failure through a real HTTP/2 nginx
 `grpc_pass` proxy. Set `TUIST_TEST_NGINX` to a local nginx binary to include the
 transport regression; the values checks do not require nginx.
 
+## Main web ingress logs
+
+The main `ingress-nginx` controller omits query strings and Referer from access
+logs. LiveView requires its session-bound CSRF token in the WebSocket query;
+this changes logging, not that transport. A map over `$request_uri` preserves
+the original escaped path before rewrites. The remaining upstreaminfo fields,
+including client address, method, status, request ID, user agent, upstream and
+timings, are unchanged. Query-based troubleshooting and referral attribution
+are intentionally unavailable in these access logs.
+
+nginx error logs have a separate, non-customizable format and can repeat queries
+in request, upstream and referrer URLs without escaping embedded quotes. For
+the main platform controller's stderr, the `k8s-monitoring` pod-log pipeline
+removes the suffix starting at the first request/upstream/referrer field before
+forwarding to Loki. Error causes and preceding client/server context remain;
+trailing URL, upstream and host details are intentionally lost. Use access logs
+for method, original path, status and request ID. Application/operator audit
+records are unchanged. The collector also redacts queries from escaped access
+logs produced by older or rolled-back ingress configurations.
+
+Deploy the collector first, then this chart's access-log change through the
+normal reviewed platform rollout. Validate with synthetic traffic, never real
+login/reset credentials. Neither change sanitizes already retained logs or raw
+node-local error logs. Rolling back the collector restores retained error-URL
+exposure; rolling back this chart restores raw access queries/Referer.
+
+This policy does not cover other ingress controllers, Cloudflare/provider logs,
+browser telemetry, or credentials embedded in paths (including reset links).
+Their collection, retention and access policies need separate operator review;
+this is not global URL sanitization or assessor acceptance of the finding.
+
+`bash infra/helm/k8s-monitoring/test-cost-controls.sh` checks retained ingress
+access/error redaction and the existing operator-audit exemptions. Without
+Docker, set `ALLOY_BIN` to a local Alloy v1.15.0 binary; the test replaces the
+remote destination with local output and disables usage reporting.
+
 ## Preview Janitor
 
 The `tuist-preview` overlay enables `previewJanitor`, a Kubernetes CronJob that

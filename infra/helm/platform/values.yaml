@@ -85,6 +85,18 @@ ingress-nginx:
       upstream-keepalive-timeout: "10"
       # Never replay a POST, PATCH or LOCK nginx already started sending.
       retry-non-idempotent: "false"
+      # LiveView's session-bound CSRF token travels in the WebSocket query.
+      # Keep the original (pre-rewrite) path, but omit every query and Referer
+      # from access logs. Leave the other upstreaminfo fields unchanged.
+      http-snippet: |
+        map $request_uri $log_request_path {
+          ~^([^?]*) $1;
+        }
+      log-format-upstream: >-
+        $remote_addr - $remote_user [$time_local] "$request_method $log_request_path $server_protocol"
+        $status $body_bytes_sent "-" "$http_user_agent" $request_length $request_time
+        [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr
+        $upstream_response_length $upstream_response_time $upstream_status $req_id
     # The address of the edge that opened this connection, which the
     # application needs and cannot otherwise see. With PROXY protocol,
     # $remote_addr is the CDN edge the load balancer declared, but the
