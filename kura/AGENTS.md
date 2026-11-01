@@ -305,3 +305,7 @@ A destination process restart is recovered with the internal rebind API: only an
 armed bridge may move to a new incarnation at the same URL, it stays armed, and
 it reports ready only after re-proving every retained record and the pinned feed
 on the new process. Never carry proof from one destination process to another.
+Bridge state is exported as `kura_migration_*` (armed, ready, last-proof age,
+walk progress, verified records, re-proof failures) and drives the proposed
+armed-but-not-ready rule in `../infra/helm/k8s-monitoring/alerts.md`; a ready
+bridge whose destination dies shows only as a growing last-proof age.

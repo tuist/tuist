@@ -1,0 +1,89 @@
+[
+  {
+    "annotations": {
+      "description": "A Kura source pod has held an armed storage-migration write bridge for 15 minutes without proving every retained record on its destination process. Armed is only set after preparation walked the corpus, so this is a rebound destination (same pod, restarted process) that lacks retained records or cannot be reached. The source keeps verifying each write on the destination before acknowledging it, and the controller will not retire or delete the donor until the bridge is ready again. Preserve both volumes. Check kura_migration_reproof_failures_total and the source's kura.migration.reproof_failed warning for the cause, then follow the destination process restart section of infra/kura-controller/thin-migration.md. Never clear a bridge whose source was already demoted.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-migration-bridge-armed-but-not-ready",
+      "summary": "Kura migration bridge on {{ $labels.pod }} has been armed but not ready for 15 minutes ({{ $labels.cluster }})"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, namespace, pod) (kura_migration_bridge_armed) - max by (cluster, namespace, pod) (kura_migration_bridge_ready)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Cache",
+    "title": "Kura - migration bridge armed but not ready",
+    "uid": "kura-migration-bridge-unready"
+  }
+]

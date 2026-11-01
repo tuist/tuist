@@ -2158,6 +2158,48 @@ No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
 
+### Kura migration bridge armed but not ready
+
+```promql
+max by (cluster, namespace, pod) (kura_migration_bridge_armed)
+- max by (cluster, namespace, pod) (kura_migration_bridge_ready)
+```
+
+- Threshold: `> 0`
+- Pending period: 15 minutes
+- Severity: critical
+- All environments (both gauges are on the non-production allowlist in
+  `values.yaml`, because planned storage moves are rehearsed on staging).
+  Folder `Alerts`, group `Cache`, no contact point on the rule (policy
+  routing). **No Data: Normal** (older runtimes do not publish these gauges),
+  **Error: Error**.
+- Summary: `Kura migration bridge on {{ $labels.pod }} has been armed but not
+  ready for 15 minutes ({{ $labels.cluster }})`
+- Proposed rule, recorded in
+  [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
+  `kura-migration-bridge-unready`); it must be created in Grafana separately.
+
+During a planned thin-storage move the source pod arms a write bridge after
+its preparation walk (`infra/kura-controller/thin-migration.md`). From then
+on every write it acknowledges was verified on the named destination process.
+A healthy bridge is armed and ready within seconds of arming. It goes armed
+but unready when the controller rebinds it to a restarted destination process
+and the re-proof cannot finish: the restarted process lost retained records or
+cannot be reached. The controller will not retire the donor until it is ready
+again, so the move is stuck with routing possibly already on the destination.
+
+**When it fires.** Look at `kura_migration_reproof_failures_total_total` and
+the source's `kura.migration.reproof_failed` warning for the cause, and at
+`kura_migration_preparation_walk_records` for how far the re-proof got. Keep
+both volumes. Follow the destination process restart section of the handoff
+protocol; never clear a bridge whose source was already demoted.
+
+**Not covered: a destination that dies after the bridge became ready.** Ready
+stays 1 in that case while acknowledgments fail and writes on the source are
+refused. `kura_migration_bridge_last_proof_age_seconds` climbs from near zero
+(the bridge loop proves the feed every second) and is the signal for it; no
+rule watches it yet.
+
 ### Kura receiving no REAPI requests
 
 ```promql

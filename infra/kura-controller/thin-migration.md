@@ -68,6 +68,13 @@ Successful preparation cannot expire merely because the controller pauses: its
 bridge stays active until the donor drains, retaining its feed pin with one
 bounded background verification loop. The loop uses a weak runtime reference
 and releases the pin on draining. Ordinary instances do not run this loop.
+The source exports the bridge as `kura_migration_bridge_armed`,
+`kura_migration_bridge_ready`, `kura_migration_bridge_last_proof_age_seconds`,
+`kura_migration_preparation_walk_records` and the counters
+`kura_migration_preparation_records_verified_total` and
+`kura_migration_reproof_failures_total` (row "Storage migration bridge" on
+`Tuist Kura / Details`). The proposed alert for a bridge armed but not ready for
+15 minutes is described in `../helm/k8s-monitoring/alerts.md`.
 
 Pausing source-node enrollment stops new storage moves, but cannot cancel a pod
 or claim deletion already issued. Finish observation of that operation before

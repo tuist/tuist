@@ -84,6 +84,8 @@ pub struct MigrationState {
     armed: AtomicBool,
     active: Mutex<Option<Active>>,
     attempts: std::sync::atomic::AtomicU64,
+    /// When an armed bridge last proved the feed through its head.
+    last_proof: Mutex<Option<Instant>>,
     gate: tokio::sync::Mutex<()>,
     verification_gate: tokio::sync::Mutex<()>,
     #[cfg(test)]
@@ -105,6 +107,23 @@ impl MigrationState {
 
     fn next_attempt(&self) -> u64 {
         self.attempts.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    pub fn export_metrics(&self, metrics: &crate::metrics::Metrics) {
+        let armed = self.armed.load(Ordering::Acquire);
+        let (ready, walked) = self
+            .active
+            .lock()
+            .expect("migration lock")
+            .as_ref()
+            .map_or((false, 0), |active| (active.ready, active.walked));
+        let last_proof_age = self
+            .last_proof
+            .lock()
+            .expect("migration proof lock")
+            .filter(|_| armed)
+            .map_or(Duration::ZERO, |proved| proved.elapsed());
+        metrics.update_migration_bridge(armed, ready, last_proof_age, walked);
     }
 }
 
@@ -406,6 +425,7 @@ fn reprove(state: std::sync::Weak<crate::state::AppState>, attempt: u64) {
                         break;
                     }
                     Err(error) => {
+                        state.metrics.record_migration_reproof_failure();
                         if previous_error.as_ref() != Some(&error) {
                             tracing::warn!(event.name="kura.migration.reproof_failed", %error,
                                 "Rebound migration destination is not ready until it holds every retained record");
@@ -518,6 +538,7 @@ async fn prove(state: &SharedState, attempt: u64) -> Result<(), String> {
         };
         active.walked += verified;
         active.advanced = true;
+        state.metrics.record_migration_records_verified(verified);
     }
     acknowledge_inner(state, true).await
 }
@@ -574,6 +595,12 @@ async fn acknowledge_inner(state: &SharedState, force: bool) -> Result<(), Strin
                 .expect("migration lock");
             let active = active.as_mut().ok_or("no migration")?;
             active.proven = active.proven.max(head);
+            *state
+                .runtime
+                .migration
+                .last_proof
+                .lock()
+                .expect("migration proof lock") = Some(Instant::now());
             return Ok(());
         }
         let rows = state.store.sync_feed_page_to(confirmed, PAGE, head)?;
@@ -1452,6 +1479,101 @@ mod tests {
         );
         server.abort();
         other_server.abort();
+    }
+
+    fn metric(state: &SharedState, name: &str) -> Option<f64> {
+        state
+            .metrics
+            .render()
+            .lines()
+            .find_map(|line| line.strip_prefix(name)?.strip_prefix(' ')?.parse().ok())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn bridge_metrics_show_an_armed_bridge_that_cannot_reprove() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        seed(&source.state, &destination.state, &[]).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url.clone(), &destination.state);
+        source.state.sync_runtime_metrics().await;
+        assert_eq!(
+            metric(&source.state, "kura_migration_bridge_armed"),
+            Some(0.0)
+        );
+        assert_eq!(
+            metric(&source.state, "kura_migration_bridge_ready"),
+            Some(0.0)
+        );
+
+        wait_ready(&source.state, &target).await;
+        acknowledge(&source.state).await.unwrap();
+        source.state.sync_runtime_metrics().await;
+        assert_eq!(
+            metric(&source.state, "kura_migration_bridge_armed"),
+            Some(1.0)
+        );
+        assert_eq!(
+            metric(&source.state, "kura_migration_bridge_ready"),
+            Some(1.0)
+        );
+        assert_eq!(
+            metric(
+                &source.state,
+                "kura_migration_preparation_records_verified_total_total"
+            ),
+            Some(40.0)
+        );
+        assert_eq!(
+            metric(&source.state, "kura_migration_preparation_walk_records"),
+            Some(40.0)
+        );
+        assert!(
+            metric(
+                &source.state,
+                "kura_migration_bridge_last_proof_age_seconds"
+            )
+            .is_some_and(|age| age < 2.0)
+        );
+
+        // The destination restarts without the records: the bridge stays armed
+        // but unready, and each failed re-proof is counted.
+        server.abort();
+        let _ = server.await;
+        let restarted = test_context(|_| {}).await;
+        let server = serve_at(restarted.state.clone(), &url).await;
+        let replacement = Target {
+            url,
+            incarnation: restarted.state.runtime.connection_incarnation().to_owned(),
+        };
+        let _ = rebind(
+            State(source.state.clone()),
+            Json(rebind_request(&source.state, &target, &replacement)),
+        )
+        .await
+        .expect("rebind accepted");
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                source.state.sync_runtime_metrics().await;
+                if metric(&source.state, "kura_migration_reproof_failures_total_total")
+                    .is_some_and(|failures| failures >= 1.0)
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("a failed re-proof is counted");
+        assert_eq!(
+            metric(&source.state, "kura_migration_bridge_armed"),
+            Some(1.0)
+        );
+        assert_eq!(
+            metric(&source.state, "kura_migration_bridge_ready"),
+            Some(0.0)
+        );
+        server.abort();
     }
 
     #[tokio::test]
