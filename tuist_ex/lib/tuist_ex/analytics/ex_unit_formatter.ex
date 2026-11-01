@@ -78,8 +78,9 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   # A test a filter left out, such as `--only` or `file:line`, was not part
   # of the run: reported as skipped, it would look like it was turned off.
-  # One the quarantine's name filter left out without being skipped itself
-  # shares its full name with a skipped test in another module. That one and
+  # One the quarantine's name filter, its fallback when tests cannot be
+  # tagged, left out without being skipped itself shares its full name with
+  # a skipped test in another module. That one and
   # those the run's own `--exclude` options left out are what a run with
   # coverage names as skipped. A test Tuist skips for quarantine is left out
   # as if removed, and one the test helper's configuration excludes is not

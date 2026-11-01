@@ -79,8 +79,8 @@ The run fails as usual when any test that isn't muted fails, or when ExUnit stop
 >
 > - Only recent versions of the Hex package apply quarantine. Earlier versions run muted and skipped tests like any other, so a muted test's failure still fails the run. Update `tuist_ex` before you rely on it.
 > - Muted tests are not applied with `--warnings-as-errors`, or from the root of an umbrella project. Their failures then fail the run. Run the tests inside each application of an umbrella instead.
-> - Skipping matches a test by its describe block and name, not its module. A test with the same describe block and name in another module is skipped too. See [how skipping selects tests](#how-skipping-selects-tests).
-> - A skipped test still runs when you select it with `--only`, `--include`, or `path:line`, or when it isn't declared with `test`, such as a StreamData `property`.
+> - Skipping matches a test by its module, describe block and name, so a test with the same name in another module still runs. See [how skipping selects tests](#how-skipping-selects-tests).
+> - A skipped test still runs when you select it with `--only`, `--include`, or `path:line`.
 > - If `mix test` cannot read the quarantined tests, it runs every test and counts every failure.
 > - Reading the quarantined tests requires credentials, even for a public project. A run without a `TUIST_TOKEN`, a `mix tuist.login` session, or a continuous integration identity token applies no quarantine. That includes pull requests from forks, which usually run without secrets.
 > - With `--cover`, a skipped test counts as removed: lines only it covered are reported as uncovered.
@@ -89,10 +89,10 @@ The run fails as usual when any test that isn't muted fails, or when ExUnit stop
 
 ### How skipping selects tests {#how-skipping-selects-tests}
 
-A skipped test is left out with an ExUnit filter on its full name, such as `--exclude "test:test create_order/2 times out"`. ExUnit filters cannot also match the module, so:
+While your test files compile, `mix test` tags each skipped test with `tuist_quarantine: :skipped` and leaves it out with `--exclude tuist_quarantine:skipped`. Your test modules need no changes, whether they use `ExUnit.Case` directly or through a case template.
 
-- A test with the same describe block and name in another module is left out too. `mix test` names those tests after the run.
-- A test you select with `--only`, `--include`, or `path:line` runs even when it is skipped, because ExUnit applies include filters after exclude filters. So does a test that isn't declared with `test`, such as a StreamData `property`. `mix test` names those tests after the run.
+- A test you select with `--only`, `--include`, or `path:line` runs even when it is skipped, because ExUnit applies include filters after exclude filters. `mix test` names those tests after the run.
+- Tagging relies on how ExUnit collects a module's tests. If a future ExUnit collects them differently, `mix test` falls back to a filter on each skipped test's full name, such as `--exclude "test:test create_order/2 times out"`. That filter also leaves out a test with the same describe block and name in another module, and doesn't leave out a test that isn't declared with `test`, such as a StreamData `property`. `mix test` names both kinds after the run.
 
 ### Running quarantined tests again {#running-quarantined-tests-again}
 
