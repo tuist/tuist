@@ -238,9 +238,15 @@ The controller image also packages the stateless `cmd/cache-activation` gateway,
 
 LVM enrollment treats a PVC without CSI `backing: lvm` evidence as a storage
 migration even when its class is unchanged. Hold the template before changing
-its disk request; respect operator pauses and refuse destructive migration of a
-single replica. Before each deletion require fresh Ready/completed-backfill
-reports from its siblings. Mark `kura.tuist.dev/lvm-rebuild` on the outgoing pod,
+its disk request; respect operator pauses and never rebuild a single live copy.
+A single-replica instance migrates behind a temporary standby
+(`lvm_standby.go`): once its source is selected the pods, roles and storage
+lifecycle count a second ordinal, never the spec. The standby claim carries
+`kura.tuist.dev/lvm-migration-standby`; never adopt a retained claim on other
+storage. The standby takes the endpoint through the ordinary handoff, and gives
+it back the same way once the rebuilt ordinal 0 has caught up, before its claim
+is released and the StatefulSet scales back down. Before each deletion require
+fresh Ready/completed-backfill reports from its siblings. Mark `kura.tuist.dev/lvm-rebuild` on the outgoing pod,
 demote it from client and peer roles, and wait for observed endpoint handoff.
 Positive-fence backing migrations remain explicit recovery holds.
 

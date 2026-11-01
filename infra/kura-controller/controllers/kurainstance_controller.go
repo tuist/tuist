@@ -532,11 +532,18 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
 	r.observeSteadyCPUUsage(ctx, instance, pods, samples)
 	applyScheduleCap(instance, pods, time.Now())
-	primaryPod, evacuating, err := r.selectPrimaryPod(ctx, instance, pods, samples)
+	// A single-copy LVM migration runs a temporary standby (lvm_standby.go).
+	// Roles and the storage lifecycle count it; spec and status writes keep the
+	// declared instance.
+	served, err := r.lvmMigrationServed(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	gatewayPod, err := r.selectGatewayPod(ctx, instance, pods, samples, primaryPod, evacuating)
+	primaryPod, evacuating, err := r.selectPrimaryPod(ctx, served, pods, samples)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	gatewayPod, err := r.selectGatewayPod(ctx, served, pods, samples, primaryPod, evacuating)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -604,12 +611,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if inProgress, err := r.reconcileReplicaRecovery(ctx, instance, pods, samples, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
-		return ctrl.Result{RequeueAfter: 2 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, r.publishPeerRoles(ctx, served, pods, primaryPod, gatewayPod)
 	}
-	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
+	if inProgress, err := r.reconcileStaleDataStorage(ctx, served); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, served, pods, primaryPod, gatewayPod)
 	}
 
 	// A grown claim or a changed storage class reaches the same immutability
@@ -625,12 +632,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Enrolling a region into LVM changes every instance's desired storage at
 	// once, but only the selected source node's claims may move. The others keep
 	// reconciling against the storage their template already has.
-	desired := instance
+	desired := served
 	lvmHeld := false
-	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
+	if inProgress, err := r.reconcileDataStorageResize(ctx, served); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
-		if lvmHeld, err = r.lvmMigrationTemplateHeld(ctx, instance); err != nil {
+		if lvmHeld, err = r.lvmMigrationTemplateHeld(ctx, served); err != nil {
 			return ctrl.Result{}, err
 		}
 		sts := &appsv1.StatefulSet{}
@@ -641,12 +648,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 		}
 		if !lvmHeld || err != nil {
-			if err := r.reconcileStatefulSetDuringResize(ctx, instance); err != nil {
+			if err := r.reconcileStatefulSetDuringResize(ctx, served); err != nil {
 				return ctrl.Result{}, err
 			}
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, served, pods, primaryPod, gatewayPod)
 		}
-		desired = lvmHeldTemplate(instance, sts)
+		desired = lvmHeldTemplate(served, sts)
 	}
 
 	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
@@ -667,7 +674,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileNetworkPolicy(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcilePodDisruptionBudget(ctx, instance); err != nil {
+	if err := r.reconcilePodDisruptionBudget(ctx, served); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileEgressClassID(ctx, instance); err != nil {
@@ -683,7 +690,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// legacy claims can move; a rolling update would restart them on hosts
 	// without LVM capacity.
 	if !lvmHeld {
-		if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
+		if err := r.releaseResizeRolloutHold(ctx, served); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -728,8 +735,8 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
-	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
-	instance.Status.PeerRoles = peerRoles(instance, pods, primaryPod, gatewayPod)
+	instance.Status.RolloutHealth = r.aggregateRolloutHealth(served, pods)
+	instance.Status.PeerRoles = peerRoles(served, pods, primaryPod, gatewayPod)
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
@@ -3597,7 +3604,8 @@ func podKuraImage(pod *corev1.Pod) string {
 // and a customer sees that as failed requests rather than as cache misses.
 //
 // A single-replica instance has no sibling to serve or to refill from, so there
-// it is an interruption. Nothing short of the warm handoff avoids that.
+// it is an interruption. Nothing short of the warm handoff avoids that; an LVM
+// migration provides one by running a temporary standby (lvm_standby.go).
 //
 // A replica that is not serving is rebuilt before any that is. It may be stuck
 // on exactly the volume being replaced: a pod recreated at the grown
@@ -3661,8 +3669,9 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	if len(replacements) > 0 && rolloutPausedByOperator(sts) {
 		return true, nil
 	}
-	// A single live copy cannot be rebuilt without an outage. Enroll another
-	// replica and let it backfill before migrating an LVM region.
+	// A single live copy cannot be rebuilt without an outage. Its migration
+	// standby (lvm_standby.go) is counted here once the source is selected; a
+	// single copy without one holds.
 	if len(replacements) > 0 && diskResource(instance) == kuraDiskResource && replicas(instance) < 2 {
 		return true, nil
 	}
@@ -3693,7 +3702,7 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	}
 
 	if len(replacements) == 0 {
-		return false, nil
+		return r.retireLVMMigrationStandby(ctx, instance)
 	}
 
 	// Hold and update the disk reservation before deleting a claim, including

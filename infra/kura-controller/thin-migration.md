@@ -116,6 +116,28 @@ keeps the bridge unready rather than moving routing past it. A replaced pod
 (new UID), a restarted source or a disarmed preparation is not rebound and
 still fails closed.
 
+### Single-copy instances
+
+A single-replica instance has no sibling to take its endpoint, so once its
+source node is selected the controller runs a temporary second ordinal. The
+declared spec keeps one replica; the pods, roles, disruption budget and storage
+lifecycle count two while the migration runs.
+
+1. The StatefulSet scales to two. Ordinal 1 lands on the declared storage on a
+   prepared node and is recorded as the standby by
+   `kura.tuist.dev/lvm-migration-standby` on its claim.
+2. Once the standby has completed initial backfill, ordinal 0 hands its
+   endpoint to it through the ordinary handoff above and is rebuilt.
+3. Once the rebuilt ordinal 0 has completed initial backfill, the standby hands
+   the endpoint back the same way, including the write bridge on thin storage.
+4. The standby claim is released and the StatefulSet scales back to one.
+
+A retained claim on other storage at ordinal 1, left by an earlier scale-down,
+is never adopted; the migration holds until it is removed. Clearing the source
+selection after step 1 pauses the move with the standby still running; it is
+released only after ordinal 0 has moved. A single-host region has no landing
+node and still needs another host.
+
 ## Qualification
 
 Keep equal runtime resources and storage sizes in layout comparisons. A
