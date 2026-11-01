@@ -248,6 +248,10 @@ it back the same way once the rebuilt ordinal 0 has caught up, before its claim
 is released and the StatefulSet scales back down. Before each deletion require
 fresh Ready/completed-backfill reports from its siblings. Mark `kura.tuist.dev/lvm-rebuild` on the outgoing pod,
 demote it from client and peer roles, and wait for observed endpoint handoff.
+A thin source restarted before deletion is prepared again under its new
+incarnation; a destination restarted or replaced at the same URL is rebound.
+Unselecting the source node aborts the bridge of a source that was never
+demoted (`abortUnselectedLVMHandoffs`); a demoted source keeps it.
 Positive-fence backing migrations remain explicit recovery holds.
 
 Regional LVM enrollment alone must not delete legacy claims. Require exactly

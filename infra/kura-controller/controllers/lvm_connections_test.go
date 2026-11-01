@@ -20,9 +20,11 @@ import (
 )
 
 type stubConnectionRetirer struct {
-	ready   bool
-	err     error
-	rebinds *[]migrationTarget
+	ready    bool
+	err      error
+	rebinds  *[]migrationTarget
+	prepares *[]string
+	aborts   *[]migrationTarget
 }
 
 func (s stubConnectionRetirer) Retire(_ context.Context, _ corev1.Pod, _ string, incarnation string, _ map[string][]byte) (bool, error) {
@@ -31,8 +33,17 @@ func (s stubConnectionRetirer) Retire(_ context.Context, _ corev1.Pod, _ string,
 	}
 	return s.ready, s.err
 }
-func (s stubConnectionRetirer) Prepare(_ context.Context, _ corev1.Pod, _ string, _ string, _ migrationTarget, _ map[string][]byte) (bool, error) {
+func (s stubConnectionRetirer) Prepare(_ context.Context, _ corev1.Pod, _ string, incarnation string, _ migrationTarget, _ map[string][]byte) (bool, error) {
+	if s.prepares != nil {
+		*s.prepares = append(*s.prepares, incarnation)
+	}
 	return s.ready, s.err
+}
+func (s stubConnectionRetirer) Abort(_ context.Context, _ corev1.Pod, _ string, _ string, target migrationTarget, _ map[string][]byte) error {
+	if s.aborts != nil {
+		*s.aborts = append(*s.aborts, target)
+	}
+	return s.err
 }
 func (s stubConnectionRetirer) Rebind(_ context.Context, _ corev1.Pod, _ string, incarnation string, target, replacement migrationTarget, _ map[string][]byte) error {
 	if incarnation != "current-boot" || target.URL != replacement.URL {

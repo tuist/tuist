@@ -632,6 +632,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Enrolling a region into LVM changes every instance's desired storage at
 	// once, but only the selected source node's claims may move. The others keep
 	// reconciling against the storage their template already has.
+	// A source node unselected before its source was demoted pauses the move;
+	// that source stops verifying every write on its destination.
+	if err := r.abortUnselectedLVMHandoffs(ctx, served); err != nil {
+		logger.Error(err, "abort unselected thin migration handoff")
+	}
 	desired := served
 	lvmHeld := false
 	if inProgress, err := r.reconcileDataStorageResize(ctx, served); err != nil {

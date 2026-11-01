@@ -28,9 +28,10 @@ func TestThinWritePreparationPinsBothProcessesBeforeRouting(t *testing.T) {
 			source.Status.PodIP = "10.0.0.1"
 			target.Status.PodIP = "10.0.0.2"
 			var rebinds []migrationTarget
+			var prepares []string
 			statuses := map[string]runtimeStatus{source.Name: {Ready: true, ConnectionIncarnation: "current-boot", BackfillInitialCycle: backfillCycleComplete}, target.Name: {Ready: true, ConnectionIncarnation: "target-boot", BackfillInitialCycle: backfillCycleComplete}}
 			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(source, target, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()
-			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}, PublicConnectionRetirer: stubConnectionRetirer{ready: !tc.pending, rebinds: &rebinds}}
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}, PublicConnectionRetirer: stubConnectionRetirer{ready: !tc.pending, rebinds: &rebinds, prepares: &prepares}}
 			ready, err := r.lvmHandoverReady(ctx, f.instance, 0)
 			if err != nil || ready {
 				t.Fatalf("initial intent: %v %v", ready, err)
@@ -60,6 +61,9 @@ func TestThinWritePreparationPinsBothProcessesBeforeRouting(t *testing.T) {
 			}
 			if tc.podReplacement {
 				target.UID = "replacement"
+				v := statuses[target.Name]
+				v.ConnectionIncarnation = "restarted"
+				statuses[target.Name] = v
 				if err := c.Update(ctx, target); err != nil {
 					t.Fatal(err)
 				}
@@ -68,18 +72,39 @@ func TestThinWritePreparationPinsBothProcessesBeforeRouting(t *testing.T) {
 			if ready {
 				t.Fatal("deleted before endpoint observation")
 			}
-			if tc.sourceRestart || tc.podReplacement {
-				if err == nil {
-					t.Fatal("accepted changed identity")
+			if tc.sourceRestart {
+				// The restarted source acknowledged writes no bridge proved. It is
+				// prepared again from scratch before anything moves.
+				if err != nil || len(rebinds) != 0 {
+					t.Fatalf("source restart: err=%v rebinds=%+v", err, rebinds)
 				}
-				if len(rebinds) != 0 {
-					t.Fatal("rebound a changed source or replaced pod")
+				if err := c.Get(ctx, client.ObjectKeyFromObject(source), source); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal([]byte(source.Annotations[lvmWriteTargetAnnotation]), &intent); err != nil {
+					t.Fatal(err)
+				}
+				if intent.SourceIncarnation != "restarted" || intent.Target.Incarnation != "target-boot" || source.Annotations[lvmRebuildAnnotation] != "" {
+					t.Fatalf("source restart intent: %+v", intent)
+				}
+				if _, err := r.lvmHandoverReady(ctx, f.instance, 0); err != nil {
+					t.Fatal(err)
+				}
+				if prepares[len(prepares)-1] != "restarted" {
+					t.Fatalf("prepared %v, want the restarted source process", prepares)
+				}
+				if err := c.Get(ctx, client.ObjectKeyFromObject(source), source); err != nil {
+					t.Fatal(err)
+				}
+				if source.Annotations[lvmRebuildAnnotation] == "" {
+					t.Fatal("re-prepared source not marked")
 				}
 				return
 			}
-			if tc.targetRestart {
-				// The same pod restarted its process. The source re-proves its data on
-				// the new process before the intent names it.
+			if tc.targetRestart || tc.podReplacement {
+				// The destination restarted its process, in the same pod or a
+				// replacement at the same URL. The source re-proves its data on the
+				// new process before the intent names it.
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -125,6 +150,59 @@ func TestThinWritePreparationPinsBothProcessesBeforeRouting(t *testing.T) {
 			ready, err = r.lvmHandoverReady(ctx, f.instance, 0)
 			if err != nil || ready == tc.wrongEndpoint {
 				t.Fatalf("handoff ready=%v err=%v", ready, err)
+			}
+		})
+	}
+}
+
+func TestThinHandoffAbortsOnlyAnUndemotedSourceWhoseNodeWasUnselected(t *testing.T) {
+	for _, tc := range []struct {
+		name                         string
+		selected, demoted, wantAbort bool
+	}{
+		{name: "unselected source is disarmed", wantAbort: true},
+		{name: "selected source keeps its bridge", selected: true},
+		{name: "demoted source is never disarmed", demoted: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			f := newResizeHoldFixture(600)
+			f.instance.Spec.StorageClassName = thinLocalStorageClass
+			f.instance.Spec.DiskResource = string(kuraDiskResource)
+			source, target := f.servingPod(0, "600m"), f.servingPod(1, "600m")
+			source.Spec.NodeName = "source"
+			intent := lvmWriteTarget{Pod: target.Name, UID: "target-uid", SourceIncarnation: "current-boot", Target: migrationTarget{URL: renderPodNodeURL(f.instance, target.Name, f.instance.Namespace), Incarnation: "target-boot"}}
+			raw, _ := json.Marshal(intent)
+			source.Annotations = map[string]string{lvmWriteTargetAnnotation: string(raw)}
+			if tc.demoted {
+				source.Annotations[lvmRebuildAnnotation] = "true"
+			}
+			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "source"}, Spec: corev1.NodeSpec{Unschedulable: true}}
+			if tc.selected {
+				node.Annotations = map[string]string{lvmMigrationNodeAnnotation: "true"}
+			}
+			claim := f.claim(0, "32Gi")
+			claim.Spec.StorageClassName = ptr(thinLocalStorageClass)
+			claim.Spec.VolumeName = "legacy"
+			pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: "legacy"}, Spec: corev1.PersistentVolumeSpec{
+				PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{Driver: "kura-volumes.tuist.dev", VolumeHandle: "legacy", VolumeAttributes: map[string]string{"backing": "file"}}},
+				NodeAffinity:           &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{"source"}}}}}}},
+			}}
+			var aborts []migrationTarget
+			statuses := map[string]runtimeStatus{source.Name: {Ready: true, ConnectionIncarnation: "current-boot"}, target.Name: {Ready: true, ConnectionIncarnation: "target-boot"}}
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(source, target, node, claim, pv, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}, PublicConnectionRetirer: stubConnectionRetirer{aborts: &aborts}}
+			if err := r.abortUnselectedLVMHandoffs(ctx, f.instance); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.Get(ctx, client.ObjectKeyFromObject(source), source); err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantAbort != (len(aborts) == 1) || (len(aborts) == 1 && aborts[0] != intent.Target) {
+				t.Fatalf("aborts = %+v, want abort %v", aborts, tc.wantAbort)
+			}
+			if tc.wantAbort == (source.Annotations[lvmWriteTargetAnnotation] != "") {
+				t.Fatalf("write target annotation = %q after abort=%v", source.Annotations[lvmWriteTargetAnnotation], tc.wantAbort)
 			}
 		})
 	}

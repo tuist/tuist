@@ -51,13 +51,19 @@ bounded background verification loop. The loop uses a weak runtime reference
 and releases the pin on draining. Ordinary instances do not run this loop.
 
 Pausing source-node enrollment stops new storage moves, but cannot cancel a pod
-or claim deletion already issued. Finish observation of that operation before
+or claim deletion already issued. Clearing the selection while the source has
+not been demoted (no `kura.tuist.dev/lvm-rebuild`) aborts its handoff: the
+controller calls `POST /_internal/migration/abort` with the source's current
+incarnation and recorded target, then removes the write-target annotation, so
+the source stops verifying every write on the destination. A demoted source
+keeps its bridge. Finish observation of that operation before
 making changes to its source. Never remove the write binding or blindly restore
 routing after `lvm-rebuild`; an armed bridge may already be protecting a moved
 endpoint. A destination failure can refuse writes on the old source. Preserve
 both volumes and investigate rather than treating readiness or a timeout as a
-handover receipt. Changed process identities require fresh qualification; a
-destination process restart is re-proved through the rebind below.
+handover receipt. A restarted source is prepared again from the beginning under its new
+incarnation before anything moves; a restarted destination is re-proved through
+the rebind below.
 
 An armed source pays for replication and destination content verification before
 acknowledging writes. The staging pause test deliberately kept routing on that
@@ -90,14 +96,14 @@ A failed **unarmed preparation** can be retried without restarting the writer:
    destination capacity and catch-up, then reselect the source node. This creates
    a new bounded preparation; polling the old attempt never extends its deadline.
 
-An armed handoff has no reset shortcut. Preserve the destination and donor and
-complete or explicitly recover the handoff; clearing the bridge would reintroduce
+A demoted, armed handoff has no reset or abort shortcut. Preserve the destination
+and donor and complete or explicitly recover the handoff; clearing the bridge would reintroduce
 the successful-PUT/missing-GET race.
 
 ### Destination process restart
 
-When the destination pod keeps its UID and URL but reports a new
-`connection_incarnation`, the controller sends
+When the destination reports a new `connection_incarnation` at the same URL,
+whether its pod restarted the process or was replaced under the same name, the controller sends
 `POST /_internal/migration/rebind` with `{incarnation, target, replacement}`,
 where `replacement` is the same URL with the new process incarnation. Only an
 armed bridge accepts it; a repeated request for the current replacement is
@@ -109,12 +115,12 @@ idempotent. The source then:
   the new process, retrying until that succeeds or the source drains;
 - reports `ready` again only after that re-proof completes.
 
-The controller records the new incarnation in the write-target annotation only
-after the source accepts the rebind, and does not mark or retire the donor
+The controller records the new incarnation and pod UID in the write-target
+annotation only after the source accepts the rebind, and does not mark or retire the donor
 until preparation reports ready again. A record the restarted process lost
-keeps the bridge unready rather than moving routing past it. A replaced pod
-(new UID), a restarted source or a disarmed preparation is not rebound and
-still fails closed.
+keeps the bridge unready rather than moving routing past it. A restarted source
+or a disarmed preparation is not rebound; a pod UID that changed without a new
+process is an inconsistent observation and fails closed.
 
 ### Single-copy instances
 
