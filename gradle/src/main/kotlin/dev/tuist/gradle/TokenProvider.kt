@@ -72,9 +72,15 @@ open class TokenProvider(
 
         try {
             val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken, timeoutMs)
+            // A login or signout can change credentials while the refresh request is in flight.
+            val currentCredentials = credentialStore.readValidated(serverURL)
+                ?: throw NotAuthenticatedException(serverURL)
+            if (currentCredentials != credentials) {
+                return Pair(currentCredentials.accessToken, JwtParser.getExpirationMs(currentCredentials.accessToken))
+            }
             credentialStore.write(
                 serverURL,
-                Credentials(newTokens.accessToken, newTokens.refreshToken)
+                credentials.copy(accessToken = newTokens.accessToken, refreshToken = newTokens.refreshToken)
             )
             return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
         } catch (e: IOException) {

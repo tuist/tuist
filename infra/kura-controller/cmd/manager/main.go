@@ -47,6 +47,8 @@ func main() {
 	var privateReplication bool
 	var servingAuthority bool
 	var connectivityDiagnosticsInstances string
+	var connectivityDiagnosticsExpiresAt string
+	var connectivityDiagnosticsPrepare bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -60,6 +62,8 @@ func main() {
 	flag.BoolVar(&servingAuthority, "serving-authority", false, "Enable opt-in positively fenced serving grants; never enables timeout promotion")
 	flag.BoolVar(&privateReplication, "private-replication", false, "Derive OVH peer topology from converged private host routes")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
+	flag.StringVar(&connectivityDiagnosticsExpiresAt, "connectivity-diagnostics-expires-at", "", "Absolute RFC3339 expiry, at most 24 hours ahead; missing or invalid disables diagnostics")
+	flag.BoolVar(&connectivityDiagnosticsPrepare, "connectivity-diagnostics-prepare", false, "Prepare restart-free diagnostics on new StatefulSets and normal runtime image changes; requires the compatible controller rollback floor")
 
 	flag.StringVar(&stableZone, "stable-dns-zone-id", "", "Delegated cache.tuist.dev Route53 hosted zone; empty disables stable DNS")
 	flag.StringVar(&stableOwner, "stable-dns-owner", "", "Unique cluster identity for shared box health checks")
@@ -71,15 +75,12 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	probeInstances := splitNames(connectivityDiagnosticsInstances)
-	if len(probeInstances) != 0 && watchNamespace == "" {
-		setupLog.Error(errors.New("connectivity diagnostics require watch-namespace"), "invalid probe configuration")
-		os.Exit(1)
-	}
-
+	probeExpiry, expiryErr := time.Parse(time.RFC3339, connectivityDiagnosticsExpiresAt)
 	if len(probeInstances) != 0 {
-		if !controllers.ValidConnectivityProfile(deploymentEnvironment) {
-			setupLog.Error(errors.New("unsupported connectivity profile"), "invalid probe environment")
-			os.Exit(1)
+		remaining := time.Until(probeExpiry)
+		if watchNamespace == "" || !controllers.ValidConnectivityProfile(deploymentEnvironment) || expiryErr != nil || remaining <= 0 || remaining > 24*time.Hour {
+			setupLog.Info("connectivity diagnostics disabled: require watched namespace, fixed environment and expiry within 24 hours")
+			probeInstances = nil
 		}
 	}
 
@@ -140,6 +141,8 @@ func main() {
 		MetricsClient:                    metricsClient,
 		NodeLocalRuntimeStatusClient:     nodeLocalStatusClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
+		ConnectivityDiagnosticsExpiresAt: probeExpiry,
+		ConnectivityDiagnosticsPrepare:   connectivityDiagnosticsPrepare,
 	}
 	if stableZone != "" {
 		if watchNamespace == "" {

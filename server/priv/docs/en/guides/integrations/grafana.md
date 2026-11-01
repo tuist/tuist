@@ -76,28 +76,31 @@ Import [the build-health dashboard](https://github.com/tuist/tuist/blob/main/gra
 
 ## Build systems {#build-systems}
 
-Build-health queries and the standard dashboard support Bazel, Once, Gradle, and Xcode. Tuist selects the build system from your project. Mix projects are not currently supported by the build-health queries or standard dashboard.
+Build-health queries and the standard dashboard support Bazel, Cargo, Once, Gradle, and Xcode. Tuist selects the build system from your project. Mix projects are not currently supported by the build-health queries or standard dashboard.
 
 | Build system | Workload | Cancellation reporting | Cache savings |
 | --- | --- | --- | --- |
 | Bazel | Command | Exit code 8, except `run` | Requires custom metadata |
+| Cargo | Command | Not distinguished; count is zero | Elapsed savings require custom metadata; compiler work avoided is not elapsed savings |
 | Once | Command kind | Recorded cancellation reason | Not recorded |
 | Gradle | Task group | Reported cancellations | Automatic work-avoided estimate; elapsed savings require custom metadata |
 | Xcode | Scheme | Not distinguished; count is zero | Requires custom metadata |
 
-Processing records and unfinished runs are excluded. Bazel includes build, test, run, and coverage commands. Once includes finalized build, test, and generic runs.
+Processing records and unfinished runs are excluded. Bazel includes build, test, run, and coverage commands. Once includes finalized build, test, and generic runs. Cargo includes build commands such as `build`, `check`, and `test-build`; legacy test-execution reports are excluded from build health. Cargo recent failures use the recorded start time when available, falling back to insertion time; missing durations remain unavailable rather than zero.
 
-Gradle groups tasks as instrumented tests, unit tests, lint/checks, assemble/package, or Other, in that order of precedence. Each build belongs to one workload. Custom metadata can override workloads for Xcode, Bazel, and Gradle.
+Gradle groups tasks as instrumented tests, unit tests, lint/checks, assemble/package, or Other, in that order of precedence. Each build belongs to one workload. Custom metadata can override workloads for Xcode, Bazel, Cargo, and Gradle.
 
 ### Failure categories
 
 | Category | Meaning | Recorded evidence |
 | --- | --- | --- |
-| `verification` | Code failed compilation, linking, tests, or checks. | Gradle verification or compilation exceptions and known failed task types; Xcode compiler and linker issues; Bazel structured nonzero compiler/test action results; Once test failures or failed actions explicitly declared as compile, link, test, lint, or check. |
+| `verification` | Code failed compilation, linking, tests, or checks. | Gradle verification or compilation exceptions and known failed task types; Xcode compiler and linker issues; Bazel structured nonzero compiler/test action results; Cargo recorded failed rustc compilations; Once test failures or failed actions explicitly declared as compile, link, test, lint, or check. |
 | `infrastructure_tooling` | The build could not run normally because its tools, dependencies, or environment failed. | Gradle configuration, dependency resolution, input/output, or memory failures; Bazel structured infrastructure failures and [documented exit codes](https://bazel.build/run/scripts); Once infrastructure action errors. |
 | `unknown` | The report does not contain enough evidence to classify the failure. | Arbitrary commands, missing diagnostics, and older reports without structured evidence. |
 
 Gradle configuration-phase failures, including errors in build scripts, are grouped under infrastructure/tooling because task execution could not proceed.
+
+Cargo failures without explicit category metadata or a recorded failed rustc compilation remain `unknown`; a failed `check` or `test-build` command alone does not establish a verification failure. Cargo task reuse counters and estimated compiler work avoided never supply either elapsed cache savings or Gradle's cumulative task-time metric.
 
 Explicit `tuist.failure_category` metadata overrides automatic classification. Otherwise, infrastructure evidence takes precedence over verification when both occur in a build. A failed arbitrary script is not assumed to be a compiler or test failure. Historical reports can use evidence that Tuist already stores, but new reporter fields do not backfill missing information. Automatic reporter metadata uses available space within the existing 20-entry custom metadata limit.
 
@@ -142,7 +145,7 @@ All queries accept date ranges up to 366 days. Their boundaries and timestamps d
 
 | Query | Timestamp used | Range boundaries |
 | --- | --- | --- |
-| Build health: Xcode, Bazel, Gradle | Record insertion time | Includes start, excludes end |
+| Build health: Xcode, Bazel, Cargo, Gradle | Record insertion time | Includes start, excludes end |
 | Build health: Once | Run start time | Includes start, excludes end |
 | Xcode build durations | Record insertion time | Excludes start and end |
 | Test durations | Recorded run time | Includes start and end |
@@ -160,7 +163,7 @@ Filters accept one exact value. For branch and workload variables, set the All o
 
 ## Reporting custom metadata {#custom-metadata}
 
-Xcode, Bazel, and Gradle builds accept these optional metadata values:
+Xcode, Bazel, Cargo, and Gradle builds accept these optional metadata values:
 
 | Key | Accepted value |
 | --- | --- |

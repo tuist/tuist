@@ -7,10 +7,8 @@ defmodule Tuist.Runners.Jobs do
   job, guarded compare-and-set transitions); the ClickHouse
   `runner_jobs` ReplacingMergeTree is its analytics/history replica,
   fed by the transition outbox
-  (`Tuist.Runners.Workers.FlushJobTransitionEventsWorker`). Single-writer
-  except for jobs that predate the Postgres store, which have no
-  lifecycle row to transition and so take the direct write in
-  `set_log_archived_at/2`. This module owns:
+  (`Tuist.Runners.Workers.FlushJobTransitionEventsWorker`), its single
+  writer. This module owns:
 
     * the webhook write orchestration — the per-job ordering lock,
       the `runner_job_completions` resurrection guard, and the
@@ -45,7 +43,6 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
-  alias Tuist.IngestRepo
   alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
@@ -480,29 +477,20 @@ defmodule Tuist.Runners.Jobs do
 
   @doc """
   Stamps the job row with the time its gzipped log archive landed in
-  S3 (or clears it when the archive has been pruned). State-transition
-  INSERT, carrying all other columns forward.
+  S3 (or clears it when the archive has been pruned).
 
   The stamp is written to Postgres and reaches ClickHouse through the
   transition outbox like every other column, so the analytics row has a
   single writer and no write can re-assert a lifecycle state the job has
-  already left. ClickHouse trails the flush by up to a tick; control-plane
-  reads that must not see that lag go to `WorkflowJobs.log_archived_at/1`.
+  already left. ClickHouse trails the flush by up to a tick; reads that
+  must not see that lag go through `get_for_account/2`.
 
-  Jobs archived before `runner_workflow_jobs` existed have no row to
-  stamp and receive no outbox events at all, so for those the ClickHouse
-  row is the only state there is and writing it directly is safe. That
-  path retires once the pre-migration population ages past the archive
-  retention in `PruneArchivedLogsWorker`.
-
-  No-op when the workflow_job is unknown to both stores.
+  No-op when the workflow_job has no lifecycle row.
   """
   def set_log_archived_at(workflow_job_id, archived_at)
       when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
-    case WorkflowJobs.record_log_archived_at(workflow_job_id, archived_at) do
-      :ok -> :ok
-      :noop -> stamp_untracked_row(workflow_job_id, archived_at, DateTime.utc_now())
-    end
+    WorkflowJobs.record_log_archived_at(workflow_job_id, archived_at)
+    :ok
   end
 
   @doc """
@@ -570,33 +558,10 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Whether the job's log archive is available to serve.
-
-  A stamp in either store counts. Postgres is the one that leads, by up
-  to an outbox flush after `ArchiveLogsWorker` writes it, so it answers
-  on its own for anything archived since it started carrying the column.
-  ClickHouse answers for the two populations Postgres cannot: jobs with
-  no lifecycle row at all, and jobs whose row predates the column and so
-  reads `NULL` while the archive itself exists in S3. Requiring Postgres
-  alone would take the download away from every archive made before that
-  migration.
-
-  Both fallbacks retire together, once every archive predating the column
-  has aged past the retention in `PruneArchivedLogsWorker`.
-
-  The cost of accepting either store is a stale yes for one flush after a
-  prune clears the stamp, where Postgres reads `NULL` and ClickHouse
-  still holds the old value. The prune has already deleted the S3 object
-  by then, so the download fails at the redirect either way; only the
-  status code differs.
+  Whether the log archive of a job read by `get_for_account/2` is
+  available to serve.
   """
-  def archive_available?(%Job{workflow_job_id: workflow_job_id, account_id: account_id, log_archived_at: ch_archived_at}) do
-    case WorkflowJobs.log_archived_at(workflow_job_id, account_id) do
-      {:ok, %DateTime{}} -> true
-      {:ok, nil} -> not is_nil(ch_archived_at)
-      :not_found -> not is_nil(ch_archived_at)
-    end
-  end
+  def archive_available?(%Job{log_archived_at: archived_at}), do: not is_nil(archived_at)
 
   @doc """
   Lists jobs for an account, ordered so the most recently updated
@@ -907,30 +872,15 @@ defmodule Tuist.Runners.Jobs do
   to `account_id`. Used by the detail page so the URL can't be
   tampered with to view another customer's run.
 
-  The Postgres lifecycle row answers when it exists, so a job is
-  visible from its first transition rather than after the outbox
-  replays it into ClickHouse. ClickHouse answers for jobs that have no
-  lifecycle row, and supplies `log_archived_at` for archives whose
-  marker predates the Postgres column (see `archive_available?/1`).
+  Served from the Postgres lifecycle row, in the ClickHouse
+  `runner_jobs` shape, so a job is visible from its first transition
+  rather than after the outbox replays it into ClickHouse.
   """
   def get_for_account(account_id, workflow_job_id) when is_integer(account_id) and is_integer(workflow_job_id) do
-    replica =
-      Job
-      |> from(hints: ["FINAL"])
-      |> where([j], j.account_id == ^account_id and j.workflow_job_id == ^workflow_job_id)
-      |> limit(1)
-      |> ClickHouseRepo.one()
-
-    case {WorkflowJobs.get_for_account(account_id, workflow_job_id), replica} do
-      {nil, nil} -> {:error, :not_found}
-      {nil, %Job{} = job} -> {:ok, job}
-      {%WorkflowJob{} = row, replica} -> {:ok, lifecycle_job(row, replica)}
+    case WorkflowJobs.get_for_account(account_id, workflow_job_id) do
+      nil -> {:error, :not_found}
+      %WorkflowJob{} = row -> {:ok, struct(Job, WorkflowJobs.replica_row(row))}
     end
-  end
-
-  defp lifecycle_job(%WorkflowJob{} = row, replica) do
-    job = struct(Job, WorkflowJobs.replica_row(row))
-    %{job | log_archived_at: row.log_archived_at || (replica && replica.log_archived_at)}
   end
 
   @doc """
@@ -1574,38 +1524,6 @@ defmodule Tuist.Runners.Jobs do
     )
 
     :ok
-  end
-
-  defp stamp_untracked_row(workflow_job_id, archived_at, now) do
-    case current(workflow_job_id) do
-      nil ->
-        :ok
-
-      %Job{} = job ->
-        job
-        |> job_to_row()
-        |> Map.put(:updated_at, now)
-        |> stamp!(archived_at)
-    end
-  end
-
-  defp stamp!(row, archived_at) do
-    row
-    |> Map.put(:log_archived_at, archived_at)
-    |> insert_row!()
-
-    :ok
-  end
-
-  defp insert_row!(row) do
-    row = Map.put_new(row, :updated_at, DateTime.utc_now())
-    IngestRepo.insert_all(Job, [row])
-  end
-
-  defp job_to_row(%Job{} = job) do
-    job
-    |> Map.from_struct()
-    |> Map.delete(:__meta__)
   end
 
   # Returns `nil` when either bound is missing or the interval is

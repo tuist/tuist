@@ -83,7 +83,8 @@ defmodule TuistWeb.Router do
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://glossia.ai https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
+      frame_src:
+        "'self' https://atlas.tuist.dev https://*.tuist.dev https://www.youtube-nocookie.com https://newassets.hcaptcha.com#{turnstile_source}",
       connect_src: "'self' https://glossia.ai https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
@@ -1011,6 +1012,9 @@ defmodule TuistWeb.Router do
         end
 
         scope "/cargo" do
+          get "/crates", CargoCratesController, :index
+          get "/crates/:crate_id", CargoCratesController, :show
+          get "/crates/:crate_id/compilations", CargoCratesController, :history
           post "/builds", CargoController, :create_build
           get "/builds", CargoController, :list_builds
           get "/builds/:build_id", CargoController, :get_build
@@ -1047,6 +1051,14 @@ defmodule TuistWeb.Router do
           get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
+        end
+
+        scope "/artifacts" do
+          get "/", ArtifactsController, :capabilities
+          get "/publications/:key", ArtifactsController, :show
+          post "/publications/:key", ArtifactsController, :commit
+          post "/publications/:key/content/:digest", ArtifactsController, :upload
+          get "/publications/:key/content/:digest", ArtifactsController, :download
         end
 
         scope "/previews" do
@@ -1667,6 +1679,8 @@ defmodule TuistWeb.Router do
       live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates/:crate_id", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
       live "/builds/bazel/actions", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/bazel/actions/:action_id", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata

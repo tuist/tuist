@@ -698,6 +698,8 @@ enum PackageResolver {
     /// output is captured (not forwarded) so that, on the non-zero exit, the
     /// SwiftPM out-of-date diagnostic on stderr becomes the `ToolError` message
     /// instead of a bare exit code.
+    /// A pass is recorded under its inputs (`ResolvedFileValidation`) and reused for the same
+    /// inputs, in this or another scratch directory.
     static func assertResolvedFileUpToDate(
         packageDir: URL,
         scratchDir: URL?,
@@ -710,24 +712,52 @@ enum PackageResolver {
         let scratch = scratchDir ?? packageDir.appendingPathComponent(".build")
         let scratchLock = try await PathLock.acquire(at: scratch.appendingPathComponent(".swifterpm.lock"))
         defer { withExtendedLifetime(scratchLock) {} }
-        _ = try await NativeWorkspace.prepare(scratchDir: scratch)
-        // The restored workspace makes this a no-fetch validation. Legacy environment
-        // providers are irrelevant here, and refusing them would break warm installs.
-        // Use the manifest environment so rotating fetch credentials cannot invalidate
-        // SwiftPM's native manifest cache or change the graph being validated.
-        try await runNativeResolution(
+        let validationKey = await ResolvedFileValidation.key(
             packageDir: packageDir,
-            scratchDir: scratchDir,
-            cacheDir: cacheDir,
+            scratchDir: scratch,
             registryConfigurationPath: registryConfigurationPath,
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
-            scmToRegistryTransformation: scmToRegistryTransformation,
-            authentication: .native,
-            environment: Environment.manifestValues,
-            forceResolvedVersions: true,
-            forwardOutput: false
+            scmToRegistryTransformation: scmToRegistryTransformation
         )
+        if let validationKey, await ResolvedFileValidation.isRecorded(key: validationKey, cacheDir: cacheDir) {
+            Environment.debugHandler?("Package.resolved passed SwiftPM's validation with the same inputs before; skipping it")
+            return
+        }
+        try await PhaseTiming.measure("validating Package.resolved with SwiftPM") {
+            _ = try await NativeWorkspace.prepare(scratchDir: scratch)
+            // The restored workspace makes this a no-fetch validation. Legacy environment
+            // providers are irrelevant here, and refusing them would break warm installs.
+            // Use the manifest environment so rotating fetch credentials cannot invalidate
+            // SwiftPM's native manifest cache or change the graph being validated.
+            try await runNativeResolution(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                cacheDir: cacheDir,
+                registryConfigurationPath: registryConfigurationPath,
+                defaultRegistryURL: defaultRegistryURL,
+                disableSandbox: disableSandbox,
+                scmToRegistryTransformation: scmToRegistryTransformation,
+                authentication: .native,
+                environment: Environment.manifestValues,
+                forceResolvedVersions: true,
+                forwardOutput: false
+            )
+        }
+        // Inputs that changed while SwiftPM ran, including prebuilts it recorded, were not the
+        // ones validated under this key.
+        if let validationKey,
+           await ResolvedFileValidation.key(
+               packageDir: packageDir,
+               scratchDir: scratch,
+               registryConfigurationPath: registryConfigurationPath,
+               defaultRegistryURL: defaultRegistryURL,
+               disableSandbox: disableSandbox,
+               scmToRegistryTransformation: scmToRegistryTransformation
+           ) == validationKey
+        {
+            await ResolvedFileValidation.record(key: validationKey, cacheDir: cacheDir)
+        }
     }
 
     private static func normalizeLoadedResolvedFile(

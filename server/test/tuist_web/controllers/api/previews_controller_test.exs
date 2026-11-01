@@ -5,7 +5,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -19,6 +19,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   setup do
     user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
     project = ProjectsFixtures.project_fixture(account_id: account.id)
+    stub(AppBuilds, :preview_install_token, fn _preview -> "install-token" end)
     %{user: user, project: project, account: account}
   end
 
@@ -229,14 +230,18 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert app_build.type == :ipa
     end
 
-    for platform <- ["macos", "linux"] do
+    for platform <- ["macos", "linux"], env <- [:test, :can, :prod] do
       @platform platform
-      test "starts multipart upload of an executable preview for #{platform}", %{
+      @env env
+      test "starts executable preview uploads for #{platform} in #{env} without enrollment", %{
         conn: conn,
         user: user,
         project: project,
         account: account
       } do
+        stub(Environment, :env, fn -> @env end)
+        stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
         expect(Storage, :multipart_start, fn object_key, _actor ->
           assert String.ends_with?(object_key, ".zip")
           {:ok, "upload-id"}
@@ -887,7 +892,9 @@ defmodule TuistWeb.PreviewsControllerTest do
         |> json_response(:ok)
 
       assert response["supported_platforms"] == ["android"]
-      assert response["device_url"] == url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk")
+
+      assert response["device_url"] ==
+               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk?token=install-token")
     end
 
     test "legacy builds without per-build platform metadata retain their preview platforms", %{
@@ -952,46 +959,6 @@ defmodule TuistWeb.PreviewsControllerTest do
         assert response["preview"]["id"] == expected.id
       end
     end
-
-    test "the rollout gate rejects new enum writes without blocking mobile uploads", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      stub(FeatureFlags, :cli_previews_enabled?, fn _account -> false end)
-      stub(Storage, :multipart_start, fn _key, _actor -> {:ok, "mobile-upload"} end)
-      conn = Authentication.put_current_user(conn, user)
-
-      for {type, platforms} <- [{"executable", ["macos"]}, {"ipa", ["linux"]}] do
-        response =
-          conn
-          |> put_req_header("content-type", "application/json")
-          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-            type: type,
-            display_name: "tuist",
-            supported_platforms: platforms
-          )
-          |> json_response(:forbidden)
-
-        assert response["message"] =~ "Finish upgrading all server replicas"
-      end
-
-      assert Repo.aggregate(Preview, :count) == 0
-
-      response =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-          type: "ipa",
-          display_name: "App",
-          bundle_identifier: "dev.example.app",
-          supported_platforms: ["ios"]
-        )
-        |> json_response(:ok)
-
-      assert response["data"]["upload_id"] == "mobile-upload"
-    end
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/previews/complete" do
@@ -1055,7 +1022,10 @@ defmodule TuistWeb.PreviewsControllerTest do
                "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
                "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "device_url" =>
-                 "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/manifest.plist")}",
+                 "itms-services://?action=download-manifest&url=" <>
+                   URI.encode_www_form(
+                     url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/manifest.plist?token=install-token")
+                   ),
                "bundle_identifier" => "dev.tuist.app",
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
@@ -1182,7 +1152,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["supported_platforms"] == ["android"]
 
       assert response["device_url"] ==
-               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk")
+               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk?token=install-token")
     end
 
     test "returns error when project doesn't exist", %{
@@ -1655,7 +1625,12 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"),
                  "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
                  "device_url" =>
-                   "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/manifest.plist")}",
+                   "itms-services://?action=download-manifest&url=" <>
+                     URI.encode_www_form(
+                       url(
+                         ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/manifest.plist?token=install-token"
+                       )
+                     ),
                  "bundle_identifier" => "dev.tuist.app",
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",

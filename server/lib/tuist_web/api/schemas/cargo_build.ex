@@ -3,6 +3,7 @@ defmodule TuistWeb.API.Schemas.CargoBuild do
 
   alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
+  alias Tuist.Cargo.CacheDetails
   alias Tuist.Cargo.CacheMetrics
   alias TuistWeb.API.Schemas.PaginationMetadata
 
@@ -21,8 +22,58 @@ defmodule TuistWeb.API.Schemas.CargoBuild do
     %{
       build
       | title: "CargoBuildDetail",
-        properties: Map.put(build.properties, :cache, cache()),
+        properties:
+          Map.merge(build.properties, %{
+            cache: cache(),
+            cache_inspection: %{
+              CacheDetails.schema()
+              | nullable: true,
+                description: "Validated inspection records when requested; null when omitted, missing or invalid."
+            },
+            compilations: %Schema{
+              type: :array,
+              maxItems: 500,
+              items: compilation(),
+              description: "First 500 recorded rustc invocations, ordered by start offset and ID, not per-file timings."
+            },
+            compilations_truncated: %Schema{
+              type: :boolean,
+              description: "More recorded invocations exist than returned. Diagnostics cover only returned invocations."
+            }
+          }),
         required: [:cache | build.required]
+    }
+  end
+
+  defp compilation do
+    %Schema{
+      type: :object,
+      additionalProperties: false,
+      properties: %{
+        id: %Schema{type: :string, format: :uuid},
+        name: %Schema{type: :string},
+        source: %Schema{type: :string},
+        kind: %Schema{type: :string},
+        dependencies: %Schema{type: :array, items: %Schema{type: :string}},
+        start_offset_ms: %Schema{type: :integer, minimum: 0},
+        duration_ms: %Schema{type: :integer, minimum: 0, description: "Duration of this rustc invocation."},
+        status: %Schema{type: :string, description: "Recorded success or failure."},
+        diagnostics: %Schema{
+          type: :array,
+          maxItems: 100,
+          items: %Schema{
+            type: :object,
+            properties: %{
+              severity: %Schema{type: :string, description: "Recorded warning or error."},
+              message: %Schema{type: :string},
+              file: nullable_string(),
+              line: %Schema{type: :integer, nullable: true, minimum: 0}
+            },
+            required: [:severity, :message]
+          }
+        }
+      },
+      required: [:id, :name, :source, :kind, :dependencies, :start_offset_ms, :duration_ms, :status, :diagnostics]
     }
   end
 

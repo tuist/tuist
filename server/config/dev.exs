@@ -57,17 +57,23 @@ base_watchers = [
 # different ports.
 
 # Watch static and templates for browser reloading.
+#
+# Config regexes must use the E (export) modifier. On Erlang/OTP 28+ a plain
+# compiled regex holds a reference, so every evaluation of this file differs
+# from the copy Mix stored in the compile manifest. Mix then treats the :tuist
+# configuration as changed and recompiles the whole application whenever it
+# rechecks the configuration, which `mix compile` triggers on every run.
 base_live_reload_patterns = [
-  ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-  ~r"priv/gettext/.*(po)$",
-  ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
-  ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
-  ~r"lib/tuist_web/docs/.*(ex|heex)$",
-  ~r"priv/marketing/blog/.*\\.md$",
-  ~r"#{escaped_noora_source_path}/lib/noora/.*(ex|heex)$",
-  ~r"#{escaped_noora_source_path}/js/.*(js)$",
-  ~r"#{escaped_noora_source_path}/css/.*(css)$",
-  ~r"#{escaped_noora_source_path}/priv/static/.*(js|css)$"
+  ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$"E,
+  ~r"priv/gettext/.*(po)$"E,
+  ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$"E,
+  ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$"E,
+  ~r"lib/tuist_web/docs/.*(ex|heex)$"E,
+  ~r"priv/marketing/blog/.*\\.md$"E,
+  ~r"#{escaped_noora_source_path}/lib/noora/.*(ex|heex)$"E,
+  ~r"#{escaped_noora_source_path}/js/.*(js)$"E,
+  ~r"#{escaped_noora_source_path}/css/.*(css)$"E,
+  ~r"#{escaped_noora_source_path}/priv/static/.*(js|css)$"E
 ]
 
 config :esbuild,
@@ -212,7 +218,8 @@ config :tuist, TuistWeb.Endpoint,
   check_origin: false,
   code_reloader: code_reloader_enabled,
   debug_errors: debug_errors_enabled,
-  reloadable_apps: [:tuist, :noora],
+  reloadable_apps: [:tuist],
+  reloadable_path_deps: [:noora],
   watchers: if(code_reloader_enabled, do: base_watchers, else: []),
   live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])
 

@@ -372,6 +372,56 @@ Do not run creation during routine deploys or recovery. Preserve the existing it
 
 **Rotation and rollback:** this ExternalSecret uses `refreshPolicy: OnChange`, not periodic refresh. Source edits alone do not propagate into the runtime Secret; synchronization happens on creation or ExternalSecret metadata/spec changes. Existing `Ready=True` therefore does not attest that the current 1Password value is unchanged or still accessible. During an approved rotation, explicitly request synchronization by updating the ExternalSecret's `force-sync` annotation, then verify synchronization before replacing **every** participant. Changing the Kubernetes Secret does not update environment variables in already-running BEAMs. Coordinate source change, synchronization and process replacement as one maintenance operation, with membership and cross-node notifications checked afterwards. Never rotate incidentally to fix a deploy or missing key. Application rollback with a chart revision that retains this ExternalSecret preserves its Secret and cookie. A Helm rollback to a pre-ExternalSecret revision deletes the ESO resource and its owner-referenced runtime Secret, reverting to the earlier cookie behavior and membership islands; it does not delete the durable 1Password item. The first migration from image-baked cookies and the mixed-version qualification gates are documented in [multi-replica clustering](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
 
+## 5f. ClickHouse tailnet ingress without public NodePorts
+
+The managed ClickHouse HTTP-only tailnet Service uses `loadBalancerClass: tailscale`
+when `clickhouse.managed.tailscale.proxyGroup` is set. The ProxyGroup routes its
+Tailscale VIP to the Service's **ClusterIP**, not its TCP NodePort. Keep
+`allocateLoadBalancerNodePorts: false` and explicit `nodePort: null` in the chart:
+disabling allocation alone does not remove an existing server-allocated port.
+Do not recreate the Service or change its name, selector, port, hostname or VIP.
+The separate ProxyGroup **UDP** NodePort Services carry encrypted Tailscale
+transport and must remain intact.
+
+**Rollout:** qualify staging, then canary, then production, using separately
+approved deployments and the normal access rules above. First establish a
+successful hardening-only release with the currently deployed application and
+other runtime images/values unchanged. Record that Helm revision as the
+**rollback floor** before combining this with application changes. For each env:
+
+1. Before upgrading, privately record the Service UID, ClusterIP(s), annotations,
+   ports, VIP and Ready EndpointSlices; the proxy StatefulSet's readiness; and
+   current public IPv4/IPv6 node addresses plus the previously reachable inventory.
+   Establish a positive HTTP `/ping` control from an authorized tailnet peer.
+2. Upgrade in place. Verify the same UID, ClusterIP(s), selector, HTTP 8123,
+   hostname, VIP and healthy backends, with allocation disabled and **no nonzero
+   NodePort on any port**. With the intended context and namespace selected,
+   this read-only assertion must succeed:
+
+   ```bash
+   kubectl --context "$context" -n "$namespace" get service tuist-tuist-clickhouse-tailnet -o json |
+     jq -e '.spec.allocateLoadBalancerNodePorts == false and all(.spec.ports[]; (.nodePort // 0) == 0)'
+   ```
+
+   Production's namespace is `tuist`; staging/canary use `tuist-<env>`.
+3. Check `TailscaleIngressSvcConfigured`, both ingress proxy replicas' readiness,
+   and HTTP `/ping` through the unchanged tailnet hostname. Then, under approved
+   fixture/data-validation scope, run a macOS xcresult-processor fixture and verify
+   its expected ClickHouse persistence, including any configured mirrors. Ready
+   Pods, `/ping`, and a completed job alone do not prove that expected rows arrived.
+4. From outside the tailnet, use fresh normal TCP connections to verify the old
+   public NodePort is closed across the recorded and current public node inventory,
+   paired with the positive tailnet control. Re-read the live Service for any new
+   allocation; checking only the old port is insufficient.
+
+**Failure and rollback:** check the Service invariant after failed deployments
+and automatic rollbacks too. The initial transition's atomic rollback can restore
+the old manifest and allocate a *different* public NodePort. Treat that as exposure
+still open, stop promotion, and request authorized re-hardening. Once the floor is
+established, application rollback must retain this hardened chart (for example,
+roll back the application image under it), not restore a pre-hardening chart.
+This is network exposure reduction, not a kernel vulnerability patch.
+
 ## 6. First deploy
 
 ### Manual smoke test

@@ -34,6 +34,8 @@
 
 ## Shared tool contracts
 
+- Persistent entity tools additionally accept `cargo_crates`, using exact recorded crate root/name/kind identities. Histories expose rustc invocations, not configured workspace units or cache hits; preserve the same feature flag and project-scoped authorization as other kinds.
+
 - Bounded source-code service: [codebase-search/AGENTS.md](../../../../codebase-search/AGENTS.md).
 
 - Gradle/Bazel step list/detail tools share `Builds.RecordedSteps` with their APIs. They enforce build-read access, preserve opaque IDs, and expose coverage and timestamp-origin metadata; Bazel action logs are fetched separately for details while Gradle logs remain unavailable.

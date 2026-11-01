@@ -10,10 +10,19 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
 
   # The persistent kinds exposed over MCP. Cache actions stay available through
   # REST and the dashboard, and their run-level cache tools are unchanged.
-  @kinds [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules, :bazel_actions]
+  @kinds [
+    :gradle_tasks,
+    :xcode_modules,
+    :once_actions,
+    :mix_files,
+    :mix_modules,
+    :bazel_actions,
+    :cargo_crates
+  ]
 
   @kind_descriptions """
-  Kinds: `bazel_actions` (Bazel actions identified by target label, mnemonic and configured primary output; history lists BEP-reported executions, not cache traffic), `gradle_tasks` (Gradle tasks; history lists task executions), \
+  Kinds: `cargo_crates` (observed Rust crates identified by exact recorded crate root, name and kind; history lists measured rustc invocations, not per-file timings or cache hits. Paths are not normalized and configuration independence is not established), \
+  `bazel_actions` (Bazel actions identified by target label, mnemonic and configured primary output; history lists BEP-reported executions, not cache traffic), `gradle_tasks` (Gradle tasks; history lists task executions), \
   `xcode_modules` (Xcode modules; history lists measured compilations and module cache events), \
   `once_actions` (Once actions identified by declared target, capability and action index; \
   history lists executions), `mix_files` (Mix compiled files; history lists compilations) and \
@@ -53,7 +62,7 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
   def definition(:index),
     do:
       {"list_build_entities", "List Build Entities",
-       "List the tasks, modules, actions or files of one kind seen across a project's builds, with stable IDs independent of any run."}
+       "List the tasks, modules, actions, crates or files of one kind seen across a project's builds, with stable IDs independent of any run."}
 
   def definition(:show),
     do:

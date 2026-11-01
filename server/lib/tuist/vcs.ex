@@ -37,7 +37,13 @@ defmodule Tuist.VCS do
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
-  @test_body_build_systems [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"mix", "Mix"}]
+  @test_body_build_systems [
+    {"xcode", "Xcode"},
+    {"gradle", "Gradle"},
+    {"bazel", "Bazel"},
+    {"mix", "Mix"},
+    {"cargo", "Cargo"}
+  ]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
@@ -1942,7 +1948,7 @@ defmodule Tuist.VCS do
     api_url = if is_binary(api_url), do: String.trim(api_url), else: api_url
     payload = {account_id, normalize_client_url(client_url), normalize_github_app_owner(github_app_owner)}
     payload = if api_url in [nil, ""], do: payload, else: Tuple.insert_at(payload, 3, api_url)
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "github_state", payload)
   end
 
   @doc """
@@ -1956,7 +1962,7 @@ defmodule Tuist.VCS do
     token_max_age_seconds = 7_776_000
 
     case Phoenix.Token.verify(
-           TuistWeb.Endpoint,
+           Tuist.Web.endpoint(),
            "github_state",
            token,
            max_age: token_max_age_seconds

@@ -216,6 +216,8 @@ defmodule Tuist do
       AppBuilds,
       AppBuilds.Preview,
       AppBuilds.AppBuild,
+      Artifacts,
+      Artifacts.Package,
       Projects,
       Projects.Project,
       Accounts.OIDCTrustPolicy,

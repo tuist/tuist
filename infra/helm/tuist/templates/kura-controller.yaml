@@ -389,6 +389,8 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
+            - --connectivity-diagnostics-prepare={{ $connectivityDiagnostics.prepare | default false }}
+            - {{ printf "--connectivity-diagnostics-expires-at=%s" ($connectivityDiagnostics.expiresAt | default "") | quote }}
             {{- if $connectivityDiagnostics.existingSecret }}
             - "--connectivity-diagnostics-instances=$(KURA_CONNECTIVITY_DIAGNOSTICS_INSTANCES)"
             {{- else if $connectivityDiagnostics.instances }}

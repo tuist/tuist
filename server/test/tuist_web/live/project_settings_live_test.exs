@@ -103,7 +103,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     conn: conn,
     organization: organization
   } do
-    for {system, shown?} <- [xcode: true, bazel: true, mix: true, gradle: false, cargo: false] do
+    for {system, shown?} <- [xcode: true, bazel: true, mix: true, gradle: false, cargo: true] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: system)
       base = "/#{organization.account.name}/#{project.name}"
 

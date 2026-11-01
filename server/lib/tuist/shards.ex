@@ -16,6 +16,7 @@ defmodule Tuist.Shards do
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards.BinPacker
+  alias Tuist.Shards.RecentShardPlan
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
@@ -99,19 +100,15 @@ defmodule Tuist.Shards do
     {modules, suites} =
       shard_targets(plan, project.id, assignment_shards, granularity, now, module_inventory(params, units, granularity))
 
-    plan =
-      if plan.reporting_version == 1 do
-        assignments =
-          JSON.encode!(%{
-            modules: Enum.map(modules, &Map.delete(&1, :inserted_at)),
-            test_suites: Enum.map(suites, &Map.delete(&1, :inserted_at))
-          })
+    assignments =
+      JSON.encode!(%{
+        modules: Enum.map(modules, &Map.delete(&1, :inserted_at)),
+        test_suites: Enum.map(suites, &Map.delete(&1, :inserted_at))
+      })
 
-        %{plan | assignments: assignments}
-      else
-        plan
-      end
+    plan = %{plan | assignments: assignments}
 
+    insert_recent_plan!(plan)
     {:ok, plan} = IngestRepo.insert(plan)
     if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
     if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
@@ -131,12 +128,9 @@ defmodule Tuist.Shards do
   end
 
   def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil, opts \\ []) do
-    case get_plan(project.id, reference) do
-      nil ->
-        {:error, :not_found}
-
-      plan ->
-        start_upload_for_plan(project, account, plan, artifact, opts)
+    case upload_plan_id(project.id, reference) do
+      nil -> {:error, :not_found}
+      plan_id -> start_upload_for_plan_id(project, account, plan_id, artifact, opts)
     end
   end
 
@@ -179,12 +173,9 @@ defmodule Tuist.Shards do
         artifact \\ nil,
         opts \\ []
       ) do
-    case get_plan(project.id, reference) do
-      nil ->
-        {:error, :not_found}
-
-      plan ->
-        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact, opts)
+    case upload_plan_id(project.id, reference) do
+      nil -> {:error, :not_found}
+      plan_id -> complete_upload_for_plan(project, account, plan_id, upload_id, parts, artifact, opts)
     end
   end
 
@@ -216,12 +207,9 @@ defmodule Tuist.Shards do
         artifact \\ nil,
         opts \\ []
       ) do
-    case get_plan(project.id, reference) do
-      nil ->
-        {:error, :not_found}
-
-      plan ->
-        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact, opts)
+    case upload_plan_id(project.id, reference) do
+      nil -> {:error, :not_found}
+      plan_id -> generate_upload_url_for_plan(project, account, plan_id, upload_id, part_number, artifact, opts)
     end
   end
 
@@ -252,12 +240,56 @@ defmodule Tuist.Shards do
   # the account's storage.
   defp plan_storage(project, account, plan_id, opts) do
     if ShardStorage.routable?(project) do
-      case get_plan_by_id(project.id, plan_id) do
+      case storage_target(project.id, plan_id) do
         nil -> {:error, :not_found}
-        plan -> ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant))
+        target -> ShardStorage.resolve_for_request(%{storage_target: target}, account, Keyword.get(opts, :runner_grant))
       end
     else
       {:ok, account}
+    end
+  end
+
+  # Postgres keeps a new plan's upload fields until every ClickHouse replica has the plan;
+  # plans older than a day fall back to ClickHouse. A reference resolves to its
+  # latest plan, as in `get_plan/2`.
+  defp insert_recent_plan!(plan) do
+    Repo.insert!(%RecentShardPlan{
+      plan_id: plan.id,
+      project_id: plan.project_id,
+      reference: plan.reference,
+      storage_target: plan.storage_target,
+      inserted_at: DateTime.from_naive!(plan.inserted_at, "Etc/UTC")
+    })
+  end
+
+  defp upload_plan_id(project_id, reference) do
+    recent_plan_id =
+      Repo.one(
+        from(r in RecentShardPlan,
+          where: r.project_id == ^project_id and r.reference == ^reference,
+          order_by: [desc: r.inserted_at],
+          limit: 1,
+          select: r.plan_id
+        )
+      )
+
+    with nil <- recent_plan_id,
+         %ShardPlan{id: plan_id} <- get_plan(project_id, reference) do
+      plan_id
+    end
+  end
+
+  defp storage_target(project_id, plan_id) do
+    with {:ok, plan_id} <- Ecto.UUID.cast(plan_id),
+         %RecentShardPlan{storage_target: target} <-
+           Repo.get_by(RecentShardPlan, plan_id: plan_id, project_id: project_id) do
+      target
+    else
+      _ ->
+        case get_plan_by_id(project_id, plan_id) do
+          nil -> nil
+          plan -> plan.storage_target
+        end
     end
   end
 
@@ -469,7 +501,9 @@ defmodule Tuist.Shards do
     end)
   end
 
-  defp preload_assignments(%ShardPlan{reporting_version: 1, assignments: assignments} = plan, _preloads) do
+  # A replica can see a plan before its separately inserted assignment rows. Keep reads atomic
+  # whenever the plan carries its manifest, independently of its test-reporting contract.
+  defp preload_assignments(%ShardPlan{assignments: assignments} = plan, _preloads) when assignments != "" do
     data = JSON.decode!(assignments)
     modules = Enum.map(data["modules"], &assignment_struct(ShardPlanModule, &1))
     suites = Enum.map(data["test_suites"], &assignment_struct(ShardPlanTestSuite, &1))

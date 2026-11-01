@@ -9,7 +9,9 @@ defmodule TuistWeb.CodeReloader do
       reloadable_app_manifests(endpoint)
     )
 
-    Phoenix.CodeReloader.reload(endpoint, opts)
+    with :ok <- reload_path_deps(endpoint, opts) do
+      Phoenix.CodeReloader.reload(endpoint, opts)
+    end
   end
 
   def stale_config_files(config_files, manifests) do
@@ -35,10 +37,72 @@ defmodule TuistWeb.CodeReloader do
     :ok
   end
 
+  # A dependency compiled with the parent's consolidation path deletes it, so the
+  # app reconsolidated every protocol on each request (elixir-lang/elixir#15727).
+  defp reload_path_deps(endpoint, opts) do
+    case endpoint.config(:reloadable_path_deps, []) do
+      [] ->
+        :ok
+
+      apps ->
+        compilers = endpoint.config(:reloadable_compilers)
+        args = ["--purge-compiler-modules" | Keyword.get(opts, :reloadable_args, ["--no-all-warnings"])]
+
+        :global.trans({__MODULE__, self()}, fn -> compile_path_deps(apps, compilers, args) end, [node()])
+    end
+  end
+
+  defp compile_path_deps(apps, compilers, args) do
+    Mix.Project.with_build_lock(fn ->
+      Mix.Dep.cached()
+      |> Enum.filter(&(&1.app in apps))
+      |> Enum.reduce_while(:ok, fn dep, :ok ->
+        case compile_path_dep(dep, compilers, args) do
+          :ok -> {:cont, :ok}
+          error -> {:halt, error}
+        end
+      end)
+    end)
+  end
+
+  defp compile_path_dep(%{opts: opts} = dep, compilers, args) do
+    consolidation_path = Path.join(Keyword.fetch!(opts, :build), "consolidated")
+
+    Mix.Dep.in_dependency(dep, [consolidation_path: consolidation_path], fn _ ->
+      available = Mix.Project.config()[:compilers] || Mix.compilers()
+      compilers = Enum.filter(compilers, &(&1 in available))
+      Enum.each(compilers, &Mix.Task.reenable("compile.#{&1}"))
+
+      case Mix.Task.Compiler.run(compilers, args) do
+        {:error, diagnostics} -> {:error, format_errors(diagnostics)}
+        {_status, _diagnostics} -> :ok
+      end
+    end)
+  catch
+    kind, reason -> {:error, Exception.format(kind, reason, __STACKTRACE__)}
+  end
+
+  defp format_errors(diagnostics) do
+    diagnostics
+    |> Enum.filter(&(&1.severity == :error))
+    |> Enum.map_join("\n\n", &"#{format_location(&1)}#{&1.message}")
+  end
+
+  defp format_location(%{file: file, position: position}) when is_binary(file) do
+    line =
+      case position do
+        {line, _column} -> ":#{line}"
+        line when is_integer(line) and line > 0 -> ":#{line}"
+        _ -> ""
+      end
+
+    "#{Path.relative_to_cwd(file)}#{line}: "
+  end
+
+  defp format_location(_diagnostic), do: ""
+
   defp reloadable_app_manifests(endpoint) do
-    endpoint
-    |> reloadable_apps()
-    |> Enum.flat_map(&manifests_for_app/1)
+    Enum.flat_map(reloadable_apps(endpoint) ++ endpoint.config(:reloadable_path_deps, []), &manifests_for_app/1)
   end
 
   defp reloadable_apps(endpoint) do

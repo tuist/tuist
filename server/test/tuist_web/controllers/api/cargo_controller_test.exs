@@ -58,6 +58,7 @@ defmodule TuistWeb.API.CargoControllerTest do
       assert latest["started_at"] == "2026-10-02T10:00:00Z"
       assert latest["actor"]["name"] == user.account.name
       refute Map.has_key?(latest, "cache")
+      refute Map.has_key?(latest, "compilations")
 
       assert response["pagination_metadata"] == %{
                "has_next_page" => false,
@@ -161,11 +162,27 @@ defmodule TuistWeb.API.CargoControllerTest do
       assert response["cache"]["downloaded_bytes"] == 4096
       refute Map.has_key?(response["cache"], "details")
       refute JSON.encode!(response) =~ "private-task-name"
+
+      inspected = conn |> get(path <> "/" <> id <> "?include_cache_inspection=true") |> json_response(200)
+      assert_schema(inspected, "CargoBuildDetail", Spec.spec())
+      assert inspected["cache_inspection"] == JSON.decode!(JSON.encode!(details))
+
+      args = %{
+        "account_handle" => user.account.name,
+        "project_handle" => project.name,
+        "build_id" => id,
+        "include_cache_inspection" => true
+      }
+
+      assert %{"structuredContent" => ^inspected} =
+               GetCargoBuild.call(%Plug.Conn{assigns: %{current_user: user}}, args)
     end
 
     test "returns a null cache for builds without measurements", %{conn: conn, user: user, project: project, path: path} do
       id = build(project, user, [])
-      assert %{"cache" => nil} = conn |> get(path <> "/" <> id) |> json_response(200)
+
+      assert %{"cache" => nil, "cache_inspection" => nil} =
+               conn |> get(path <> "/" <> id <> "?include_cache_inspection=true") |> json_response(200)
     end
 
     test "returns 404 for unknown, malformed and other projects' builds", %{
@@ -202,8 +219,26 @@ defmodule TuistWeb.API.CargoControllerTest do
       build(project, user,
         cache: %{version: 1, hits: 1, misses: 1},
         git_branch: "main",
-        custom_metadata: %{tags: ["ci"], values: values}
+        custom_metadata: %{tags: ["ci"], values: values},
+        compilations: [
+          %{
+            name: "widgets",
+            source: "src/lib.rs",
+            kind: "lib",
+            dependencies: ["serde"],
+            start_offset_ms: 0,
+            duration_ms: 0,
+            status: "failure",
+            diagnostics: [
+              %{severity: "error", message: "type mismatch <script>", file: "src/lib.rs", line: 7},
+              %{severity: "warning", message: "unused", file: nil, line: nil}
+            ]
+          }
+        ]
       )
+
+    sibling = ProjectsFixtures.project_fixture(account_id: user.account.id)
+    build(sibling, user, id: id, compilations: [compilation("private-sibling", 0)])
 
     args = %{"account_handle" => user.account.name, "project_handle" => project.name}
     mcp = %Plug.Conn{assigns: %{current_user: user}}
@@ -214,6 +249,53 @@ defmodule TuistWeb.API.CargoControllerTest do
     assert %{"structuredContent" => detail} = GetCargoBuild.call(mcp, Map.put(args, "build_id", id))
     assert detail == conn |> get(path <> "/" <> id) |> json_response(200)
     assert detail["custom_metadata"] == %{"tags" => ["ci"], "values" => values}
+    assert detail["compilations_truncated"] == false
+    assert [compilation] = detail["compilations"]
+    assert compilation["name"] == "widgets"
+    assert compilation["source"] == "src/lib.rs"
+    assert compilation["kind"] == "lib"
+    assert compilation["dependencies"] == ["serde"]
+    assert compilation["start_offset_ms"] == 0
+    assert compilation["duration_ms"] == 0
+    assert compilation["status"] == "failure"
+
+    assert compilation["diagnostics"] == [
+             %{"severity" => "error", "message" => "type mismatch <script>", "file" => "src/lib.rs", "line" => 7},
+             %{"severity" => "warning", "message" => "unused", "file" => nil, "line" => nil}
+           ]
+
+    assert_schema(detail, "CargoBuildDetail", Spec.spec())
+    refute JSON.encode!(detail) =~ "private-sibling"
+  end
+
+  test "detail bounds compilations with truthful truncation and start ordering", %{
+    conn: conn,
+    user: user,
+    project: project,
+    path: path
+  } do
+    for count <- [0, 500, 501] do
+      rows = if count == 0, do: [], else: Enum.map(count..1//-1, &compilation("crate-#{&1}", &1))
+      id = build(project, user, compilations: rows)
+      response = conn |> get(path <> "/" <> id) |> json_response(200)
+      assert length(response["compilations"]) == min(count, 500)
+      assert response["compilations_truncated"] == count > 500
+
+      assert Enum.map(response["compilations"], & &1["start_offset_ms"]) ==
+               Enum.sort(Enum.map(Enum.take(Enum.reverse(rows), 500), & &1.start_offset_ms))
+    end
+  end
+
+  defp compilation(name, offset) do
+    %{
+      name: name,
+      source: "src/lib.rs",
+      kind: "lib",
+      dependencies: [],
+      start_offset_ms: offset,
+      duration_ms: 1,
+      status: "success"
+    }
   end
 
   defp build(project, user, attrs) do
@@ -234,6 +316,7 @@ defmodule TuistWeb.API.CargoControllerTest do
       )
 
     Cargo.Build.Buffer.flush()
+    Cargo.Compilation.Buffer.flush()
 
     id
   end

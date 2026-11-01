@@ -88,6 +88,134 @@ defmodule Tuist.DocsTest do
       assert Floki.find(document, "h2 a[id=real-section]") != []
     end
 
+    test "preview overview owns shared guidance separately from publication workflows" do
+      overview = Docs.get_page("/en/guides/features/previews")
+
+      for anchor <- ["what-you-can-preview", "publish-a-preview", "run-a-preview", "visibility", "tracks", "readme-badge"] do
+        assert Enum.any?(overview.headings, &(&1.id == anchor))
+      end
+
+      assert overview.markdown =~ "Private previews require authentication and project access"
+      assert overview.markdown =~ "bundle-id=com.example.app"
+      assert overview.markdown =~ "/guides/features/previews/run/cli"
+
+      for system <- ["xcode", "gradle", "bazel", "once"] do
+        page = Docs.get_page("/en/guides/features/previews/" <> system)
+
+        for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
+          refute Enum.any?(page.headings, &(&1.id == anchor))
+        end
+
+        assert page.markdown =~ ~s(href="/guides/features/previews#run-a-preview")
+        refute page.markdown =~ "<!-- @snippet:"
+
+        if system in ["bazel", "once"] do
+          refute page.markdown =~ "--release-notes"
+          refute page.markdown =~ "tuist share --json"
+          refute page.markdown =~ "monitorPreviewUpdates"
+          refute Enum.any?(page.headings, &(&1.id == "pullmerge-request-comments"))
+        end
+      end
+
+      for snippet <- ["_shared", "_tuist-share"] do
+        assert is_nil(Docs.get_page("/en/guides/features/previews/" <> snippet))
+      end
+    end
+
+    test "supported types preserve packaging, compatibility, and safety guidance separately from running" do
+      page = Docs.get_page("/en/guides/features/previews/types")
+
+      for text <- [
+            "tuist share path/to/MyApp.app",
+            "--executable bin/my-tool",
+            "macOS arm64, macOS x86_64, and Linux x86_64",
+            "not in a sandbox",
+            "Only run builds from authors and pull requests you trust"
+          ] do
+        assert page.markdown =~ text
+      end
+
+      for anchor <- [
+            "mobile-apps",
+            "desktop-apps",
+            "command-line-tools",
+            "multiple-cli-targets",
+            "client-and-server-compatibility"
+          ] do
+        assert Enum.any?(page.headings, &(&1.id == anchor))
+      end
+
+      refute page.markdown =~ "monitorPreviewUpdates"
+      refute page.markdown =~ "tuist run {url} -- --help"
+      refute page.markdown =~ "x-tuist-preview-capabilities"
+      refute page.markdown =~ "cli_previews"
+
+      cli = Docs.get_page("/en/guides/features/previews/run/cli")
+      assert cli.markdown =~ "tuist run {url} -- --help"
+      assert cli.markdown =~ "Child arguments are excluded from Tuist command analytics"
+      assert cli.markdown =~ "CLI distributions remain in Tuist's local `previews` cache"
+      assert cli.markdown =~ "returns the executable's exit status"
+    end
+
+    test "Gradle previews document explicit native publication separately from CLI sharing" do
+      page = Docs.get_page("/en/guides/features/previews/gradle")
+
+      assert page.markdown =~ "./gradlew :app:tuistShareDebug --track nightly"
+      assert page.markdown =~ "Ordinary `assemble`, `build`, and test tasks never publish"
+      assert page.markdown =~ "./gradlew :app:tuistShareMainDebug"
+      assert page.markdown =~ "`cpp-application` or `swift-application`"
+      assert page.markdown =~ "requires authentication"
+      assert page.markdown =~ "split APKs are rejected"
+      assert page.markdown =~ "## Share an existing APK"
+      assert page.markdown =~ "tuist share app/build/outputs/apk/debug/app-debug.apk"
+      refute page.markdown =~ "monitorPreviewUpdates"
+    end
+
+    test "Xcode publication links to independent companion guides with complete Swift SDK instructions" do
+      page = Docs.get_page("/en/guides/features/previews/xcode")
+
+      for anchor <- [
+            "release-notes",
+            "preview-metadata-compatibility",
+            "pullmerge-request-comments",
+            "automations"
+          ] do
+        assert Enum.any?(page.headings, &(&1.id == anchor))
+      end
+
+      assert page.markdown =~ "--release-notes"
+      assert page.markdown =~ "10,000 characters"
+      assert page.markdown =~ "cannot overwrite existing notes"
+      assert page.markdown =~ "tuist share --json"
+      assert page.markdown =~ "qrCodeURL"
+      assert page.markdown =~ "/guides/features/previews/run/macos"
+      assert page.markdown =~ "/guides/features/previews/run/ios"
+      refute page.markdown =~ "monitorPreviewUpdates"
+
+      macos = Docs.get_page("/en/guides/features/previews/run/macos")
+      assert macos.markdown =~ "brew install --cask tuist/tuist/tuist"
+      assert macos.markdown =~ "falls back to paginated history"
+
+      ios = Docs.get_page("/en/guides/features/previews/run/ios")
+
+      for anchor <- [
+            "in-app-update-notifications",
+            "sdk-installation",
+            "sdk-monitor-updates",
+            "sdk-single-check",
+            "sdk-stop-monitoring"
+          ] do
+        assert Enum.any?(ios.headings, &(&1.id == anchor))
+      end
+
+      assert ios.markdown =~ "monitorPreviewUpdates"
+      assert ios.markdown =~ "sdk.checkForUpdate()"
+      assert ios.markdown =~ "task.cancel()"
+      assert ios.markdown =~ "disabled on simulators and App Store builds"
+      assert ios.markdown =~ "browse previews without filtering on older servers"
+      refute ios.markdown =~ "/api/projects/"
+    end
+
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
       guide = Docs.get_page("/en/guides/server/authentication").markdown
       assert guide =~ "only the `ci` scope group and covers all current and future projects"

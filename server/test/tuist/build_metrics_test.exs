@@ -5,6 +5,8 @@ defmodule Tuist.BuildMetricsTest do
   alias Tuist.BuildMetrics
   alias Tuist.Builds
   alias Tuist.Builds.BuildIssue
+  alias Tuist.Cargo.Build, as: CargoBuild
+  alias Tuist.Cargo.Compilation
   alias Tuist.Gradle
   alias Tuist.IngestRepo
   alias Tuist.OnceEvents
@@ -140,6 +142,22 @@ defmodule Tuist.BuildMetricsTest do
     )
   end
 
+  defp build("cargo", project, start_at, attrs) do
+    defaults = %{
+      id: UUIDv7.generate(),
+      project_id: project.id,
+      account_id: 0,
+      command: "build",
+      duration_ms: 1000,
+      status: "success",
+      is_ci: false,
+      git_branch: "main",
+      inserted_at: DateTime.to_naive(DateTime.truncate(start_at, :second))
+    }
+
+    IngestRepo.insert!(struct(CargoBuild, Map.merge(defaults, Map.new(attrs))))
+  end
+
   defp build("xcode", project, start_at, attrs) do
     RunsFixtures.build_fixture(
       Keyword.merge(
@@ -222,7 +240,7 @@ defmodule Tuist.BuildMetricsTest do
     assert BuildMetrics.dimension_values(project.id, "git_branch", "xcode", lookback_days: nil) == ["old", "recent"]
   end
 
-  for system <- ["xcode", "bazel", "once"] do
+  for system <- ["xcode", "bazel", "once", "cargo"] do
     test "#{system} supports totals, buckets, workloads, failure categories and links", %{start_at: start_at, opts: opts} do
       system = unquote(system)
       project = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
@@ -240,6 +258,9 @@ defmodule Tuist.BuildMetricsTest do
               duration_ms: 3000,
               custom_values: %{"tuist.failure_category" => "verification"}
             ]
+
+          "cargo" ->
+            [status: "failure", duration_ms: 3000, custom_values: %{"tuist.failure_category" => "verification"}]
 
           "once" ->
             [exit_status: 1, wall_ms: 3000, failed_test_cases: 1]
@@ -281,6 +302,119 @@ defmodule Tuist.BuildMetricsTest do
       assert BuildMetrics.query(project.id, filtered).totals["builds"] == 0
       assert BuildMetrics.query(project.id, Keyword.put(filtered, :view, "recent_failures")).rows == []
     end
+  end
+
+  test "Cargo excludes legacy nextest, scopes cohorts and preserves start fallback and measured zero", %{
+    start_at: start_at,
+    opts: opts
+  } do
+    project = ProjectsFixtures.project_fixture(build_system: :cargo)
+    other = ProjectsFixtures.project_fixture(build_system: :cargo)
+    failed = build("cargo", project, start_at, status: "failure", command: "test-build", duration_ms: 0, is_ci: true)
+    build("cargo", project, start_at, command: "nextest", git_branch: "legacy", status: "failure")
+    build("cargo", other, start_at, command: "other", git_branch: "private")
+    build("cargo", project, DateTime.add(start_at, -1), command: "before")
+    build("cargo", project, opts[:end_datetime], command: "after")
+    opts = Keyword.merge(opts, build_system: "cargo", is_ci: true)
+
+    result = BuildMetrics.query(project.id, opts)
+    assert result.totals["builds"] == 1
+    assert result.totals["failed_builds"] == 1
+    assert result.totals["cancelled_builds"] == 0
+    assert result.totals["p50"] == 0
+    assert result.totals["cache_time_saved"] == nil
+    assert result.totals["cache_time_saved_samples"] == 0
+    assert BuildMetrics.query(project.id, Keyword.delete(opts, :is_ci)).totals["builds"] == 1
+
+    assert [%{id: id, started_at: started, requested_tasks: ["test-build"], failure_category: "unknown"}] =
+             BuildMetrics.query(project.id, Keyword.put(opts, :view, "recent_failures")).rows
+
+    assert id == failed.id
+    assert started == DateTime.to_unix(start_at)
+    assert BuildMetrics.dimension_values(project.id, "git_branch", "cargo") == ["main"]
+    refute "nextest" in BuildMetrics.dimension_values(project.id, "workload", "cargo")
+    refute "other" in BuildMetrics.dimension_values(project.id, "workload", "cargo")
+    assert BuildMetrics.query(project.id, Keyword.put(opts, :is_ci, false)).totals["builds"] == 0
+  end
+
+  test "Cargo only reports explicit valid elapsed savings, never cache hits or compiler work", %{
+    start_at: start_at,
+    opts: opts
+  } do
+    project = ProjectsFixtures.project_fixture(build_system: :cargo)
+
+    build("cargo", project, start_at,
+      cache_metrics: JSON.encode!(%{version: 1, hits: 10, estimated_compiler_duration_avoided_ns: 12_000_000_000}),
+      custom_values: %{"tuist.workload" => "Release", "tuist.cache_work_avoided_ms" => "12000"}
+    )
+
+    opts = Keyword.merge(opts, build_system: "cargo", workload: "Release")
+    totals = BuildMetrics.query(project.id, opts).totals
+    assert totals["cache_time_saved"] == nil
+    assert totals["cache_work_avoided"] == nil
+    assert totals["cache_work_avoided_samples"] == 0
+
+    for value <- ["0", "1234", "-1", "1.5", "31536000001", "000000000000"] do
+      build("cargo", project, start_at,
+        custom_values: %{"tuist.workload" => "Release", "tuist.cache_time_saved_ms" => value}
+      )
+    end
+
+    totals = BuildMetrics.query(project.id, opts).totals
+    assert totals["builds"] == 7
+    assert totals["cache_time_saved"] == 1234
+    assert totals["cache_time_saved_samples"] == 2
+    assert "Release" in BuildMetrics.dimension_values(project.id, "workload", "cargo")
+    assert BuildMetrics.query(project.id, Keyword.put(opts, :workload, "missing")).totals["builds"] == 0
+  end
+
+  test "Cargo failure evidence is bounded by project, build and time, with metadata taking precedence", %{
+    start_at: start_at,
+    opts: opts
+  } do
+    project = ProjectsFixtures.project_fixture(build_system: :cargo)
+    other = ProjectsFixtures.project_fixture(build_system: :cargo)
+    compiler = build("cargo", project, start_at, status: "failure")
+    unknown = build("cargo", project, start_at, status: "failure", command: "check")
+    stale = build("cargo", project, start_at, status: "failure")
+
+    explicit =
+      build("cargo", project, start_at,
+        status: "failure",
+        custom_values: %{"tuist.failure_category" => "infrastructure_tooling"}
+      )
+
+    for {build, project_id, inserted_at} <- [
+          {compiler, project.id, start_at},
+          {unknown, other.id, start_at},
+          {stale, project.id, DateTime.add(start_at, -1)},
+          {explicit, project.id, start_at}
+        ] do
+      IngestRepo.insert!(%Compilation{
+        id: UUIDv7.generate(),
+        build_id: build.id,
+        project_id: project_id,
+        name: "app",
+        source: "src/main.rs",
+        kind: "bin",
+        start_offset_ms: 0,
+        duration_ms: 100,
+        status: "failure",
+        diagnostics: "[]",
+        inserted_at: inserted_at |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+      })
+    end
+
+    opts = Keyword.merge(opts, build_system: "cargo", view: "failures")
+
+    assert BuildMetrics.query(project.id, opts).rows == [
+             %{category: "verification", builds: 1},
+             %{category: "infrastructure_tooling", builds: 1},
+             %{category: "unknown", builds: 2}
+           ]
+
+    assert BuildMetrics.failure_category(project.id, "cargo", compiler.id) == "verification"
+    assert BuildMetrics.failure_category(other.id, "cargo", compiler.id) == nil
   end
 
   test "Once cancellations do not count as failures and active or abandoned runs are excluded", %{
