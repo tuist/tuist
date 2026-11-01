@@ -43,7 +43,7 @@ defmodule Tuist.Runners.Buildkite.ReportToken do
   Mints the report credential for one job.
   """
   def mint(%{workflow_job_id: workflow_job_id, account_id: account_id}) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, @salt, %{
+    Phoenix.Token.sign(Tuist.Web.endpoint(), @salt, %{
       workflow_job_id: workflow_job_id,
       account_id: account_id
     })
@@ -58,7 +58,7 @@ defmodule Tuist.Runners.Buildkite.ReportToken do
   Buildkite job.
   """
   def verify(token) when is_binary(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @salt, token, max_age: @max_age_seconds) do
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @salt, token, max_age: @max_age_seconds) do
       {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} ->
         # The signature proves we minted the token; this proves the job it
         # names is still a Buildkite job of that account. Without it a
