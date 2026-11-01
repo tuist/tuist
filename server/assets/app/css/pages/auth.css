@@ -9,6 +9,7 @@
 #confirmation-instructions,
 #agent-auth,
 #sso-link,
+#mfa,
 #forgot-password,
 #reset-password,
 #create-project,
@@ -35,6 +36,10 @@
 
   & * {
     box-sizing: border-box;
+  }
+
+  & [data-part="wrapper"] {
+    max-width: 100%;
   }
 
   & [data-part="frame"] {
@@ -100,6 +105,12 @@
     &:not(:has([data-part="bottom-link"])) {
       & > [data-part="content"] {
         padding: var(--noora-spacing-10) var(--noora-spacing-11);
+
+        @media (max-width: 768px) {
+          & {
+            padding-inline: var(--noora-spacing-5);
+          }
+        }
       }
     }
   }
@@ -377,12 +388,106 @@
   }
 }
 
+#mfa {
+  & [data-part="wrapper"] {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  & [data-part="frame"] {
+    width: min(100%, 470px);
+  }
+
+  & [data-part="content"],
+  & .noora-alert,
+  & .noora-button {
+    width: 100%;
+  }
+
+  & [data-part="header"] {
+    text-align: center;
+  }
+
+  & #mfa-setup-qr {
+    align-self: center;
+    max-width: 100%;
+    height: auto;
+  }
+
+  & #mfa-recovery {
+    width: 100%;
+
+    & > summary {
+      cursor: pointer;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-small);
+    }
+
+    & > form {
+      margin-top: var(--noora-spacing-5);
+    }
+  }
+
+  & #mfa-copy-status {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  & [data-part="security-note"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="setup-key"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    width: 100%;
+
+    & > span {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+  }
+
+  & #mfa-setup-key,
+  & #mfa-recovery-codes {
+    margin: 0;
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-5);
+    width: 100%;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-small);
+    font-family: "Geist Mono", monospace;
+    overflow-wrap: anywhere;
+  }
+
+  & #mfa-recovery-codes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    list-style: none;
+
+    & code {
+      font: inherit;
+    }
+  }
+}
+
 #login,
 #signup,
 #confirmation-instructions,
 #forgot-password,
 #okta-login,
-#sso-login {
+#sso-login,
+#mfa {
   & .noora-alert {
     width: 100%;
   }

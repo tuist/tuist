@@ -602,7 +602,14 @@ defmodule TuistWeb.MembersLive do
 
       {:noreply, socket}
     else
-      _ -> {:noreply, socket}
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> assign(invitation_disclosure: nil, form: to_form(changeset))
+         |> push_event("open-modal", %{id: "invite-member-form-modal"})}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 

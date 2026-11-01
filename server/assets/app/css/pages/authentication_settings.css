@@ -9,6 +9,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
+  & [data-part="mfa-card"],
   & [data-part="sso-card"],
   & [data-part="scim-card"] {
     display: flex;
@@ -24,6 +25,7 @@
       padding: var(--noora-spacing-7) var(--noora-spacing-8);
 
       & > [data-part="title"] {
+        margin: 0;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
       }
@@ -128,6 +130,7 @@
 
       /* Center the Generate-token button vertically with its label, since
          the field is a single button rather than a stacked input column. */
+      &[data-section="factor"],
       &[data-section="tokens"] {
         align-items: center;
 
@@ -384,6 +387,7 @@
   }
 
   @media (max-width: 768px) {
+    & [data-part="mfa-card"],
     & [data-part="sso-card"],
     & [data-part="scim-card"] {
       & [data-part="section"] {

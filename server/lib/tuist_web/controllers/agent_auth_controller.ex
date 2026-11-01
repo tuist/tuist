@@ -275,7 +275,7 @@ defmodule TuistWeb.AgentAuthController do
            claim_view_token: claim_attempt_token,
            user_code: user_code,
            user: conn.assigns.current_user,
-           auth_method: get_session(conn, :auth_method),
+           user_session: conn.assigns.current_user_session,
            claim_completed_ip: RemoteIp.get(conn)
          }) do
       {:ok, _result} ->
@@ -300,6 +300,14 @@ defmodule TuistWeb.AgentAuthController do
           :forbidden,
           "Single sign-on required",
           "Sign out and authenticate with your organization's identity provider."
+        )
+
+      {:error, :mfa_required} ->
+        render_claim_status(
+          conn,
+          :forbidden,
+          "Two-factor authentication required",
+          "Sign in again in your browser, complete two-factor authentication, and retry the agent claim."
         )
 
       {:error, reason} when reason in [:user_code_invalid, :rate_limited] ->
@@ -718,6 +726,15 @@ defmodule TuistWeb.AgentAuthController do
   end
 
   defp render_complete_claim_error(conn, :sso_required), do: render_sso_required_error(conn)
+
+  defp render_complete_claim_error(conn, :mfa_required),
+    do:
+      render_error(
+        conn,
+        :forbidden,
+        "mfa_required",
+        "This account requires two-factor authentication. Start a new agent registration through /agent/identity and complete the claim in your authenticated browser."
+      )
 
   defp render_complete_claim_error(conn, :invalid_claim_token),
     do: render_error(conn, :not_found, "invalid_claim_token", "The claim token is invalid.")

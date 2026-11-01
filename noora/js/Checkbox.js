@@ -35,6 +35,8 @@ export default {
   context() {
     return {
       id: this.el.id,
+      name: this.el.getAttribute("name"),
+      value: "true",
       indeterminate: getBooleanOption(this.el, "indeterminate"),
       defaultChecked: getBooleanOption(this.el, "defaultChecked"),
       disabled: getBooleanOption(this.el, "disabled"),

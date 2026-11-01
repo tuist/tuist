@@ -1,12 +1,16 @@
 defmodule TuistWeb.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase
   use Mimic
 
   import Ecto.Query
+  import Phoenix.LiveViewTest
 
+  alias Tuist.Accounts
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.OAuth2.SSOClient
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
@@ -193,7 +197,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
       {:ok, oauth_identity} =
-        Tuist.Accounts.get_oauth2_identity(:okta, "okta-user-123", "dev-123456")
+        Accounts.get_oauth2_identity(:okta, "okta-user-123", "dev-123456")
 
       assert oauth_identity.user.id == existing_user.id
       assert oauth_identity.provider_organization_id == "dev-123456"
@@ -322,7 +326,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
       {:ok, oauth_identity} =
-        Tuist.Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123", "https://auth.example.com")
+        Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123", "https://auth.example.com")
 
       assert oauth_identity.user.id == existing_user.id
       assert oauth_identity.provider_organization_id == "https://auth.example.com"
@@ -525,7 +529,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       # The victim's account must remain unlinked from the attacker's IdP
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
     end
 
     test "links and enrolls an existing user without redirecting through a pending invitation", %{conn: conn} do
@@ -549,7 +553,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       {:ok, invitation} =
-        Tuist.Accounts.invite_user_to_organization(
+        Accounts.invite_user_to_organization(
           existing_user.email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
@@ -573,10 +577,10 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
       refute redirected_to(conn) =~ invitation.token
-      assert Tuist.Accounts.belongs_to_organization?(existing_user, organization)
+      assert Accounts.belongs_to_organization?(existing_user, organization)
 
       assert {:ok, identity} =
-               Tuist.Accounts.get_oauth2_identity(
+               Accounts.get_oauth2_identity(
                  :oauth2,
                  "verified-domain-member",
                  "https://login.vendor.example"
@@ -621,7 +625,7 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
 
-      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(new_user_email)
+      assert {:error, :not_found} = Accounts.get_user_by_email(new_user_email)
     end
 
     test "rejects a new user when automatic enrollment is disabled and no invitation exists", %{conn: conn} do
@@ -700,10 +704,10 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
 
       assert get_session(conn, :user_token)
-      refute Tuist.Accounts.belongs_to_organization?(existing_user, organization)
+      refute Accounts.belongs_to_organization?(existing_user, organization)
 
       assert {:ok, identity} =
-               Tuist.Accounts.get_oauth2_identity(
+               Accounts.get_oauth2_identity(
                  :oauth2,
                  "identity-only",
                  "https://login.vendor.example"
@@ -731,7 +735,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       {:ok, _invitation} =
-        Tuist.Accounts.invite_user_to_organization(
+        Accounts.invite_user_to_organization(
           invitee_email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
@@ -756,7 +760,7 @@ defmodule TuistWeb.AuthControllerTest do
                end)
 
       assert body =~ "verified a login email domain that matches your email"
-      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(invitee_email)
+      assert {:error, :not_found} = Accounts.get_user_by_email(invitee_email)
     end
 
     test "allows an invited new user from a verified domain without treating the invitation as identity proof",
@@ -781,7 +785,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       {:ok, invitation} =
-        Tuist.Accounts.invite_user_to_organization(
+        Accounts.invite_user_to_organization(
           invitee_email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
@@ -828,7 +832,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       {:ok, invitation} =
-        Tuist.Accounts.invite_user_to_organization(
+        Accounts.invite_user_to_organization(
           invitee.email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
@@ -853,13 +857,13 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/auth/invitations/#{invitation.token}"
 
       refute get_session(conn, :user_token)
-      refute Tuist.Accounts.organization_user?(invitee, organization)
+      refute Accounts.organization_user?(invitee, organization)
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "invitee-sub", "https://idp.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "invitee-sub", "https://idp.example.com")
 
       assert %Invitation{} =
-               Tuist.Accounts.get_invitation_by_invitee_email_and_organization(invitee.email, organization)
+               Accounts.get_invitation_by_invitee_email_and_organization(invitee.email, organization)
     end
 
     test "does not redirect to the invitation accept page when the pending invitation expired",
@@ -880,7 +884,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       {:ok, invitation} =
-        Tuist.Accounts.invite_user_to_organization(
+        Accounts.invite_user_to_organization(
           invitee.email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
@@ -890,7 +894,7 @@ defmodule TuistWeb.AuthControllerTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -932,7 +936,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       {:ok, invitation} =
-        Tuist.Accounts.invite_user_to_organization(
+        Accounts.invite_user_to_organization(
           invitee.email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
@@ -986,7 +990,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert get_session(conn, :post_invitation_token) == invitation.token
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(
+               Accounts.get_oauth2_identity(
                  :oauth2,
                  "invitee-sub-2",
                  "https://idp.example.com"
@@ -1012,7 +1016,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       {:ok, _victim_identity} =
-        Tuist.Repo.insert(
+        Repo.insert(
           Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
             provider: :oauth2,
             id_in_provider: "shared-sub",
@@ -1069,7 +1073,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       # The victim's identity row is still intact and still points at the victim.
       assert {:ok, victim_identity_after} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-a.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-a.example.com")
 
       assert victim_identity_after.user_id == victim.id
 
@@ -1077,7 +1081,7 @@ defmodule TuistWeb.AuthControllerTest do
       # own issuer — proving the per-issuer uniqueness key allows both rows to
       # coexist with the same `sub`.
       assert {:ok, attacker_identity} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-b.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-b.example.com")
 
       assert attacker_identity.user_id == attacker.id
       refute attacker_identity.user_id == victim.id
@@ -1118,6 +1122,72 @@ defmodule TuistWeb.AuthControllerTest do
     end
   end
 
+  describe "current SSO issuer provenance" do
+    @tag :sso_boundary
+    test "a linked member authenticated at another issuer must authenticate at the target issuer", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      [target, other] =
+        for issuer <- ["https://idp-a.example.com", "https://idp-b.example.com"] do
+          organization =
+            custom_provider_organization(
+              creator: user,
+              sso_organization_id: issuer,
+              existing_sso_configuration: true,
+              oauth2_authorize_url: issuer <> "/authorize",
+              oauth2_token_url: issuer <> "/token",
+              oauth2_user_info_url: issuer <> "/userinfo"
+            )
+
+          AccountsFixtures.oauth2_identity_fixture(
+            user: user,
+            provider: :oauth2,
+            id_in_provider: "linked-user",
+            provider_organization_id: issuer
+          )
+
+          organization |> Ecto.Changeset.change(sso_enforced: true) |> Repo.update!()
+        end
+
+      stub_sso_userinfo("linked-user", user.email)
+      conn = sso_callback(conn, other)
+      assert Accounts.belongs_to_organization?(user, target)
+      assert conn |> recycle() |> get(~p"/#{other.account.name}/projects") |> html_response(200)
+
+      protected_path = ~p"/#{target.account.name}/projects"
+      expected = ~p"/users/auth/oauth2?organization_id=#{target.id}"
+      assert conn |> recycle() |> get(protected_path) |> redirected_to() == expected
+
+      {:ok, view, _} = live(recycle(conn), ~p"/#{other.account.name}/projects")
+      assert {:error, {:redirect, %{to: ^expected}}} = live_redirect(view, to: protected_path)
+
+      stub_sso_userinfo("linked-user", user.email)
+      correct_conn = sso_callback(build_conn(), target)
+      assert {:ok, _, _} = live(recycle(correct_conn), protected_path)
+
+      session = Accounts.get_user_session(get_session(correct_conn, :user_token))
+      {:ok, factor} = Accounts.UserMFA.begin_enrollment(user, session)
+      code = NimbleTOTP.verification_code(factor.secret, time: Tuist.Time.utc_now())
+      {:ok, %{recovery_codes: [other_code, target_code | _]}} = Accounts.UserMFA.confirm_enrollment(user, session, code)
+
+      for {organization, recovery} <- [{other, other_code}, {target, target_code}] do
+        stub_sso_userinfo("linked-user", user.email)
+        pending = sso_callback(build_conn(), organization)
+        assert redirected_to(pending) == ~p"/users/mfa"
+        refute get_session(pending, :user_token)
+        verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => recovery})
+
+        if organization.id == target.id do
+          assert {:ok, _, _} = live(recycle(verified), protected_path)
+        else
+          assert verified |> recycle() |> get(protected_path) |> redirected_to() == expected
+          {:ok, view, _} = live(recycle(verified), ~p"/#{other.account.name}/projects")
+          assert {:error, {:redirect, %{to: ^expected}}} = live_redirect(view, to: protected_path)
+        end
+      end
+    end
+  end
+
   describe "linking an existing account through a custom provider" do
     test "keeps linked members signing in after compatibility mode is retired", %{conn: conn} do
       member = AccountsFixtures.user_fixture(email: "linked@customer.example")
@@ -1129,9 +1199,9 @@ defmodule TuistWeb.AuthControllerTest do
           sso_automatic_enrollment: true
         )
 
-      organization = organization |> Ecto.Changeset.change(sso_enforced: true) |> Tuist.Repo.update!()
+      organization = organization |> Ecto.Changeset.change(sso_enforced: true) |> Repo.update!()
 
-      Tuist.Accounts.link_oauth_identity_to_user(member, %{
+      Accounts.link_oauth_identity_to_user(member, %{
         provider: :oauth2,
         id_in_provider: "linked-member",
         provider_organization_id: organization.sso_organization_id
@@ -1142,9 +1212,9 @@ defmodule TuistWeb.AuthControllerTest do
       conn = sso_callback(conn, organization)
       assert get_session(conn, :user_token)
       assert get_session(conn, :auth_method) == :oauth2
-      assert Tuist.Accounts.belongs_to_organization?(member, organization)
-      assert Tuist.Accounts.sso_enforced_for_email?(member.email)
-      refute Tuist.Accounts.sso_enforced_for_email?("new@customer.example")
+      assert Accounts.belongs_to_organization?(member, organization)
+      assert Accounts.sso_enforced_for_email?(member.email)
+      refute Accounts.sso_enforced_for_email?("new@customer.example")
     end
 
     test "does not link a member by email while the login domain is unverified", %{conn: conn} do
@@ -1160,7 +1230,7 @@ defmodule TuistWeb.AuthControllerTest do
       refute get_session(conn, :user_token)
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "unverified-member", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "unverified-member", "https://login.vendor.example")
     end
 
     test "does not link a member whose email is outside the verified domain", %{conn: conn} do
@@ -1181,7 +1251,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "off-domain-member", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "off-domain-member", "https://login.vendor.example")
     end
 
     test "links an account the organization's SCIM provisioning created while the domain is unverified", %{
@@ -1197,7 +1267,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{provisioned.account.name}"
 
       assert {:ok, identity} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "provisioned-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "provisioned-identity", "https://login.vendor.example")
 
       assert identity.user_id == provisioned.id
     end
@@ -1210,7 +1280,7 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(creator: AccountsFixtures.user_fixture(email: "other-owner@mail.example"))
 
       {:ok, provisioned} = Tuist.SCIM.provision_user(other_organization, %{user_name: "shared@customer.example"})
-      :ok = Tuist.Accounts.add_user_to_organization(provisioned, organization, role: :user)
+      :ok = Accounts.add_user_to_organization(provisioned, organization, role: :user)
       stub_sso_userinfo("foreign-identity", provisioned.email)
 
       conn = sso_callback(conn, organization)
@@ -1218,7 +1288,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.vendor.example")
     end
 
     test "requires existing members to sign in before linking an unverified provider", %{conn: conn} do
@@ -1234,7 +1304,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "legacy-member", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "legacy-member", "https://login.vendor.example")
     end
 
     test "asks a signed-in member to confirm linking an identity with a different email", %{conn: conn} do
@@ -1244,7 +1314,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn =
         sso_callback(conn, organization, %{
-          user_token: Tuist.Accounts.generate_user_session_token(member),
+          user_token: Accounts.generate_user_session_token(member),
           oauth_return_to: "/#{member.account.name}/projects"
         })
 
@@ -1265,7 +1335,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert return_to == "/#{member.account.name}/projects"
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "work-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "work-identity", "https://login.vendor.example")
     end
 
     test "links a signed-in member rather than starting a signup that cannot finish while signed in", %{
@@ -1285,7 +1355,7 @@ defmodule TuistWeb.AuthControllerTest do
       stub_sso_userinfo("work-identity", "person@customer.example")
 
       conn =
-        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(member)})
+        sso_callback(conn, organization, %{user_token: Accounts.generate_user_session_token(member)})
 
       assert redirected_to(conn) == "/auth/sso/link"
       assert get_session(conn, :pending_sso_link)["user_id"] == member.id
@@ -1298,7 +1368,7 @@ defmodule TuistWeb.AuthControllerTest do
       organization = custom_provider_organization(creator: owner)
 
       {:ok, _invitation} =
-        Tuist.Accounts.invite_user_to_organization(
+        Accounts.invite_user_to_organization(
           invitee.email,
           %{inviter: owner, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
@@ -1306,11 +1376,11 @@ defmodule TuistWeb.AuthControllerTest do
       stub_sso_userinfo("provider-chosen-identity", "someone@provider.example")
 
       assert_error_sent 401, fn ->
-        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(invitee)})
+        sso_callback(conn, organization, %{user_token: Accounts.generate_user_session_token(invitee)})
       end
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "provider-chosen-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "provider-chosen-identity", "https://login.vendor.example")
     end
 
     test "does not offer a signed-in user who does not belong to the organization a link", %{conn: conn} do
@@ -1320,7 +1390,7 @@ defmodule TuistWeb.AuthControllerTest do
       stub_sso_userinfo("outsider-identity", outsider.email)
 
       assert_error_sent 401, fn ->
-        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(outsider)})
+        sso_callback(conn, organization, %{user_token: Accounts.generate_user_session_token(outsider)})
       end
     end
   end
@@ -1343,7 +1413,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert get_session(conn, :user_token)
 
       assert {:ok, identity} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "operator-sub", organization.sso_organization_id)
+               Accounts.get_oauth2_identity(:oauth2, "operator-sub", organization.sso_organization_id)
 
       assert identity.user_id == user.id
     end
@@ -1353,7 +1423,7 @@ defmodule TuistWeb.AuthControllerTest do
       organization: organization
     } do
       {:ok, organization} =
-        Tuist.Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true})
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true})
 
       stub_sso_userinfo("new-operator-sub", "new-person@example.com")
       conn = sso_callback(conn, organization)
@@ -1368,7 +1438,7 @@ defmodule TuistWeb.AuthControllerTest do
       user = AccountsFixtures.user_fixture(email: "person@example.com")
       stub_sso_userinfo("other-sub", user.email)
       assert get_session(sso_callback(conn, other), :user_token)
-      assert {:ok, identity} = Tuist.Accounts.get_oauth2_identity(:oauth2, "other-sub", other.sso_organization_id)
+      assert {:ok, identity} = Accounts.get_oauth2_identity(:oauth2, "other-sub", other.sso_organization_id)
       assert identity.user_id == user.id
     end
 
@@ -1378,7 +1448,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert_raise UnauthorizedError, fn -> sso_callback(conn, organization) end
 
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "outside-sub", organization.sso_organization_id)
+               Accounts.get_oauth2_identity(:oauth2, "outside-sub", organization.sso_organization_id)
     end
   end
 
@@ -1444,7 +1514,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
       # And: OAuth identity should be linked to the existing user
-      {:ok, oauth_identity} = Tuist.Accounts.get_oauth2_identity(:google, "google-uid-123")
+      {:ok, oauth_identity} = Accounts.get_oauth2_identity(:google, "google-uid-123")
       assert oauth_identity.user.id == existing_user.id
     end
 
@@ -1528,7 +1598,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       # Create OAuth identity for the user
       {:ok, _oauth_identity} =
-        Tuist.Repo.insert(
+        Repo.insert(
           Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
             provider: :google,
             id_in_provider: "google-uid-existing",

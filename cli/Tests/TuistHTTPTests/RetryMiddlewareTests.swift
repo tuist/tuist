@@ -189,13 +189,41 @@ struct RetryMiddlewareTests {
         ) { _, _, _ in
             callCount += 1
             if callCount == 1 {
-                return (HTTPResponse(status: 429), nil)
+                var response = HTTPResponse(status: 429)
+                response.headerFields[.retryAfter] = "0"
+                return (response, nil)
             }
             return (HTTPResponse(status: 200), nil)
         }
 
         #expect(response.status.code == 200)
         #expect(callCount == 2)
+    }
+
+    @Test(arguments: [false, true], [UInt64(31), 300, .max])
+    func returns_long_cooldowns_without_retrying(unforwardedUpload: Bool, retryAfter: UInt64) async throws {
+        let subject = RetryMiddleware(
+            maxRetries: 2, baseDelayMilliseconds: 0,
+            retryableRequestMethods: unforwardedUpload ? ["GET"] : nil,
+            retriesUnforwardedCacheRequests: unforwardedUpload
+        )
+        var callCount = 0
+
+        let (response, body) = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/invitations"), body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!, operationID: "createInvitation"
+        ) { _, _, _ in
+            callCount += 1
+            var response = HTTPResponse(status: 429)
+            response.headerFields[.retryAfter] = String(retryAfter)
+            response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] = "pending"
+            return (response, HTTPBody("invitation cooldown"))
+        }
+
+        #expect(response.status.code == 429)
+        #expect(response.headerFields[.retryAfter] == String(retryAfter))
+        #expect(try await String(collecting: #require(body), upTo: .max) == "invitation cooldown")
+        #expect(callCount == 1)
     }
 
     @Test func does_not_retry_a_throttled_authorization_denial_outside_the_method_allowlist() async throws {

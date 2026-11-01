@@ -1,4 +1,4 @@
-defmodule TuistWeb.RateLimit.InMemory do
+defmodule Tuist.RateLimit.InMemory do
   @moduledoc """
   Distributed, eventually consistent rate limiter using `Phoenix.PubSub` and `Hammer`.
 

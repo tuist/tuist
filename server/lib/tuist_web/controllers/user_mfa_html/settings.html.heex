@@ -1,0 +1,142 @@
+<.auth_page
+  id="mfa"
+  title={dgettext("dashboard_auth", "Two-factor authentication")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Protect your account with an authenticator app and recovery codes."
+    )
+  }
+>
+  <.alert :if={@error} type="secondary" status="error" size="small" title={@error} />
+  <%= if @enabled do %>
+    <p data-part="security-note">
+      {dgettext(
+        "dashboard_auth",
+        "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
+      )}
+    </p>
+    <form id="mfa-disable" method="post" action={~p"/users/settings/mfa/disable"} data-part="form">
+      <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+      <.text_input
+        id="mfa-code"
+        name="mfa_code"
+        value=""
+        label={dgettext("dashboard_auth", "Authentication or recovery code")}
+        show_prefix={false}
+        autocomplete="one-time-code"
+        autocapitalize="none"
+        spellcheck="false"
+        required
+      />
+      <.button
+        variant="secondary"
+        size="large"
+        type="submit"
+        label={dgettext("dashboard_auth", "Disable two-factor authentication")}
+      />
+    </form>
+  <% else %>
+    <%= if @secret do %>
+      <p data-part="security-note">
+        {dgettext(
+          "dashboard_auth",
+          "Scan this QR code with 1Password or your authenticator app, then enter its six-digit code. Setup expires in five minutes."
+        )}
+      </p>
+      <img
+        id="mfa-setup-qr"
+        src={setup_qr(@secret, @current_user.email)}
+        alt={dgettext("dashboard_auth", "Authenticator setup QR code")}
+        width="200"
+        height="200"
+      />
+      <div data-part="setup-key">
+        <span>{dgettext("dashboard_auth", "Or enter this setup key manually")}</span>
+        <code id="mfa-setup-key">{Base.encode32(@secret, padding: false)}</code>
+        <.button
+          id="mfa-copy-key"
+          type="button"
+          variant="secondary"
+          data-mfa-copy="#mfa-setup-key"
+          data-copied={dgettext("dashboard_auth", "Setup key copied")}
+          data-copy-error={
+            dgettext("dashboard_auth", "Could not copy. Select and copy the text instead.")
+          }
+          label={dgettext("dashboard_auth", "Copy setup key")}
+        />
+        <span id="mfa-copy-status" role="status"></span>
+      </div>
+      <form
+        id="mfa-enrollment"
+        method="post"
+        action={~p"/users/settings/mfa/confirm"}
+        data-part="form"
+      >
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        <input
+          id="mfa-username"
+          type="text"
+          name="username"
+          value={@current_user.email}
+          autocomplete="username"
+          hidden
+          readonly
+        />
+        <.text_input
+          id="mfa-code"
+          name="mfa_code"
+          value=""
+          label={dgettext("dashboard_auth", "Authentication code")}
+          show_prefix={false}
+          autocomplete="one-time-code"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          autocapitalize="none"
+          spellcheck="false"
+          required
+          autofocus
+        />
+        <.button
+          variant="primary"
+          size="large"
+          type="submit"
+          label={dgettext("dashboard_auth", "Enable two-factor authentication")}
+        />
+      </form>
+      <form method="post" action={~p"/users/settings/mfa/cancel"} data-part="form">
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        <.button
+          variant="secondary"
+          size="large"
+          type="submit"
+          label={dgettext("dashboard_auth", "Cancel setup")}
+        />
+      </form>
+    <% else %>
+      <form method="post" action={~p"/users/settings/mfa/enroll"} data-part="form">
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        <.button
+          variant="primary"
+          size="large"
+          type="submit"
+          label={dgettext("dashboard_auth", "Set up authenticator app")}
+        />
+      </form>
+    <% end %>
+  <% end %>
+  <p data-part="security-note">
+    {dgettext(
+      "dashboard_auth",
+      "Changing your factor requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
+    )}
+  </p>
+  <:footer>
+    <.link_button
+      variant="primary"
+      href={~p"/#{@current_user.account.name}/settings/authentication"}
+      label={dgettext("dashboard_auth", "Back to authentication settings")}
+    />
+  </:footer>
+</.auth_page>

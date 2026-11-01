@@ -1,7 +1,7 @@
 defmodule TuistWeb.RateLimit.InMemoryTest do
   use TuistTestSupport.Cases.ConnCase, async: true
 
-  alias TuistWeb.RateLimit.InMemory
+  alias Tuist.RateLimit.InMemory
 
   describe "hit/4" do
     test "counts a fixed-window hit once on the serving node" do

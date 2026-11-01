@@ -39,7 +39,7 @@ defmodule TuistWeb.RateLimit.OnceEventsTest do
   test "shared limiter outages refuse calls before any credential work" do
     stub(Environment, :redis_url, fn -> "redis://unavailable" end)
     stub(Environment, :once_events_rate_limit_bucket_size, fn -> 100 end)
-    stub(TuistWeb.RateLimit.PersistentFixedWindow, :hit, fn _, _, _, _ -> exit(:noproc) end)
+    stub(Tuist.RateLimit.PersistentFixedWindow, :hit, fn _, _, _, _ -> exit(:noproc) end)
     owner = self()
 
     result =

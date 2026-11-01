@@ -22427,6 +22427,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The invitation email budget is exhausted; retry after the Retry-After interval
       summary: Creates an invitation
       tags:
         - Invitations

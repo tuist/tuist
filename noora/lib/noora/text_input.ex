@@ -81,7 +81,7 @@ defmodule Noora.TextInput do
 
   attr(:disabled, :boolean, default: false, doc: "Whether the input is disabled.")
 
-  attr(:rest, :global, include: ~w(autocomplete readonly))
+  attr(:rest, :global, include: ~w(autocomplete readonly maxlength pattern))
 
   slot(:prefix,
     required: false,
@@ -116,6 +116,7 @@ defmodule Noora.TextInput do
       <.label
         :if={@label}
         label={@label}
+        for={@id}
         sublabel={@sublabel}
         required={@required and @show_required}
         tooltip={@label_tooltip}

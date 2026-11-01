@@ -2718,6 +2718,58 @@ defmodule Tuist.AccountsTest do
       {1, nil} = Repo.update_all(UserToken, set: [inserted_at: ~N[2020-01-01 00:00:00]])
       refute Accounts.get_user_by_session_token(token)
     end
+
+    @tag :browser_session
+    test "expires at fifteen minutes idle without activity from validity checks", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -899)])
+      assert Accounts.get_user_by_session_token(token)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "activity cannot extend the eight-hour absolute deadline", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [inserted_at: now |> DateTime.add(-28_799) |> DateTime.to_naive(), last_active_at: now]
+      )
+
+      assert Accounts.get_user_session(token, touch: true)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "user activity extends only the idle deadline and only for that session", %{token: token, user: user} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      other_token = Accounts.generate_user_session_token(user)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 840) end)
+      assert Accounts.get_user_session(token, touch: true)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1680) end)
+      assert Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_by_session_token(other_token)
+    end
+
+    @tag :browser_session
+    test "legacy tokens are not renewed from migration or first-use time", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [
+          inserted_at: now |> DateTime.add(-900) |> DateTime.to_naive(),
+          last_active_at: nil,
+          auth_provider: nil,
+          auth_provider_organization_id: nil
+        ]
+      )
+
+      refute Accounts.get_user_session(token, touch: true)
+    end
   end
 
   describe "delete_user_session_token/1" do
@@ -2979,28 +3031,34 @@ defmodule Tuist.AccountsTest do
 
   describe "reset_user_password/2" do
     setup do
-      %{user: user_fixture()}
+      user = user_fixture()
+      {token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+      %{user: user, token: token}
     end
 
-    test "updates the password", %{user: user} do
+    test "updates the password", %{user: user, token: token} do
+      assert {:error, %Ecto.Changeset{}} = Accounts.reset_user_password(token, %{"password" => "short"})
+
       {:ok, %{user: updated_user}} =
-        Accounts.reset_user_password(user, %{"password" => "new valid password"})
+        Accounts.reset_user_password(token, %{"password" => "new valid password"})
 
       assert updated_user.id == user.id
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
+      assert {:error, :invalid_token} = Accounts.reset_user_password(token, %{"password" => "another valid password"})
     end
 
-    test "deletes all tokens for the given user", %{user: user} do
+    test "deletes all tokens for the given user", %{user: user, token: token} do
       _ = Accounts.generate_user_session_token(user)
-      {:ok, _} = Accounts.reset_user_password(user, %{"password" => "new valid password"})
+      {:ok, _} = Accounts.reset_user_password(token, %{"password" => "new valid password"})
       refute Repo.get_by(UserToken, user_id: user.id)
     end
 
-    test "returns revoked session live socket ids", %{user: user} do
+    test "returns revoked session live socket ids", %{user: user, token: token} do
       session_token = Accounts.generate_user_session_token(user)
 
       assert {:ok, %{revoked_session_live_socket_ids: [live_socket_id]}} =
-               Accounts.reset_user_password(user, %{"password" => "new valid password"})
+               Accounts.reset_user_password(token, %{"password" => "new valid password"})
 
       assert live_socket_id == UserToken.live_socket_id(session_token)
     end
