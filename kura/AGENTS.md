@@ -91,6 +91,17 @@ does not repair embedded/native verification or qualify running processes.
   refuses (a cross-region page, say) releases its seq without landing a row.
   Repair completion never replaces
   the final full-corpus verification or authorizes promotion.
+  The source's first descriptor page carries its oldest retained version. From
+  then on the destination counts capacity and pressure evictions of segments
+  whose newest record is not older (handover reclaims excluded). Preparation
+  fails while the source serves if one was counted, or if the records the walk
+  found missing exceed what the store admits without such an eviction. Under
+  the frozen source a counted eviction or a capacity-refused record ends the
+  attempt instead of revisiting, as does a hole found under the hold. Answer
+  those with 422 to that begin and every later one for the intent; the source
+  reports `barrier_failure` and the controller restores Serving before the
+  deadline. Every other rejection stays a retryable 409, and older peers
+  without the frontier keep the deadline-bounded behavior.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
