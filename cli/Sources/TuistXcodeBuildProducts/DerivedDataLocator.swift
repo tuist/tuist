@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistEnvironment
+import TuistSupport
 
 @Mockable
 public protocol DerivedDataLocating {
@@ -65,8 +66,8 @@ public struct DerivedDataLocator: DerivedDataLocating {
     /// symlinks), so a workspace under `/private/tmp/x` gets the derived data folder of `/tmp/x`.
     private static func xcodeStandardizedPath(_ projectPath: AbsolutePath) -> String {
         let path = projectPath.pathString
-        guard ["tmp", "var", "etc"].contains(where: { path.hasPrefix("/private/\($0)/") }) else { return path }
-        return String(path.dropFirst("/private".count))
+        guard path.hasPrefix("/private/"), let twin = macOSPrivateSymlinkTwin(of: path) else { return path }
+        return twin
     }
 
     /// Extracts the derived data root from `BUILD_DIR`.
