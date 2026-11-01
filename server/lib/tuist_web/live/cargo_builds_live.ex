@@ -12,7 +12,7 @@ defmodule TuistWeb.CargoBuildsLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Cargo
-  alias Tuist.Repo
+  alias Tuist.ReportActor
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
@@ -74,7 +74,7 @@ defmodule TuistWeb.CargoBuildsLive do
         Cargo.configuration_insights(project_id, category, opts)
       end)
       |> load(:cargo_recent_builds, {project_id, opts}, fn ->
-        project_id |> Cargo.recent_builds(Keyword.put(opts, :limit, 40)) |> Repo.preload(:ran_by_account)
+        project_id |> Cargo.recent_builds(Keyword.put(opts, :limit, 40)) |> ReportActor.preload()
       end)
 
     if chart_type == "scatter" do

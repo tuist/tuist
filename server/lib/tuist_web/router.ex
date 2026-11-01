@@ -1012,6 +1012,9 @@ defmodule TuistWeb.Router do
         end
 
         scope "/cargo" do
+          get "/crates", CargoCratesController, :index
+          get "/crates/:crate_id", CargoCratesController, :show
+          get "/crates/:crate_id/compilations", CargoCratesController, :history
           post "/builds", CargoController, :create_build
           get "/builds", CargoController, :list_builds
           get "/builds/:build_id", CargoController, :get_build
@@ -1676,6 +1679,8 @@ defmodule TuistWeb.Router do
       live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates/:crate_id", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
       live "/builds/bazel/actions", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/bazel/actions/:action_id", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata

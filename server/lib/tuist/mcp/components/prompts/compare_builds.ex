@@ -97,6 +97,17 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     """
   end
 
+  defp tools_section(:cargo) do
+    """
+    ## Available MCP tools
+
+    - **list_cargo_builds**: List Cargo builds newest first, with git_branch, command and is_ci filters and pagination.
+    - **get_cargo_build**: Get a Cargo build, aggregate cache counters and up to 500 recorded compiler jobs with diagnostics using build_id.
+    Both tools require account_handle and project_handle: Cargo build IDs are project-scoped.
+    Cargo timeline tools are not available yet.
+    """
+  end
+
   defp tools_section(_xcode_or_unknown) do
     """
     ## Available MCP tools
@@ -159,6 +170,41 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     """
   end
 
+  defp workflow_section(:cargo) do
+    """
+    ### 2. Compare like-for-like builds
+
+    Compare **command**, **rust_version** and environment (**is_ci**, **ci_provider** and recorded **custom_metadata**).
+    Call out differences before attributing changes to code or caching; missing environment values are unknown.
+    Compare **duration_ms** as measured elapsed build duration and **status** for success or failure.
+    Flag duration regressions over 10% only when the base duration is positive.
+
+    ### 3. Compare aggregate cache reuse and transfer
+
+    Use `get_cargo_build` for both builds and compare the **cache** object:
+    - **hits**, **task_misses**, **hit_rate**: aggregate task reuse. task_misses includes misses, unconsulted tasks and verifications.
+    - **misses**, **unconsulted**, **verifications**, **divergences**: explain changes in reuse and verification work.
+    - **prefetched_actions**, **downloaded_bytes**, **uploaded_bytes**, **remote_failures**, **background_upload_failures**: transfer and reliability changes.
+    - **prefetch_duration_ns**, **materialization_duration_ns**, **remote_action_lookup_duration_ns**, **remote_blob_transfer_duration_ns**, **upload_drain_duration_ns**: aggregate cache phase costs, not a sequential timeline.
+
+    **estimated_compiler_duration_avoided_ns** is estimated avoided compiler work, not elapsed savings.
+    Do not subtract it from duration_ms or sum cache phase counters to infer elapsed savings.
+    A null cache object or hit_rate and any missing values are unavailable, not zero; preserve explicitly measured zero values.
+    For recorded task/CAS evidence, request **include_cache_inspection: true** only when needed (up to 4 MB).
+    A null **cache_inspection** is unavailable; respect its **truncated** flag and never infer task-hit origin from transfers.
+
+    ### 4. Report evidence and limits
+
+    Compare returned **compilations** by name, source and kind, not their build-scoped IDs. Each is one rustc job,
+    not per-file timing; multiple jobs can belong to one crate and overlap. Read their recorded diagnostics.
+    Respect **compilations_truncated**: missing jobs may be omitted, already fresh or restored, not necessarily removed.
+    Without a Cargo timeline, do not infer a critical path or sum job durations into elapsed time.
+    Do not invent task-level cache transitions. In the summary, mark unsupported breakdowns unavailable
+    and report hit-rate deltas only when both rates are available. Recommend a controlled rerun with matching
+    command, Rust version and environment when the builds are not comparable.
+    """
+  end
+
   defp workflow_section(_xcode_or_unknown) do
     """
     ### 2. Compare top-level metrics
@@ -207,6 +253,20 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     Resolve IDs or dashboard URLs using `get_bazel_invocation` with invocation_id.
     For branches, paginate `list_bazel_invocations` and match git_branch locally; it has no branch filter.
     If the intended invocation cannot be identified, ask which invocation to compare.
+    """
+  end
+
+  defp resolution_section(base, head, account_handle, project_handle, default_branch, :cargo) do
+    """
+    ### 1. Resolve builds
+
+    Project: `#{account_handle}/#{project_handle}`. Base: #{base || "latest build on #{default_branch || "main"}"}.
+    Head: #{head || "latest build on the current branch"}.
+    Pass account_handle and project_handle to every Cargo tool call.
+    For IDs, use `get_cargo_build` with build_id, not build_run_id. For dashboard URLs, extract the build ID first.
+    For branches, use `list_cargo_builds` with git_branch and pick the most recent matching build.
+    If head is omitted, detect the current git branch (e.g., run `git branch --show-current`).
+    If it matches the base branch or the intended build cannot be identified, ask which build to compare.
     """
   end
 

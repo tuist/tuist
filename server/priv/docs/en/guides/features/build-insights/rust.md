@@ -32,6 +32,16 @@ On **Overview**, use **Compiler jobs** to find slow crates. Sort by **Duration**
 
 Each row is one `rustc` invocation for a crate, which can contain many source files. **Crate root** identifies its root source file; the duration is for the whole compiler job, not that file alone. A crate can appear more than once for different targets or configurations. Compiler messages are grouped in **Warnings** and **Errors**.
 
+### Track crates across builds {#crate-history}
+
+For projects enrolled in the gradual crate-history rollout, **Builds → Crates** shows observed crates and their compilation history. Open a crate to compare its recorded durations and outcomes across builds, then follow a compilation back to its Cargo build. The same inventory is available through `/cargo/crates` in the project API and the shared MCP build-entity tools with `kind: cargo_crates`.
+
+Crates are grouped by their exact recorded root path, name and kind. Changing checkout paths can split histories; profiles, features and target triples are not distinguished. This is an inventory of observed compiler jobs, not every crate in your workspace. Cached or up-to-date crates do not create compilation samples.
+
+### Attribute build reports {#report-attribution}
+
+Authenticated reports identify the individual behind personal credentials. Shared credentials need not identify an individual. Optionally set `TUIST_ACTOR_ID` to a stable opaque identifier on the reporting machine; it is off by default and is displayed as an unverified claim, never used for authorization. Older servers may ignore the claim. Do not put secrets in it.
+
 ## Read the timings {#timing-boundaries}
 
 The build duration is how long the whole Cargo command took. Compiler jobs can run in parallel, so their durations won't add up to the build duration.

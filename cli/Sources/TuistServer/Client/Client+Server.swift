@@ -6,7 +6,7 @@ extension Client {
     @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
 
     /// Non-GET operations the server treats as idempotent, so a request whose response was lost can be sent again.
-    /// `createTest` and `createCommandEvent` are deduplicated by the client-generated `id` every request carries, and a
+    /// `createTest`, `createCommandEvent` and `createCargoBuild` are deduplicated by the client-generated `id`, and a
     /// refresh token presented again within 60 seconds of its exchange returns the same tokens. Servers that predate
     /// those guarantees can record a replayed run twice or refuse a replayed refresh.
     static let idempotentServerOperationIDs: Set<String> = [
@@ -17,6 +17,7 @@ extension Client {
         "completeAnalyticsArtifactsUploadsProject",
         "completeCommitCoverage",
         "connectProjectRepository",
+        "createCargoBuild",
         "createCommandEvent",
         "createCoverageUpload",
         "createRunnerShellSession",

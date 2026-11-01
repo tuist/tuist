@@ -192,6 +192,7 @@ defmodule TuistWeb.API.Schemas.BuildEntity do
 
     [
       summary: summary,
+      description: Map.get(resource, :description, summary),
       operation_id: operation_id(action, title),
       parameters: parameters,
       responses: %{
