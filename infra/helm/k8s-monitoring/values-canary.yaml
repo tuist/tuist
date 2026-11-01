@@ -5,6 +5,13 @@
 #     -n observability --create-namespace \
 #     -f infra/helm/k8s-monitoring/values-canary.yaml
 
+# The receiver's tailnet name below is served by the `tailnet-ingress`
+# ProxyGroup rather than a standalone proxy, which the macOS VMs only reached
+# through a DERP relay. Switching needs the standalone proxy's device deleted
+# by hand; see the runbook in #14233.
+alloyReceiverTailnet:
+  proxyGroup: tailnet-ingress
+
 k8s-monitoring:
   cluster:
     name: tuist-canary
@@ -32,10 +39,13 @@ k8s-monitoring:
   # the Tart guests and now the host itself — reaches the cluster only over
   # the tailnet, and the receiver's `loki.source.api` on 3100 is where their
   # logs land (infra/helm/tuist macosFleet.hostLogs.url points here).
+  #
+  # No `tailscale.com/expose` here: `alloyReceiverTailnet` above serves this
+  # name from a ProxyGroup instead, and reads the name and tags from these
+  # annotations.
   collectors:
     alloy-receiver:
       service:
         annotations:
-          tailscale.com/expose: "true"
           tailscale.com/hostname: tuist-alloy-receiver-canary
           tailscale.com/tags: tag:tuist-k8s-canary

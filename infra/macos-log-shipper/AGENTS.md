@@ -112,8 +112,9 @@ what Tuist stores about an account. Update that document in the same change.
 Gated per env by `macosFleet.hostLogs.enabled` in
 [`infra/helm/tuist`](../helm/tuist), mirroring `macosFleet.tailscale.enabled`,
 with the receiver's tailnet hostname in `macosFleet.hostLogs.url`. The
-receiver has to be exposed on the tailnet in the matching env — the
-`tailscale.com/expose` annotations on `alloy-receiver` in
+receiver has to be on the tailnet in the matching env: the
+`tailscale.com/hostname` annotation on `alloy-receiver` plus
+`alloyReceiverTailnet.proxyGroup` in
 [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring)'s per-env values.
 
 All three managed envs are on.

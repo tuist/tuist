@@ -1,0 +1,56 @@
+{{- /*
+The Alloy receiver served by a Tailscale ProxyGroup as a Tailscale Service,
+for the tailnet clients that are not on the pod network: the xcresult
+processor's Tart VMs (OTLP traces, logs), the Mac mini hosts (logs) and the
+BER1 rack (logs, metrics, Kura traces).
+
+The receiver's own Service is fronted by a standalone proxy when its
+annotations carry `tailscale.com/expose`, and the macOS VMs reach a standalone
+proxy only through a DERP relay. A ProxyGroup with static endpoints gives them
+a direct path, the same move ClickHouse made (#14224). It needs a
+`LoadBalancer` Service, which the upstream chart's Service is not, so it gets
+one of its own with only the ports tailnet clients use.
+
+The name and tags still come from the upstream Service's annotations, because
+alloy-rack's config reads the name from there; leave `tailscale.com/expose`
+off them when this is on.
+*/}}
+{{- with .Values.alloyReceiverTailnet }}
+{{- if .proxyGroup }}
+{{- $annotations := dig "alloy-receiver" "service" "annotations" (dict) (index $.Values "k8s-monitoring" "collectors") }}
+{{- if hasKey $annotations "tailscale.com/expose" }}
+{{- fail "alloyReceiverTailnet.proxyGroup is set: remove tailscale.com/expose from collectors.alloy-receiver.service.annotations, or both proxies claim the same tailnet name" }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-alloy-receiver-tailnet
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: alloy-receiver
+    app.kubernetes.io/component: observability
+  annotations:
+    tailscale.com/proxy-group: {{ .proxyGroup | quote }}
+    tailscale.com/hostname: {{ required "alloyReceiverTailnet needs tailscale.com/hostname on collectors.alloy-receiver.service.annotations" (get $annotations "tailscale.com/hostname") | quote }}
+    tailscale.com/tags: {{ required "alloyReceiverTailnet needs tailscale.com/tags on collectors.alloy-receiver.service.annotations" (get $annotations "tailscale.com/tags") | quote }}
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector:
+    app.kubernetes.io/name: alloy-receiver
+    app.kubernetes.io/instance: {{ $.Release.Name }}-alloy-receiver
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: loki-push
+      port: 3100
+      targetPort: 3100
+    - name: metrics-push
+      port: 9009
+      targetPort: 9009
+{{- end }}
+{{- end }}
