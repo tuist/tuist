@@ -221,6 +221,11 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 )
             }
 
+        // Capture registry identities before deduplication. A registry package that loses deduplication to a
+        // local or source-control package must still normalize dependents that reference it by its scoped
+        // registry identity.
+        let registryIdentities = Set(packageInfos.filter { $0.kind == "registry" }.map(\.id))
+
         // When the same package appears from multiple sources (e.g. local path, registry, or source control),
         // we keep a single entry to avoid duplicates. Selection is based on the following precedence:
         //
@@ -308,7 +313,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         let enabledTraitsPerPackage = Self.enabledTraits(
             rootPackageInfo: rootPackage,
-            packageInfos: packageInfoDictionary
+            packageInfos: packageInfoDictionary,
+            registryIdentities: registryIdentities
         )
 
         let packageModuleAliases = mutablePackageModuleAliases
@@ -331,7 +337,9 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageProducts: externalDependencies.packageProducts,
-                    enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
+                    enabledTraits: enabledTraitsPerPackage[
+                        Self.canonicalIdentity(packageInfo.id, registryIdentities: registryIdentities)
+                    ] ?? []
                 )
             )
         }
@@ -373,23 +381,39 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
     static func enabledTraits(
         rootPackageInfo: PackageInfo,
-        packageInfos: [String: PackageInfo]
+        packageInfos: [String: PackageInfo],
+        registryIdentities: Set<String> = []
     ) -> [String: Set<String>] {
         var result: [String: Set<String>] = [:]
+
+        // Key the package infos by their canonical identity so lookups match
+        // regardless of whether a package is resolved through the registry (scoped
+        // identity) or source control (package name only).
+        //
+        // Canonicalization is many-to-one: several keys can collapse into one (e.g.
+        // "HummingbirdProject.Hummingbird" and "hummingbird" both normalize to "hummingbird"
+        // when the scoped identity is a known registry identity). Deduplication in the loader
+        // keeps at most one package per canonical identity, so remaining duplicates are the same
+        // package reached through a different source rather than distinct packages.
+        let normalizedPackageInfos = packageInfos.reduce(into: [:]) { result, element in
+            result[canonicalIdentity(element.key, registryIdentities: registryIdentities)] = element.value
+        }
 
         processTraits(
             from: rootPackageInfo.dependencies,
             enabledTraitsForCurrentPackage: [],
-            packageInfos: packageInfos,
+            packageInfos: normalizedPackageInfos,
+            registryIdentities: registryIdentities,
             result: &result
         )
 
-        for (packageId, packageInfo) in packageInfos {
+        for (packageId, packageInfo) in normalizedPackageInfos {
             let enabledForThisPackage = result[packageId] ?? []
             processTraits(
                 from: packageInfo.dependencies,
                 enabledTraitsForCurrentPackage: enabledForThisPackage,
-                packageInfos: packageInfos,
+                packageInfos: normalizedPackageInfos,
+                registryIdentities: registryIdentities,
                 result: &result
             )
         }
@@ -401,6 +425,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         from dependencies: [PackageDependency],
         enabledTraitsForCurrentPackage: Set<String>,
         packageInfos: [String: PackageInfo],
+        registryIdentities: Set<String>,
         result: inout [String: Set<String>]
     ) {
         for dependency in dependencies {
@@ -414,14 +439,39 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 }
             }
 
+            let canonicalIdentity = canonicalIdentity(dependency.identity, registryIdentities: registryIdentities)
+
             let resolvedTraits = resolvedEnabledTraits(
                 enabledTraits,
-                packageTraits: packageInfos[dependency.identity]?.traits ?? []
+                packageTraits: packageInfos[canonicalIdentity]?.traits ?? []
             )
 
             guard !resolvedTraits.isEmpty else { continue }
-            result[dependency.identity, default: []].formUnion(resolvedTraits)
+            result[canonicalIdentity, default: []].formUnion(resolvedTraits)
         }
+    }
+
+    /// Drops the scope from a scoped registry identity and lowercases the result.
+    ///
+    /// Registry packages are identified by a scoped identifier in the form
+    /// `scope.package-name` while source control and local packages are identified
+    /// by the package name alone.
+    static func unscopedRegistryIdentity(_ identity: String) -> String {
+        let lowercasedIdentity = identity.lowercased()
+        return lowercasedIdentity.split(separator: ".").last.map(String.init) ?? lowercasedIdentity
+    }
+
+    /// Normalizes a package identity so it can be correlated across sources.
+    ///
+    /// The identity is always lowercased. When it belongs to a package resolved
+    /// through a registry (i.e. it is contained in `registryIdentities`), the registry
+    /// scope is dropped so the same package resolves to the same key regardless of the
+    /// source it came from. Identities that are not known registry identities are left
+    /// untouched so that packages whose names contain dots are not corrupted.
+    static func canonicalIdentity(_ identity: String, registryIdentities: Set<String>) -> String {
+        let lowercasedIdentity = identity.lowercased()
+        guard registryIdentities.contains(lowercasedIdentity) else { return lowercasedIdentity }
+        return unscopedRegistryIdentity(lowercasedIdentity)
     }
 
     private static func resolvedEnabledTraits(
@@ -491,7 +541,7 @@ private struct SwiftPackageManagerResolvedPackageInfo {
     /// two match.
     var canonicalIdentity: String {
         guard kind == "registry" else { return id }
-        return String(id.split(separator: ".").last ?? "")
+        return SwiftPackageManagerGraphLoader.unscopedRegistryIdentity(id)
     }
 }
 
