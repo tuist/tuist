@@ -23,6 +23,29 @@ and does not change the conclusions about the existing thin layout below.
 See its [integration gates](../fscrypt/integration.md) for key lifecycle,
 confinement, admission and migration requirements before a replacement.
 
+## Shipping storage contract (2026-11-01)
+
+This is the layout #14152 enrolls first. It is recorded here so #14825 builds on
+it rather than on an assumed later mode; changing it is a cross-PR decision.
+
+| Aspect | Contract |
+| --- | --- |
+| Layout and mode | One thin LV, LUKS2 mapping and XFS filesystem per Kura PVC: `layout: thin-luks-xfs-v1`, `capacity_mode: ceiling-backed-v1`. No `borrowed_units` attribute; the borrowed parent remains an experiment and its runtime placement is not a released cache format. |
+| Sizing | The PVC request is the useful cache ceiling. The volume is created at that ceiling plus the versioned overhead in [interface.md](interface.md#sizing-and-admission) and never shrinks. Floor and grant start equal to the ceiling. |
+| Reservation | The controller requests the complete virtual size as `tuist.dev/kura-disk`, requests equal to limits; server admission charges the same bytes; CSI rejects any create that does not fit the pool. Nothing is overcommitted. |
+| Identity and keys | Stable identity is the CSI volume ID (the PV name) bound to its PVC UID, node and account; the passphrase is derived per volume ID from the account's versioned tenant key. Pod UID and runtime incarnation are separate fencing, never storage identity. |
+| Mount | The filesystem root is the pod's `/data` mount with project 1 inherited from the root. The runtime layout inside it is the ordinary single-directory cache, unchanged from legacy volumes. |
+| Consumers | Any allocator, including #14825's, must read `capacity_mode` and refuse to treat `ceiling-backed-v1` as shared-grant admission. Lowering a grant is a quota change that releases no reservation. |
+
+Consequence, accepted explicitly: these volumes cannot later become a floor plus
+borrowed units in place. When a qualified shared mode exists, an enrolled
+instance moves to it through the same staged, one-replica-at-a-time migration
+used now (destination-bound write acknowledgments, single-copy standby, endpoint
+handoff, retained-claim cleanup), not through an adapter. The migration cost is
+landing capacity for one source node at a time, not a duplicate fleet. Choosing
+a base-plus-units layout now instead would ship an unqualified runtime format
+and change no admission today, because every unit is fully backed either way.
+
 ## What can be reused, and what must change
 
 | Area | Current implementation | Consequence for the later sharing PR |

@@ -6,7 +6,9 @@ is fully reserved against pool data capacity, including pending create intents,
 retained volumes and incomplete deletions. Shrinking a grant or reclaiming
 mapped blocks never releases that reservation. There is no physical overcommit,
 floor-only admission, fairness policy or runtime budget-lease implementation.
-The allocator in #14825 must consume this interface after #14152 lands.
+The allocator in #14825 must consume this interface after #14152 lands. The
+[shipping storage contract](sharing-compatibility.md#shipping-storage-contract-2026-11-01)
+records what enrolled volumes commit to and how a later shared mode is reached.
 
 ## Sizing and admission
 
