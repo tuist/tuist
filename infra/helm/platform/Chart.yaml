@@ -15,57 +15,57 @@ dependencies:
     repository: https://charts.jetstack.io
     condition: cert-manager.enabled
   - name: ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: ingress-nginx.enabled
   - name: ingress-nginx
     alias: grpc-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: grpc-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-eu-west-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-eu-west-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-ca-east-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-ca-east-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-us-east-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-us-east-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-us-west-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-us-west-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-ap-southeast-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-ap-southeast-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-runners-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-runners-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-sa-west-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-sa-west-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-eu-east-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-eu-east-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-us-central-ingress-nginx
-    version: 4.11.3
+    version: 4.11.8
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-us-central-ingress-nginx.enabled
   - name: external-dns
