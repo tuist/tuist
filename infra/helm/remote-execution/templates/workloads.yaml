@@ -1,0 +1,137 @@
+{{- if .Values.enabled }}
+{{- $server := required "serverURL is required" .Values.serverURL }}
+{{- $slots := int .Values.workers.perNodeConcurrency }}
+{{- if not (has .Values.workers.networkBackend (list "iproute2" "netlink")) }}
+{{- fail "workers.networkBackend must be iproute2 or netlink" }}
+{{- end }}
+{{- if or (lt $slots 1) (gt $slots 128) }}
+{{- fail "workers.perNodeConcurrency must be between 1 and 128" }}
+{{- end }}
+{{- range $tag := list .Values.gateway.tag .Values.workers.tag .Values.workers.templateTag }}
+{{- if not (regexMatch "^sha-[a-f0-9]{12,40}$" $tag) }}
+{{- fail "gateway, daemon and template images must have immutable sha-<commit> tags" }}
+{{- end }}
+{{- end }}
+{{- if ne (index .Values.workers.nodeSelector "tuist.dev/workload") "remote-execution" }}
+{{- fail "execution workers require the dedicated remote-execution node selector" }}
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-workers
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels: {app: "{{ .Release.Name }}-gateway"}
+  template:
+    metadata:
+      labels: {app: "{{ .Release.Name }}-gateway"}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway
+          image: "{{ .Values.gateway.image }}:{{ .Values.gateway.tag }}"
+          ports: [{name: grpc, containerPort: 50051}]
+          env:
+            - {name: TUIST_URL, value: {{ $server | quote }}}
+          readinessProbe:
+            grpc: {port: 50051}
+          livenessProbe:
+            grpc: {port: 50051}
+          resources: {{ toYaml .Values.gateway.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gateway
+spec:
+  selector: {app: "{{ .Release.Name }}-gateway"}
+  ports: [{name: grpc, port: 50051, targetPort: grpc, appProtocol: kubernetes.io/h2c}]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Release.Name }}-workers
+spec:
+  # A rollout must drain execution first; never kill active VMs automatically.
+  updateStrategy: {type: OnDelete}
+  selector:
+    matchLabels: {app: "{{ .Release.Name }}-workers"}
+  template:
+    metadata:
+      labels: {app: "{{ .Release.Name }}-workers"}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-workers
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      nodeSelector: {{ toYaml .Values.workers.nodeSelector | nindent 8 }}
+      tolerations:
+        - {key: tuist.dev/workload, operator: Equal, value: remote-execution, effect: NoSchedule}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: template
+          image: "{{ .Values.workers.templateImage }}:{{ .Values.workers.templateTag }}"
+          env:
+            - {name: TEMPLATE_NAME, value: bazel}
+            - {name: TEMPLATE_TAG, value: {{ .Values.workers.templateTag | quote }}}
+            - {name: TEMPLATE_DIR, value: "/host/templates/bazel/{{ .Values.workers.templateTag }}"}
+          volumeMounts: [{name: data, mountPath: /host}]
+      containers:
+        - name: sandboxd
+          image: "{{ .Values.workers.image }}:{{ .Values.workers.tag }}"
+          securityContext: {privileged: true}
+          env:
+            - name: NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+            - name: POD_IP
+              valueFrom: {fieldRef: {fieldPath: status.podIP}}
+            - {name: SERVER_URL, value: {{ $server | quote }}}
+            - {name: TOKEN_PATH, value: /var/run/secrets/tuist/token}
+            - {name: DATA_DIR, value: /data/sandboxes}
+            - {name: TEMPLATE_NAME, value: bazel}
+            - {name: TEMPLATE_TAG, value: {{ .Values.workers.templateTag | quote }}}
+            - {name: EXECUTION_SLOTS, value: {{ $slots | quote }}}
+            - {name: NETWORK_BACKEND, value: {{ .Values.workers.networkBackend | quote }}}
+            - {name: ALLOWED_SHAPES, value: "2x4096"}
+            - {name: PREBUILD_SHAPES, value: "2x4096"}
+            - {name: DISK_BUDGET_GIB, value: {{ .Values.workers.diskGiB | quote }}}
+            - {name: METRICS_ADDR, value: "$(POD_IP):9090"}
+          resources:
+            requests: {cpu: {{ mul $slots 2 | quote }}, memory: "{{ add 512 (mul $slots 4160) }}Mi"}
+            limits: {cpu: {{ mul $slots 2 | quote }}, memory: "{{ add 512 (mul $slots 4160) }}Mi"}
+          ports: [{name: metrics, containerPort: 9090}]
+          volumeMounts:
+            - {name: data, mountPath: /data/sandboxes}
+            - {name: kvm, mountPath: /dev/kvm}
+            - {name: tun, mountPath: /dev/net/tun}
+            - {name: token, mountPath: /var/run/secrets/tuist, readOnly: true}
+      volumes:
+        - name: data
+          hostPath: {path: /data/remote-execution, type: DirectoryOrCreate}
+        - name: kvm
+          hostPath: {path: /dev/kvm, type: CharDevice}
+        - name: tun
+          hostPath: {path: /dev/net/tun, type: CharDevice}
+        - name: token
+          projected:
+            defaultMode: 0400
+            sources:
+              - serviceAccountToken: {audience: tuist-sandboxes, expirationSeconds: 3600, path: token}
+{{- end }}

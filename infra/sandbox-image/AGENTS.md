@@ -99,3 +99,7 @@ to come from `mise` inside the sandbox. Ordinary vsock execs still run as root.
 Amp bootstrap runs as `user` with passwordless sudo; see
 [`../amp-orbs/README.md`](../amp-orbs/README.md) for its lifecycle, persistent
 workspace, required egress and rollout. Amp Desktop dependencies are not installed.
+REAPI commands run as UID/GID 1000; preserve explicit command environments,
+`no_new_privs`, and host-only vsock access so actions cannot obtain the root
+worker's scoped CAS credential. See [remote execution](remote-execution.md)
+for the separate gateway, deployment and qualification workflow.

@@ -30,6 +30,20 @@ type eventSink struct {
 	cond   *sync.Cond
 }
 
+func TestExpiredExecutionCannotCreateAfterDeletion(t *testing.T) {
+	h := newHarness(t)
+	args := protocol.CreateArgs{SandboxID: "expired-execution", Template: "default", VCPUs: 2, MemoryMB: 4096, ExpiresAtUnix: time.Now().Add(-time.Second).Unix()}
+	if err := h.m.Delete(context.Background(), args.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Create(context.Background(), args); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expired create: %v", err)
+	}
+	if len(h.m.List()) != 0 {
+		t.Fatal("expired request resurrected a deleted executor")
+	}
+}
+
 func newEventSink() *eventSink {
 	s := &eventSink{}
 	s.cond = sync.NewCond(&s.mu)
@@ -997,5 +1011,157 @@ func TestDispatchReclaimsTheCgroupDownToTheTarget(t *testing.T) {
 	missing := protocol.Command{Type: protocol.FrameCommand, ID: "c-reclaim", Op: protocol.OpReclaim}
 	if res := Dispatch(context.Background(), &fakeOps{}, missing, nil); res.OK {
 		t.Fatalf("a reclaim without a target must fail, got %+v", res)
+	}
+}
+
+func TestPreparedWorkspaceClonesArePrivateAndSizeChangesStillFormat(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	tmpl, err := h.m.store.Resolve("default", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := h.m.builder.Ensure(ctx, tmpl, template.Shape{VCPUs: 2, MemoryMB: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Tiny stand-in for the formatted filesystem, so the fake VM test does
+	// not copy a 10 GiB sparse disk through os.ReadFile.
+	if err := os.WriteFile(artifacts.Workspace, []byte("pristine workspace"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	artifacts.Meta.WorkspacePrepared = true
+	encoded, _ := json.Marshal(artifacts.Meta)
+	if err := os.WriteFile(filepath.Join(artifacts.Dir, template.MetadataFile), encoded, 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"prepared-first", "prepared-second"} {
+		h.create(t, id, 10)
+		workspace := filepath.Join(vm.RootDir(h.jailBase, id), firecracker.WorkspacePath)
+		data, err := os.ReadFile(workspace)
+		if err != nil || string(data) != "pristine workspace" {
+			t.Fatalf("action inherited a used workspace: %q %v", data, err)
+		}
+		requests := h.launcher.Last().Agent.RequestsOf("configure")
+		if len(requests) != 1 || requests[0]["format_workspace"] == true {
+			t.Fatalf("prepared workspace was reformatted: %v", requests)
+		}
+		if err := os.WriteFile(workspace, []byte("action-private data"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.m.Delete(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.create(t, "different-size", 20)
+	requests := h.launcher.Last().Agent.RequestsOf("configure")
+	if len(requests) != 1 || requests[0]["format_workspace"] != true {
+		t.Fatalf("different-sized workspace must be formatted: %v", requests)
+	}
+	if err := h.m.Delete(ctx, "different-size"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type deletionNetwork struct {
+	network.Interface
+	started chan struct{}
+	release <-chan struct{}
+	once    sync.Once
+	failure error
+}
+
+func (n *deletionNetwork) Teardown(ctx context.Context, _ string, _ int) error {
+	n.once.Do(func() { close(n.started) })
+	if n.release != nil {
+		select {
+		case <-n.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return n.failure
+}
+
+type deletionInstance struct {
+	vm.Instance
+	networkStarted <-chan struct{}
+	killed         chan struct{}
+	failure        error
+}
+
+func (i *deletionInstance) Kill(ctx context.Context) error {
+	select {
+	case <-i.networkStarted:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if i.failure != nil {
+		return i.failure
+	}
+	err := i.Instance.Kill(ctx)
+	if i.killed != nil {
+		close(i.killed)
+		i.killed = nil
+	}
+	return err
+}
+
+func TestDeleteOverlapsIndependentCleanupButWaitsForBoth(t *testing.T) {
+	h := newHarness(t)
+	h.create(t, testID, 10)
+	sb, _ := h.m.get(testID)
+	release := make(chan struct{})
+	net := &deletionNetwork{Interface: h.net, started: make(chan struct{}), release: release}
+	h.m.net = net
+	killed := make(chan struct{})
+	sb.inst = &deletionInstance{Instance: sb.inst, networkStarted: net.started, killed: killed}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- h.m.Delete(ctx, testID) }()
+	select {
+	case <-killed:
+	case <-ctx.Done():
+		t.Fatal("VM exit waited for network teardown")
+	}
+	if !vm.Exists(sb.root) || !h.m.current(testID, sb) {
+		t.Fatal("resources released before network teardown completed")
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeleteFailureRetainsInstanceAndReservationForRetry(t *testing.T) {
+	for _, phase := range []string{"kill", "network"} {
+		t.Run(phase, func(t *testing.T) {
+			h := newHarness(t)
+			h.create(t, testID, 10)
+			sb, _ := h.m.get(testID)
+			net := &deletionNetwork{Interface: h.net, started: make(chan struct{})}
+			inst := &deletionInstance{Instance: sb.inst, networkStarted: net.started}
+			if phase == "kill" {
+				inst.failure = errors.New("unconfirmed death")
+			} else {
+				net.failure = errors.New("network still present")
+			}
+			sb.inst = inst
+			h.m.net = net
+			if err := h.m.Delete(context.Background(), testID); err == nil {
+				t.Fatal("unconfirmed cleanup succeeded")
+			}
+			if !vm.Exists(sb.root) || !h.m.current(testID, sb) || sb.meta.Slot < 0 || sb.inst != inst {
+				t.Fatal("failed cleanup lost the instance or reservation")
+			}
+			inst.failure, net.failure = nil, nil
+			if err := h.m.Delete(context.Background(), testID); err != nil {
+				t.Fatal(err)
+			}
+			if vm.Exists(sb.root) || h.m.current(testID, sb) {
+				t.Fatal("successful retry left resources")
+			}
+		})
 	}
 }

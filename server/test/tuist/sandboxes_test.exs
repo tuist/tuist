@@ -419,6 +419,23 @@ defmodule Tuist.SandboxesTest do
 
       assert %Sandbox{state: :deleted} = Repo.reload!(deleting)
     end
+
+    test "leaves execution VMs to their scheduler" do
+      reported = sandbox_fixture(state: :creating, node_name: "node-a")
+      unreported = sandbox_fixture(state: :running, node_name: "node-a")
+
+      for sandbox <- [reported, unreported] do
+        sandbox |> Ecto.Changeset.change(purpose: :remote_execution) |> Repo.update!()
+      end
+
+      reject(&Nodes.call/4)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => reported.id, "state" => "error"}]})
+
+      assert %Sandbox{state: :creating, error_message: nil} = Repo.reload!(reported)
+      assert %Sandbox{state: :running, error_message: nil} = Repo.reload!(unreported)
+    end
   end
 
   defp backdate(sandbox, seconds) do

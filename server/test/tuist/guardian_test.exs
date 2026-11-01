@@ -5,7 +5,40 @@ defmodule Tuist.GuardianTest do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Guardian
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  describe "token storage hashing" do
+    test "does not hash stateless cache tokens" do
+      user = AccountsFixtures.user_fixture()
+      reject(&Bcrypt.hash_pwd_salt/1)
+
+      assert {:ok, token, claims} = Guardian.encode_and_sign(user, %{}, token_type: "cache")
+      assert {:ok, ^claims} = Guardian.decode_and_verify(token)
+      assert {:error, :invalid_token_type} = Guardian.resource_from_claims(claims)
+    end
+
+    test "hashes stored refresh tokens and still supports revocation" do
+      user = AccountsFixtures.user_fixture()
+      expect(Bcrypt, :hash_pwd_salt, 2, fn _ -> "stored-hash" end)
+
+      assert {:ok, token, claims} = Guardian.encode_and_sign(user, %{}, token_type: "refresh")
+      assert {:ok, ^claims} = Guardian.decode_and_verify(token)
+
+      assert %{rows: [["stored-hash"]]} =
+               Repo.query!("SELECT jwt FROM guardian_tokens WHERE jti = $1", [claims["jti"]])
+
+      assert {:ok, _, {new_token, new_claims}} = Guardian.refresh(token)
+      assert {:error, _} = Guardian.decode_and_verify(token)
+      assert {:ok, ^new_claims} = Guardian.decode_and_verify(new_token)
+
+      assert %{rows: [["stored-hash"]]} =
+               Repo.query!("SELECT jwt FROM guardian_tokens WHERE jti = $1", [new_claims["jti"]])
+
+      assert {:ok, _} = Guardian.revoke(new_token)
+      assert {:error, _} = Guardian.decode_and_verify(new_token)
+    end
+  end
 
   describe "subject_for_token/2" do
     test "returns subject for account with claims" do

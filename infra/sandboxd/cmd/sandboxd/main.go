@@ -61,6 +61,7 @@ func main() {
 	shutdownTimeout := durationEnv(logger, "SHUTDOWN_TIMEOUT", 60*time.Second)
 	templateWorkspaceGB := intEnv(logger, "TEMPLATE_WORKSPACE_GB", template.DefaultWorkspaceGB)
 	memoryFloorGiB := intEnv(logger, "MEMORY_FLOOR_GIB", 0)
+	executionSlots := intEnv(logger, "EXECUTION_SLOTS", 0)
 	memoryCeilingGiB := intEnv(logger, "MEMORY_CEILING_GIB", 0)
 	if memoryFloorGiB < 0 || memoryCeilingGiB < 0 {
 		logger.Error("MEMORY_FLOOR_GIB and MEMORY_CEILING_GIB must not be negative", "floor", memoryFloorGiB, "ceiling", memoryCeilingGiB)
@@ -130,6 +131,17 @@ func main() {
 
 	netManager := network.NewManager(logger)
 	netManager.PodInterface = os.Getenv("POD_INTERFACE")
+	switch backend := os.Getenv("NETWORK_BACKEND"); backend {
+	case "", "iproute2":
+	case "netlink":
+		if err := netManager.UseNetlink(); err != nil {
+			logger.Error("network backend", "error", err)
+			os.Exit(1)
+		}
+	default:
+		logger.Error("unknown NETWORK_BACKEND", "backend", backend)
+		os.Exit(1)
+	}
 	if err := netManager.EnsurePodNAT(ctx); err != nil {
 		logger.Error("pod NAT setup", "error", err)
 		os.Exit(1)
@@ -254,7 +266,9 @@ func main() {
 			URL: serverURL, NodeName: nodeName, TokenPath: tokenPath, Log: logger,
 			Hello: func() protocol.Hello {
 				return protocol.Hello{
-					DaemonVersion: version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
+					ExecutionDeadlines: true,
+					ExecutionSlots:     executionSlots,
+					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
 					Templates: manager.Templates(), Sandboxes: manager.List(), DiskSnapshots: manager.DiskSnapshots(),
 				}
 			},

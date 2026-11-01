@@ -31,6 +31,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
       templates: [],
       sandboxes: [],
       daemon_version: nil,
+      execution_deadlines: false,
+      execution_slots: 0,
       firecracker_version: nil
     }
   end
@@ -189,6 +191,10 @@ defmodule TuistWeb.SandboxNodeWebSock do
     |> maybe_merge(:templates, frame["templates"], &templates/1)
     |> maybe_merge(:sandboxes, frame["sandboxes"], &sandboxes/1)
     |> maybe_merge(:daemon_version, frame["daemon_version"], & &1)
+    |> maybe_merge(:execution_deadlines, frame["execution_deadlines"], &(&1 == true))
+    |> maybe_merge(:execution_slots, frame["execution_slots"], fn value ->
+      if is_integer(value) and value in 0..128, do: value, else: 0
+    end)
     |> maybe_merge(:firecracker_version, frame["firecracker_version"], & &1)
   end
 

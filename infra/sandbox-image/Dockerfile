@@ -3,9 +3,9 @@
 # Firecracker guest template for sandboxd (infra/sandboxd/AGENTS.md).
 #
 # The image's only job is to carry a kernel and an ext4 rootfs onto a node:
-# the rootfs is Ubuntu 24.04 with a coding-agent toolchain and the three
+# the rootfs is Ubuntu 24.04 with a coding-agent toolchain and four
 # guest binaries (sbx-init as PID 1, sbx-agent on vsock, sbx-worker for
-# Managed Agents work items). There is no systemd anywhere in it.
+# Managed Agents work items, sbx-executor for REAPI actions). There is no systemd.
 #
 # Stages:
 #   builder  compiles the guest binaries (native arch, cross-compiled to amd64)
@@ -104,6 +104,20 @@ RUN mkdir -p /workspace /mnt/memory /run /tmp /proc /sys /dev \
 COPY --from=builder /out/sbx-init /sbin/sbx-init
 COPY --from=builder /out/sbx-agent /usr/local/bin/sbx-agent
 COPY --from=builder /out/sbx-worker /usr/local/bin/sbx-worker
+COPY --from=builder /out/sbx-executor /usr/local/bin/sbx-executor
+COPY --chmod=0755 scripts/template-prepare.sh /usr/local/bin/sbx-template-prepare
+
+# Experimental per-image opt-in; account rollout still requires its feature
+# flag and this image pin. The root-owned marker is present before snapshotting.
+ARG EMBEDDED_EXECUTOR=0
+RUN case "$EMBEDDED_EXECUTOR" in \
+      0) ;; \
+      1) touch /etc/tuist-embedded-executor ;; \
+      *) echo "EMBEDDED_EXECUTOR must be 0 or 1" >&2; exit 1 ;; \
+    esac
+
+# UID 1000 cannot read the root worker's CAS credential or control sockets.
+RUN if ! getent passwd 1000 >/dev/null; then useradd --uid 1000 --create-home builder; fi
 
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.
@@ -131,6 +145,14 @@ RUN mkdir -p /rootfs/dev /rootfs/proc /rootfs/sys /rootfs/run /rootfs/tmp /rootf
     && printf '{"name":"default","kernel":"%s","built_at":"%s","rootfs_bytes":%s}\n' \
         "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(stat -c %s /out/rootfs.ext4)" > /out/metadata.json \
     && cat /out/metadata.json && ls -la /out && du -h /out/*
+
+# Build with --target execution-gateway for the stateless public REAPI service.
+FROM alpine:3.21 AS execution-gateway
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /out/reapi-gateway /usr/local/bin/reapi-gateway
+USER 65534:65534
+EXPOSE 50051
+ENTRYPOINT ["/usr/local/bin/reapi-gateway"]
 
 # GNU coreutils for cp --sparse=always: busybox's cp cannot keep holes, and
 # a dense copy of the rootfs would cost every node the full 8 GiB.

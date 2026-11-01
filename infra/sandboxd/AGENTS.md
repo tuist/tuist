@@ -333,7 +333,7 @@ acknowledged by the server's poller; the worker never polls.
 Runner/sandbox capacity policy and rollout gates: [fleet-sharing.md](fleet-sharing.md).
 
 Diff snapshots, userfaultfd restore from object storage, cross-node resume,
-per-account egress policy, non-root execution in the guest, Claude Code
+per-account egress policy, non-root agent execution in the guest, Claude Code
 self-hosted runners.
 
 ## Operations
@@ -368,6 +368,12 @@ agent so the manager runs end to end without KVM).
   sparse workspace of `TEMPLATE_WORKSPACE_GB` (default 10); when a create
   asks for a different size the daemon issues `PATCH /drives/workspace`
   after the load so the guest learns the new capacity before formatting.
+  Bazel templates are the exception: the builder formats and unmounts a pristine
+  workspace before snapshotting and records `workspace_prepared`. Matching-size
+  creates reflink `workspace.empty.ext4` and mount it without formatting; older
+  snapshots and different sizes retain the original path. The optional trusted
+  `/usr/local/bin/sbx-template-prepare` hook runs before unmounting. Never derive
+  this image or memory snapshot from a VM that has received an action or token.
 
 ### Configuration (environment)
 
@@ -485,6 +491,9 @@ inside an error.
 `sandboxd_pause_seconds`, `sandboxd_template_build_seconds{shape}`
 (histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
 (gauges), `sandboxd_operations_total{op,result}` (counter).
+`sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
+sandbox IDs are never labels. Delete overlaps process exit and network teardown,
+but retains files, the instance reference and slot until both succeed.
 
 ### Development
 

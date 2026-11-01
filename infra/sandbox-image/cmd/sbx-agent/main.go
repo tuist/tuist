@@ -16,6 +16,7 @@ import (
 
 	"github.com/tuist/tuist/infra/sandbox-image/internal/agent"
 	"github.com/tuist/tuist/infra/sandbox-image/internal/exec"
+	"github.com/tuist/tuist/infra/sandbox-image/internal/executor"
 	"github.com/tuist/tuist/infra/sandbox-image/internal/guest"
 )
 
@@ -47,6 +48,13 @@ func main() {
 		System:  &guest.System{Logger: logger},
 		Execs:   exec.NewRegistry(*workspace),
 		Logger:  logger,
+	}
+	if _, err := os.Stat("/etc/tuist-embedded-executor"); err == nil {
+		session := &executor.Session{}
+		h.Action = &agent.SingleAction{ClaimPath: "/run/tuist-executor.claim", Run: session.Run, PrepareCAS: session.Prepare}
+	} else if !os.IsNotExist(err) {
+		logger.Error("cannot inspect executor mode")
+		os.Exit(1)
 	}
 	logger.Info("sbx-agent listening", slog.String("addr", *listen), slog.String("version", version))
 	if err := h.Serve(ctx, l); err != nil {

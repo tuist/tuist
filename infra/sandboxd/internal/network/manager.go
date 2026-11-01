@@ -12,7 +12,8 @@ import (
 )
 
 // Interface is what the sandbox manager and template builder need. The
-// real implementation shells out to ip and iptables.
+// real implementation supports iproute2 and native netlink configuration,
+// with shared namespace ownership, firewall rules and teardown.
 type Interface interface {
 	// Setup creates (or repairs) the netns for a slot. It is idempotent.
 	Setup(ctx context.Context, ns string, slot int) error
@@ -35,13 +36,14 @@ func ExecRunner(ctx context.Context, name string, args ...string) ([]byte, error
 	return out.Bytes(), err
 }
 
-// Manager drives ip and iptables in the pod's network namespace.
+// Manager owns network namespaces and their links, routes and firewall rules.
 type Manager struct {
 	Run Runner
 	Log *slog.Logger
 	// PodInterface is the pod's egress device (default eth0), resolved from
 	// the default route when empty.
-	PodInterface string
+	PodInterface   string
+	configureLinks func(context.Context, string, Addresses) error
 
 	natOnce sync.Once
 	natErr  error
@@ -156,11 +158,31 @@ func (m *Manager) Setup(ctx context.Context, ns string, slot int) error {
 	if err != nil {
 		return err
 	}
-	host := VethHostName(slot)
 	exists := []string{"File exists", "already exists"}
 	if err := m.runTolerant(ctx, exists, "ip", "netns", "add", ns); err != nil {
 		return err
 	}
+	configure := m.setupIPLinks
+	if m.configureLinks != nil {
+		configure = m.configureLinks
+	}
+	if err := configure(ctx, ns, addrs); err != nil {
+		return err
+	}
+	if err := m.run(ctx, "ip", "netns", "exec", ns, "sysctl", "-w", "net.ipv4.ip_forward=1"); err != nil {
+		return err
+	}
+	prefix := []string{"ip", "netns", "exec", ns}
+	if err := m.ensureRule(ctx, prefix, "nat", "POSTROUTING", "-s", GuestNet, "-o", VethNetnsName, "-j", "MASQUERADE"); err != nil {
+		return err
+	}
+	// Keep the same MSS clamp and firewall path for both link backends.
+	return m.ensureRule(ctx, prefix, "mangle", "FORWARD", "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--clamp-mss-to-pmtu")
+}
+
+func (m *Manager) setupIPLinks(ctx context.Context, ns string, addrs Addresses) error {
+	host := VethHostName(addrs.Slot)
+	exists := []string{"File exists", "already exists"}
 	in := []string{"ip", "-n", ns}
 	steps := [][]string{
 		append(in, "link", "set", "lo", "up"),
@@ -187,21 +209,11 @@ func (m *Manager) Setup(ctx context.Context, ns string, slot int) error {
 		append(in, "addr", "replace", addrs.NetnsCIDR(), "dev", VethNetnsName),
 		append(in, "link", "set", VethNetnsName, "up"),
 		append(in, "route", "replace", "default", "via", addrs.Pod.String()),
-		{"ip", "netns", "exec", ns, "sysctl", "-w", "net.ipv4.ip_forward=1"},
 	}
 	for _, step := range steps {
 		if err := m.run(ctx, step[0], step[1:]...); err != nil {
 			return err
 		}
-	}
-	prefix := []string{"ip", "netns", "exec", ns}
-	if err := m.ensureRule(ctx, prefix, "nat", "POSTROUTING", "-s", GuestNet, "-o", VethNetnsName, "-j", "MASQUERADE"); err != nil {
-		return err
-	}
-	// The guest link is 1500 while the pod's device may be smaller (VXLAN);
-	// clamping MSS keeps TCP from relying on ICMP for path MTU.
-	if err := m.ensureRule(ctx, prefix, "mangle", "FORWARD", "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--clamp-mss-to-pmtu"); err != nil {
-		return err
 	}
 	return nil
 }

@@ -41,6 +41,7 @@ type Handler struct {
 	System  System
 	Execs   *exec.Registry
 	Logger  *slog.Logger
+	Action  *SingleAction
 }
 
 // Serve accepts connections until ctx is cancelled or the listener fails.
@@ -154,6 +155,12 @@ func (h *Handler) writeFile(req *protocol.Request, w *protocol.Writer) error {
 }
 
 func (h *Handler) exec(ctx context.Context, req *protocol.Request, w *protocol.Writer) error {
+	if h.Action != nil && len(req.Cmd) == 3 && req.Cmd[0] == "/usr/local/bin/sbx-executor" && req.Cmd[1] == "--prepare-cas" {
+		return h.Action.Prepare(ctx, req, w)
+	}
+	if h.Action != nil && len(req.Cmd) == 1 && req.Cmd[0] == "/usr/local/bin/sbx-executor" {
+		return h.Action.Execute(ctx, req, w)
+	}
 	spec := exec.Spec{
 		Cmd:     req.Cmd,
 		Env:     req.Env,
@@ -171,6 +178,12 @@ func (h *Handler) exec(ctx context.Context, req *protocol.Request, w *protocol.W
 }
 
 func (h *Handler) kill(req *protocol.Request, w *protocol.Writer) error {
+	if h.Action != nil && req.Target == actionExecID {
+		if err := h.Action.Kill(syscall.Signal(req.Signal)); err != nil {
+			return err
+		}
+		return w.Send(protocol.OK(req.ID))
+	}
 	if req.Target == "" {
 		return errors.New("kill: target is required")
 	}

@@ -1,0 +1,35 @@
+{{- if .Values.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-workers
+spec:
+  podSelector:
+    matchLabels: {app: "{{ .Release.Name }}-workers"}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.serverNamespace | quote }}}
+          podSelector:
+            matchLabels: {app.kubernetes.io/component: server}
+      ports: [{protocol: TCP, port: {{ .Values.serverPort }}}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kura}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: kura}
+      ports: [{protocol: TCP, port: 4000}]
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 127.0.0.0/8]
+      ports: [{protocol: TCP, port: 443}]
+{{- end }}

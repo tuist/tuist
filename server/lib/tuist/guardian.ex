@@ -82,7 +82,7 @@ defmodule Tuist.Guardian do
              resource,
              claims["typ"],
              claims,
-             Bcrypt.hash_pwd_salt(token <> Tuist.Environment.secret_key_password())
+             stored_token_hash(token, claims)
            ) do
       {:ok, token}
     end
@@ -98,7 +98,7 @@ defmodule Tuist.Guardian do
     with {:ok, _, _} <-
            Guardian.DB.on_refresh(
              {old_token, old_claims},
-             {Bcrypt.hash_pwd_salt(new_token <> Tuist.Environment.secret_key_password()), new_claims}
+             {stored_token_hash(new_token, new_claims), new_claims}
            ) do
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
     end
@@ -107,6 +107,16 @@ defmodule Tuist.Guardian do
   def on_revoke(claims, token, _options \\ []) do
     with {:ok, _} <- Guardian.DB.on_revoke(claims, token) do
       {:ok, claims}
+    end
+  end
+
+  defp stored_token_hash(token, claims) do
+    types = :guardian |> Application.fetch_env!(Guardian.DB) |> Keyword.get(:token_types, [])
+
+    # Guardian.DB discards unconfigured types, so stateless cache credentials
+    # are never stored. An empty list means every type is stored.
+    if types == [] or claims["typ"] in types do
+      Bcrypt.hash_pwd_salt(token <> Tuist.Environment.secret_key_password())
     end
   end
 end

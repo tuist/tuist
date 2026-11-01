@@ -139,6 +139,8 @@ type DiskSnapshotInfo struct {
 }
 
 type Hello struct {
+	ExecutionDeadlines bool               `json:"execution_deadlines,omitempty"`
+	ExecutionSlots     int                `json:"execution_slots,omitempty"`
 	Type               string             `json:"type"`
 	Node               string             `json:"node"`
 	DaemonVersion      string             `json:"daemon_version"`
@@ -202,13 +204,16 @@ type Command struct {
 }
 
 type CreateArgs struct {
-	SandboxID   string `json:"sandbox_id"`
-	Template    string `json:"template"`
-	TemplateTag string `json:"template_tag,omitempty"`
-	VCPUs       int    `json:"vcpus"`
-	MemoryMB    int    `json:"memory_mb"`
-	WorkspaceGB int    `json:"workspace_gb"`
-	Hostname    string `json:"hostname"`
+	// A leased execution request must never create a VM after its owner expired.
+	// Zero preserves the persistent agent-session protocol.
+	ExpiresAtUnix int64  `json:"expires_at_unix,omitempty"`
+	SandboxID     string `json:"sandbox_id"`
+	Template      string `json:"template"`
+	TemplateTag   string `json:"template_tag,omitempty"`
+	VCPUs         int    `json:"vcpus"`
+	MemoryMB      int    `json:"memory_mb"`
+	WorkspaceGB   int    `json:"workspace_gb"`
+	Hostname      string `json:"hostname"`
 	// FromDiskSnapshot names a saved disk snapshot to clone instead of the
 	// template's disks. The sandbox cold boots on the clones.
 	FromDiskSnapshot string `json:"from_disk_snapshot,omitempty"`
