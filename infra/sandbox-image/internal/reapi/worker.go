@@ -38,9 +38,10 @@ type Worker struct {
 
 // Execute reports whether the result may be published to the action cache.
 // Publication is the caller's job, after the client already has the result.
-func (w *Worker) Execute(ctx context.Context, digest *re.Digest, skipCache bool) (*re.ExecuteResponse, bool) {
-	result, cached, cacheable, err := w.execute(ctx, digest, skipCache)
-	response := &re.ExecuteResponse{Result: result, CachedResult: cached, Status: &rpc.Status{}}
+// It never looks the action up: clients check the action cache before Execute.
+func (w *Worker) Execute(ctx context.Context, digest *re.Digest) (*re.ExecuteResponse, bool) {
+	result, cacheable, err := w.execute(ctx, digest)
+	response := &re.ExecuteResponse{Result: result, Status: &rpc.Status{}}
 	if err != nil {
 		code := status.Code(err)
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -63,43 +64,34 @@ func (w *Worker) Execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	return response, err == nil && cacheable
 }
 
-func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool) (*re.ActionResult, bool, bool, error) {
+func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResult, bool, error) {
 	metadata := &re.ExecutedActionMetadata{Worker: "firecracker-linux-amd64", WorkerStartTimestamp: timestamppb.Now()}
 	metadata.InputFetchStartTimestamp = timestamppb.Now()
 	var action re.Action
 	if err := w.CAS.Message(ctx, digest, &action); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	var command re.Command
 	var input re.Directory
 	if err := w.CAS.Messages(ctx, []*re.Digest{action.CommandDigest, action.InputRootDigest}, []proto.Message{&command, &input}); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	if err := w.validate(&action, &command); err != nil {
-		return nil, false, false, err
-	}
-	if !skipCache && !action.DoNotCache {
-		result, err := w.CAS.Actions.GetActionResult(ctx, &re.GetActionResultRequest{InstanceName: w.CAS.Instance, ActionDigest: digest, DigestFunction: re.DigestFunction_SHA256})
-		if err == nil {
-			return result, true, false, nil
-		}
-		if status.Code(err) != codes.NotFound {
-			return nil, false, false, err
-		}
+		return nil, false, err
 	}
 	if err := os.Mkdir(w.Root, 0755); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	root, err := os.OpenRoot(w.Root)
 	if err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	defer root.Close()
 	if err = w.own(root, "."); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	if err = w.materialize(ctx, root, ".", &input, 0); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	metadata.InputFetchCompletedTimestamp = timestamppb.Now()
 	outputs := command.OutputPaths
@@ -108,14 +100,14 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	}
 	for _, p := range outputs {
 		if !relative(p, false) {
-			return nil, false, false, status.Error(codes.InvalidArgument, "invalid output path")
+			return nil, false, status.Error(codes.InvalidArgument, "invalid output path")
 		}
 		if err = w.mkdir(root, path.Dir(path.Join(command.WorkingDirectory, p))); err != nil {
-			return nil, false, false, err
+			return nil, false, err
 		}
 	}
 	if !relative(command.WorkingDirectory, true) {
-		return nil, false, false, status.Error(codes.InvalidArgument, "invalid working directory")
+		return nil, false, status.Error(codes.InvalidArgument, "invalid working directory")
 	}
 	working := command.WorkingDirectory
 	if working == "" {
@@ -123,18 +115,18 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	}
 	info, err := root.Stat(working)
 	if err != nil || !info.IsDir() {
-		return nil, false, false, status.Error(codes.InvalidArgument, "missing working directory")
+		return nil, false, status.Error(codes.InvalidArgument, "missing working directory")
 	}
 	// Logs are outside the unprivileged build user's writable workspace.
 	stdout, err := os.CreateTemp("", "rbe-stdout-")
 	if err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	defer os.Remove(stdout.Name())
 	defer stdout.Close()
 	stderr, err := os.CreateTemp("", "rbe-stderr-")
 	if err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	defer os.Remove(stderr.Name())
 	defer stderr.Close()
@@ -150,14 +142,14 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	}
 	program, err := commandPath(command.Arguments[0], env, filepath.Join(w.Root, working))
 	if err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	cmd := &exec.Cmd{Path: program, Args: command.Arguments, Dir: filepath.Join(w.Root, working), Env: env,
 		Stdout: &limitedLog{file: stdout}, Stderr: &limitedLog{file: stderr},
 		SysProcAttr: &syscall.SysProcAttr{Setpgid: true, Credential: w.Credential}, WaitDelay: time.Second}
 	started := time.Now()
 	if err = w.start(cmd); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -175,7 +167,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	if err != nil {
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) {
-			return nil, false, false, err
+			return nil, false, err
 		}
 	}
 	exitCode := cmd.ProcessState.ExitCode()
@@ -191,32 +183,32 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest, skipCache bool)
 	}
 	uploads := newOutputUploads(w.CAS)
 	if result.StdoutDigest, err = uploads.log(stdout); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	if result.StderrDigest, err = uploads.log(stderr); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	for _, p := range outputs {
 		if err = w.collect(root, path.Join(working, p), p, result, uploads); err != nil {
-			return nil, false, false, err
+			return nil, false, err
 		}
 		if proto.Size(result) > MaxResponse {
-			return nil, false, false, status.Error(codes.ResourceExhausted, "action result too large")
+			return nil, false, status.Error(codes.ResourceExhausted, "action result too large")
 		}
 	}
 	if err = uploads.send(ctx); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
 	if timedOut {
 		metadata.OutputUploadCompletedTimestamp = timestamppb.Now()
 		metadata.WorkerCompletedTimestamp = timestamppb.Now()
-		return result, false, false, context.DeadlineExceeded
+		return result, false, context.DeadlineExceeded
 	}
 	// These timestamps describe the worker, excluding controller VM creation
 	// and cleanup. Cached results deliberately retain the original execution.
 	metadata.OutputUploadCompletedTimestamp = timestamppb.Now()
 	metadata.WorkerCompletedTimestamp = timestamppb.Now()
-	return result, false, result.ExitCode == 0 && !action.DoNotCache, nil
+	return result, result.ExitCode == 0 && !action.DoNotCache, nil
 }
 
 func (w *Worker) start(cmd *exec.Cmd) error {

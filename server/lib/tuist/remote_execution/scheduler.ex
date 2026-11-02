@@ -361,8 +361,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
       instance: op.project_name,
       hash: op.hash,
       size: op.size,
-      image: vm.sandbox.template_tag,
-      skip_cache: op.skip_cache
+      image: vm.sandbox.template_tag
     }
 
     request = if op.inputs, do: Map.put(request, :inputs, op.inputs), else: request

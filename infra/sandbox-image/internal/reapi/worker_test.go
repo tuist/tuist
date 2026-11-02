@@ -42,6 +42,7 @@ type memoryCAS struct {
 	batchRead    func(context.Context, *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error)
 	beforeUpdate func()
 	beforeWrite  func() error
+	lookups      atomic.Int32
 	durability   atomic.Value
 }
 
@@ -120,6 +121,7 @@ func (m *memoryCAS) Write(s bs.ByteStream_WriteServer) error {
 	return s.SendAndClose(&bs.WriteResponse{CommittedSize: int64(len(data))})
 }
 func (m *memoryCAS) GetActionResult(_ context.Context, r *re.GetActionResultRequest) (*re.ActionResult, error) {
+	m.lookups.Add(1)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if result, ok := m.actions[r.ActionDigest.Hash]; ok {
@@ -153,7 +155,7 @@ func TestWorkerLeavesCachePublicationToCaller(t *testing.T) {
 			d = m.message(t, &a)
 		}
 		w.Root = filepath.Join(t.TempDir(), "action")
-		response, cacheable := w.Execute(context.Background(), d, true)
+		response, cacheable := w.Execute(context.Background(), d)
 		if response.Status.Code != 0 || cacheable != test.cacheable {
 			t.Fatalf("%s: cacheable %v, response %v", test.cmd, cacheable, response)
 		}
@@ -198,7 +200,7 @@ func TestMissingInputRetainsBazelRetryDetails(t *testing.T) {
 	w, m := harness(t)
 	missing := &re.Digest{Hash: strings.Repeat("a", 64), SizeBytes: 5}
 	d := action(t, m, "true", &re.Directory{Files: []*re.FileNode{{Name: "missing", Digest: missing}}}, nil)
-	response, _ := w.Execute(context.Background(), d, true)
+	response, _ := w.Execute(context.Background(), d)
 	s := status.FromProto(response.Status)
 	if s.Code() != codes.FailedPrecondition || len(s.Details()) != 1 {
 		t.Fatalf("missing input status: %v", response)
@@ -216,7 +218,7 @@ func TestWorkerCompilesAndRunsCProgram(t *testing.T) {
 	w, m := harness(t)
 	source := m.put([]byte("#include <stdio.h>\nint main(void) { puts(\"remote compilation\"); return 0; }\n"))
 	d := action(t, m, "/usr/bin/cc hello.c -o hello && ./hello", &re.Directory{Files: []*re.FileNode{{Name: "hello.c", Digest: source}}}, []string{"hello"})
-	response, _ := w.Execute(context.Background(), d, true)
+	response, _ := w.Execute(context.Background(), d)
 	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 || len(response.Result.GetOutputFiles()) != 1 {
 		t.Fatalf("compile and run: %v", response)
 	}
@@ -228,7 +230,7 @@ func TestWorkerCompilesAndRunsCProgram(t *testing.T) {
 func TestWorkerRoundTripAndCache(t *testing.T) {
 	w, m := harness(t)
 	d := action(t, m, "cat input > output; chmod +x output; mkdir -p tree/nested; cp input tree/nested/copy; printf 'compiler log'; printf 'warning' >&2", &re.Directory{Files: []*re.FileNode{{Name: "input", Digest: m.put([]byte("hello\n"))}}}, []string{"output", "tree"})
-	response, cacheable := w.Execute(context.Background(), d, false)
+	response, cacheable := w.Execute(context.Background(), d)
 	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
 		t.Fatalf("execute: %v", response)
 	}
@@ -258,14 +260,18 @@ func TestWorkerRoundTripAndCache(t *testing.T) {
 	if len(tree.Root.Directories) != 1 || len(tree.Children) != 1 || tree.Children[0].Files[0].Name != "copy" {
 		t.Fatalf("tree: %v", &tree)
 	}
+	// Clients check the action cache before Execute; the worker never does.
 	publish(t, m, d, response, cacheable)
-	w.Root = filepath.Join(t.TempDir(), "cached")
-	response, _ = w.Execute(context.Background(), d, false)
-	if !response.CachedResult || response.Status.Code != 0 {
-		t.Fatalf("cache: %v", response)
+	w.Root = filepath.Join(t.TempDir(), "again")
+	response, _ = w.Execute(context.Background(), d)
+	if response.CachedResult || response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("second execution: %v", response)
 	}
-	if _, err := os.Stat(w.Root); !os.IsNotExist(err) {
-		t.Fatal("cache hit created workspace")
+	if _, err := os.Stat(w.Root); err != nil {
+		t.Fatal("second execution did not run the action")
+	}
+	if m.lookups.Load() != 0 {
+		t.Fatal("worker looked the action up in the action cache")
 	}
 }
 
@@ -285,7 +291,7 @@ func TestWorkerFailureAndTimeout(t *testing.T) {
 				a.Timeout = durationpb.New(test.timeout)
 				d = m.message(t, &a)
 			}
-			r, _ := w.Execute(context.Background(), d, false)
+			r, _ := w.Execute(context.Background(), d)
 			if r.Status.Code != int32(test.code) || r.Result.GetExitCode() != test.exit {
 				t.Fatalf("response: %v", r)
 			}
@@ -320,7 +326,7 @@ func TestWorkerRejectsUntrustedInput(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			w, m := harness(t)
 			d := action(t, m, "touch executed", test.input(m), nil)
-			r, _ := w.Execute(context.Background(), d, false)
+			r, _ := w.Execute(context.Background(), d)
 			if r.Status.Code != int32(test.code) {
 				t.Fatalf("response: %v", r)
 			}
@@ -334,12 +340,12 @@ func TestWorkerRejectsUntrustedInput(t *testing.T) {
 func TestWorkerRequiresImageAndExplicitEnvironment(t *testing.T) {
 	w, m := harness(t)
 	d := action(t, m, "printf '%s' \"${SBX_EXECUTION_TOKEN-unset}\"", &re.Directory{}, nil)
-	r, _ := w.Execute(context.Background(), d, true)
+	r, _ := w.Execute(context.Background(), d)
 	if r.Status.Code != 0 || string(m.blobs[r.Result.StdoutDigest.Hash]) != "unset" {
 		t.Fatalf("environment: %v", r)
 	}
 	w.Image = "other"
-	r, _ = w.Execute(context.Background(), d, false)
+	r, _ = w.Execute(context.Background(), d)
 	if r.Status.Code != int32(codes.FailedPrecondition) {
 		t.Fatalf("image: %v", r)
 	}
@@ -365,7 +371,7 @@ func TestCASReadsOutputFromStart(t *testing.T) {
 func TestEmptyLogsDoNotUploadBlobs(t *testing.T) {
 	w, m := harness(t)
 	d := action(t, m, "true", &re.Directory{}, nil)
-	result, cacheable := w.Execute(context.Background(), d, false)
+	result, cacheable := w.Execute(context.Background(), d)
 	if result.Status.Code != 0 || result.Result.ExitCode != 0 {
 		t.Fatalf("execution: %v", result)
 	}
@@ -375,11 +381,8 @@ func TestEmptyLogsDoNotUploadBlobs(t *testing.T) {
 	if m.writes.Load() != 0 {
 		t.Fatal("silent action uploaded empty log blobs")
 	}
-	publish(t, m, d, result, cacheable)
-	w.Root = filepath.Join(t.TempDir(), "cached")
-	cached, _ := w.Execute(context.Background(), d, false)
-	if !cached.CachedResult || !proto.Equal(cached.Result, m.actions[d.Hash]) {
-		t.Fatalf("cached result changed: %v", cached)
+	if !cacheable {
+		t.Fatal("a successful silent action is cacheable")
 	}
 }
 
@@ -415,7 +418,7 @@ func TestInputDownloadsAreBoundedAndCompleteBeforeExecution(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	digest := action(t, m, "cat input-* > output", dir, []string{"output"})
-	response, _ := w.Execute(ctx, digest, true)
+	response, _ := w.Execute(ctx, digest)
 	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
 		t.Fatalf("parallel materialization: %v", response)
 	}
@@ -471,7 +474,7 @@ func TestInputDownloadFailureCancelsPeersAndDoesNotExecute(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	digest := action(t, m, "touch executed", dir, nil)
-	response, _ := w.Execute(ctx, digest, true)
+	response, _ := w.Execute(ctx, digest)
 	if response.Status.Code != int32(codes.FailedPrecondition) {
 		t.Fatalf("lost the original missing-input error: %v", response)
 	}
@@ -524,7 +527,7 @@ func TestOutputsUploadConcurrently(t *testing.T) {
 		}
 	}
 	d := action(t, m, "printf a > a; printf b > b; printf c > c", &re.Directory{}, []string{"a", "b", "c"})
-	result, _ := w.Execute(context.Background(), d, false)
+	result, _ := w.Execute(context.Background(), d)
 	if result.Status.Code != 0 || len(result.Result.OutputFiles) != 3 {
 		t.Fatalf("execution: %v", result)
 	}
@@ -538,7 +541,7 @@ func TestOutputsUploadConcurrently(t *testing.T) {
 func TestIdenticalOutputsUploadOnce(t *testing.T) {
 	w, m := harness(t)
 	d := action(t, m, "printf same > a; printf same > b; mkdir c; printf same > c/d", &re.Directory{}, []string{"a", "b", "c"})
-	result, _ := w.Execute(context.Background(), d, false)
+	result, _ := w.Execute(context.Background(), d)
 	if result.Status.Code != 0 || len(result.Result.OutputFiles) != 2 || len(result.Result.OutputDirectories) != 1 {
 		t.Fatalf("execution: %v", result)
 	}
@@ -551,7 +554,7 @@ func TestIdenticalOutputsUploadOnce(t *testing.T) {
 func TestOutputUploadsAllowDeferredDurability(t *testing.T) {
 	w, m := harness(t)
 	d := action(t, m, "printf a > a", &re.Directory{}, []string{"a"})
-	if result, _ := w.Execute(context.Background(), d, false); result.Status.Code != 0 {
+	if result, _ := w.Execute(context.Background(), d); result.Status.Code != 0 {
 		t.Fatalf("execution: %v", result)
 	}
 	if got := m.durability.Load(); got != "deferred" {

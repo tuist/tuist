@@ -16,7 +16,6 @@ import (
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -51,7 +50,6 @@ func warmAction(ctx context.Context, root string, credential *syscall.Credential
 	}
 	s := grpc.NewServer()
 	re.RegisterContentAddressableStorageServer(s, &cas)
-	re.RegisterActionCacheServer(s, &cas)
 	bs.RegisterByteStreamServer(s, &cas)
 	go func() { _ = s.Serve(l) }()
 	defer s.Stop()
@@ -61,13 +59,12 @@ func warmAction(ctx context.Context, root string, credential *syscall.Credential
 	}
 	defer conn.Close()
 	w := worker.Worker{CAS: worker.NewCAS(conn, "warm"), Root: root, Image: "warm", Credential: credential, Start: start}
-	response, _ := w.Execute(ctx, action, false)
+	response, _ := w.Execute(ctx, action)
 	return response, nil
 }
 
 type loopbackCAS struct {
 	re.UnimplementedContentAddressableStorageServer
-	re.UnimplementedActionCacheServer
 	bs.UnimplementedByteStreamServer
 	blobs map[string][]byte
 }
@@ -96,10 +93,6 @@ func (c *loopbackCAS) BatchReadBlobs(_ context.Context, r *re.BatchReadBlobsRequ
 		response.Responses = append(response.Responses, item)
 	}
 	return response, nil
-}
-
-func (c *loopbackCAS) GetActionResult(context.Context, *re.GetActionResultRequest) (*re.ActionResult, error) {
-	return nil, status.Error(codes.NotFound, "not found")
 }
 
 func (c *loopbackCAS) Write(s bs.ByteStream_WriteServer) error {

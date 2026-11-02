@@ -177,7 +177,7 @@ func TestBatchBudgetAndCancellation(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 	a := action(t, m, "touch should-not-run", &re.Directory{}, nil)
-	if response, _ := w.Execute(ctx, a, true); codes.Code(response.Status.Code) != codes.Canceled {
+	if response, _ := w.Execute(ctx, a); codes.Code(response.Status.Code) != codes.Canceled {
 		t.Fatalf("cancel response: %v", response)
 	}
 }
@@ -222,7 +222,7 @@ func TestBatchByteBoundAndActiveCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		response := make(chan *re.ExecuteResponse, 1)
-		go func() { r, _ := w.Execute(ctx, a, true); response <- r }()
+		go func() { r, _ := w.Execute(ctx, a); response <- r }()
 		<-started
 		cancel()
 		if r := <-response; codes.Code(r.Status.Code) != codes.Canceled {
@@ -248,7 +248,7 @@ func TestInputTreeUsesUnaryReadsAndBatchesSubdirectories(t *testing.T) {
 	middle := &re.Directory{Directories: []*re.DirectoryNode{{Name: "leaf", Digest: m.message(t, leaf)}, {Name: "sibling", Digest: m.message(t, sibling)}}}
 	root := &re.Directory{Directories: []*re.DirectoryNode{{Name: "out", Digest: m.message(t, middle)}}}
 	d := action(t, m, "cat out/leaf/input out/sibling/other > result", root, []string{"result"})
-	response, _ := w.Execute(context.Background(), d, true)
+	response, _ := w.Execute(context.Background(), d)
 	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
 		t.Fatalf("execute: %v", response)
 	}
@@ -285,7 +285,7 @@ func TestSeededInputsAvoidCASRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.CAS.Seed(base64.StdEncoding.EncodeToString(b))
-	response, _ := w.Execute(context.Background(), d, true)
+	response, _ := w.Execute(context.Background(), d)
 	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
 		t.Fatalf("execute: %v", response)
 	}
