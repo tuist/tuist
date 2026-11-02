@@ -110,6 +110,14 @@ env:
   # Customer-support activity belongs in its own channel, separate from the
   # operational notification stream. Add the Atlas Slack bot to this channel.
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
+  # The Tuist server reports MCP agent feedback with a projected ServiceAccount
+  # token (audience atlas-support-ingest) from the Tuist production cluster.
+  # Atlas verifies it offline against that cluster's pinned public JWKS, set in
+  # ATLAS_SUPPORT_INGEST_TOKEN_JWKS from
+  # `kubectl --context tuist-k8s-production get --raw /openid/v1/jwks`.
+  # Add the new key here before the Tuist cluster rotates its signing key.
+  ATLAS_SUPPORT_INGEST_TOKEN_ISSUER: "https://kubernetes.default.svc.cluster.local"
+  ATLAS_SUPPORT_INGEST_TOKEN_SUBJECTS: "tuist:tuist-server"
   # POC access request pings go to #customers. The default in
   # Atlas.Accounts.POCs.Notifier is a by-name lookup, but that relies on the
   # channel being tracked in Atlas' slack_channels table; the escape hatch is

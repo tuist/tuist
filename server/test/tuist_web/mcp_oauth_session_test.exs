@@ -92,7 +92,9 @@ defmodule TuistWeb.MCPOAuthSessionTest do
     } do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :atlas_url, fn -> "https://atlas.example" end)
-      stub(Environment, :atlas_support_ingest_token, fn -> "ingest-token" end)
+      token_path = Briefly.create!()
+      File.write!(token_path, "workload-token")
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
 
       expect(Req, :post, fn "https://atlas.example/api/support/agent-feedback", opts ->
         send(self(), {:posted, opts[:json]})

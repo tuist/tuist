@@ -229,8 +229,22 @@ if gtm_ingest_token = System.get_env("ATLAS_GTM_INGEST_TOKEN") do
   config :atlas, :gtm_ingest, token: gtm_ingest_token
 end
 
-if support_ingest_token = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN") do
-  config :atlas, :support_ingest, token: support_ingest_token
+# Products report agent feedback with a projected Kubernetes ServiceAccount
+# token from their own cluster, verified offline against that cluster's pinned
+# public JWKS (Atlas.WorkloadIdentity). There is no shared secret. Subjects are
+# a comma-separated `namespace:service-account` allowlist.
+if support_ingest_jwks = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_JWKS") do
+  config :atlas, :support_ingest,
+    issuer: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_ISSUER"),
+    audience: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_AUDIENCE", "atlas-support-ingest"),
+    jwks: support_ingest_jwks,
+    max_token_ttl_seconds: String.to_integer(System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_MAX_TTL_SECONDS", "3600")),
+    subjects:
+      "ATLAS_SUPPORT_INGEST_TOKEN_SUBJECTS"
+      |> System.get_env("")
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
 end
 
 # Mailgun is the company's email provider: tuist.dev is already verified there

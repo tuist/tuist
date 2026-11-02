@@ -32,11 +32,12 @@ defmodule Atlas.Support do
   @chat_email_verification_max_age 60 * 60 * 24 * 7
 
   @doc """
-  Bearer token a trusted product presents when reporting agent feedback. Nil
-  until `ATLAS_SUPPORT_INGEST_TOKEN` is configured, which keeps the endpoint closed.
+  The `Atlas.WorkloadIdentity` policy a product's workload token must satisfy
+  to report agent feedback. Empty until the `ATLAS_SUPPORT_INGEST_*` settings
+  are configured, which keeps the endpoint closed.
   """
-  def ingest_token do
-    :atlas |> Application.get_env(:support_ingest, []) |> Keyword.get(:token)
+  def ingest_workload_identity_policy do
+    :atlas |> Application.get_env(:support_ingest, []) |> Map.new()
   end
 
   def support_address do

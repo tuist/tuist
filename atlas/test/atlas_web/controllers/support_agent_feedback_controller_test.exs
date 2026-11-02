@@ -6,7 +6,6 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
   alias Atlas.Support
   alias Atlas.Support.Thread
 
-  @token "product-ingest-token"
   @body %{
     "name" => "Maya Chen",
     "email" => "maya@customer.example",
@@ -16,12 +15,26 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
 
   setup :verify_on_exit!
 
-  test "opens a support conversation for an authenticated report", %{conn: conn} do
-    stub(Support, :ingest_token, fn -> @token end)
+  setup do
+    signer = JOSE.JWK.generate_key({:rsa, 2048})
+    public = signer |> JOSE.JWK.to_public() |> JOSE.JWK.to_map() |> elem(1) |> Map.put("kid", "product-key")
 
+    policy = %{
+      issuer: "https://kubernetes.default.svc.cluster.local",
+      audience: "atlas-support-ingest",
+      jwks: %{"keys" => [public]},
+      max_token_ttl_seconds: 3600,
+      subjects: ["product:product-server"]
+    }
+
+    stub(Support, :ingest_workload_identity_policy, fn -> policy end)
+    %{signer: signer, token: workload_token(signer, "product", "product-server")}
+  end
+
+  test "opens a support conversation for an authenticated report", %{conn: conn, token: token} do
     conn =
       conn
-      |> put_req_header("authorization", "Bearer " <> @token)
+      |> put_req_header("authorization", "Bearer " <> token)
       |> post(~p"/api/support/agent-feedback", @body)
 
     assert %{"id" => id} = json_response(conn, 201)
@@ -30,37 +43,47 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
     assert thread.metadata["channel"] == "agent_feedback"
   end
 
-  test "rejects an invalid token", %{conn: conn} do
-    stub(Support, :ingest_token, fn -> @token end)
+  test "rejects a token signed by a key outside the pinned JWKS", %{conn: conn} do
+    token = workload_token(JOSE.JWK.generate_key({:rsa, 2048}), "product", "product-server")
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer wrong")
+      |> put_req_header("authorization", "Bearer " <> token)
       |> post(~p"/api/support/agent-feedback", @body)
 
     assert %{"error" => "invalid token"} = json_response(conn, 401)
     assert Repo.aggregate(Thread, :count) == 0
   end
 
-  test "stays closed when no token is configured", %{conn: conn} do
-    stub(Support, :ingest_token, fn -> nil end)
+  test "rejects a workload that is not allowlisted", %{conn: conn, signer: signer} do
+    conn =
+      conn
+      |> put_req_header("authorization", "Bearer " <> workload_token(signer, "product", "runner"))
+      |> post(~p"/api/support/agent-feedback", @body)
+
+    assert %{"error" => "invalid token"} = json_response(conn, 401)
+    assert Repo.aggregate(Thread, :count) == 0
+  end
+
+  test "stays closed when no workload identity is configured", %{conn: conn, token: token} do
+    stub(Support, :ingest_workload_identity_policy, fn -> %{} end)
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer anything")
+      |> put_req_header("authorization", "Bearer " <> token)
       |> post(~p"/api/support/agent-feedback", @body)
 
-    assert %{"error" => "not configured"} = json_response(conn, 401)
+    assert %{"error" => "not configured"} = json_response(conn, 503)
+    assert Repo.aggregate(Thread, :count) == 0
   end
 
-  test "limits how many reports one user's agents can open", %{conn: conn} do
-    stub(Support, :ingest_token, fn -> @token end)
+  test "limits how many reports one user's agents can open", %{conn: conn, token: token} do
     body = Map.put(@body, "email", "looping-#{System.unique_integer([:positive])}@customer.example")
 
     statuses =
       for _attempt <- 1..11 do
         conn
-        |> put_req_header("authorization", "Bearer " <> @token)
+        |> put_req_header("authorization", "Bearer " <> token)
         |> post(~p"/api/support/agent-feedback", body)
         |> Map.fetch!(:status)
       end
@@ -69,14 +92,31 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
     assert List.last(statuses) == 429
   end
 
-  test "rejects a report without an email", %{conn: conn} do
-    stub(Support, :ingest_token, fn -> @token end)
-
+  test "rejects a report without an email", %{conn: conn, token: token} do
     conn =
       conn
-      |> put_req_header("authorization", "Bearer " <> @token)
+      |> put_req_header("authorization", "Bearer " <> token)
       |> post(~p"/api/support/agent-feedback", Map.delete(@body, "email"))
 
     assert %{"error" => "email_required"} = json_response(conn, 422)
+  end
+
+  defp workload_token(signer, namespace, service_account) do
+    now = System.os_time(:second)
+
+    claims = %{
+      "iss" => "https://kubernetes.default.svc.cluster.local",
+      "aud" => ["atlas-support-ingest"],
+      "sub" => "system:serviceaccount:#{namespace}:#{service_account}",
+      "iat" => now,
+      "nbf" => now,
+      "exp" => now + 3600,
+      "kubernetes.io" => %{"namespace" => namespace, "serviceaccount" => %{"name" => service_account, "uid" => "uid"}}
+    }
+
+    signer
+    |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "product-key"}, claims)
+    |> JOSE.JWS.compact()
+    |> elem(1)
   end
 end

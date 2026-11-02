@@ -1982,12 +1982,14 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  Bearer token for Atlas' support ingest endpoint, where agent feedback reported
-  through the MCP server is published. The `report_feedback` tool is only
-  offered when it is set.
+  Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
+  the server presents to Atlas' support ingest, where agent feedback reported
+  through the MCP server is published. Atlas verifies it against this cluster's
+  pinned JWKS, so there is no shared secret. The kubelet rotates the file in
+  place, and the `report_feedback` tool is only offered while it exists.
   """
-  def atlas_support_ingest_token(secrets \\ secrets()) do
-    get([:atlas, :support_ingest_token], secrets)
+  def atlas_support_ingest_token_path do
+    System.get_env("TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH")
   end
 
   def typesense_host do

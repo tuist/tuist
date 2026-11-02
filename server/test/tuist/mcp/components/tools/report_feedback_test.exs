@@ -17,8 +17,10 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
 
   setup do
     stub(Environment, :atlas_url, fn -> "https://atlas.example" end)
-    stub(Environment, :atlas_support_ingest_token, fn -> "ingest-token" end)
-    :ok
+    token_path = Briefly.create!()
+    File.write!(token_path, "workload-token\n")
+    stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
+    %{token_path: token_path}
   end
 
   test "publishes the report to Atlas as the authenticated user" do
@@ -33,7 +35,7 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
 
     assert %{"structuredContent" => %{"feedback_id" => "thread-1"}} = result
     assert_received {:posted, "https://atlas.example/api/support/agent-feedback", opts}
-    assert opts[:auth] == {:bearer, "ingest-token"}
+    assert opts[:auth] == {:bearer, "workload-token"}
 
     assert %{"email" => email, "body" => body, "context" => context} = opts[:json]
     assert email == user.email
@@ -47,6 +49,22 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
              "reporter_handle" => user.account.name,
              "organization_handles" => []
            }
+  end
+
+  test "presents the current workload token, which the kubelet rotates in place", %{token_path: token_path} do
+    user = AccountsFixtures.user_fixture()
+
+    stub(Req, :post, fn _url, opts ->
+      send(self(), {:auth, opts[:auth]})
+      {:ok, %Req.Response{status: 201, body: %{"id" => "thread-1"}}}
+    end)
+
+    ReportFeedback.call(%Plug.Conn{assigns: %{current_user: user}}, @arguments)
+    File.write!(token_path, "rotated-token")
+    ReportFeedback.call(%Plug.Conn{assigns: %{current_user: user}}, @arguments)
+
+    assert_received {:auth, {:bearer, "workload-token"}}
+    assert_received {:auth, {:bearer, "rotated-token"}}
   end
 
   test "attributes the report to an organization and project the user belongs to" do

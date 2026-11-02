@@ -16,7 +16,12 @@ defmodule Tuist.MCP.Feedback do
 
   @receive_timeout 5_000
 
-  def enabled?, do: Environment.atlas_support_ingest_token() not in [nil, ""]
+  def enabled? do
+    case Environment.atlas_support_ingest_token_path() do
+      path when is_binary(path) and path != "" -> File.exists?(path)
+      _ -> false
+    end
+  end
 
   def report(arguments, %User{} = user) do
     user = Repo.preload(user, :account)
@@ -51,9 +56,26 @@ defmodule Tuist.MCP.Feedback do
   end
 
   defp publish(body) do
+    with {:ok, token} <- workload_token() do
+      post(body, token)
+    end
+  end
+
+  # The kubelet rotates the projected token in place, so it is read per report.
+  defp workload_token do
+    with path when is_binary(path) and path != "" <- Environment.atlas_support_ingest_token_path(),
+         {:ok, contents} <- File.read(path),
+         token when token != "" <- String.trim(contents) do
+      {:ok, token}
+    else
+      _ -> {:error, "Feedback reporting is not available right now."}
+    end
+  end
+
+  defp post(body, token) do
     case Req.post(Environment.atlas_url() <> "/api/support/agent-feedback",
            json: body,
-           auth: {:bearer, Environment.atlas_support_ingest_token()},
+           auth: {:bearer, token},
            receive_timeout: @receive_timeout,
            connect_options: [timeout: 2_000],
            retry: false

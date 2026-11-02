@@ -140,16 +140,20 @@ defmodule Tuist.MCP.ServerTest do
       refute "search_tuist" in Map.keys(Server.server().tools)
     end
 
-    test "offers report_feedback only on the hosted installation with Atlas configured" do
+    test "offers report_feedback only on the hosted installation with an Atlas workload token" do
+      token_path = Briefly.create!()
       stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :atlas_support_ingest_token, fn -> "token" end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
       assert "report_feedback" in Map.keys(Server.server().tools)
 
-      stub(Environment, :atlas_support_ingest_token, fn -> nil end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path <> ".missing" end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token_path, fn -> nil end)
       refute "report_feedback" in Map.keys(Server.server().tools)
 
       stub(Environment, :tuist_hosted?, fn -> false end)
-      stub(Environment, :atlas_support_ingest_token, fn -> "token" end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
       refute "report_feedback" in Map.keys(Server.server().tools)
     end
 
