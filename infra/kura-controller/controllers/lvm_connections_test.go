@@ -169,3 +169,12 @@ func TestConnectionRetirementTunnelCancellationClosesCopies(t *testing.T) {
 		t.Fatal("cancelled tunnel remained open")
 	}
 }
+
+func TestPortForwardClientCarriesEveryMigrationOperation(t *testing.T) {
+	// The manager wires this client as the reconciler's retirer; a thin handoff
+	// treats a retirer without every migration operation as unavailable.
+	var retirer PublicConnectionRetirer = &portForwardRuntimeStatusClient{}
+	if _, ok := retirer.(migrationPreparer); !ok {
+		t.Fatal("the production port-forward client cannot prepare, rebind or abort a migration")
+	}
+}

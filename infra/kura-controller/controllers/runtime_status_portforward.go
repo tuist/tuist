@@ -199,6 +199,28 @@ func (c *portForwardRuntimeStatusClient) Retire(ctx context.Context, pod corev1.
 }
 
 func (c *portForwardRuntimeStatusClient) Prepare(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target migrationTarget, tlsData map[string][]byte) (bool, error) {
+	return c.peerOperation(ctx, pod, func(ctx context.Context, r tlsPublicConnectionRetirer) (bool, error) {
+		return r.Prepare(ctx, pod, serverName, incarnation, target, tlsData)
+	})
+}
+
+func (c *portForwardRuntimeStatusClient) Rebind(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target, replacement migrationTarget, tlsData map[string][]byte) error {
+	_, err := c.peerOperation(ctx, pod, func(ctx context.Context, r tlsPublicConnectionRetirer) (bool, error) {
+		return true, r.Rebind(ctx, pod, serverName, incarnation, target, replacement, tlsData)
+	})
+	return err
+}
+
+func (c *portForwardRuntimeStatusClient) Abort(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target migrationTarget, tlsData map[string][]byte) error {
+	_, err := c.peerOperation(ctx, pod, func(ctx context.Context, r tlsPublicConnectionRetirer) (bool, error) {
+		return true, r.Abort(ctx, pod, serverName, incarnation, target, tlsData)
+	})
+	return err
+}
+
+// peerOperation runs one migration request against the pod's peer port through
+// the kubelet tunnel, with peer mTLS inside it.
+func (c *portForwardRuntimeStatusClient) peerOperation(ctx context.Context, pod corev1.Pod, operation func(context.Context, tlsPublicConnectionRetirer) (bool, error)) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	endpoint := c.rest.Post().Resource("pods").Namespace(pod.Namespace).Name(pod.Name).SubResource("portforward").URL()
@@ -208,7 +230,7 @@ func (c *portForwardRuntimeStatusClient) Prepare(ctx context.Context, pod corev1
 	}
 	defer connection.Close()
 	return peerOperationOverStream(connection, func(r tlsPublicConnectionRetirer) (bool, error) {
-		return r.Prepare(ctx, pod, serverName, incarnation, target, tlsData)
+		return operation(ctx, r)
 	})
 }
 
