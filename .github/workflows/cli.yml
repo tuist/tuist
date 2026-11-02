@@ -185,6 +185,30 @@ jobs:
         run: |
           bin_path="$(swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions --show-bin-path)"
           TUIST_EXECUTABLE="$bin_path/tuist" bats --print-output-on-failure e2e/global_flags.bats
+      # Next to the binary: resource bundles, Swift runtime libraries the system
+      # may lack, and ProjectDescription built with module interfaces so any
+      # Swift compiler can compile manifests against it.
+      - name: Package CLI preview
+        if: github.event.pull_request.head.repo.fork != true
+        run: |
+          flags=(--cache-path "$PWD/.build/dependency-cache" --replace-scm-with-registry --force-resolved-versions)
+          bin_path="$(swift build "${flags[@]}" --configuration debug --show-bin-path)"
+          swift build "${flags[@]}" --scratch-path .build/project-description --product ProjectDescription \
+            --enable-parseable-module-interfaces -Xswiftc -enable-library-evolution
+          pd_path="$(swift build "${flags[@]}" --scratch-path .build/project-description --show-bin-path)"
+          dist=build/cli-preview-macos
+          mkdir -p "$dist/Modules"
+          cp "$bin_path/tuist" "$pd_path/libProjectDescription.dylib" "$dist/"
+          cp "$pd_path/Modules/ProjectDescription.swiftinterface" "$dist/Modules/"
+          find "$bin_path" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$dist/" \;
+          xcrun swift-stdlib-tool --copy --platform macosx --destination "$dist" \
+            --scan-executable "$dist/tuist" --scan-executable "$dist/libProjectDescription.dylib"
+      - if: github.event.pull_request.head.repo.fork != true
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-preview-macos
+          path: build/cli-preview-macos
+          retention-days: 1
 
   cli-linux-build:
     name: Linux Build
@@ -212,7 +236,21 @@ jobs:
           target=$(./mise/utilities/install_static_linux_sdk.sh)
           echo "SWIFT_SDK_TARGET=$target" >> "$GITHUB_ENV"
       - name: Build tuist CLI
-        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET"
+        run: swift build --product tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET"
+      # The static binary needs nothing else at runtime, so it is the whole
+      # Linux distribution. cli-preview publishes it.
+      - name: Package CLI preview
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true
+        run: |
+          bin_path="$(swift build --product tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET" --show-bin-path)"
+          mkdir -p build/cli-preview-linux
+          llvm-objcopy --strip-unneeded "$bin_path/tuist" build/cli-preview-linux/tuist
+      - if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-preview-linux
+          path: build/cli-preview-linux
+          retention-days: 1
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
@@ -220,6 +258,38 @@ jobs:
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  # Publishes the CLI the builds above packaged as one preview, so people and
+  # agents can try a pull request with `tuist run <preview-url>`. A preview
+  # groups builds uploaded one after another, so one job uploads both. The new
+  # Linux client publishes because the pinned release lacks CLI previews.
+  cli-preview:
+    name: CLI Preview
+    needs: [cli-spm-build, cli-linux-build]
+    if: github.event.pull_request.head.repo.fork != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The CLI reads the pull request's head commit from HEAD^2.
+          fetch-depth: 2
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-preview-*
+          path: build
+      - name: Share
+        run: |
+          # Artifacts drop executable bits.
+          chmod +x build/cli-preview-macos/tuist build/cli-preview-linux/tuist
+          # On Linux the CLI reads the project from tuist.toml, not Tuist.swift.
+          echo 'project = "tuist/tuist"' > tuist.toml
+          build/cli-preview-linux/tuist auth login
+          build/cli-preview-linux/tuist share build/cli-preview-macos --executable tuist
+          build/cli-preview-linux/tuist share build/cli-preview-linux --executable tuist
 
   cli-linux-unit-tests:
     name: Linux Unit Tests
