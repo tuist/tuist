@@ -9,6 +9,30 @@
   }
 >
   <.alert :if={@error} type="secondary" status="error" size="small" title={@error} />
+  <div :if={@passkeys?} data-part="passkey">
+    <.button
+      id="mfa-passkey"
+      type="button"
+      variant="secondary"
+      size="large"
+      label={dgettext("dashboard_auth", "Use a passkey")}
+      data-passkey-ceremony="authenticate"
+      data-options-url={~p"/users/mfa/passkey/options"}
+      data-action-url={~p"/users/mfa"}
+      data-status="mfa-passkey-status"
+    >
+      <:icon_left>
+        <.lock_password />
+      </:icon_left>
+    </.button>
+    <span
+      id="mfa-passkey-status"
+      role="status"
+      data-cancelled={dgettext("dashboard_auth", "Passkey verification was cancelled.")}
+      data-failed={dgettext("dashboard_auth", "The passkey could not be used. Try again.")}
+      data-unsupported={dgettext("dashboard_auth", "This browser does not support passkeys.")}
+    ></span>
+  </div>
   <form id="mfa-challenge" method="post" action={~p"/users/mfa"} data-part="form">
     <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
     <input

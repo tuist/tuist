@@ -2,9 +2,11 @@ defmodule TuistWeb.UserMFAController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts.UserMFA
+  alias Tuist.Accounts.UserPasskey
   alias Tuist.Accounts.UserToken
   alias TuistWeb.Authentication
   alias TuistWeb.Endpoint
+  alias TuistWeb.UserPasskeyController
 
   plug :private_response
 
@@ -12,8 +14,23 @@ defmodule TuistWeb.UserMFAController do
     render_challenge(conn, error: nil, recovery: false)
   end
 
+  def passkey_options(conn, _params) do
+    pending = get_session(conn, :pending_mfa)
+
+    with true <- UserPasskeyController.enabled?(),
+         %UserToken{} = challenge <- UserMFA.get_challenge(pending) do
+      {passkey_challenge, options} = UserPasskey.authentication_options(challenge.user)
+      token = UserPasskeyController.encrypt_ceremony(conn, mfa_purpose(pending), passkey_challenge)
+      json(conn, %{publicKey: options, token: token})
+    else
+      _ -> conn |> put_status(:not_found) |> json(%{})
+    end
+  end
+
   def verify(conn, params) do
-    case UserMFA.complete_challenge(get_session(conn, :pending_mfa), params["mfa_code"]) do
+    proof = challenge_proof(conn, params)
+
+    case UserMFA.complete_challenge(get_session(conn, :pending_mfa), proof) do
       {:ok, session} ->
         auth =
           session
@@ -28,11 +45,33 @@ defmodule TuistWeb.UserMFAController do
         conn |> delete_session(:pending_mfa) |> redirect(to: ~p"/users/log_in")
 
       {:error, _} ->
+        error = if params["credential_id"], do: passkey_failed(), else: invalid_code()
+
         conn
         |> put_status(:unauthorized)
-        |> render_challenge(error: invalid_code(), recovery: params["recovery"] == "true")
+        |> render_challenge(error: error, recovery: params["recovery"] == "true")
     end
   end
+
+  # A passkey assertion answers the challenge instead of a code. Its ceremony
+  # token is bound to this browser's pending challenge.
+  defp challenge_proof(conn, %{"credential_id" => _} = params) do
+    purpose = mfa_purpose(get_session(conn, :pending_mfa))
+
+    challenge =
+      UserPasskeyController.enabled?() && UserPasskeyController.decrypt_ceremony(conn, purpose, params["challenge_token"])
+
+    case challenge do
+      %Wax.Challenge{} = challenge -> UserPasskey.challenge_verifier(challenge, params)
+      # Not a code guess: keep it out of the authenticator app's attempt budget.
+      _ -> fn _user -> {:error, :invalid_passkey} end
+    end
+  end
+
+  defp challenge_proof(_conn, params), do: params["mfa_code"]
+
+  defp mfa_purpose(pending) when is_binary(pending), do: {:mfa, :crypto.hash(:sha256, pending)}
+  defp mfa_purpose(_pending), do: {:mfa, nil}
 
   def show(conn, _params) do
     render_page(conn, :settings, enabled: UserMFA.enabled?(conn.assigns.current_user), error: nil, secret: nil)
@@ -85,7 +124,8 @@ defmodule TuistWeb.UserMFAController do
     end
   end
 
-  defp rotate_session(conn, result) do
+  @doc false
+  def rotate_session(conn, result) do
     Enum.each(result.revoked_sessions, &Endpoint.broadcast(&1, "disconnect", %{}))
 
     # Factor changes revoke every old session, then rotate this browser into a
@@ -103,12 +143,31 @@ defmodule TuistWeb.UserMFAController do
 
   defp render_challenge(conn, assigns) do
     case UserMFA.get_challenge(get_session(conn, :pending_mfa)) do
-      nil -> redirect(conn, to: ~p"/users/log_in")
-      challenge -> render_page(conn, :challenge, Keyword.put(assigns, :email, challenge.user.email))
+      nil ->
+        redirect(conn, to: ~p"/users/log_in")
+
+      challenge ->
+        render_page(
+          conn,
+          :challenge,
+          Keyword.merge(assigns,
+            email: challenge.user.email,
+            passkeys?: UserPasskeyController.enabled?() and UserPasskey.list(challenge.user) != []
+          )
+        )
     end
   end
 
   defp render_page(conn, template, assigns) do
+    assigns =
+      if template == :settings,
+        do:
+          Keyword.merge(assigns,
+            passkeys: UserPasskey.list(conn.assigns.current_user),
+            passkeys_enabled?: UserPasskeyController.enabled?()
+          ),
+        else: assigns
+
     conn
     |> put_layout(false)
     |> put_view(TuistWeb.UserMFAHTML)
@@ -120,6 +179,8 @@ defmodule TuistWeb.UserMFAController do
 
   defp reauthenticate,
     do: dgettext("dashboard_auth", "Sign out and sign in again before changing two-factor authentication.")
+
+  defp passkey_failed, do: dgettext("dashboard_auth", "The passkey could not be verified. Try again.")
 
   defp invalid_code,
     do:

@@ -33,7 +33,8 @@ defmodule Tuist.Accounts.UserMFA do
     Repo.exists?(from factor in __MODULE__, where: factor.user_id == ^user.id and not is_nil(factor.confirmed_at))
   end
 
-  defp fresh_session?(%UserToken{token: token}, %User{id: id}) do
+  @doc false
+  def fresh_session?(%UserToken{token: token}, %User{id: id}) do
     # Re-read after acquiring the user lock: logout or reset may have revoked
     # the session while this request was waiting to change the factor.
     case Accounts.get_user_session(token) do
@@ -45,7 +46,7 @@ defmodule Tuist.Accounts.UserMFA do
     end
   end
 
-  defp fresh_session?(_, _), do: false
+  def fresh_session?(_, _), do: false
 
   def begin_enrollment(user, session) do
     transaction(fn ->
@@ -181,7 +182,9 @@ defmodule Tuist.Accounts.UserMFA do
     :ok
   end
 
-  def complete_challenge(token, code) when is_binary(token) do
+  # `proof` is an authenticator or recovery code, or a function that verifies
+  # another factor (a passkey assertion) for the challenged user.
+  def complete_challenge(token, proof) when is_binary(token) do
     transaction(fn ->
       if challenge = get_challenge(token) do
         lock_user(challenge.user_id)
@@ -196,7 +199,7 @@ defmodule Tuist.Accounts.UserMFA do
 
         _ ->
           with %UserToken{} = challenge <- get_challenge(token),
-               {:ok, _} <- verify(challenge.user, code) do
+               {:ok, _} <- verify_proof(challenge.user, proof) do
             Repo.delete!(challenge)
             {:ok, issue_session(challenge.user, auth_params(challenge))}
           else
@@ -209,9 +212,13 @@ defmodule Tuist.Accounts.UserMFA do
 
   def complete_challenge(_, _), do: {:error, :challenge_expired}
 
+  defp verify_proof(user, verifier) when is_function(verifier, 1), do: verifier.(user)
+  defp verify_proof(user, code), do: verify(user, code)
+
   # Call only while holding the user lock. Proof consumption, factor changes
   # and session creation must commit together, before reset can revoke them.
-  defp issue_session(user, auth) do
+  @doc false
+  def issue_session(user, auth) do
     token = Accounts.generate_user_session_token(user, Map.put(auth, :mfa_verified_at, now()))
     Accounts.get_user_session(token, preload: [:account])
   end
@@ -273,7 +280,8 @@ defmodule Tuist.Accounts.UserMFA do
     end)
   end
 
-  defp revoke_sessions(user) do
+  @doc false
+  def revoke_sessions(user) do
     sessions = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
     Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["session", "mfa"]))
     Enum.map(sessions, &UserToken.live_socket_id/1)
@@ -290,7 +298,8 @@ defmodule Tuist.Accounts.UserMFA do
     end)
   end
 
-  defp lock_user(id), do: Repo.one!(from user in User, where: user.id == ^id, lock: "FOR UPDATE")
+  @doc false
+  def lock_user(id), do: Repo.one!(from user in User, where: user.id == ^id, lock: "FOR UPDATE")
 
   defp transaction(fun) do
     case Repo.transaction(fun) do

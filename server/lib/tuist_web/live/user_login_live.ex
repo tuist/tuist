@@ -149,6 +149,7 @@ defmodule TuistWeb.UserLoginLive do
               show_error_message={false}
               required
               tabindex={1}
+              autocomplete="username webauthn"
             />
             <.text_input
               field={@form[:password]}
@@ -193,6 +194,42 @@ defmodule TuistWeb.UserLoginLive do
               tabindex={4}
             />
           </.form>
+          <.alert
+            :if={@email_auth_enabled? and Flash.get(@flash, :passkey_error)}
+            id="passkey-login-error"
+            type="secondary"
+            status="error"
+            size="small"
+            title={Flash.get(@flash, :passkey_error)}
+          />
+          <%!-- Hidden until the hook confirms the browser supports WebAuthn. --%>
+          <div
+            :if={@email_auth_enabled?}
+            id="passkey-login"
+            data-part="passkey"
+            phx-hook="PasskeyLogin"
+            phx-update="ignore"
+            hidden
+            data-options-url={~p"/users/log_in/passkey/options"}
+            data-action-url={~p"/users/log_in/passkey"}
+          >
+            <.button
+              type="button"
+              variant="secondary"
+              size="medium"
+              label={dgettext("dashboard_auth", "Log in with a passkey")}
+            >
+              <:icon_left>
+                <.lock_password />
+              </:icon_left>
+            </.button>
+            <span
+              data-part="passkey-status"
+              role="status"
+              data-cancelled={dgettext("dashboard_auth", "Passkey sign-in was cancelled.")}
+              data-failed={dgettext("dashboard_auth", "The passkey could not be used. Try again.")}
+            ></span>
+          </div>
           <form
             :if={@test_user_login_enabled?}
             action={~p"/users/log_in"}

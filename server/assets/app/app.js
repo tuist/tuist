@@ -54,6 +54,7 @@ import { getUserTimezone } from "./js/UserTimezone.js";
 import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
 import { initAnalytics } from "../shared/js/analytics.js";
 import { initMFA } from "./js/MFA.js";
+import { initPasskeys, PasskeyLogin } from "./js/Passkeys.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -84,6 +85,7 @@ Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
 Hooks.Turnstile = Turnstile;
+Hooks.PasskeyLogin = PasskeyLogin;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -148,6 +150,7 @@ setupQueryMemory();
 
 initAnalytics();
 initMFA();
+initPasskeys();
 
 // Replace the browser URL without triggering handle_params (which push_patch would do),
 // avoiding unnecessary assign_async re-fetches when switching widgets.

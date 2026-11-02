@@ -127,6 +127,7 @@ defmodule Tuist.MixProject do
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
       {:nimble_totp, "~> 1.0"},
+      {:wax_, "~> 0.7"},
       {:yaml_elixir, "~> 2.11"},
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},

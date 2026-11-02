@@ -127,7 +127,7 @@ msgstr ""
 msgid "Discover how selective testing is reducing your test time."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:217
+#: lib/tuist_web/live/user_login_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr ""
@@ -156,7 +156,7 @@ msgstr ""
 msgid "Explore how binary caching is enhancing your build times."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:176
+#: lib/tuist_web/live/user_login_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr ""
@@ -187,14 +187,14 @@ msgstr ""
 msgid "Interested in SSO?"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:169
+#: lib/tuist_web/live/user_login_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:103
 #: lib/tuist_web/live/user_login_live.ex:20
-#: lib/tuist_web/live/user_login_live.ex:192
+#: lib/tuist_web/live/user_login_live.ex:193
 #: lib/tuist_web/live/user_registration_live.ex:226
 #, elixir-autogen, elixir-format
 msgid "Log in"
@@ -227,7 +227,7 @@ msgstr ""
 msgid "OR"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:155
+#: lib/tuist_web/live/user_login_live.ex:156
 #: lib/tuist_web/live/user_registration_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Password"
@@ -269,7 +269,7 @@ msgstr ""
 msgid "Selective testing"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:222
+#: lib/tuist_web/live/user_login_live.ex:259
 #: lib/tuist_web/live/user_registration_live.ex:215
 #: lib/tuist_web/live/user_registration_live.ex:297
 #, elixir-autogen, elixir-format
@@ -437,7 +437,7 @@ msgstr ""
 msgid "and"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:212
+#: lib/tuist_web/live/user_login_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr ""
@@ -730,33 +730,28 @@ msgstr ""
 msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:27
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:90
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:51
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Authentication code"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:25
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Authentication or recovery code"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:74
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Back to sign in"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:130
-#, elixir-autogen, elixir-format
-msgid "Changing your factor requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
-msgstr ""
-
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:36
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Disable two-factor authentication"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:105
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Enable two-factor authentication"
 msgstr ""
@@ -766,22 +761,17 @@ msgstr ""
 msgid "I saved my recovery codes"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:5
-#, elixir-autogen, elixir-format
-msgid "Protect your account with an authenticator app and recovery codes."
-msgstr ""
-
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Save your recovery codes"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:124
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Set up authenticator app"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:122
+#: lib/tuist_web/controllers/user_mfa_controller.ex:181
 #, elixir-autogen, elixir-format
 msgid "Sign out and sign in again before changing two-factor authentication."
 msgstr ""
@@ -791,7 +781,7 @@ msgstr ""
 msgid "Store these codes securely. Losing both your authenticator and recovery codes can lock you out of your account."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:126
+#: lib/tuist_web/controllers/user_mfa_controller.ex:187
 #, elixir-autogen, elixir-format
 msgid "The code is invalid, already used, or too many attempts were made. Try a new code later."
 msgstr ""
@@ -807,32 +797,32 @@ msgstr ""
 msgid "Two-factor authentication"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:14
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:117
+#: lib/tuist_web/controllers/user_mfa_controller.ex:176
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication · Tuist"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:42
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Verify"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:139
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Back to authentication settings"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:114
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Cancel setup"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:50
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Authenticator setup QR code"
 msgstr ""
@@ -842,13 +832,13 @@ msgstr ""
 msgid "Copy recovery codes"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:66
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Copy setup key"
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:27
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:64
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Could not copy. Select and copy the text instead."
 msgstr ""
@@ -858,12 +848,12 @@ msgstr ""
 msgid "Enter the six-digit code from 1Password or your authenticator app."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:55
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Or enter this setup key manually"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:54
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Recovery code"
 msgstr ""
@@ -873,22 +863,172 @@ msgstr ""
 msgid "Recovery codes copied"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:42
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code with 1Password or your authenticator app, then enter its six-digit code. Setup expires in five minutes."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:62
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Setup key copied"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:46
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Use a recovery code"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:66
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Verify recovery code"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Add a passkey"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html.ex:20
+#, elixir-autogen, elixir-format
+msgid "Added %{date}"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:213
+#, elixir-autogen, elixir-format
+msgid "Adding the passkey was cancelled."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:223
+#, elixir-autogen, elixir-format
+msgid "Changing your authenticator app or passkeys requires signing in within the last five minutes. Password resets do not remove them. Keep recovery codes somewhere safe."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:188
+#, elixir-autogen, elixir-format
+msgid "For example, MacBook Touch ID"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Log in with a passkey"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:53
+#, elixir-autogen, elixir-format
+msgid "Passkey added."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:187
+#, elixir-autogen, elixir-format
+msgid "Passkey name"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:68
+#, elixir-autogen, elixir-format
+msgid "Passkey removed."
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Passkey sign-in was cancelled."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "Passkey verification was cancelled."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Passkeys"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Protect your account with an authenticator app, passkeys, and recovery codes."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "Remove %{name}"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:125
+#, elixir-autogen, elixir-format
+msgid "Remove a passkey before adding another one."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Sign in with your fingerprint, face, or device PIN instead of a password. A passkey also completes two-factor authentication."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:123
+#, elixir-autogen, elixir-format
+msgid "Sign out and sign in again before changing passkeys."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be added. Try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:32
+#: lib/tuist_web/live/user_login_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be used. Try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:183
+#: lib/tuist_web/controllers/user_passkey_controller.ex:92
+#: lib/tuist_web/controllers/user_passkey_controller.ex:129
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be verified. Try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:216
+#: lib/tuist_web/controllers/user_passkey_controller.ex:127
+#, elixir-autogen, elixir-format
+msgid "This passkey is already registered."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Use a passkey"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html.ex:24
+#, elixir-autogen, elixir-format
+msgid "last used %{date}"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html.ex:25
+#, elixir-autogen, elixir-format
+msgid "never used"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html.ex:31
+#, elixir-autogen, elixir-format
+msgid "synced"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html.ex:32
+#, elixir-autogen, elixir-format
+msgid "this device only"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:33
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "This browser does not support passkeys."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Protect your account with an authenticator app and recovery codes."
 msgstr ""
