@@ -5,6 +5,7 @@ defmodule Atlas.Support.Notifier do
 
   alias Atlas.Audit
   alias Atlas.Slack.API
+  alias Atlas.Support
   alias Atlas.Support.Config
   alias Atlas.Support.Message
   alias Atlas.Support.Thread
@@ -313,7 +314,7 @@ defmodule Atlas.Support.Notifier do
   end
 
   defp event_detail_block(thread, "agent_feedback_received", opts) do
-    case agent_feedback_reporter(thread.metadata || %{}) do
+    case agent_feedback_reporter(Support.agent_feedback_origin(thread)) do
       nil ->
         inbound_message_block(opts)
 
@@ -325,14 +326,12 @@ defmodule Atlas.Support.Notifier do
     end
   end
 
-  defp agent_feedback_reporter(metadata) do
-    case {metadata["tuist_account_handle"], metadata["tuist_project_handle"], metadata["tuist_user_handle"]} do
-      {nil, _project, nil} -> nil
-      {nil, _project, user} -> "Tuist user #{user}"
-      {account, nil, _user} -> "Tuist account #{account}"
-      {account, project, _user} -> "Tuist project #{account}/#{project}"
-    end
+  defp agent_feedback_reporter(%{account_handle: account, project_handle: project}) when is_binary(account) do
+    if project, do: "Tuist project #{account}/#{project}", else: "Tuist account #{account}"
   end
+
+  defp agent_feedback_reporter(%{user_handle: user}) when is_binary(user), do: "Tuist user #{user}"
+  defp agent_feedback_reporter(_origin), do: nil
 
   defp inbound_message_block(opts) do
     case Keyword.get(opts, :message) do

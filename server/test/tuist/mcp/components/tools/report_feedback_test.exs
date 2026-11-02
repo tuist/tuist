@@ -80,14 +80,26 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
              ReportFeedback.call(conn, Map.put(@arguments, "account_handle", other_organization.account.name))
 
     assert text =~ "not a member"
+  end
 
-    assert %{"isError" => true, "content" => [%{"text" => text}]} =
+  test "keeps the account when the reported project does not exist" do
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture(creator: user)
+
+    expect(Req, :post, fn _url, opts ->
+      send(self(), {:posted, opts[:json]["context"]})
+      {:ok, %Req.Response{status: 201, body: %{"id" => "thread-1"}}}
+    end)
+
+    assert %{"structuredContent" => %{"feedback_id" => "thread-1"}} =
              ReportFeedback.call(
-               conn,
+               %Plug.Conn{assigns: %{current_user: user}},
                Map.merge(@arguments, %{"account_handle" => organization.account.name, "project_handle" => "missing"})
              )
 
-    assert text =~ "does not exist"
+    assert_received {:posted, context}
+    assert context["tuist_account_handle"] == organization.account.name
+    refute Map.has_key?(context, "tuist_project_handle")
   end
 
   test "accepts reports from OAuth sessions, which authenticate as an account subject" do

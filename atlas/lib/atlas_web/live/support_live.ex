@@ -836,6 +836,33 @@ defmodule AtlasWeb.SupportLive do
                 {gettext("Unmatched contact")}
               </span>
             </div>
+            <%= if origin = Support.agent_feedback_origin(@thread) do %>
+              <div data-part="detail-row">
+                <span data-part="detail-label">{gettext("Channel")}</span>
+                <span data-part="detail-value">{gettext("Agent feedback")}</span>
+              </div>
+              <div :if={origin.user_handle} id="support-tuist-user" data-part="detail-row">
+                <span data-part="detail-label">{gettext("Tuist user")}</span>
+                <span data-part="detail-value">{origin.user_handle}</span>
+              </div>
+              <div :if={origin.account_handle} id="support-reported-from" data-part="detail-row">
+                <span data-part="detail-label">{gettext("Reported from")}</span>
+                <span data-part="detail-value">
+                  {Enum.join(
+                    Enum.reject([origin.account_handle, origin.project_handle], &is_nil/1),
+                    "/"
+                  )}
+                </span>
+              </div>
+              <div
+                :if={origin.organization_handles != []}
+                id="support-tuist-organizations"
+                data-part="detail-row"
+              >
+                <span data-part="detail-label">{gettext("Tuist organizations")}</span>
+                <span data-part="detail-value">{Enum.join(origin.organization_handles, ", ")}</span>
+              </div>
+            <% end %>
             <.form id="support-assignment-form" for={@owner_form} data-part="owner-field">
               <.label label={gettext("Assignee")} />
               <.select

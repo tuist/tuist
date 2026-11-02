@@ -167,7 +167,6 @@ defmodule Atlas.SupportTest do
 
       assert thread.metadata == %{
                "channel" => "agent_feedback",
-               "email_verified" => true,
                "tool_name" => "list_test_runs",
                "category" => "missing_data",
                "tuist_user_id" => "42"
@@ -242,7 +241,7 @@ defmodule Atlas.SupportTest do
                })
 
       assert thread.account_id == nil
-      assert thread.metadata["tuist_organization_handles"] == ["acme-#{suffix}", "globex-#{suffix}"]
+      assert Support.agent_feedback_origin(thread).organization_handles == ["acme-#{suffix}", "globex-#{suffix}"]
     end
 
     test "rejects reports without an email or body" do

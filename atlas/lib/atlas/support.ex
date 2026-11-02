@@ -224,7 +224,9 @@ defmodule Atlas.Support do
   Records feedback an AI agent reported through the Tuist MCP server.
 
   The Tuist server authenticates the user before calling the ingest endpoint,
-  so the email is trusted: the conversation is linked to the matching account
+  so the email and Tuist handles are trusted. The conversation is linked to the
+  account that owns the reported Tuist account handle, then to the account the
+  email matches, then to the single account the user's own handles resolve to,
   and replies are emailed like any other support conversation. Every report
   starts its own conversation. The body is written by the agent, so it must be
   treated as untrusted input.
@@ -258,7 +260,7 @@ defmodule Atlas.Support do
             cc_emails: [],
             body: feedback.body,
             occurred_at: feedback.occurred_at,
-            metadata: feedback.metadata
+            metadata: %{"channel" => "agent_feedback"}
           })
           |> Repo.insert!()
 
@@ -278,6 +280,22 @@ defmodule Atlas.Support do
   end
 
   def receive_agent_feedback(_attrs), do: {:error, :invalid}
+
+  @doc """
+  Returns who an agent feedback conversation came from on Tuist: the reporting
+  user's handle, the account and project the report is about, and the
+  organizations the user belongs to. Returns nil for other conversations.
+  """
+  def agent_feedback_origin(%Thread{metadata: %{"channel" => "agent_feedback"} = metadata}) do
+    %{
+      user_handle: metadata["tuist_user_handle"],
+      account_handle: metadata["tuist_account_handle"],
+      project_handle: metadata["tuist_project_handle"],
+      organization_handles: metadata["tuist_organization_handles"] || []
+    }
+  end
+
+  def agent_feedback_origin(_thread), do: nil
 
   @doc """
   Confirms that a chat visitor controls the email address on their conversation.
@@ -919,8 +937,11 @@ defmodule Atlas.Support do
       target_type: "support_thread",
       target_id: thread.id,
       target_label: thread.subject,
-      metadata:
-        Map.merge(thread.metadata, %{"dashboard_path" => "/commercial/support/#{thread.id}", "message_id" => message.id})
+      metadata: %{
+        "dashboard_path" => "/commercial/support/#{thread.id}",
+        "channel" => "agent_feedback",
+        "message_id" => message.id
+      }
     })
   end
 
@@ -1113,7 +1134,7 @@ defmodule Atlas.Support do
          customer_email: customer_email,
          body: body,
          subject: agent_feedback_subject(context),
-         metadata: Map.merge(context, %{"channel" => "agent_feedback", "email_verified" => true}),
+         metadata: Map.put(context, "channel", "agent_feedback"),
          occurred_at: now()
        }}
     end

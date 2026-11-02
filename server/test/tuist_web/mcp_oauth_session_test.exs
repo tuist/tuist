@@ -4,6 +4,7 @@ defmodule TuistWeb.MCPOAuthSessionTest do
 
   alias Boruta.Ecto.Token
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias Tuist.Tests
@@ -81,6 +82,38 @@ defmodule TuistWeb.MCPOAuthSessionTest do
         })
 
       refute result["isError"]
+    end
+
+    test "lets a user report feedback attributed to their organization", %{
+      conn: conn,
+      admin: admin,
+      organization: organization,
+      project: project
+    } do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :atlas_url, fn -> "https://atlas.example" end)
+      stub(Environment, :atlas_support_ingest_token, fn -> "ingest-token" end)
+
+      expect(Req, :post, fn "https://atlas.example/api/support/agent-feedback", opts ->
+        send(self(), {:posted, opts[:json]})
+        {:ok, %Req.Response{status: 201, body: %{"id" => "thread-1"}}}
+      end)
+
+      result =
+        call_tool(conn, oauth_access_token(admin, "mcp"), "report_feedback", %{
+          "category" => "missing_data",
+          "expected" => "Test runs filtered by branch",
+          "actual" => "The branch parameter was ignored",
+          "account_handle" => organization.account.name,
+          "project_handle" => project.name
+        })
+
+      assert result["structuredContent"] == %{"feedback_id" => "thread-1"}
+      assert_received {:posted, %{"email" => email, "context" => context}}
+      assert email == admin.email
+      assert context["tuist_user_handle"] == admin.account.name
+      assert context["tuist_account_handle"] == organization.account.name
+      assert context["tuist_project_handle"] == project.name
     end
 
     test "lets a project member mark a test case as flaky, attributing the change to the user", %{

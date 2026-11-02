@@ -86,6 +86,28 @@ defmodule AtlasWeb.SupportLiveTest do
     assert_push_event(view, "open-dropdown", %{id: "filter-owner-value-dropdown"})
   end
 
+  test "shows where agent feedback came from on Tuist", %{conn: conn} do
+    {conn, _user} = log_in_user(conn)
+
+    {:ok, %{thread: thread}} =
+      Support.receive_agent_feedback(%{
+        "email" => "maya@gmail.com",
+        "body" => "The branch filter was ignored.",
+        "context" => %{
+          "tuist_user_handle" => "maya",
+          "tuist_account_handle" => "acme",
+          "tuist_project_handle" => "ios",
+          "tuist_organization_handles" => ["acme", "side-project"]
+        }
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
+
+    assert has_element?(view, "#support-tuist-user", "maya")
+    assert has_element?(view, "#support-reported-from", "acme/ios")
+    assert has_element?(view, "#support-tuist-organizations", "acme, side-project")
+  end
+
   test "lets a teammate assign, resolve, and respond to a conversation", %{conn: conn} do
     {conn, user} = log_in_user(conn, %{name: "Support Teammate"})
     thread = support_thread!()
