@@ -31,15 +31,6 @@ defmodule Atlas.Support do
   @chat_email_verification_salt "support chat email verification"
   @chat_email_verification_max_age 60 * 60 * 24 * 7
 
-  @doc """
-  The `Atlas.WorkloadIdentity` policy a product's workload token must satisfy
-  to report agent feedback. Empty until `ATLAS_SUPPORT_INGEST_TOKEN_*` is
-  configured, which keeps the endpoint closed.
-  """
-  def ingest_workload_identity_policy do
-    :atlas |> Application.get_env(:support_ingest, []) |> Map.new()
-  end
-
   def support_address do
     :atlas
     |> Application.get_env(:support, [])
@@ -220,87 +211,6 @@ defmodule Atlas.Support do
   end
 
   def receive_chat(_thread, _attrs), do: {:error, :not_found}
-
-  @doc """
-  Records feedback an AI agent reported through a product's agent integration,
-  such as an MCP server.
-
-  The product authenticates its user before calling the ingest endpoint, so the
-  email and handles it sends are trusted. Handles are the product's own account
-  identifiers, matched against `account_handles`. The conversation is linked to
-  the account that owns the reported account handle, then to the account the
-  email matches, then to the single account the reporter's own handles resolve to,
-  and replies are emailed like any other support conversation. Every report
-  starts its own conversation. The body is written by the agent, so it must be
-  treated as untrusted input.
-  """
-  def receive_agent_feedback(attrs) when is_map(attrs) do
-    with {:ok, feedback} <- agent_feedback_attrs(attrs) do
-      Repo.transaction(fn ->
-        account = agent_feedback_account(feedback)
-
-        thread =
-          %Thread{account_id: account && account.account.id}
-          |> Thread.inbound_changeset(%{
-            customer_name: feedback.customer_name,
-            customer_email: feedback.customer_email,
-            subject: feedback.subject,
-            status: "open",
-            last_message_at: feedback.occurred_at,
-            last_inbound_at: feedback.occurred_at,
-            resolved_at: nil,
-            metadata: feedback.metadata
-          })
-          |> Repo.insert!()
-
-        message =
-          %Message{thread_id: thread.id}
-          |> Message.chat_changeset(%{
-            kind: "chat",
-            sender_name: feedback.customer_name,
-            sender_email: feedback.customer_email,
-            to_emails: [],
-            cc_emails: [],
-            body: feedback.body,
-            occurred_at: feedback.occurred_at,
-            metadata: %{"channel" => "agent_feedback"}
-          })
-          |> Repo.insert!()
-
-        %{thread: thread, message: message}
-      end)
-      |> case do
-        {:ok, %{thread: thread, message: message}} ->
-          audit_agent_feedback(thread, message)
-          enqueue_notification(:agent_feedback_received, thread.id, message_id: message.id)
-          broadcast_thread_update(thread.id)
-          {:ok, %{thread: thread, message: message}}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    end
-  end
-
-  def receive_agent_feedback(_attrs), do: {:error, :invalid}
-
-  @doc """
-  Returns who an agent feedback conversation came from: the product it was sent
-  through, the reporter's handle, the account and project the report is about,
-  and the organizations the reporter belongs to. Returns nil for other
-  conversations.
-  """
-  def agent_feedback_origin(%Thread{metadata: %{"channel" => "agent_feedback"} = metadata}) do
-    %{
-      source: metadata["source"],
-      reporter_handle: metadata["reporter_handle"],
-      account_handle: metadata["account_handle"],
-      project_handle: metadata["project_handle"],
-      organization_handles: metadata["organization_handles"] || []
-    }
-  end
-
-  def agent_feedback_origin(_thread), do: nil
 
   @doc """
   Confirms that a chat visitor controls the email address on their conversation.
@@ -934,22 +844,6 @@ defmodule Atlas.Support do
     })
   end
 
-  defp audit_agent_feedback(thread, message) do
-    Audit.record("support.agent_feedback_received", %{
-      interface: "api",
-      actor_email: message.sender_email,
-      actor_name: message.sender_name,
-      target_type: "support_thread",
-      target_id: thread.id,
-      target_label: thread.subject,
-      metadata: %{
-        "dashboard_path" => "/commercial/support/#{thread.id}",
-        "channel" => "agent_feedback",
-        "message_id" => message.id
-      }
-    })
-  end
-
   defp audit_chat_email_verification_sent(thread) do
     Audit.record("support.chat_email_verification_sent", %{
       interface: "worker",
@@ -1120,72 +1014,6 @@ defmodule Atlas.Support do
        }}
     end
   end
-
-  @agent_feedback_context_keys ~w(source tool_name category reporter_id reporter_handle account_handle project_handle)
-  @agent_feedback_max_organization_handles 50
-
-  defp agent_feedback_attrs(attrs) do
-    customer_name = attrs |> value(:name) |> normalize_optional_text()
-    customer_email = attrs |> value(:email) |> normalize_email()
-    body = attrs |> value(:body) |> normalize_text()
-    context = attrs |> value(:context) |> agent_feedback_context()
-
-    with {:ok, customer_email} <- chat_email(customer_email),
-         {:ok, body} <- chat_body(body),
-         :ok <- valid_customer_name?(customer_name) do
-      {:ok,
-       %{
-         customer_name: customer_name,
-         customer_email: customer_email,
-         body: body,
-         subject: agent_feedback_subject(context),
-         metadata: Map.put(context, "channel", "agent_feedback"),
-         occurred_at: now()
-       }}
-    end
-  end
-
-  defp agent_feedback_context(context) when is_map(context) do
-    values =
-      for key <- @agent_feedback_context_keys,
-          value = context |> Map.get(key) |> normalize_optional_text(),
-          is_binary(value),
-          into: %{},
-          do: {key, String.slice(value, 0, 255)}
-
-    case agent_feedback_organization_handles(context["organization_handles"]) do
-      [] -> values
-      handles -> Map.put(values, "organization_handles", handles)
-    end
-  end
-
-  defp agent_feedback_context(_context), do: %{}
-
-  defp agent_feedback_organization_handles(handles) when is_list(handles) do
-    handles
-    |> Enum.map(&normalize_optional_text/1)
-    |> Enum.filter(&is_binary/1)
-    |> Enum.map(&String.slice(&1, 0, 255))
-    |> Enum.uniq()
-    |> Enum.take(@agent_feedback_max_organization_handles)
-  end
-
-  defp agent_feedback_organization_handles(_handles), do: []
-
-  # The sending product only forwards an account handle the reporting user belongs
-  # to, so it is the strongest signal of which customer to get back to. The
-  # email comes next, and the user's own handles last: they only decide when
-  # they resolve to a single account.
-  defp agent_feedback_account(%{customer_email: email, metadata: metadata}) do
-    (metadata["account_handle"] && EventRouting.find_account_by_handles([metadata["account_handle"]])) ||
-      EventRouting.find_account([email]) ||
-      EventRouting.find_account_by_handles(
-        Enum.reject([metadata["reporter_handle"] | metadata["organization_handles"] || []], &is_nil/1)
-      )
-  end
-
-  defp agent_feedback_subject(%{"tool_name" => tool_name}), do: "Agent feedback: #{tool_name}"
-  defp agent_feedback_subject(_context), do: "Agent feedback"
 
   defp chat_email(nil), do: {:error, :email_required}
 

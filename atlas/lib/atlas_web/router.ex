@@ -183,11 +183,6 @@ defmodule AtlasWeb.Router do
     post "/email/transactional", GTMTransactionalController, :create
     post "/licenses/actions/validate-key", LicenseValidationController, :create
 
-    # Feedback AI agents report through a product's agent integration. The
-    # product authenticates its user and calls this with a projected workload
-    # token from its cluster (Atlas.WorkloadIdentity), not a shared secret.
-    post "/support/agent-feedback", SupportAgentFeedbackController, :create
-
     # Direct-to-storage document upload used by the `Local` storage backend in
     # dev and test. Production uses S3-compatible presigned URLs instead.
     put "/documents/uploads/local/:token", DocumentUploadController, :put

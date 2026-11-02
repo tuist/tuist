@@ -74,28 +74,6 @@ subjects:
     name: tuist-eng
     apiGroup: rbac.authorization.k8s.io
 ---
-# The cluster's public ServiceAccount signing keys (`/openid/v1/jwks`). Other
-# clusters pin them to verify this cluster's workload tokens (Tuist <-> Atlas),
-# so reading them for a pin or a key rotation must not need an elevation. The
-# built-in role grants only the discovery document and the public JWKS.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: tuist-view-issuer-discovery
-  labels:
-    {{- include "pomerium.labels" . | nindent 4 }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: system:service-account-issuer-discovery
-subjects:
-  - kind: Group
-    name: tuist-admins
-    apiGroup: rbac.authorization.k8s.io
-  - kind: Group
-    name: tuist-eng
-    apiGroup: rbac.authorization.k8s.io
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

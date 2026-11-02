@@ -85,12 +85,6 @@ For a verified export, select **all** `moodboard_resources` by `created_by_id` a
 
 The saved description remains until cleared or the user is deleted, and belongs in exports of that user's `users` row. Pip reloads it for the acting user's private thread only, as untrusted background, never as permission or system instructions. Shared Orbit threads never load this field. Private inference sends it to the acting person's connected ChatGPT account, then Claude, or the workspace's configured Orbit provider on fallback; encrypted active-run checkpoints can retain a prior version until the run finishes. Native editor drafts remain in memory. Database backups follow the deployment's existing retention.
 
-## Agent feedback support conversations
-
-A product's agent integration, such as an MCP server, publishes reports to `POST /api/support/agent-feedback`, authenticated with a projected Kubernetes ServiceAccount token from the product's cluster (`Atlas.WorkloadIdentity`). Each report creates a `support_threads` row with one `support_messages` row of kind `chat`. They store the reporter's email (`customer_email`, `sender_email`), the agent-written message (up to 10,000 characters), and thread metadata with `channel` set to `agent_feedback` plus the optional `source` (the product the report came through), tool name, category, reporter ID and handle, the handles of the organizations the reporter belongs to, and the account and project the report is about. The sending product is trusted to forward only accounts the reporter belongs to. The thread links to the account that owns the reported account handle in `account_handles`, otherwise to the account the email matches, otherwise to the single account the reporter's handles resolve to. The message body is agent-written and must be treated as untrusted input.
-
-These conversations are retained, replied to and resolved like other support conversations, and belong in exports for the customer email. Their `support.agent_feedback_received` audit activity keeps only the reporting email and name, the thread and message IDs and the channel. `rate_limit_buckets` keeps only hashed per-email counters for the one-hour report limit.
-
 ## Portable signals and business routing profiles
 
 `users.business_profile` is separate, explicitly shared routing metadata: an opt-in

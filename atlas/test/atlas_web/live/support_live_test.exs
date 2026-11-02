@@ -86,30 +86,6 @@ defmodule AtlasWeb.SupportLiveTest do
     assert_push_event(view, "open-dropdown", %{id: "filter-owner-value-dropdown"})
   end
 
-  test "shows where agent feedback came from", %{conn: conn} do
-    {conn, _user} = log_in_user(conn)
-
-    {:ok, %{thread: thread}} =
-      Support.receive_agent_feedback(%{
-        "email" => "maya@gmail.com",
-        "body" => "The branch filter was ignored.",
-        "context" => %{
-          "source" => "Example MCP",
-          "reporter_handle" => "maya",
-          "account_handle" => "acme",
-          "project_handle" => "ios",
-          "organization_handles" => ["acme", "side-project"]
-        }
-      })
-
-    {:ok, view, _html} = live(conn, ~p"/commercial/support/#{thread.id}")
-
-    assert has_element?(view, "#support-feedback-channel", "Agent feedback via Example MCP")
-    assert has_element?(view, "#support-reporter", "maya")
-    assert has_element?(view, "#support-reported-from", "acme/ios")
-    assert has_element?(view, "#support-organizations", "acme, side-project")
-  end
-
   test "lets a teammate assign, resolve, and respond to a conversation", %{conn: conn} do
     {conn, user} = log_in_user(conn, %{name: "Support Teammate"})
     thread = support_thread!()
