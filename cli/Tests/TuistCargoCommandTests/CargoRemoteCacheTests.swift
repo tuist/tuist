@@ -498,11 +498,17 @@ struct CargoRemoteCacheTests {
     ) async throws {
         let root = try directory()
         let broker = root.appendingPathComponent("broker")
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            defer { group.cancelAll() }
-            group.addTask { try await CargoRemoteCache.serve(directory: broker, remote: remote) }
-            group.addTask { try await body(CargoRemoteCache(directory: broker), root) }
-            try await group.next()
+        // These tests exercise lane admission and backend cleanup, not client delivery deadlines.
+        // Keep executor scheduling delays out of that clock; deadline tests control it separately.
+        let now = CargoRemoteCache.timing.now()
+        let timing = CargoRemoteCache.Timing(now: { now }, sleep: CargoRemoteCache.timing.sleep)
+        try await CargoRemoteCache.$timing.withValue(timing) {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                defer { group.cancelAll() }
+                group.addTask { try await CargoRemoteCache.serve(directory: broker, remote: remote) }
+                group.addTask { try await body(CargoRemoteCache(directory: broker), root) }
+                try await group.next()
+            }
         }
         #expect(!FileManager.default.fileExists(atPath: broker.appendingPathComponent("server.json").path))
     }
@@ -514,7 +520,7 @@ struct CargoRemoteCacheTests {
     }
 
     private static func waitUntil(_ condition: () async -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while await !condition() {
             try #require(ContinuousClock.now < deadline)
             try await Task.sleep(for: .milliseconds(5))

@@ -1993,6 +1993,21 @@ defmodule Tuist.Environment do
 
   def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
+  def atlas_url(secrets \\ secrets()) do
+    get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
+  end
+
+  @doc """
+  Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
+  the server presents to Atlas' support ingest, where agent feedback reported
+  through the MCP server is published. Atlas verifies it against this cluster's
+  pinned JWKS, so there is no shared secret. The kubelet rotates the file in
+  place, and the `report_feedback` tool is only offered while it exists.
+  """
+  def atlas_support_ingest_token_path do
+    System.get_env("TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH")
+  end
+
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end

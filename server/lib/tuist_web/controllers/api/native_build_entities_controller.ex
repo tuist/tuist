@@ -1,3 +1,8 @@
+defmodule TuistWeb.API.CargoCratesController do
+  @moduledoc false
+  use TuistWeb.API.BuildEntityController, resource: :cargo_crates
+end
+
 defmodule TuistWeb.API.BazelActionsController do
   @moduledoc false
   use TuistWeb.API.BuildEntityController, resource: :bazel_actions

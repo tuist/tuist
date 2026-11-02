@@ -184,7 +184,7 @@ defmodule Tuist.VCSTest do
         submission_auth: "network_trusted"
       )
 
-      for system <- ["xcode", "gradle", "bazel", "mix"] do
+      for system <- ["xcode", "gradle", "bazel", "mix", "cargo"] do
         RunsFixtures.test_fixture(
           project_id: project.id,
           scheme: "Trusted-#{system}",
@@ -1781,6 +1781,57 @@ defmodule Tuist.VCSTest do
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
         test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "includes successful Cargo tests in the PR rollup" do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github])
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          build_system: "cargo",
+          scheme: "cargo test",
+          test_modules: [
+            %{
+              name: "example::lib",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "parses input", status: "success", duration: 0},
+                %{name: "writes output", status: "success", duration: 0},
+                %{name: "slow integration", status: "skipped", duration: 0}
+              ]
+            }
+          ]
+        )
+
+      stub(Req, :get, fn _ -> {:ok, %Req.Response{status: 200, body: []}} end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~ "#### Tests 🧪"
+
+        assert opts[:json].body =~
+                 "| [cargo test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | 0 | 1 |"
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: run} -> "https://tuist.dev/test_runs/#{run.id}" end,
         bundle_url: fn _ -> "" end,
         build_url: fn _ -> "" end
       })
