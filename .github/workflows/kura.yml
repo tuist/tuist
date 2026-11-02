@@ -299,6 +299,9 @@ jobs:
       DOCKER_BUILDKIT: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The Kura preview below reads the pull request's head commit from HEAD^2.
+          fetch-depth: 2
 
       - uses: tuist/cache-volume@v1
         with:
@@ -328,6 +331,14 @@ jobs:
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
+
+      # Publishes the binary above as a preview of the tuist/kura project (from
+      # tuist.toml), so people and agents can try the pull request with
+      # `tuist run <preview-url>`. A failed upload must not hold back the E2E shards.
+      - name: Share Kura preview
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: tuist share bin/amd64 --executable kura
 
       - name: Assemble the runtime image
         run: docker build -f Dockerfile.release --build-context certificate-trust=../infra/certificate-trust --build-arg TARGETARCH=amd64 -t kura:e2e .

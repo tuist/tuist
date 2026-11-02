@@ -1,0 +1,74 @@
+{{- with .Values.disableMultipathTCP }}
+{{- if .enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: disable-multipath-tcp
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: disable-multipath-tcp
+    app.kubernetes.io/component: node-hardening
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: disable-multipath-tcp
+      app.kubernetes.io/component: node-hardening
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Replacing the pod leaves the host's sysctl as it is.
+      maxUnavailable: 100%
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: disable-multipath-tcp
+        app.kubernetes.io/component: node-hardening
+    spec:
+      # net.mptcp.enabled is per network namespace. Writing it from the host's
+      # covers host-network listeners only; pod namespaces keep their own value.
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      terminationGracePeriodSeconds: 1
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: disable-multipath-tcp
+          image: {{ .image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              printf 'net.mptcp.enabled = 0\n' > /host/etc/sysctl.d/99-tuist-disable-mptcp.conf
+              while true; do
+                echo 0 > /proc/sys/net/mptcp/enabled
+                sleep 60
+              done
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - test "$(cat /proc/sys/net/mptcp/enabled)" = 0
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              memory: 16Mi
+          volumeMounts:
+            - name: sysctl-d
+              mountPath: /host/etc/sysctl.d
+      volumes:
+        - name: sysctl-d
+          hostPath:
+            path: /etc/sysctl.d
+            type: DirectoryOrCreate
+{{- end }}
+{{- end }}
