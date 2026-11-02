@@ -40,8 +40,6 @@ defmodule Tuist.Billing do
   # Terminal in Stripe: a subscription in either never changes again.
   @ended_subscription_statuses ~w(canceled incomplete_expired)
 
-  @free_collection_marker "tuist_free_collection_paused"
-
   def get_plans do
     [
       %{
@@ -921,87 +919,52 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  One-off cleanup of the free subscriptions that renew into a $0 invoice
-  every month.
+  One-off cleanup of the Air subscriptions earlier downgrades left behind,
+  each of which renews into a $0 invoice every month.
 
-    * Air subscriptions, left behind by downgrades from Pro, are cancelled
-      immediately and without a final invoice, which leaves the account where
-      an Air account that never subscribed is. Without `prorate`, Stripe
-      discards the metered usage accrued in the current period. Air is the
-      free plan and dispatch caps its runner usage at the free allowance, so
-      the little that could have been billed is forgiven. Only one that is
-      still `active` or `trialing` in Stripe, belongs to a customer with no
-      open invoice, since cancelling stops Stripe collecting it, and carries
-      nothing beyond Air's own Prices and the runner Prices is cancelled.
-      Anything else, such as standing prepaid minutes, is skipped and reported.
-    * Open source subscriptions record the plan, so they stay, and get the
-      collection pause `on_subscription_change/1` now applies to new ones.
-      Without this, each would pause only at its next renewal webhook, after
-      that renewal's invoice already exists.
+  Cancels each one immediately and without a final invoice, which leaves the
+  account where an Air account that never subscribed is. Without `prorate`,
+  Stripe discards the metered usage accrued in the current period. Air is the
+  free plan and dispatch caps its runner usage at the free allowance, so the
+  little that could have been billed is forgiven.
 
-  Local rows follow through the subscription webhooks.
+  Only touches a subscription that is still `active` or `trialing` in Stripe,
+  has no open invoice, since cancelling stops Stripe from collecting it, and
+  carries nothing beyond Air's own Prices and the runner Prices. Anything
+  else, such as standing prepaid minutes, is skipped and reported. Local rows
+  follow through the subscription webhooks.
 
   Dry run by default. Run it from a remote console:
 
-      Tuist.Billing.clean_up_free_subscriptions()
-      Tuist.Billing.clean_up_free_subscriptions(dry_run: false)
+      Tuist.Billing.cancel_air_subscriptions()
+      Tuist.Billing.cancel_air_subscriptions(dry_run: false)
 
   Returns one entry per subscription with its `action` and its `result`.
   """
-  def clean_up_free_subscriptions(opts \\ []) do
+  def cancel_air_subscriptions(opts \\ []) do
     dry_run = Keyword.get(opts, :dry_run, true)
 
     from(s in Subscription,
-      where: s.plan in [:air, :open_source] and s.status in ["active", "trialing"],
+      where: s.plan == :air and s.status in ["active", "trialing"],
       order_by: [asc: s.inserted_at]
     )
     |> Repo.all()
     |> Enum.map(fn %Subscription{subscription_id: subscription_id} = subscription ->
-      action = free_subscription_cleanup_action(subscription)
+      action = air_subscription_cleanup_action(subscription_id)
 
       result =
-        case action do
-          {:skip, _reason} ->
-            :skipped
-
-          _action when dry_run ->
-            :dry_run
-
-          :cancel ->
-            subscription_id |> Stripe.Subscription.cancel(%{invoice_now: false, prorate: false}) |> cleanup_result()
-
-          {:update, params} ->
-            subscription_id |> Stripe.Subscription.update(params) |> cleanup_result()
+        cond do
+          action != :cancel -> :skipped
+          dry_run -> :dry_run
+          true -> subscription_id |> Stripe.Subscription.cancel(%{invoice_now: false, prorate: false}) |> cleanup_result()
         end
 
-      %{
-        subscription_id: subscription_id,
-        account_id: subscription.account_id,
-        plan: subscription.plan,
-        action: action,
-        result: result
-      }
+      %{subscription_id: subscription_id, account_id: subscription.account_id, action: action, result: result}
     end)
   end
 
-  defp free_subscription_cleanup_action(%Subscription{plan: :air, subscription_id: subscription_id}),
-    do: air_subscription_cleanup_action(subscription_id)
-
-  defp free_subscription_cleanup_action(%Subscription{plan: :open_source, subscription_id: subscription_id}) do
-    case Stripe.Subscription.retrieve(subscription_id) do
-      {:ok, stripe_subscription} ->
-        case free_collection_change(stripe_subscription) do
-          %{pause_collection: %{}} = params -> {:update, params}
-          _ -> {:skip, :no_change}
-        end
-
-      {:error, error} ->
-        {:skip, {:error, error}}
-    end
-  end
-
   defp air_subscription_cleanup_action(subscription_id) do
-    free_price_ids = MapSet.union(plan_price_ids("air"), configured_runner_price_ids())
+    free_price_ids = MapSet.union(air_price_ids(), configured_runner_price_ids())
 
     with {:ok, %{status: status} = stripe_subscription} when status in ["active", "trialing"] <-
            Stripe.Subscription.retrieve(subscription_id),
@@ -1022,8 +985,8 @@ defmodule Tuist.Billing do
   defp cleanup_result({:ok, _cancelled}), do: :ok
   defp cleanup_result({:error, error}), do: {:error, error}
 
-  defp plan_price_ids(plan) do
-    prices = (Tuist.Environment.stripe_prices() || %{})[plan] || %{}
+  defp air_price_ids do
+    prices = (Tuist.Environment.stripe_prices() || %{})["air"] || %{}
     MapSet.new(List.wrap(prices["flat_monthly"]) ++ List.wrap(prices["usage"]))
   end
 
@@ -1058,10 +1021,9 @@ defmodule Tuist.Billing do
     end
   end
 
-  # `canceled` and `incomplete_expired` are terminal in Stripe, so an event
-  # about a subscription already stored as one was sent before it ended and
-  # arrived late or was redelivered. Applying it would give the account back a
-  # plan with no subscription left to bill it.
+  # An event about a subscription already stored as ended was sent before it
+  # ended and arrived late or was redelivered. Applying it would give the
+  # account back a plan with no subscription left to bill it.
   defp on_subscription_change_for_account(subscription, account) do
     case Repo.get_by(Subscription, subscription_id: subscription.id) do
       %Subscription{status: status} when status in @ended_subscription_statuses -> :ok
@@ -1110,57 +1072,9 @@ defmodule Tuist.Billing do
     end
 
     notify_when_turned_unpaid(account, current_subscription, subscription)
-    reconcile_free_collection(subscription)
 
     :ok
   end
-
-  # An open source subscription records the plan and charges nothing, yet it
-  # renews into a $0 invoice every month. While every Price on it is a free
-  # open source Price, its collection is paused with `keep_as_draft`, so those
-  # invoices stay drafts that are never finalized. The moment anything
-  # billable lands on it (an upgrade, runner items, prepaid minutes), the
-  # webhook for that change resumes collection, before the next renewal.
-  #
-  # Only a pause this code set is ever lifted, recognised by its metadata
-  # marker, so a pause someone set by hand in Stripe is left alone.
-  defp reconcile_free_collection(subscription) do
-    case free_collection_change(subscription) do
-      nil -> :ok
-      params -> {:ok, _} = Stripe.Subscription.update(subscription.id, params)
-    end
-  end
-
-  defp free_collection_change(%{status: status} = subscription) when status in ["active", "trialing"] do
-    free? = free_open_source_subscription?(subscription)
-    paused? = not is_nil(Map.get(subscription, :pause_collection))
-    paused_by_us? = subscription |> Map.get(:metadata) |> metadata_value(@free_collection_marker) == "true"
-
-    cond do
-      free? and not paused? ->
-        %{pause_collection: %{behavior: "keep_as_draft"}, metadata: %{@free_collection_marker => "true"}}
-
-      not free? and paused_by_us? ->
-        %{pause_collection: "", metadata: %{@free_collection_marker => ""}}
-
-      true ->
-        nil
-    end
-  end
-
-  defp free_collection_change(_subscription), do: nil
-
-  defp free_open_source_subscription?(subscription) do
-    free_price_ids = plan_price_ids("open_source")
-    price_ids = Enum.map(subscription.items.data, &subscription_item_price_id/1)
-
-    MapSet.size(free_price_ids) > 0 and price_ids != [] and Enum.all?(price_ids, &MapSet.member?(free_price_ids, &1))
-  end
-
-  defp metadata_value(metadata, key) when is_map(metadata),
-    do: Map.get(metadata, key) || Map.get(metadata, String.to_atom(key))
-
-  defp metadata_value(_metadata, _key), do: nil
 
   # Only the transition is news. The row read before the update carries the
   # previous status, so a redelivered event finds it already `unpaid`.
