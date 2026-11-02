@@ -50,8 +50,9 @@ use crate::{
         ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
         ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS,
         ROCKSDB_RECYCLE_LOG_FILE_NUM, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
-        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS,
-        SEGMENT_FREE_SPACE_MARGIN, SYNC_FEED_TRIM_BATCH_ROWS,
+        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_CANDIDATE_RUN,
+        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
+        SEGMENT_RETIREMENT_HANDOFF_BACKLOG, SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -75,15 +76,16 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        BACKFILL_IDX_PREFIX, BACKFILL_WM_PREFIX, BackfillIndexRow, BackfillRecordKind,
-        IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_blob_ref_key,
-        action_cache_blob_ref_prefix, action_cache_index_key, action_cache_index_key_branch,
-        action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
-        artifact_storage_id_in, backfill_index_key, backfill_index_prefix_upper_bound,
-        backfill_index_value, backfill_meta_key, backfill_wm_key, backfill_wm_prefix_upper_bound,
-        chunk_recipe_ref_key, chunk_recipe_ref_prefix, decode_backfill_index_row,
-        decode_backfill_watermark_value, drop_staging_cache_range, encode_backfill_watermark_value,
-        module_key, namespace_artifact_index_key, now_ms, segment_artifact_index_key,
+        ACTION_CACHE_BLOB_REF_PREFIX, BACKFILL_IDX_PREFIX, BACKFILL_WM_PREFIX, BackfillIndexRow,
+        BackfillRecordKind, CHUNK_RECIPE_REF_PREFIX, IndexRowBranch, TempFileCleanup, TmpBudget,
+        action_cache_blob_ref_key, action_cache_blob_ref_prefix, action_cache_index_key,
+        action_cache_index_key_branch, action_cache_index_prefix, action_cache_manifest_hash,
+        artifact_storage_id, artifact_storage_id_in, backfill_index_key,
+        backfill_index_prefix_upper_bound, backfill_index_value, backfill_meta_key,
+        backfill_wm_key, backfill_wm_prefix_upper_bound, chunk_recipe_ref_key,
+        chunk_recipe_ref_prefix, decode_backfill_index_row, decode_backfill_watermark_value,
+        drop_staging_cache_range, encode_backfill_watermark_value, module_key,
+        namespace_artifact_index_key, now_ms, segment_artifact_index_key,
         segment_artifact_index_prefix, segment_path, temp_file_path, try_path_size_bytes,
     },
 };
@@ -199,6 +201,11 @@ pub struct Store {
     disk_pressure_segment_limit: AtomicUsize,
     disk_pressure_requested: AtomicU64,
     disk_pressure_notify: Notify,
+    /// Set while `run_segment_reclamation_worker` runs, so rotations know
+    /// there is a worker to hand their retired segments to.
+    segment_reclamation_worker_running: AtomicBool,
+    /// Set at shutdown so no eviction writes after the clean-shutdown stamp.
+    segment_reclamation_quiesced: AtomicBool,
     disk_pressure_reclamation: Mutex<PressureReclamation>,
     deferred_capacity_retirements: StdMutex<VecDeque<PressureRetirement>>,
     segment_pins: StdMutex<HashMap<String, Arc<SegmentPin>>>,
@@ -1279,6 +1286,18 @@ struct CascadeProgress {
     removals: Vec<(String, ActionCacheRemoval)>,
     total: usize,
     recipe_total: usize,
+    /// Eviction chunks committed so far, including a cascade's own chunks.
+    /// Read-ahead candidates are dropped at any commit, so nothing is staged
+    /// from a read older than the latest landed chunk.
+    commits: usize,
+}
+
+/// What staging one evicted blob needs. The reference flags only decide
+/// whether a cascade has rows to walk; the cascade reads those rows itself.
+struct EvictionCandidate {
+    manifest: Option<ArtifactManifest>,
+    has_recipe_refs: bool,
+    has_action_cache_refs: bool,
 }
 
 impl CascadeProgress {
@@ -1490,6 +1509,8 @@ impl Store {
             disk_pressure_segment_limit: AtomicUsize::new(segment_ring_limits.total_segments()),
             disk_pressure_requested: AtomicU64::new(0),
             disk_pressure_notify: Notify::new(),
+            segment_reclamation_worker_running: AtomicBool::new(false),
+            segment_reclamation_quiesced: AtomicBool::new(false),
             disk_pressure_reclamation: Mutex::new(PressureReclamation::default()),
             deferred_capacity_retirements: StdMutex::new(VecDeque::new()),
             segment_pins: StdMutex::new(HashMap::new()),
@@ -1976,7 +1997,7 @@ impl Store {
         // precheck and its commit. A delete taking the write side therefore
         // cannot commit its snapshot-scanned batch in between and leave this
         // row alive under a newer tombstone.
-        let _namespace_guard = self.namespace_lock_for(spec.namespace_id).read().await;
+        let namespace_guard = self.namespace_lock_for(spec.namespace_id).read().await;
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
         // Hold the per-artifact write lock across the read-check, segment append,
@@ -1986,7 +2007,7 @@ impl Store {
         // that accumulate to N x on disk (the backfill-from-many-peers ENOSPC).
         // Whoever wins the lock commits the manifest; the rest re-read it here and
         // short-circuit to IgnoredEqual without appending.
-        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
+        let write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = match source {
             SegmentArtifactSource::Path(staged) => self.io.metadata_len(staged.path).await?,
             SegmentArtifactSource::Memory { bytes, .. } => bytes.len() as u64,
@@ -2030,6 +2051,10 @@ impl Store {
             .commit_segment_manifest(&spec, &artifact_id, existing.as_ref(), &location, size)
             .await?;
 
+        // Evict only after releasing this apply's locks, as the batch path
+        // does: eviction takes write-lock stripes of its own.
+        drop(write_guard);
+        drop(namespace_guard);
         self.evict_segments(evicted_segments).await?;
 
         Ok((PersistArtifactOutcome::Applied(manifest), already_present))
@@ -4506,11 +4531,34 @@ impl Store {
         Ok(())
     }
 
+    /// Stops segment eviction for shutdown and waits, up to `deadline`, for
+    /// the chunk in flight to commit, so the clean-shutdown stamp stays the
+    /// store's last write: a write after it reads as an index-unaware binary
+    /// at the next boot and rebuilds the backfill index. A segment left partly
+    /// evicted is already out of the ring; the next boot's orphan sweep
+    /// finishes it. Returns whether eviction stopped in time.
+    pub async fn quiesce_segment_reclamation(&self, deadline: Duration) -> bool {
+        self.segment_reclamation_quiesced
+            .store(true, Ordering::Release);
+        tokio::time::timeout(deadline, self.disk_pressure_reclamation.lock())
+            .await
+            .is_ok()
+    }
+
     /// A supervised, request-independent worker owns pressure cleanup. The
     /// pending retirement lives in Store so errors or task cancellation resume
     /// that same file before considering another live segment. Startup's orphan
     /// sweep remains the crash-recovery path.
     pub async fn run_segment_reclamation_worker(&self) {
+        struct Running<'a>(&'a AtomicBool);
+        impl Drop for Running<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::Release);
+            }
+        }
+        self.segment_reclamation_worker_running
+            .store(true, Ordering::Release);
+        let _running = Running(&self.segment_reclamation_worker_running);
         loop {
             tokio::select! {
                 _ = self.disk_pressure_notify.notified() => {},
@@ -4518,13 +4566,28 @@ impl Store {
             }
             let requested = self.disk_pressure_requested.load(Ordering::Acquire);
             if requested == 0 {
+                // Drain the whole backlog: rotations hand their retired
+                // segments here and only wait once it is full.
                 let mut recovery = self.disk_pressure_reclamation.lock().await;
-                self.adopt_deferred_capacity_retirement(&mut recovery);
-                if let Err(error) = self.finish_segment_retirement(&mut recovery).await {
-                    tracing::warn!(
-                        error,
-                        "retired segment cleanup failed; retaining pending cleanup"
-                    );
+                loop {
+                    self.adopt_deferred_capacity_retirement(&mut recovery);
+                    if recovery.pending.is_none() {
+                        break;
+                    }
+                    if let Err(error) = self.finish_segment_retirement(&mut recovery).await {
+                        if !self.segment_reclamation_quiesced.load(Ordering::Acquire) {
+                            tracing::warn!(
+                                error,
+                                "retired segment cleanup failed; retaining pending cleanup"
+                            );
+                        }
+                        // Pace retries: rotations keep notifying this worker,
+                        // and a refused retirement (a handover hold) must not
+                        // retry at write rate.
+                        drop(recovery);
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        break;
+                    }
                 }
                 continue;
             }
@@ -4555,6 +4618,9 @@ impl Store {
         let target =
             segment_rotation_required_bytes(incoming_size).saturating_add(2 * MAX_SEGMENT_BYTES);
         let mut recovery = self.disk_pressure_reclamation.lock().await;
+        if self.segment_reclamation_quiesced.load(Ordering::Acquire) {
+            return Ok(false);
+        }
         // Segments already out of the ring are freed before any retained one.
         self.adopt_deferred_capacity_retirement(&mut recovery);
         if recovery.pending.is_none() {
@@ -4869,8 +4935,15 @@ impl Store {
     }
 
     async fn evict_segments(&self, mut retirements: RetiredSegments<'_>) -> Result<(), String> {
+        if retirements.remaining.is_empty() || self.hand_off_capacity_retirements(&mut retirements)
+        {
+            return Ok(());
+        }
         while let Some(segment) = retirements.remaining.front().cloned() {
             let bytes = try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0);
+            // Lock-free, as before: under write load about half the stripes
+            // are held at any moment, and a request waiting on them would
+            // stall every write behind its rotation.
             let artifact_count = self
                 .evict_segment(&segment.segment_id)
                 .await
@@ -4879,6 +4952,38 @@ impl Store {
             self.record_capacity_eviction(&segment, artifact_count, bytes);
         }
         Ok(())
+    }
+
+    /// Hands a rotation's retired segments to the running reclamation worker
+    /// so the request whose append rotated does not wait out a whole
+    /// segment's eviction. Refused while the worker is not running or would
+    /// fall more than `SEGMENT_RETIREMENT_HANDOFF_BACKLOG` segments behind:
+    /// the caller then evicts inline, because retired segments are disk the
+    /// ring no longer counts, and writers must slow to eviction's pace rather
+    /// than outrun it.
+    fn hand_off_capacity_retirements(&self, retirements: &mut RetiredSegments<'_>) -> bool {
+        if !self
+            .segment_reclamation_worker_running
+            .load(Ordering::Acquire)
+        {
+            return false;
+        }
+        let mut deferred = self
+            .deferred_capacity_retirements
+            .lock()
+            .expect("deferred capacity retirements poisoned");
+        if deferred.len() + retirements.remaining.len() > SEGMENT_RETIREMENT_HANDOFF_BACKLOG {
+            return false;
+        }
+        deferred.extend(
+            retirements
+                .remaining
+                .drain(..)
+                .map(|segment| self.capacity_retirement(segment)),
+        );
+        drop(deferred);
+        self.disk_pressure_notify.notify_one();
+        true
     }
 
     fn defer_capacity_retirements(&self, segments: impl IntoIterator<Item = SegmentReference>) {
@@ -4891,21 +4996,28 @@ impl Store {
                 segment_id = %segment.segment_id,
                 "capacity eviction did not finish; deferring retired segment cleanup"
             );
-            deferred.push_back(PressureRetirement {
-                bytes: try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0),
-                segment,
-                available_before: 0,
-                reason: "capacity",
-            });
+            deferred.push_back(self.capacity_retirement(segment));
         }
         drop(deferred);
         self.disk_pressure_notify.notify_one();
     }
 
+    fn capacity_retirement(&self, segment: SegmentReference) -> PressureRetirement {
+        PressureRetirement {
+            bytes: try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0),
+            segment,
+            available_before: 0,
+            reason: "capacity",
+        }
+    }
+
     // A planned handover refuses eviction commits, so a deferred retirement
     // waits for the hold to clear rather than failing once per pass.
     fn adopt_deferred_capacity_retirement(&self, recovery: &mut PressureReclamation) {
-        if recovery.pending.is_some() || self.handover_hold_active() {
+        if recovery.pending.is_some()
+            || self.handover_hold_active()
+            || self.segment_reclamation_quiesced.load(Ordering::Acquire)
+        {
             return;
         }
         recovery.pending = self
@@ -5032,6 +5144,9 @@ impl Store {
         prefix: &str,
         after: Option<&[u8]>,
     ) -> Result<Vec<Vec<u8>>, RecoveryError> {
+        if self.segment_reclamation_quiesced.load(Ordering::Acquire) {
+            return Err(RecoveryError::Interrupted);
+        }
         let db = self.db.clone();
         let prefix = prefix.as_bytes().to_vec();
         let start = after.map_or_else(
@@ -5082,6 +5197,73 @@ impl Store {
         Ok(rows)
     }
 
+    /// Reads a run of segment-eviction candidates in one blocking task: one
+    /// multi-get for their manifests, and one seek per candidate into each
+    /// reverse index through iterators bounded to that index's keyspace.
+    /// Callers stage from the result only until their next eviction commit,
+    /// so every manifest is still read under the write locks the caller holds
+    /// and after every earlier chunk of the eviction has landed.
+    async fn read_eviction_candidates(
+        &self,
+        artifact_ids: Vec<String>,
+    ) -> Result<Vec<EvictionCandidate>, String> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || {
+            let manifests_cf = db
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifest column exists");
+            let key_value_cf = db
+                .cf_handle(ROCKSDB_CF_KEY_VALUE)
+                .expect("inline column exists");
+            let reverse_index = |keyspace: &str| {
+                let mut options = ReadOptions::default();
+                options.fill_cache(false);
+                let mut upper = keyspace.as_bytes().to_vec();
+                *upper.last_mut().expect("reverse index keyspaces are named") += 1;
+                options.set_iterate_lower_bound(keyspace.as_bytes());
+                options.set_iterate_upper_bound(upper);
+                db.raw_iterator_cf_opt(&key_value_cf, options)
+            };
+            let mut recipe_refs = reverse_index(CHUNK_RECIPE_REF_PREFIX);
+            let mut action_cache_refs = reverse_index(ACTION_CACHE_BLOB_REF_PREFIX);
+            let has_rows = |rows: &mut rocksdb::DBRawIteratorWithThreadMode<'_, DB>,
+                            prefix: String| {
+                rows.seek(prefix.as_bytes());
+                if rows.valid() {
+                    return Ok(rows
+                        .key()
+                        .is_some_and(|key| key.starts_with(prefix.as_bytes())));
+                }
+                rows.status()
+                    .map(|()| false)
+                    .map_err(|e| format!("failed to read eviction reverse index: {e}"))
+            };
+            let manifests = db.batched_multi_get_cf(&manifests_cf, &artifact_ids, false);
+            artifact_ids
+                .iter()
+                .zip(manifests)
+                .map(|(artifact_id, manifest)| {
+                    Ok(EvictionCandidate {
+                        manifest: manifest
+                            .map_err(|e| format!("failed to read eviction manifest: {e}"))?
+                            .map(|bytes| decode_manifest_record(artifact_id, &bytes))
+                            .transpose()?,
+                        has_recipe_refs: has_rows(
+                            &mut recipe_refs,
+                            chunk_recipe_ref_prefix(artifact_id),
+                        )?,
+                        has_action_cache_refs: has_rows(
+                            &mut action_cache_refs,
+                            action_cache_blob_ref_prefix(artifact_id),
+                        )?,
+                    })
+                })
+                .collect()
+        })
+        .await
+        .map_err(|e| format!("eviction candidate task failed: {e}"))?
+    }
+
     // Re-read each candidate immediately before staging it rather than
     // prefetching manifests for a whole page across intervening commits.
     async fn eviction_candidate(
@@ -5117,6 +5299,46 @@ impl Store {
         .map_err(|e| format!("eviction candidate task failed: {e}"))?
     }
 
+    /// The candidates from `artifact_ids[0]` on that can be read together: at
+    /// most `SEGMENT_EVICTION_CANDIDATE_RUN`, and with `protect_writes` only
+    /// while each one's write-lock stripe is already held or free right now
+    /// (the caller holds the first one's; this never waits). Without
+    /// `protect_writes` nothing orders a re-upload against a staged deletion
+    /// anyway: that window already spans the whole chunk, which a run
+    /// lengthens by at most its own reads.
+    fn eviction_run(
+        &self,
+        artifact_ids: &[String],
+        protect_writes: bool,
+        cascade: &mut CascadeProgress,
+    ) -> Vec<String> {
+        let mut run = vec![artifact_ids[0].clone()];
+        for artifact_id in artifact_ids
+            .iter()
+            .skip(1)
+            .take(SEGMENT_EVICTION_CANDIDATE_RUN - 1)
+        {
+            if !protect_writes {
+                run.push(artifact_id.clone());
+                continue;
+            }
+            let stripe = self.artifact_write_lock_index(artifact_id);
+            if !cascade.pressure_write_guards.contains_key(&stripe) {
+                if cascade.pressure_write_guards.len() >= SEGMENT_EVICTION_CANDIDATE_RUN {
+                    break;
+                }
+                let Ok(guard) = self.artifact_write_locks[stripe].clone().try_lock_owned() else {
+                    break;
+                };
+                cascade
+                    .pressure_write_guards
+                    .insert(stripe, Arc::new(guard));
+            }
+            run.push(artifact_id.clone());
+        }
+        run
+    }
+
     async fn evict_segment(&self, segment_id: &str) -> Result<u64, RecoveryError> {
         self.evict_segment_with_write_locks(segment_id, false).await
     }
@@ -5146,7 +5368,20 @@ impl Store {
                 break;
             }
             cursor = page.last().cloned();
-            for index_key in page {
+            let artifact_ids = page
+                .iter()
+                .map(|index_key| {
+                    std::str::from_utf8(&index_key[prefix.len()..])
+                        .map(str::to_owned)
+                        .map_err(|error| format!("invalid segment index key: {error}"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            // Read ahead in runs (`read_eviction_candidates`), dropped at the
+            // next commit so nothing is staged from a read older than the
+            // latest chunk.
+            let mut candidates = VecDeque::new();
+            let mut candidates_read_at = cascade.commits;
+            for (position, index_key) in page.iter().enumerate() {
                 // Share the CPU staging budget with nested cascades as well as
                 // bounding the RocksDB pages on the blocking pool.
                 yield_scanned_row(&mut scanned_rows).await;
@@ -5154,8 +5389,15 @@ impl Store {
                 // remains on disk until this whole loop is done. Startup's
                 // orphan sweep re-runs cleanup, and the `Some(_) | None` arm
                 // below absorbs whatever the previous attempt already removed.
+                let artifact_id = artifact_ids[position].clone();
+                let stripe = protect_writes.then(|| self.artifact_write_lock_index(&artifact_id));
+                // A row a run already locked needs no new stripe, so a full
+                // stripe set ends the chunk only where the run ends.
+                let needs_stripe = stripe
+                    .is_some_and(|stripe| !cascade.pressure_write_guards.contains_key(&stripe));
                 if batch.size_in_bytes() >= self.eviction_batch_budget_bytes
-                    || cascade.pressure_write_guards.len() >= 32
+                    || (needs_stripe
+                        && cascade.pressure_write_guards.len() >= SEGMENT_EVICTION_CANDIDATE_RUN)
                 {
                     self.commit_eviction_chunk(
                         std::mem::take(&mut batch),
@@ -5164,38 +5406,49 @@ impl Store {
                     )
                     .await?;
                     cascade.pressure_write_guards.clear();
+                    candidates.clear();
                 }
                 saw_entries = true;
-                let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
-                    .map_err(|error| format!("invalid segment index key: {error}"))?
-                    .to_owned();
 
-                if protect_writes {
-                    let stripe = self.artifact_write_lock_index(&artifact_id);
-                    if !cascade.pressure_write_guards.contains_key(&stripe) {
-                        let lock = self.artifact_write_locks[stripe].clone();
-                        let guard = match lock.clone().try_lock_owned() {
-                            Ok(guard) => guard,
-                            Err(_) => {
-                                // Never wait for a stripe while holding another:
-                                // deferred backfill commits take sorted lock sets.
-                                self.commit_eviction_chunk(
-                                    std::mem::take(&mut batch),
-                                    &mut removed_artifact_ids,
-                                    &mut cascade,
-                                )
-                                .await?;
-                                cascade.pressure_write_guards.clear();
-                                lock.lock_owned().await
-                            }
-                        };
-                        cascade
-                            .pressure_write_guards
-                            .insert(stripe, Arc::new(guard));
-                    }
+                // Checked again after a commit, which releases every stripe.
+                if let Some(stripe) = stripe
+                    && !cascade.pressure_write_guards.contains_key(&stripe)
+                {
+                    let lock = self.artifact_write_locks[stripe].clone();
+                    let guard = match lock.clone().try_lock_owned() {
+                        Ok(guard) => guard,
+                        Err(_) => {
+                            // Never wait for a stripe while holding another:
+                            // deferred backfill commits take sorted lock sets.
+                            self.commit_eviction_chunk(
+                                std::mem::take(&mut batch),
+                                &mut removed_artifact_ids,
+                                &mut cascade,
+                            )
+                            .await?;
+                            cascade.pressure_write_guards.clear();
+                            candidates.clear();
+                            lock.lock_owned().await
+                        }
+                    };
+                    cascade
+                        .pressure_write_guards
+                        .insert(stripe, Arc::new(guard));
                 }
 
-                match self.eviction_candidate(&artifact_id, false).await?.0 {
+                if candidates_read_at != cascade.commits {
+                    candidates.clear();
+                }
+                if candidates.is_empty() {
+                    let run =
+                        self.eviction_run(&artifact_ids[position..], protect_writes, &mut cascade);
+                    candidates = self.read_eviction_candidates(run).await?.into();
+                    candidates_read_at = cascade.commits;
+                }
+                let candidate = candidates
+                    .pop_front()
+                    .expect("a run starts at the current candidate");
+                match candidate.manifest {
                     Some(manifest) if manifest.segment_id.as_deref() == Some(segment_id) => {
                         // Cascade first, and let it commit chunks of its own: this
                         // blob is going away, so every action-cache entry that
@@ -5212,16 +5465,18 @@ impl Store {
                         // referrers — which this eviction removes moments later,
                         // and which a crash in between leaves for the re-run.
                         if manifest.producer == ArtifactProducer::Reapi {
-                            self.stage_chunk_recipe_cascade_for_chunk(
-                                &mut batch,
-                                &manifest,
-                                cascade_active,
-                                &mut cascade,
-                                &mut removed_artifact_ids,
-                                &mut scanned_rows,
-                            )
-                            .await?;
-                            if cascade_active {
+                            if candidate.has_recipe_refs {
+                                self.stage_chunk_recipe_cascade_for_chunk(
+                                    &mut batch,
+                                    &manifest,
+                                    cascade_active,
+                                    &mut cascade,
+                                    &mut removed_artifact_ids,
+                                    &mut scanned_rows,
+                                )
+                                .await?;
+                            }
+                            if cascade_active && candidate.has_action_cache_refs {
                                 self.stage_action_cache_cascade_for_blob(
                                     &mut batch,
                                     &artifact_id,
@@ -5240,7 +5495,7 @@ impl Store {
                             namespace_artifact_index_key(&manifest.namespace_id, &artifact_id)
                                 .as_bytes(),
                         );
-                        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), index_key);
                         self.stage_backfill_index_delete(&mut batch, &manifest);
                         if manifest.producer == ArtifactProducer::Reapi
                             && let Some(removal) =
@@ -5254,7 +5509,7 @@ impl Store {
                         removed_artifact_ids.push(artifact_id);
                     }
                     Some(_) | None => {
-                        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), index_key);
                     }
                 }
             }
@@ -5410,6 +5665,7 @@ impl Store {
         .await
         .map_err(|error| format!("segment eviction commit task failed: {error}"))?
         .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
+        cascade.commits += 1;
 
         // Again after the commit, which is what closes the window where a
         // concurrent read repopulated the cache from rows that were still
@@ -5454,11 +5710,10 @@ impl Store {
     /// itself and never takes out a live, unrelated entry.
     ///
     /// The validation is deliberately not serialized with `artifact_write_lock_for`
-    /// against a concurrent re-publish of the same key. Eviction runs from
-    /// segment rotation *inside* `persist_artifact_from_path_with_version` while
-    /// that path already holds an `artifact_write_lock` stripe, and the striped
-    /// locks can hash-collide a blob id with an entry id, so taking the entry
-    /// lock here could self-deadlock. The residual race (a re-publish commits a
+    /// against a concurrent re-publish of the same key. The reclamation worker
+    /// holds the `artifact_write_lock` stripes of the blobs it is evicting, and
+    /// the striped locks can hash-collide a blob id with an entry id, so taking
+    /// the entry lock here could self-deadlock. The residual race (a re-publish commits a
     /// new version between this read and the batch commit, so the fresh entry is
     /// removed on a stale validation) is bounded and self-healing: the entry
     /// degrades to a `NOT_FOUND` the client recomputes and republishes, the
@@ -17922,6 +18177,200 @@ mod tests {
         );
 
         assert!(store.take_pending_capacity_evictions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn rotations_hand_retired_segments_to_the_worker_until_its_backlog_is_full() {
+        let (_temp_dir, _config, store) = temp_store();
+        let mut segments = Vec::new();
+        for key in ["first", "second"] {
+            store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"hello",
+                )
+                .await
+                .expect("failed to persist artifact");
+            segments.push(SegmentReference::new(
+                seal_active_segment(&store).await,
+                1_000,
+            ));
+        }
+        let [first, second] = <[_; 2]>::try_from(segments).expect("two segments");
+        assert_ne!(first.segment_id, second.segment_id);
+        store
+            .segment_reclamation_worker_running
+            .store(true, Ordering::Release);
+
+        // Within the backlog the request returns without evicting.
+        store
+            .evict_segments(RetiredSegments::new(&store, vec![first.clone()]))
+            .await
+            .expect("hand-off should succeed");
+        assert!(store.segment_path(&first.segment_id).exists());
+        assert_eq!(
+            store
+                .deferred_capacity_retirements
+                .lock()
+                .expect("deferred retirements")
+                .len(),
+            1
+        );
+
+        // Past it the request evicts inline.
+        store
+            .evict_segments(RetiredSegments::new(&store, vec![second.clone()]))
+            .await
+            .expect("inline eviction should succeed");
+        assert!(!store.segment_path(&second.segment_id).exists());
+        assert_eq!(store.take_pending_capacity_evictions().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn worker_eviction_commits_once_per_candidate_run() {
+        let (_temp_dir, _config, store) = temp_store();
+        let blobs: usize = 100;
+        let items: Vec<(String, Vec<u8>)> = (0..blobs)
+            .map(|index| {
+                (
+                    format!("blob-{index}"),
+                    format!("body-{index}").into_bytes(),
+                )
+            })
+            .collect();
+        let items: Vec<(&str, &[u8])> = items
+            .iter()
+            .map(|(key, body)| (key.as_str(), body.as_slice()))
+            .collect();
+        for chunk in items.chunks(16) {
+            for result in store
+                .persist_artifacts_from_bytes_and_replicate(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "application/octet-stream",
+                    chunk,
+                )
+                .await
+            {
+                result.expect("persist");
+            }
+        }
+        let segment_id = seal_active_segment(&store).await;
+
+        let evicted = store
+            .evict_segment_with_write_locks(&segment_id, true)
+            .await
+            .expect("eviction");
+
+        assert_eq!(evicted, blobs as u64);
+        // One chunk per run of up to SEGMENT_EVICTION_CANDIDATE_RUN stripes,
+        // not one each time a full stripe set meets the next row.
+        let commits = store.eviction_commits.lock().unwrap().chunk_bytes.len();
+        assert!(
+            commits <= blobs.div_ceil(SEGMENT_EVICTION_CANDIDATE_RUN),
+            "{commits} commits for {blobs} blobs"
+        );
+    }
+
+    #[tokio::test]
+    async fn worker_eviction_holds_each_rows_stripe_through_budget_commits() {
+        // A budget of one byte commits before every row, releasing every
+        // stripe, including ones a read-ahead run took for rows still ahead.
+        // Each row must be locked again before it is read and staged.
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = 1;
+        let items: Vec<(String, Vec<u8>)> = (0..40)
+            .map(|index| {
+                (
+                    format!("blob-{index}"),
+                    format!("body-{index}").into_bytes(),
+                )
+            })
+            .collect();
+        let items: Vec<(&str, &[u8])> = items
+            .iter()
+            .map(|(key, body)| (key.as_str(), body.as_slice()))
+            .collect();
+        let mut artifact_ids = Vec::new();
+        for chunk in items.chunks(16) {
+            for result in store
+                .persist_artifacts_from_bytes_and_replicate(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "application/octet-stream",
+                    chunk,
+                )
+                .await
+            {
+                artifact_ids.push(result.expect("persist").manifest.artifact_id);
+            }
+        }
+        let segment_id = seal_active_segment(&store).await;
+
+        // Eviction walks the segment index in artifact-id order, and with this
+        // budget the n-th chunk holds exactly the n-th row.
+        artifact_ids.sort();
+        let row_locks: Vec<_> = artifact_ids
+            .iter()
+            .map(|id| store.artifact_write_locks[store.artifact_write_lock_index(id)].clone())
+            .collect();
+        let chunk = Arc::new(AtomicUsize::new(0));
+        let unlocked = Arc::new(StdMutex::new(Vec::new()));
+        store.eviction_commits.lock().unwrap().before_commit = Some(Arc::new({
+            let chunk = Arc::clone(&chunk);
+            let unlocked = Arc::clone(&unlocked);
+            move || {
+                let row = chunk.fetch_add(1, Ordering::SeqCst);
+                if row_locks[row].try_lock().is_ok() {
+                    unlocked.lock().unwrap().push(row);
+                }
+            }
+        }));
+
+        let evicted = store
+            .evict_segment_with_write_locks(&segment_id, true)
+            .await
+            .expect("eviction");
+
+        assert_eq!(evicted, 40);
+        assert_eq!(chunk.load(Ordering::SeqCst), 40);
+        assert_eq!(*unlocked.lock().unwrap(), Vec::<usize>::new());
+    }
+
+    #[tokio::test]
+    async fn quiesced_reclamation_writes_nothing_after_the_shutdown_stamp() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "first",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let segment_id = seal_active_segment(&store).await;
+
+        assert!(
+            store
+                .quiesce_segment_reclamation(Duration::from_secs(5))
+                .await
+        );
+        store
+            .stamp_backfill_maintained_seq_clean_shutdown()
+            .expect("stamp");
+        let stamped = store.db.latest_sequence_number();
+        let error = store
+            .evict_segment_with_write_locks(&segment_id, true)
+            .await
+            .expect_err("a quiesced store must not evict");
+        assert!(matches!(error, RecoveryError::Interrupted));
+        assert_eq!(store.db.latest_sequence_number(), stamped);
+        assert!(store.segment_path(&segment_id).exists());
     }
 
     #[tokio::test]

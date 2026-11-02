@@ -683,6 +683,13 @@ async fn initialize_and_serve(
             result => warn!("failed to checkpoint usage during shutdown: {result:?}"),
         }
     }
+    if !state
+        .store
+        .quiesce_segment_reclamation(producer_budget.remaining())
+        .await
+    {
+        warn!("segment eviction did not stop before the shutdown deadline");
+    }
     if state.store.relaxed_durability_enabled()
         && let Err(error) = state.store.sync_relaxed_durability().await
     {
