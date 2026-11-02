@@ -50,6 +50,7 @@ func main() {
 		Logger:  logger,
 	}
 	if _, err := os.Stat("/etc/tuist-embedded-executor"); err == nil {
+		executor.ConfigureRuntime()
 		session := &executor.Session{}
 		h.Action = &agent.SingleAction{ClaimPath: "/run/tuist-executor.claim", Run: session.Run, PrepareCAS: session.Prepare}
 	} else if !os.IsNotExist(err) {

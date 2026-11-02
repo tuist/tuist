@@ -28,6 +28,15 @@ type request struct {
 
 const actionMemoryLimit = 256 << 20
 
+// ConfigureRuntime prepares an agent that will run one action and then be
+// destroyed with its VM: collecting garbage would only add pauses, so the Go
+// runtime collects only near the limit. It runs once, before the template
+// snapshot, so restored VMs pay nothing per action.
+func ConfigureRuntime() {
+	debug.SetGCPercent(-1)
+	debug.SetMemoryLimit(actionMemoryLimit)
+}
+
 type result struct {
 	Response  string `json:"response"`
 	Cacheable bool   `json:"cacheable"`
@@ -40,11 +49,6 @@ func Run(ctx context.Context, requestJSON, token string) (string, error) {
 }
 
 func (s *Session) Run(parent context.Context, requestJSON, token string) (string, error) {
-	// Each VM runs one action and is then destroyed, so collecting garbage
-	// mid-action only adds pauses. The limit still collects for an unusually
-	// large action.
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	defer debug.SetMemoryLimit(debug.SetMemoryLimit(actionMemoryLimit))
 	var r request
 	if err := json.Unmarshal([]byte(requestJSON), &r); err != nil {
 		return "", err
