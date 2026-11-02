@@ -17,8 +17,8 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
 | `kuraGatewayNetworkPolicy` | Lets a region's host-network Kura gateways reach Kura pods on its other boxes |
 | `clusterPortsHostPolicy` | Cilium host policy that drops VXLAN (8472/udp), cilium-health (4240/tcp), Hubble (4244/tcp), the kubelet (10250/tcp), ingress-nginx health/metrics (10254/tcp), the Cilium agent, Hubble, operator and Envoy metrics (9962-9965/tcp) and node-exporter (9100/tcp) from sources outside the cluster |
-| `disableMultipathTCP` | Managed-only DaemonSet that sets `net.mptcp.enabled = 0` in every Linux node's host network namespace and persists it in `/etc/sysctl.d`. Listeners opened before it ran stay MPTCP until their process restarts |
 | `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
+| `disableMultipathTCP` | Managed-only DaemonSet that sets `net.mptcp.enabled = 0` in every Linux node's host network namespace and persists it in `/etc/sysctl.d`. Listeners opened before it ran stay MPTCP until their process restarts |
 
 ## Bootstrap
 
