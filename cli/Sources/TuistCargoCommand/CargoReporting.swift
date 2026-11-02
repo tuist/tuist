@@ -37,26 +37,24 @@ struct CargoReporting {
     func metadata() async -> [String: Any] {
         let ci = CIController().ciInfo()
         var result: [String: Any] = ["is_ci": ci != nil]
-        for (field, args) in [
-            ("git_branch", ["rev-parse", "--abbrev-ref", "HEAD"]),
-            ("git_commit_sha", ["rev-parse", "HEAD"]),
-            ("git_remote_url_origin", ["remote", "get-url", "origin"]),
-        ] {
-            result[field] = try? await process.capture("git", arguments: args, environment: environment, directory: directory)
+        // Concurrently: the build waits for none of them, but each costs a process start.
+        func capture(_ executable: String, _ arguments: [String]) async -> String? {
+            try? await process.capture(executable, arguments: arguments, environment: environment, directory: directory)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        async let branch = capture("git", ["rev-parse", "--abbrev-ref", "HEAD"])
+        async let commit = capture("git", ["rev-parse", "HEAD"])
+        async let origin = capture("git", ["remote", "get-url", "origin"])
+        async let rustVersion = capture("rustc", ["--version"])
+        result["git_branch"] = await branch
+        result["git_commit_sha"] = await commit
+        result["git_remote_url_origin"] = await origin
         result["ci_provider"] = ci.map { String(describing: $0.provider) }
         result["ci_run_id"] = ci?.runId
         result["ci_project_handle"] = ci?.projectHandle
         result["ci_host"] = ci?.host
         result["git_ref"] = environment["GITHUB_REF"] ?? environment["CI_COMMIT_REF_NAME"]
-        result["rust_version"] = try? await process.capture(
-            "rustc",
-            arguments: ["--version"],
-            environment: environment,
-            directory: directory
-        )
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+        result["rust_version"] = await rustVersion
         return result
     }
 

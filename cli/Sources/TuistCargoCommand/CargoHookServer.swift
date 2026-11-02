@@ -21,11 +21,15 @@ import TuistProcess
 /// pipelines dependents on rustc's metadata notification, which the server certifies first), then reports rustc's
 /// exit status for publication. A client that cannot reach the server runs `tuist cargo __compiler` instead.
 ///
-/// Frames are a tag byte and a little-endian 32-bit length. Client to server: `Q` request (working directory, then
-/// counted NUL-terminated arguments and environment), `o`/`e` compiler output, `x` exit status. Server to client: `O`/`E`
+/// Build-script shims start the same client as `cargo __script <script> <arguments>`, which sends an `S` request for
+/// the script's arguments, so a cached run replays without the Swift runtime too.
+///
+/// Frames are a tag byte and a little-endian 32-bit length. Client to server: `Q` compiler or `S` build-script request
+/// (working directory, then counted NUL-terminated arguments and environment), `o`/`e` compiler output, `x` exit status. Server
+/// to client: `O`/`E`
 /// output to write, `R` command to run (counted arguments and environment), `X` exit status to exit with, `F` fall back.
 final class CargoHookServer: @unchecked Sendable {
-    static let version = "tuist-cargo-hook-v1"
+    static let version = "tuist-cargo-hook-v2"
     static let socketVariable = "TUIST_CARGO_HOOK_SOCKET"
     static let fallbackVariable = "TUIST_CARGO_HOOK_FALLBACK"
 
@@ -146,41 +150,59 @@ final class CargoHookServer: @unchecked Sendable {
 
     private func serve(_ connection: Int32) {
         defer { close(connection) }
-        guard let (tag, payload) = Self.read(connection), tag == UInt8(ascii: "Q"),
+        guard let (tag, payload) = Self.read(connection), [UInt8(ascii: "Q"), UInt8(ascii: "S")].contains(tag),
               let request = Self.request(payload) else { return }
-        let observer = CargoCompilerObserver(runner: runner)
-        let decision = Self.wait {
-            try? await observer.decide(request.arguments, environment: request.environment, directory: request.directory)
-        }
-        switch decision {
-        case nil:
-            _ = Self.write(connection, "F", Data())
-        case let .replayed(stdout, stderr)?:
-            _ = Self.write(connection, "O", stdout) && Self.write(connection, "E", stderr)
-                && Self.write(connection, "X", Self.status(0))
-        case let .compile(compilation)?:
-            guard Self.write(connection, "R", Self.encode(
-                compilation.command, compilation.environment.map { "\($0.key)=\($0.value)" }
-            )) else {
-                Self.wait { await compilation.finish(succeeded: false) }
+        let run: (any CargoHookRun)?
+        if tag == UInt8(ascii: "S") {
+            // A build-script run: the shim passes the real script, then the script's own arguments.
+            switch Self.wait({ [runner] in
+                await CargoBuildScript.decide(
+                    real: request.arguments[0], arguments: Array(request.arguments.dropFirst()),
+                    environment: request.environment, directory: request.directory, runner: runner
+                )
+            }) {
+            case let .replayed(stdout, stderr):
+                _ = Self.write(connection, "O", stdout) && Self.write(connection, "E", stderr)
+                    && Self.write(connection, "X", Self.status(0))
                 return
+            case let .run(script): run = script
             }
-            var status: Int32 = 1
-            loop: while let (tag, bytes) = Self.read(connection) {
-                switch tag {
-                case UInt8(ascii: "o"): compilation.standardOutput(bytes)
-                case UInt8(ascii: "e"):
-                    guard Self.write(connection, "E", compilation.standardError(bytes)) else { break loop }
-                case UInt8(ascii: "x"):
-                    status = bytes.count == 4 ? bytes
-                        .withUnsafeBytes { Int32(littleEndian: $0.loadUnaligned(as: Int32.self)) } : 1
-                    break loop
-                default: break loop
-                }
+        } else {
+            let observer = CargoCompilerObserver(runner: runner)
+            switch Self.wait({
+                try? await observer.decide(request.arguments, environment: request.environment, directory: request.directory)
+            }) {
+            case nil: run = nil
+            case let .replayed(stdout, stderr)?:
+                _ = Self.write(connection, "O", stdout) && Self.write(connection, "E", stderr)
+                    && Self.write(connection, "X", Self.status(0))
+                return
+            case let .compile(compilation)?: run = compilation
             }
-            Self.wait { await compilation.finish(succeeded: status == 0) }
-            _ = Self.write(connection, "X", Self.status(status))
         }
+        guard let run else {
+            _ = Self.write(connection, "F", Data())
+            return
+        }
+        guard Self.write(connection, "R", Self.encode(run.command, run.environment.map { "\($0.key)=\($0.value)" })) else {
+            Self.wait { await run.finish(succeeded: false) }
+            return
+        }
+        var status: Int32 = 1
+        loop: while let (tag, bytes) = Self.read(connection) {
+            switch tag {
+            case UInt8(ascii: "o"): run.standardOutput(bytes)
+            case UInt8(ascii: "e"):
+                guard Self.write(connection, "E", run.standardError(bytes)) else { break loop }
+            case UInt8(ascii: "x"):
+                status = bytes.count == 4 ? bytes
+                    .withUnsafeBytes { Int32(littleEndian: $0.loadUnaligned(as: Int32.self)) } : 1
+                break loop
+            default: break loop
+            }
+        }
+        Self.wait { await run.finish(succeeded: status == 0) }
+        _ = Self.write(connection, "X", Self.status(status))
     }
 
     /// Runs async cache work from a hook's thread, which may block, without holding a cooperative thread meanwhile.
@@ -282,17 +304,23 @@ final class CargoHookServer: @unchecked Sendable {
     extern char **environ;
     static int sock = -1;
 
-    /* The Swift hook, or the compiler itself when there is none. */
+    /* `cargo __script <script> <arguments>`, as build-script shims start it, rather than `<rustc> <arguments>`. */
+    static int script = 0;
+
+    /* The Swift hook, or the compiler or script itself when there is none. */
     static void fallback(int argc, char **argv) {
         if (sock >= 0) close(sock);
         const char *tuist = getenv("TUIST_CARGO_HOOK_FALLBACK");
-        if (!tuist || !*tuist) { execvp(argv[1], argv + 1); _exit(127); }
+        if (!tuist || !*tuist) {
+            if (script) execv(argv[3], argv + 3); else execvp(argv[1], argv + 1);
+            _exit(127);
+        }
         char **arguments = calloc((size_t)argc + 3, sizeof(char *));
         if (!arguments) _exit(127);
-        arguments[0] = (char *)tuist;
-        arguments[1] = "cargo";
-        arguments[2] = "__compiler";
-        for (int i = 1; i < argc; i++) arguments[i + 2] = argv[i];
+        int count = 0;
+        arguments[count++] = (char *)tuist;
+        if (!script) { arguments[count++] = "cargo"; arguments[count++] = "__compiler"; }
+        for (int i = 1; i < argc; i++) arguments[count++] = argv[i];
         execv(tuist, arguments);
         _exit(127);
     }
@@ -437,6 +465,8 @@ final class CargoHookServer: @unchecked Sendable {
 
     int main(int argc, char **argv) {
         if (argc < 2) return 2;
+        script = argc >= 4 && strcmp(argv[1], "cargo") == 0 && strcmp(argv[2], "__script") == 0;
+        int first = script ? 3 : 1;
         /* Cargo passes loader variables such as DYLD_FALLBACK_LIBRARY_PATH. The shell wrapper this replaces never
            forwarded them (SIP removes them when /bin/sh starts), and caching bypasses compilations that carry them. */
         for (int found = 1; found;) {
@@ -469,13 +499,13 @@ final class CargoHookServer: @unchecked Sendable {
         char directory[4096];
         if (!getcwd(directory, sizeof(directory))) fallback(argc, argv);
         append_field(&request, directory);
-        append_count(&request, (size_t)argc - 1);
-        for (int i = 1; i < argc; i++) append_field(&request, argv[i]);
+        append_count(&request, (size_t)(argc - first));
+        for (int i = first; i < argc; i++) append_field(&request, argv[i]);
         size_t variables = 0;
         for (char **entry = environ; *entry; entry++) variables++;
         append_count(&request, variables);
         for (char **entry = environ; *entry; entry++) append_field(&request, *entry);
-        if (send_frame('Q', request.data, (uint32_t)request.length) != 0) fallback(argc, argv);
+        if (send_frame(script ? 'S' : 'Q', request.data, (uint32_t)request.length) != 0) fallback(argc, argv);
         int started = 0;
         char tag, *payload = NULL;
         uint32_t length = 0;

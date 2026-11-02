@@ -2,7 +2,7 @@
 """Recorded compilations and build-script runs through the public `tuist cargo` command, offline and local-only.
 
 The workspace has a proc macro reading an undeclared file and an environment variable, a library with a build
-script that uses it, and an application whose link is recorded as well. Strict admission rejects the library (it consumes a proc macro), so only
+script that uses it, and an application whose link is recorded as well, as is the build script's. Strict admission rejects the library (it consumes a proc macro), so only
 the read recorder can cache it. The build script stamps its output with the current time: a restored run keeps the
 cold build's stamp, and a rerun gets a new one. Every expected value is computed here, not taken from a build.
 """
@@ -91,6 +91,8 @@ try:
     assert value == 7 + 100 and tasks.get("base") == "hit" and tasks.get("macros") == "hit", tasks
     # The linked program is restored too, executable; every later scenario runs it, so a stale one fails its value.
     assert tasks.get("app") == "hit", tasks
+    # The build script's compilation is restored, then shimmed like a compiled one, so its run is restored as well.
+    assert tasks.get("build_script_build") == "hit", tasks
     assert stamp == cold, "warm: the build-script run must be restored, not rerun"
 
     (a / "value.txt").write_text("9\n")

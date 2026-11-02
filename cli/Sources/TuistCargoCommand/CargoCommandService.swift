@@ -137,7 +137,8 @@ public struct CargoCommandService {
     }
 
     private func decorate(_ context: CargoExecutionContext) async throws {
-        let metadata = await context.reporting.metadata()
+        // Only reports read the metadata, so its probes run alongside the build.
+        let metadata = Task { await context.reporting.metadata() }
         let innerWrapper = try CargoConfiguration.compilerWrapper(
             directory: URL(fileURLWithPath: context.directory.pathString),
             arguments: context.arguments,
@@ -165,11 +166,9 @@ public struct CargoCommandService {
             var hookServer: CargoHookServer?
             defer { hookServer?.stop() }
             if innerWrapper == nil, let directory = environment["TUIST_CARGO_CACHE_DIR"],
-               let built = CargoHookServer.client(cacheDirectory: URL(fileURLWithPath: directory)),
-               // Inside the session, like the shell wrapper it replaces, so build scripts that honor `RUSTC_WRAPPER`
-               // (cc-rs) recognize and drop it.
-               case let client = root.appendingPathComponent("rustc-observer"),
-               (try? FileManager.default.copyItem(at: built, to: client)) != nil,
+               // At its stable path in the cache: Cargo keys `.rustc_info.json` on the wrapper's path and modification
+               // time, so a per-session copy would make Cargo probe rustc again on every build.
+               let client = CargoHookServer.client(cacheDirectory: URL(fileURLWithPath: directory)),
                let fallback = try? CargoProcess.ownExecutable(), let server = CargoHookServer(runner: runner)
             {
                 server.start()
@@ -218,7 +217,10 @@ public struct CargoCommandService {
                     environment["RUSTC"] ?? "rustc", environment: environment, directory: directory, process: process
                 )
                 if let identity, let session = environment["TUIST_CARGO_SESSION"] {
-                    identity.prewarm(session: URL(fileURLWithPath: session))
+                    identity.prewarm(
+                        session: URL(fileURLWithPath: session),
+                        cache: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) }
+                    )
                 }
                 #if os(macOS)
                     _ = try? await CargoToolchainIdentity.linker(environment: environment, directory: directory, process: process)
@@ -236,7 +238,9 @@ public struct CargoCommandService {
                 // Recorded compilations and build-script runs need relocatable roots, so they share its scope.
                 if let library = CargoReadRecorder.prepare(cacheDirectory: unitCache.root) {
                     environment["TUIST_CARGO_RECORDER"] = library.path
-                    environment["TUIST_CARGO_SCRIPT"] = try? CargoProcess.ownExecutable()
+                    // Served sessions start build-script runs with the hook client as well.
+                    environment["TUIST_CARGO_SCRIPT"] = hookServer == nil ? try? CargoProcess.ownExecutable()
+                        : environment["RUSTC_WRAPPER"]
                 }
             }
             let manifest = await unitCache?.manifest()
@@ -265,7 +269,7 @@ public struct CargoCommandService {
                 try Task.checkCancellation()
                 defer { prefetch.cancel() }
                 do {
-                    try await executeSession(child, root: root, started: started, metadata: metadata)
+                    try await executeSession(child, root: root, started: started, metadata: { await metadata.value })
                 } catch {
                     await Self.publishDeferred(root: root, units: units)
                     throw error
@@ -292,7 +296,7 @@ public struct CargoCommandService {
         _ context: CargoExecutionContext,
         root: URL,
         started: Date,
-        metadata: [String: Any]
+        metadata: () async -> [String: Any]
     ) async throws {
         let invocation = CargoInvocation(context.arguments)
         var executionError: Error?
@@ -346,6 +350,7 @@ public struct CargoCommandService {
             }
         } catch { executionError = error }
         let finished = Date()
+        let metadata = await metadata()
         if context.shardOptions.isEmpty, invocation.reportsBuild, !invocation.executesTests || cargoTests != nil {
             await context.reporting.build(
                 root: root,

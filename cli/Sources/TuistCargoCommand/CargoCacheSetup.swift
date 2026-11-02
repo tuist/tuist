@@ -40,7 +40,13 @@ struct CargoCacheSetup {
             )).map { String(format: "%02x", $0) }.joined()
             let path = try cacheDirectoriesProvider.cacheDirectory(for: .cargo).appending(component: identity)
             try await fileSystem.makeDirectory(at: path)
-            try? await SupportCachePruner(cacheDirectoriesProvider: cacheDirectoriesProvider, fileSystem: fileSystem).prune()
+            // Walking every support cache costs more CPU than a warm build's own work, so a session prunes at most hourly.
+            let pruned = path.parentDirectory.appending(component: ".tuist-cargo-pruned")
+            let lastPruned = (try? FileManager.default.attributesOfItem(atPath: pruned.pathString))?[.modificationDate] as? Date
+            if Date().timeIntervalSince(lastPruned ?? .distantPast) >= 3600 {
+                try? await SupportCachePruner(cacheDirectoriesProvider: cacheDirectoriesProvider, fileSystem: fileSystem).prune()
+                try? Data().write(to: URL(fileURLWithPath: pruned.pathString))
+            }
             let cache = URL(fileURLWithPath: path.pathString)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: cache.path)
             var environment = context.environment.filter {

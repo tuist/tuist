@@ -109,60 +109,127 @@ enum CargoBuildScript {
 
     /// Runs the real build script at `real`, reusing an earlier run with the same inputs.
     static func run(
-        real: String, arguments: [String], environment inherited: [String: String], directory: AbsolutePath,
+        real: String, arguments: [String], environment: [String: String], directory: AbsolutePath,
         runner: CommandRunning
     ) async throws {
+        switch await decide(real: real, arguments: arguments, environment: environment, directory: directory, runner: runner) {
+        case let .replayed(stdout, stderr):
+            FileHandle.standardOutput.write(stdout)
+            FileHandle.standardError.write(stderr)
+        case let .run(run):
+            guard run.context != nil else {
+                try await CargoProcess(runner: runner)
+                    .execute(
+                        run.command[0],
+                        arguments: Array(run.command.dropFirst()),
+                        environment: run.environment,
+                        directory: directory
+                    )
+                return
+            }
+            var succeeded = false
+            defer { if !succeeded { run.discard() } }
+            for try await event in runner.run(arguments: run.command, environment: run.environment, workingDirectory: directory) {
+                switch event {
+                case let .standardOutput(bytes):
+                    FileHandle.standardOutput.write(Data(bytes))
+                    run.standardOutput(Data(bytes))
+                case let .standardError(bytes):
+                    FileHandle.standardError.write(run.standardError(Data(bytes)))
+                }
+            }
+            succeeded = true
+            await run.finish(succeeded: true)
+        }
+    }
+
+    enum Decision {
+        case replayed(stdout: Data, stderr: Data)
+        case run(Run)
+    }
+
+    /// Replays an earlier run with the same inputs, or says how to run the script so the run can be stored. Whoever
+    /// runs it (this process, or the hook client of a served session) feeds the run its output, then calls `finish`.
+    static func decide(
+        real: String, arguments: [String], environment inherited: [String: String], directory: AbsolutePath,
+        runner: CommandRunning
+    ) async -> Decision {
         var environment = inherited
         // The session's compiler wrapper starts unrecorded shells; probes that honor `RUSTC_WRAPPER` reach the same
         // compiler without it.
         if let wrapper = environment["RUSTC_WRAPPER"], let session = environment["TUIST_CARGO_SESSION"],
-           wrapper.hasPrefix(session + "/") { environment["RUSTC_WRAPPER"] = nil }
-        let process = CargoProcess(runner: runner)
+           wrapper.hasPrefix(session + "/") || wrapper == environment["TUIST_CARGO_SCRIPT"]
+        { environment["RUSTC_WRAPPER"] = nil }
+        let executable = URL(fileURLWithPath: real, relativeTo: URL(fileURLWithPath: directory.pathString)).path
         guard let context = try? await Context.make(
             real: real,
             arguments: arguments,
             environment: environment,
             directory: directory,
-            process: process
+            process: CargoProcess(runner: runner)
         )
-        else {
-            try await process.execute(real, arguments: arguments, environment: environment, directory: directory)
-            return
-        }
+        else { return .run(Run(command: [executable] + arguments, environment: environment, context: nil, log: nil)) }
         let remote = try? await CargoCompilerObserver.remote(environment)
         if let reads = await context.index.get(remote: remote),
            let key = try? context.key(reads),
-           await context.restore(key: key, remote: remote)
+           let (stdout, stderr) = await context.restore(key: key, remote: remote)
         {
             context.debug("restored build-script run")
-            return
+            return .replayed(stdout: stdout, stderr: stderr)
         }
         let log = context.session.appendingPathComponent("reads-\(UUID().uuidString).log")
-        defer { try? FileManager.default.removeItem(at: log) }
-        let started = Date()
-        var stdout = Data()
-        var stderr = Data()
-        var bounded = true
-        for try await event in runner.run(
-            // Started directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
-            arguments: [URL(fileURLWithPath: real, relativeTo: URL(fileURLWithPath: directory.pathString)).path] + arguments,
+        // Started directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
+        return .run(Run(
+            command: [executable] + arguments,
             environment: CargoReadRecorder.environment(
                 environment, library: context.recorder, log: log, toolchain: context.relocation.roots
                     .first(where: { $0.placeholder == "@@TUIST_SYSROOT@@" })?.path ?? ""
             ),
-            workingDirectory: directory
+            context: context, log: log, remote: remote
+        ))
+    }
+
+    /// A build-script run the cache missed, from its start to publication.
+    final class Run: CargoHookRun {
+        let command: [String]
+        let environment: [String: String]
+        let context: Context?
+        private let log: URL?
+        private let remote: (any REAPICacheStoring)?
+        private let started = Date()
+        private var stdout = Data()
+        private var stderr = Data()
+        private var bounded = true
+
+        init(
+            command: [String], environment: [String: String], context: Context?, log: URL?,
+            remote: (any REAPICacheStoring)? = nil
         ) {
-            switch event {
-            case let .standardOutput(bytes):
-                FileHandle.standardOutput.write(Data(bytes))
-                if stdout.count + bytes.count <= 16_000_000 { stdout.append(contentsOf: bytes) } else { bounded = false }
-            case let .standardError(bytes):
-                FileHandle.standardError.write(Data(bytes))
-                if stderr.count + bytes.count <= 16_000_000 { stderr.append(contentsOf: bytes) } else { bounded = false }
-            }
+            self.command = command
+            self.environment = environment
+            self.context = context
+            self.log = log
+            self.remote = remote
         }
-        guard bounded else { return }
-        await context.store(log: log, started: started, stdout: stdout, stderr: stderr, remote: remote)
+
+        func standardOutput(_ bytes: Data) {
+            if stdout.count + bytes.count <= 16_000_000 { stdout.append(bytes) } else { bounded = false }
+        }
+
+        func standardError(_ bytes: Data) -> Data {
+            if stderr.count + bytes.count <= 16_000_000 { stderr.append(bytes) } else { bounded = false }
+            return bytes
+        }
+
+        func finish(succeeded: Bool) async {
+            defer { discard() }
+            guard succeeded, bounded, let context, let log else { return }
+            await context.store(log: log, started: started, stdout: stdout, stderr: stderr, remote: remote)
+        }
+
+        func discard() {
+            if let log { try? FileManager.default.removeItem(at: log) }
+        }
     }
 
     struct Context {
@@ -256,13 +323,14 @@ enum CargoBuildScript {
             (try? REAPI.digest(file: blobPath(digest))) == digest
         }
 
-        func restore(key: REAPI.Digest, remote: (any REAPICacheStoring)?) async -> Bool {
-            guard let (_, _, action) = actionDigest(key) else { return false }
+        /// Restores the run's `OUT_DIR` and returns the output it printed.
+        func restore(key: REAPI.Digest, remote: (any REAPICacheStoring)?) async -> (Data, Data)? {
+            guard let (_, _, action) = actionDigest(key) else { return nil }
             let local = root.appendingPathComponent("script-actions/" + action.hash)
             var result = (try? Data(contentsOf: local)).flatMap { try? REAPI.ActionResult(serializedBytes: $0) }
             if result == nil, let remote { result = try? await remote.actionResult(for: action) }
             guard let result, result.exitCode == 0, let manifest = result.outputFiles.first, manifest.path == "outputs.json"
-            else { return false }
+            else { return nil }
             let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
             defer { try? FileManager.default.removeItem(at: staging) }
             try? FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
@@ -275,7 +343,7 @@ enum CargoBuildScript {
                       remote: remote
                   ),
                   let stdout = read(outputs.stdout), let stderr = read(outputs.stderr)
-            else { return false }
+            else { return nil }
             do {
                 // Into a fresh sibling first, so an interrupted restoration never leaves a partial `OUT_DIR`.
                 let next = outDirectory.deletingLastPathComponent().appendingPathComponent(".tuist-out-" + UUID().uuidString)
@@ -288,7 +356,7 @@ enum CargoBuildScript {
                     )
                 }
                 for file in outputs.files {
-                    guard let data = read(file) else { return false }
+                    guard let data = read(file) else { return nil }
                     let destination = next.appendingPathComponent(file.path)
                     try FileManager.default.createDirectory(
                         at: destination.deletingLastPathComponent(),
@@ -300,15 +368,13 @@ enum CargoBuildScript {
                     )
                 }
                 guard (try? FileManager.default.contentsOfDirectory(atPath: outDirectory.path))?.isEmpty ?? true
-                else { return false }
+                else { return nil }
                 try? FileManager.default.removeItem(at: outDirectory)
                 try FileManager.default.moveItem(at: next, to: outDirectory)
-            } catch { return false }
+            } catch { return nil }
             try? write(result.serializedData(), to: local)
             CargoCacheJournal.use("script-actions/" + action.hash, environment: environment)
-            FileHandle.standardOutput.write(stdout)
-            FileHandle.standardError.write(stderr)
-            return true
+            return (stdout, stderr)
         }
 
         private func read(_ file: Outputs.File) -> Data? {

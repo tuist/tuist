@@ -9,10 +9,20 @@ final class CargoReplay {
     var stderr = Data()
 }
 
+/// A process a hook runs for the cache: whoever runs `command` feeds the run its output, forwards the standard error
+/// `standardError` returns, then calls `finish`.
+protocol CargoHookRun: AnyObject {
+    var command: [String] { get }
+    var environment: [String: String] { get }
+    func standardOutput(_ bytes: Data)
+    func standardError(_ bytes: Data) -> Data
+    func finish(succeeded: Bool) async
+}
+
 /// A compilation the cache missed, from the compiler's start to publication. Whoever runs `command` (this process, or
 /// the hook client of a served session, which keeps Cargo's jobserver and stdio) feeds it the compiler's output and
 /// forwards the standard error `standardError` returns, then calls `finish`.
-final class CargoCompilerRun {
+final class CargoCompilerRun: CargoHookRun {
     let command: [String]
     let environment: [String: String]
     private let arguments: [String]
@@ -80,9 +90,14 @@ final class CargoCompilerRun {
         let observer = CargoCompilerObserver(runner: runner)
         observer.record(arguments, environment: hookEnvironment, started: started, failed: !succeeded, diagnostics: diagnostics)
         guard succeeded else { return }
+        await store()
+        // After storing: the stored outputs are the compiled build script, never the shim that replaces it.
         if !native { try? await CargoBuildScript.install(
             arguments, environment: hookEnvironment, directory: directory, process: CargoProcess(runner: runner)
         ) }
+    }
+
+    private func store() async {
         guard bounded, let root = hookEnvironment["TUIST_CARGO_CACHE_DIR"] else { return }
         var refreshed = strict ? invocation : nil
         if let rust = refreshed as? CargoCacheInvocation { refreshed = await rust.refreshed(remote: remote) }

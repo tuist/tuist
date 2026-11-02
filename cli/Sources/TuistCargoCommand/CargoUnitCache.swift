@@ -38,6 +38,9 @@ struct CargoUnitCache {
         /// Per-crate cache entries (cache-relative index files) recent builds used, newest first: the next build fetches
         /// the missing ones and their outputs while Cargo works through dependencies, like blaze's project list.
         var files: [IndexFile]?
+        /// Cargo's `target/.rustc_info.json`, its record of rustc's `-vV` and `--print` answers. Cargo checks it against
+        /// the compiler it runs and ignores a record for another one; restored, it saves Cargo starting rustc for them.
+        var rustcInfo: String?
     }
 
     struct IndexFile: Codable, Equatable {
@@ -248,6 +251,11 @@ extension CargoUnitCache {
             debug("no dependency unit manifest")
             return Restored()
         }
+        let probes = targetDirectory.appendingPathComponent(".rustc_info.json")
+        if let rustcInfo = manifest.rustcInfo, !FileManager.default.fileExists(atPath: probes.path) {
+            try? FileManager.default.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
+            try? Data(rustcInfo.utf8).write(to: probes, options: .atomic)
+        }
         let missing = manifest.units.filter {
             Self.isSafe($0) && Set($0.bound ?? []).isSubset(of: relocation.roots.map(\.path))
                 && ($0.package.map(lockedPackages.contains) ?? true)
@@ -371,14 +379,19 @@ extension CargoUnitCache {
     }
 
     /// Runs `body` over `items` on all cores, keeping their order.
+    /// Runs `body` on four threads: the work is file system calls into a few shared directories, and APFS serializes
+    /// those, so more threads spend several times the kernel time for little or no gain in wall time.
     static func concurrentMap<T, R>(_ items: [T], _ body: (T) -> R) -> [R] {
         var results = [R?](repeating: nil, count: items.count)
         let lock = NSLock()
-        DispatchQueue.concurrentPerform(iterations: items.count) { index in
-            let result = body(items[index])
-            lock.lock()
-            results[index] = result
-            lock.unlock()
+        let width = min(4, items.count)
+        DispatchQueue.concurrentPerform(iterations: width) { worker in
+            for index in stride(from: worker, to: items.count, by: width) {
+                let result = body(items[index])
+                lock.lock()
+                results[index] = result
+                lock.unlock()
+            }
         }
         return results.map { $0! }
     }
@@ -412,41 +425,42 @@ extension CargoUnitCache {
     }
 
     /// Writes a unit's outputs before its fingerprint, so an interrupted restoration leaves a unit Cargo rebuilds.
+    /// A destination the target directory lacks is cloned in place with POSIX calls: restoration runs on every warm
+    /// build, and Foundation's copy, attribute, and move calls cost several times the syscalls a clone needs.
     private func materialize(_ unit: Unit, at date: Date) -> Bool {
+        let verifier = CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified"))
         let ordered = unit.files.filter { !$0.path.hasPrefix(".fingerprint/") } + unit.files
             .filter { $0.path.hasPrefix(".fingerprint/") }
+        var times = [timespec](repeating: timespec(tv_sec: Int(date.timeIntervalSince1970), tv_nsec: 0), count: 2)
         do {
-            for directory in unit.directories {
+            var created = Set<String>()
+            for directory in unit.directories + ordered.map({ ($0.path as NSString).deletingLastPathComponent }) {
+                guard created.insert(directory).inserted else { continue }
                 try FileManager.default.createDirectory(
                     at: profile.appendingPathComponent(directory), withIntermediateDirectories: true
                 )
             }
+            var marked = Set<REAPI.Digest>()
             for file in ordered {
-                let destination = profile.appendingPathComponent(file.path)
-                try FileManager.default.createDirectory(
-                    at: destination.deletingLastPathComponent(), withIntermediateDirectories: true
-                )
-                let temporary = destination.deletingLastPathComponent().appendingPathComponent(".tuist-" + UUID().uuidString)
-                try FileManager.default.copyItem(at: blobPath(file.digest), to: temporary)
-                markUsed(file.digest)
-                guard try REAPI.digest(file: temporary) == file.digest else {
-                    try? FileManager.default.removeItem(at: temporary)
-                    throw REAPICacheError.corruptBlob
+                let blob = blobPath(file.digest)
+                if marked.insert(file.digest).inserted { markUsed(file.digest) }
+                // The blob is verified, not its clone: a clone shares the blob's content. Its digest is recorded with
+                // the blob's identity, so an unchanged blob is not hashed again; any write to it changes that identity.
+                guard try verifier.digest(blob, shared: true) == file.digest else { throw REAPICacheError.corruptBlob }
+                let destination = profile.appendingPathComponent(file.path).path
+                if !Self.clone(blob.path, to: destination) {
+                    let temporary = (destination as NSString).deletingLastPathComponent + "/.tuist-" + UUID().uuidString
+                    try FileManager.default.copyItem(atPath: blob.path, toPath: temporary)
+                    guard rename(temporary, destination) == 0 else {
+                        unlink(temporary)
+                        throw CocoaError(.fileWriteUnknown)
+                    }
                 }
-                try FileManager.default.setAttributes(
-                    [.posixPermissions: file.executable ? 0o755 : 0o644, .modificationDate: date],
-                    ofItemAtPath: temporary.path
-                )
-                if FileManager.default.fileExists(atPath: destination.path) {
-                    try FileManager.default.removeItem(at: destination)
-                }
-                try FileManager.default.moveItem(at: temporary, to: destination)
+                guard chmod(destination, file.executable ? 0o755 : 0o644) == 0,
+                      utimensat(AT_FDCWD, destination, &times, 0) == 0
+                else { throw CocoaError(.fileWriteUnknown) }
                 if file.certified == true, let proof = CargoCacheInputs.proofPath(file.digest, environment: environment) {
-                    try? FileManager.default.createDirectory(
-                        at: proof.deletingLastPathComponent(),
-                        withIntermediateDirectories: true
-                    )
-                    try? Data(CargoCacheInvocation.keyVersion.utf8).write(to: proof, options: .atomic)
+                    Self.writeProof(proof)
                 }
             }
             return true
@@ -455,6 +469,29 @@ extension CargoUnitCache {
             debug("unit \(unit.name) was not restored: \(error)")
             return false
         }
+    }
+
+    /// Records a proof once. Proofs are written whole by `open(O_EXCL)` and `write`, then never change: a reader
+    /// that sees a partial one only declines to trust the artifact.
+    private static func writeProof(_ proof: URL) {
+        var descriptor = open(proof.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o644)
+        if descriptor < 0, errno == ENOENT {
+            try? FileManager.default.createDirectory(at: proof.deletingLastPathComponent(), withIntermediateDirectories: true)
+            descriptor = open(proof.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o644)
+        }
+        guard descriptor >= 0 else { return }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        try? handle.write(contentsOf: Data(CargoCacheInvocation.keyVersion.utf8))
+    }
+
+    /// Clones `source` to an absent `destination`. Returns false when the destination exists or the file system cannot
+    /// clone, and the caller copies instead.
+    private static func clone(_ source: String, to destination: String) -> Bool {
+        #if canImport(Darwin)
+            return clonefile(source, destination, UInt32(CLONE_NOFOLLOW)) == 0
+        #else
+            return false
+        #endif
     }
 
     private static func isSafe(_ unit: Unit) -> Bool {
@@ -498,7 +535,9 @@ extension CargoUnitCache {
         let files = (usedFiles + restored.files.filter { !usedPaths.contains($0.path) && !isUnitOutput($0, unitOutputs) })
             .prefix(Self.maximumIndexFiles)
         guard !units.isEmpty || !files.isEmpty else { return }
-        let manifest = Manifest(units: Array(units), files: files.isEmpty ? nil : Array(files))
+        let rustcInfo = (try? Data(contentsOf: targetDirectory.appendingPathComponent(".rustc_info.json")))
+            .flatMap { $0.count <= 1_000_000 ? String(data: $0, encoding: .utf8) : nil }
+        let manifest = Manifest(units: Array(units), files: files.isEmpty ? nil : Array(files), rustcInfo: rustcInfo)
         guard let data = try? JSONEncoder().encode(manifest), data.count <= 64_000_000 else { return }
         let digest = REAPI.digest(data)
         var result = REAPI.ActionResult()
@@ -753,11 +792,18 @@ extension CargoUnitCache {
         let destination = blobPath(digest)
         if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
         try FileManager.default.moveItem(at: temporary, to: destination)
+        // The blob was just hashed: restoration verifies it through this record instead of hashing it again.
+        CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified")).remember(destination, digest: digest)
         return digest
     }
 
+    /// Keeps a blob recent for pruning. Only marks older than an hour are renewed, so an unchanged blob keeps the
+    /// identity its verified digest is recorded with.
     private func markUsed(_ digest: REAPI.Digest) {
-        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: blobPath(digest).path)
+        let path = blobPath(digest).path
+        guard let modified = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date,
+              Date().timeIntervalSince(modified) > 3600 else { return }
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: path)
     }
 
     private func write(_ data: Data, to file: URL) throws {

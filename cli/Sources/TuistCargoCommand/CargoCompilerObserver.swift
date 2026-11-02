@@ -97,6 +97,7 @@ struct CargoCompilerObserver {
         if !deferred, let cache, try await cache.restoreLocally() {
             measurement?.outcome(hit: true)
             measurement?.write()
+            await installBuildScript(arguments, environment: environment, directory: directory, native: native)
             return .replayed(stdout: replayed.stdout, stderr: replayed.stderr)
         }
         if cache != nil || recorded != nil, !remoteResolved {
@@ -106,6 +107,7 @@ struct CargoCompilerObserver {
         if !deferred, let cache, try await cache.restoreRemotely() {
             measurement?.outcome(hit: true)
             measurement?.write()
+            await installBuildScript(arguments, environment: environment, directory: directory, native: native)
             return .replayed(stdout: replayed.stdout, stderr: replayed.stderr)
         }
         try Task.checkCancellation()
@@ -146,6 +148,19 @@ struct CargoCompilerObserver {
             directory: directory, native: native, runner: runner, invocation: invocation, recorded: recorded,
             cache: cache, measurement: measurement, remote: remote, log: log, strict: strict
         ))
+    }
+
+    /// A restored build script is shimmed as a compiled one is, so its run is cached as well.
+    private func installBuildScript(_ arguments: [String], environment: [String: String], directory: AbsolutePath, native: Bool)
+        async
+    {
+        guard !native else { return }
+        try? await CargoBuildScript.install(
+            arguments,
+            environment: environment,
+            directory: directory,
+            process: CargoProcess(runner: runner)
+        )
     }
 
     private static func executablePath(_ executable: String, environment: [String: String], directory: AbsolutePath) -> String {

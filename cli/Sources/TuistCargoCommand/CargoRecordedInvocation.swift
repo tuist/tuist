@@ -77,9 +77,9 @@ struct CargoRecordedInvocation: CargoCacheAction {
             #endif
         case "bin":
             // Linking reads every rlib of the dependency closure through `-L dependency=`, which the read set records.
-            // Build scripts stay out: `CargoBuildScript` replaces their binary with a shim after compiling them.
+            // A build script's binary is stored before `CargoBuildScript` replaces it with a shim, and a hit installs one.
             #if os(macOS)
-                guard emitted == ["dep-info", "link"], !name.hasPrefix("build_script_") else { return nil }
+                guard emitted == ["dep-info", "link"] else { return nil }
                 files = ["\(name)\(suffix)", "\(name)\(suffix).d"]
             #else
                 return nil
@@ -259,8 +259,23 @@ struct CargoToolchainIdentity: Codable {
     /// Hashes the files strict keys take from the toolchain (top-level `lib`, the host target tree without `bin`, the
     /// compiler) into the session's shared records, so the first wave of compilers finds them instead of queueing
     /// behind one of them on the session lock. Each hook still checks every file's identity before reusing a record.
-    func prewarm(session: URL) {
-        let hasher = CargoInputHasher(sessionDirectory: session)
+    func prewarm(session: URL, cache: URL?) {
+        // Toolchains do not change between builds, so their records persist in the cache and every session starts
+        // from a copy. Each record is still checked against its file's identity before it is used.
+        let records = cache?.appendingPathComponent("toolchain")
+        let hasher = CargoInputHasher(sessionDirectory: records ?? session)
+        defer {
+            if let records {
+                let from = records.appendingPathComponent("input-digests-v1")
+                let to = session.appendingPathComponent("input-digests-v1")
+                try? FileManager.default.createDirectory(at: to, withIntermediateDirectories: true)
+                for name in (try? FileManager.default.contentsOfDirectory(atPath: from.path)) ?? []
+                    where !name.hasSuffix(".lock")
+                {
+                    try? FileManager.default.copyItem(at: from.appendingPathComponent(name), to: to.appendingPathComponent(name))
+                }
+            }
+        }
         let libraries = sysroot.appendingPathComponent("lib")
         let host = URL(fileURLWithPath: targetLibdirPath).standardizedFileURL.deletingLastPathComponent()
         _ = try? hasher.withSharedDigests(under: libraries) {

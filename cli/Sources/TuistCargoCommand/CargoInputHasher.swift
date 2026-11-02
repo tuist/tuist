@@ -69,6 +69,17 @@ final class CargoInputHasher {
         return digest
     }
 
+    /// Records a digest computed elsewhere (a blob hashed as it was stored) for the file's current identity, so later
+    /// sessions reuse it without hashing the file again.
+    func remember(_ file: URL, digest: REAPI.Digest) {
+        guard let sharedDirectory, let identity = try? identify(file), identity.precise,
+              let data = try? JSONEncoder().encode(Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes))
+        else { return }
+        let memo = sharedDirectory.appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash)
+        try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
+        try? data.write(to: memo, options: .atomic)
+    }
+
     private func readEntry(_ file: URL) throws -> Entry {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
