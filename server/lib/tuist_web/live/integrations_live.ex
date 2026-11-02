@@ -308,6 +308,13 @@ defmodule TuistWeb.IntegrationsLive do
            |> assign_bitrise()
            |> push_event("close-modal", %{id: "add-bitrise-pool-modal"})}
 
+        {:error, :no_connection} ->
+          {:noreply,
+           socket
+           |> assign(bitrise_pool_error: nil)
+           |> assign_bitrise()
+           |> push_event("close-modal", %{id: "add-bitrise-pool-modal"})}
+
         {:error, :unknown_profile} ->
           {:noreply,
            assign(socket, bitrise_pool_error: dgettext("dashboard_integrations", "Choose one of your Tuist profiles."))}

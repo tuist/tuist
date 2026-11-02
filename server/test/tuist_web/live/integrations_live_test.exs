@@ -1272,6 +1272,31 @@ defmodule TuistWeb.IntegrationsLiveTest do
       html = render_click(lv, "close-add-bitrise-pool-modal", %{})
       refute html =~ "Choose a runner pool and paste its pool token."
     end
+
+    test "shows the card disconnected when Bitrise was disconnected elsewhere", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:ok, [%{slug: "a1", name: "Acme"}]} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "bitwat_private")
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:error, {:transport, :timeout}} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      render_async(lv)
+      :ok = Bitrise.delete_connection(account.id)
+
+      label = account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1) |> List.first()
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{
+          stack_identifier: "agent-pool-a0c641c0",
+          profile_label: label,
+          intro_secret: "bitrise-private-intro"
+        })
+        |> render_submit()
+
+      refute html =~ "Choose a runner pool and paste its pool token."
+      assert has_element?(lv, "#connect-bitrise-form")
+      refute has_element?(lv, "#bitrise-pools")
+    end
   end
 
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do
