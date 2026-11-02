@@ -461,7 +461,7 @@ msgid "This stops new work and pauses this integration’s running Orbs. Saved d
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:894
-#: lib/tuist_web/live/integrations_live.html.heex:1007
+#: lib/tuist_web/live/integrations_live.html.heex:1010
 #, elixir-autogen, elixir-format
 msgid "API token"
 msgstr ""
@@ -486,11 +486,6 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.ex:1117
 #, elixir-autogen, elixir-format
 msgid "Pool token"
-msgstr ""
-
-#: lib/tuist_web/live/integrations_live.html.heex:976
-#, elixir-autogen, elixir-format
-msgid "Remove"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:935
@@ -543,7 +538,7 @@ msgstr ""
 msgid "In Bitrise, open Workspace settings, then Security, and create a workspace API token with the Viewer role and Tester/QA access to Bitrise CI. Tuist only uses it to read your builds."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:986
+#: lib/tuist_web/live/integrations_live.html.heex:989
 #, elixir-autogen, elixir-format
 msgid "Loading runner pools from Bitrise…"
 msgstr ""
@@ -605,12 +600,12 @@ msgstr ""
 msgid "Workspace"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:1009
+#: lib/tuist_web/live/integrations_live.html.heex:1012
 #, elixir-autogen, elixir-format
 msgid "Paste a new token to replace the stored one. It must belong to the same workspace."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:1022
+#: lib/tuist_web/live/integrations_live.html.heex:1025
 #, elixir-autogen, elixir-format
 msgid "Update token"
 msgstr ""
@@ -626,7 +621,7 @@ msgid "Add a runner pool"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.ex:1012
-#: lib/tuist_web/live/integrations_live.html.heex:991
+#: lib/tuist_web/live/integrations_live.html.heex:994
 #, elixir-autogen, elixir-format
 msgid "No runner pools are paired yet."
 msgstr ""
@@ -634,4 +629,9 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.ex:1030
 #, elixir-autogen, elixir-format
 msgid "Pair a Bitrise runner pool with the Tuist profile its builds should run on."
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:979
+#, elixir-autogen, elixir-format
+msgid "Remove pool"
 msgstr ""

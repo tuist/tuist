@@ -973,12 +973,15 @@
         <span data-part="profile">{pool.profile_label}</span>
         <.button
           type="button"
-          label={dgettext("dashboard_integrations", "Remove")}
           variant="secondary"
           size="small"
+          icon_only
+          aria-label={dgettext("dashboard_integrations", "Remove pool")}
           phx-click="remove-bitrise-pool"
           phx-value-id={pool.id}
-        />
+        >
+          <.trash />
+        </.button>
       </div>
       <.async_result :let={available} assign={@bitrise_available_pools}>
         <:loading>

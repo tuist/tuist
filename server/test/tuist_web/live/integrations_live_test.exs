@@ -1226,7 +1226,10 @@ defmodule TuistWeb.IntegrationsLiveTest do
       refute html =~ "Reload pools"
       refute has_element?(lv, "#add-bitrise-pool-modal")
 
-      lv |> element("#bitrise-pool-#{pool_id} button[phx-click=remove-bitrise-pool]") |> render_click()
+      lv
+      |> element(~s(#bitrise-pool-#{pool_id} button[phx-click=remove-bitrise-pool][aria-label="Remove pool"]))
+      |> render_click()
+
       assert Bitrise.list_pools(account.id) == []
 
       lv |> element("button[phx-click=disconnect-bitrise]") |> render_click()
