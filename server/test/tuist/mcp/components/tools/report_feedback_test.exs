@@ -2,6 +2,7 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.ReportFeedback
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -43,6 +44,28 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
              "category" => "missing_data",
              "tuist_user_id" => to_string(user.id)
            }
+  end
+
+  test "accepts reports from OAuth sessions, which authenticate as an account subject" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    subject = %AuthenticatedAccount{account: user.account, scopes: ["mcp"], all_projects: true, issued_by: user}
+    stub(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 201, body: %{"id" => "thread-1"}}} end)
+
+    result =
+      ReportFeedback.call(%Plug.Conn{assigns: %{current_subject: subject, current_user: user}}, @arguments)
+
+    assert %{"structuredContent" => %{"feedback_id" => "thread-1"}} = result
+  end
+
+  test "refuses account subjects without a signed-in user, such as unclaimed agent registrations" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    subject = %AuthenticatedAccount{account: user.account, scopes: ["mcp"], issued_by: user}
+    reject(&Req.post/2)
+
+    assert %{"isError" => true, "content" => [%{"text" => text}]} =
+             ReportFeedback.call(%Plug.Conn{assigns: %{current_subject: subject}}, @arguments)
+
+    assert text =~ "signed in as a Tuist user"
   end
 
   test "refuses reports from project tokens, which have no email to reply to" do

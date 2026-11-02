@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedback do
     name: "report_feedback",
     title: "Report Feedback",
     read_only_hint: false,
+    open_world_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -50,7 +51,6 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedback do
       "additionalProperties" => false
     }
 
-  alias Tuist.MCP.Authorization
   alias Tuist.MCP.Feedback
 
   @impl EMCP.Tool
@@ -58,12 +58,15 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedback do
     "Report to the Tuist team when a Tuist MCP tool or prompt did not work the way you expected: " <>
       "a confusing or wrong result, an error, missing data, an unclear parameter, or a capability you " <>
       "needed but could not find. Do not report mistakes in your own arguments or missing permissions. " <>
-      "Send one report per distinct problem. The report opens a conversation with Tuist support, who may " <>
-      "reply to the user by email, so tell the user you sent it. Do not include source code, secrets, " <>
-      "or personal data."
+      "Suggest the report to the user and send it only once they agree. Send one report per distinct " <>
+      "problem. The report opens a conversation with Tuist support, who may reply to the user by email. " <>
+      "Do not include source code, secrets, or personal data."
   end
 
+  # OAuth and claimed auth.md sessions authenticate as an account subject and
+  # carry the user who authorized them in `current_user`. Unclaimed agent
+  # registrations never get a `current_user`, so they cannot report.
   def execute(conn, arguments) do
-    Feedback.report(arguments, Authorization.authenticated_subject(conn.assigns))
+    Feedback.report(arguments, conn.assigns[:current_user])
   end
 end
