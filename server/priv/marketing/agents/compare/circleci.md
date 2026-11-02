@@ -32,6 +32,6 @@ Sources checked on **2026-10-08**: CircleCI's [Test Insights](https://circleci.c
 
 ## Limitations
 
-Test frameworks, plan availability, scheduling mechanisms, and detection definitions differ. Parallel execution does not guarantee lower total cost. Tuist selective testing requires generated Xcode projects and does not currently cover Gradle or Bazel; Elixir quarantine is not applied yet. Public source does not imply uniform licenses or unrestricted self-hosting. Tuist Runners are invite-only with no public pricing; no universal speed or cost advantage is established.
+Test frameworks, plan availability, scheduling mechanisms, and detection definitions differ. Parallel execution does not guarantee lower total cost. Tuist selective testing requires generated Xcode projects and does not currently cover Gradle or Bazel; Elixir quarantine is not applied yet. Public source does not imply uniform licenses or unrestricted self-hosting. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No universal speed or cost advantage is established.
 
 Related: [Buildkite](/marketing-markdown/compare/buildkite), [Develocity](/marketing-markdown/compare/develocity), and [all comparisons](/marketing-markdown/compare).
