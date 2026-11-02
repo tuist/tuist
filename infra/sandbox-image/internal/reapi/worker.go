@@ -79,7 +79,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	if err := w.validate(&action, &command); err != nil {
 		return nil, false, err
 	}
-	if err := os.Mkdir(w.Root, 0755); err != nil {
+	if err := os.Mkdir(w.Root, 0755); err != nil && !(os.IsExist(err) && emptyDirectory(w.Root)) {
 		return nil, false, err
 	}
 	root, err := os.OpenRoot(w.Root)
@@ -639,4 +639,20 @@ func commandPath(program string, env []string, cwd string) (string, error) {
 		}
 	}
 	return "", status.Error(codes.InvalidArgument, fmt.Sprintf("executable %q is absent from action PATH", program))
+}
+
+// A prepared VM may already hold the action root, created empty so its
+// filesystem metadata is warm. Anything else in its place is refused.
+func emptyDirectory(p string) bool {
+	info, err := os.Lstat(p)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	_, err = f.Readdirnames(1)
+	return err == io.EOF
 }

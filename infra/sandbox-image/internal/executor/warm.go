@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -19,16 +20,24 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const warmRoot = "/workspace/warm"
+const actionRoot = "/workspace/action"
 
 // A guest restored from the template snapshot faults in every page on first
 // touch. Preparation executes one throwaway action through the worker, before
 // any credential or input exists, so the admitted action does not pay for
 // that. The action's CAS is an in-process server on loopback; nothing leaves
 // the guest. It is best-effort.
+//
+// It runs inside the empty action root, created here: ext4 spreads top-level
+// directories across block groups, so a root created by the action itself
+// would usually land in a group whose metadata the guest has not read yet.
 func warm(ctx context.Context) {
-	_, _ = warmAction(ctx, warmRoot, &syscall.Credential{Uid: 1000, Gid: 1000}, startWithoutNewPrivileges)
-	_ = os.RemoveAll(warmRoot)
+	if err := os.Mkdir(actionRoot, 0o755); err != nil {
+		return
+	}
+	scratch := filepath.Join(actionRoot, "warm")
+	_, _ = warmAction(ctx, scratch, &syscall.Credential{Uid: 1000, Gid: 1000}, startWithoutNewPrivileges)
+	_ = os.RemoveAll(scratch)
 }
 
 func warmAction(ctx context.Context, root string, credential *syscall.Credential, start func(*exec.Cmd) error) (*re.ExecuteResponse, error) {

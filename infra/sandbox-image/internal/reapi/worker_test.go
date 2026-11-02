@@ -561,3 +561,35 @@ func TestOutputUploadsAllowDeferredDurability(t *testing.T) {
 		t.Fatalf("output upload durability header = %v", got)
 	}
 }
+
+func TestPreparedEmptyRootIsUsed(t *testing.T) {
+	w, m := harness(t)
+	if err := os.Mkdir(w.Root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d := action(t, m, "printf a > a", &re.Directory{}, []string{"a"})
+	if response, _ := w.Execute(context.Background(), d); response.Status.Code != 0 {
+		t.Fatalf("execution: %v", response)
+	}
+}
+
+func TestOccupiedRootIsRefused(t *testing.T) {
+	for _, prepare := range []func(root string) error{
+		func(root string) error {
+			if err := os.Mkdir(root, 0o755); err != nil {
+				return err
+			}
+			return os.WriteFile(filepath.Join(root, "left-behind"), nil, 0o644)
+		},
+		func(root string) error { return os.Symlink(t.TempDir(), root) },
+	} {
+		w, m := harness(t)
+		if err := prepare(w.Root); err != nil {
+			t.Fatal(err)
+		}
+		d := action(t, m, "printf a > a", &re.Directory{}, []string{"a"})
+		if response, _ := w.Execute(context.Background(), d); response.Status.Code == 0 {
+			t.Fatalf("an occupied root was used: %v", response)
+		}
+	}
+}
