@@ -125,8 +125,8 @@ retained Linux shard archives totalled 215.6 GiB and the largest rolling 72-hour
 window was 55.7 GiB. Compare retained bytes and daily upload volume with the
 window before widening enrollment.
 
-Staging's existing singleton runs on a shared Kura host in the
-`kura-ovh-gra-runners` pool and continues under its current policy. A fresh
+Staging's existing singleton shares the EU-West Kura host in the `kura-dedibox`
+pool, so EU-West capacity admission counts its reservation. A fresh
 parallel staging store needs its own capacity while old artifacts drain.
 
 Production uses the dedicated ADVANCE-4 `ns3027117.ip-91-134-8.eu` in
