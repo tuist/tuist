@@ -21,6 +21,41 @@ final class CargoInputHasher {
         let size: Int64
     }
 
+    /// The session's shared records as this process last read or wrote them. Compiler hooks are served from one
+    /// process, so each record file is read once rather than decoded (and large inputs locked) on every lookup; the
+    /// files remain for hooks in other processes and for records kept across sessions.
+    private final class ProcessRecords: @unchecked Sendable {
+        let lock = NSLock()
+        var files: [String: Entry] = [:]
+        var trees: [String: [String: Entry]] = [:]
+
+        func file(_ memo: URL) -> Entry? {
+            lock.lock()
+            defer { lock.unlock() }
+            return files[memo.path]
+        }
+
+        func setFile(_ memo: URL, _ entry: Entry) {
+            lock.lock()
+            files[memo.path] = entry
+            lock.unlock()
+        }
+
+        func tree(_ memo: URL) -> [String: Entry]? {
+            lock.lock()
+            defer { lock.unlock() }
+            return trees[memo.path]
+        }
+
+        func setTree(_ memo: URL, _ records: [String: Entry]) {
+            lock.lock()
+            trees[memo.path] = records
+            lock.unlock()
+        }
+    }
+
+    private static let processRecords = ProcessRecords()
+
     private let identify: (URL) throws -> Identity
     private let hashFile: (URL) throws -> REAPI.Digest
     private let sharedDirectory: URL?
@@ -43,6 +78,11 @@ final class CargoInputHasher {
         if before.precise, let (identity, digest) = entries[file], identity == before { return digest }
         let memo = shared && before.precise ? sharedDirectory?
             .appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash) : nil
+        if let memo, let entry = Self.processRecords.file(memo), entry.identity == before {
+            let digest = REAPI.Digest.with { $0.hash = entry.hash; $0.sizeBytes = entry.size }
+            entries[file] = (before, digest)
+            return digest
+        }
         // Cargo starts many compilers at once: without this lock, each one hashes a large shared input such as
         // `librustc_driver` before any of them has recorded its digest.
         var lock: Int32 = -1
@@ -56,15 +96,18 @@ final class CargoInputHasher {
             let digest = REAPI.Digest.with { $0.hash = entry.hash; $0.sizeBytes = entry.size }
             if (try? REAPI.validate(digest)) != nil, try identify(file) == before {
                 entries[file] = (before, digest)
+                Self.processRecords.setFile(memo, entry)
                 return digest
             }
         }
         let digest = try hashFile(file)
         guard try identify(file) == before else { throw CargoCacheInvocation.CacheError.unsupported }
         if before.precise { entries[file] = (before, digest) }
-        if let memo, let data = try? JSONEncoder().encode(Entry(identity: before, hash: digest.hash, size: digest.sizeBytes)) {
+        let entry = Entry(identity: before, hash: digest.hash, size: digest.sizeBytes)
+        if let memo, let data = try? JSONEncoder().encode(entry) {
             try? FileManager.default.createDirectory(at: memo.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: memo, options: .atomic)
+            Self.processRecords.setFile(memo, entry)
         }
         return digest
     }
@@ -78,6 +121,7 @@ final class CargoInputHasher {
         let memo = sharedDirectory.appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash)
         try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
         try? data.write(to: memo, options: .atomic)
+        Self.processRecords.setFile(memo, Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes))
     }
 
     private func readEntry(_ file: URL) throws -> Entry {
@@ -90,13 +134,22 @@ final class CargoInputHasher {
     func withSharedDigests<T>(under root: URL, body: () throws -> T) throws -> T {
         guard let sharedDirectory, loadedTrees.insert(root).inserted else { return try body() }
         let memo = sharedDirectory.appendingPathComponent("tree-" + REAPI.digest(Data(root.path.utf8)).hash)
+        let prefix = root.path + "/"
+        // Already read or written by this process: the records seed identity checks, and the file is rewritten only
+        // when they change.
+        if let known = Self.processRecords.tree(memo) {
+            load(known, prefix: prefix)
+            let result = try body()
+            let records = records(prefix: prefix)
+            if records != known { save(records, to: memo) }
+            return result
+        }
         // Cargo starts many compilers at once. Without this lock each one hashes the whole toolchain
         // before any of them publishes the memo; with it, one hashes and the rest reuse its records.
         try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
         let lock = open(memo.path + ".lock", O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
         if lock >= 0 { _ = flock(lock, LOCK_EX) }
         defer { if lock >= 0 { close(lock) } }
-        let prefix = root.path + "/"
         var previous: [String: Entry] = [:]
         if let handle = try? FileHandle(forReadingFrom: memo) {
             defer { try? handle.close() }
@@ -104,28 +157,38 @@ final class CargoInputHasher {
                let records = try? JSONDecoder().decode([String: Entry].self, from: data), records.count <= 10000
             {
                 previous = records
-                for (path, record) in records where path.hasPrefix(prefix) {
-                    let digest = REAPI.Digest.with { $0.hash = record.hash; $0.sizeBytes = record.size }
-                    let file = URL(fileURLWithPath: path)
-                    if (try? REAPI.validate(digest)) != nil, entries[file] == nil {
-                        entries[file] = (record.identity, digest)
-                    }
-                }
+                load(records, prefix: prefix)
             }
         }
         let result = try body()
-        let records = entries.reduce(into: [String: Entry]()) { records, entry in
+        let records = records(prefix: prefix)
+        if records != previous { save(records, to: memo) } else { Self.processRecords.setTree(memo, records) }
+        return result
+    }
+
+    private func load(_ records: [String: Entry], prefix: String) {
+        for (path, record) in records where path.hasPrefix(prefix) {
+            let digest = REAPI.Digest.with { $0.hash = record.hash; $0.sizeBytes = record.size }
+            let file = URL(fileURLWithPath: path)
+            if (try? REAPI.validate(digest)) != nil, entries[file] == nil {
+                entries[file] = (record.identity, digest)
+            }
+        }
+    }
+
+    private func records(prefix: String) -> [String: Entry] {
+        entries.reduce(into: [String: Entry]()) { records, entry in
             if entry.key.path.hasPrefix(prefix) {
                 records[entry.key.path] = Entry(identity: entry.value.0, hash: entry.value.1.hash, size: entry.value.1.sizeBytes)
             }
         }
-        if records != previous, records.count <= 10000,
-           let data = try? JSONEncoder().encode(records), data.count <= 2_000_000
-        {
-            try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
-            try? data.write(to: memo, options: .atomic)
-        }
-        return result
+    }
+
+    private func save(_ records: [String: Entry], to memo: URL) {
+        guard records.count <= 10000, let data = try? JSONEncoder().encode(records), data.count <= 2_000_000 else { return }
+        try? FileManager.default.createDirectory(at: memo.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: memo, options: .atomic)
+        Self.processRecords.setTree(memo, records)
     }
 
     /// Admission is attached to the exact bytes in the key, not a second, independently read version of the source.
@@ -149,7 +212,7 @@ final class CargoInputHasher {
         return digest
     }
 
-    private static func identity(_ file: URL) throws -> Identity {
+    static func identity(_ file: URL) throws -> Identity {
         var value = stat()
         guard lstat(file.path, &value) == 0, value.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else {
             throw CargoCacheInvocation.CacheError.unsupported

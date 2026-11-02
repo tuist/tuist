@@ -342,11 +342,22 @@ struct CargoCacheInvocation: CargoCacheAction {
 
     func certifyOutputs(metadataOnly: Bool = false) throws {
         if isDeferred {
+            // Keyed just now from the same dep-info: checking that key again would compute it a second time.
             guard let keyed = keyedFromDepInfo() else { throw CacheError.unsupported }
-            return try keyed.certifyOutputs(metadataOnly: metadataOnly)
+            try keyed.validateDependencies()
+            return try keyed.certify(metadataOnly: metadataOnly)
         }
         try validateDependencies()
         guard try fingerprint() == key else { throw CacheError.unsupported }
+        try certify(metadataOnly: metadataOnly)
+    }
+
+    func certifyCheckedOutputs() throws {
+        guard !isDeferred else { return try certifyOutputs(metadataOnly: false) }
+        try certify(metadataOnly: false)
+    }
+
+    private func certify(metadataOnly: Bool) throws {
         for name in metadataOnly ? [files[1]] : Array(files.prefix(2)) {
             let digest = try inputHasher.digest(output.appendingPathComponent(name), shared: true)
             guard let proof = CargoCacheInputs.proofPath(digest, environment: environment) else { continue }
@@ -437,10 +448,8 @@ struct CargoCacheInvocation: CargoCacheAction {
             if inspectSources, file.pathExtension == "rs" {
                 guard size <= 2_000_000 else { throw CacheError.unsupported }
                 digest = try inputHasher.sourceDigest(content) { data in
-                    guard let text = Self.code(data), text.range(
-                        of: "\\b(asm|global_asm|naked_asm|link|link_args|extern|include|concat|concat_idents)\\b",
-                        options: .regularExpression
-                    ) == nil else { throw CacheError.unsupported }
+                    guard let text = Self.code(data), !Self.matches(Self.registryWords, text)
+                    else { throw CacheError.unsupported }
                 }
             } else {
                 digest = try inputHasher.digest(content, shared: !inspectSources)
@@ -511,10 +520,20 @@ extension CargoCacheInvocation {
 
     private static func validateSource(_ data: Data) throws {
         guard hasSourceWord(data) else { return }
-        guard let code = code(data), code.range(
-            of: "\\b(asm|global_asm|naked_asm|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\blink\\s*\\(|\\$\\s*\\{\\s*concat\\b",
-            options: .regularExpression
-        ) == nil else { throw CacheError.unsupported }
+        guard let code = code(data), !matches(sourceTokens, code) else { throw CacheError.unsupported }
+    }
+
+    /// Compiled once: `String.range(of:options: .regularExpression)` compiles the same ICU expression on every call,
+    /// which cost more than a second of a cold build's admission work. The engine and patterns are unchanged.
+    private static let sourceTokens = try! NSRegularExpression(
+        pattern: "\\b(asm|global_asm|naked_asm|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\blink\\s*\\(|\\$\\s*\\{\\s*concat\\b"
+    )
+    private static let registryWords = try! NSRegularExpression(
+        pattern: "\\b(asm|global_asm|naked_asm|link|link_args|extern|include|concat|concat_idents)\\b"
+    )
+
+    private static func matches(_ expression: NSRegularExpression, _ text: String) -> Bool {
+        expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
     /// Rust source with comments and the contents of string, byte and character literals blanked, so admission

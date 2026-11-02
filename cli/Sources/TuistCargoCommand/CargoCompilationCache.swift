@@ -20,6 +20,8 @@ protocol CargoCacheAction {
     func fingerprint() throws -> REAPI.Digest
     func validateDependencies(restoring: Bool) async throws
     func certifyOutputs(metadataOnly: Bool) throws
+    /// Certifies outputs whose dependencies and key the caller has just checked, without checking them again.
+    func certifyCheckedOutputs() throws
     func outputFiles() throws -> [String]
     func acceptsOutput(_ file: String) -> Bool
     /// Extra compiler arguments the cached compilation runs with.
@@ -34,6 +36,7 @@ protocol CargoCacheAction {
 }
 
 extension CargoCacheAction {
+    func certifyCheckedOutputs() throws { try certifyOutputs(metadataOnly: false) }
     var executableOutput: String? { nil }
     var remapArguments: [String] { [] }
     func storedOutput(_ data: Data) -> Data? { data }
@@ -123,7 +126,7 @@ struct CargoCompilationCache {
         try Task.checkCancellation()
         try await invocation.validateDependencies(restoring: false)
         guard try invocation.fingerprint() == invocation.key else { return }
-        try? invocation.certifyOutputs(metadataOnly: false)
+        try? invocation.certifyCheckedOutputs()
         guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else { return }
         // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them.
         let widthMarker = messages.diagnostics ? Self.widthMarker(invocation.arguments) : Data()

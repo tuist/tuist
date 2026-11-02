@@ -265,6 +265,16 @@ extension CargoUnitCache {
             debug("all \(manifest.units.count) dependency units are present")
             return Restored(previous: manifest.units, files: manifest.files ?? [])
         }
+        // A target directory without this profile takes the whole selection at once, from a snapshot an earlier
+        // restoration left: one directory clone instead of creating, cloning and verifying every file.
+        let snapshot = FileManager.default.fileExists(atPath: profile.path) ? nil : snapshotIdentity(missing)
+        if let snapshot, let at = restoreSnapshot(snapshot, units: missing) {
+            debug("restored \(missing.count) of \(manifest.units.count) dependency units from a snapshot")
+            return Restored(
+                units: Dictionary(missing.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }), at: at,
+                previous: manifest.units, files: manifest.files ?? []
+            )
+        }
         var needed: [REAPI.Digest: URL] = [:]
         let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: staging) }
@@ -297,6 +307,7 @@ extension CargoUnitCache {
             let results = Self.concurrentMap(candidates) { materialize($0, at: restoredAt) }
             let restored = zip(candidates, results).filter(\.1).map(\.0)
             debug("restored \(restored.count) of \(manifest.units.count) dependency units")
+            if let snapshot, restored.count == missing.count { saveSnapshot(snapshot, units: missing, at: restoredAt) }
             return Restored(
                 units: Dictionary(restored.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }), at: restoredAt,
                 previous: manifest.units, files: manifest.files ?? []
@@ -443,10 +454,12 @@ extension CargoUnitCache {
             var marked = Set<REAPI.Digest>()
             for file in ordered {
                 let blob = blobPath(file.digest)
-                if marked.insert(file.digest).inserted { markUsed(file.digest) }
                 // The blob is verified, not its clone: a clone shares the blob's content. Its digest is recorded with
                 // the blob's identity, so an unchanged blob is not hashed again; any write to it changes that identity.
                 guard try verifier.digest(blob, shared: true) == file.digest else { throw REAPICacheError.corruptBlob }
+                // Renewing the use mark changes the blob's ctime, part of that identity: the bytes just verified are
+                // recorded again under the new one, so the next build does not hash the blob again.
+                if marked.insert(file.digest).inserted, markUsed(file.digest) { verifier.remember(blob, digest: file.digest) }
                 let destination = profile.appendingPathComponent(file.path).path
                 if !Self.clone(blob.path, to: destination) {
                     let temporary = (destination as NSString).deletingLastPathComponent + "/.tuist-" + UUID().uuidString
@@ -492,6 +505,114 @@ extension CargoUnitCache {
         #else
             return false
         #endif
+    }
+
+    // MARK: - Snapshots
+
+    /// The identity of every file a snapshot holds, recorded when it was taken. A snapshot whose files no longer have
+    /// them (pruned, rewritten) is discarded: an unchanged identity is how restoration trusts a blob it does not hash.
+    private struct SnapshotRecord: Codable {
+        let at: Double
+        let files: [String: [String]]
+    }
+
+    private var snapshots: URL { root.appendingPathComponent("snapshots") }
+
+    private func snapshotIdentity(_ units: [Unit]) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(units) else { return nil }
+        return REAPI.digest(Data((Self.version + "/snapshot\n").utf8) + data).hash
+    }
+
+    /// Clones the snapshot of `units` into the absent profile directory and returns its restoration time.
+    private func restoreSnapshot(_ id: String, units: [Unit]) -> Date? {
+        #if canImport(Darwin)
+            let directory = snapshots.appendingPathComponent(id)
+            let recordFile = snapshots.appendingPathComponent(id + ".json")
+            guard let data = try? Data(contentsOf: recordFile),
+                  let record = try? JSONDecoder().decode(SnapshotRecord.self, from: data) else { return nil }
+            guard Set(record.files.keys) == Set(units.flatMap { $0.files.map(\.path) }),
+                  record.files.allSatisfy({ path, fields in
+                      (try? CargoInputHasher.identity(directory.appendingPathComponent(path)))?.fields == fields
+                  })
+            else {
+                debug("discarding a dependency unit snapshot whose files changed")
+                discardSnapshot(id)
+                return nil
+            }
+            let parent = profile.deletingLastPathComponent()
+            try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+            let temporary = parent.appendingPathComponent(".tuist-units-" + UUID().uuidString)
+            guard clonefile(directory.path, temporary.path, UInt32(CLONE_NOFOLLOW)) == 0 else { return nil }
+            // Exclusive, so a Cargo that created the profile meanwhile keeps it, and this falls back to file by file.
+            guard renamex_np(temporary.path, profile.path, UInt32(RENAME_EXCL)) == 0 else {
+                try? FileManager.default.removeItem(at: temporary)
+                return nil
+            }
+            for file in units.flatMap(\.files) where file.certified == true {
+                if let proof = CargoCacheInputs.proofPath(file.digest, environment: environment) { Self.writeProof(proof) }
+            }
+            // Use marks are renewed hourly, like a blob's; the snapshot's blobs stay recent with it, since restoring
+            // from them again needs them once the snapshot is gone.
+            if Self.markUsed(directory.path) {
+                Self.markUsed(recordFile.path)
+                let verifier = CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified"))
+                for digest in Set(units.flatMap { $0.files.map(\.digest) }) where markUsed(digest) {
+                    if (try? verifier.digest(blobPath(digest), shared: true)) == digest {
+                        verifier.remember(blobPath(digest), digest: digest)
+                    }
+                }
+            }
+            return Date(timeIntervalSince1970: record.at)
+        #else
+            return nil
+        #endif
+    }
+
+    /// Clones the profile directory just restored into a snapshot of `units`, keeping the two newest snapshots.
+    private func saveSnapshot(_ id: String, units: [Unit], at date: Date) {
+        #if canImport(Darwin)
+            try? FileManager.default.createDirectory(at: snapshots, withIntermediateDirectories: true)
+            discardSnapshot(id)
+            let temporary = snapshots.appendingPathComponent(".tmp-" + UUID().uuidString)
+            guard clonefile(profile.path, temporary.path, UInt32(CLONE_NOFOLLOW)) == 0 else { return }
+            unlink(temporary.appendingPathComponent(".cargo-lock").path)
+            let expected = Set(units.flatMap { $0.files.map(\.path) })
+            var files: [String: [String]] = [:]
+            for path in expected {
+                guard let identity = try? CargoInputHasher.identity(temporary.appendingPathComponent(path)) else {
+                    try? FileManager.default.removeItem(at: temporary)
+                    return
+                }
+                files[path] = identity.fields
+            }
+            guard let data = try? JSONEncoder().encode(SnapshotRecord(at: date.timeIntervalSince1970, files: files)),
+                  rename(temporary.path, snapshots.appendingPathComponent(id).path) == 0
+            else {
+                try? FileManager.default.removeItem(at: temporary)
+                return
+            }
+            try? data.write(to: snapshots.appendingPathComponent(id + ".json"), options: .atomic)
+            let records = ((try? FileManager.default.contentsOfDirectory(
+                at: snapshots, includingPropertiesForKeys: [.contentModificationDateKey]
+            )) ?? []).filter { $0.pathExtension == "json" }
+            let newest = records.sorted {
+                let first = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ??
+                    .distantPast
+                let second = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ??
+                    .distantPast
+                return first > second
+            }
+            for stale in newest.dropFirst(2) {
+                discardSnapshot(stale.deletingPathExtension().lastPathComponent)
+            }
+        #endif
+    }
+
+    private func discardSnapshot(_ id: String) {
+        try? FileManager.default.removeItem(at: snapshots.appendingPathComponent(id + ".json"))
+        try? FileManager.default.removeItem(at: snapshots.appendingPathComponent(id))
     }
 
     private static func isSafe(_ unit: Unit) -> Bool {
@@ -799,11 +920,21 @@ extension CargoUnitCache {
 
     /// Keeps a blob recent for pruning. Only marks older than an hour are renewed, so an unchanged blob keeps the
     /// identity its verified digest is recorded with.
-    private func markUsed(_ digest: REAPI.Digest) {
-        let path = blobPath(digest).path
-        guard let modified = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date,
-              Date().timeIntervalSince(modified) > 3600 else { return }
-        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: path)
+    /// Returns whether the mark was renewed. `stat`, not Foundation's attributes, which also read extended attributes.
+    @discardableResult
+    private func markUsed(_ digest: REAPI.Digest) -> Bool { Self.markUsed(blobPath(digest).path) }
+
+    @discardableResult
+    private static func markUsed(_ path: String) -> Bool {
+        var info = stat()
+        guard stat(path, &info) == 0 else { return false }
+        #if os(Linux)
+            let modified = info.st_mtim.tv_sec
+        #else
+            let modified = info.st_mtimespec.tv_sec
+        #endif
+        guard Date().timeIntervalSince1970 - Double(modified) > 3600 else { return false }
+        return utimes(path, nil) == 0
     }
 
     private func write(_ data: Data, to file: URL) throws {

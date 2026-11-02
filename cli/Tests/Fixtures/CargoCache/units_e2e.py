@@ -6,6 +6,8 @@ B: same project at another path restores it; Cargo compiles only the application
 C: different rustflags in `.cargo/config.toml` miss, and Cargo compiles the dependency again.
 L: a different `Cargo.lock` (a new path dependency) still restores the registry dependency: the manifest is not
    keyed by the lockfile, and Cargo's fingerprints decide what a build uses.
+S: B again: an absent profile is restored from the snapshot the previous restoration left, and a snapshot whose
+   files were rewritten is discarded rather than restored.
 D: B again after removing `target`, with the restored unit's rlib corrupted in the store: Cargo
    (or the blob check) must not link it, and the program must still print 42.
 """
@@ -60,6 +62,13 @@ try:
     b = checkout("b/nested", shared)
     compiled, restored = build(b, "moved")
     assert compiled == ["tuist-cargo-cache-smoke"] and restored >= 1
+    compiled, _ = build(b, "snapshot")
+    assert compiled == ["tuist-cargo-cache-smoke"] and "from a snapshot" in (root / "snapshot.log").read_text()
+    copy = next((root / "xdg").glob("tuist/Cargo/*/snapshots/*/deps/libitoa-*.rlib"))
+    copy.write_bytes(b"corrupt" + copy.read_bytes()[7:])
+    compiled, _ = build(b, "tampered")
+    log = (root / "tampered.log").read_text()
+    assert compiled == ["tuist-cargo-cache-smoke"] and "discarding" in log and "from a snapshot" not in log, compiled
     lock = checkout("lock", shared)
     (lock / "extra" / "src").mkdir(parents=True)
     (lock / "extra" / "Cargo.toml").write_text('[package]\nname = "extra"\nversion = "0.1.0"\nedition = "2021"\n')
