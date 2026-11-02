@@ -34625,7 +34625,7 @@ paths:
               x-struct:
               x-validate:
         description: Authentication params.
-        required: false
+        required: true
       responses:
         '200':
           content:
@@ -47715,7 +47715,7 @@ paths:
               x-struct:
               x-validate:
         description: Apple authentication params.
-        required: false
+        required: true
       responses:
         '200':
           content:
@@ -53126,7 +53126,7 @@ paths:
               x-struct:
               x-validate:
         description: Token params
-        required: false
+        required: true
       responses:
         '200':
           content:

@@ -2982,7 +2982,7 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
     public func authenticate(
         headers: Operations.authenticate.Input.Headers = .init(),
-        body: Operations.authenticate.Input.Body? = nil
+        body: Operations.authenticate.Input.Body
     ) async throws -> Operations.authenticate.Output {
         try await authenticate(Operations.authenticate.Input(
             headers: headers,
@@ -4144,7 +4144,7 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
     public func authenticateApple(
         headers: Operations.authenticateApple.Input.Headers = .init(),
-        body: Operations.authenticateApple.Input.Body? = nil
+        body: Operations.authenticateApple.Input.Body
     ) async throws -> Operations.authenticateApple.Output {
         try await authenticateApple(Operations.authenticateApple.Input(
             headers: headers,
@@ -4602,7 +4602,7 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
     public func refreshToken(
         headers: Operations.refreshToken.Input.Headers = .init(),
-        body: Operations.refreshToken.Input.Body? = nil
+        body: Operations.refreshToken.Input.Body
     ) async throws -> Operations.refreshToken.Output {
         try await refreshToken(Operations.refreshToken.Input(
             headers: headers,
@@ -80644,7 +80644,7 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/auth/POST/requestBody/content/application\/json`.
                 case json(Operations.authenticate.Input.Body.jsonPayload)
             }
-            public var body: Operations.authenticate.Input.Body?
+            public var body: Operations.authenticate.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -80652,7 +80652,7 @@ public enum Operations {
             ///   - body:
             public init(
                 headers: Operations.authenticate.Input.Headers = .init(),
-                body: Operations.authenticate.Input.Body? = nil
+                body: Operations.authenticate.Input.Body
             ) {
                 self.headers = headers
                 self.body = body
@@ -118296,7 +118296,7 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/content/application\/json`.
                 case json(Operations.authenticateApple.Input.Body.jsonPayload)
             }
-            public var body: Operations.authenticateApple.Input.Body?
+            public var body: Operations.authenticateApple.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -118304,7 +118304,7 @@ public enum Operations {
             ///   - body:
             public init(
                 headers: Operations.authenticateApple.Input.Headers = .init(),
-                body: Operations.authenticateApple.Input.Body? = nil
+                body: Operations.authenticateApple.Input.Body
             ) {
                 self.headers = headers
                 self.body = body
@@ -132984,7 +132984,7 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody/content/application\/json`.
                 case json(Operations.refreshToken.Input.Body.jsonPayload)
             }
-            public var body: Operations.refreshToken.Input.Body?
+            public var body: Operations.refreshToken.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -132992,7 +132992,7 @@ public enum Operations {
             ///   - body:
             public init(
                 headers: Operations.refreshToken.Input.Headers = .init(),
-                body: Operations.refreshToken.Input.Body? = nil
+                body: Operations.refreshToken.Input.Body
             ) {
                 self.headers = headers
                 self.body = body
