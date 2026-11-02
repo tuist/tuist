@@ -992,9 +992,6 @@
           </span>
         </:failed>
         <.bitrise_pools_status
-          unpaired={
-            TuistWeb.IntegrationsLive.unconnected_bitrise_pools(available, @bitrise_pools)
-          }
           any_pools?={available != []}
           paired?={@bitrise_pools != []}
         />

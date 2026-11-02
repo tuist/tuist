@@ -1222,7 +1222,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
       refute html =~ "bitrise-private-intro"
       assert has_element?(lv, "#bitrise-pool-#{pool_id} [data-part=name]", "tuist-macos")
 
-      assert render_async(lv) =~ "Every runner pool in this workspace is paired."
+      html = render_async(lv)
+      refute html =~ "Reload pools"
+      refute has_element?(lv, "#add-bitrise-pool-modal")
 
       lv |> element("#bitrise-pool-#{pool_id} button[phx-click=remove-bitrise-pool]") |> render_click()
       assert Bitrise.list_pools(account.id) == []

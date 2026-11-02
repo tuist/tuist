@@ -983,25 +983,17 @@ defmodule TuistWeb.IntegrationsLive do
     """
   end
 
-  attr :unpaired, :list, required: true
   attr :any_pools?, :boolean, required: true
   attr :paired?, :boolean, required: true
 
-  defp bitrise_pools_status(%{unpaired: []} = assigns) do
+  defp bitrise_pools_status(%{any_pools?: false} = assigns) do
     ~H"""
     <div data-part="empty">
       <span data-part="hint">
-        {if @any_pools?,
-          do:
-            dgettext(
-              "dashboard_integrations",
-              "Every runner pool in this workspace is paired. To add another, create a pool in Bitrise under Workspace settings, then Infrastructure."
-            ),
-          else:
-            dgettext(
-              "dashboard_integrations",
-              "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
-            )}
+        {dgettext(
+          "dashboard_integrations",
+          "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
+        )}
       </span>
       <.button
         type="button"
