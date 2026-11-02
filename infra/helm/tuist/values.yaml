@@ -908,6 +908,11 @@ server:
   # through an exec command without placing credentials in command arguments.
   seedAccountCredentials:
     secretName: ""
+  # Lets the MCP `report_feedback` tool publish agent feedback to Atlas with a
+  # projected ServiceAccount token instead of a shared secret. Atlas must pin
+  # this cluster's JWKS and allowlist the server's namespace:ServiceAccount.
+  atlasSupportIngest:
+    enabled: false
   networkPolicy:
     enabled: false
     # Applies a default-deny policy to every pod in the release. The
