@@ -795,3 +795,14 @@ cacheDNS:
     storeName: onepassword
     writerItem: ""
     solverItem: ""
+
+# Drops incoming IPv4 TCP packets that carry IP options on every Linux node, in
+# a nftables table of its own (CVE-2026-98432). Managed clusters only. See
+# templates/ipv4-options-tcp-drop.yaml.
+ipv4OptionsTcpDrop:
+  enabled: false
+  # For its nft, sh, grep and sleep; nothing of kube-proxy runs.
+  image: registry.k8s.io/kube-proxy:v1.34.6@sha256:d0921102f744d15133bc3a1cb54d8cbf323e00f2f73ea5a79c763202c6db18aa
+  imagePullPolicy: IfNotPresent
+  table: tuist_ipopts
+  reconcileIntervalSeconds: 30
