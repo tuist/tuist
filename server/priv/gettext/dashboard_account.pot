@@ -610,6 +610,7 @@ msgstr ""
 msgid "Region"
 msgstr ""
 
+#: lib/tuist_web/live/account_notifications_live.html.heex:88
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Remove"
@@ -693,6 +694,7 @@ msgstr ""
 msgid "Self-host your instance of Tuist"
 msgstr ""
 
+#: lib/tuist_web/live/account_notifications_live.html.heex:3
 #: lib/tuist_web/live/account_settings_live.ex:43
 #: lib/tuist_web/live/account_settings_live.html.heex:3
 #: lib/tuist_web/live/account_tokens_live.html.heex:3
@@ -3079,4 +3081,99 @@ msgstr ""
 #: lib/tuist_web/live/billing_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Your plan switches to Air on %{date}"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "%{project} off"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{project} on"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:81
+#, elixir-autogen, elixir-format
+msgid "Added"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.ex:59
+#, elixir-autogen, elixir-format
+msgid "Android device"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:75
+#, elixir-autogen, elixir-format
+msgid "Device"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Devices"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Devices where you signed in to the Tuist app and allowed notifications. Removing a device stops notifications to it until you turn them back on in the app."
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Except"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Get a push notification when a new preview is published. Change a single project from the bell on its Previews page. Only you see these settings."
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:78
+#, elixir-autogen, elixir-format
+msgid "Last active"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "New previews"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:98
+#, elixir-autogen, elixir-format
+msgid "No devices yet"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.ex:23
+#, elixir-autogen, elixir-format
+msgid "Notifications"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.ex:52
+#, elixir-autogen, elixir-format
+msgid "Previews of this organization's projects"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.ex:50
+#, elixir-autogen, elixir-format
+msgid "Previews of your personal projects"
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Sign in to the Tuist app on iOS or Android and allow notifications."
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.ex:16
+#, elixir-autogen, elixir-format
+msgid "The page you are looking for doesn't exist."
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "You don't have access to any projects yet."
+msgstr ""
+
+#: lib/tuist_web/live/account_notifications_live.ex:58
+#, elixir-autogen, elixir-format
+msgid "iOS device"
 msgstr ""

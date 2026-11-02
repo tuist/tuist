@@ -1121,6 +1121,20 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
+
+    get "/me/push-devices", PushDevicesController, :index
+    put "/me/push-devices/:installation_id", PushDevicesController, :update
+    delete "/me/push-devices/:installation_id", PushDevicesController, :delete
+    delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
+    get "/me/notification-preferences/:kind", NotificationPreferencesController, :show
+
+    put "/me/notification-preferences/:kind/accounts/:account_handle",
+        NotificationPreferencesController,
+        :update_account
+
+    put "/me/notification-preferences/:kind/projects/:account_handle/:project_handle",
+        NotificationPreferencesController,
+        :update_project
   end
 
   scope "/api" do
@@ -1601,6 +1615,7 @@ defmodule TuistWeb.Router do
       live "/cache", CacheLive
       live "/billing", BillingLive
       live "/settings", AccountSettingsLive
+      live "/settings/notifications", AccountNotificationsLive
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive

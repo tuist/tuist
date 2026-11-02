@@ -580,10 +580,17 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
+      <% notifications_path = ~p"/#{@selected_account.name}/settings/notifications" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
         navigate={general_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={@selected_account.user_id == @current_user.id}
+        label={dgettext("dashboard", "Notifications")}
+        selected={String.starts_with?(@current_path, notifications_path)}
+        navigate={notifications_path}
       />
       <.tab_menu_horizontal_item
         :if={Authorization.authorize(:account_token_read, @current_user, @selected_account) == :ok}

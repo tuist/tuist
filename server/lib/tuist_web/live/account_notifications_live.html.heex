@@ -1,0 +1,110 @@
+<div id="account-notifications">
+  <h1 data-part="title">
+    {dgettext("dashboard_account", "Settings")}
+  </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
+  <.card_section data-part="new-previews-card-section">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "New previews")}</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_account",
+          "Get a push notification when a new preview is published. Change a single project from the bell on its Previews page. Only you see these settings."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <.alert
+        :if={@preferences == []}
+        status="information"
+        type="secondary"
+        size="small"
+        title={dgettext("dashboard_account", "You don't have access to any projects yet.")}
+      />
+      <div :if={@preferences != []} data-part="accounts">
+        <div
+          :for={%{account: account, enabled: enabled, projects: projects} <- @preferences}
+          id={"new-previews-account-#{account.id}"}
+          data-part="account"
+        >
+          <.toggle
+            id={"new-previews-account-toggle-#{account.id}"}
+            label={account.name}
+            description={account_description(account)}
+            checked={enabled}
+            data-on-checked-change={"toggle_account:#{account.id}"}
+          />
+          <div :if={Enum.any?(projects, &(not is_nil(&1.override)))} data-part="exceptions">
+            <span data-part="exceptions-label">{dgettext("dashboard_account", "Except")}</span>
+            <.tag
+              :for={
+                %{project: project, override: override} <-
+                  Enum.reject(projects, &is_nil(&1.override))
+              }
+              id={"new-previews-project-#{project.id}"}
+              label={
+                if override,
+                  do: dgettext("dashboard_account", "%{project} on", project: project.name),
+                  else: dgettext("dashboard_account", "%{project} off", project: project.name)
+              }
+              dismissible
+              on_dismiss="reset_project"
+              dismiss_value={to_string(project.id)}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </.card_section>
+  <.card_section data-part="devices-card-section">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Devices")}</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_account",
+          "Devices where you signed in to the Tuist app and allowed notifications. Removing a device stops notifications to it until you turn them back on in the app."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <.table id="devices-table" rows={@devices}>
+        <:col :let={device} label={dgettext("dashboard_account", "Device")}>
+          <.text_cell label={device_name(device)} sublabel={platform_label(device.platform)} />
+        </:col>
+        <:col :let={device} label={dgettext("dashboard_account", "Last active")}>
+          <.time_cell time={device.last_registered_at} relative />
+        </:col>
+        <:col :let={device} label={dgettext("dashboard_account", "Added")}>
+          <.time_cell time={device.inserted_at} />
+        </:col>
+        <:col :let={device} label="">
+          <.button
+            id={"remove-device-#{device.id}"}
+            type="button"
+            label={dgettext("dashboard_account", "Remove")}
+            variant="secondary"
+            size="small"
+            phx-click="remove_device"
+            phx-value-id={device.id}
+          />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="device_mobile"
+            title={dgettext("dashboard_account", "No devices yet")}
+            subtitle={
+              dgettext(
+                "dashboard_account",
+                "Sign in to the Tuist app on iOS or Android and allow notifications."
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
+    </div>
+  </.card_section>
+</div>

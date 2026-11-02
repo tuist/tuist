@@ -49,7 +49,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", PruneExpiredSubscriptionsWorker},
     {"@hourly", PruneJobKeysWorker},
     {"@hourly", Tuist.Shards.Workers.PruneRecentShardPlansWorker},
-    {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker}
+    {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker},
+    {"30 4 * * *", Tuist.Push.Workers.PruneWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
