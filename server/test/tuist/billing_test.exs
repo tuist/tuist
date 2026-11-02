@@ -17,6 +17,11 @@ defmodule Tuist.BillingTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
+  @pause_free_collection %{
+    pause_collection: %{behavior: "keep_as_draft"},
+    metadata: %{"tuist_free_collection_paused" => "true"}
+  }
+
   setup do
     stub(Environment, :stripe_prices, fn ->
       %{
@@ -239,6 +244,109 @@ defmodule Tuist.BillingTest do
   end
 
   describe "on_subscription_change/1" do
+    test "ignores a late event for a subscription that already ended" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        status: "canceled",
+        subscription_id: "sub_ended"
+      )
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_ended",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      })
+
+      # Then
+      assert Billing.get_current_active_subscription(account) == nil
+      assert Billing.effective_plan(account) == :air
+    end
+
+    test "holds a free open source subscription's invoices as drafts" do
+      # Given
+      stub_open_source_prices()
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+
+      expect(Stripe.Subscription, :update, fn "sub_os", params ->
+        assert params == %{
+                 pause_collection: %{behavior: "keep_as_draft"},
+                 metadata: %{"tuist_free_collection_paused" => "true"}
+               }
+
+        {:ok, %{}}
+      end)
+
+      # When
+      Billing.on_subscription_change(
+        open_source_subscription(["open_source.flat.monthly", "open_source.usage"], nil, %{})
+      )
+
+      # Then
+      assert %{plan: :open_source} = Billing.get_current_active_subscription(Accounts.get_account_from_user(user))
+    end
+
+    test "leaves an open source subscription it already paused alone" do
+      # Given
+      stub_open_source_prices()
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      reject(&Stripe.Subscription.update/2)
+
+      # When / Then
+      assert :ok ==
+               Billing.on_subscription_change(
+                 open_source_subscription(
+                   ["open_source.flat.monthly", "open_source.usage"],
+                   %{behavior: "keep_as_draft"},
+                   %{"tuist_free_collection_paused" => "true"}
+                 )
+               )
+    end
+
+    test "resumes collection once something billable lands on a subscription it paused" do
+      # Given
+      stub_open_source_prices()
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+
+      expect(Stripe.Subscription, :update, fn "sub_os", params ->
+        assert params == %{pause_collection: "", metadata: %{"tuist_free_collection_paused" => ""}}
+        {:ok, %{}}
+      end)
+
+      # When
+      Billing.on_subscription_change(
+        open_source_subscription(
+          ["open_source.flat.monthly", "open_source.usage", "runner.prepaid"],
+          %{behavior: "keep_as_draft"},
+          %{"tuist_free_collection_paused" => "true"}
+        )
+      )
+    end
+
+    test "never lifts a pause it did not set" do
+      # Given
+      stub_open_source_prices()
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      reject(&Stripe.Subscription.update/2)
+
+      # When / Then
+      assert :ok ==
+               Billing.on_subscription_change(
+                 open_source_subscription(
+                   ["open_source.flat.monthly", "open_source.usage", "runner.prepaid"],
+                   %{behavior: "void"},
+                   %{}
+                 )
+               )
+    end
+
     test "when an account for the given customer doesn't exist" do
       # When
       assert(
@@ -2316,6 +2424,16 @@ defmodule Tuist.BillingTest do
          }}
       end)
 
+      # Every invoice it renews into is $0, so they are held as drafts.
+      expect(Stripe.Subscription, :update, fn "sub_open_source", params ->
+        assert params == %{
+                 pause_collection: %{behavior: "keep_as_draft"},
+                 metadata: %{"tuist_free_collection_paused" => "true"}
+               }
+
+        {:ok, %{}}
+      end)
+
       # When
       {:ok, stripe_sub} = Billing.start_open_source_plan(account)
 
@@ -2627,18 +2745,21 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "cancel_air_subscriptions/1" do
+  describe "clean_up_free_subscriptions/1" do
     setup do
       stub(Environment, :stripe_prices, fn ->
         %{
           "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
           "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "open_source" => %{"usage" => ["open_source.usage"], "flat_monthly" => ["open_source.flat.monthly"]},
           "runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos"},
           "runner_prepaid_minutes" => "runner.prepaid"
         }
       end)
 
       for {plan, subscription_id, status} <- [
+            {:open_source, "sub_open_source", "active"},
+            {:open_source, "sub_open_source_paused", "active"},
             {:air, "sub_air", "active"},
             {:air, "sub_air_with_prepaid", "active"},
             {:air, "sub_air_with_open_invoice", "active"},
@@ -2655,12 +2776,15 @@ defmodule Tuist.BillingTest do
       end
 
       free_air = ["air.usage", "runner.macos", "air.flat.monthly"]
+      open_source = ["open_source.flat.monthly", "open_source.usage"]
 
       stub(Stripe.Subscription, :retrieve, fn
         "sub_air" -> {:ok, stripe_subscription("active", free_air)}
         "sub_air_with_prepaid" -> {:ok, stripe_subscription("active", ["runner.prepaid" | free_air])}
         "sub_air_with_open_invoice" -> {:ok, %{stripe_subscription("active", free_air) | customer: "cus_owes"}}
         "sub_air_cancelled_in_stripe" -> {:ok, stripe_subscription("canceled", free_air)}
+        "sub_open_source" -> {:ok, stripe_subscription("active", open_source)}
+        "sub_open_source_paused" -> {:ok, %{stripe_subscription("active", open_source) | pause_collection: %{}}}
       end)
 
       stub(Stripe.Invoice, :list, fn
@@ -2676,34 +2800,62 @@ defmodule Tuist.BillingTest do
       reject(&Stripe.Subscription.cancel/2)
 
       # When
-      got = Billing.cancel_air_subscriptions()
+      got = Billing.clean_up_free_subscriptions()
 
       # Then
       assert Map.new(got, &{&1.subscription_id, {&1.action, &1.result}}) == %{
                "sub_air" => {:cancel, :dry_run},
                "sub_air_with_prepaid" => {{:skip, {:unexpected_prices, ["runner.prepaid"]}}, :skipped},
                "sub_air_with_open_invoice" => {{:skip, :open_invoice}, :skipped},
-               "sub_air_cancelled_in_stripe" => {{:skip, {:status, "canceled"}}, :skipped}
+               "sub_air_cancelled_in_stripe" => {{:skip, {:status, "canceled"}}, :skipped},
+               "sub_open_source" => {{:update, @pause_free_collection}, :dry_run},
+               "sub_open_source_paused" => {{:skip, :no_change}, :skipped}
              }
     end
 
-    test "cancels only the free air subscriptions, without a final invoice" do
+    test "cancels the free air subscriptions without a final invoice and pauses open source collection" do
       # Given
       expect(Stripe.Subscription, :cancel, fn "sub_air", %{invoice_now: false, prorate: false} ->
         {:ok, stripe_subscription("canceled", [])}
       end)
 
+      expect(Stripe.Subscription, :update, fn "sub_open_source", @pause_free_collection ->
+        {:ok, stripe_subscription("active", [])}
+      end)
+
       # When
-      got = Billing.cancel_air_subscriptions(dry_run: false)
+      got = Billing.clean_up_free_subscriptions(dry_run: false)
 
       # Then
       assert got |> Enum.map(&{&1.subscription_id, &1.result}) |> Enum.sort() == [
                {"sub_air", :ok},
                {"sub_air_cancelled_in_stripe", :skipped},
                {"sub_air_with_open_invoice", :skipped},
-               {"sub_air_with_prepaid", :skipped}
+               {"sub_air_with_prepaid", :skipped},
+               {"sub_open_source", :ok},
+               {"sub_open_source_paused", :skipped}
              ]
     end
+  end
+
+  defp stub_open_source_prices do
+    stub(Environment, :stripe_prices, fn ->
+      %{
+        "open_source" => %{"usage" => ["open_source.usage"], "flat_monthly" => ["open_source.flat.monthly"]},
+        "runner_prepaid_minutes" => "runner.prepaid"
+      }
+    end)
+  end
+
+  defp open_source_subscription(price_ids, pause_collection, metadata) do
+    %Stripe.Subscription{
+      id: "sub_os",
+      status: "active",
+      customer: "customer_id",
+      pause_collection: pause_collection,
+      metadata: metadata,
+      items: %{data: Enum.map(price_ids, &%{id: "si_" <> &1, price: %{id: &1}})}
+    }
   end
 
   defp pro_stripe_subscription(subscription_id, opts) do
