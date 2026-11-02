@@ -542,7 +542,7 @@ func TestInlinedOutputsAreStoredBeforeTheResult(t *testing.T) {
 		if !strings.HasPrefix(stored.name, "app/uploads/") || !strings.HasSuffix(stored.name, "/blobs/"+digest.Hash+"/6") || string(stored.data) != "output" || dialed.Load() != "grpcs://cache.example" {
 			t.Fatalf("write: %v to %v", stored, dialed.Load())
 		}
-		if md.Get("authorization")[0] != "Bearer secret" || md.Get("x-tuist-account-handle")[0] != "tuist" || md.Get("x-tuist-write-durability")[0] != "deferred" {
+		if md.Get("authorization")[0] != "Bearer secret" || md.Get("x-tuist-account-handle")[0] != "tuist" {
 			t.Fatalf("headers: %v", md)
 		}
 		var result re.ExecuteResponse

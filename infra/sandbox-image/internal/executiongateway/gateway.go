@@ -401,7 +401,7 @@ func (g *Gateway) storeOutputs(ctx context.Context, account, project, auth strin
 		return err
 	}
 	cas := worker.NewCAS(conn, project)
-	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", auth, "x-tuist-account-handle", account, "x-tuist-write-durability", "deferred"))
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", auth, "x-tuist-account-handle", account))
 	// A stream write of a blob the CAS already holds is answered without
 	// waiting on storage, unlike a batch.
 	group, ctx := errgroup.WithContext(ctx)
