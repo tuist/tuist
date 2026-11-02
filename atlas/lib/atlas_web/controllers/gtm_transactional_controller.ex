@@ -11,12 +11,12 @@ defmodule AtlasWeb.GTMTransactionalController do
   use AtlasWeb, :controller
 
   alias Atlas.GTM
-  alias AtlasWeb.IngestAuth
+  alias AtlasWeb.GTMIngestAuth
 
   require Logger
 
   def create(conn, params) do
-    with :ok <- IngestAuth.authorize(conn, GTM.email_contact_ingest_token()),
+    with :ok <- GTMIngestAuth.authorize(conn),
          {:ok, result} <-
            GTM.send_email_transactional(
              params["transactionalId"],

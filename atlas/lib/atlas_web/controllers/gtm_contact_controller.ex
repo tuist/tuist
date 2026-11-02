@@ -10,12 +10,12 @@ defmodule AtlasWeb.GTMContactController do
   use AtlasWeb, :controller
 
   alias Atlas.GTM
-  alias AtlasWeb.IngestAuth
+  alias AtlasWeb.GTMIngestAuth
 
   require Logger
 
   def update(conn, params) do
-    with :ok <- IngestAuth.authorize(conn, GTM.email_contact_ingest_token()),
+    with :ok <- GTMIngestAuth.authorize(conn),
          {:ok, result} <- GTM.upsert_email_contact(contact_payload(params)) do
       log_unknown_lists(result)
 

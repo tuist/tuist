@@ -1,16 +1,19 @@
-defmodule AtlasWeb.IngestAuth do
+defmodule AtlasWeb.GTMIngestAuth do
   @moduledoc """
-  Bearer authentication for machine-to-machine ingest endpoints.
+  Bearer authentication for the Loops-compatible email endpoints.
 
-  Callers such as product servers and the marketing site authenticate with
-  `Authorization: Bearer <token>`. Each endpoint passes its own configured
-  token; an unset token keeps the endpoint closed.
+  Loops authenticates with `Authorization: Bearer <api key>`, so the contact and
+  transactional endpoints accept the same scheme and callers only swap the key.
+  The token is unset by default, which keeps both endpoints closed until
+  `ATLAS_GTM_INGEST_TOKEN` is configured.
   """
 
   import Plug.Conn, only: [get_req_header: 2]
 
-  def authorize(conn, token) do
-    case token do
+  alias Atlas.GTM
+
+  def authorize(conn) do
+    case GTM.email_contact_ingest_token() do
       token when is_binary(token) and token != "" ->
         if valid_token?(conn, token), do: :ok, else: {:error, :unauthorized}
 
