@@ -91,7 +91,7 @@ public enum TestServiceError: FatalError, Equatable {
                 "Test sharding requires a Tuist account. The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
         case let .requestedTestsNotInProducts(requested, built):
             return
-                "None of the test identifiers passed to --test-targets (\(requested.joined(separator: ", "))) can run against these test products, which were built for \(built.joined(separator: ", "))."
+                "None of the requested test identifiers (\(requested.joined(separator: ", "))) can run against these test products, which were built for \(built.joined(separator: ", "))."
         }
     }
 
@@ -1173,17 +1173,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
         // This job did not build the products and usually repeats nothing from the build command, so
         // the restriction the build ran under is restored from the bundle and narrowed by whatever
         // this job asked for on top.
+        let passthroughOnlyTestIdentifiers = XcodeBuildTestCommandService.testIdentifiers(
+            for: "-only-testing",
+            in: passthroughXcodeBuildArguments
+        )
         let restrictions = [
             selectiveTestingGraph.requestedTestIdentifiers,
             testTargets.map(\.description),
+            passthroughOnlyTestIdentifiers,
         ]
-        let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
-        if onlyTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
+        let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
+        if requestedTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
             throw TestServiceError.requestedTestsNotInProducts(
-                requested: testTargets.map(\.description),
+                requested: testTargets.map(\.description) + passthroughOnlyTestIdentifiers,
                 built: selectiveTestingGraph.requestedTestIdentifiers
             )
         }
+        let onlyTestIdentifiers = selectiveTestingGraph.builtTestTargetNames.map { builtTestTargetNames in
+            requestedTestIdentifiers.filter { builtTestTargetNames.contains(Self.testTargetName(of: $0)) }
+        } ?? requestedTestIdentifiers
 
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: testProductsPath,
@@ -1197,30 +1205,36 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: Self.removingOnlyTesting(passthroughXcodeBuildArguments)
         )
 
         let requestedTestPlan = testPlanConfiguration?.testPlan
         let requestedTestPlanOrScheme = requestedTestPlan ?? schemeName
-        if let requestedTestPlanOrScheme,
-           selectiveTestingGraph.attemptedTestPlans.contains(requestedTestPlanOrScheme),
-           try await !bundleHasXCTestRun(
-               for: requestedTestPlanOrScheme,
-               isTestPlan: requestedTestPlan != nil,
-               in: testProductsPath
-           )
+        var selectiveTestingSkippedEverySelectedTest = !requestedTestIdentifiers.isEmpty && onlyTestIdentifiers.isEmpty
+        if !selectiveTestingSkippedEverySelectedTest,
+           let requestedTestPlanOrScheme,
+           selectiveTestingGraph.attemptedTestPlans.contains(requestedTestPlanOrScheme)
         {
-            let timer = clock.startTimer()
-            try await uploadSkippedTestSummary(
-                schemeName: requestedTestPlanOrScheme,
-                config: config,
-                timer: timer,
-                coverageEnabled: Self.coverageEnabled(
-                    testAction: nil,
-                    xcodebuildArguments: passthroughXcodeBuildArguments,
-                    config: config
-                )
+            selectiveTestingSkippedEverySelectedTest = try await !bundleHasXCTestRun(
+                for: requestedTestPlanOrScheme,
+                isTestPlan: requestedTestPlan != nil,
+                in: testProductsPath
             )
+        }
+        if selectiveTestingSkippedEverySelectedTest {
+            if let requestedTestPlanOrScheme {
+                let timer = clock.startTimer()
+                try await uploadSkippedTestSummary(
+                    schemeName: requestedTestPlanOrScheme,
+                    config: config,
+                    timer: timer,
+                    coverageEnabled: Self.coverageEnabled(
+                        testAction: nil,
+                        xcodebuildArguments: passthroughXcodeBuildArguments,
+                        config: config
+                    )
+                )
+            }
             AlertController.current.success(
                 .alert("All selected tests matched previously successful hashes, skipping execution")
             )
@@ -1276,12 +1290,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
         await removeOwnedDerivedData(ownedDerivedDataPath)
 
+        let passingNames = await passingTargetNames(
+            resultBundlePath: resultBundlePath,
+            withholding: stressResult
+        )
         try await storeSuccessfulTestHashesFromGraph(
             selectiveTestingGraph: selectiveTestingGraph,
-            passingTargetNames: await passingTargetNames(
-                resultBundlePath: resultBundlePath,
-                withholding: stressResult
-            ),
+            passingTargetNames: onlyTestIdentifiers.isEmpty
+                ? passingNames
+                : passingNames.intersection(Self.fullyRunTestTargetNames(onlyTestIdentifiers)),
             cacheStorage: hashUploadStorage
         )
 
@@ -1508,6 +1525,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         requestedTestIdentifiers: [TestIdentifier]
     ) -> SelectiveTestingGraph {
         let targetTags = testTargetTags(in: mapperEnvironment.initialGraph ?? graph)
+        let builtTestTargetNames = Set(
+            schemes.flatMap {
+                testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration, action: .build)
+            }
+            .map(\.name)
+        ).sorted()
         guard let initialGraph = mapperEnvironment.initialGraph else {
             let attemptedTestPlans = attemptedTestPlans(
                 schemes: schemes,
@@ -1517,7 +1540,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testTargetHashes: [:],
                 attemptedTestPlans: attemptedTestPlans,
                 requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
-                testTargetTags: targetTags
+                testTargetTags: targetTags,
+                builtTestTargetNames: builtTestTargetNames
             )
         }
 
@@ -1550,7 +1574,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testTargetHashes: testTargetHashes,
             attemptedTestPlans: attemptedTestPlans,
             requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
-            testTargetTags: targetTags
+            testTargetTags: targetTags,
+            builtTestTargetNames: builtTestTargetNames
         )
     }
 
@@ -2675,6 +2700,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
         "-only-testing",
         "-skip-testing",
     ]
+
+    private static func removingOnlyTesting(_ arguments: [String]) -> [String] {
+        var result: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == "-only-testing" {
+                _ = iterator.next()
+            } else if !argument.hasPrefix("-only-testing:") {
+                result.append(argument)
+            }
+        }
+        return result
+    }
+
+    private static func testTargetName(of testIdentifier: String) -> String {
+        testIdentifier.split(separator: "/", maxSplits: 1).first.map(String.init) ?? testIdentifier
+    }
+
+    /// The targets `-only-testing` selects whole, without another identifier narrowing them.
+    private static func fullyRunTestTargetNames(_ onlyTestIdentifiers: [String]) -> Set<String> {
+        let narrowedTargetNames = Set(onlyTestIdentifiers.filter { $0.contains("/") }.map(testTargetName(of:)))
+        return Set(onlyTestIdentifiers.filter { !$0.contains("/") }).subtracting(narrowedTargetNames)
+    }
 
     /// The caller's passthrough arguments minus the ones the stress pass sets itself.
     static func stressPassthroughArguments(_ arguments: [String]) -> [String] {
