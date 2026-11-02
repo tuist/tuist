@@ -591,9 +591,9 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "100 minutes included"
       assert html =~ "Billed this period"
       # The credit reads as money off the bill, not as a bare minute count.
-      assert html =~ "−7.50"
+      assert html =~ "−6.00"
       # 20 minutes past the allowance at the standard rate.
-      assert html =~ "1.50"
+      assert html =~ "1.20"
     end
 
     test "renders a pace for a projected runner receipt" do

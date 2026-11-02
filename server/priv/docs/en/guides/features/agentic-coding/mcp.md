@@ -375,6 +375,14 @@ Set `include_cache_inspection: true` on `get_cargo_build` to retrieve validated 
 | `list_mix_builds` | List Mix (Elixir) compile builds for a project, newest first, including custom metadata. Filter by `git_branch`, `status`, `is_ci`, or `mix_env`. | `account_handle`, `project_handle` |
 | `get_mix_build` | Get build metadata, diagnostics counts, and the dependency cache summary. | `account_handle`, `project_handle`, `build_id` |
 
+#### Build traces
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_build_trace` | Get a download link for an Xcode, Gradle, Bazel, or Mix build's timeline as a trace file you can open in [Perfetto](https://ui.perfetto.dev). | `account_handle`, `project_handle`, `build_id` |
+
+`build_id` is the build run ID (the invocation ID for Bazel) or the build's dashboard URL. The returned `trace_url` serves a [Chrome Trace Event](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU) JSON file. Anyone holding the link can download that build's trace without other credentials until `expires_at`, one hour after the call. Agents can download it with `curl`, hand it to you to open in Perfetto, or query it with Perfetto's `trace_processor`. The trace contains the recorded steps packed into lanes by parallelism, a track spanning the whole build, and CPU and memory counters when the build recorded machine metrics. It holds the same data as the step tools above, without logs. The dashboard offers the same file from each build's Timeline tab.
+
 #### Once runs
 
 | Tool | Description | Required parameters |

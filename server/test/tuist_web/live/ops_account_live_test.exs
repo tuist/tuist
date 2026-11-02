@@ -898,7 +898,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
         |> render_change()
 
       assert html =~ "11,200.00"
-      assert html =~ "149.3K"
+      assert html =~ "186.7K"
     end
 
     test "names the first and last invoice the pool will pay for", %{conn: conn, user: user} do

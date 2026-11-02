@@ -6,3 +6,5 @@ kura-ber1-runners-ingress-nginx:
   enabled: false
 ipv4OptionsTcpDrop:
   enabled: false
+disableMultipathTCP:
+  enabled: false
