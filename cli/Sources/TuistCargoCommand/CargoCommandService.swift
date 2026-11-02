@@ -192,6 +192,21 @@ public struct CargoCommandService {
             let connecting: Task<(any REAPICacheStoring)?, Never>? = cache != nil
                 && remoteEnvironment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil
                 ? Task { try? await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4) } : nil
+            // Like blaze's answers, the session resolves the toolchain and linker once, before Cargo starts its first
+            // wave of compilations: hooks that all missed the memo at once would each spawn rustc and xcrun probes.
+            let identities = cache == nil ? nil : Task { [environment, runner] in
+                let process = CargoProcess(runner: runner)
+                let directory = context.directory
+                let identity = try? await CargoToolchainIdentity.resolve(
+                    environment["RUSTC"] ?? "rustc", environment: environment, directory: directory, process: process
+                )
+                if let identity, let session = environment["TUIST_CARGO_SESSION"] {
+                    identity.prewarm(session: URL(fileURLWithPath: session))
+                }
+                #if os(macOS)
+                    _ = try? await CargoToolchainIdentity.linker(environment: environment, directory: directory, process: process)
+                #endif
+            }
             var unitCache = cache == nil ? nil : await CargoUnitCache.prepare(
                 executable: context.executable, arguments: context.arguments, environment: environment,
                 directory: context.directory, process: CargoProcess(runner: runner)
@@ -212,6 +227,7 @@ public struct CargoCommandService {
             // Per-crate entries download while units are restored and Cargo works through dependencies.
             let prefetch = Task { await units?.prefetch(manifest) }
             let restored = await unitCache?.restore(manifest) ?? CargoUnitCache.Restored()
+            await identities?.value
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,

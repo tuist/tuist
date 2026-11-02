@@ -256,6 +256,37 @@ struct CargoToolchainIdentity: Codable {
         return identity
     }
 
+    /// Hashes the files strict keys take from the toolchain (top-level `lib`, the host target tree without `bin`, the
+    /// compiler) into the session's shared records, so the first wave of compilers finds them instead of queueing
+    /// behind one of them on the session lock. Each hook still checks every file's identity before reusing a record.
+    func prewarm(session: URL) {
+        let hasher = CargoInputHasher(sessionDirectory: session)
+        let libraries = sysroot.appendingPathComponent("lib")
+        let host = URL(fileURLWithPath: targetLibdirPath).standardizedFileURL.deletingLastPathComponent()
+        _ = try? hasher.withSharedDigests(under: libraries) {
+            var files = (try? FileManager.default.contentsOfDirectory(at: libraries, includingPropertiesForKeys: nil)) ?? []
+            if let tree = FileManager.default.enumerator(at: host, includingPropertiesForKeys: [.isDirectoryKey]) {
+                for case let file as URL in tree {
+                    if file.lastPathComponent == "bin", file.deletingLastPathComponent().standardizedFileURL == host {
+                        tree.skipDescendants()
+                    } else {
+                        files.append(file)
+                    }
+                }
+            }
+            for file in files {
+                let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                if properties?.isRegularFile == true, properties?.isSymbolicLink != true { _ = try? hasher.digest(
+                    file,
+                    shared: true
+                ) }
+            }
+        }
+        for compiler in compilerFiles {
+            _ = try? hasher.digest(compiler, shared: true)
+        }
+    }
+
     /// The system linker and SDK a proc macro or build script is linked with, which the recorder cannot observe.
     static func linker(environment: [String: String], directory: AbsolutePath, process: CargoProcess) async throws -> [String] {
         let memo = environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0).appendingPathComponent("linker-identity") }

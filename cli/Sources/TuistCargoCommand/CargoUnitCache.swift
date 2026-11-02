@@ -215,8 +215,12 @@ struct CargoUnitCache {
         while index < options.count {
             let option = options[index]
             if ["--color", "-j", "--jobs", "--message-format"].contains(option) { index += 2; continue }
-            if ["-q", "--quiet", "-v", "-vv", "--verbose", "--offline", "--locked", "--frozen"].contains(option)
-                || ["--color=", "--jobs=", "--message-format="].contains(where: option.hasPrefix)
+            // Options that change reporting, scheduling or network use, never which units Cargo builds.
+            if [
+                "-q", "--quiet", "-v", "-vv", "--verbose", "--offline", "--locked", "--frozen", "--timings",
+                "--keep-going", "--future-incompat-report", "--no-fail-fast",
+            ].contains(option)
+                || ["--color=", "--jobs=", "--message-format=", "--timings="].contains(where: option.hasPrefix)
                 || (option.hasPrefix("-j") && option.dropFirst(2).allSatisfy(\.isNumber))
             {
                 index += 1; continue
