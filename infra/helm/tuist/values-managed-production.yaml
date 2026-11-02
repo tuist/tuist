@@ -163,9 +163,6 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1UXO5iLWue9IBlPSX793RSDB"
-      retired_runners:
-        runner_macos_compute_unit_milliseconds:
-          - "price_1U6woeLWue9IBlPSZpNHymSX"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in the live Stripe account by

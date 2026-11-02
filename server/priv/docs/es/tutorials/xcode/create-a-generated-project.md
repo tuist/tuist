@@ -1,8 +1,8 @@
 ---
 {
   "title": "Crear un proyecto generado",
-  "titleTemplate": ":title · Xcode · Tutoriales · Tuist",
-  "description": "Aprende a crear tu primer proyecto de Xcode generado con Tuist y a añadirle dependencias"
+  "titleTemplate": ":title · Xcode · Tutorials · Tuist",
+  "description": "Aprende a crear tu primer proyecto de Xcode generado con Tuist y añadirle dependencias"
 }
 ---
 # Crear un proyecto generado {#create-a-generated-project}
@@ -31,7 +31,7 @@ El comando te guiará paso a paso para <.localized_link href="/guides/features/p
 
 ## Añadir dependencias {#add-dependencies}
 
-Es habitual que los proyectos dependan de bibliotecas de terceros para aportar funcionalidad adicional. Para ello, ejecuta el siguiente comando y obtén la mejor experiencia al editar tu proyecto:
+Es habitual que los proyectos dependan de bibliotecas de terceros para aportar funcionalidad adicional. Para hacerlo, ejecuta el siguiente comando y obtén la mejor experiencia al editar tu proyecto:
 
 ```bash
 tuist edit
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-A continuación, edita el target de la aplicación en tu proyecto para declarar `Kingfisher` como dependencia:
+Luego edita el target de la aplicación en tu proyecto para declarar `Kingfisher` como dependencia:
 
 ```swift
 import ProjectDescription
@@ -105,12 +105,12 @@ let project = Project(
 )
 ```
 
-Después, ejecuta `tuist install` para resolver y descargar las dependencias mediante el [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+Después ejecuta `tuist install` para resolver y descargar las dependencias mediante el [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
 > [!NOTE]
 > **SPM como resolvedor de dependencias**
 >
-> El enfoque recomendado por Tuist para las dependencias utiliza el Swift Package Manager (SPM) únicamente para resolverlas. Luego, Tuist las convierte en proyectos y targets de Xcode para ofrecer la máxima configurabilidad y control.
+> El enfoque recomendado por Tuist para las dependencias usa el Swift Package Manager (SPM) solo para resolverlas. Luego, Tuist las convierte en proyectos y targets de Xcode para ofrecer la máxima configurabilidad y control.
 
 
 ## Visualizar el proyecto {#visualize-the-project}

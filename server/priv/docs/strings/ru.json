@@ -1,429 +1,610 @@
 {
-    "aside": {
-        "translate": {
-            "title": {
-                "text": "Перевод 🌍"
-            },
-            "description": {
-                "text": "Вы можете перевести или улучшить перевод этой страницы."
-            },
-            "cta": {
-                "text": "Внести вклад"
-            }
-        }
+  "navigation": {
+    "groups": {
+      "builds": { "text": "Сборки" },
+      "tests": { "text": "Тесты" },
+      "compute": { "text": "Вычисления" },
+      "bundles": { "text": "Бандлы" },
+      "other-features": { "text": "Другие возможности" }
     },
-    "search": {
-        "placeholder": "Поиск",
-        "translations": {
-            "button": {
-                "button-text": "Поиск документации",
-                "button-aria-label": "Поиск документации"
-            },
-            "modal": {
-                "search-box": {
-                    "reset-button-title": "Очистить запрос",
-                    "reset-button-aria-label": "Очистить запрос",
-                    "cancel-button-text": "Отменить",
-                    "cancel-button-aria-label": "Отменить"
-                },
-                "start-screen": {
-                    "recent-searches-title": "История поиска",
-                    "no-recent-searches-text": "Нет истории поиска",
-                    "save-recent-search-button-title": "Сохранить в историю поиска",
-                    "remove-recent-search-button-title": "Удалить из истории поиска",
-                    "favorite-searches-title": "Избранное",
-                    "remove-favorite-search-button-title": "Удалить из избранного"
-                },
-                "error-screen": {
-                    "title-text": "Не удается получить результаты",
-                    "help-text": "Возможно, вам необходимо проверить сетевое подключение"
-                },
-                "footer": {
-                    "select-text": "Выбрать",
-                    "navigate-text": "Перейти",
-                    "close-text": "Закрыть",
-                    "search-by-text": "Поисковая система"
-                },
-                "no-results-screen": {
-                    "no-results-text": "Результаты не найдены",
-                    "suggested-query-text": "Вы можете попробовать запросить",
-                    "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
-                    "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
-                }
-            }
+    "items": {
+      "agentic-coding": { "text": "Agentic coding" },
+      "bazel": { "text": "Bazel" },
+      "bazel-cache": { "text": "Кэш Bazel" },
+      "build-and-publish": { "text": "Сборка и публикация" },
+      "buildkite": { "text": "Buildkite" },
+      "cache-volumes": { "text": "Тома кэша" },
+      "compatibility": { "text": "Совместимость" },
+      "coverage": { "text": "Покрытие кода" },
+      "data-retention": { "text": "Хранение данных" },
+      "docker": { "text": "Docker" },
+      "elixir": { "text": "Elixir" },
+      "elixir-cache": { "text": "Кэш Elixir" },
+      "github-actions": { "text": "GitHub Actions" },
+      "gitlab-ci": { "text": "GitLab CI" },
+      "gradle": { "text": "Gradle" },
+      "grafana": { "text": "Grafana" },
+      "implicit-dependencies": { "text": "Неявные зависимости" },
+      "iphone-app": { "text": "Приложение для iPhone" },
+      "macos-app": { "text": "Приложение для macOS" },
+      "new-project": { "text": "Новый проект" },
+      "origin": { "text": "Источник" },
+      "profiles": { "text": "Профили" },
+      "project-description": { "text": "Описание проекта" },
+      "release-channels": { "text": "Каналы релизов" },
+      "run-previews": { "text": "Запуск превью" },
+      "rust": { "text": "Rust" },
+      "rust-cache": { "text": "Кэш Rust" },
+      "rust-project": { "text": "Проект на Rust" },
+      "scim-provisioning": { "text": "SCIM-провижининг" },
+      "server-api": { "text": "API сервера" },
+      "single-sign-on": { "text": "Единый вход (SSO)" },
+      "supported-types": { "text": "Поддерживаемые типы" },
+      "webhooks": { "text": "Вебхуки" },
+      "xcodegen-project": { "text": "Проект XcodeGen" },
+      "xcodeproj-integration": { "text": "Интеграция с Xcodeproj" },
+      "ufeatures-architecture": { "text": "Архитектура uFeatures" }
+    }
+  },
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "Языки 🌍"
+      },
+      "description": {
+        "text": "Вы можете помочь Tuist поддержать больше языков или улучшить языковые рекомендации для этой страницы."
+      },
+      "cta": {
+        "text": "Внести вклад"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "Поиск",
+    "translations": {
+      "button": {
+        "button-text": "Поиск по документации",
+        "button-aria-label": "Поиск по документации"
+      },
+      "modal": {
+        "search-box": {
+          "reset-button-title": "Очистить запрос",
+          "reset-button-aria-label": "Очистить запрос",
+          "cancel-button-text": "Отмена",
+          "cancel-button-aria-label": "Отмена"
+        },
+        "start-screen": {
+          "recent-searches-title": "История поиска",
+          "no-recent-searches-text": "Нет истории поиска",
+          "save-recent-search-button-title": "Сохранить в историю поиска",
+          "remove-recent-search-button-title": "Удалить из истории поиска",
+          "favorite-searches-title": "Избранное",
+          "remove-favorite-search-button-title": "Удалить из избранного"
+        },
+        "error-screen": {
+          "title-text": "Не удалось получить результаты",
+          "help-text": "Возможно, вам стоит проверить подключение к сети"
+        },
+        "footer": {
+          "select-text": "Выбрать",
+          "navigate-text": "Навигация",
+          "close-text": "Закрыть",
+          "search-by-text": "Поставщик поиска"
+        },
+        "no-results-screen": {
+          "no-results-text": "Релевантные результаты не найдены",
+          "suggested-query-text": "Попробуйте запрос",
+          "report-missing-results-text": "Считаете, что этот запрос должен давать результаты?",
+          "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
+      }
+    }
+  },
+  "navbar": {
+    "guides": {
+      "text": "Руководства"
     },
-    "navbar": {
-        "guides": {
-            "text": "Руководства"
-        },
-        "cli": {
-            "text": "CLI"
-        },
-        "server": {
-            "text": "Сервер"
-        },
-        "resources": {
-            "text": "Ресурсы",
-            "items": {
-                "references": {
-                    "text": "Ссылки"
-                },
-                "contributors": {
-                    "text": "Соучастники"
-                },
-                "changelog": {
-                    "text": "История изменений"
-                }
-            }
-        }
+    "cli": {
+      "text": "CLI"
     },
-    "sidebars": {
-        "cli": {
-            "text": "CLI",
-            "items": {
-                "cli": {
-                    "items": {
-                        "logging": {
-                            "text": "Логирование"
-                        },
-                        "shell-completions": {
-                            "text": "Автозавершения Shell"
-                        },
-                        "directories": {
-                            "text": "Директории"
-                        }
-                    }
-                },
-                "commands": {
-                    "text": "Команды"
-                }
-            }
-        },
+    "server": {
+      "text": "Сервер"
+    },
+    "tutorials": {
+      "text": "Обучение"
+    },
+    "resources": {
+      "text": "Ресурсы",
+      "items": {
         "references": {
-            "text": "Ссылки",
-            "items": {
-                "examples": {
-                    "text": "Примеры"
-                },
-                "migrations": {
-                    "text": "Миграции",
-                    "items": {
-                        "from-v3-to-v4": {
-                            "text": "От v3 до версии v4"
-                        }
-                    }
-                }
-            }
+          "text": "Справочники"
         },
         "contributors": {
-            "text": "Соучастники",
-            "items": {
-                "get-started": {
-                    "text": "Начало работы"
-                },
-                "issue-reporting": {
-                    "text": "Отчет об ошибках"
-                },
-                "code-reviews": {
-                    "text": "Код ревью"
-                },
-                "principles": {
-                    "text": "Принципы"
-                },
-                "translate": {
-                    "text": "Перевод"
-                },
-                "cli": {
-                    "text": "CLI",
-                    "items": {
-                        "logging": {
-                            "text": "Логирование"
-                        }
-                    }
-                },
-                "releases": {
-                    "text": "Релизы"
-                }
+          "text": "Участники"
+        },
+        "changelog": {
+          "text": "Журнал изменений"
+        }
+      }
+    }
+  },
+  "sidebars": {
+    "cli": {
+      "text": "CLI",
+      "items": {
+        "cli": {
+          "items": {
+            "debugging": {
+              "text": "Отладка"
+            },
+            "directories": {
+              "text": "Каталоги"
+            },
+            "shell-completions": {
+              "text": "Автодополнение в оболочке"
             }
+          }
+        },
+        "commands": {
+          "text": "Команды"
+        }
+      }
+    },
+    "references": {
+      "text": "Справочники",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "generated-projects": {
+              "text": "Генерируемые проекты"
+            }
+          }
+        },
+        "examples": {
+          "text": "Примеры"
+        },
+        "libraries": {
+          "text": "Библиотеки"
+        },
+        "migrations": {
+          "text": "Миграции",
+          "items": {
+            "from-v3-to-v4": {
+              "text": "С v3 на v4"
+            }
+          }
+        },
+        "configuration": {
+          "text": "Конфигурация",
+          "items": {
+            "tuist-toml": {
+              "text": "tuist.toml"
+            }
+          }
+        }
+      }
+    },
+    "contributors": {
+      "text": "Участники",
+      "items": {
+        "code": {
+          "text": "Код",
+          "items": {
+            "cli": {
+              "text": "CLI"
+            },
+            "server": {
+              "text": "Сервер"
+            },
+            "handbook": {
+              "text": "Руководство"
+            },
+            "docs": {
+              "text": "Документация"
+            }
+          }
+        },
+        "issue-reporting": {
+          "text": "Сообщения об ошибках"
+        },
+        "code-reviews": {
+          "text": "Ревью кода"
+        },
+        "principles": {
+          "text": "Принципы"
+        },
+        "debugging": {
+          "text": "Отладка"
+        },
+        "translate": {
+          "text": "Языки"
+        },
+        "releases": {
+          "text": "Релизы"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "Логирование"
+            }
+          }
+        }
+      }
+    },
+    "server": {
+      "items": {
+        "introduction": {
+          "text": "Введение",
+          "items": {
+            "why-server": {
+              "text": "Зачем нужен сервер?"
+            },
+            "accounts-and-projects": {
+              "text": "Аккаунты и проекты"
+            },
+            "authentication": {
+              "text": "Аутентификация"
+            },
+            "integrations": {
+              "text": "Интеграции"
+            }
+          }
+        },
+        "on-premise": {
+          "text": "Локальное развертывание",
+          "items": {
+            "install": {
+              "text": "Установка"
+            },
+            "metrics": {
+              "text": "Метрики"
+            }
+          }
+        },
+        "api-documentation": {
+          "text": "Документация API"
+        },
+        "status": {
+          "text": "Статус"
+        },
+        "metrics-dashboard": {
+          "text": "Панель метрик"
+        }
+      }
+    },
+    "tutorials": {
+      "text": "Обучение",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "create-a-generated-project": {
+              "text": "Создание генерируемого проекта"
+            }
+          }
+        }
+      }
+    },
+    "guides": {
+      "text": "Руководства",
+      "items": {
+        "get-started": {
+          "text": "Начало работы",
+          "items": {
+            "choose-your-path": {
+              "text": "Начало работы"
+            },
+            "existing-xcode-project": {
+              "text": "Проект Xcode"
+            },
+            "generated-xcode-project": {
+              "text": "Генерируемый проект Xcode"
+            },
+            "gradle-project": {
+              "text": "Проект Gradle"
+            },
+            "elixir-project": {
+              "text": "Проект Elixir"
+            },
+            "bazel-project": {
+              "text": "Проект Bazel"
+            }
+          }
+        },
+        "install-tuist": {
+          "text": "Установка Tuist"
+        },
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "О Tuist"
+            }
+          }
+        },
+        "quick-start": {
+          "text": "Быстрый старт",
+          "items": {
+            "install-tuist": {
+              "text": "Установка Tuist"
+            },
+            "get-started": {
+              "text": "Начало работы"
+            }
+          }
+        },
+        "features": {
+          "text": "Возможности"
+        },
+        "examples": {
+          "text": "Примеры",
+          "items": {
+            "generated-projects": {
+              "text": "Генерируемые проекты"
+            }
+          }
+        },
+        "develop": {
+          "text": "Разработка",
+          "items": {
+            "generated-projects": {
+              "text": "Генерируемые проекты",
+              "items": {
+                "adoption": {
+                  "text": "Внедрение",
+                  "items": {
+                    "new-project": {
+                      "text": "Создать новый проект"
+                    },
+                    "swift-package": {
+                      "text": "Попробовать с Swift Package"
+                    },
+                    "migrate": {
+                      "text": "Миграция",
+                      "items": {
+                        "xcode-project": {
+                          "text": "Проект Xcode"
+                        },
+                        "swift-package": {
+                          "text": "Пакет Swift"
+                        },
+                        "xcodegen-project": {
+                          "text": "Проект XcodeGen"
+                        },
+                        "bazel-project": {
+                          "text": "Проект Bazel"
+                        }
+                      }
+                    }
+                  }
+                },
+                "manifests": {
+                  "text": "Манифесты"
+                },
+                "directory-structure": {
+                  "text": "Структура каталогов"
+                },
+                "editing": {
+                  "text": "Редактирование"
+                },
+                "dependencies": {
+                  "text": "Зависимости"
+                },
+                "code-sharing": {
+                  "text": "Общий код"
+                },
+                "synthesized-files": {
+                  "text": "Сгенерированные файлы"
+                },
+                "dynamic-configuration": {
+                  "text": "Динамическая конфигурация"
+                },
+                "templates": {
+                  "text": "Шаблоны"
+                },
+                "plugins": {
+                  "text": "Плагины"
+                },
+                "hashing": {
+                  "text": "Хеширование"
+                },
+                "inspect": {
+                  "text": "Анализ",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "Неявные импорты"
+                    }
+                  }
+                },
+                "the-cost-of-convenience": {
+                  "text": "Цена удобства"
+                },
+                "tma-architecture": {
+                  "text": "Модульная архитектура"
+                },
+                "metadata-tags": {
+                  "text": "Теги метаданных"
+                },
+                "best-practices": {
+                  "text": "Лучшие практики"
+                }
+              }
+            },
+            "cache": {
+              "text": "Кэш",
+              "items": {
+                "xcode": {
+                  "text": "Xcode",
+                  "items": {
+                    "xcode-cache": {
+                      "text": "Кэш Xcode"
+                    },
+                    "module-cache": {
+                      "text": "Кэш модулей"
+                    }
+                  }
+                },
+                "gradle-cache": {
+                  "text": "Кэш Gradle"
+                }
+              }
+            },
+            "package-registries": {
+              "text": "Реестры пакетов",
+              "items": {
+                "swift": {
+                  "text": "Swift"
+                },
+                "xcode-project": {
+                  "text": "Проект Xcode"
+                },
+                "generated-project": {
+                  "text": "Генерируемый проект"
+                },
+                "xcodeproj-integration": {
+                  "text": "Интеграция на основе XcodeProj"
+                },
+                "swift-package": {
+                  "text": "Пакет Swift"
+                },
+                "continuous-integration": {
+                  "text": "Непрерывная интеграция"
+                }
+              }
+            },
+            "selective-testing": {
+              "text": "Выборочный запуск",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Генерируемый проект Xcode"
+                }
+              }
+            },
+            "test-sharding": {
+              "text": "Шардирование",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Генерируемый проект Xcode"
+                }
+              }
+            },
+            "insights": {
+              "text": "Аналитика",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Генерируемый проект Xcode"
+                }
+              }
+            },
+            "test-insights": {
+              "text": "Аналитика",
+              "items": {
+                "flaky-tests": {
+                  "text": "Нестабильные тесты",
+                  "items": {
+                    "generated-xcode-project": {
+                      "text": "Генерируемый проект Xcode"
+                    }
+                  }
+                }
+              }
+            },
+            "bundle-insights": {
+              "text": "Аналитика",
+              "items": {
+                "apple": {
+                  "text": "Apple"
+                },
+                "android": {
+                  "text": "Android"
+                }
+              }
+            },
+            "runners": {
+              "text": "Раннеры",
+              "items": {
+                "ci-providers": {
+                  "text": "CI-провайдеры"
+                }
+              }
+            }
+          }
+        },
+        "agentic-coding": {
+          "text": "Agentic Coding",
+          "items": {
+            "mcp": {
+              "text": "MCP"
+            },
+            "skills": {
+              "text": "Навыки"
+            }
+          }
+        },
+        "integrations": {
+          "text": "Интеграции",
+          "items": {
+            "continuous-integration": {
+              "text": "Непрерывная интеграция"
+            },
+            "http-proxy": {
+              "text": "HTTP-прокси"
+            },
+            "sso": {
+              "text": "SSO"
+            },
+            "slack": {
+              "text": "Slack"
+            },
+            "git-forges": {
+              "text": "Git-форжи",
+              "items": {
+                "github": {
+                  "text": "GitHub"
+                }
+              }
+            }
+          }
         },
         "server": {
-            "items": {
-                "introduction": {
-                    "text": "Введение",
-                    "items": {
-                        "why-server": {
-                            "text": "Зачем сервер?"
-                        },
-                        "accounts-and-projects": {
-                            "text": "Аккаунты и проекты"
-                        },
-                        "authentication": {
-                            "text": "Авторизация"
-                        },
-                        "integrations": {
-                            "text": "Интеграция"
-                        }
-                    }
-                },
-                "on-premise": {
-                    "text": "Локальный хостинг",
-                    "items": {
-                        "install": {
-                            "text": "Установка"
-                        },
-                        "metrics": {
-                            "text": "Метрики"
-                        }
-                    }
-                },
-                "api-documentation": {
-                    "text": "API документация"
-                },
-                "status": {
-                    "text": "Статус"
-                },
-                "metrics-dashboard": {
-                    "text": "Панель показателей"
-                }
-            }
-        },
-        "guides": {
-            "text": "Руководства",
-            "items": {
-                "tuist": {
-                    "text": "Tuist",
-                    "items": {
-                        "about": {
-                            "text": "Про Tuist"
-                        }
-                    }
-                },
-                "quick-start": {
-                    "text": "Быстрый старт",
-                    "items": {
-                        "install-tuist": {
-                            "text": "Установка Tuist"
-                        },
-                        "get-started": {
-                            "text": "Начало работы"
-                        }
-                    }
-                },
-                "features": {
-                    "text": "Возможности"
-                },
-                "examples": {
-                    "text": "Примеры",
-                    "items": {
-                        "generated-projects": {
-                            "text": "Сгенерированные проекты"
-                        }
-                    }
-                },
-                "develop": {
-                    "text": "Разработка",
-                    "items": {
-                        "generated-projects": {
-                            "text": "Сгенерированные проекты",
-                            "items": {
-                                "adoption": {
-                                    "text": "Выбор",
-                                    "items": {
-                                        "new-project": {
-                                            "text": "Создание нового проекта"
-                                        },
-                                        "swift-package": {
-                                            "text": "Попробуйте с Swift Package"
-                                        },
-                                        "migrate": {
-                                            "text": "Миграция",
-                                            "items": {
-                                                "xcode-project": {
-                                                    "text": "Проект Xcode"
-                                                },
-                                                "swift-package": {
-                                                    "text": "Пакет Swift"
-                                                },
-                                                "xcodegen-project": {
-                                                    "text": "Проект XcodeGen"
-                                                },
-                                                "bazel-project": {
-                                                    "text": "Проект Bazel"
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                "manifests": {
-                                    "text": "Манифесты"
-                                },
-                                "directory-structure": {
-                                    "text": "Структура директорий"
-                                },
-                                "editing": {
-                                    "text": "Редактирование"
-                                },
-                                "dependencies": {
-                                    "text": "Зависимости"
-                                },
-                                "code-sharing": {
-                                    "text": "Совместное использование кода"
-                                },
-                                "synthesized-files": {
-                                    "text": "Синтезированные файлы"
-                                },
-                                "dynamic-configuration": {
-                                    "text": "Динамическая конфигурация"
-                                },
-                                "templates": {
-                                    "text": "Шаблоны"
-                                },
-                                "plugins": {
-                                    "text": "Плагины"
-                                },
-                                "hashing": {
-                                    "text": "Хэширование"
-                                },
-                                "inspect": {
-                                    "text": "Исследовать",
-                                    "items": {
-                                        "implicit-imports": {
-                                            "text": "Неявные импорты"
-                                        }
-                                    }
-                                },
-                                "the-cost-of-convenience": {
-                                    "text": "Стоимость удобства"
-                                },
-                                "tma-architecture": {
-                                    "text": "Модульная архитектура"
-                                },
-                                "best-practices": {
-                                    "text": "Лучшие практики"
-                                },
-                                "metadata-tags": {
-                                    "text": "Теги метаданных"
-                                }
-                            }
-                        },
-                        "cache": {
-                            "text": "Кэш",
-                            "items": {
-                                "generated-project": {
-                                    "text": "Сгенерированный проект"
-                                },
-                                "xcode-cache": {
-                                    "text": "Кэш Xcode"
-                                },
-                                "module-cache": {
-                                    "text": "Кэш модулей"
-                                }
-                            }
-                        },
-                        "registry": {
-                            "text": "Реестр",
-                            "items": {
-                                "registry": {
-                                    "text": "Реестр"
-                                },
-                                "xcode-project": {
-                                    "text": "Проект Xcode"
-                                },
-                                "generated-project": {
-                                    "text": "Сгенерированный проект"
-                                },
-                                "xcodeproj-integration": {
-                                    "text": "Интеграция на основе XcodeProj"
-                                },
-                                "swift-package": {
-                                    "text": "Пакет Swift"
-                                },
-                                "continuous-integration": {
-                                    "text": "Непрерывная интеграция"
-                                }
-                            }
-                        },
-                        "selective-testing": {
-                            "text": "Выборочное тестирование",
-                            "items": {
-                                "selective-testing": {
-                                    "text": "Выборочное тестирование"
-                                },
-                                "xcode-project": {
-                                    "text": "Проект Xcode"
-                                },
-                                "generated-project": {
-                                    "text": "Сгенерированный проект"
-                                }
-                            }
-                        },
-                        "insights": {
-                            "text": "Аналитика сборки"
-                        },
-                        "bundle-size": {
-                            "text": "Аналитика бандла"
-                        }
-                    }
-                },
-                "agentic-coding": {
-                    "text": "Агентное Кодирование",
-                    "items": {
-                        "mcp": {
-                            "text": "Протокол контекста модели (MCP)"
-                        }
-                    }
-                },
-                "integrations": {
-                    "text": "Интеграции",
-                    "items": {
-                        "continuous-integration": {
-                            "text": "Непрерывная интеграция (CI)"
-                        },
-                        "sso": {
-                            "text": "SSO"
-                        },
-                        "git-forges": {
-                            "text": "Git-сервисы",
-                            "items": {
-                                "github": {
-                                    "text": "GitHub"
-                                }
-                            }
-                        }
-                    }
-                },
-                "share": {
-                    "text": "Поделиться",
-                    "items": {
-                        "previews": {
-                            "text": "Превью"
-                        }
-                    }
-                },
+          "text": "Сервер",
+          "items": {
+            "accounts-and-projects": {
+              "text": "Аккаунты и проекты"
+            },
+            "authentication": {
+              "text": "Аутентификация"
+            },
+            "network": {
+              "text": "Сеть"
+            },
+            "self-hosting": {
+              "text": "Самостоятельный хостинг",
+              "items": {
                 "server": {
-                    "items": {
-                        "self-hosting": {
-                            "items": {
-                                "telemetry": {
-                                    "text": "Телеметрия"
-                                },
-                                "installation": {
-                                    "text": "Установка"
-                                }
-                            },
-                            "text": "Самостоятельный хостинг"
-                        },
-                        "accounts-and-projects": {
-                            "text": "Аккаунты и проекты"
-                        },
-                        "authentication": {
-                            "text": "Аутентификация"
-                        }
-                    },
-                    "text": "Сервер"
+                  "text": "Сервер"
+                },
+                "cache": {
+                  "text": "Кэш"
+                },
+                "telemetry": {
+                  "text": "Телеметрия"
                 }
+              }
             }
+          }
+        },
+        "share": {
+          "text": "Обмен",
+          "items": {
+            "previews": {
+              "text": "Превью"
+            }
+          }
         }
+      }
     }
+  }
 }

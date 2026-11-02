@@ -1,8 +1,8 @@
 ---
 {
   "title": "Создание сгенерированного проекта",
-  "titleTemplate": ":title · Xcode · Обучающие материалы · Tuist",
-  "description": "Узнайте, как создать свой первый проект Xcode, сгенерированный Tuist, и добавить в него зависимости"
+  "titleTemplate": ":title · Xcode · Руководства · Tuist",
+  "description": "Узнайте, как создать свой первый проект Xcode, сгенерированный с помощью Tuist, и добавить в него зависимости"
 }
 ---
 # Создание сгенерированного проекта {#create-a-generated-project}
@@ -21,7 +21,7 @@ tuist init
 <!-- -->
 :::
 
-Команда проведет вас через шаги по <.localized_link href="/guides/features/projects">созданию сгенерированного проекта</.localized_link> или интеграции существующего проекта или рабочей области Xcode. Она поможет подключить вашу среду к удаленному серверу, предоставив доступ к таким возможностям, как <.localized_link href="/guides/features/selective-testing">выборочное тестирование</.localized_link>, <.localized_link href="/guides/features/previews">превью</.localized_link> и <.localized_link href="/guides/features/package-registries/swift">реестр</.localized_link>.
+Команда проведет вас по шагам <.localized_link href="/guides/features/projects">создания сгенерированного проекта</.localized_link> или интеграции существующего Xcode-проекта или рабочего пространства. Она поможет подключить вашу среду к удаленному серверу, предоставив доступ к таким возможностям, как <.localized_link href="/guides/features/selective-testing">выборочное тестирование</.localized_link>, <.localized_link href="/guides/features/previews">превью</.localized_link> и <.localized_link href="/guides/features/package-registries/swift">реестр</.localized_link>.
 
 > [!NOTE]
 > **Миграция существующего проекта**
@@ -37,7 +37,7 @@ tuist init
 tuist edit
 ```
 
-Откроется проект Xcode, содержащий файлы вашего проекта. Отредактируйте `Package.swift` и добавьте
+Откроется Xcode-проект, содержащий файлы вашего проекта. Отредактируйте `Package.swift` и добавьте
 
 ```swift
 // swift-tools-version: 5.9
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-Затем отредактируйте цель приложения в вашем проекте, чтобы объявить `Kingfisher` зависимостью:
+Затем отредактируйте цель приложения в вашем проекте, чтобы объявить `Kingfisher` как зависимость:
 
 ```swift
 import ProjectDescription
@@ -110,7 +110,7 @@ let project = Project(
 > [!NOTE]
 > **SPM как средство разрешения зависимостей**
 >
-> Рекомендуемый Tuist подход к зависимостям использует Swift Package Manager (SPM) только для разрешения зависимостей. Затем Tuist преобразует их в проекты и цели Xcode для максимальной гибкости настройки и контроля.
+> Рекомендуемый Tuist подход к зависимостям использует Swift Package Manager (SPM) только для разрешения зависимостей. Затем Tuist преобразует их в Xcode-проекты и цели для максимальной гибкости настройки и контроля.
 
 
 ## Визуализация проекта {#visualize-the-project}
