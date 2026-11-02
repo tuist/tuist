@@ -7,8 +7,9 @@ defmodule Tuist.Sandboxes.Archives do
   `Tuist.Environment.sandbox_archive_after_hours/0`, or its account keeps
   more than `max_paused_on_node_per_account/0` paused Orbs on nodes (the
   least recently paused go first), its node uploads the
-  kernel, rootfs and workspace (not the memory image) to the account's
-  object storage through presigned multipart URLs, the row becomes
+  kernel, rootfs and workspace (not the memory image) through presigned
+  multipart URLs to the in-rack store at its node's site, or to the
+  account's object storage when there is none, and the row becomes
   `archived` with no node, and the jail is deleted. The next spawn restores
   it on any node with room (`Tuist.Sandboxes` creates it `from_archive`)
   and it cold boots: files survive, processes do not.
@@ -19,17 +20,26 @@ defmodule Tuist.Sandboxes.Archives do
   is taken to start it and again to finish it, and a resume meanwhile wins
   (the node cancels the upload, and a finish that finds the row changed
   since the upload started aborts it).
+
+  An in-rack store is a shard storage target
+  (`Tuist.Environment.shard_storage_targets/0`) with an `archive_bucket`.
+  The row records which one holds its archive (`archive_store`), so a
+  restore and a delete read it from there even after the target stops
+  taking new archives, and a restore is placed on a node at its site.
+  Accounts with their own S3 storage keep their archives there.
   """
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
+  alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
 
   require Logger
@@ -160,26 +170,32 @@ defmodule Tuist.Sandboxes.Archives do
          } = sandbox
          when is_binary(node_name) <- Sandboxes.get_sandbox_by_id(id),
          %Account{} = account <- Repo.get(Account, sandbox.account_id),
-         true <- Storage.supports_signed_upload_headers?(account),
-         {:ok, node} <- connected_node(node_name) do
+         {:ok, node} <- connected_node(node_name),
+         {store, actor} = select_store(account, node_name),
+         true <- Storage.supports_signed_upload_headers?(actor) do
       key = object_prefix(account.id) <> "#{sandbox.id}/#{Ecto.UUID.generate()}.sbxa"
       {part_size, parts} = parts(sandbox, node)
 
-      case Storage.multipart_start(key, account) do
+      case Storage.multipart_start(key, actor) do
         {:ok, upload_id} ->
           urls =
             for part <- 1..parts,
-                do: Storage.multipart_generate_url(key, upload_id, part, account, expires_in: @url_ttl_seconds)
+                do: Storage.multipart_generate_url(key, upload_id, part, actor, expires_in: @url_ttl_seconds)
 
           {:ok, _} =
             sandbox
-            |> Sandbox.update_changeset(%{archive_key: key, archive_upload_id: upload_id, archive_attempted_at: now()})
+            |> Sandbox.update_changeset(%{
+              archive_key: key,
+              archive_store: store,
+              archive_upload_id: upload_id,
+              archive_attempted_at: now()
+            })
             |> Repo.update()
 
           {:ok,
            %{
              sandbox: sandbox,
-             account: account,
+             actor: actor,
              key: key,
              upload_id: upload_id,
              part_size: part_size,
@@ -219,14 +235,14 @@ defmodule Tuist.Sandboxes.Archives do
 
   defp finish({:ok, %{"parts" => [_ | _] = parts, "bytes" => bytes, "sha256" => sha256} = data}, upload)
        when is_integer(bytes) and is_binary(sha256) do
-    %{sandbox: sandbox, account: account, key: key, upload_id: upload_id} = upload
+    %{sandbox: sandbox, actor: actor, key: key, upload_id: upload_id} = upload
     parts = for %{"part_number" => number, "etag" => etag} <- parts, do: {number, etag}
 
     Sandboxes.with_sandbox_lock(sandbox.id, fn ->
       fresh = Sandboxes.get_sandbox_by_id(sandbox.id)
 
       if unchanged?(fresh, sandbox, upload_id) do
-        case complete(key, upload_id, parts, account) do
+        case complete(key, upload_id, parts, actor) do
           :ok ->
             {:ok, archived} =
               fresh
@@ -291,10 +307,10 @@ defmodule Tuist.Sandboxes.Archives do
 
   # Tigris answers a completion before the object is readable, so the
   # archive only counts once a HEAD finds it.
-  defp complete(key, upload_id, parts, account) do
+  defp complete(key, upload_id, parts, actor) do
     with result when result in [:ok, {:error, :multipart_upload_not_found}] <-
-           Storage.multipart_complete_upload(key, upload_id, parts, account),
-         true <- readable?(key, account, @readable_attempts) do
+           Storage.multipart_complete_upload(key, upload_id, parts, actor),
+         true <- readable?(key, actor, @readable_attempts) do
       :ok
     else
       false -> {:error, :archive_not_readable}
@@ -302,9 +318,9 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
-  defp readable?(key, account, attempts) do
+  defp readable?(key, actor, attempts) do
     cond do
-      Storage.object_exists?(key, account) ->
+      Storage.object_exists?(key, actor) ->
         true
 
       attempts <= 1 ->
@@ -312,18 +328,18 @@ defmodule Tuist.Sandboxes.Archives do
 
       true ->
         Process.sleep(@readable_interval_ms)
-        readable?(key, account, attempts - 1)
+        readable?(key, actor, attempts - 1)
     end
   end
 
-  defp discard(%{account: account, key: key, upload_id: upload_id}) do
-    case Storage.multipart_abort(key, upload_id, account) do
+  defp discard(%{actor: actor, key: key, upload_id: upload_id}) do
+    case Storage.multipart_abort(key, upload_id, actor) do
       :ok -> :ok
       other -> Logger.warning("sandboxes: could not abort an archive upload", archive_key: key, reason: inspect(other))
     end
 
     Repo.update_all(from(s in Sandbox, where: s.archive_upload_id == ^upload_id and is_nil(s.archived_at)),
-      set: [archive_key: nil, archive_upload_id: nil, updated_at: now()]
+      set: [archive_key: nil, archive_store: nil, archive_upload_id: nil, updated_at: now()]
     )
 
     :ok
@@ -355,13 +371,9 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def restore_source(%Sandbox{state: :archived, archive_key: key, archive_bytes: bytes, archive_sha256: sha256} = sandbox)
       when is_binary(key) and is_integer(bytes) and is_binary(sha256) do
-    case Repo.get(Account, sandbox.account_id) do
-      %Account{} = account ->
-        url = Storage.generate_download_url(key, account, expires_in: @url_ttl_seconds)
-        {:ok, %{url: url, bytes: bytes, sha256: sha256}}
-
-      nil ->
-        {:error, :not_found}
+    with {:ok, actor} <- actor(sandbox) do
+      url = Storage.generate_download_url(key, actor, expires_in: @url_ttl_seconds)
+      {:ok, %{url: url, bytes: bytes, sha256: sha256}}
     end
   end
 
@@ -373,10 +385,11 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def delete_object(%Sandbox{archive_key: nil}), do: :ok
 
-  def delete_object(%Sandbox{archive_key: key, account_id: account_id}) do
-    case Repo.get(Account, account_id) do
-      nil -> :ok
-      account -> Storage.delete_object(key, account)
+  def delete_object(%Sandbox{archive_key: key} = sandbox) do
+    case actor(sandbox) do
+      {:ok, actor} -> Storage.delete_object(key, actor)
+      {:error, :not_found} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -393,7 +406,7 @@ defmodule Tuist.Sandboxes.Archives do
           from(s in Sandbox,
             where: s.id == ^sandbox.id and s.archive_key == ^sandbox.archive_key and s.state != :archived
           ),
-          set: [archive_key: nil, archive_bytes: nil, archive_sha256: nil, archived_at: nil]
+          set: [archive_key: nil, archive_store: nil, archive_bytes: nil, archive_sha256: nil, archived_at: nil]
         )
 
         :ok
@@ -424,9 +437,9 @@ defmodule Tuist.Sandboxes.Archives do
     |> Enum.each(fn sandbox ->
       Logger.warning("sandboxes: aborting an abandoned archive upload", sandbox_id: sandbox.id)
 
-      case Repo.get(Account, sandbox.account_id) do
-        nil -> :ok
-        account -> discard(%{account: account, key: sandbox.archive_key, upload_id: sandbox.archive_upload_id})
+      case actor(sandbox) do
+        {:ok, actor} -> discard(%{actor: actor, key: sandbox.archive_key, upload_id: sandbox.archive_upload_id})
+        {:error, _reason} -> :ok
       end
     end)
   end
@@ -458,6 +471,69 @@ defmodule Tuist.Sandboxes.Archives do
       Logger.warning("sandboxes: reverting a stuck restore", sandbox_id: id)
       revert_restore(id)
     end)
+  end
+
+  @doc """
+  The site of the in-rack store holding a sandbox's archive, whose nodes
+  alone can restore it, or `nil` when it is in the account's storage.
+  """
+  def restore_site(%Sandbox{archive_store: nil}), do: nil
+
+  def restore_site(%Sandbox{archive_store: store}) do
+    case Map.fetch(stores(), store) do
+      {:ok, {config, _target}} -> config["site"]
+      :error -> nil
+    end
+  end
+
+  @doc """
+  Deletes every archive of an account, in its storage and in every in-rack
+  store.
+  """
+  def purge_account(%Account{} = account) do
+    prefix = object_prefix(account.id)
+    Storage.delete_all_objects(prefix, account)
+    for {_id, {_config, target}} <- stores(), do: Storage.delete_all_objects(prefix, target)
+    :ok
+  end
+
+  # The in-rack store an archive of a sandbox on `node_name` goes to, or the
+  # account's storage. The node's site is only read when a store could take
+  # the archive.
+  defp select_store(account, node_name) do
+    open =
+      for {id, {config, target}} <- Enum.sort(stores()),
+          config["enabled"] == true and config["private_network_ready"] == true,
+          do: {id, config["site"], target}
+
+    site = if open != [] and not Account.custom_s3_storage_configured?(account), do: Sites.shard_storage_site(node_name)
+
+    Enum.find_value(open, {nil, account}, fn {id, store_site, target} ->
+      if is_binary(site) and store_site == site and Storage.available?(target), do: {id, target}
+    end)
+  end
+
+  defp actor(%Sandbox{archive_store: nil, account_id: account_id}) do
+    case Repo.get(Account, account_id) do
+      %Account{} = account -> {:ok, account}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp actor(%Sandbox{archive_store: store}) do
+    case Map.fetch(stores(), store) do
+      {:ok, {_config, target}} -> {:ok, target}
+      :error -> {:error, :archive_store_unavailable}
+    end
+  end
+
+  # Shard storage targets that hold archives, in their `archive_bucket`.
+  defp stores do
+    for {id, %{"archive_bucket" => bucket} = config} <- Environment.shard_storage_targets(),
+        is_binary(bucket) and bucket != "",
+        {:ok, target} <- [ShardStorage.s3_target(id, Map.put(config, "bucket", bucket))],
+        into: %{},
+        do: {id, {config, target}}
   end
 
   defp connected_node(node_name) do

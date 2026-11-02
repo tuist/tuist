@@ -2749,12 +2749,12 @@ defmodule Tuist.Accounts do
       :ok
   end
 
-  # Archived Amp Orbs keep their disks under an account_id-keyed prefix, and
-  # their rows cascade with the account, so nothing else would find them.
+  # Archived Amp Orbs keep their disks under an account_id-keyed prefix, in
+  # the account's storage or an in-rack store, and their rows cascade with
+  # the account, so nothing else would find them.
   # Best-effort, like the cache-master purge.
   defp purge_account_sandbox_archives(account) do
-    Tuist.Storage.delete_all_objects(SandboxArchives.object_prefix(account.id), account)
-    :ok
+    SandboxArchives.purge_account(account)
   rescue
     e ->
       Logger.warning(

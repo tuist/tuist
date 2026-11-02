@@ -15,6 +15,7 @@ defmodule Tuist.Sandboxes do
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Archives
@@ -316,7 +317,7 @@ defmodule Tuist.Sandboxes do
   end
 
   defp place_and_create(sandbox, args, {:archive, source}) do
-    with {:ok, node_name} <- Capacity.place(sandbox),
+    with {:ok, node_name} <- place_restore(sandbox),
          {:ok, data} <-
            Nodes.call(node_name, "create", Map.put(args, :from_archive, source), timeout: @restore_timeout) do
       {:ok, node_name, data}
@@ -359,6 +360,15 @@ defmodule Tuist.Sandboxes do
         )
 
         place_and_create(sandbox, args, nil)
+    end
+  end
+
+  # An archive in an in-rack store is served over its site's private
+  # network, so only nodes at that site can download it.
+  defp place_restore(sandbox) do
+    case Archives.restore_site(sandbox) do
+      nil -> Capacity.place(sandbox)
+      site -> Capacity.place(sandbox, &(Sites.shard_storage_site(&1.name) == site))
     end
   end
 

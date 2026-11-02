@@ -46,6 +46,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :paused_at, :utc_datetime
     field :error_message, :string
     field :archive_key, :string
+    field :archive_store, :string
     field :archive_upload_id, :string
     field :archive_bytes, :integer
     field :archive_sha256, :string
@@ -120,6 +121,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :paused_at,
       :error_message,
       :archive_key,
+      :archive_store,
       :archive_upload_id,
       :archive_bytes,
       :archive_sha256,

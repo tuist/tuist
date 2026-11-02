@@ -135,8 +135,12 @@ consumer is Claude Managed Agents `self_hosted` environments.
   unset), or one of an account's paused Orbs on nodes past the newest ten
   (`max_paused_on_node_per_account/0`), is uploaded by its node (`archive` command with presigned multipart
   part URLs; the daemon holds no storage credentials) as kernel, rootfs and
-  workspace without the memory image, to
-  `sandbox-archives/<account_id>/` in the account's storage. The row
+  workspace without the memory image, to `sandbox-archives/<account_id>/`
+  in the archive bucket of the in-rack store at the node's site (a shard
+  storage target with an `archive_bucket`, recorded in `archive_store`), or
+  in the account's storage when there is none or the account has its own
+  S3 storage. The sandboxd NetworkPolicy lets the daemon reach the store
+  and the daemon drops guest traffic to its port. The row
   becomes `archived` with `node_name` nil only after the upload is
   completed and readable, then the jail is deleted; an `archived` row a node
   still reports is deleted from it. The upload runs without the sandbox
@@ -144,7 +148,8 @@ consumer is Claude Managed Agents `self_hosted` environments.
   cancels the upload and `finish` discards one whose row changed. A spawn
   of an archived Orb (`running_or_resume/1`) is admitted like a create
   (concurrency, the running limit and the on-node cap), placed by
-  `Capacity.place/1`, created
+  `Capacity.place/1`, or by `place/2` among the nodes at its store's site,
+  created
   with `from_archive` and cold boots; a failed restore reverts the row to
   `archived`, never to `error`, because the object is the only copy. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),

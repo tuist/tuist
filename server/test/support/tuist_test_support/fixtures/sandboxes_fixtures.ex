@@ -86,6 +86,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       paused_at: opts |> Keyword.get(:paused_at) |> truncate(),
       error_message: Keyword.get(opts, :error_message),
       archive_key: Keyword.get(opts, :archive_key),
+      archive_store: Keyword.get(opts, :archive_store),
       archive_upload_id: Keyword.get(opts, :archive_upload_id),
       archive_bytes: Keyword.get(opts, :archive_bytes),
       archive_sha256: Keyword.get(opts, :archive_sha256),

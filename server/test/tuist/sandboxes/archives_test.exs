@@ -6,6 +6,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Repo
@@ -18,6 +19,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Storage
+  alias Tuist.Storage.S3Target
 
   @gib 1024 * 1024 * 1024
   @node %{name: "node-a", templates: [%{name: "default", ready: true, rootfs_bytes: 4 * @gib}]}
@@ -382,6 +384,115 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       assert Repo.reload!(archived).state == :archived
       assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(restoring)
+    end
+  end
+
+  describe "in-rack stores" do
+    @store %{
+      "site" => "gra",
+      "enabled" => true,
+      "private_network_ready" => true,
+      "endpoint" => "http://shard-storage.kura.svc.cluster.local:3900",
+      "bucket" => "shards",
+      "archive_bucket" => "sandbox-archives",
+      "region" => "garage",
+      "access_key_id" => "GK0123",
+      "secret_access_key" => "secret"
+    }
+
+    setup do
+      stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => @store} end)
+      stub(Storage, :available?, fn %S3Target{bucket: "sandbox-archives"} -> true end)
+      stub(Sites, :shard_storage_site, fn node -> if node in ["node-a", "node-b"], do: "gra" end)
+      :ok
+    end
+
+    test "archive an Orb to the store at its node's site and restore it on a node at that site", %{account: account} do
+      sandbox = paused_orb(account)
+
+      expect(Storage, :multipart_start, fn _key, %S3Target{id: "gra-v1", bucket: "sandbox-archives"} ->
+        {:ok, "upload-1"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, %S3Target{id: "gra-v1"} -> :ok end)
+      expect(Storage, :object_exists?, fn _key, %S3Target{id: "gra-v1"} -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{state: :archived, archive_store: "gra-v1", archive_key: key} = archived = Repo.reload!(sandbox)
+      assert Archives.restore_site(archived) == "gra"
+
+      expect(Storage, :generate_download_url, fn ^key, %S3Target{bucket: "sandbox-archives"}, _opts ->
+        "http://shard-storage/get"
+      end)
+
+      expect(Capacity, :place, fn %Sandbox{state: :creating} = placed, node_filter ->
+        assert node_filter.(%{name: "node-b"})
+        refute node_filter.(%{name: "node-c"})
+        Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-b"}))
+        {:ok, "node-b"}
+      end)
+
+      expect(Nodes, :call, fn "node-b", "create", %{from_archive: %{url: "http://shard-storage/get"}}, _opts ->
+        {:ok, %{"template_tag" => "sha-new"}}
+      end)
+
+      expect(Storage, :delete_object, fn ^key, %S3Target{id: "gra-v1"} -> :ok end)
+      expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %Sandbox{state: :running, node_name: "node-b"}} =
+               AmpOrbs.dispatch(account, sandbox.amp_orb_id, %{operation: "spawn", orb_token: "fresh"})
+
+      assert %Sandbox{archive_key: nil, archive_store: nil, archived_at: nil} = Repo.reload!(sandbox)
+    end
+
+    test "archives stay in the account's storage off the store's site and for accounts with their own storage",
+         %{account: account} do
+      off_site = paused_orb(account, node_name: "node-c")
+      stub(Nodes, :connected_nodes, fn -> [@node, %{@node | name: "node-c"}] end)
+      stub(Nodes, :call, fn _node, "archive", _args, _opts -> {:error, :unavailable} end)
+
+      expect(Storage, :multipart_start, fn _key, %Account{id: id} when id == account.id -> {:ok, "upload-1"} end)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", %Account{} -> :ok end)
+      assert {:error, :unavailable} = Archives.archive(off_site)
+
+      custom =
+        Repo.update!(
+          Ecto.Changeset.change(account_fixture(),
+            s3_bucket_name: "custom",
+            s3_access_key_id: "key",
+            s3_secret_access_key: "secret"
+          )
+        )
+
+      reject(&Sites.shard_storage_site/1)
+      expect(Storage, :multipart_start, fn _key, %Account{id: id} when id == custom.id -> {:ok, "upload-1"} end)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", %Account{} -> :ok end)
+      assert {:error, :unavailable} = Archives.archive(paused_orb(custom))
+    end
+
+    test "an archive whose store is no longer configured stays archived", %{account: account} do
+      sandbox = archived_orb(account, archive_store: "gra-v0")
+      reject(&Capacity.place/2)
+      reject(&Storage.delete_object/2)
+
+      assert {:error, :archive_store_unavailable} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+
+      assert %Sandbox{state: :archived, archive_store: "gra-v0"} = Repo.reload!(sandbox)
+
+      assert {:error, :archive_store_unavailable} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "delete"})
+      assert %Sandbox{archive_key: key, archive_store: "gra-v0"} = Repo.reload!(sandbox)
+      assert key == sandbox.archive_key
+    end
+
+    test "purging an account deletes its archives in its storage and in every store", %{account: account} do
+      prefix = Archives.object_prefix(account.id)
+      expect(Storage, :delete_all_objects, fn ^prefix, %Account{} -> :ok end)
+      expect(Storage, :delete_all_objects, fn ^prefix, %S3Target{id: "gra-v1", bucket: "sandbox-archives"} -> :ok end)
+      assert :ok = Archives.purge_account(account)
     end
   end
 end
