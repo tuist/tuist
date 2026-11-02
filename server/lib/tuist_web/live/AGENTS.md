@@ -57,6 +57,8 @@
 - Build-to-test lookups must pass the build's project ID so immutable summary aggregation stays project-scoped. Immutable test-run download links retain the canonical run route; the controller resolves the first available current shard bundle from its original case-sensitive upload ID, not a synthetic merged xcresult.
 
 ## Boundaries
+- Cargo crate dashboards reuse `BuildEntityLive` and its flag-gated native navigation. Identity is exact recorded root/name/kind; do not infer configuration scope, cache hits, removals or unobserved crates. Cargo's plain test command enforces mute/skip states, so Cargo participates in the shared Automations settings tab gate.
+
 - The common LiveView macro installs `LayoutLive` observability hooks for mount, params, events, async completions and messages. Refresh context on each callback so its new OTel span has the current selected-resource IDs and observed flag cohorts, not just mount attributes. Embedded views must not attach the router-only params hook. Layout resource loading establishes the target before downstream mount work; this is attribution, never authorization.
 
 ## Toolchain, runner and analytics contracts

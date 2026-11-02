@@ -216,6 +216,14 @@ This read-only tool searches Tuist's documentation, [application programming int
 |------|-------------|---------------------|
 | `search_tuist` | Search public Tuist documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
+#### Feedback
+
+Agents can tell the Tuist team when a Tuist tool or prompt did not work the way they expected, such as a confusing result, an error, missing data, or a missing capability. Agents are asked to suggest a report and send it only once you agree. Each report opens a conversation with Tuist support, who may reply to you by email. A report includes what the agent expected, what happened, an optional suggestion, your Tuist user ID, handle and email, and the organizations you belong to. Agents can also name the account and project the problem happened in, so the team knows which organization to follow up with; only accounts you belong to are accepted. Only agents signed in as a Tuist user can send reports, and each user can open up to 10 reports per hour. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `report_feedback` | Report a problem with a Tuist tool or prompt. Optionally name the `tool_name`, the `account_handle` and `project_handle` it happened in, and add a `suggestion`. | `category`, `expected`, `actual` |
+
 #### Source-backed answers
 
 These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.
@@ -356,7 +364,9 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Cargo test execution results are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
-| `get_cargo_build` | Get build metadata and aggregate cache counters, including hits, task misses, and hit rate. | `account_handle`, `project_handle`, `build_id` |
+| `get_cargo_build` | Get build metadata, aggregate cache counters, and up to 500 recorded compiler jobs with diagnostics. `compilations_truncated` indicates omitted jobs; diagnostics cover the returned jobs only. | `account_handle`, `project_handle`, `build_id` |
+
+Set `include_cache_inspection: true` on `get_cargo_build` to retrieve validated task decisions and CAS operations, bounded to 4 MB. By default, and when records are missing or invalid, `cache_inspection` is null. Respect its partial-capture `truncated` flag; transfers do not establish each task hit's local/remote origin. The HTTP detail endpoint accepts the same query parameter.
 
 #### Mix builds
 
@@ -392,6 +402,7 @@ These project-scoped tools inspect persistent build identities across runs. Star
 | `once_actions` | Once actions | Executions |
 | `mix_files` | Mix compiled files | Compilations |
 | `mix_modules` | Mix compiled modules | Compilations |
+| `cargo_crates` | Cargo crates | Recorded rustc invocations |
 
 These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
 
@@ -402,6 +413,8 @@ Xcode module durations come from measured target compilations in build logs. Mod
 Bazel actions are identified by target label, mnemonic and configured primary output, keeping separate actions and configurations distinct without relying on input-dependent cache digests. History records BEP-reported executions, not cache lookups or trace-profile phases. Complete execution coverage requires `--build_event_publish_all_actions`; artifact delivery is best effort, so missing observations are not evidence that no work ran. Older Kura payloads without stable identity or execution start remain accepted but unindexed. Absent end-time measurements stay unavailable and genuine zero durations count.
 
 Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+
+Cargo crates are grouped by exact recorded crate root, name and kind. Checkout-path changes can split histories, and build profiles, features and target triples are not distinguished. History measures rustc invocations, not per-file work or cache hits; absent jobs do not establish removals or a complete workspace inventory.
 
 Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
 
@@ -491,7 +504,7 @@ When an event occurs, Tuist sends its resource identifier and dashboard URL to t
 | Prompt | Description |
 |--------|-------------|
 | `fix_flaky_test` | Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. |
-| `compare_builds` | Guides you through comparing two build runs to identify performance regressions, cache changes, and build issues. Works with both Xcode and Gradle projects. |
+| `compare_builds` | Guides you through comparing builds to identify performance regressions, cache changes, and build issues. Uses native tools for Xcode, Gradle, Bazel and Cargo projects. Cargo comparisons preserve partial compiler coverage and distinguish estimated compiler work from elapsed savings. |
 | `compare_test_runs` | Guides you through comparing two test runs to identify regressions, new failures, and flaky tests. |
 | `compare_bundles` | Guides you through comparing two bundles to identify size changes across the artifact tree. |
 | `compare_test_case` | Guides you through comparing a test case's behavior across two branches or time periods. |

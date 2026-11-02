@@ -4,6 +4,7 @@ defmodule Tuist.Cargo do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.Cargo.Build
   alias Tuist.Cargo.CacheMetrics
   alias Tuist.Cargo.Compilation
@@ -42,11 +43,14 @@ defmodule Tuist.Cargo do
       now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
       strings = Map.new(@strings, &{&1, Map.get(attrs, &1) || ""})
 
-      Build.Buffer.insert(
+      build_entry =
         Map.merge(strings, %{
           id: id,
           project_id: attrs.project_id,
           account_id: attrs.account_id,
+          actor_account_id: Map.get(attrs, :actor_account_id, 0),
+          claimed_actor_id: Map.get(attrs, :claimed_actor_id, ""),
+          submission_auth: Map.get(attrs, :submission_auth, ""),
           status: attrs.status,
           duration_ms: attrs.duration_ms,
           cache_metrics: cache_metrics,
@@ -56,7 +60,8 @@ defmodule Tuist.Cargo do
           started_at: started_at(attrs[:started_at]),
           inserted_at: now
         })
-      )
+
+      Build.Buffer.insert(build_entry)
 
       rows =
         Enum.map(compilations, fn compilation ->
@@ -71,7 +76,8 @@ defmodule Tuist.Cargo do
           })
         end)
 
-      if rows != [], do: Compilation.Buffer.insert_all(rows)
+      record_compilations(build_entry, rows)
+
       {:ok, id}
     else
       _ -> {:error, :invalid_report}
@@ -186,6 +192,16 @@ defmodule Tuist.Cargo do
       end)
 
     ClickHouseRepo.all(query)
+  end
+
+  defp record_compilations(_build, []), do: :ok
+
+  defp record_compilations(build, rows) do
+    Compilation.Buffer.insert_all(rows)
+
+    if build.command != "nextest" and BuildEntities.enabled?(build.project_id) do
+      BuildEntities.Producers.cargo_build(build, rows)
+    end
   end
 
   defp build_query(project_id), do: from(b in Build, where: b.project_id == ^project_id and b.command != "nextest")

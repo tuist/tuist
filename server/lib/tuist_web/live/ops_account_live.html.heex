@@ -608,25 +608,6 @@
 
   <.card title={dgettext("dashboard", "Prepaid runner minutes")} icon="asset">
     <.card_section>
-      <p data-part="prepaid-description">
-        {dgettext(
-          "dashboard",
-          "Setting this replaces what the account holds rather than adding to it, and the minutes are granted straight away so it can run on them. The charge rides its next invoice alongside the rest of the bill. Minutes expire at the end of the billing period they were bought for and do not roll over. The figures are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
-        )}
-      </p>
-      <.alert
-        :if={not @has_subscription}
-        id="prepaid-no-subscription-alert"
-        size="large"
-        status="warning"
-        title={dgettext("dashboard", "No active subscription")}
-        description={
-          dgettext(
-            "dashboard",
-            "This account has no subscription, so Stripe never generates an invoice for it. A prepaid charge added now would sit unbilled until one exists."
-          )
-        }
-      />
       <.table
         :if={@prepaid_balance}
         id="prepaid-balance-table"
@@ -645,102 +626,12 @@
       <p :if={is_nil(@prepaid_balance)} data-part="prepaid-empty">
         {dgettext("dashboard", "This account has no prepaid runner minutes.")}
       </p>
-      <.form
-        for={%{}}
-        id="prepaid-minutes-form"
-        phx-change="quote_prepaid_minutes"
-        phx-submit="set_prepaid_minutes"
-      >
-        <.text_input
-          id="prepaid-minutes-input"
-          name="minutes"
-          value={@prepaid_minutes_value}
-          input_type="number"
-          min={0}
-          label={dgettext("dashboard", "Prepaid minutes (macOS 6 vCPU / 14 GB)")}
-        />
-        <dl :if={@prepaid_quote} data-part="prepaid-quote">
-          <div>
-            <dt>{dgettext("dashboard", "Added to next invoice")}</dt>
-            <dd data-part="prepaid-quote-invoiced">{format_money(@prepaid_quote.invoiced)}</dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard", "Granted now")}</dt>
-            <dd data-part="prepaid-quote-granted">{format_money(@prepaid_quote.granted)}</dd>
-          </div>
-        </dl>
-        <div data-part="actions">
-          <.button
-            type="submit"
-            variant="primary"
-            label={dgettext("dashboard", "Set minutes")}
-          />
-        </div>
-      </.form>
-    </.card_section>
-    <.card_section>
-      <p data-part="standing-prepaid-description">
-        {dgettext(
-          "dashboard",
-          "Standing minutes are a monthly item on the account's subscription. Stripe bills them on every renewal invoice and the minutes are granted once that invoice is finalized, shortly after the cycle opens, which is what a recurring prepaid arrangement needs, since minutes expire with the cycle they were bought for. Setting them leaves the cycle now running exactly as it is. Zero stops the arrangement."
-        )}
-      </p>
-      <.alert
-        :if={@standing_prepaid_unavailable}
-        id="standing-prepaid-unavailable-alert"
-        size="large"
-        status="warning"
-        title={dgettext("dashboard", "Standing minutes unavailable")}
-        description={standing_prepaid_error(@standing_prepaid_unavailable)}
-      />
-      <p :if={is_nil(@standing_prepaid_unavailable)} data-part="standing-prepaid-next">
-        {dgettext("dashboard", "Next billed and granted on %{date}.",
-          date: standing_prepaid_next_label(@standing_prepaid_next_at)
-        )}
-      </p>
-      <.form
-        :if={is_nil(@standing_prepaid_unavailable)}
-        for={%{}}
-        id="standing-prepaid-minutes-form"
-        phx-change="quote_standing_prepaid_minutes"
-        phx-submit="set_standing_prepaid_minutes"
-      >
-        <.text_input
-          id="standing-prepaid-minutes-input"
-          name="minutes"
-          value={@standing_prepaid_minutes_value}
-          input_type="number"
-          min={0}
-          label={dgettext("dashboard", "Standing monthly minutes (macOS 6 vCPU / 14 GB)")}
-        />
-        <dl :if={@standing_prepaid_quote} data-part="standing-prepaid-quote">
-          <div>
-            <dt>{dgettext("dashboard", "Billed each cycle")}</dt>
-            <dd data-part="standing-prepaid-quote-invoiced">
-              {format_money(@standing_prepaid_quote.invoiced)}
-            </dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard", "Granted each cycle")}</dt>
-            <dd data-part="standing-prepaid-quote-granted">
-              {format_money(@standing_prepaid_quote.granted)}
-            </dd>
-          </div>
-        </dl>
-        <div data-part="actions">
-          <.button
-            type="submit"
-            variant="primary"
-            label={dgettext("dashboard", "Set standing minutes")}
-          />
-        </div>
-      </.form>
     </.card_section>
     <.card_section>
       <p data-part="prepaid-pool-description">
         {dgettext(
           "dashboard",
-          "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it. The minutes field above leaves pools alone."
+          "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it."
         )}
       </p>
       <.form
@@ -759,9 +650,15 @@
         <.text_input
           id="prepaid-pool-credit-multiplier-input"
           name="credit_multiplier"
-          value={standard_credit_multiplier()}
+          value=""
           label={dgettext("dashboard", "Credit multiplier")}
-          hint={credit_multiplier_hint()}
+          placeholder="1.25"
+          hint={
+            dgettext(
+              "dashboard",
+              "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute."
+            )
+          }
         />
         <.select
           id="prepaid-pool-platforms"

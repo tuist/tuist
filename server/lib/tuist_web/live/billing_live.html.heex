@@ -32,6 +32,32 @@
       />
     </:action>
   </.alert>
+  <.alert
+    :if={not is_nil(@downgrade_date)}
+    id="billing-pending-downgrade"
+    status="information"
+    type="secondary"
+    size="large"
+    title={
+      dgettext("dashboard_account", "Your plan switches to Air on %{date}", date: @downgrade_date)
+    }
+    description={
+      dgettext(
+        "dashboard_account",
+        "You keep Pro until then, and the usage until then is billed as usual."
+      )
+    }
+  >
+    <:action>
+      <.button
+        label={dgettext("dashboard_account", "Keep Pro")}
+        variant="primary"
+        size="medium"
+        phx-click="change_plan"
+        phx-value-plan={:pro}
+      />
+    </:action>
+  </.alert>
   <.card
     data-part="current-plan-card"
     icon="package"

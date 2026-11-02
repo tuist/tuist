@@ -5,15 +5,6 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
-  @doc "Enable CLI uploads only after all replicas can read executable/Linux enum values."
-  def cli_previews_enabled?(account, flags \\ nil) do
-    Observability.feature_flag_evaluated(
-      :cli_previews,
-      account,
-      Environment.env() not in [:can, :prod] or flag_enabled?(:cli_previews, account, flags)
-    )
-  end
-
   @doc "Default-off account enrollment in runner-local shard artifact storage."
   def runner_shard_storage_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

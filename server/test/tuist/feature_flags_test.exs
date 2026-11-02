@@ -9,27 +9,6 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
-  describe "cli_previews_enabled?/1" do
-    test "canary and production require explicit enrollment after the server rollout" do
-      account = %Account{id: 42}
-
-      for env <- [:can, :prod], enabled <- [false, true] do
-        stub(Environment, :env, fn -> env end)
-        expect(FunWithFlags, :enabled?, fn :cli_previews, [for: ^account] -> enabled end)
-        assert FeatureFlags.cli_previews_enabled?(account) == enabled
-      end
-    end
-
-    test "local and staging previews work without enrollment" do
-      reject(FunWithFlags, :enabled?, 2)
-
-      for env <- [:dev, :test, :stag] do
-        stub(Environment, :env, fn -> env end)
-        assert FeatureFlags.cli_previews_enabled?(%Account{id: 42})
-      end
-    end
-  end
-
   describe "runner_docker_cache_enabled?/1" do
     test "canary qualification does not depend on a database flag" do
       stub(Environment, :env, fn -> :can end)

@@ -140,13 +140,20 @@ Kura REAPI ActionCache and CAS/ByteStream protocol as Bazel: an input key maps
 to an ActionResult whose output is a content-addressed dependency compilation
 bundle. A verified local snapshot store remains the fail-open fallback. The
 shared setup above enables this alongside build and test insights. `mix compile`
-restores matching dependency builds before Mix compiles the rest. The generated alias exposes compiled bootstrap modules without compiling other
+restores matching dependency builds before Mix compiles the rest. The generated
+`compile/1` function in your Mix project compiles Tuist and its dependencies only
+when they are missing or out of date. If your compile alias still starts with
+`deps.compile tuist_ex --include-children`, run `mix tuist.setup` again: that
+alias rebuilds Tuist's dependencies on every `mix compile`, which can also
+recompile your whole project. The generated
+function exposes compiled bootstrap modules without compiling other
 dependencies, including when Mix uses separate OS compiler workers. The wrapper
 re-enables Mix's normal dependency checks afterward, so local dependencies and
 unsupported chains still compile and changed locks are checked. Non-allowlisted
 fetched dependencies compile in batches, retaining Mix's OS-worker parallelism.
-Without an
-alias, use `mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
+Without the alias, a fresh checkout can bootstrap once with
+`mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
+Don't repeat it on every build: it rebuilds Tuist's dependencies each time.
 Dependencies needed to bootstrap Tuist itself compile normally. When already
 current and supported, they count as local hits without a cache lookup. Jason
 and Decimal are bootstrap dependencies, so they are not useful demonstration
@@ -190,8 +197,9 @@ BEAMs and application resources, resolved application metadata, effective applic
 configuration (explicit configured keys, with application defaults covered by
 dependency sources), dependency and VM-wide compiler options, dependency-specific
 `env:` and `system_env:`, Mix environment/target,
-and the Elixir build, full OTP version (when available), ERTS, compiler bytecode,
-OS version, architecture, word size and byte order enter the key. Standard
+and the Elixir build, full OTP version (when available), ERTS version, compiler bytecode,
+OS family, architecture, word size and byte order enter the key. The kernel version
+and scheduler counts do not. Standard
 compiler/runtime inputs (`ERL_COMPILER_OPTIONS`, `ELIXIR_ERL_OPTIONS`, `ERL_AFLAGS`,
 `ERL_FLAGS`, `ERL_ZFLAGS`, `SOURCE_DATE_EPOCH`, `ERL_LIBS`, `MIX_PATH`, and `MIX_ARCHIVES`) are included automatically;
 declare other compile-time environment variables explicitly. The effective context
@@ -268,7 +276,8 @@ Authentication, unavailable
 endpoints, quota refusals and storage failures fall back without hiding compiler
 failures. Set `upload: false` to read remote bundles without publishing new ones;
 local snapshots still populate. This is a client behavior option, not an
-authorization boundary. Dependency snapshots and remote bundles are capped at 64 MiB. Compiler manifests and BEAMs
+authorization boundary. Uploads are also skipped when the server reports that
+the cache token cannot write to the project. Dependency snapshots and remote bundles are capped at 64 MiB. Compiler manifests and BEAMs
 may embed producer checkout paths and compile-time values, including secrets.
 Audit selected dependencies and restrict project cache access accordingly.
 Writers are trusted code producers: a writer can publish executable BEAMs under
@@ -277,7 +286,9 @@ Do not provide cache-write credentials to untrusted branches or dependencies.
 
 The local fallback is stored under the user's Tuist cache directory; `path:` selects a
 different location. Checkout paths are keyed by default. `portable: true` enables
-reuse across checkouts, but cached BEAMs retain producer paths, including
+reuse across checkouts: the checkout path is left out of the key, also where
+configured values embed it (for example paths built from `__DIR__`). Cached BEAMs
+still retain producer paths, including
 compile-time `__DIR__`, `__ENV__.file`, and `File.cwd!()` values. Only enable it
 for dependencies whose behavior does not rely on those paths. Resource links
 are recreated for the current dependency checkout. Upstream BEAMs still enter

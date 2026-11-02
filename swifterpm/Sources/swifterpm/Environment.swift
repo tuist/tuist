@@ -26,6 +26,9 @@ enum Environment {
         FileHandle.standardError.write(Data("Warning: \($0)\n".utf8))
     }
 
+    @TaskLocal
+    static var debugHandler: (@Sendable (String) -> Void)?
+
     static func withWarnings<T>(quiet: Bool, operation: () async throws -> T) async rethrows -> T {
         try await $warningHandler.withValue(quiet ? nil : warningHandler) { try await operation() }
     }

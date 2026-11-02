@@ -977,13 +977,22 @@ rather than on magnitude.
 
 Note `cilium_drop_count_total` carries no source address, so on its own it says
 *that* a host is mis-sourced but not *which* one. Use `hubble_drop_total`, which
-carries `source` and `destination`:
+carries `source` and `destination`. First verify
+[per-node Hubble scrape coverage](README.md#hubble-packet-drop-coverage): one
+healthy Service-address target does not establish cluster-wide coverage. A
+missing or failing agent scrape makes absence of drops inconclusive. After
+the per-node collector rollout, include the observing node:
 
 ```promql
-topk(10, sum by (source, destination) (
-  rate(hubble_drop_total{reason="POLICY_DENIED", protocol="TCP"}[5m])
+topk(10, sum by (node, source, destination) (
+  rate(hubble_drop_total{reason="POLICY_DENIED", protocol="TCP", node!=""}[5m])
 ))
 ```
+
+`node` is the agent observing the drop, not necessarily the source or destination
+node. Scope queries to the cluster being investigated. Historical counters from
+the Service scrape have no node attribution and cannot establish which nodes
+were free of drops.
 
 An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
 path resolves to a bare IP, which is the distinction that matters here. Those
@@ -3641,15 +3650,18 @@ zero for a queue that drains. Its absence means the telemetry broke rather
 than that the queue is clean. The 10 minute pending period is what keeps a
 deploy roll from paging.
 
-**Do not rewrite either rule onto `rate()` or `increase()`.** The Oban job
-counters (`tuist_oban_job_exception_attempts_count` and its siblings) are
-subject to Grafana Cloud adaptive metrics, which aggregates away `instance`
-and `pod`. Measured on 2026-09-09 at 5m, 15m, 1h and 6h windows, and again
-evaluated at a timestamp inside the outage, `rate()` and `increase()` over
-those aggregated counters return an **empty result rather than an error**,
-while an instant `sum by` over the same selector returns correct values.
-A rule built on them is silently dead in exactly the way these two were.
-The polled gauges are not counters and do not have this problem.
+**Keep both rules on the polled gauge.** The Oban job counters
+(`tuist_oban_job_exception_attempts_count` and its siblings) are subject to
+Grafana Cloud Adaptive Metrics, which aggregates away `instance` and `pod`.
+Until the `tuist_` prefix rule gained `sum:counter` on 2026-10-30 at 18:16
+UTC, `rate()` and `increase()` over those aggregated counters returned an
+**empty result rather than an error**, while an instant `sum by` over the
+same selector returned correct values. Measured on 2026-09-09 at 5m, 15m, 1h
+and 6h windows, and again at a timestamp inside the outage, a rule built on
+them was silently dead in exactly the way these two were. Rates work on
+samples stored since then (see the Adaptive Metrics section of
+[README.md](README.md)), but the gauge still needs no rate and reads the
+table rather than a pod's own completions.
 
 ### Build ingestion queue not draining
 
@@ -3692,6 +3704,91 @@ Expect this to read high for a while after any recovery. Draining a
 backlog leaves the oldest job waiting behind newer higher-priority work,
 so the age climbs at wall-clock rate until the front of the queue is
 reached.
+
+### Ingestion queue wait and processing duration
+
+Four rules in folder `Alerts`, group `Server`, read the Oban job histograms
+`tuist_oban_job_queue_time_milliseconds_bucket` and
+`tuist_oban_job_processing_duration_milliseconds_bucket`:
+
+| Rule | uid | Fires when, over 15 minutes |
+| --- | --- | --- |
+| Build queue duration | `bfjdm39mehm2oa` | over 1% of `ProcessBuildWorker` jobs waited over 60 s, and at least 3 did |
+| XCResult queue duration | `ffjdm0l99i9z4a` | over 1% of `ProcessXcresultWorker` jobs waited over 10 minutes, and at least 5 did |
+| Build processing duration | `bfjdlkov58oowc` | `ProcessBuildWorker` p99 processing time is over 5 minutes |
+| XCResult processing duration | `efjdlt32nztoga` | `ProcessXcresultWorker` p99 processing time is over 10 minutes |
+
+All four keep a 5 minute pending period, a 2 hour `keep_firing_for` and
+No Data: OK. The queue-age rules above already cover missing telemetry.
+
+```promql
+# Build queue duration. XCResult queue duration is the same with
+# worker="Tuist.Tests.Workers.ProcessXcresultWorker", le="600000.0" and $B >= 5.
+# A: share of jobs that waited longer than the threshold
+(
+    sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="1.8e+06"}[15m]))
+  - sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="60000.0"}[15m]))
+)
+/ sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="1.8e+06"}[15m]))
+# B: count of those jobs, A's numerator
+# C (math): $A > 0.01 && $B >= 3
+
+# Build processing duration. XCResult processing duration is the same with
+# worker="Tuist.Tests.Workers.ProcessXcresultWorker" and C > 600000.
+# A:
+histogram_quantile(0.99,
+  sum by (le) (
+    rate(tuist_oban_job_processing_duration_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker"}[15m])
+  )
+)
+# C (threshold): A > 300000
+```
+
+The thresholds live in expression C rather than in the PromQL, so A returns
+a value on every evaluation and a healthy rule reads `Normal`. With the
+comparison inside A, a healthy rule and a broken selector both read
+`Normal (NoData)`, which is how these four went unnoticed.
+
+**All four were dead from 2026-09-10 to 2026-10-30.** They matched
+`job="prometheus.scrape.tuist", instance="production"`, but the `tuist_`
+Adaptive Metrics prefix rule replaces `instance` with `<aggregated>`, and the
+series carry `job="tuist"` (Linux processor pods) or
+`job="tuist-macos-pod-metrics"` (xcresult processor VMs). With No Data mapped
+to OK they read `Normal (NoData)`. Select on `env` and `worker` only; `worker`
+already identifies the deployment.
+
+**The queue rules exclude jobs that waited over 30 minutes.** Oban measures
+`queue_time` from `scheduled_at`, and `Oban.Plugins.Lifeline` rescues a job
+orphaned by a killed pod after 30 minutes (`server/config/runtime.exs`). So
+every rescued job lands in the `+Inf` bucket, and at a few jobs a minute one
+of them is enough to put p99 over any threshold. With only the matcher fixed,
+over the 7 days to 2026-10-30 the build rule would have paged 8 times, each
+time from a 5 minute spike at the 1800 s ceiling. The
+`le="1.8e+06"` bucket is therefore the denominator, and the minimum count stops
+a single slow job in a quiet window from paging. A queue that really stops
+draining for 30 minutes is caught by the queue-age rules above long before.
+
+**Thresholds are bucket bounds, set from that 7 day backtest.** The buckets are
+10, 100, 500, 1000, 5000, 20000, 60000, 300000, 600000 and 1800000 ms, so a
+threshold between two bounds would only test an interpolation.
+`rate()` over these counters only has data from 2026-10-30 at 18:16 UTC, so the
+backtest summed clamped per-minute differences of the plain sums instead and
+applied the pending period and `keep_firing_for`:
+
+| Rule | 60 s, matcher fixed only | Rule as above |
+| --- | --- | --- |
+| Build queue duration | 8 pages, firing 14% of the time | 0 pages |
+| XCResult queue duration | 9 pages, firing 30% | 3 pages, firing 6% |
+| Build processing duration | 17 pages, firing 35% | 0 pages |
+| XCResult processing duration | firing 100% | 1 page, firing 1% |
+
+Build processing p99 sits between 50 and 60 s most of the time, and
+xcresult processing p99 had a median of 59 s and a p95 of 285 s, so a 60 s
+threshold would never have cleared. The three xcresult queue pages (10-27 13:00
+and 18:00 UTC, and the 10-29 14:40 processor boot failure) each coincide with
+`tuist_oban_queue_oldest_available_age_seconds` for `process_xcresult` going
+over 10 minutes, so they are real backlogs rather than rescued jobs. Only the
+last of them crossed the 15 minute no-consumer rule.
 
 ### Why request-level alerting cannot see any of this
 

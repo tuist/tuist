@@ -2685,9 +2685,9 @@ msgstr ""
 msgid "Batches"
 msgstr ""
 
-#: lib/tuist/cargo.ex:21
-#: lib/tuist/cargo.ex:24
-#: lib/tuist/cargo.ex:26
+#: lib/tuist/cargo.ex:22
+#: lib/tuist/cargo.ex:25
+#: lib/tuist/cargo.ex:27
 #, elixir-autogen, elixir-format
 msgid "Cargo tests"
 msgstr ""

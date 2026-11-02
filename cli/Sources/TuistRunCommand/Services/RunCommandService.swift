@@ -644,12 +644,21 @@ struct RunCommandService {
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
             let unarchivedDirectory = try await fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
-            try await fileSystem.remove(archivePath)
 
-            guard let apkPath = try await fileSystem.glob(directory: unarchivedDirectory, include: ["**/*.apk"])
+            let apkPath: AbsolutePath
+            if try await fileSystem.exists(unarchivedDirectory.appending(component: "AndroidManifest.xml")) {
+                // Artifact-backed previews return the signed APK itself, which is also a ZIP archive.
+                // URLSession temporary downloads have no APK suffix, which adb requires.
+                apkPath = unarchivedDirectory.appending(component: "application.apk")
+                try await fileSystem.copy(archivePath, to: apkPath)
+            } else if let nestedAPK = try await fileSystem.glob(directory: unarchivedDirectory, include: ["**/*.apk"])
                 .collect()
                 .first
-            else { throw RunCommandServiceError.apkNotFoundInArchive }
+            {
+                apkPath = nestedAPK
+            } else {
+                throw RunCommandServiceError.apkNotFoundInArchive
+            }
 
             updateProgress("Installing \(displayName) on \(androidDevice.name)")
             try await adbController.installApp(at: apkPath, device: androidDevice)
@@ -657,6 +666,7 @@ struct RunCommandService {
             updateProgress("Launching \(displayName) on \(androidDevice.name)")
             try await adbController.launchApp(packageName: packageName, device: androidDevice)
 
+            try await fileSystem.remove(archivePath)
             try await fileSystem.remove(unarchivedDirectory)
         }
     }

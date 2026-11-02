@@ -24,6 +24,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Base64
@@ -731,6 +732,7 @@ defmodule Tuist.Accounts do
     {:ok, _} =
       result =
       Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
       |> Multi.run(:delete_command_events, fn _repo, _changes ->
         CommandEvents.delete_account_events(account.id)
         {:ok, :deleted}
@@ -746,7 +748,13 @@ defmodule Tuist.Accounts do
   def delete_organization!(%Organization{} = organization) do
     account = get_account_from_organization(organization)
     destroy_account_kura_servers(account)
-    deleted = Repo.delete!(organization)
+
+    {:ok, %{delete_organization: deleted}} =
+      Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
+      |> Multi.delete(:delete_organization, organization)
+      |> Repo.transaction()
+
     purge_account_storage(account)
     deleted
   end

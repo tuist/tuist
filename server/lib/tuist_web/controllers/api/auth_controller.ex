@@ -144,7 +144,7 @@ defmodule TuistWeb.API.AuthController do
            }
          },
          required: [:refresh_token]
-       }},
+       }, required: true},
     responses: %{
       ok: {
         "Succcessfully generated new API tokens.",
@@ -217,7 +217,7 @@ defmodule TuistWeb.API.AuthController do
            }
          },
          required: [:email, :password]
-       }},
+       }, required: true},
     responses: %{
       ok: {
         "Successfully authenticated and returned new API tokens.",
@@ -249,7 +249,7 @@ defmodule TuistWeb.API.AuthController do
            }
          },
          required: [:identity_token, :authorization_code]
-       }},
+       }, required: true},
     responses: %{
       ok: {
         "Successfully authenticated and returned new API tokens.",

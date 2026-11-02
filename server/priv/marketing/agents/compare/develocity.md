@@ -32,6 +32,6 @@ Sources checked on **2026-10-08**: Develocity's [Universal Cache](https://develo
 
 ## Limitations
 
-Check current feature-level toolchain support and deployment terms. Tuist does not currently provide selective testing for Gradle or Bazel; its sharding is not equivalent to every distributed-testing mechanism. Vendor product pages are not proof of measured savings on your workload. Public source does not make all Tuist components uniformly licensed or unrestricted to self-host. Tuist Runners are optional and invite-only with no public pricing. No cheapest-provider or universally better test-selection claim is made.
+Check current feature-level toolchain support and deployment terms. Tuist does not currently provide selective testing for Gradle or Bazel; its sharding is not equivalent to every distributed-testing mechanism. Vendor product pages are not proof of measured savings on your workload. Public source does not make all Tuist components uniformly licensed or unrestricted to self-host. Tuist Runners are optional and invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No cheapest-provider or universally better test-selection claim is made.
 
 Related: [BuildBuddy](/marketing-markdown/compare/buildbuddy), [slow tests](/marketing-markdown/solutions/slow-tests), and [all comparisons](/marketing-markdown/compare).

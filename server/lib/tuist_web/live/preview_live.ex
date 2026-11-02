@@ -12,11 +12,11 @@ defmodule TuistWeb.PreviewLive do
   alias Tuist.Authorization
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Helpers.PreviewInstallURLs
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
-    preview =
-      get_current_preview(preview_id)
+    preview = get_current_preview(preview_id, selected_project)
 
     layout =
       if TuistWeb.Authentication.authenticated?(socket.assigns) or
@@ -96,7 +96,7 @@ defmodule TuistWeb.PreviewLive do
     case {user_agent.os.family, AppBuilds.latest_ipa_app_build_for_preview(preview)} do
       {"iOS", %AppBuild{}} ->
         {String.to_atom("itms-services"),
-         "//?action=download-manifest&url=#{url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/manifest.plist")}"}
+         PreviewInstallURLs.itms_services_path(preview.project.account.name, preview.project.name, preview)}
 
       {"iOS", _} ->
         nil
@@ -128,8 +128,9 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-  defp get_current_preview(preview_id) do
+  defp get_current_preview(preview_id, selected_project) do
     case AppBuilds.preview_by_id(preview_id,
+           project_id: selected_project.id,
            preload: [:created_by_account, :app_builds, project: [:account]]
          ) do
       {:error, :not_found} ->

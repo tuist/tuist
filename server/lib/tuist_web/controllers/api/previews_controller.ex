@@ -6,7 +6,6 @@ defmodule TuistWeb.API.PreviewsController do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds
-  alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.Storage
   alias TuistWeb.API.Responses
@@ -20,6 +19,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Helpers.PreviewInstallURLs
 
   @legacy_build_types [:app_bundle, :ipa, :apk]
   @legacy_platforms [
@@ -44,26 +44,8 @@ defmodule TuistWeb.API.PreviewsController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :preview)
-  plug(:require_cli_previews when action == :multipart_start)
 
   tags(["Previews"])
-
-  defp require_cli_previews(conn, _opts) do
-    %{body_params: body, assigns: %{selected_project: project}} = conn
-    cli? = body.type == "executable" or Enum.any?(Map.get(body, :supported_platforms, []), &(to_string(&1) == "linux"))
-
-    if cli? and not FeatureFlags.cli_previews_enabled?(project.account) do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{
-        message:
-          "CLI previews are not enabled on this server yet. Finish upgrading all server replicas before enabling CLI uploads."
-      })
-      |> halt()
-    else
-      conn
-    end
-  end
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a preview artifact.",
@@ -327,6 +309,9 @@ defmodule TuistWeb.API.PreviewsController do
     content_length = Map.get(multipart_upload_part, :content_length)
 
     case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id) do
+      {:ok, %{artifact_storage_key: key}} when is_binary(key) ->
+        conn |> put_status(:conflict) |> json(%{message: "Published artifact content is immutable."})
+
       {:ok, app_build} ->
         object_key =
           AppBuilds.storage_key(%{
@@ -421,6 +406,9 @@ defmodule TuistWeb.API.PreviewsController do
     app_build_id = Map.get(body_params, :app_build_id, preview_id)
 
     case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id, preload: [:preview]) do
+      {:ok, %{artifact_storage_key: key}} when is_binary(key) ->
+        conn |> put_status(:conflict) |> json(%{message: "Published artifact content is immutable."})
+
       {:ok, app_build} ->
         object_key =
           AppBuilds.storage_key(%{
@@ -1063,9 +1051,9 @@ defmodule TuistWeb.API.PreviewsController do
 
     device_url =
       if preview.supported_platforms == [:android] do
-        url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/app.apk")
+        PreviewInstallURLs.apk_url(account_handle, project_handle, preview)
       else
-        "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/manifest.plist")}"
+        PreviewInstallURLs.itms_services_url(account_handle, project_handle, preview)
       end
 
     %{

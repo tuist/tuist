@@ -19,6 +19,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication
   alias Tuist.Base64
@@ -4290,6 +4291,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
     end
 
     test "deletes an organization account successfully" do
@@ -4304,6 +4306,26 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
+    end
+
+    test "refuses to delete either account type if artifact cleanup cannot be durably enqueued" do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      accounts = [Accounts.get_account_from_user(user), Accounts.get_account_from_organization(organization)]
+
+      expect(Oban, :insert, 2, fn multi, :delete_account_artifacts, _changeset ->
+        Ecto.Multi.run(multi, :delete_account_artifacts, fn _repo, _changes -> {:error, :queue_unavailable} end)
+      end)
+
+      for account <- accounts do
+        assert_raise MatchError, fn -> Accounts.delete_account!(account) end
+        assert {:ok, _account} = Accounts.get_account_by_id(account.id)
+        refute_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
+      end
+
+      assert Accounts.get_user_by_id(user.id)
+      assert {:ok, _organization} = Accounts.get_organization_by_id(organization.id)
     end
 
     test "purges the account's runner cache-volume masters and GitLab caches from object storage" do

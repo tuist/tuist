@@ -34,6 +34,13 @@ defmodule TuistWeb.AmpOrbsController do
           |> put_resp_header("x-tuist-orb-retry", "admission")
           |> send_resp(:too_many_requests, "Account sandbox CPU or memory limit reached")
 
+        # Paused Orbs count toward the limit, so waiting does not free a slot;
+        # only deleting Orbs does.
+        {:error, :sandbox_limit} ->
+          conn
+          |> put_resp_header("x-tuist-orb-refusal", "sandbox-limit")
+          |> send_resp(:too_many_requests, "Account sandbox limit reached")
+
         {:error, reason} when reason in [:locked, :sandbox_account_busy] ->
           conn
           |> put_resp_header("x-tuist-orb-retry", "admission")

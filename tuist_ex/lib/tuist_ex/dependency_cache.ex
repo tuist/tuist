@@ -635,17 +635,24 @@ defmodule TuistEx.DependencyCache do
       end)
       |> Enum.sort()
 
+    config =
+      if Keyword.get(options, :portable, false),
+        do: relocatable(config, checkout_root(File.cwd!())),
+        else: config
+
     %{
       toolchain: %{
         elixir: System.build_info(),
         otp: otp_version(),
-        erts: :erlang.system_info(:system_version),
+        # The system_version banner also carries scheduler counts, which follow
+        # the machine's CPUs rather than anything the compiler reads.
+        erts: :erlang.system_info(:version),
         architecture: :erlang.system_info(:system_architecture),
         word_size: :erlang.system_info(:wordsize),
         endianness: :erlang.system_info(:endian),
         parsetools_includes:
           :parsetools |> :code.lib_dir() |> to_string() |> Path.join("include") |> Key.tree(),
-        os: {:os.type(), :os.version()},
+        os: :os.type(),
         compilers:
           Enum.map(
             [
@@ -686,6 +693,32 @@ defmodule TuistEx.DependencyCache do
         |> Enum.map(&{&1, Key.tree(&1)}),
       project: Mix.Project.config()[:tuist] |> Keyword.get(:project)
     }
+  end
+
+  # Configuration often holds paths built from __DIR__, so portable keys name
+  # the checkout with a placeholder instead.
+  defp relocatable(term, root) when is_binary(term) do
+    if term == root, do: "<checkout>", else: String.replace(term, root <> "/", "<checkout>/")
+  end
+
+  defp relocatable([head | tail], root), do: [relocatable(head, root) | relocatable(tail, root)]
+
+  defp relocatable(term, root) when is_tuple(term),
+    do: term |> Tuple.to_list() |> relocatable(root) |> List.to_tuple()
+
+  defp relocatable(term, root) when is_map(term),
+    do: :maps.map(fn _key, value -> relocatable(value, root) end, term)
+
+  defp relocatable(term, _root), do: term
+
+  defp checkout_root(dir) do
+    parent = Path.dirname(dir)
+
+    cond do
+      File.exists?(Path.join(dir, ".git")) -> dir
+      parent == dir -> File.cwd!()
+      true -> checkout_root(parent)
+    end
   end
 
   defp otp_version do

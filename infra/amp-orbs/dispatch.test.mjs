@@ -112,6 +112,15 @@ test('does not retry unmarked HTTP errors or log private response bodies', async
   }
 });
 
+test('explains the account sandbox limit without retrying', async () => {
+  const { code, output, requests } = await dispatch({}, () => ({ status: 429, headers: { 'X-Tuist-Orb-Refusal': 'sandbox-limit' } }));
+  assert.notEqual(code, 0);
+  assert.equal(requests.length, 1);
+  assert.match(output, /sandbox limit/);
+  assert.match(output, /paused Orbs count/);
+  assert.doesNotMatch(output, /private-response-body/);
+});
+
 test('supports an explicitly installed template and allowed shape', async () => {
   const { code, requests } = await dispatch({ ORB_IMAGE: 'amp', TUIST_ORB_TEMPLATE: 'amp', TUIST_ORB_VCPUS: '4', TUIST_ORB_MEMORY_MB: '8192', TUIST_ORB_WORKSPACE_GB: '30' });
   assert.equal(code, 0);

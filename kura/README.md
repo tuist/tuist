@@ -474,9 +474,14 @@ staged separately; see the [monitoring rollout guide](../infra/helm/k8s-monitori
 and [bounded resource qualification](docs/metrics-cost-controls.md).
 
 Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
-observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
-`production`, `staging`, or `canary` and is disabled when unset or invalid. The
-controller sets it only for deployment-selected instances. A dedicated thread
+observations to ordinary Kura JSON logs. Equipped pods read only the fixed
+`KURA_CONNECTIVITY_CONFIG_FILE=/etc/kura/connectivity/selection.json` projection.
+The controller selects exact instances through live-Pod annotations with a fixed
+profile and absolute expiry within 24 hours. Sampling expires locally without
+controller/API availability; activation and removal do not roll equipped pods.
+Preparation defaults off and waits for normal image upgrades or creation, after
+establishing the compatible controller rollback floor. Legacy profile env is no
+longer honored by this runtime. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
 Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP

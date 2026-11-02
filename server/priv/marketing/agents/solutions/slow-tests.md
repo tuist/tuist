@@ -39,6 +39,6 @@ The agent should check the toolchain support matrix before recommending selectiv
 
 ## Limitations
 
-Missing results can distort timing history and balancing. Sharding needs multiple runners and may lower latency while increasing total compute usage through startup overhead and duplicated setup. Selective testing is only as complete as the modeled inputs; it is not a guarantee that arbitrary external effects are understood. Neither sharding nor quarantine fixes a slow or flaky test. Runners are optional; Tuist Runners remain invite-only with no public pricing.
+Missing results can distort timing history and balancing. Sharding needs multiple runners and may lower latency while increasing total compute usage through startup overhead and duplicated setup. Selective testing is only as complete as the modeled inputs; it is not a guarantee that arbitrary external effects are understood. Neither sharding nor quarantine fixes a slow or flaky test. Runners are optional; Tuist Runners remain invite-only, with per-minute rates on the [pricing page](/pricing).
 
 Related: [flaky tests](/marketing-markdown/solutions/flaky-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).

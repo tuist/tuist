@@ -1,6 +1,9 @@
 # Staging workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist-staging.
 
+disableMultipathTCP:
+  enabled: true
+
 cacheDNS:
   enabled: true
   hostedZoneId: Z046862130S1WUMPV7Z3P
@@ -123,6 +126,9 @@ kura-ca-east-ingress-nginx:
       annotations: {}
 
 kura-runners-ingress-nginx:
+  enabled: true
+
+ipv4OptionsTcpDrop:
   enabled: true
 
 # The gateways above are host-network, so a region with more than one box needs
