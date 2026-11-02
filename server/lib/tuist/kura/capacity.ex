@@ -956,6 +956,11 @@ defmodule Tuist.Kura.Capacity do
   the plans entitled to one rather than a per-account override. Both understate
   in the direction that admits, and the scheduler is still the last word.
 
+  Given the account, an instance it would build on thin volumes
+  (`Regions.thin_volumes?/2`) is read the way the controller requests it: each
+  replica asks for its whole thin reservation on `tuist.dev/kura-disk`, only
+  thin-ready nodes count, and admission is charged that reservation.
+
   `nil` covers everything that stops the reading being trusted: a region that
   pins its instances to no pool, a cluster that cannot be read, a node whose
   pods cannot be listed or whose allocatable cannot be parsed, or a pool with
@@ -972,10 +977,11 @@ defmodule Tuist.Kura.Capacity do
   same minute can each be told the same region has room. The scheduler still
   refuses to overfill a node; what this bounds is how often it has to.
   """
-  def room_for?(region_id, plan) do
+  def room_for?(region_id, plan, account \\ nil) do
     with {:ok, region} <- Regions.fetch(region_id),
-         schedulable when schedulable != false <- schedulable_room?(region, plan),
-         admissible when admissible != false <- admissible_room?(region, plan) do
+         thin = not is_nil(account) and Regions.thin_volumes?(region, account),
+         schedulable when schedulable != false <- schedulable_room?(region, plan, thin),
+         admissible when admissible != false <- admissible_room?(region, plan, thin) do
       schedulable && admissible
     else
       false -> false
@@ -983,12 +989,13 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  defp schedulable_room?(region, plan) do
+  defp schedulable_room?(region, plan, thin) do
     case node_headroom(region) do
       %{nodes: [_ | _] = nodes} = pool ->
-        request = pod_request(region, plan, pool)
+        request = pod_request(region, plan, pool, thin)
 
-        nodes |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >= replicas(region)
+        nodes |> Enum.filter(&(&1.thin_ready? or not thin)) |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >=
+          replicas(region)
 
       _ ->
         nil
@@ -1008,10 +1015,10 @@ defmodule Tuist.Kura.Capacity do
     cached([__MODULE__, "admission_headroom", region_id], fn -> Admission.headroom_gib(region) end)
   end
 
-  defp admissible_room?(%Regions{} = region, plan) do
+  defp admissible_room?(%Regions{} = region, plan, thin) do
     case admission_headroom_gib(region) do
       :unbounded -> true
-      headroom when is_integer(headroom) -> div(claim_bytes(region, plan), @gib) * replicas(region) <= headroom
+      headroom when is_integer(headroom) -> replica_gib(region, plan, thin) * replicas(region) <= headroom
       nil -> nil
     end
   end
@@ -1029,18 +1036,26 @@ defmodule Tuist.Kura.Capacity do
 
   # One replica's requests, as the controller renders them for the plan in this
   # region.
-  defp pod_request(%Regions{} = region, plan, pool) do
+  defp pod_request(%Regions{} = region, plan, pool, thin) do
     memory = memory_profile(region, plan)
+    disk = if thin, do: @kura_disk, else: Regions.disk_resource(region)
 
     %{
       @cpu => @pod_cpu_millicores,
       @memory => memory.floor_mib * @mib,
-      Regions.disk_resource(region) => claim_bytes(region, plan),
+      disk => replica_disk_bytes(region, plan, thin),
       @memory_ceiling => if(ceiling_bin_packed?(region, pool), do: memory.ceiling_mib, else: 0),
       @egress => egress_floor_mbps(region, plan),
       @pods => 1
     }
   end
+
+  # A thin replica asks for its whole virtual device, as resident_gib/2 charges it.
+  defp replica_disk_bytes(region, plan, true), do: thin_reservation_bytes(claim_bytes(region, plan))
+  defp replica_disk_bytes(region, plan, false), do: claim_bytes(region, plan)
+
+  defp replica_gib(region, plan, true), do: div(replica_disk_bytes(region, plan, true) + @gib - 1, @gib)
+  defp replica_gib(region, plan, false), do: div(claim_bytes(region, plan), @gib)
 
   defp memory_profile(region, plan) do
     if Regions.memory_governed?(region),

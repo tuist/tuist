@@ -195,6 +195,27 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.placeable?(region(), claim(selected, "8Gi")) == true
     end
 
+    test "places a selected account's first instance against thin-ready nodes", %{selected: selected} do
+      other = placement_account()
+
+      stub_pool([
+        pool_box("thin-box",
+          allocatable: %{"tuist.dev/kura-disk" => "800Gi", "ephemeral-storage" => "1Gi"},
+          labels: %{"tuist.dev/kura-thin-ready" => "true"}
+        )
+      ])
+
+      assert Capacity.room_for?(@region, :enterprise, selected) == true
+      assert Capacity.room_for?(@region, :enterprise, other) == false
+
+      stub_pool([pool_box("lvm-box", allocatable: %{"tuist.dev/kura-disk" => "800Gi", "ephemeral-storage" => "1Gi"})])
+      assert Capacity.room_for?(@region, :enterprise, selected) == false
+
+      stub_pool([thin_box("thin-box", @gib)])
+      assert Capacity.room_for?(@region, :enterprise, selected) == false
+      assert Capacity.room_for?(@region, :enterprise, other) == true
+    end
+
     defp thin_box(name, kura_disk_bytes, opts \\ []) do
       pool_box(
         name,
