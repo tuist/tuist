@@ -342,8 +342,8 @@ class Rehearsal:
             self.wait("Qualifying controlled synchronous database handoff", lambda: self.database_ready() and self.get("clusters.postgresql.cnpg.io", self.cluster)["status"]["currentPrimary"] == target)
             self.phase = "recovery"
             start = len(self.probes)
-            self.wait("Collecting final recovered writes", lambda: len(self.probes) >= start + 10, seconds=90)
-            assert all(e["ok"] for e in self.probes[start:]), "Recovered SQL is not stable"
+            self.wait("Collecting ten consecutive recovered writes", lambda: len(self.probes) >= start + 10
+                      and all(e["ok"] for e in self.probes[-10:]), seconds=90)
         finally:
             self.stop.set()
             worker.join(timeout=20)
@@ -365,10 +365,11 @@ class Rehearsal:
         print(json.dumps(summary), flush=True)
 
     def cleanup(self):
-        # Stop clients and remove the database before its Pooler: CNPG 1.29.1
-        # otherwise recreates children while foreground Pooler deletion waits.
-        resources = [("pod", self.client), ("clusters.postgresql.cnpg.io", self.cluster),
-                     ("poolers.postgresql.cnpg.io", self.pooler), ("poddisruptionbudget", self.pooler), ("storageclass", self.name)]
+        # CNPG 1.29.1 recreates children during foreground Pooler deletion.
+        # Remove its parent in the background, then wait for the children;
+        # their open connections must close before database smart shutdown.
+        resources = [("pod", self.client), ("poolers.postgresql.cnpg.io", self.pooler),
+                     ("poddisruptionbudget", self.pooler), ("clusters.postgresql.cnpg.io", self.cluster), ("storageclass", self.name)]
         # Check every existing object before deleting any. A collision must
         # never turn an unsuccessful provision into someone else's teardown.
         for kind, name in resources:
@@ -386,7 +387,13 @@ class Rehearsal:
                 assert volume["spec"]["persistentVolumeReclaimPolicy"] == "Delete"
                 volumes.append(volume["metadata"]["name"])
         for kind, name in resources[:-1]:
-            self.kubectl("delete", kind, name, "--ignore-not-found", "--cascade=foreground", "--wait=true", "--timeout=3m", timeout=190)
+            cascade = "background" if kind == "poolers.postgresql.cnpg.io" else "foreground"
+            self.kubectl("delete", kind, name, "--ignore-not-found", f"--cascade={cascade}", "--wait=true", "--timeout=3m", timeout=190)
+            if kind == "poolers.postgresql.cnpg.io":
+                self.kubectl("wait", "--for=delete", "deployment/" + self.pooler, "--timeout=3m", timeout=190)
+                for pod in self.get("pods", selector=f"cnpg.io/poolerName={self.pooler}")["items"]:
+                    self.kubectl("wait", "--for=delete", "pod/" + pod["metadata"]["name"], "--timeout=3m", timeout=190)
+                assert not self.get("pods", selector=f"cnpg.io/poolerName={self.pooler}")["items"], "Fixture pooler Pods remain"
         assert not self.get("pvc", selector=f"cnpg.io/cluster={self.cluster}")["items"], "Fixture PVCs remain"
         for volume in volumes:
             self.kubectl("wait", "--for=delete", "pv/" + volume, "--timeout=3m", timeout=190)

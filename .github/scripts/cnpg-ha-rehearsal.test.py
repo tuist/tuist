@@ -66,13 +66,17 @@ if a[0] == "get":
         print(json.dumps({"metadata": {"name": "fixture-pv"}, "spec": {
               "claimRef": {"namespace": "tuist-staging", "name": "fixture-pvc"},
               "persistentVolumeReclaimPolicy": "Retain" if mode == "retain" else "Delete"}}))
+    elif kind == "pods":
+        print(json.dumps({"items": []}))
 elif a[0] == "delete" and a[1] == "clusters.postgresql.cnpg.io":
     open(os.environ["REMOVED"], "w").close()
-elif a[0] == "wait" and mode == "volume-stuck":
+elif a[0] == "wait" and "pv/fixture-pv" in a and mode == "volume-stuck":
+    sys.exit(42)
+elif a[0] == "wait" and a[2].startswith("deployment/") and mode == "pooler-stuck":
     sys.exit(42)
 ''')
             kubectl.chmod(0o755)
-            for mode in ["foreign", "retain", "success", "volume-stuck"]:
+            for mode in ["foreign", "retain", "success", "volume-stuck", "pooler-stuck"]:
                 with self.subTest(mode=mode):
                     calls = directory / "calls"
                     removed = directory / "removed"
@@ -93,6 +97,9 @@ elif a[0] == "wait" and mode == "volume-stuck":
                         self.assertEqual(result.returncode, 0, result.stderr)
                         self.assertTrue(all(a[2].startswith("ha-rehearsal-123-1") for a in deletions))
                         self.assertIn(["wait", "--for=delete", "pv/fixture-pv", "--timeout=3m"], arguments)
+                    elif mode == "pooler-stuck":
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertFalse(any(a[1] == "clusters.postgresql.cnpg.io" for a in deletions))
                     else:
                         self.assertNotEqual(result.returncode, 0)
                         self.assertIn(["wait", "--for=delete", "pv/fixture-pv", "--timeout=3m"], arguments)
