@@ -68,6 +68,17 @@
       </div>
       <div data-part="actions">
         <.button
+          :if={@timeline_available and @run.status != "processing"}
+          href={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/trace.json"
+          }
+          label={dgettext("dashboard_builds", "Download trace")}
+          variant="secondary"
+          size="medium"
+        >
+          <:icon_left><.download /></:icon_left>
+        </.button>
+        <.button
           :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
           href={
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
@@ -215,9 +226,6 @@
         version={@timeline_version}
         url={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
-        }
-        trace_url={
-          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/trace.json"
         }
       />
     </section>

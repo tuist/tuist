@@ -178,6 +178,19 @@ defmodule TuistWeb.BazelInvocationLive do
             <h1 data-part="label">{invocation_title(@invocation)}</h1>
           </div>
         </div>
+        <div data-part="actions">
+          <.button
+            :if={@timeline_available}
+            href={
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/trace.json"
+            }
+            label={dgettext("dashboard_builds", "Download trace")}
+            variant="secondary"
+            size="medium"
+          >
+            <:icon_left><.download /></:icon_left>
+          </.button>
+        </div>
       </div>
       <.tab_menu_horizontal data-part="tabs">
         <.tab_menu_horizontal_item
@@ -205,9 +218,6 @@ defmodule TuistWeb.BazelInvocationLive do
           source="bazel"
           url={
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/timeline.json"
-          }
-          trace_url={
-            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/trace.json"
           }
         />
       </section>

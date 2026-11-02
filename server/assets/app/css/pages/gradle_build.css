@@ -35,6 +35,13 @@
     align-items: center;
     gap: var(--noora-spacing-4);
 
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+
     & > [data-part="title-group"] {
       display: flex;
       flex-direction: column;

@@ -207,7 +207,7 @@ msgid "N/A"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:62
-#: lib/tuist_web/live/mix_build_live.html.heex:343
+#: lib/tuist_web/live/mix_build_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -2987,7 +2987,7 @@ msgstr ""
 msgid "Hits divided by hits plus misses. Work without a cache lookup is excluded."
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.html.heex:330
+#: lib/tuist_web/live/mix_build_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "No matching cache entries"
 msgstr ""
@@ -2999,7 +2999,7 @@ msgstr ""
 msgid "Not cached"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.html.heex:337
+#: lib/tuist_web/live/mix_build_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Previous"
 msgstr ""
@@ -3024,7 +3024,7 @@ msgstr ""
 msgid "Cache lookups without reusable local or remote artifacts."
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.html.heex:182
+#: lib/tuist_web/live/mix_build_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS transfer or local fallback copy time. Local operations include verification and installation; remote transfers exclude local installation. Task rows identify the source. Excludes cache-key latency and compilation."
 msgstr ""

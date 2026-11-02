@@ -34,6 +34,17 @@
     </div>
     <div data-part="actions">
       <.button
+        :if={@timeline_available}
+        href={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/trace.json"
+        }
+        label={dgettext("dashboard_builds", "Download trace")}
+        variant="secondary"
+        size="medium"
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
         :if={@run.ci_run_id != ""}
         label={dgettext("dashboard_builds", "CI Run")}
         variant="secondary"
@@ -367,9 +378,6 @@
       source="mix"
       url={
         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
-      }
-      trace_url={
-        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/trace.json"
       }
     />
   </section>
