@@ -27,8 +27,19 @@ const warmRoot = "/workspace/warm"
 // that. The action's CAS is an in-process server on loopback; nothing leaves
 // the guest. It is best-effort.
 func warm(ctx context.Context) {
+	prefault(ctx)
 	_, _ = warmAction(ctx, warmRoot, &syscall.Credential{Uid: 1000, Gid: 1000}, startWithoutNewPrivileges)
 	_ = os.RemoveAll(warmRoot)
+}
+
+// prefault writes guest memory in a short-lived process and frees it, so the
+// pages the action and its processes allocate next are already backed by the
+// host. A restored guest otherwise pays a host fault on its first write to
+// each page.
+func prefault(ctx context.Context) {
+	cmd := exec.CommandContext(ctx, "/usr/bin/dd", "if=/dev/zero", "of=/dev/null", "bs=64M", "count=1")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: 1000, Gid: 1000}}
+	_ = cmd.Run()
 }
 
 func warmAction(ctx context.Context, root string, credential *syscall.Credential, start func(*exec.Cmd) error) (*re.ExecuteResponse, error) {
