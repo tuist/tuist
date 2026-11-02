@@ -25,6 +25,15 @@ their digests and reads anything else from Kura itself. A failed or partial read
 only means the VM fetches more. Operations queued behind the account's
 concurrency drop their prefetched blobs.
 
+In the other direction, the VM returns outputs and logs up to 48 KiB in total
+with its result instead of uploading them, and the gateway stores them in Kura
+with the client's credential before it sends the result to Bazel. If storing
+them fails, the gateway answers `UNAVAILABLE` and Bazel retries the action.
+Larger outputs go from the VM to Kura directly. The gateway sends
+`X-Tuist-Inline-Outputs: 1` on its control-plane calls; the server asks VMs for
+returned outputs only for such gateways and answers any other caller of an
+operation that has them with a retryable `UNAVAILABLE` result.
+
 ### Scheduling
 
 Each account has one `Tuist.RemoteExecution.Scheduler` process in the server
@@ -123,8 +132,9 @@ miss. Bazel does not depend on the entry; dependent actions read outputs from CA
 ### Guest isolation
 
 A root `sbx-executor` in the guest downloads verified input blobs, drops the
-command to UID/GID 1000 with an explicit environment, and uploads outputs and
-logs to the project's CAS. The build does not inherit the CAS token. Linux
+command to UID/GID 1000 with an explicit environment, and uploads larger outputs
+and logs to the project's CAS. It never looks the action up in the action
+cache: Bazel checks it before calling `Execute`. The build does not inherit the CAS token. Linux
 `no_new_privs` prevents setuid/file-capability escalation. It is applied on a
 locked OS thread through the command's fork/exec; CAS waits must not move
 execution to a thread without `no_new_privs`. The guest agent accepts only
@@ -155,9 +165,9 @@ back to dialing at action time.
 
 Outputs include executable files, relative symlinks and directory trees. A
 nonzero command exit is an ordinary `ActionResult`; a timeout or infrastructure
-failure is an `ExecuteResponse` status. Only the small result protobuf crosses
-the control channel; sources, outputs and logs go directly between the guest and
-Kura. Empty logs have neither inline bytes nor a CAS digest.
+failure is an `ExecuteResponse` status. Only the small result protobuf and at most
+48 KiB of returned outputs cross the control channel; sources and larger outputs
+and logs go directly between the guest and Kura. Empty logs have neither inline bytes nor a CAS digest.
 
 Supported execution properties are exactly `OSFamily=Linux`, `Arch=amd64` and
 `tuist-image=sha-<commit>`. The image property participates in the action digest
