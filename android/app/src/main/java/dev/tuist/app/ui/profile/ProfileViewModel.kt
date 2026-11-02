@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.tuist.app.data.auth.AuthRepository
 import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.model.AuthState
+import dev.tuist.app.data.push.PushRegistrationManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val pushRegistrationManager: PushRegistrationManager,
 ) : ViewModel() {
 
     private val _account = MutableStateFlow<Account?>(null)
@@ -29,6 +31,9 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun signOut() {
-        authRepository.signOut()
+        viewModelScope.launch {
+            pushRegistrationManager.signOut()
+            authRepository.signOut()
+        }
     }
 }

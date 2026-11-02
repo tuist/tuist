@@ -35,6 +35,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +61,8 @@ import coil3.compose.SubcomposeAsyncImage
 import dev.tuist.app.R
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.ui.noora.NooraSpacing
+import dev.tuist.app.ui.notifications.NotificationsPrompt
+import dev.tuist.app.ui.notifications.ProjectNotificationsBell
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -82,6 +85,19 @@ fun PreviewsScreen(
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.previews_title)) },
+                actions = {
+                    (uiState as? PreviewsUiState.Success)?.let { state ->
+                        ProjectNotificationsBell(
+                            projectFullName = state.selectedProject.fullName,
+                            snackbarHostState = snackbarHostState,
+                        )
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         PullToRefreshBox(
@@ -175,6 +191,7 @@ private fun PreviewsContent(
         contentPadding = PaddingValues(horizontal = NooraSpacing.Spacing6),
     ) {
         item(key = "header") {
+            NotificationsPrompt(modifier = Modifier.padding(top = NooraSpacing.Spacing4))
             ProjectDropdown(
                 projects = state.projects,
                 selectedProject = state.selectedProject,

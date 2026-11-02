@@ -1,19 +1,24 @@
 package dev.tuist.app.data.network
 
+import com.squareup.moshi.FromJson
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.ToJson
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
+import dev.tuist.app.api.NotificationPreferencesApi
 import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
+import dev.tuist.app.api.PushDevicesApi
 import dev.tuist.app.data.EnvironmentConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.time.OffsetDateTime
 import javax.inject.Singleton
 
 @Module
@@ -23,6 +28,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
+        .add(OffsetDateTimeAdapter)
         .addLast(KotlinJsonAdapterFactory())
         .build()
 
@@ -82,4 +88,22 @@ object NetworkModule {
     @Singleton
     fun providePreviewsApi(retrofit: Retrofit): PreviewsApi =
         retrofit.create(PreviewsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun providePushDevicesApi(retrofit: Retrofit): PushDevicesApi =
+        retrofit.create(PushDevicesApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideNotificationPreferencesApi(retrofit: Retrofit): NotificationPreferencesApi =
+        retrofit.create(NotificationPreferencesApi::class.java)
+}
+
+internal object OffsetDateTimeAdapter {
+    @ToJson
+    fun toJson(value: OffsetDateTime): String = value.toString()
+
+    @FromJson
+    fun fromJson(value: String): OffsetDateTime = OffsetDateTime.parse(value)
 }

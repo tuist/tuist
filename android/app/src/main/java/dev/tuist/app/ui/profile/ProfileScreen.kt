@@ -47,6 +47,7 @@ import java.security.MessageDigest
 
 @Composable
 fun ProfileScreen(
+    onNotificationsClick: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val account by viewModel.account.collectAsStateWithLifecycle()
@@ -124,6 +125,15 @@ fun ProfileScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(Modifier.height(NooraSpacing.Spacing5))
+
+            SectionCard {
+                LinkRow(
+                    title = stringResource(R.string.notifications_title),
+                    onClick = onNotificationsClick,
+                )
             }
 
             Spacer(Modifier.height(NooraSpacing.Spacing5))
