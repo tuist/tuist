@@ -913,9 +913,6 @@ server:
   # this cluster's JWKS and allowlist the server's namespace:ServiceAccount.
   atlasSupportIngest:
     enabled: false
-    tokenAudience: atlas-support-ingest
-    tokenMountPath: /var/run/secrets/atlas-support-ingest
-    tokenExpirationSeconds: 3600
   networkPolicy:
     enabled: false
     # Applies a default-deny policy to every pod in the release. The

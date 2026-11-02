@@ -75,7 +75,7 @@ spec:
             {{- end }}
             {{- if .Values.server.atlasSupportIngest.enabled }}
             - name: atlas-support-ingest-token
-              mountPath: {{ .Values.server.atlasSupportIngest.tokenMountPath }}
+              mountPath: /var/run/secrets/atlas-support-ingest
               readOnly: true
             {{- end }}
           {{- end }}
@@ -156,7 +156,7 @@ spec:
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             {{- if .Values.server.atlasSupportIngest.enabled }}
             - name: TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH
-              value: {{ printf "%s/token" .Values.server.atlasSupportIngest.tokenMountPath | quote }}
+              value: /var/run/secrets/atlas-support-ingest/token
             {{- end }}
             - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
               value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
@@ -632,8 +632,8 @@ spec:
             sources:
               - serviceAccountToken:
                   path: token
-                  audience: {{ .Values.server.atlasSupportIngest.tokenAudience | quote }}
-                  expirationSeconds: {{ .Values.server.atlasSupportIngest.tokenExpirationSeconds }}
+                  audience: atlas-support-ingest
+                  expirationSeconds: 3600
         {{- end }}
       {{- end }}
 {{- end }}

@@ -14,40 +14,22 @@ defmodule AtlasWeb.SupportAgentFeedbackController do
 
   # Agents can loop; cap how many conversations one user's agents can open.
   @per_address {:timer.hours(1), 10}
+  # Caps reports from all users together, so many accounts cannot flood the
+  # support queue and Slack channel.
+  @overall {:timer.hours(1), 100}
 
   def create(conn, params) do
-    with {:ok, token} <- bearer_token(conn),
-         {:ok, _principal} <- WorkloadIdentity.verify(token, Support.ingest_workload_identity_policy()),
+    with :ok <- authenticate(conn),
          :ok <- check_rate_limit(params["email"]),
          {:ok, %{thread: thread}} <- Support.receive_agent_feedback(params) do
       conn
       |> put_status(:created)
       |> json(%{id: thread.id})
     else
-      {:error, reason} when reason in [:not_configured, :invalid_jwks] ->
-        Logger.error("Agent feedback received but the support ingest workload identity is not configured: #{reason}")
-
+      {:error, :not_configured} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "not configured"})
 
-      {:error, {:wrong_principal, principal}} ->
-        Logger.warning("Agent feedback rejected for unauthorized workload #{principal.namespace}:#{principal.name}")
-
-        conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
-
-      {:error, reason}
-      when reason in [
-             :missing_bearer,
-             :invalid_token,
-             :invalid_signature,
-             :bad_issuer,
-             :bad_audience,
-             :token_expired,
-             :token_not_yet_valid,
-             :token_ttl_exceeded,
-             :not_service_account,
-             :bad_kubernetes_claims
-           ] ->
-        Logger.warning("Agent feedback workload token rejected: #{reason}")
+      {:error, :unauthorized} ->
         conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
 
       {:error, {:rate_limited, retry_after}} ->
@@ -61,31 +43,39 @@ defmodule AtlasWeb.SupportAgentFeedbackController do
     end
   end
 
-  defp bearer_token(conn) do
-    case get_req_header(conn, "authorization") do
-      [header] ->
-        case String.split(header, " ", parts: 2) do
-          [scheme, token] when token != "" ->
-            if String.downcase(scheme) == "bearer", do: {:ok, token}, else: {:error, :missing_bearer}
+  defp authenticate(conn) do
+    token =
+      case get_req_header(conn, "authorization") do
+        ["Bearer " <> token] -> token
+        _ -> nil
+      end
 
-          _ ->
-            {:error, :missing_bearer}
-        end
+    case WorkloadIdentity.verify(token, Support.ingest_workload_identity_policy()) do
+      :ok ->
+        :ok
 
-      _ ->
-        {:error, :missing_bearer}
+      {:error, :not_configured} ->
+        Logger.error("Agent feedback received but ATLAS_SUPPORT_INGEST_TOKEN_* is not configured")
+        {:error, :not_configured}
+
+      {:error, reason} ->
+        Logger.warning("Agent feedback workload token rejected: #{reason}")
+        {:error, :unauthorized}
     end
   end
 
-  defp check_rate_limit(email) when is_binary(email) do
-    {scale, limit} = @per_address
-    key = "support_agent_feedback:address:" <> (email |> String.trim() |> String.downcase())
+  defp check_rate_limit(email) do
+    address = if is_binary(email), do: email |> String.trim() |> String.downcase(), else: ""
 
+    with :ok <- hit("support_agent_feedback:address:" <> address, @per_address) do
+      hit("support_agent_feedback:overall", @overall)
+    end
+  end
+
+  defp hit(key, {scale, limit}) do
     case RateLimit.hit(key, scale, limit) do
       {:allow, _count} -> :ok
       {:deny, retry_after_ms} -> {:error, {:rate_limited, ceil(retry_after_ms / 1000)}}
     end
   end
-
-  defp check_rate_limit(_email), do: :ok
 end

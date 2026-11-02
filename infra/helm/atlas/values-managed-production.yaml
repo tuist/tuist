@@ -117,7 +117,7 @@ env:
   # `kubectl --context tuist-k8s-production get --raw /openid/v1/jwks`.
   # Add the new key here before the Tuist cluster rotates its signing key.
   ATLAS_SUPPORT_INGEST_TOKEN_ISSUER: "https://kubernetes.default.svc.cluster.local"
-  ATLAS_SUPPORT_INGEST_TOKEN_SUBJECTS: "tuist:tuist-server"
+  ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT: "tuist:tuist-server"
   # POC access request pings go to #customers. The default in
   # Atlas.Accounts.POCs.Notifier is a by-name lookup, but that relies on the
   # channel being tracked in Atlas' slack_channels table; the escape hatch is

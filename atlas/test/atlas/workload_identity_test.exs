@@ -12,23 +12,18 @@ defmodule Atlas.WorkloadIdentityTest do
       issuer: @issuer,
       audience: "atlas-support-ingest",
       jwks: JSON.encode!(%{"keys" => [public_key(signer, "key-1")]}),
-      max_token_ttl_seconds: 3600,
-      subjects: ["tuist:tuist-server", "tuist-canary:tuist-server"]
+      subject: "tuist:tuist-server"
     }
 
     %{policy: policy, signer: signer}
   end
 
-  test "accepts every allowlisted ServiceAccount", %{policy: policy, signer: signer} do
-    assert {:ok, %{namespace: "tuist", name: "tuist-server", uid: "uid"}} =
-             WorkloadIdentity.verify(token(signer, %{}), policy)
-
-    assert {:ok, %{namespace: "tuist-canary"}} =
-             WorkloadIdentity.verify(token(signer, service_account_claims("tuist-canary", "tuist-server")), policy)
+  test "accepts the allowed ServiceAccount's token", %{policy: policy, signer: signer} do
+    assert :ok = WorkloadIdentity.verify(token(signer, %{}), policy)
   end
 
-  test "rejects a ServiceAccount outside the allowlist", %{policy: policy, signer: signer} do
-    assert {:error, {:wrong_principal, %{namespace: "tuist", name: "runner"}}} =
+  test "rejects another ServiceAccount from the same cluster", %{policy: policy, signer: signer} do
+    assert {:error, :wrong_subject} =
              WorkloadIdentity.verify(token(signer, service_account_claims("tuist", "runner")), policy)
   end
 
@@ -38,7 +33,13 @@ defmodule Atlas.WorkloadIdentityTest do
       |> service_account_claims("runner")
       |> Map.put("sub", "system:serviceaccount:tuist:tuist-server")
 
-    assert {:error, :bad_kubernetes_claims} = WorkloadIdentity.verify(token(signer, claims), policy)
+    assert {:error, :wrong_subject} = WorkloadIdentity.verify(token(signer, claims), policy)
+  end
+
+  test "rejects tokens that are not bound to a pod", %{policy: policy, signer: signer} do
+    claims = %{"kubernetes.io" => %{"namespace" => "tuist", "serviceaccount" => %{"name" => "tuist-server"}}}
+
+    assert {:error, :wrong_subject} = WorkloadIdentity.verify(token(signer, claims), policy)
   end
 
   test "rejects HMAC tokens keyed with the pinned public key", %{policy: policy, signer: signer} do
@@ -62,15 +63,14 @@ defmodule Atlas.WorkloadIdentityTest do
   end
 
   test "rejects another issuer or audience", %{policy: policy, signer: signer} do
-    assert {:error, :bad_issuer} = WorkloadIdentity.verify(token(signer, %{"iss" => "https://other"}), policy)
+    assert {:error, :invalid_claims} = WorkloadIdentity.verify(token(signer, %{"iss" => "https://other"}), policy)
     assert {:error, :bad_audience} = WorkloadIdentity.verify(token(signer, %{"aud" => ["tuist-server"]}), policy)
   end
 
   test "enforces expiry with bounded clock skew and the maximum lifetime", %{policy: policy, signer: signer} do
     now = System.os_time(:second)
 
-    assert {:ok, _} =
-             WorkloadIdentity.verify(token(signer, %{"iat" => now - 3600, "exp" => now - 30}), policy)
+    assert :ok = WorkloadIdentity.verify(token(signer, %{"iat" => now - 3600, "exp" => now - 30}), policy)
 
     assert {:error, :token_expired} =
              WorkloadIdentity.verify(token(signer, %{"iat" => now - 3600, "exp" => now - 120}), policy)
@@ -79,8 +79,9 @@ defmodule Atlas.WorkloadIdentityTest do
              WorkloadIdentity.verify(token(signer, %{"iat" => now, "exp" => now + 3601}), policy)
   end
 
-  test "stays closed without allowlisted subjects", %{policy: policy, signer: signer} do
-    assert {:error, :not_configured} = WorkloadIdentity.verify(token(signer, %{}), %{policy | subjects: []})
+  test "stays closed until fully configured", %{policy: policy, signer: signer} do
+    assert {:error, :not_configured} = WorkloadIdentity.verify(token(signer, %{}), %{policy | subject: nil})
+    assert {:error, :missing_token} = WorkloadIdentity.verify(nil, policy)
   end
 
   defp token(signer, overrides, kid \\ "key-1") do
@@ -101,7 +102,11 @@ defmodule Atlas.WorkloadIdentityTest do
   defp service_account_claims(namespace, name) do
     %{
       "sub" => "system:serviceaccount:#{namespace}:#{name}",
-      "kubernetes.io" => %{"namespace" => namespace, "serviceaccount" => %{"name" => name, "uid" => "uid"}}
+      "kubernetes.io" => %{
+        "namespace" => namespace,
+        "serviceaccount" => %{"name" => name, "uid" => "uid"},
+        "pod" => %{"name" => "#{name}-pod", "uid" => "pod-uid"}
+      }
     }
   end
 

@@ -22,13 +22,12 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
     policy = %{
       issuer: "https://kubernetes.default.svc.cluster.local",
       audience: "atlas-support-ingest",
-      jwks: %{"keys" => [public]},
-      max_token_ttl_seconds: 3600,
-      subjects: ["product:product-server"]
+      jwks: JSON.encode!(%{"keys" => [public]}),
+      subject: "product:product-server"
     }
 
     stub(Support, :ingest_workload_identity_policy, fn -> policy end)
-    %{signer: signer, token: workload_token(signer, "product", "product-server")}
+    %{token: workload_token(signer, "product", "product-server")}
   end
 
   test "opens a support conversation for an authenticated report", %{conn: conn, token: token} do
@@ -49,16 +48,6 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
     conn =
       conn
       |> put_req_header("authorization", "Bearer " <> token)
-      |> post(~p"/api/support/agent-feedback", @body)
-
-    assert %{"error" => "invalid token"} = json_response(conn, 401)
-    assert Repo.aggregate(Thread, :count) == 0
-  end
-
-  test "rejects a workload that is not allowlisted", %{conn: conn, signer: signer} do
-    conn =
-      conn
-      |> put_req_header("authorization", "Bearer " <> workload_token(signer, "product", "runner"))
       |> post(~p"/api/support/agent-feedback", @body)
 
     assert %{"error" => "invalid token"} = json_response(conn, 401)
@@ -92,6 +81,22 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
     assert List.last(statuses) == 429
   end
 
+  test "caps reports from all users together", %{conn: conn, token: token} do
+    stub(Atlas.RateLimit, :hit, fn
+      "support_agent_feedback:overall", _scale, _limit -> {:deny, 30_000}
+      _key, _scale, _limit -> {:allow, 1}
+    end)
+
+    conn =
+      conn
+      |> put_req_header("authorization", "Bearer " <> token)
+      |> post(~p"/api/support/agent-feedback", @body)
+
+    assert json_response(conn, 429)
+    assert get_resp_header(conn, "retry-after") == ["30"]
+    assert Repo.aggregate(Thread, :count) == 0
+  end
+
   test "rejects a report without an email", %{conn: conn, token: token} do
     conn =
       conn
@@ -111,7 +116,11 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
       "iat" => now,
       "nbf" => now,
       "exp" => now + 3600,
-      "kubernetes.io" => %{"namespace" => namespace, "serviceaccount" => %{"name" => service_account, "uid" => "uid"}}
+      "kubernetes.io" => %{
+        "namespace" => namespace,
+        "serviceaccount" => %{"name" => service_account, "uid" => "uid"},
+        "pod" => %{"name" => "server-pod", "uid" => "pod-uid"}
+      }
     }
 
     signer

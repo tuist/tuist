@@ -33,8 +33,8 @@ defmodule Atlas.Support do
 
   @doc """
   The `Atlas.WorkloadIdentity` policy a product's workload token must satisfy
-  to report agent feedback. Empty until the `ATLAS_SUPPORT_INGEST_*` settings
-  are configured, which keeps the endpoint closed.
+  to report agent feedback. Empty until `ATLAS_SUPPORT_INGEST_TOKEN_*` is
+  configured, which keeps the endpoint closed.
   """
   def ingest_workload_identity_policy do
     :atlas |> Application.get_env(:support_ingest, []) |> Map.new()
