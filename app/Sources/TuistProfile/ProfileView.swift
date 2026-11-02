@@ -3,6 +3,7 @@ import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
+import TuistNotifications
 import TuistServer
 
 public struct ProfileView: View {
@@ -20,6 +21,13 @@ public struct ProfileView: View {
     }
 
     public var body: some View {
+        NavigationStack {
+            list
+                .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    private var list: some View {
         List {
             Section {
                 VStack(spacing: 10) {
@@ -44,6 +52,16 @@ public struct ProfileView: View {
                     Text(account.email)
                         .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                }
+            }
+
+            Section {
+                NavigationLink {
+                    NotificationsView(userHandle: account.handle)
+                } label: {
+                    Text("Notifications")
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                 }
             }
 
@@ -80,6 +98,7 @@ public struct ProfileView: View {
             Section {
                 Button(action: {
                     Task {
+                        await PushNotifications.shared.signOut()
                         await authenticationService.signOut()
                     }
                 }) {
@@ -107,6 +126,7 @@ public struct ProfileView: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 errorHandler.fireAndHandleError {
+                    await PushNotifications.shared.signOut()
                     try await authenticationService.deleteAccount(account)
                 }
             }

@@ -77,6 +77,7 @@ import TuistServer
     import ArgumentParser
     import TuistErrorHandling
     import TuistNoora
+    import TuistNotifications
     import TuistOnboarding
     import TuistPreviews
     import TuistProfile
@@ -88,27 +89,51 @@ import TuistServer
 
     @main
     struct TuistApp: App {
+        @UIApplicationDelegateAdaptor(PushNotificationsAppDelegate.self) private var appDelegate
         @StateObject private var bootstrapper = AppBootstrapper()
 
         var body: some Scene {
             WindowGroup {
                 if bootstrapper.isReady {
-                    RootView()
+                    #if DEBUG
+                        if let demoState = notificationsDemoState {
+                            NotificationsView.demo(demoState)
+                        } else {
+                            RootView()
+                        }
+                    #else
+                        RootView()
+                    #endif
                 } else {
                     ProgressView()
                 }
             }
         }
+
+        #if DEBUG
+            /// `-notifications-demo <state>` renders the Notifications screen with mock data, for screenshots.
+            private var notificationsDemoState: NotificationsDemoState? {
+                UserDefaults.standard.string(forKey: "notifications-demo").flatMap(NotificationsDemoState.init(rawValue:))
+            }
+        #endif
     }
 
     private struct RootView: View {
         @StateObject private var authenticationService = AuthenticationService()
         @State private var activeTab = TabIdentifier.previews
+        @Environment(\.scenePhase) private var scenePhase
 
         var body: some View {
             content
                 .environmentObject(authenticationService)
                 .withErrorHandling()
+                .task(id: authenticationService.authenticationState) {
+                    await PushNotifications.shared.refresh()
+                }
+                .onChange(of: scenePhase) { _, scenePhase in
+                    guard scenePhase == .active else { return }
+                    Task { await PushNotifications.shared.refresh() }
+                }
                 .task {
                     TuistSDK(
                         fullHandle: "tuist/tuist",
