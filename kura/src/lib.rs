@@ -12,7 +12,6 @@ mod backpressure;
 mod bandwidth;
 mod bazel_test_artifacts;
 mod certificate_trust;
-mod commit_threads;
 mod config;
 mod connectivity;
 mod constants;

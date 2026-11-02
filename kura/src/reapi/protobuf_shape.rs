@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use tonic::Status;
 
 pub(super) const BYTESTREAM_WRITE_DECODE_COPIES: u64 = 2;
@@ -40,7 +38,7 @@ impl GrpcWriteShapePolicy {
     }
 }
 
-pub(super) fn inspect_splice_wire(bytes: Wire<'_>) -> Result<DecodeShape, Status> {
+pub(super) fn inspect_splice_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
     let mut cursor = ProtoCursor::new(bytes);
     let mut shape = DecodeShape::default();
     while let Some(field) = cursor.next()? {
@@ -116,73 +114,23 @@ impl DecodeShape {
 enum ProtoField<'a> {
     Varint { number: u32 },
     Fixed { number: u32 },
-    Bytes { number: u32, value: Wire<'a> },
-}
-
-/// A byte range of a message that may span the transport frames it arrived
-/// in. The admission body keeps those frames instead of copying the message
-/// into one buffer; only the short fields an inspector reads (strings and
-/// digests) are made contiguous, and only when they straddle a frame.
-#[derive(Clone, Copy)]
-pub(super) struct Wire<'a> {
-    chunks: &'a [&'a [u8]],
-    chunk: usize,
-    offset: usize,
-    len: usize,
-}
-
-impl<'a> Wire<'a> {
-    pub(super) fn new(chunks: &'a [&'a [u8]]) -> Self {
-        Self {
-            chunks,
-            chunk: 0,
-            offset: 0,
-            len: chunks.iter().map(|chunk| chunk.len()).sum(),
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    fn contiguous(&self) -> Cow<'a, [u8]> {
-        if self.len == 0 {
-            return Cow::Borrowed(&[]);
-        }
-        let mut chunk = self.chunk;
-        let mut offset = self.offset;
-        while offset == self.chunks[chunk].len() {
-            chunk += 1;
-            offset = 0;
-        }
-        if let Some(slice) = self.chunks[chunk].get(offset..offset + self.len) {
-            return Cow::Borrowed(slice);
-        }
-        let mut bytes = Vec::with_capacity(self.len);
-        while bytes.len() < self.len {
-            let available = &self.chunks[chunk][offset..];
-            let take = available.len().min(self.len - bytes.len());
-            bytes.extend_from_slice(&available[..take]);
-            chunk += 1;
-            offset = 0;
-        }
-        Cow::Owned(bytes)
-    }
+    Bytes { number: u32, value: &'a [u8] },
 }
 
 struct ProtoCursor<'a> {
-    wire: Wire<'a>,
+    bytes: &'a [u8],
+    offset: usize,
 }
 
 const PROTOBUF_RECURSION_LIMIT: usize = 100;
 
 impl<'a> ProtoCursor<'a> {
-    fn new(wire: Wire<'a>) -> Self {
-        Self { wire }
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
     }
 
     fn next(&mut self) -> Result<Option<ProtoField<'a>>, Status> {
-        if self.wire.len == 0 {
+        if self.offset == self.bytes.len() {
             return Ok(None);
         }
         let key = self.read_varint()?;
@@ -203,16 +151,13 @@ impl<'a> ProtoCursor<'a> {
                 let length = usize::try_from(self.read_varint()?).map_err(|_| {
                     Status::invalid_argument("Protocol Buffers field length does not fit in memory")
                 })?;
-                if length > self.wire.len {
-                    return Err(Status::invalid_argument(
-                        "truncated Protocol Buffers length-delimited field",
-                    ));
-                }
-                let value = Wire {
-                    len: length,
-                    ..self.wire
-                };
-                self.advance(length);
+                let end = self.offset.checked_add(length).ok_or_else(|| {
+                    Status::invalid_argument("Protocol Buffers field length overflow")
+                })?;
+                let value = self.bytes.get(self.offset..end).ok_or_else(|| {
+                    Status::invalid_argument("truncated Protocol Buffers length-delimited field")
+                })?;
+                self.offset = end;
                 Ok(Some(ProtoField::Bytes { number, value }))
             }
             3 => {
@@ -281,26 +226,14 @@ impl<'a> ProtoCursor<'a> {
         }
     }
 
-    fn read_byte(&mut self) -> Option<u8> {
-        if self.wire.len == 0 {
-            return None;
-        }
-        while self.wire.offset == self.wire.chunks[self.wire.chunk].len() {
-            self.wire.chunk += 1;
-            self.wire.offset = 0;
-        }
-        let byte = self.wire.chunks[self.wire.chunk][self.wire.offset];
-        self.wire.offset += 1;
-        self.wire.len -= 1;
-        Some(byte)
-    }
-
     fn read_varint(&mut self) -> Result<u64, Status> {
         let mut value = 0_u64;
         for shift in (0..70).step_by(7) {
-            let byte = self
-                .read_byte()
+            let byte = *self
+                .bytes
+                .get(self.offset)
                 .ok_or_else(|| Status::invalid_argument("truncated Protocol Buffers varint"))?;
+            self.offset += 1;
             if shift == 63 && byte > 1 {
                 return Err(Status::invalid_argument("Protocol Buffers varint overflow"));
             }
@@ -313,39 +246,22 @@ impl<'a> ProtoCursor<'a> {
     }
 
     fn skip(&mut self, bytes: usize) -> Result<(), Status> {
-        if bytes > self.wire.len {
-            return Err(Status::invalid_argument(
-                "truncated Protocol Buffers fixed field",
-            ));
-        }
-        self.advance(bytes);
+        self.offset = self
+            .offset
+            .checked_add(bytes)
+            .filter(|offset| *offset <= self.bytes.len())
+            .ok_or_else(|| Status::invalid_argument("truncated Protocol Buffers fixed field"))?;
         Ok(())
-    }
-
-    /// Moves past `bytes` (already checked against the remaining length)
-    /// without touching the bytes themselves.
-    fn advance(&mut self, mut bytes: usize) {
-        self.wire.len -= bytes;
-        while bytes > 0 {
-            let available = self.wire.chunks[self.wire.chunk].len() - self.wire.offset;
-            if bytes < available {
-                self.wire.offset += bytes;
-                return;
-            }
-            bytes -= available;
-            self.wire.chunk += 1;
-            self.wire.offset = 0;
-        }
     }
 }
 
-fn check_string(value: Wire<'_>, name: &str) -> Result<(), Status> {
-    std::str::from_utf8(&value.contiguous())
+fn check_string(value: &[u8], name: &str) -> Result<(), Status> {
+    std::str::from_utf8(value)
         .map(|_| ())
         .map_err(|_| Status::invalid_argument(format!("{name} is not valid UTF-8")))
 }
 
-fn inspect_digest_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<(), Status> {
+fn inspect_digest_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
     let mut cursor = ProtoCursor::new(bytes);
     while let Some(field) = cursor.next()? {
         match field {
@@ -367,7 +283,7 @@ fn inspect_digest_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<(), S
     Ok(())
 }
 
-pub(super) fn inspect_batch_update_wire(bytes: Wire<'_>) -> Result<DecodeShape, Status> {
+pub(super) fn inspect_batch_update_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
     let mut cursor = ProtoCursor::new(bytes);
     let mut shape = DecodeShape::default();
     while let Some(field) = cursor.next()? {
@@ -410,7 +326,7 @@ pub(super) fn inspect_batch_update_wire(bytes: Wire<'_>) -> Result<DecodeShape, 
     Ok(shape)
 }
 
-fn inspect_node_properties_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<(), Status> {
+fn inspect_node_properties_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
     let mut cursor = ProtoCursor::new(bytes);
     while let Some(field) = cursor.next()? {
         if let ProtoField::Bytes { number: 1, value } = field {
@@ -445,7 +361,7 @@ fn inspect_node_properties_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Res
     Ok(())
 }
 
-fn inspect_output_file_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<(), Status> {
+fn inspect_output_file_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
     let mut cursor = ProtoCursor::new(bytes);
     while let Some(field) = cursor.next()? {
         match field {
@@ -474,7 +390,7 @@ fn inspect_output_file_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<
     Ok(())
 }
 
-fn inspect_output_directory_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<(), Status> {
+fn inspect_output_directory_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
     let mut cursor = ProtoCursor::new(bytes);
     while let Some(field) = cursor.next()? {
         match field {
@@ -497,7 +413,7 @@ fn inspect_output_directory_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Re
     Ok(())
 }
 
-fn inspect_output_symlink_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<(), Status> {
+fn inspect_output_symlink_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
     let mut cursor = ProtoCursor::new(bytes);
     while let Some(field) = cursor.next()? {
         match field {
@@ -520,7 +436,7 @@ fn inspect_output_symlink_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Resu
     Ok(())
 }
 
-fn inspect_execution_metadata_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> Result<(), Status> {
+fn inspect_execution_metadata_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
     let mut cursor = ProtoCursor::new(bytes);
     while let Some(field) = cursor.next()? {
         match field {
@@ -561,7 +477,7 @@ fn inspect_execution_metadata_wire(bytes: Wire<'_>, shape: &mut DecodeShape) -> 
     Ok(())
 }
 
-pub(super) fn inspect_action_result_wire(bytes: Wire<'_>) -> Result<DecodeShape, Status> {
+pub(super) fn inspect_action_result_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
     let mut cursor = ProtoCursor::new(bytes);
     let mut shape = DecodeShape::default();
     while let Some(field) = cursor.next()? {
@@ -608,7 +524,7 @@ pub(super) fn inspect_action_result_wire(bytes: Wire<'_>) -> Result<DecodeShape,
     Ok(shape)
 }
 
-pub(super) fn inspect_action_update_wire(bytes: Wire<'_>) -> Result<DecodeShape, Status> {
+pub(super) fn inspect_action_update_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
     let mut cursor = ProtoCursor::new(bytes);
     let mut shape = DecodeShape::default();
     while let Some(field) = cursor.next()? {

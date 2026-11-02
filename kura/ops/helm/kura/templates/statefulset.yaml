@@ -119,10 +119,6 @@ spec:
               value: {{ printf "%d" (int64 .Values.config.fileDescriptors.acquireTimeoutMs) | quote }}
             - name: KURA_DRAIN_COMPLETION_TIMEOUT_MS
               value: {{ printf "%d" (int64 .Values.config.shutdown.drainCompletionTimeoutMs) | quote }}
-            {{- with (dig "durability" "relaxedSyncIntervalMs" nil .Values.config) }}
-            - name: KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS
-              value: {{ printf "%d" (int64 .) | quote }}
-            {{- end }}
             {{- with .Values.config.fileDescriptors.segmentHandleCacheSize }}
             - name: KURA_SEGMENT_HANDLE_CACHE_SIZE
               value: {{ printf "%d" (int .) | quote }}

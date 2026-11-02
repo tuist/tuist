@@ -219,15 +219,6 @@ config:
     maxKeyvalueBytes: 1048576
   shutdown:
     drainCompletionTimeoutMs: 240000
-  durability:
-    # Opt-in relaxed durability for client uploads, rendered only when set.
-    # Unset (the default) fsyncs every write before it is acknowledged. A
-    # positive value, at most 60000, acknowledges client uploads once they
-    # reach the page cache and fsyncs the segments and the metadata WAL on
-    # this interval instead: a process crash still loses nothing, but a kernel
-    # crash or power loss can lose up to one interval of acknowledged uploads.
-    # See KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS in the Kura README.
-    relaxedSyncIntervalMs: null
   metadataStore:
     maxOpenFiles: 1024
     maxBackgroundJobs: 4
