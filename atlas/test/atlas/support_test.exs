@@ -3,6 +3,7 @@ defmodule Atlas.SupportTest do
   use Mimic
   use Oban.Testing, repo: Atlas.Repo
 
+  alias Atlas.Accounts
   alias Atlas.Accounts.Account
   alias Atlas.Inbox
   alias Atlas.Inbox.EmailParser
@@ -179,6 +180,69 @@ defmodule Atlas.SupportTest do
         worker: PostNotification,
         args: %{"event" => "agent_feedback_received", "thread_id" => thread.id, "message_id" => message.id}
       )
+    end
+
+    test "links the thread to the Tuist account the agent reported from, ahead of the email domain" do
+      suffix = System.unique_integer([:positive])
+      _email_account = insert_account!("customer-#{suffix}.example")
+      reported_account = insert_account!("other-#{suffix}.example")
+
+      {:ok, _handle} =
+        Accounts.create_account_handle(reported_account, %{"handle" => "acme-#{suffix}", "source" => "manual"})
+
+      assert {:ok, %{thread: thread}} =
+               Support.receive_agent_feedback(%{
+                 "email" => "maya@customer-#{suffix}.example",
+                 "body" => "The branch filter was ignored.",
+                 "context" => %{
+                   "tuist_user_handle" => "maya",
+                   "tuist_account_handle" => "Acme-#{suffix}",
+                   "tuist_project_handle" => "ios",
+                   "tuist_organization_handles" => ["acme-#{suffix}", "side-project"]
+                 }
+               })
+
+      assert thread.account_id == reported_account.id
+      assert thread.metadata["tuist_account_handle"] == "Acme-#{suffix}"
+      assert thread.metadata["tuist_project_handle"] == "ios"
+      assert thread.metadata["tuist_organization_handles"] == ["acme-#{suffix}", "side-project"]
+    end
+
+    test "falls back to the user's Tuist organizations when the email matches no account" do
+      suffix = System.unique_integer([:positive])
+      account = insert_account!("acme-#{suffix}.example")
+      {:ok, _handle} = Accounts.create_account_handle(account, %{"handle" => "acme-#{suffix}", "source" => "manual"})
+
+      assert {:ok, %{thread: thread}} =
+               Support.receive_agent_feedback(%{
+                 "email" => "maya-#{suffix}@gmail.com",
+                 "body" => "The branch filter was ignored.",
+                 "context" => %{
+                   "tuist_user_handle" => "maya-#{suffix}",
+                   "tuist_organization_handles" => ["acme-#{suffix}"]
+                 }
+               })
+
+      assert thread.account_id == account.id
+    end
+
+    test "leaves the thread unlinked when the user's organizations match several accounts" do
+      suffix = System.unique_integer([:positive])
+
+      for name <- ["acme-#{suffix}", "globex-#{suffix}"] do
+        {:ok, _handle} =
+          Accounts.create_account_handle(insert_account!("#{name}.example"), %{"handle" => name, "source" => "manual"})
+      end
+
+      assert {:ok, %{thread: thread}} =
+               Support.receive_agent_feedback(%{
+                 "email" => "maya-#{suffix}@gmail.com",
+                 "body" => "The branch filter was ignored.",
+                 "context" => %{"tuist_organization_handles" => ["acme-#{suffix}", "globex-#{suffix}"]}
+               })
+
+      assert thread.account_id == nil
+      assert thread.metadata["tuist_organization_handles"] == ["acme-#{suffix}", "globex-#{suffix}"]
     end
 
     test "rejects reports without an email or body" do

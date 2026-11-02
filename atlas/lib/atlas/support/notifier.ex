@@ -312,8 +312,26 @@ defmodule Atlas.Support.Notifier do
     inbound_message_block(opts)
   end
 
-  defp event_detail_block(_thread, "agent_feedback_received", opts) do
-    inbound_message_block(opts)
+  defp event_detail_block(thread, "agent_feedback_received", opts) do
+    case agent_feedback_reporter(thread.metadata || %{}) do
+      nil ->
+        inbound_message_block(opts)
+
+      reporter ->
+        message = inbound_message_block(opts)
+        text = "*Reported from*\n#{escape(reporter)}"
+        text = if message, do: text <> "\n\n" <> message["text"]["text"], else: text
+        %{"type" => "section", "text" => %{"type" => "mrkdwn", "text" => text}}
+    end
+  end
+
+  defp agent_feedback_reporter(metadata) do
+    case {metadata["tuist_account_handle"], metadata["tuist_project_handle"], metadata["tuist_user_handle"]} do
+      {nil, _project, nil} -> nil
+      {nil, _project, user} -> "Tuist user #{user}"
+      {account, nil, _user} -> "Tuist account #{account}"
+      {account, project, _user} -> "Tuist project #{account}/#{project}"
+    end
   end
 
   defp inbound_message_block(opts) do

@@ -232,7 +232,7 @@ defmodule Atlas.Support do
   def receive_agent_feedback(attrs) when is_map(attrs) do
     with {:ok, feedback} <- agent_feedback_attrs(attrs) do
       Repo.transaction(fn ->
-        account = EventRouting.find_account([feedback.customer_email])
+        account = agent_feedback_account(feedback)
 
         thread =
           %Thread{account_id: account && account.account.id}
@@ -919,7 +919,8 @@ defmodule Atlas.Support do
       target_type: "support_thread",
       target_id: thread.id,
       target_label: thread.subject,
-      metadata: Map.merge(thread.metadata, %{"dashboard_path" => "/commercial/support/#{thread.id}", "message_id" => message.id})
+      metadata:
+        Map.merge(thread.metadata, %{"dashboard_path" => "/commercial/support/#{thread.id}", "message_id" => message.id})
     })
   end
 
@@ -1094,7 +1095,8 @@ defmodule Atlas.Support do
     end
   end
 
-  @agent_feedback_context_keys ~w(tool_name category tuist_user_id)
+  @agent_feedback_context_keys ~w(tool_name category tuist_user_id tuist_user_handle tuist_account_handle tuist_project_handle)
+  @agent_feedback_max_organization_handles 50
 
   defp agent_feedback_attrs(attrs) do
     customer_name = attrs |> value(:name) |> normalize_optional_text()
@@ -1118,14 +1120,43 @@ defmodule Atlas.Support do
   end
 
   defp agent_feedback_context(context) when is_map(context) do
-    for key <- @agent_feedback_context_keys,
-        value = context |> Map.get(key) |> normalize_optional_text(),
-        is_binary(value),
-        into: %{},
-        do: {key, String.slice(value, 0, 255)}
+    values =
+      for key <- @agent_feedback_context_keys,
+          value = context |> Map.get(key) |> normalize_optional_text(),
+          is_binary(value),
+          into: %{},
+          do: {key, String.slice(value, 0, 255)}
+
+    case agent_feedback_organization_handles(context["tuist_organization_handles"]) do
+      [] -> values
+      handles -> Map.put(values, "tuist_organization_handles", handles)
+    end
   end
 
   defp agent_feedback_context(_context), do: %{}
+
+  defp agent_feedback_organization_handles(handles) when is_list(handles) do
+    handles
+    |> Enum.map(&normalize_optional_text/1)
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.slice(&1, 0, 255))
+    |> Enum.uniq()
+    |> Enum.take(@agent_feedback_max_organization_handles)
+  end
+
+  defp agent_feedback_organization_handles(_handles), do: []
+
+  # The Tuist server only forwards an account handle the reporting user belongs
+  # to, so it is the strongest signal of which customer to get back to. The
+  # email comes next, and the user's own handles last: they only decide when
+  # they resolve to a single account.
+  defp agent_feedback_account(%{customer_email: email, metadata: metadata}) do
+    (metadata["tuist_account_handle"] && EventRouting.find_account_by_handles([metadata["tuist_account_handle"]])) ||
+      EventRouting.find_account([email]) ||
+      EventRouting.find_account_by_handles(
+        Enum.reject([metadata["tuist_user_handle"] | metadata["tuist_organization_handles"] || []], &is_nil/1)
+      )
+  end
 
   defp agent_feedback_subject(%{"tool_name" => tool_name}), do: "Agent feedback: #{tool_name}"
   defp agent_feedback_subject(_context), do: "Agent feedback"

@@ -218,11 +218,11 @@ This read-only tool searches Tuist's documentation, [application programming int
 
 #### Feedback
 
-Agents can tell the Tuist team when a Tuist tool or prompt did not work the way they expected, such as a confusing result, an error, missing data, or a missing capability. Each report opens a conversation with Tuist support, who may reply to you by email, so agents are asked to tell you when they send one. A report includes what the agent expected, what happened, an optional suggestion, and your Tuist user ID and email. Only agents signed in as a Tuist user can send reports, and each user can open up to 10 reports per hour. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
+Agents can tell the Tuist team when a Tuist tool or prompt did not work the way they expected, such as a confusing result, an error, missing data, or a missing capability. Agents are asked to suggest a report and send it only once you agree. Each report opens a conversation with Tuist support, who may reply to you by email. A report includes what the agent expected, what happened, an optional suggestion, your Tuist user ID, handle and email, and the organizations you belong to. Agents can also name the account and project the problem happened in, so the team knows which organization to follow up with; only accounts you belong to are accepted. Only agents signed in as a Tuist user can send reports, and each user can open up to 10 reports per hour. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `report_feedback` | Report a problem with a Tuist tool or prompt. Optionally name the `tool_name` and add a `suggestion`. | `category`, `expected`, `actual` |
+| `report_feedback` | Report a problem with a Tuist tool or prompt. Optionally name the `tool_name`, the `account_handle` and `project_handle` it happened in, and add a `suggestion`. | `category`, `expected`, `actual` |
 
 #### Source-backed answers
 

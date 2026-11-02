@@ -16,6 +16,18 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedback do
           "pattern" => "^[a-z0-9_]{1,100}$",
           "description" => "The Tuist MCP tool or prompt the feedback is about, if any."
         },
+        "account_handle" => %{
+          "type" => "string",
+          "maxLength" => 100,
+          "description" =>
+            "The Tuist account (organization or user) the problem happened in, so the team can follow up with it. " <>
+              "Use the account_handle of the call that misbehaved."
+        },
+        "project_handle" => %{
+          "type" => "string",
+          "maxLength" => 100,
+          "description" => "The Tuist project the problem happened in. Requires account_handle."
+        },
         "category" => %{
           "type" => "string",
           "enum" => ["unexpected_result", "error", "missing_data", "missing_capability", "unclear_description", "other"],
@@ -58,7 +70,8 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedback do
     "Report to the Tuist team when a Tuist MCP tool or prompt did not work the way you expected: " <>
       "a confusing or wrong result, an error, missing data, an unclear parameter, or a capability you " <>
       "needed but could not find. Do not report mistakes in your own arguments or missing permissions. " <>
-      "Suggest the report to the user and send it only once they agree. Send one report per distinct " <>
+      "Include the account_handle and project_handle of the call that misbehaved so the team can follow up " <>
+      "with that organization. Suggest the report to the user and send it only once they agree. Send one report per distinct " <>
       "problem. The report opens a conversation with Tuist support, who may reply to the user by email. " <>
       "Do not include source code, secrets, or personal data."
   end

@@ -42,8 +42,52 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
     assert context == %{
              "tool_name" => "list_test_runs",
              "category" => "missing_data",
-             "tuist_user_id" => to_string(user.id)
+             "tuist_user_id" => to_string(user.id),
+             "tuist_user_handle" => user.account.name,
+             "tuist_organization_handles" => []
            }
+  end
+
+  test "attributes the report to an organization and project the user belongs to" do
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture(creator: user)
+    other_organization = AccountsFixtures.organization_fixture()
+    project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+    conn = %Plug.Conn{assigns: %{current_user: user}}
+
+    expect(Req, :post, fn _url, opts ->
+      send(self(), {:posted, opts[:json]["context"]})
+      {:ok, %Req.Response{status: 201, body: %{"id" => "thread-1"}}}
+    end)
+
+    assert %{"structuredContent" => %{"feedback_id" => "thread-1"}} =
+             ReportFeedback.call(
+               conn,
+               Map.merge(@arguments, %{
+                 "account_handle" => String.upcase(organization.account.name),
+                 "project_handle" => project.name
+               })
+             )
+
+    assert_received {:posted, context}
+    assert context["tuist_account_handle"] == organization.account.name
+    assert context["tuist_project_handle"] == project.name
+    assert context["tuist_organization_handles"] == [organization.account.name]
+
+    reject(&Req.post/2)
+
+    assert %{"isError" => true, "content" => [%{"text" => text}]} =
+             ReportFeedback.call(conn, Map.put(@arguments, "account_handle", other_organization.account.name))
+
+    assert text =~ "not a member"
+
+    assert %{"isError" => true, "content" => [%{"text" => text}]} =
+             ReportFeedback.call(
+               conn,
+               Map.merge(@arguments, %{"account_handle" => organization.account.name, "project_handle" => "missing"})
+             )
+
+    assert text =~ "does not exist"
   end
 
   test "accepts reports from OAuth sessions, which authenticate as an account subject" do
