@@ -44,8 +44,10 @@ that pool's intro secret.
   for the next pass.
 - Bitrise report tokens authorize only the start report. They are not accepted
   by the log or finish endpoints.
-- Jobs are untrusted (`job_trusted?` false): no cache signing grant or shared
-  cache volumes until fork detection for Bitrise pull request builds exists.
+- Jobs are trusted (`job_trusted?` true) and get the cache signing grant and
+  shared cache volumes. There is no fork detection: the agent takes any build of
+  the pool, so a claim-time check could not cover the build that runs. The setup
+  guide limits the integration to private repositories instead.
 - Logs are not ingested; the dashboard links to the Bitrise build.
 - Pools should be dedicated to Tuist. Builds that a non-Tuist agent of the same
   pool takes leave a Tuist VM idle until the watchdog stops it.

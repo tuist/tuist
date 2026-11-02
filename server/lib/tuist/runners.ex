@@ -1438,7 +1438,7 @@ defmodule Tuist.Runners do
   defp job_trusted?(candidate, account) do
     case provider(candidate) do
       "gitlab" -> false
-      "bitrise" -> false
+      "bitrise" -> true
       "buildkite" -> Buildkite.job_trusted?(account.id, candidate.workflow_job_id)
       _github -> github_job_trusted?(candidate, account)
     end

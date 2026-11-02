@@ -12,6 +12,11 @@
 >
 > Tuist Runners are currently invite-only. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account.
 
+> [!WARNING]
+> **Private repositories only**
+>
+> Tuist trusts every Bitrise build: builds share your account's cache and can write to it. Don't pair a pool whose workflows build pull requests from forks of a public repository.
+
 Tuist serves your Bitrise workspace's self-hosted runner pools. A build that selects one of those pools runs on a Tuist machine of the <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> you pair with the pool. Your workflows, triggers, and logs stay on Bitrise; only the machines change.
 
 1. **Request access.** Runners are invite-only during the beta. [Reach out](mailto:contact@tuist.dev) with the account you want enabled.
