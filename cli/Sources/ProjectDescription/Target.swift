@@ -201,6 +201,7 @@ public struct Target: Codable, Equatable, Sendable {
     ///
     /// The target will become an aggregate target that runs the build script and produces the output binary.
     /// Other targets can depend on this target using `.target(name:)`.
+    /// Scripts added to the returned target's `scripts` run after the foreign build script.
     ///
     /// ### Example: Kotlin Multiplatform (KMP)
     ///

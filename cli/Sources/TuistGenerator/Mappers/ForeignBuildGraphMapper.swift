@@ -9,7 +9,7 @@ import XcodeGraph
 /// Configures foreign build targets with script build phases and wires up linking dependencies.
 ///
 /// For each target where `target.foreignBuild != nil`:
-/// 1. Configures the target as an aggregate (adds the build script phase)
+/// 1. Configures the target as an aggregate (adds the build script phase, followed by any scripts declared on the target)
 /// 2. For each consuming target that depends on this foreign build target (via `.target(name:)` or `.project(target:path:)`),
 ///    inserts a `foreignBuildOutput` graph dependency for linking
 ///
@@ -38,17 +38,16 @@ public struct ForeignBuildGraphMapper: GraphMapping {
 
                 let inputPaths = try await inputPaths(from: foreignBuild.inputs, targetName: targetName)
                 var updatedTarget = target
-                updatedTarget.scripts = [
-                    TargetScript(
-                        name: "Foreign Build: \(targetName)",
-                        order: .pre,
-                        script: .embedded(foreignBuild.script),
-                        inputPaths: inputPaths,
-                        outputPaths: [foreignBuild.output.path.pathString],
-                        showEnvVarsInLog: false,
-                        basedOnDependencyAnalysis: inputPaths.isEmpty ? false : nil
-                    ),
-                ]
+                let foreignBuildScript = TargetScript(
+                    name: "Foreign Build: \(targetName)",
+                    order: .pre,
+                    script: .embedded(foreignBuild.script),
+                    inputPaths: inputPaths,
+                    outputPaths: [foreignBuild.output.path.pathString],
+                    showEnvVarsInLog: false,
+                    basedOnDependencyAnalysis: inputPaths.isEmpty ? false : nil
+                )
+                updatedTarget.scripts = [foreignBuildScript] + target.scripts
                 updatedTarget.metadata = .metadata(
                     tags: target.metadata.tags.union(["tuist:foreign-build-aggregate"])
                 )
