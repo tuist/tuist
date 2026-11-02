@@ -1,6 +1,9 @@
 # Production workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist.
 
+disableMultipathTCP:
+  enabled: true
+
 cacheDNS:
   enabled: true
   activationIngressClass: nginx-grpc
