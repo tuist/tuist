@@ -129,12 +129,54 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert {:error, :timeout} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
     assert Repo.reload!(sandbox).residency_work_id == "amp:amp-thread"
 
-    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+    # Every Orb pause syncs the disks, which archiving relies on.
+    expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{}} end)
 
     assert {:ok, %{state: :paused, residency_work_id: nil}} =
              AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
 
     assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+  end
+
+  describe "pause_idle/2" do
+    setup %{account: account} do
+      quiet_since = DateTime.truncate(DateTime.add(DateTime.utc_now(), -700, :second), :second)
+
+      sandbox =
+        sandbox_fixture(
+          account: account,
+          amp_orb_id: "amp-thread",
+          node_name: "node-a",
+          residency_work_id: "amp:amp-thread",
+          guest_cpu_ms: 1000,
+          last_active_at: quiet_since
+        )
+
+      %{quiet_since: quiet_since, sandbox: sandbox}
+    end
+
+    test "pauses an Orb still quiet since the given activity as Amp's pause would", %{
+      sandbox: sandbox,
+      quiet_since: quiet_since
+    } do
+      expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{state: :paused, residency_work_id: nil, guest_cpu_ms: nil}} =
+               AmpOrbs.pause_idle(sandbox.id, quiet_since)
+    end
+
+    test "skips an Orb active since, and sandboxes that are not Orbs", %{
+      account: account,
+      sandbox: sandbox,
+      quiet_since: quiet_since
+    } do
+      reject(&Nodes.call/4)
+      assert {:ok, :skipped} = AmpOrbs.pause_idle(sandbox.id, DateTime.add(quiet_since, -30, :second))
+      assert Repo.reload!(sandbox).state == :running
+
+      api = sandbox_fixture(account: account, node_name: "node-a", last_active_at: quiet_since)
+      assert {:ok, :skipped} = AmpOrbs.pause_idle(api.id, quiet_since)
+    end
   end
 
   test "delete is repeatable and lookup is account-scoped", %{account: account} do
