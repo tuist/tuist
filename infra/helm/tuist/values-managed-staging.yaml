@@ -76,6 +76,8 @@ egressTreeAgent:
 # server deployments preserve its installed image; upgrades require an explicit digest.
 kuraVolumesCSI:
   enabled: true
+  # Public half of the staging KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: t1i8qEBEdu1wb6Gvl7uaf5tmXwTvCQ89lxokelDjKQ8=
   # Paris thin-ready labels were removed after the last rehearsal.
   thinRegions: []
 
@@ -111,6 +113,9 @@ server:
   config:
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
+      enabled: true
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
       enabled: true
     originAppKey:
       enabled: true
