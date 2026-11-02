@@ -2,18 +2,18 @@
 {
   "title": "Runner",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "Tuist Runner 是为 GitHub Actions 和 Buildkite 提供的托管 macOS 与 Linux 运行器，缓存与计算资源同地部署，并与你的本地机器共享。"
+  "description": "Tuist Runner 是为 GitHub Actions 和 Buildkite 提供的托管 macOS 和 Linux 运行器，其缓存与计算资源并置，并与你的本地机器共享。"
 }
 ---
-# Runners {#runners}
+# 运行器 {#runners}
 
 > [!IMPORTANT]
 > **仅限邀请**
 >
-> 在我们扩展容量期间，Tuist Runners 目前仅限邀请使用。[联系我们](mailto:contact@tuist.dev)或在 [社区 Slack](https://slack.tuist.dev) 中与我们取得联系，以申请你的账户访问权限。定价尚未公开；我们将在今年晚些时候 Runners 全面可用时公布定价。
+> 在我们扩展容量期间，Tuist Runners 目前仅限邀请使用。[联系我们](mailto:contact@tuist.dev)或在 [社区 Slack](https://slack.tuist.dev) 中联系我们，为你的账户申请访问权限。定价尚未公开；我们将在今年晚些时候 Runners 全面可用时公布。
 
 
-Tuist Runners 是为你的 GitHub Actions 工作流和 Buildkite 流水线提供的托管 macOS 和 Linux 运行器。无需在 CI 提供商的托管机器上运行作业，你只需将作业指向 Tuist <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>，它便会在 Tuist 的运行器集群上执行，紧邻你的团队已在使用的同一 <.localized_link href="/guides/features/cache">缓存</.localized_link>，无需安装运行器代理，也无需维护基础设施。
+Tuist Runners 是为你的 GitHub Actions 工作流和 Buildkite 流水线提供的托管 macOS 和 Linux 运行器。无需在 CI 提供商的托管机器上运行作业，你只需将作业指向 Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>，它便会在 Tuist 的运行器集群中执行，紧邻你的团队已在使用的相同 <.localized_link href="/guides/features/cache">cache</.localized_link>，无需安装运行器代理，也无需维护基础设施。
 
 采用它们通常只需对作业进行一行更改：
 
@@ -42,9 +42,9 @@ Tuist Runners 是为你的 GitHub Actions 工作流和 Buildkite 流水线提供
 
 ## Linux 上的 Android 模拟器 {#android-emulators}
 
-Linux 运行器默认通过 `/dev/kvm` 提供硬件加速虚拟化。使用你常规的 Linux <.localized_link href="/guides/features/runners/profiles">配置文件</.localized_link>（例如 `tuist-linux`）来运行 x86_64 Android 模拟器，包括 Gradle 托管设备。无需特殊的运行器配置文件、KVM 设置操作、权限更改或 `sudo` 即可访问设备。
+Linux 运行器默认通过 `/dev/kvm` 提供硬件加速虚拟化。使用你常规的 Linux <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>（例如 `tuist-linux`）来运行 x86_64 Android 模拟器，包括 Gradle Managed Devices。访问设备无需特殊的运行器配置文件、KVM 设置操作、权限更改或 `sudo`。
 
-运行器镜像包含 Android SDK。在启动设备之前，请安装模拟器及其运行时库。对于已定义名为 `pixel6` 的 Gradle 托管设备的项目，GitHub Actions 作业如下所示：
+运行器镜像包含 Android SDK。在启动设备之前，请安装模拟器及其运行时库。对于已定义名为 `pixel6` 的 Gradle Managed Device 的项目，GitHub Actions 作业如下所示：
 
 ```yaml
 jobs:
@@ -72,19 +72,19 @@ jobs:
         run: ./gradlew :app:pixel6DebugAndroidTest
 ```
 
-使用 Android Gradle Plugin 所需的 Java 版本，并将测试任务替换为你项目的托管设备任务。配置 **x86_64** 系统镜像。选择具有足够内存的运行器规格，以同时满足 Gradle 和模拟器的需求；并发设备共享作业的 CPU 和内存分配。
+使用你的 Android Gradle Plugin 所需的 Java 版本，并将测试任务替换为你项目的 managed-device 任务。配置 **x86_64** 系统镜像。选择具有足够内存以同时支持 Gradle 和模拟器的运行器规格；并发设备共享作业的 CPU 和内存分配。
 
 以普通运行器用户身份运行模拟器。此示例中的 `sudo` 仅用于安装操作系统软件包。
 
-模拟器使用嵌套虚拟化，因此其耗时可能与物理 Android 设备不同。请将模拟器基准测试视为对该 CI 环境的测量，而非物理设备的性能。
+模拟器使用嵌套虚拟化，因此其计时可能与物理 Android 设备不同。将模拟器基准测试视为对该 CI 环境的测量，而非物理设备的性能。
 
 ## 并发限制 {#concurrency-limits}
 
-每个账户对 macOS 和 Linux 都有独立的 vCPU 和内存并发限制。在 Tuist 接受作业之前，它会检查作业的 <.localized_link href="/guides/features/runners/profiles#machine-shapes">机器规格</.localized_link> 与该平台上当前运行的所有作业。只有当作业的 vCPU 和内存都符合剩余容量时，作业才会开始；否则，它将保持排队状态，直到有可用容量。在一个平台上的工作永远不会消耗另一个平台的容量。
+每个账户对 macOS 和 Linux 都有独立的 vCPU 和内存并发限制。在 Tuist 接受作业之前，它会检查作业的 <.localized_link href="/guides/features/runners/profiles#machine-shapes">machine shape</.localized_link> 与该平台上当前正在运行的所有作业。只有当作业的 vCPU 和内存都符合剩余容量时，作业才会开始；否则它将保持排队状态，直到有可用容量。在一个平台上的工作永远不会消耗另一个平台的容量。
 
-Runners 仪表板的 **并发** 部分显示每小时峰值允许的 vCPU 和内存使用情况。红色条形表示在该小时内的某个时刻使用情况达到了配置的限制。使用情况不会超过该线，因为会使任一资源超出其限制的作业将保持排队状态。
+Runners 仪表板的 **Concurrency** 部分显示每小时峰值允许的 vCPU 和内存使用情况。红色条形表示在该小时内的某个时刻使用量达到了配置的限制。使用量不会超过该线，因为会使任一资源超出其限制的作业将保持排队状态。
 
-你的当前限制显示在每个图表旁边。如果你的工作流经常达到这些限制并花费时间排队，请 [联系我们](mailto:contact@tuist.dev) 并提供你的账户句柄、平台和预期的并行工作负载。我们将审查所需容量并帮助提高限制。
+你的当前限制显示在每个图表旁边。如果你的工作流经常达到这些限制并花费时间排队，请[联系我们](mailto:contact@tuist.dev)，并提供你的账户句柄、平台和预期的并行工作负载。我们将审查所需容量并帮助提高限制。
 
 ## 网络访问 {#network-access}
 
@@ -95,7 +95,7 @@ Runners 仪表板的 **并发** 部分显示每小时峰值允许的 vCPU 和内
 | Linux | TCP 22 (SSH)、80 (HTTP) 和 443 (HTTPS)，以及 DNS |
 | macOS | 所有端口 |
 
-SSH 涵盖 `git@` 依赖项、SSH 子模块、部署密钥以及 `ssh` 或 `scp` 部署。如果 Linux 工作流需要其他出站端口，请 [联系我们](mailto:contact@tuist.dev)。
+SSH 涵盖 `git@` 依赖项、SSH 子模块、部署密钥以及 `ssh` 或 `scp` 部署。如果 Linux 工作流需要其他出站端口，请[联系我们](mailto:contact@tuist.dev)。
 
 <.home_cards>
   <.home_card
@@ -114,8 +114,13 @@ SSH 涵盖 `git@` 依赖项、SSH 子模块、部署密钥以及 `ssh` 或 `scp`
     link="/guides/features/runners/ci-providers/gitlab-ci"
 />
   <.home_card
+    title="Bitrise"
+    details="连接你的工作区，并在 Tuist 配置文件上运行自托管运行器池的构建。"
+    link="/guides/features/runners/ci-providers/bitrise"
+/>
+  <.home_card
     title="配置文件"
-    details="通过从作业中引用的命名机器配置文件，选择平台、大小和 Xcode 版本。"
+    details="通过你在作业中引用的命名机器配置文件，选择平台、大小和 Xcode 版本。"
     link="/guides/features/runners/profiles"
 />
   <.home_card
@@ -127,14 +132,14 @@ SSH 涵盖 `git@` 依赖项、SSH 子模块、部署密钥以及 `ssh` 或 `scp`
 
 ## 为什么选择 Tuist Runners {#why-tuist-runners}
 
-大多数 CI 运行器提供商通过提供更强大的机器和持久缓存（通常是挂载回 CI 运行中的共享卷）来加快作业速度。这有所帮助，但卷只是磁盘：它携带之前 CI 运行留下的任何内容。它不会复制以仅将最新的构件保持在构建运行附近，也永远不会到达代码构建的其他地方。
+大多数 CI 运行器提供商通过提供更强大的机器和持久缓存来加快作业速度，通常是挂载回 CI 运行的共享卷。这有帮助，但卷只是磁盘：它携带之前 CI 运行留下的任何内容。它不会复制以保持最新的构件靠近构建运行的位置，也永远不会到达代码构建的其他地方。
 
-构建不再发生在单一位置。相同的代码在开发人员的笔记本电脑、CI 以及越来越多的编码代理和其他自动化环境中编译。Tuist Runners 的不同之处在于，它们共享所有那些环境已经读取和写入的同一 <.localized_link href="/guides/features/cache">缓存</.localized_link>，无论你使用何种构建系统。团队成员在笔记本电脑上预热的构件、代理生成的构件或早期构建留下的构件在运行器上都是命中，反之亦然。无需单独预热 CI 缓存，且加速不仅限于 CI。
+构建不再发生在单一地点。相同的代码在开发者的笔记本电脑、CI 以及越来越多的编码代理和其他自动化环境中编译。Tuist Runners 的不同之处在于，它们共享所有那些环境已经读取和写入的相同 <.localized_link href="/guides/features/cache">cache</.localized_link>，无论你使用何种构建系统。队友在笔记本电脑上预热的构件、代理生成的构件或早期构建留下的构件在运行器上都是命中，反之亦然。没有单独的 CI 缓存需要预热，加速也不仅限于 CI。
 
-此外，缓存与运行器位于同一私有网络上，因此缓存读写保持内部化并靠近计算资源，而不是跨越公共互联网。
+此外，缓存与运行器位于同一私有网络上，因此缓存读写保持在内部并靠近计算资源，无需穿越公共互联网。
 
 综上所述：
 
-- **所有环境共享。** 运行器与你的开发机器、CI 和编码代理读写相同的缓存，因此在任何地方完成的工作都会预热各处的缓存。
-- **与计算资源共置。** 缓存流量保留在运行器旁边的内部网络上，而不是通过公共入口。
-- **一体化系统，而非附加组件。** 缓存、<.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>、<.localized_link href="/guides/features/test-sharding">测试分片</.localized_link>和<.localized_link href="/guides/features/build-insights">构建洞察</.localized_link>都针对同一项目和账户运行，因此运行器不是独立的构建设计数据孤岛。
+- **跨所有环境共享。** 运行器读取和写入的缓存与你的开发机器、CI 和编码代理相同，因此在任何地方完成的工作都会预热各处的缓存。
+- **与计算资源共置。** 缓存流量停留在运行器旁的内部网络上，而非通过公共入口。
+- **统一系统，非外挂组件。** 缓存、<.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>、<.localized_link href="/guides/features/test-sharding">测试分片</.localized_link> 和 <.localized_link href="/guides/features/build-insights">构建洞察</.localized_link> 都针对同一项目和账户运行，因此运行器不是独立的构建设计数据孤岛。

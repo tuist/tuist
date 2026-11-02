@@ -17,3 +17,5 @@ storage:
   size: 3Ti
 lifecycle:
   expirationDays: 3
+archiveBucket: sandbox-archives
+sandboxNamespace: tuist-sandboxes
