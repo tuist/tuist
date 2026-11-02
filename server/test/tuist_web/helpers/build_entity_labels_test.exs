@@ -3,6 +3,23 @@ defmodule TuistWeb.Helpers.BuildEntityLabelsTest do
 
   alias TuistWeb.Helpers.BuildEntityLabels
 
+  test "Cargo labels describe observed crates and compiler invocations" do
+    assert BuildEntityLabels.plural(:cargo, "crate") == "Crates"
+    assert BuildEntityLabels.singular(:cargo, "crate") == "Crate"
+    assert BuildEntityLabels.search_placeholder(:cargo, "crate") == "Search crates..."
+    assert BuildEntityLabels.inventory_fields(:cargo, "crate") == ["kind"]
+    assert BuildEntityLabels.parent(:cargo, "crate") == "Command"
+    assert BuildEntityLabels.history(:cargo, "crate") == "Compilations"
+    assert BuildEntityLabels.recent(:cargo, "crate") == "Recent compilations"
+    assert BuildEntityLabels.duration(:cargo, "crate") == "Compilation duration"
+    assert BuildEntityLabels.durations?(:cargo, "crate")
+
+    assert BuildEntityLabels.inventory_sublabel(:cargo, "crate", %{
+             name: "widgets",
+             identity: %{"source" => "src/lib.rs", "name" => "widgets", "kind" => "lib"}
+           }) == "src/lib.rs"
+  end
+
   test "uses native terminology for every supported build system" do
     assert BuildEntityLabels.plural(:gradle, "task") == "Tasks"
     assert BuildEntityLabels.plural(:xcode, "module") == "Modules"
@@ -48,9 +65,14 @@ defmodule TuistWeb.Helpers.BuildEntityLabelsTest do
   test "preserves differing primary identifiers as sublabels but omits duplicates" do
     row = %{name: ":app:test", identity: %{"task_path" => ":app:test"}}
     assert BuildEntityLabels.inventory_sublabel(:gradle, "task", row) == nil
-    assert BuildEntityLabels.inventory_sublabel(:gradle, "task", %{row | name: "Run tests"}) == ":app:test"
 
-    assert BuildEntityLabels.inventory_sublabel(:mix, "module", %{name: "Application", identity: %{"module" => "App"}}) ==
+    assert BuildEntityLabels.inventory_sublabel(:gradle, "task", %{row | name: "Run tests"}) ==
+             ":app:test"
+
+    assert BuildEntityLabels.inventory_sublabel(:mix, "module", %{
+             name: "Application",
+             identity: %{"module" => "App"}
+           }) ==
              "App"
 
     assert BuildEntityLabels.inventory_sublabel(:mix, "file", %{name: "lib/app.ex", identity: %{"path" => "lib/app.ex"}}) ==

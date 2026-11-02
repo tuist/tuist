@@ -218,7 +218,8 @@ config :tuist, TuistWeb.Endpoint,
   check_origin: false,
   code_reloader: code_reloader_enabled,
   debug_errors: debug_errors_enabled,
-  reloadable_apps: [:tuist, :noora],
+  reloadable_apps: [:tuist],
+  reloadable_path_deps: [:noora],
   watchers: if(code_reloader_enabled, do: base_watchers, else: []),
   live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])
 

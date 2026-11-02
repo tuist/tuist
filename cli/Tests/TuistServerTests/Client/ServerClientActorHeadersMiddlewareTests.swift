@@ -108,6 +108,8 @@ struct ServerClientActorHeadersMiddlewareTests {
         ("createCommandEvent", true),
         ("createMixBuild", true),
         ("createGradleBuild", true),
+        ("createCargoBuild", true),
+        ("getCargoBuild", false),
         ("listBuilds", false),
         ("getCacheEndpoints", false),
         ("getTest", false),

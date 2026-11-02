@@ -37,7 +37,13 @@ defmodule Tuist.VCS do
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
-  @test_body_build_systems [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"mix", "Mix"}]
+  @test_body_build_systems [
+    {"xcode", "Xcode"},
+    {"gradle", "Gradle"},
+    {"bazel", "Bazel"},
+    {"mix", "Mix"},
+    {"cargo", "Cargo"}
+  ]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
