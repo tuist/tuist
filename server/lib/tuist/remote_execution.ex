@@ -11,6 +11,7 @@ defmodule Tuist.RemoteExecution do
   alias Tuist.KeyValueStore
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.RemoteExecution.Scheduler
   alias Tuist.RemoteExecution.Settings
   alias Tuist.RemoteExecution.VMs
@@ -19,6 +20,7 @@ defmodule Tuist.RemoteExecution do
   @max_wait_ms 5_000
   # Every action authorizes its project; the handles rarely change.
   @project_ttl to_timeout(second: 10)
+  @authorization_ttl_ms 10_000
   # Base64 of the gateway's prefetched action metadata and small inputs.
   @max_inputs_bytes 349_528
 
@@ -45,16 +47,41 @@ defmodule Tuist.RemoteExecution do
     end
   end
 
+  # The gateway presents the same credential for every action of a build, so a
+  # successful decision is reused briefly, never past the credential's expiry.
+  # Failures are always evaluated again.
   def authorize(token, account_handle, project_handle, opts \\ []) do
+    require_enabled = Keyword.get(opts, :require_enabled, true)
+
+    key = [
+      :remote_execution,
+      :authorization,
+      :crypto.hash(:sha256, token),
+      account_handle,
+      project_handle,
+      require_enabled
+    ]
+
+    case cached_authorization(key) do
+      %Project{} = project ->
+        {:ok, project}
+
+      nil ->
+        with {:ok, project} <- authorize_uncached(token, account_handle, project_handle, require_enabled) do
+          remember_authorization(key, project, token)
+          {:ok, project}
+        end
+    end
+  end
+
+  defp authorize_uncached(token, account_handle, project_handle, require_enabled) do
     with project when not is_nil(project) <- project(account_handle, project_handle),
          %{active: true, cache_grants: grants} <-
            Introspection.token_response(token, project.account),
          handle = String.downcase("#{project.account.name}/#{project.name}"),
          true <-
            Enum.all?(["read", "write"], &(handle in List.wrap(get_in(grants, ["project", &1])))),
-         true <-
-           not Keyword.get(opts, :require_enabled, true) or
-             FeatureFlags.bazel_remote_execution_enabled?(project.account) do
+         true <- not require_enabled or FeatureFlags.bazel_remote_execution_enabled?(project.account) do
       {:ok, project}
     else
       _ -> {:error, :forbidden}
@@ -106,6 +133,27 @@ defmodule Tuist.RemoteExecution do
   end
 
   def maintain, do: VMs.reap()
+
+  defp cached_authorization(key) do
+    if Environment.test?(), do: nil, else: KeyValueStore.get(key)
+  end
+
+  defp remember_authorization(key, project, token) do
+    with false <- Environment.test?(),
+         exp when is_integer(exp) <- token_expiry(token),
+         ttl when ttl > 0 <- min(@authorization_ttl_ms, exp * 1000 - System.system_time(:millisecond)) do
+      KeyValueStore.put(key, project, ttl: ttl)
+    end
+  end
+
+  defp token_expiry(token) do
+    case JOSE.JWT.peek_payload(token) do
+      %JOSE.JWT{fields: %{"exp" => exp}} when is_integer(exp) -> exp
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
 
   defp project(account_handle, project_handle) do
     lookup = fn -> Projects.get_project_by_account_and_project_handles(account_handle, project_handle) end
