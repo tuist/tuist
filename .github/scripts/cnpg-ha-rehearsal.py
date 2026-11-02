@@ -23,7 +23,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 NS = "tuist-staging"
 MARKERS = "7:before-roll,19:asymmetric-control"
-SYNC = {"method": "any", "number": 1, "dataDurability": "required"}
+SYNC = {"method": "any", "number": 1, "dataDurability": "required", "failoverQuorum": False}
 
 
 def command(*args, stdin=None, timeout=30):
