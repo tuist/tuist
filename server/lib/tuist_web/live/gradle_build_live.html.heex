@@ -64,19 +64,6 @@
         <:icon_left><.subtask /></:icon_left>
       </.link_button>
     </div>
-    <div data-part="actions">
-      <.button
-        :if={@timeline_available}
-        href={
-          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/trace.json"
-        }
-        label={dgettext("dashboard_builds", "Download trace")}
-        variant="secondary"
-        size="medium"
-      >
-        <:icon_left><.download /></:icon_left>
-      </.button>
-    </div>
   </div>
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
@@ -111,6 +98,9 @@
       source="gradle"
       url={
         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/timeline.json"
+      }
+      trace_url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/trace.json"
       }
     />
   </section>
