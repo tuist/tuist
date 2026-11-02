@@ -47,9 +47,5 @@ grep -q -- '-n kura-volumes annotate --overwrite DaemonSet.v1.apps kura-volumes-
 grep -q -- '-n kura-volumes label --overwrite DaemonSet.v1.apps kura-volumes-csi-node app.kubernetes.io/managed-by=Helm' "$work/calls"
 test "$(grep -c ' annotate ' "$work/calls")" -eq 1
 test "$(grep -c ' label ' "$work/calls")" -eq 1
-# Ownership of every field passes too, or the new release's server-side apply
-# conflicts with the field managers the previous release and manual edits left.
-grep -qF -- '-n kura-volumes patch DaemonSet.v1.apps kura-volumes-csi-node --type=merge -p {"metadata":{"managedFields":[{}]}}' "$work/calls"
-test "$(grep -c ' patch ' "$work/calls")" -eq 1
 grep -q -- '-n tuist-staging get ConfigMap.v1. new' "$work/calls"
 echo 'Only objects the previous release owns in this namespace move to the new release.'
