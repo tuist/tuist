@@ -64,12 +64,16 @@ for env in staging canary production; do
       .metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"] == "true");
       all(.rules[]; ((.apiGroups | includes("")) and (.resources | includes("secrets"))) | not))) and
 
-    # Both ordinary identity groups bind only to view, in every environment.
+    # Both ordinary identity groups bind only to view, plus the built-in
+    # read-only role for the public issuer discovery document and JWKS.
     (all("tuist-admins", "tuist-eng";
       . as $group | $resources | bindings($group) |
-      length == 1 and .[0].roleRef == {
-        apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole", name: "view"
-      })) and
+      all(.[]; .kind == "ClusterRoleBinding") and
+      ([.[].roleRef] | sort_by(.name)) == [
+        {apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole",
+         name: "system:service-account-issuer-discovery"},
+        {apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole", name: "view"}
+      ])) and
     # Edit is reached only through the current environment write group. Staging
     # uses the same binding, with standing membership supplied by its policy.
     ([.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding") |
