@@ -20,6 +20,7 @@ import (
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
+	"golang.org/x/sync/errgroup"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -399,20 +400,22 @@ func (g *Gateway) storeOutputs(ctx context.Context, account, project, auth strin
 	if err != nil {
 		return err
 	}
-	request.InstanceName = project
-	request.DigestFunction = re.DigestFunction_SHA256
+	cas := worker.NewCAS(conn, project)
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", auth, "x-tuist-account-handle", account, "x-tuist-write-durability", "deferred"))
-	response, err := re.NewContentAddressableStorageClient(conn).BatchUpdateBlobs(ctx, &request)
-	if err != nil {
-		return err
+	// A stream write of a blob the CAS already holds is answered without
+	// waiting on storage, unlike a batch.
+	group, ctx := errgroup.WithContext(ctx)
+	for _, r := range request.Requests {
+		group.Go(func() error {
+			got, err := cas.Write(ctx, bytes.NewReader(r.Data))
+			if err != nil {
+				return err
+			}
+			if got.Hash != r.GetDigest().GetHash() || got.SizeBytes != r.GetDigest().GetSizeBytes() {
+				return status.Error(codes.InvalidArgument, "output does not match its digest")
+			}
+			return nil
+		})
 	}
-	if len(response.Responses) != len(request.Requests) {
-		return status.Error(codes.Internal, "incomplete output storage response")
-	}
-	for _, item := range response.Responses {
-		if code := item.GetStatus().GetCode(); code != 0 {
-			return status.Error(codes.Code(code), "output was not stored")
-		}
-	}
-	return nil
+	return group.Wait()
 }

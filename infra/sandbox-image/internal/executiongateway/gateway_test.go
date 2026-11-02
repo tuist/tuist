@@ -15,6 +15,7 @@ import (
 	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	bs "google.golang.org/genproto/googleapis/bytestream"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -453,35 +454,52 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 	}
 }
 
+type storedWrite struct {
+	name string
+	data []byte
+}
+
 type outputStore struct {
-	re.UnimplementedContentAddressableStorageServer
+	bs.UnimplementedByteStreamServer
 	refuse  bool
-	updates chan *re.BatchUpdateBlobsRequest
+	writes  chan storedWrite
 	headers chan metadata.MD
 }
 
-func (o *outputStore) BatchUpdateBlobs(ctx context.Context, r *re.BatchUpdateBlobsRequest) (*re.BatchUpdateBlobsResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
+func (o *outputStore) Write(s bs.ByteStream_WriteServer) error {
+	md, _ := metadata.FromIncomingContext(s.Context())
 	o.headers <- md
-	o.updates <- r
-	response := &re.BatchUpdateBlobsResponse{}
-	for _, item := range r.Requests {
-		code := int32(codes.OK)
-		if o.refuse {
-			code = int32(codes.ResourceExhausted)
+	var w storedWrite
+	for {
+		r, err := s.Recv()
+		if err == io.EOF {
+			break
 		}
-		response.Responses = append(response.Responses, &re.BatchUpdateBlobsResponse_Response{Digest: item.Digest, Status: &rpc.Status{Code: code}})
+		if err != nil {
+			return err
+		}
+		if r.ResourceName != "" {
+			w.name = r.ResourceName
+		}
+		w.data = append(w.data, r.Data...)
+		if r.FinishWrite {
+			break
+		}
 	}
-	return response, nil
+	o.writes <- w
+	if o.refuse {
+		return status.Error(codes.ResourceExhausted, "full")
+	}
+	return s.SendAndClose(&bs.WriteResponse{CommittedSize: int64(len(w.data))})
 }
 
 func TestInlinedOutputsAreStoredBeforeTheResult(t *testing.T) {
 	for _, refuse := range []bool{false, true} {
-		store := &outputStore{refuse: refuse, updates: make(chan *re.BatchUpdateBlobsRequest, 1), headers: make(chan metadata.MD, 1)}
+		store := &outputStore{refuse: refuse, writes: make(chan storedWrite, 1), headers: make(chan metadata.MD, 1)}
 		cache := &actionCache{updates: make(chan *re.UpdateActionResultRequest, 1), auth: make(chan []string, 1)}
 		l := bufconn.Listen(1 << 20)
 		s := grpc.NewServer()
-		re.RegisterContentAddressableStorageServer(s, store)
+		bs.RegisterByteStreamServer(s, store)
 		re.RegisterActionCacheServer(s, cache)
 		go s.Serve(l)
 		t.Cleanup(s.Stop)
@@ -514,15 +532,15 @@ func TestInlinedOutputsAreStoredBeforeTheResult(t *testing.T) {
 			t.Fatalf("result: %v %v", finished, err)
 		}
 		// Stored before the client got the result.
-		var update *re.BatchUpdateBlobsRequest
+		var stored storedWrite
 		select {
-		case update = <-store.updates:
+		case stored = <-store.writes:
 		default:
 			t.Fatal("outputs were not stored before the result")
 		}
 		md := <-store.headers
-		if update.InstanceName != "app" || len(update.Requests) != 1 || string(update.Requests[0].Data) != "output" || dialed.Load() != "grpcs://cache.example" {
-			t.Fatalf("update: %v to %v", update, dialed.Load())
+		if !strings.HasPrefix(stored.name, "app/uploads/") || !strings.HasSuffix(stored.name, "/blobs/"+digest.Hash+"/6") || string(stored.data) != "output" || dialed.Load() != "grpcs://cache.example" {
+			t.Fatalf("write: %v to %v", stored, dialed.Load())
 		}
 		if md.Get("authorization")[0] != "Bearer secret" || md.Get("x-tuist-account-handle")[0] != "tuist" || md.Get("x-tuist-write-durability")[0] != "deferred" {
 			t.Fatalf("headers: %v", md)
