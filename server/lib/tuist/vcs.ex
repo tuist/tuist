@@ -947,11 +947,19 @@ defmodule Tuist.VCS do
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url})#{run_command(preview, preview_url)} | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
         """
       end)}
       """
     end
+  end
+
+  # Command-line previews have no install page or QR code; `tuist run` is how
+  # people and agents try them.
+  defp run_command(preview, preview_url) do
+    if Enum.any?(preview.app_builds, &(&1.type == :executable)),
+      do: "<br/>`tuist run #{preview_url}`",
+      else: ""
   end
 
   defp get_qr_code_image(%{
