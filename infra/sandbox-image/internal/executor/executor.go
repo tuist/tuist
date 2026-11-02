@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -25,6 +26,8 @@ type request struct {
 	Inputs   string `json:"inputs"`
 }
 
+const actionMemoryLimit = 256 << 20
+
 type result struct {
 	Response  string `json:"response"`
 	Cacheable bool   `json:"cacheable"`
@@ -37,7 +40,11 @@ func Run(ctx context.Context, requestJSON, token string) (string, error) {
 }
 
 func (s *Session) Run(parent context.Context, requestJSON, token string) (string, error) {
-
+	// Each VM runs one action and is then destroyed, so collecting garbage
+	// mid-action only adds pauses. The limit still collects for an unusually
+	// large action.
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	defer debug.SetMemoryLimit(debug.SetMemoryLimit(actionMemoryLimit))
 	var r request
 	if err := json.Unmarshal([]byte(requestJSON), &r); err != nil {
 		return "", err
