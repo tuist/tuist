@@ -78,6 +78,18 @@ for env in staging canary production; do
       .[0].roleRef == {apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole", name: "edit"} and
       .[0].subjects == [{kind: "Group", name: ("tuist-" + $env + "-write"),
         apiGroup: "rbac.authorization.k8s.io"}]) and
+    # StorageClass adoption and cleanup: reads on view, mutation only on the
+    # environment write group through a direct binding, never via edit.
+    (role("tuist-view-infra-read") | any(.rules[];
+      (.apiGroups | includes("storage.k8s.io")) and (.resources | includes("storageclasses")))) and
+    (role("tuist-storageclass-write") |
+      .metadata.labels["rbac.authorization.k8s.io/aggregate-to-edit"] != "true" and
+      .rules == [{apiGroups: ["storage.k8s.io"], resources: ["storageclasses"],
+        verbs: ["update", "patch", "delete"]}]) and
+    ([.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding") |
+      select(.roleRef.name == "tuist-storageclass-write")] |
+      length == 1 and .[0].subjects == [{kind: "Group", name: ("tuist-" + $env + "-write"),
+        apiGroup: "rbac.authorization.k8s.io"}]) and
     # Do not bypass aggregation with a direct binding to the CNPG role.
     (all(.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding");
       .roleRef.name != "tuist-edit-cnpg-write"))

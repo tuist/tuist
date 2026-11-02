@@ -413,7 +413,11 @@ clusterPortsHostPolicy:
       protocol: UDP
     - port: 4240
       protocol: TCP
+    - port: 4244
+      protocol: TCP
     - port: 10250
+      protocol: TCP
+    - port: 10254
       protocol: TCP
     - port: 9962
       protocol: TCP
