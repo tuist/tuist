@@ -3,8 +3,9 @@ name: rack-cache-gateways
 description: >
   The Kura cache gateways that run on a rack's storage nodes, which the
   platform chart's values configure (`kura-<site>-runners-ingress-nginx`),
-  and the platform chart's IPv4 options drop for rack nodes
-  (`ipv4OptionsTcpDrop`, a template symlinked from infra/helm/platform).
+  and the platform chart's IPv4 options drop and Multipath TCP switch-off for
+  rack nodes (`ipv4OptionsTcpDrop` and `disableMultipathTCP`, templates
+  symlinked from infra/helm/platform).
 
   A release of its own, installed by infra/mise/tasks/k8s/install-platform.sh
   after the platform release, with the platform chart's values, and never
