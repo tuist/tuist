@@ -148,6 +148,7 @@ defmodule Tuist do
       Builds.Analytics,
       Builds.Metadata,
       Builds.Steps,
+      Builds.Trace,
       Builds.RecordedSteps,
       Builds.Workers.ProcessBuildWorker,
       Runs.Analytics,

@@ -12,6 +12,7 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :source, :string, required: true
 
   attr :url, :string, required: true
+  attr :trace_url, :string, default: nil, doc: "Where to download the timeline as a Perfetto trace."
 
   def build_timeline_section(assigns) do
     ~H"""
@@ -28,7 +29,13 @@ defmodule TuistWeb.Components.BuildTimeline do
           <.error_card_section data-part="timeline-error" />
         </.card>
       </:failed>
-      <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
+      <.build_timeline
+        duration={@duration}
+        version={@version}
+        source={@source}
+        url={@url}
+        trace_url={@trace_url}
+      />
     </.async_result>
     """
   end
@@ -37,6 +44,7 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :duration, :integer, required: true
   attr :version, :integer, required: true
   attr :source, :string, default: "xcode"
+  attr :trace_url, :string, default: nil
 
   def build_timeline(assigns) do
     assigns = assign(assigns, :groups, timeline_groups(assigns.source))
@@ -87,6 +95,16 @@ defmodule TuistWeb.Components.BuildTimeline do
               "targets"
             )}</span>
           </span>
+          <.button
+            :if={@trace_url}
+            href={@trace_url}
+            variant="secondary"
+            size="small"
+            label={dgettext("dashboard_builds", "Download trace")}
+            title={dgettext("dashboard_builds", "Download a trace file you can open in Perfetto")}
+          >
+            <:icon_left><.download /></:icon_left>
+          </.button>
         </:actions>
         <.error_card_section data-part="payload-error" hidden />
         <.card_section data-part="timeline-content">
