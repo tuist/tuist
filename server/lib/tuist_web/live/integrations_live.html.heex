@@ -931,11 +931,39 @@
     />
     <div :if={@bitrise_connection} id="bitrise-pools" data-part="pools">
       <div data-part="pools-header">
-        <span data-part="title">{dgettext("dashboard_integrations", "Runner pools")}</span>
-        <span data-part="description">{dgettext(
-          "dashboard_integrations",
-          "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
-        )}</span>
+        <div data-part="heading">
+          <span data-part="title">{dgettext("dashboard_integrations", "Runner pools")}</span>
+          <span data-part="description">{dgettext(
+            "dashboard_integrations",
+            "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
+          )}</span>
+        </div>
+        <.async_result :let={available} assign={@bitrise_available_pools}>
+          <:loading>
+            <.button
+              type="button"
+              label={dgettext("dashboard_integrations", "Add pool")}
+              variant="secondary"
+              size="small"
+              disabled
+            />
+          </:loading>
+          <:failed>
+            <.bitrise_pool_modal
+              pools={nil}
+              profile_labels={@bitrise_profile_labels}
+              error={@bitrise_pool_error}
+            />
+          </:failed>
+          <.bitrise_pool_modal
+            :if={
+              TuistWeb.IntegrationsLive.unconnected_bitrise_pools(available, @bitrise_pools) != []
+            }
+            pools={TuistWeb.IntegrationsLive.unconnected_bitrise_pools(available, @bitrise_pools)}
+            profile_labels={@bitrise_profile_labels}
+            error={@bitrise_pool_error}
+          />
+        </.async_result>
       </div>
       <div :for={pool <- @bitrise_pools} id={"bitrise-pool-#{pool.id}"} data-part="pool">
         <div data-part="details">
@@ -959,12 +987,16 @@
           </span>
         </:loading>
         <:failed>
-          <.bitrise_pool_form pools={nil} profile_labels={@bitrise_profile_labels} />
+          <span :if={@bitrise_pools == []} data-part="hint">
+            {dgettext("dashboard_integrations", "No runner pools are paired yet.")}
+          </span>
         </:failed>
-        <.bitrise_pool_form
-          pools={TuistWeb.IntegrationsLive.unconnected_bitrise_pools(available, @bitrise_pools)}
+        <.bitrise_pools_status
+          unpaired={
+            TuistWeb.IntegrationsLive.unconnected_bitrise_pools(available, @bitrise_pools)
+          }
           any_pools?={available != []}
-          profile_labels={@bitrise_profile_labels}
+          paired?={@bitrise_pools != []}
         />
       </.async_result>
     </div>

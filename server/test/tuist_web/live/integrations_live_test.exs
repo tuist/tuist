@@ -1199,9 +1199,11 @@ defmodule TuistWeb.IntegrationsLiveTest do
       end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
-      render_async(lv)
+      document = lv |> render_async() |> Floki.parse_document!()
 
-      assert has_element?(lv, ~s(#bitrise-pool-profile option[selected][value="tuist-macos"]))
+      assert has_element?(lv, "#bitrise-pools [data-part=pools-header] #add-bitrise-pool-modal")
+      refute has_element?(lv, "#bitrise-pools > #add-bitrise-pool-form")
+      assert Floki.find(document, ~s(#bitrise-pool-profile option[selected][value="tuist-macos"])) != []
 
       label = account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1) |> List.first()
 
@@ -1266,6 +1268,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       assert html =~ "Choose a runner pool and paste its pool token."
       assert Bitrise.list_pools(account.id) == []
+
+      html = render_click(lv, "close-add-bitrise-pool-modal", %{})
+      refute html =~ "Choose a runner pool and paste its pool token."
     end
   end
 

@@ -79,7 +79,13 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(buildkite_has_changes: false)
       |> assign_buildkite_installation()
       |> assign(gitlab_connections: GitLab.list_connections(selected_account.id), gitlab_error: nil)
-      |> assign(bitrise_error: nil, bitrise_flash: nil, bitrise_workspace_choices: nil, bitrise_pending_token: nil)
+      |> assign(
+        bitrise_error: nil,
+        bitrise_pool_error: nil,
+        bitrise_flash: nil,
+        bitrise_workspace_choices: nil,
+        bitrise_pending_token: nil
+      )
       |> assign_bitrise()
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
@@ -296,16 +302,20 @@ defmodule TuistWeb.IntegrationsLive do
 
       case Bitrise.save_pool(account.id, attrs) do
         {:ok, _pool} ->
-          {:noreply, socket |> assign(bitrise_error: nil, bitrise_flash: nil) |> assign_bitrise()}
+          {:noreply,
+           socket
+           |> assign(bitrise_pool_error: nil, bitrise_flash: nil)
+           |> assign_bitrise()
+           |> push_event("close-modal", %{id: "add-bitrise-pool-modal"})}
 
         {:error, :unknown_profile} ->
           {:noreply,
-           assign(socket, bitrise_error: dgettext("dashboard_integrations", "Choose one of your Tuist profiles."))}
+           assign(socket, bitrise_pool_error: dgettext("dashboard_integrations", "Choose one of your Tuist profiles."))}
 
         {:error, _reason} ->
           {:noreply,
            assign(socket,
-             bitrise_error: dgettext("dashboard_integrations", "Choose a runner pool and paste its pool token.")
+             bitrise_pool_error: dgettext("dashboard_integrations", "Choose a runner pool and paste its pool token.")
            )}
       end
     else
@@ -326,6 +336,14 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def handle_event("reload-bitrise-pools", _params, socket) do
     {:noreply, assign_bitrise(socket)}
+  end
+
+  @impl true
+  def handle_event("close-add-bitrise-pool-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(bitrise_pool_error: nil)
+     |> push_event("close-modal", %{id: "add-bitrise-pool-modal"})}
   end
 
   @impl true
@@ -958,13 +976,11 @@ defmodule TuistWeb.IntegrationsLive do
     """
   end
 
-  # `pools` is nil when Bitrise could not list the workspace's pools, and
-  # the stack ID is typed instead.
-  attr :pools, :any, default: nil
-  attr :any_pools?, :boolean, default: false
-  attr :profile_labels, :list, required: true
+  attr :unpaired, :list, required: true
+  attr :any_pools?, :boolean, required: true
+  attr :paired?, :boolean, required: true
 
-  defp bitrise_pool_form(%{pools: []} = assigns) do
+  defp bitrise_pools_status(%{unpaired: []} = assigns) do
     ~H"""
     <div data-part="empty">
       <span data-part="hint">
@@ -991,78 +1007,126 @@ defmodule TuistWeb.IntegrationsLive do
     """
   end
 
-  defp bitrise_pool_form(assigns) do
+  defp bitrise_pools_status(assigns) do
+    ~H"""
+    <span :if={not @paired?} data-part="hint">
+      {dgettext("dashboard_integrations", "No runner pools are paired yet.")}
+    </span>
+    """
+  end
+
+  # `pools` is nil when Bitrise could not list the workspace's pools, and
+  # the stack ID is typed instead.
+  attr :pools, :any, default: nil
+  attr :profile_labels, :list, required: true
+  attr :error, :string, default: nil
+
+  defp bitrise_pool_modal(assigns) do
     ~H"""
     <form id="add-bitrise-pool-form" phx-submit="add-bitrise-pool">
-      <div data-part="fields">
-        <div :if={@pools} data-part="field">
-          <.label label={dgettext("dashboard_integrations", "Runner pool")} required />
-          <.select
-            id="bitrise-pool-stack"
-            name="stack_identifier"
-            label={dgettext("dashboard_integrations", "Runner pool")}
-            value={List.first(@pools).stack_identifier}
-          >
-            <:item :for={pool <- @pools} value={pool.stack_identifier} label={pool.name} />
-          </.select>
+      <.modal
+        id="add-bitrise-pool-modal"
+        title={dgettext("dashboard_integrations", "Add a runner pool")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "Pair a Bitrise runner pool with the Tuist profile its builds should run on."
+          )
+        }
+        header_size="large"
+        on_dismiss="close-add-bitrise-pool-modal"
+      >
+        <:trigger :let={attrs}>
+          <.button
+            label={dgettext("dashboard_integrations", "Add pool")}
+            variant="secondary"
+            size="small"
+            {attrs}
+          />
+        </:trigger>
+        <.line_divider />
+        <div data-part="add-bitrise-pool">
+          <.alert :if={@error} status="error" type="secondary" size="small" title={@error} />
+          <.bitrise_pool_fields pools={@pools} profile_labels={@profile_labels} />
+          <div data-part="actions">
+            <.button
+              type="submit"
+              label={dgettext("dashboard_integrations", "Add pool")}
+              variant="primary"
+            />
+          </div>
         </div>
-        <.text_input
-          :if={is_nil(@pools)}
+      </.modal>
+    </form>
+    """
+  end
+
+  attr :pools, :any, required: true
+  attr :profile_labels, :list, required: true
+
+  defp bitrise_pool_fields(assigns) do
+    ~H"""
+    <div data-part="fields">
+      <div :if={@pools} data-part="field">
+        <.label label={dgettext("dashboard_integrations", "Runner pool")} required />
+        <.select
           id="bitrise-pool-stack"
           name="stack_identifier"
-          type="basic"
-          label={dgettext("dashboard_integrations", "Stack ID")}
-          hint={
-            dgettext(
-              "dashboard_integrations",
-              "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
-            )
-          }
-          value=""
-          required
-          show_required
-        />
-        <div data-part="field">
-          <.label
-            label={dgettext("dashboard_integrations", "Tuist profile")}
-            required
-            tooltip={dgettext("dashboard_integrations", "The machine this pool's builds run on.")}
-            tooltip_id="bitrise-pool-profile-tooltip"
-          />
-          <.select
-            id="bitrise-pool-profile"
-            name="profile_label"
-            label={dgettext("dashboard_integrations", "Tuist profile")}
-            value={TuistWeb.IntegrationsLive.default_bitrise_profile(@pools, @profile_labels)}
-          >
-            <:item :for={label <- @profile_labels} value={label} label={label} />
-          </.select>
-        </div>
-        <.text_input
-          id="bitrise-pool-secret"
-          name="intro_secret"
-          type="password"
-          input_type="password"
-          label={dgettext("dashboard_integrations", "Pool token")}
-          label_tooltip={
-            dgettext(
-              "dashboard_integrations",
-              "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
-            )
-          }
-          value=""
-          required
-          show_required
-        />
+          label={dgettext("dashboard_integrations", "Runner pool")}
+          value={List.first(@pools).stack_identifier}
+        >
+          <:item :for={pool <- @pools} value={pool.stack_identifier} label={pool.name} />
+        </.select>
       </div>
-      <div data-part="actions">
-        <.button
-          type="submit"
-          label={dgettext("dashboard_integrations", "Add pool")}
-          variant="primary"
+      <.text_input
+        :if={is_nil(@pools)}
+        id="bitrise-pool-stack"
+        name="stack_identifier"
+        type="basic"
+        label={dgettext("dashboard_integrations", "Stack ID")}
+        hint={
+          dgettext(
+            "dashboard_integrations",
+            "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
+          )
+        }
+        value=""
+        required
+        show_required
+      />
+      <div data-part="field">
+        <.label
+          label={dgettext("dashboard_integrations", "Tuist profile")}
+          required
+          tooltip={dgettext("dashboard_integrations", "The machine this pool's builds run on.")}
+          tooltip_id="bitrise-pool-profile-tooltip"
         />
+        <.select
+          id="bitrise-pool-profile"
+          name="profile_label"
+          label={dgettext("dashboard_integrations", "Tuist profile")}
+          value={TuistWeb.IntegrationsLive.default_bitrise_profile(@pools, @profile_labels)}
+        >
+          <:item :for={label <- @profile_labels} value={label} label={label} />
+        </.select>
       </div>
-    </form>
+      <.text_input
+        id="bitrise-pool-secret"
+        name="intro_secret"
+        type="password"
+        input_type="password"
+        label={dgettext("dashboard_integrations", "Pool token")}
+        label_tooltip={
+          dgettext(
+            "dashboard_integrations",
+            "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
+          )
+        }
+        value=""
+        required
+        show_required
+      />
+    </div>
     """
   end
 

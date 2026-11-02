@@ -229,17 +229,30 @@
 
     & > [data-part="pools-header"] {
       display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
 
-      & > [data-part="title"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      & > [data-part="heading"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="description"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
       }
 
-      & > [data-part="description"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      & > :not([data-part="heading"]) {
+        flex-shrink: 0;
       }
     }
 
@@ -292,27 +305,33 @@
       }
     }
 
-    & > #add-bitrise-pool-form {
+  }
+
+  & #add-bitrise-pool-modal [data-part="add-bitrise-pool"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-6) var(--noora-spacing-4);
+
+    & > .noora-alert {
+      align-self: flex-start;
+    }
+
+    & > [data-part="fields"] {
       display: flex;
       flex-direction: column;
-      gap: var(--noora-spacing-6);
+      gap: var(--noora-spacing-5);
 
-      & > [data-part="fields"] {
+      & > [data-part="field"] {
         display: flex;
         flex-direction: column;
-        gap: var(--noora-spacing-5);
-
-        & > [data-part="field"] {
-          display: flex;
-          flex-direction: column;
-          gap: var(--noora-spacing-2);
-        }
+        gap: var(--noora-spacing-2);
       }
+    }
 
-      & > [data-part="actions"] {
-        display: flex;
-        justify-content: flex-end;
-      }
+    & > [data-part="actions"] {
+      display: flex;
+      justify-content: flex-end;
     }
   }
 
@@ -321,7 +340,10 @@
     padding-top: var(--noora-spacing-6);
   }
 
-  & :is(#connect-gitlab-modal, #connect-bitrise-modal) > [data-part="positioner"] > [data-part="content"] {
+  &
+    :is(#connect-gitlab-modal, #connect-bitrise-modal, #add-bitrise-pool-modal)
+    > [data-part="positioner"]
+    > [data-part="content"] {
     width: min(520px, 90vw);
   }
 
