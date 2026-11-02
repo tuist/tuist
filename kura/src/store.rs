@@ -4447,7 +4447,7 @@ impl Store {
 
     pub(crate) async fn handover_reclaim_candidates(&self) -> Result<HashSet<String>, String> {
         let mut recovery = self.disk_pressure_reclamation.lock().await;
-        self.finish_segment_retirement(&mut recovery).await?;
+        self.finish_segment_retirement(&mut recovery, true).await?;
         let _refresh = self.segment_refresh_lock.lock().await;
         let _exclusive = self.segment_write_barrier.write().await;
         let _writer = self.segment_write_lock.lock().await;
@@ -4466,7 +4466,7 @@ impl Store {
     // segments first instead of repairing the shared corpus that FIFO evicts.
     pub(crate) async fn reclaim_handover_segment(&self, segment_id: &str) -> Result<(), String> {
         let mut recovery = self.disk_pressure_reclamation.lock().await;
-        self.finish_segment_retirement(&mut recovery).await?;
+        self.finish_segment_retirement(&mut recovery, true).await?;
         {
             let _refresh = self.segment_refresh_lock.lock().await;
             let _exclusive = self.segment_write_barrier.write().await;
@@ -4500,7 +4500,7 @@ impl Store {
             // cancels this waiter before the last chunk commits.
             self.disk_pressure_notify.notify_one();
         }
-        self.finish_segment_retirement(&mut recovery).await
+        self.finish_segment_retirement(&mut recovery, true).await
     }
 
     // Rotation only admits allocation and wakes the worker. It must never wait
@@ -4532,16 +4532,51 @@ impl Store {
         Ok(())
     }
 
-    /// Stops segment eviction for shutdown and waits, up to `deadline`, for
+    /// Stops segment eviction for shutdown and waits, up to `budget`, for
     /// the chunk in flight to commit, so the clean-shutdown stamp stays the
     /// store's last write: a write after it reads as an index-unaware binary
-    /// at the next boot and rebuilds the backfill index. A segment left partly
-    /// evicted is already out of the ring; the next boot's orphan sweep
+    /// at the next boot and rebuilds the backfill index.
+    ///
+    /// Retired segments still queued are evicted first, within half the
+    /// budget, so the next boot (possibly an older binary after a rollback,
+    /// whose sweep evicts blob by blob) starts without them. Past that the
+    /// eviction stops at its next page or chunk; a segment left partly
+    /// evicted is already out of the ring and the next boot's orphan sweep
     /// finishes it. Returns whether eviction stopped in time.
-    pub async fn quiesce_segment_reclamation(&self, deadline: Duration) -> bool {
+    pub async fn quiesce_segment_reclamation(&self, budget: Duration) -> bool {
+        let now = tokio::time::Instant::now();
+        let (finish_by, deadline) = (now + budget / 2, now + budget);
+        let finish = async {
+            let mut recovery = self.disk_pressure_reclamation.lock().await;
+            loop {
+                self.adopt_deferred_capacity_retirement(&mut recovery);
+                if recovery.pending.is_none()
+                    || self
+                        .finish_segment_retirement(&mut recovery, false)
+                        .await
+                        .is_err()
+                {
+                    break;
+                }
+            }
+        };
+        tokio::pin!(finish);
+        // Timing out leaves `finish` in place rather than dropping it, so an
+        // eviction is never cancelled between a chunk commit and its
+        // bookkeeping; the flag makes it return at its next page or chunk.
+        let finished = tokio::time::timeout_at(finish_by, &mut finish)
+            .await
+            .is_ok();
         self.segment_reclamation_quiesced
             .store(true, Ordering::Release);
-        tokio::time::timeout(deadline, self.disk_pressure_reclamation.lock())
+        if !finished
+            && tokio::time::timeout_at(deadline, &mut finish)
+                .await
+                .is_err()
+        {
+            return false;
+        }
+        tokio::time::timeout_at(deadline, self.disk_pressure_reclamation.lock())
             .await
             .is_ok()
     }
@@ -4575,7 +4610,7 @@ impl Store {
                     if recovery.pending.is_none() {
                         break;
                     }
-                    if let Err(error) = self.finish_segment_retirement(&mut recovery).await {
+                    if let Err(error) = self.finish_segment_retirement(&mut recovery, true).await {
                         if !self.segment_reclamation_quiesced.load(Ordering::Acquire) {
                             tracing::warn!(
                                 error,
@@ -4703,21 +4738,25 @@ impl Store {
                 reason: "disk_pressure",
             });
         }
-        self.finish_segment_retirement(&mut recovery).await?;
+        self.finish_segment_retirement(&mut recovery, true).await?;
         Ok(self
             .available_segment_disk_bytes()
             .is_some_and(|available| available >= target))
     }
 
+    /// `protect_writes` takes the write-lock stripes of each candidate run;
+    /// shutdown passes false because requests have drained, leaving only
+    /// lock-free inline evictions' exposure to a late writer.
     async fn finish_segment_retirement(
         &self,
         recovery: &mut PressureReclamation,
+        protect_writes: bool,
     ) -> Result<(), String> {
         let Some(pending) = recovery.pending.as_ref() else {
             return Ok(());
         };
         let artifacts = self
-            .evict_segment_with_write_locks(&pending.segment.segment_id, true)
+            .evict_segment_with_write_locks(&pending.segment.segment_id, protect_writes)
             .await
             .map_err(|error| error.to_string())?;
         self.record_segment_eviction(&pending.segment, artifacts, pending.bytes, pending.reason);
@@ -18350,6 +18389,30 @@ mod tests {
     #[tokio::test]
     async fn quiesced_reclamation_writes_nothing_after_the_shutdown_stamp() {
         let (_temp_dir, _config, store) = temp_store();
+        // A segment handed to the worker is evicted by shutdown itself, so the
+        // next boot (perhaps an older binary) does not sweep it.
+        let queued = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "queued",
+                "application/octet-stream",
+                b"queued",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let queued_segment = seal_active_segment(&store).await;
+        store
+            .segment_reclamation_worker_running
+            .store(true, Ordering::Release);
+        store
+            .evict_segments(RetiredSegments::new(
+                &store,
+                vec![SegmentReference::new(queued_segment.clone(), 1_000)],
+            ))
+            .await
+            .expect("hand-off should succeed");
+        assert!(store.segment_path(&queued_segment).exists());
         store
             .persist_artifact_from_bytes(
                 ArtifactProducer::Xcode,
@@ -18367,6 +18430,8 @@ mod tests {
                 .quiesce_segment_reclamation(Duration::from_secs(5))
                 .await
         );
+        assert!(!store.segment_path(&queued_segment).exists());
+        assert!(store.manifest(&queued.artifact_id).unwrap().is_none());
         store
             .stamp_backfill_maintained_seq_clean_shutdown()
             .expect("stamp");
