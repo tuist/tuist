@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "29a53fa1ab2896a12045134fe590309848cdf6ecc181aa5eba9a4d6ceeb134dc",
+  "hash": "c94e6461336cc1f5c3f5035b9f0103004aab4db24d018fb6bdc8fe402ed83c13",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,7 +17,7 @@
                   "content_hash": "65e45f7d5ac5c3a5960ce19f4aa90b2fbae70e4de171787f08c58bfdef0b3fb9"
                 },
                 "# In the same Mix project module:": {
-                  "content_hash": "6c0296efc0246d0551799fb2972124c62166e61dfab4a4c47954a5cdbd2890c7"
+                  "content_hash": "2e545dcb854ff037880e8756ac17ebf9e4842a462cc46e28d53eeaf9158e76ac"
                 },
                 "## Can every dependency skip compilation?": {
                   "content_hash": "203a0520cf48806c4b61950d24f72d662c70e4b3f9e534e7b2edd84967d66944"
@@ -29,19 +29,19 @@
                   "content_hash": "0b89aec9356c2ffd52c547a054af894e1fad42194658b5b86e02e9b47d046bb9"
                 },
                 "## Manual compile integration": {
-                  "content_hash": "e1624aa4a981bb4a6117d723ddac14d0b023577fdbc17e4ac485a38c2849ad55"
+                  "content_hash": "0243916cfe4f059a9a0285ce5c8c2391a3bde57401854026569077909588b604"
                 },
                 "## Native and custom builders": {
                   "content_hash": "adada249919dc9e8be76a18df5149702f7e470449eee30251faf629cb0fef9db"
                 },
                 "## Reuse across checkout paths": {
-                  "content_hash": "e91aa35f649c5026f989eca679b64ecea3fce40e132084c4907d91ba2e69bd9f"
+                  "content_hash": "d4a935710125fccf70b2f9cfe6ddc4cba7dd13c5a289c26be380c725866af717"
                 },
                 "## Select dependencies": {
                   "content_hash": "80bc355dbded5561d9f491396106fd1c6d1c200a43bdc37a5ad5a8d84c93092f"
                 },
                 "## Storage and access": {
-                  "content_hash": "f724184b6b2edf182b4cc5e744b4947639faadb2958e1fa1133c36dd5c5e38fa"
+                  "content_hash": "280d28f5e2285b06b040b87f3792369d0802c4740c858ba8ec9ab0eed3ee87a2"
                 },
                 "## Troubleshoot missing hits": {
                   "content_hash": "922aff9bc10ca87b0e0972da22017e3cac426098b9da930b2c5ec2d562a674d1"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "c3ac21e5f8b801ede403791895386c9412a8936ca20911e372154b1adedc01d8",
+          "hash": "231e2ec69925a251fe75095a95fc29d9f1cd73f2f5c7917ac60ffde675e9e10b",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/elixir-advanced.md",
           "metadata": {
-            "content_hash": "c67ebddb2099748ad6f1ca472631592a67fc26525a7281147cc2589799fa359e"
+            "content_hash": "e47f7fe906eb206b74e71c7989cf49124d49dc293aeb3a2dfca414fab81c5076"
           }
         },
         {
@@ -254,14 +254,14 @@
         }
       ],
       "details": {},
-      "hash": "29a53fa1ab2896a12045134fe590309848cdf6ecc181aa5eba9a4d6ceeb134dc",
+      "hash": "c94e6461336cc1f5c3f5035b9f0103004aab4db24d018fb6bdc8fe402ed83c13",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/elixir-advanced.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "63497508a4cd89eb680ca806e74f85b8ec7b39d572fe807bde82376c579da9a5",
+  "output_hash": "820327abec3523c4d82af451dbada963545d5d98e35a55c7f62cef6949c78d30",
   "output_path": "server/priv/docs/ru/guides/features/cache/elixir-advanced.md",
   "protection_state": "recorded",
   "provider": "",
@@ -281,8 +281,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "fcd9fc91d24711de14b6fc01ac0714760da9256e",
+  "source_commit_sha": "4663c58a45478b5c1d0719109d77c3fb4c84b313",
   "source_path": "server/priv/docs/en/guides/features/cache/elixir-advanced.md",
-  "translated_at": "2026-10-30T14:09:00.827219Z",
-  "translation_session_id": "01a18d22-b04d-7570-990d-070f52539940"
+  "translated_at": "2026-11-02T14:06:22.579888Z",
+  "translation_session_id": "01a19c92-aab3-74fe-add4-4ffb927ed429"
 }
