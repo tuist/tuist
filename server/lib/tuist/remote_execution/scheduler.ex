@@ -29,6 +29,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
   @idle_stop_ms 600_000
   @destroy_retry_ms 10_000
   @prepare_backoff_ms 5_000
+  # Demand sizing for the warm pool: observed preparation time is the lead
+  # time, and a build's peak outlives the gap between builds.
+  @warm_hold_ms 60_000
+  @initial_prepare_ms 50
   # A VM is assigned only while its last renewal leaves most of the lease.
   @fresh_lease_ms 40_000
   # A cached project credential must outlive the longest action it is given to.
@@ -118,7 +122,11 @@ defmodule Tuist.RemoteExecution.Scheduler do
            tokens: %{},
            blocked_on: nil,
            prepare_after: now_ms(),
-           active_at: now_ms()
+           active_at: now_ms(),
+           arrivals: :queue.new(),
+           prepare_ms: @initial_prepare_ms,
+           warm_peak: 0,
+           warm_peak_at: now_ms()
          }, {:continue, :reconcile}}
 
       _ ->
@@ -154,7 +162,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
               state
               | ops: Map.put(state.ops, op.id, op),
                 queue: :queue.in(op.id, state.queue),
-                inflight: inflight
+                inflight: inflight,
+                arrivals: :queue.in(state.active_at, state.arrivals)
             })
 
           wait_for(state, op.id, from, :done, wait_ms)
@@ -399,11 +408,21 @@ defmodule Tuist.RemoteExecution.Scheduler do
   end
 
   defp handle_task({:prepare, placeholder}, result, state) do
+    started_at = state.vms |> Map.fetch!(placeholder) |> Map.fetch!(:renewed_at)
     state = %{state | vms: Map.delete(state.vms, placeholder)}
 
     case result do
       {:ok, sandbox} ->
-        dispatch(put_vm(state, %{id: sandbox.id, sandbox: sandbox, state: :ready, renewed_at: now_ms()}))
+        prepare_ms = round(0.8 * state.prepare_ms + 0.2 * (now_ms() - started_at))
+
+        dispatch(
+          put_vm(%{state | prepare_ms: prepare_ms}, %{
+            id: sandbox.id,
+            sandbox: sandbox,
+            state: :ready,
+            renewed_at: now_ms()
+          })
+        )
 
       # No node had room. Nothing was created, so this waits for one of the
       # account's placed VMs to free a node, or for the next tick.
@@ -504,21 +523,47 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   defp reconcile(state) do
     settings = state.settings
+    {warm, state} = warm_target(state, now_ms())
     queued = Enum.count(state.ops, fn {_id, op} -> op.state == :queued end)
     ready = state.vms |> Map.values() |> Enum.filter(&(&1.state == :ready))
     {stale, ready} = Enum.split_with(ready, &(not matches?(&1.sandbox, settings)))
-    excess = if queued == 0, do: Enum.drop(Enum.sort_by(ready, & &1.renewed_at, :desc), settings.warm_pool_size), else: []
+    excess = if queued == 0, do: Enum.drop(Enum.sort_by(ready, & &1.renewed_at, :desc), warm), else: []
     state = Enum.reduce(stale ++ excess, state, &retire(&2, &1.id, nil))
 
     vms = Map.values(state.vms)
     count = fn states -> Enum.count(vms, &(&1.state in states)) end
-    desired = min(settings.max_concurrency, count.([:busy]) + queued + settings.warm_pool_size)
+    desired = min(settings.max_concurrency, count.([:busy]) + queued + warm)
     room = min(desired - count.([:reserving, :ready, :busy]), settings.max_concurrency - map_size(state.vms))
 
     if room > 0 and is_nil(state.blocked_on) and now_ms() >= state.prepare_after do
       Enum.reduce(1..room, state, fn _, state -> start_prepare(state) end)
     else
       state
+    end
+  end
+
+  # Ready VMs for each action to find one: the actions that arrived within one
+  # preparation time, which is how many VMs are consumed while a replacement is
+  # prepared (Little's law), plus one. A build's peak is held across the gap
+  # before the next build, then falls back to the current demand.
+  # `warm_pool_size` caps it as the hosts' budget.
+  defp warm_target(state, now) do
+    arrivals = drop_old_arrivals(state.arrivals, now - state.prepare_ms)
+    count = :queue.len(arrivals)
+    demand = if count > 0, do: count + 1, else: 0
+
+    {peak, peak_at} =
+      if demand >= state.warm_peak or now - state.warm_peak_at > @warm_hold_ms,
+        do: {demand, now},
+        else: {state.warm_peak, state.warm_peak_at}
+
+    {min(peak, state.settings.warm_pool_size), %{state | arrivals: arrivals, warm_peak: peak, warm_peak_at: peak_at}}
+  end
+
+  defp drop_old_arrivals(arrivals, since) do
+    case :queue.peek(arrivals) do
+      {:value, at} when at < since -> drop_old_arrivals(:queue.drop(arrivals), since)
+      _ -> arrivals
     end
   end
 

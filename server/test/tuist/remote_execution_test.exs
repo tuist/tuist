@@ -226,6 +226,17 @@ defmodule Tuist.RemoteExecutionTest do
     assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing", wait: 2_000)
   end
 
+  test "the warm pool follows demand up to its configured ceiling", %{project: project} do
+    {:ok, _} = configure(project, max_concurrency: 8, warm_pool_size: 4)
+    stub_node()
+    assert {:ok, %{done: true}} = submit(project)
+
+    # One recent action needs one ready VM plus one in reserve, not the ceiling.
+    eventually(fn -> length(vm_rows(project)) == 2 end)
+    Process.sleep(300)
+    assert length(vm_rows(project)) == 2
+  end
+
   test "a warm VM is kept ready and taken by the next action", %{project: project} do
     {:ok, _} = configure(project, warm_pool_size: 1)
     stub_node()
