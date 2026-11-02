@@ -176,6 +176,8 @@ struct CargoReadIndex {
     let root: URL
     let declaredKey: REAPI.Digest
     let version: String
+    /// The hook's environment, for the session journal.
+    var environment: [String: String] = [:]
 
     private var command: Data {
         (try? REAPI.Command.with { $0.arguments = [version, "reads", declaredKey.hash, String(declaredKey.sizeBytes)] }
@@ -189,10 +191,12 @@ struct CargoReadIndex {
         }.serializedData()) ?? Data()
     }
 
-    private var local: URL { root.appendingPathComponent("reads/" + declaredKey.hash + ".json") }
+    private var relativePath: String { "reads/" + declaredKey.hash + ".json" }
+    private var local: URL { root.appendingPathComponent(relativePath) }
 
     func get(remote: (any REAPICacheStoring)?) async -> CargoReadSet? {
         if let data = try? Data(contentsOf: local), let set = try? JSONDecoder().decode(CargoReadSet.self, from: data) {
+            CargoCacheJournal.use(relativePath, environment: environment)
             return set
         }
         guard let remote,
@@ -208,15 +212,29 @@ struct CargoReadIndex {
               let set = try? JSONDecoder().decode(CargoReadSet.self, from: data)
         else { return nil }
         try? write(data, to: local)
+        CargoCacheJournal.use(relativePath, environment: environment)
         return set
     }
 
     func put(_ set: CargoReadSet, remote: (any REAPICacheStoring)?, environment: [String: String]) async {
         guard let data = try? JSONEncoder().encode(set) else { return }
         try? write(data, to: local)
+        CargoCacheJournal.use(relativePath, environment: environment)
         guard let remote else { return }
         if let marker = CargoCacheSetup.readOnlyMarker(environment: environment),
            FileManager.default.fileExists(atPath: marker.path) { return }
+        var result = REAPI.ActionResult()
+        result.outputFiles = [.with { $0.path = "reads.json"; $0.digest = REAPI.digest(data) }]
+        if CargoCacheJournal.defersPublication(environment) {
+            var blobs = [REAPI.digest(data): local]
+            for blob in [command, action, Data()] {
+                let file = root.appendingPathComponent("blobs/" + REAPI.digest(blob).hash)
+                if (try? write(blob, to: file)) != nil { blobs[REAPI.digest(blob)] = file }
+            }
+            if blobs.count == 4,
+               CargoCacheJournal.deferPublication(result, for: REAPI.digest(action), blobs: blobs, environment: environment)
+            { return }
+        }
         let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: staging) }
         var blobs: [REAPI.Digest: URL] = [:]
@@ -229,8 +247,6 @@ struct CargoReadIndex {
             }
             let upload = try await remote.uploadAvailableBlobs(blobs)
             guard upload.available.isSuperset(of: Set(blobs.keys)) else { return }
-            var result = REAPI.ActionResult()
-            result.outputFiles = [.with { $0.path = "reads.json"; $0.digest = REAPI.digest(data) }]
             try await remote.storeActionResult(result, for: REAPI.digest(action))
         } catch {}
     }

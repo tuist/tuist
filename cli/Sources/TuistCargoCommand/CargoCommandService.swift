@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistConfigLoader
 import TuistProcess
+import TuistREAPI
 import TuistServer
 
 struct CargoExecutionContext {
@@ -186,14 +187,18 @@ public struct CargoCommandService {
             }
             let started = Date()
             environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
+            // The connection is negotiated while Cargo's metadata and the toolchain are probed, so fetching starts
+            // as soon as the manifest's key is known.
+            let connecting: Task<(any REAPICacheStoring)?, Never>? = cache != nil
+                && remoteEnvironment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil
+                ? Task { try? await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4) } : nil
             var unitCache = cache == nil ? nil : await CargoUnitCache.prepare(
                 executable: context.executable, arguments: context.arguments, environment: environment,
                 directory: context.directory, process: CargoProcess(runner: runner)
             )
-            if unitCache != nil, remoteEnvironment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil {
-                unitCache?.remote = try? await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4)
-            }
+            if unitCache != nil { unitCache?.remote = await connecting?.value } else { connecting?.cancel() }
             if let unitCache {
+                if unitCache.remote != nil { environment[CargoCacheJournal.writeBehindVariable] = "1" }
                 environment["TUIST_CARGO_TARGET_DIR"] = unitCache.targetDirectory.path
                 environment["TUIST_CARGO_WORKSPACE_ROOT"] = unitCache.workspaceRoot.path
                 // Recorded compilations and build-script runs need relocatable roots, so they share its scope.
@@ -202,8 +207,11 @@ public struct CargoCommandService {
                     environment["TUIST_CARGO_SCRIPT"] = try? CargoProcess.ownExecutable()
                 }
             }
-            let restored = await unitCache?.restore() ?? CargoUnitCache.Restored()
+            let manifest = await unitCache?.manifest()
             let units = unitCache
+            // Per-crate entries download while units are restored and Cargo works through dependencies.
+            let prefetch = Task { await units?.prefetch(manifest) }
+            let restored = await unitCache?.restore(manifest) ?? CargoUnitCache.Restored()
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,
@@ -222,8 +230,27 @@ public struct CargoCommandService {
                 }
                 defer { group.cancelAll() }
                 try Task.checkCancellation()
-                try await executeSession(child, root: root, started: started, metadata: metadata)
-                await units?.store(reusing: restored)
+                defer { prefetch.cancel() }
+                do {
+                    try await executeSession(child, root: root, started: started, metadata: metadata)
+                } catch {
+                    await Self.publishDeferred(root: root, units: units)
+                    throw error
+                }
+                prefetch.cancel()
+                await prefetch.value
+                await Self.publishDeferred(root: root, units: units)
+                await units?.store(reusing: restored, used: CargoCacheJournal.used(session: root))
+            }
+        }
+    }
+
+    /// Uploads what compiler hooks left for after the build (write-behind), even when the build failed.
+    private static func publishDeferred(root: URL, units: CargoUnitCache?) async {
+        guard let remote = units?.remote else { return }
+        await CargoCacheJournal.flush(session: root, remote: remote) { message in
+            if ProcessInfo.processInfo.environment["TUIST_DEBUG"] == "1" {
+                FileHandle.standardError.write(Data("Tuist Cargo cache: \(message)\n".utf8))
             }
         }
     }

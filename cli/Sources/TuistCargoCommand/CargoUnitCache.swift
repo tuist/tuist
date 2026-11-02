@@ -35,7 +35,20 @@ struct CargoUnitCache {
 
     struct Manifest: Codable, Equatable {
         var units: [Unit]
+        /// Per-crate cache entries (cache-relative index files) recent builds used, newest first: the next build fetches
+        /// the missing ones and their outputs while Cargo works through dependencies, like blaze's project list.
+        var files: [IndexFile]?
     }
+
+    struct IndexFile: Codable, Equatable {
+        var path: String
+        var hash: String
+        var size: Int64
+
+        var digest: REAPI.Digest { .with { [hash, size] in $0.hash = hash; $0.sizeBytes = size } }
+    }
+
+    static let maximumIndexFiles = 20000
 
     struct Unit: Codable, Equatable {
         var name: String
@@ -226,8 +239,8 @@ extension CargoUnitCache {
     /// Restores the units the manifest lists that the target directory lacks. Returns the restored units, which
     /// publication reuses without reading them again while Cargo leaves them untouched.
     @discardableResult
-    func restore() async -> Restored {
-        guard let manifest = await manifest() else {
+    func restore(_ manifest: Manifest?) async -> Restored {
+        guard let manifest else {
             debug("no dependency unit manifest")
             return Restored()
         }
@@ -238,7 +251,7 @@ extension CargoUnitCache {
         }
         guard !missing.isEmpty else {
             debug("all \(manifest.units.count) dependency units are present")
-            return Restored(previous: manifest.units)
+            return Restored(previous: manifest.units, files: manifest.files ?? [])
         }
         var needed: [REAPI.Digest: URL] = [:]
         let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
@@ -251,7 +264,7 @@ extension CargoUnitCache {
         if !needed.isEmpty {
             guard let remote else {
                 debug("\(needed.count) unit blobs are missing locally and there is no remote")
-                return Restored(previous: manifest.units)
+                return Restored(previous: manifest.units, files: manifest.files ?? [])
             }
             do {
                 try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
@@ -274,9 +287,9 @@ extension CargoUnitCache {
             debug("restored \(restored.count) of \(manifest.units.count) dependency units")
             return Restored(
                 units: Dictionary(restored.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }), at: restoredAt,
-                previous: manifest.units
+                previous: manifest.units, files: manifest.files ?? []
             )
-        } ?? Restored(previous: manifest.units)
+        } ?? Restored(previous: manifest.units, files: manifest.files ?? [])
     }
 
     struct Restored {
@@ -285,6 +298,72 @@ extension CargoUnitCache {
         /// The manifest restoration read. Publication keeps its units this build did not see, so other lockfiles and
         /// feature sets keep theirs.
         var previous: [Unit] = []
+        /// The manifest's per-crate cache entries, which publication keeps behind the ones this build used.
+        var files: [IndexFile] = []
+    }
+
+    /// Whether a listed entry is an action whose outputs a unit carries, judged from the local copy when there is one.
+    private func isUnitOutput(_ file: IndexFile, _ unitOutputs: Set<REAPI.Digest>) -> Bool {
+        guard !file.path.hasPrefix("reads/"), let data = try? Data(contentsOf: root.appendingPathComponent(file.path)),
+              let result = try? REAPI.ActionResult(serializedBytes: data) else { return false }
+        return result.outputFiles.contains { unitOutputs.contains($0.digest) }
+    }
+
+    /// Fetches the per-crate cache entries a manifest lists that this cache lacks, with their outputs, so hooks hit
+    /// locally instead of asking the remote one crate at a time. An entry is placed only once its outputs are stored.
+    func prefetch(_ manifest: Manifest?) async {
+        guard let remote, let files = manifest?.files else { return }
+        // Units already carry what registry crates compile to; those compilations do not run, so their entries wait.
+        let unitOutputs = Set((manifest?.units ?? []).flatMap { $0.files.map(\.digest) })
+        var seen: Set<String> = []
+        let wanted = files.filter {
+            CargoCacheJournal.isIndexPath($0.path) && $0.size <= 2_000_000 && seen.insert($0.path).inserted
+                && !FileManager.default.fileExists(atPath: root.appendingPathComponent($0.path).path)
+        }.prefix(Self.maximumIndexFiles)
+        guard !wanted.isEmpty else { return }
+        let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        guard (try? FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)) != nil else { return }
+        var indexes: [REAPI.Digest: URL] = [:]
+        for file in wanted {
+            indexes[file.digest] = staging.appendingPathComponent(file.hash)
+        }
+        guard let fetched = try? await remote.downloadBlobs(indexes) else { return }
+        var outputs: [REAPI.Digest: URL] = [:]
+        var budget: Int64 = 4_000_000_000
+        var ready: [(file: IndexFile, data: Data, outputs: [REAPI.Digest])] = []
+        for file in wanted where fetched.available.contains(file.digest) {
+            guard let data = try? Data(contentsOf: staging.appendingPathComponent(file.hash)),
+                  REAPI.digest(data) == file.digest else { continue }
+            var needed: [REAPI.Digest] = []
+            if !file.path.hasPrefix("reads/") {
+                guard let result = try? REAPI.ActionResult(serializedBytes: data), result.outputFiles.count <= 128,
+                      result.outputFiles
+                      .allSatisfy({ (try? REAPI.validate($0.digest)) != nil && $0.digest.sizeBytes <= 100_000_000 })
+                else { continue }
+                needed = result.outputFiles.map(\.digest)
+                guard needed.allSatisfy({ !unitOutputs.contains($0) }) else { continue }
+            }
+            for digest in needed where !hasBlob(digest) && outputs[digest] == nil {
+                budget -= digest.sizeBytes
+                outputs[digest] = staging.appendingPathComponent("output-" + digest.hash)
+            }
+            guard budget >= 0 else { break }
+            ready.append((file, data, needed))
+        }
+        if !outputs.isEmpty, !Task.isCancelled, let downloaded = try? await remote.downloadBlobs(outputs) {
+            for (digest, file) in outputs where downloaded.available.contains(digest) {
+                _ = try? publish(file, expecting: digest)
+            }
+        }
+        var placed = 0
+        for entry in ready where entry.outputs.allSatisfy(hasBlob) {
+            let destination = root.appendingPathComponent(entry.file.path)
+            if !FileManager.default.fileExists(atPath: destination.path), (try? write(entry.data, to: destination)) != nil {
+                placed += 1
+            }
+        }
+        debug("prefetched \(placed) of \(wanted.count) cache entries")
     }
 
     /// Runs `body` over `items` on all cores, keeping their order.
@@ -300,7 +379,7 @@ extension CargoUnitCache {
         return results.map { $0! }
     }
 
-    private func manifest() async -> Manifest? {
+    func manifest() async -> Manifest? {
         let index = root.appendingPathComponent("unit-actions/" + actionDigest.hash)
         var result = (try? Data(contentsOf: index)).flatMap { try? REAPI.ActionResult(serializedBytes: $0) }
         if result == nil, let remote {
@@ -394,13 +473,28 @@ extension CargoUnitCache {
     // MARK: - Publication
 
     /// Records the registry and git dependency units in the target directory and publishes their manifest.
-    func store(reusing restored: Restored = Restored()) async {
-        guard let current = withBuildLock({ collectUnits(reusing: restored) }), !current.isEmpty else { return }
+    func store(reusing restored: Restored = Restored(), used: [String] = []) async {
+        let current = withBuildLock { collectUnits(reusing: restored) } ?? []
         let names = Set(current.map(\.name))
         // Newest first: when the list is full, units no build has produced for longest fall off.
         let units = (current.sorted { $0.name < $1.name } + restored.previous.filter { !names.contains($0.name) })
             .prefix(Self.maximumUnits)
-        let manifest = Manifest(units: Array(units))
+        // The per-crate entries this build used, sorted so an unchanged build publishes the same manifest.
+        // Entries whose outputs a unit carries are left out: once units are restored, those compilations do not run.
+        let unitOutputs = Set(units.flatMap { $0.files.map(\.digest) })
+        let usedFiles = Set(used).sorted().compactMap { path -> IndexFile? in
+            guard CargoCacheJournal.isIndexPath(path),
+                  let data = try? Data(contentsOf: root.appendingPathComponent(path)), data.count <= 2_000_000 else { return nil }
+            if !path.hasPrefix("reads/"), let result = try? REAPI.ActionResult(serializedBytes: data),
+               result.outputFiles.contains(where: { unitOutputs.contains($0.digest) }) { return nil }
+            let digest = REAPI.digest(data)
+            return IndexFile(path: path, hash: digest.hash, size: digest.sizeBytes)
+        }
+        let usedPaths = Set(usedFiles.map(\.path))
+        let files = (usedFiles + restored.files.filter { !usedPaths.contains($0.path) && !isUnitOutput($0, unitOutputs) })
+            .prefix(Self.maximumIndexFiles)
+        guard !units.isEmpty || !files.isEmpty else { return }
+        let manifest = Manifest(units: Array(units), files: files.isEmpty ? nil : Array(files))
         guard let data = try? JSONEncoder().encode(manifest), data.count <= 64_000_000 else { return }
         let digest = REAPI.digest(data)
         var result = REAPI.ActionResult()
@@ -423,6 +517,16 @@ extension CargoUnitCache {
         for unit in units {
             for file in unit.files {
                 blobs[file.digest] = blobPath(file.digest)
+            }
+        }
+        // Entries this build used, and the outputs they name, so another machine can prefetch them.
+        for file in usedFiles {
+            let index = root.appendingPathComponent(file.path)
+            blobs[file.digest] = index
+            guard !file.path.hasPrefix("reads/"), let data = try? Data(contentsOf: index),
+                  let result = try? REAPI.ActionResult(serializedBytes: data) else { continue }
+            for output in result.outputFiles where hasBlob(output.digest) {
+                blobs[output.digest] = blobPath(output.digest)
             }
         }
         do {

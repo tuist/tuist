@@ -21,7 +21,8 @@ enum CargoBuildScript {
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, process: CargoProcess
     ) async throws {
         guard environment["TUIST_CARGO_SCRIPT"] != nil,
-              CargoCacheInputs.values("--crate-name", in: arguments).first == "build_script_build",
+              // Cargo names the crate after the script's file stem: `build = "build/main.rs"` gives `build_script_main`.
+              let name = CargoCacheInputs.values("--crate-name", in: arguments).first, name.hasPrefix("build_script_"),
               CargoCacheInputs.values("--crate-type", in: arguments) == ["bin"],
               let executable = arguments.first, let out = CargoCacheInputs.values("--out-dir", in: arguments).first
         else { return }
@@ -29,8 +30,8 @@ enum CargoBuildScript {
             .map { String($0.dropFirst(15)) } ?? ""
         let base = URL(fileURLWithPath: directory.pathString)
         let outputDirectory = URL(fileURLWithPath: out, relativeTo: base).standardizedFileURL
-        let binary = outputDirectory.appendingPathComponent("build_script_build\(suffix)")
-        let depInfo = outputDirectory.appendingPathComponent("build_script_build\(suffix).d")
+        let binary = outputDirectory.appendingPathComponent("\(name)\(suffix)")
+        let depInfo = outputDirectory.appendingPathComponent("\(name)\(suffix).d")
         guard FileManager.default.isExecutableFile(atPath: binary.path),
               let text = try? String(contentsOf: depInfo, encoding: .utf8)
         else { return }
@@ -65,10 +66,9 @@ enum CargoBuildScript {
         #endif
         let madeOf = REAPI.digest(try JSONEncoder().encode(inputs.map(relocation.relative))).hash
         let real = URL(fileURLWithPath: binary.path + realSuffix)
-        let name = binary.lastPathComponent
         let shim = """
         #!/bin/sh
-        real="$(dirname "$0")/\(name)\(realSuffix)"
+        real="$(dirname "$0")/\(binary.lastPathComponent)\(realSuffix)"
         if [ -n "${TUIST_CARGO_SCRIPT-}" ]; then exec "$TUIST_CARGO_SCRIPT" cargo __script "$real" "$@"; fi
         exec "$real" "$@"
 
@@ -205,7 +205,7 @@ enum CargoBuildScript {
                 declared: declared, outDirectory: outDirectory, environment: environment, relocation: relocation,
                 hasher: CargoInputHasher(sessionDirectory: URL(fileURLWithPath: session)), root: root,
                 session: URL(fileURLWithPath: session), recorder: recorder,
-                index: CargoReadIndex(root: root, declaredKey: declared, version: version)
+                index: CargoReadIndex(root: root, declaredKey: declared, version: version, environment: environment)
             )
         }
 
@@ -305,6 +305,7 @@ enum CargoBuildScript {
                 try FileManager.default.moveItem(at: next, to: outDirectory)
             } catch { return false }
             try? write(result.serializedData(), to: local)
+            CargoCacheJournal.use("script-actions/" + action.hash, environment: environment)
             FileHandle.standardOutput.write(stdout)
             FileHandle.standardError.write(stderr)
             return true
@@ -408,18 +409,20 @@ enum CargoBuildScript {
                 var result = REAPI.ActionResult()
                 result.outputFiles = [.with { $0.path = "outputs.json"; $0.digest = manifestDigest }]
                 try write(result.serializedData(), to: root.appendingPathComponent("script-actions/" + actionDigest.hash))
+                CargoCacheJournal.use("script-actions/" + actionDigest.hash, environment: environment)
                 await index.put(reads, remote: remote, environment: environment)
                 guard let remote else { return }
                 if let marker = CargoCacheSetup.readOnlyMarker(environment: environment),
                    FileManager.default.fileExists(atPath: marker.path) { return }
-                for (offset, data) in [command, Data()].enumerated() {
-                    let file = staging.appendingPathComponent("request-\(offset)")
-                    try data.write(to: file)
+                for data in [command, Data(), action] {
+                    // In the store rather than staging: a deferred publication reads them after this hook exits.
+                    let file = blobPath(REAPI.digest(data))
+                    try write(data, to: file)
                     blobs[REAPI.digest(data)] = file
                 }
-                let actionFile = staging.appendingPathComponent("action")
-                try action.write(to: actionFile)
-                blobs[actionDigest] = actionFile
+                if CargoCacheJournal.defersPublication(environment),
+                   CargoCacheJournal.deferPublication(result, for: actionDigest, blobs: blobs, environment: environment)
+                { return }
                 let upload = try await remote.uploadAvailableBlobs(blobs)
                 guard upload.available.isSuperset(of: Set(blobs.keys)) else { return }
                 try await remote.storeActionResult(result, for: actionDigest)

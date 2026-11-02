@@ -29,9 +29,12 @@ protocol CargoCacheAction {
     func restoredOutput(_ data: Data) -> Data?
     /// Machine roots an output names that its key does not; such an entry would behave differently elsewhere.
     func unkeyedRoots(in data: Data) -> [String]
+    /// The one output stored and restored with its executable bit, a linked binary.
+    var executableOutput: String? { get }
 }
 
 extension CargoCacheAction {
+    var executableOutput: String? { nil }
     var remapArguments: [String] { [] }
     func storedOutput(_ data: Data) -> Data? { data }
     func restoredOutput(_ data: Data) -> Data? { data }
@@ -143,7 +146,9 @@ struct CargoCompilationCache {
             }
             let (digest, blob) = try publish(content)
             blobs[digest] = blob
-            result.outputFiles.append(.with { $0.path = name; $0.digest = digest })
+            result.outputFiles.append(.with {
+                $0.path = name; $0.digest = digest; $0.isExecutable = name == invocation.executableOutput
+            })
             measurement.reference(digest)
         }
         guard try invocation.fingerprint() == invocation.key else { return }
@@ -151,6 +156,7 @@ struct CargoCompilationCache {
         let localStarted = Date()
         try write(try result.serializedData(), to: index)
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
+        CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
         guard let remote else { return }
         if let marker = CargoCacheSetup.readOnlyMarker(environment: invocation.environment),
            FileManager.default.fileExists(atPath: marker.path) { return }
@@ -162,6 +168,10 @@ struct CargoCompilationCache {
                 try write(data, to: file)
                 blobs[digest] = file
             }
+            // Inside a session the outer command uploads once Cargo exits, so no compilation waits on the network.
+            if CargoCacheJournal.defersPublication(invocation.environment),
+               CargoCacheJournal.deferPublication(result, for: actionDigest, blobs: blobs, environment: invocation.environment)
+            { return }
             let upload = try await remote.uploadAvailableBlobs(blobs)
             let elapsed = Date().timeIntervalSince(started)
             for digest in blobs.keys {
@@ -254,7 +264,8 @@ struct CargoCompilationCache {
         defer { try? FileManager.default.removeItem(at: staging) }
         for file in result.outputFiles {
             try REAPI.validate(file.digest)
-            guard !file.isExecutable, file.digest.sizeBytes <= 100_000_000, file.digest.sizeBytes <= budget else { return false }
+            guard file.isExecutable == (file.path == invocation.executableOutput), file.digest.sizeBytes <= 100_000_000,
+                  file.digest.sizeBytes <= budget else { return false }
             budget -= file.digest.sizeBytes
             if await !containsBlob(file.digest) { missing[file.digest] = staging.appendingPathComponent(file.digest.hash) }
         }
@@ -302,6 +313,8 @@ struct CargoCompilationCache {
                 guard let restored = invocation.restoredOutput(try Data(contentsOf: temporary)) else { return false }
                 try restored.write(to: temporary)
             }
+            if file
+                .isExecutable { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temporary.path) }
         }
         try Task.checkCancellation()
         guard try invocation.fingerprint() == invocation.key else { return false }
@@ -313,6 +326,7 @@ struct CargoCompilationCache {
         }
         try invocation.certifyOutputs(metadataOnly: false)
         try write(try result.serializedData(), to: index)
+        CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
         FileHandle.standardOutput.write(result.stdoutRaw)
         FileHandle.standardError.write(restoredStderr)
         return true
@@ -325,8 +339,8 @@ struct CargoCompilationCache {
         guard let path = try? AbsolutePath(validating: file.path),
               let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
               properties.isRegularFile == true, properties.isSymbolicLink != true,
-              properties.fileSize == Int(exactly: digest.sizeBytes),
-              (try? REAPI.digest(file: file)) == digest else { return false }
+              // Not hashed here: materialization hashes the copy it restores, so each hit reads a blob once.
+              properties.fileSize == Int(exactly: digest.sizeBytes) else { return false }
         await fileSystem.markCacheEntryUsed(at: path)
         return true
     }

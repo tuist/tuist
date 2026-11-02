@@ -43,6 +43,15 @@ final class CargoInputHasher {
         if before.precise, let (identity, digest) = entries[file], identity == before { return digest }
         let memo = shared && before.precise ? sharedDirectory?
             .appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash) : nil
+        // Cargo starts many compilers at once: without this lock, each one hashes a large shared input such as
+        // `librustc_driver` before any of them has recorded its digest.
+        var lock: Int32 = -1
+        defer { if lock >= 0 { close(lock) } }
+        if let memo, Int(before.fields[2]).map({ $0 >= 1_000_000 }) == true, (try? readEntry(memo)) == nil {
+            try? FileManager.default.createDirectory(at: memo.deletingLastPathComponent(), withIntermediateDirectories: true)
+            lock = open(memo.path + ".lock", O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+            if lock >= 0 { _ = flock(lock, LOCK_EX) }
+        }
         if let memo, let entry = try? readEntry(memo), entry.identity == before {
             let digest = REAPI.Digest.with { $0.hash = entry.hash; $0.sizeBytes = entry.size }
             if (try? REAPI.validate(digest)) != nil, try identify(file) == before {

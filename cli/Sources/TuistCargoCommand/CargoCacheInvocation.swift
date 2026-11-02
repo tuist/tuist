@@ -152,7 +152,8 @@ struct CargoCacheInvocation: CargoCacheAction {
             candidate.sourceIndex = CargoReadIndex(
                 root: URL(fileURLWithPath: cache),
                 declaredKey: digest,
-                version: Self.keyVersion
+                version: Self.keyVersion,
+                environment: environment
             )
         }
         if candidate.sourceIndex != nil {

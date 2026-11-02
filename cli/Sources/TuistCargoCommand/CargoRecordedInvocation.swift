@@ -2,7 +2,7 @@ import Foundation
 import Path
 import TuistREAPI
 
-/// A library or proc-macro compilation keyed by what rustc was seen reading (`CargoReadRecorder`), for compilations the
+/// A library, proc-macro or binary compilation keyed by what rustc was seen reading (`CargoReadRecorder`), for compilations the
 /// strict admission in `CargoCacheInvocation` cannot key in advance: proc-macro users, assembly, native libraries and
 /// dependencies of those. Found in two steps: the declared key (relocated arguments, keyed environment, externs by
 /// content, toolchain) selects the read set of an earlier run, and that set's current contents complete the key.
@@ -27,6 +27,8 @@ struct CargoRecordedInvocation: CargoCacheAction {
     static let keyVersion = "tuist-swift-cargo-recorded-v1"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
+    /// A linked binary, the only output without an extension.
+    var executableOutput: String? { files.first.flatMap { URL(fileURLWithPath: $0).pathExtension.isEmpty ? $0 : nil } }
     var remapArguments: [String] { relocation.remapArguments }
     func storedOutput(_ data: Data) -> Data? { relocation.relative(data) }
     func restoredOutput(_ data: Data) -> Data? { relocation.absolute(data) }
@@ -73,6 +75,15 @@ struct CargoRecordedInvocation: CargoCacheAction {
             #else
                 return nil
             #endif
+        case "bin":
+            // Linking reads every rlib of the dependency closure through `-L dependency=`, which the read set records.
+            // Build scripts stay out: `CargoBuildScript` replaces their binary with a shim after compiling them.
+            #if os(macOS)
+                guard emitted == ["dep-info", "link"], !name.hasPrefix("build_script_") else { return nil }
+                files = ["\(name)\(suffix)", "\(name)\(suffix).d"]
+            #else
+                return nil
+            #endif
         default:
             return nil
         }
@@ -101,7 +112,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
             let digest = try inputHasher.digest(compiler, shared: true)
             inputs += [compiler.path, digest.hash, String(digest.sizeBytes)]
         }
-        let linksWithSystemLinker = kind == "proc-macro"
+        let linksWithSystemLinker = kind == "proc-macro" || kind == "bin"
         if linksWithSystemLinker {
             inputs += try await CargoToolchainIdentity.linker(environment: environment, directory: directory, process: process)
         }
@@ -117,7 +128,12 @@ struct CargoRecordedInvocation: CargoCacheAction {
 
     var index: CargoReadIndex? {
         environment["TUIST_CARGO_CACHE_DIR"].map {
-            CargoReadIndex(root: URL(fileURLWithPath: $0), declaredKey: declared, version: Self.keyVersion)
+            CargoReadIndex(
+                root: URL(fileURLWithPath: $0),
+                declaredKey: declared,
+                version: Self.keyVersion,
+                environment: environment
+            )
         }
     }
 

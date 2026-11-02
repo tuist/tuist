@@ -42,6 +42,22 @@ public struct CargoCommand: AsyncParsableCommand {
         return Array(command.dropFirst())
     }
 
+    /// Runs a per-compiler hook (`__compiler`, `__native`, `__script`) without ArgumentParser: Cargo starts one for
+    /// every compiler process, and parsing a command looks up protocol conformances across the whole binary.
+    public static func runHook(_ arguments: [String]) async -> Int32 {
+        do {
+            try await CargoCommandService().run(arguments: arguments)
+            return 0
+        } catch let CommandError.terminated(code, _, _) {
+            return code
+        } catch let CommandError.signalled(signal, _) {
+            return 128 + signal
+        } catch {
+            FileHandle.standardError.write(Data("Error: \(error)\n".utf8))
+            return 1
+        }
+    }
+
     public func run() async throws {
         if CargoInvocation(arguments).command == "test-build",
            arguments.prefix(while: { $0 != "--" }).contains(where: { $0 == "--help" || $0 == "-h" })
