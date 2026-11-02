@@ -98,25 +98,31 @@ defmodule TuistEx.DependencyCacheTest do
         commit!(Path.join(dir, "package"))
       end
 
-      compile_alias =
-        case unquote(bootstrap) do
-          :legacy ->
-            "&Code.eval_string(File.read!(#{inspect(Path.join(package, "compile.exs"))}), args: &1)"
-
-          bootstrap when bootstrap in [:ordinary, :deterministic] ->
-            inspect([
-              "deps.compile tuist_ex --include-children",
-              "deps.loadpaths --no-compile --no-deps-check",
-              "tuist.compile"
-            ])
-        end
-
       contents =
         String.replace(
           File.read!(mixfile),
           "deps: [{:dep_probe,",
-          "aliases: [compile: #{compile_alias}], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
+          "deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
         )
+
+      contents =
+        if unquote(bootstrap) == :legacy do
+          script = inspect(Path.join(package, "compile.exs"))
+
+          String.replace(
+            contents,
+            "deps: [",
+            "aliases: [compile: &Code.eval_string(File.read!(#{script}), args: &1)], deps: [",
+            global: false
+          )
+        else
+          config = [tuist: [project: "test/cache", cache: [remote: false]]]
+          {:ok, contents} = TuistEx.ProjectSetup.configure(contents, config)
+          contents
+        end
+
+      File.mkdir_p!(Path.join(project, "lib"))
+      File.write!(Path.join(project, "lib/root.ex"), "defmodule CacheFixture do\nend")
 
       compile_args =
         if unquote(bootstrap) in [:ordinary, :deterministic],
@@ -191,6 +197,15 @@ defmodule TuistEx.DependencyCacheTest do
       assert File.exists?(
                Path.join(project, "_build/test/lib/dep_probe/ebin/Elixir.DepProbe.beam")
              )
+
+      if unquote(bootstrap) != :legacy do
+        # An up-to-date project rebuilds no dependency and recompiles nothing.
+        {current, status} = run_mix.(compile_args)
+        assert status == 0, current
+        refute current =~ "===> Compiling", current
+        refute current =~ "Generated", current
+        refute current =~ ~r/Compiling \d+ files? \(\.ex\)/, current
+      end
 
       if unquote(bootstrap) == :ordinary do
         {output, status} =
@@ -341,26 +356,21 @@ defmodule TuistEx.DependencyCacheTest do
     mix_path = Path.join(project, "custom mix path")
     File.mkdir_p!(mix_path)
 
-    File.write!(
-      mixfile,
+    test_alias = ["fixture.prepare", "tuist.test"]
+
+    {:ok, contents} =
       mixfile
       |> File.read!()
       |> String.replace(
         "deps: [{:dep_probe,",
-        ~s|aliases: [compile: &compile/1, test: ["fixture.prepare", "tuist.test"]], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,|
+        ~s|aliases: [test: #{inspect(test_alias)}], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,|
       )
-      |> String.replace("\nend\n", """
+      |> TuistEx.ProjectSetup.configure(
+        aliases: [test: test_alias],
+        tuist: [project: "test/cache", cache: [remote: false]]
+      )
 
-        defp compile(args) do
-          if "--no-compile" not in args do
-            Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
-          end
-          Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
-          Mix.Task.run("tuist.compile", args)
-        end
-      end
-      """)
-    )
+    File.write!(mixfile, contents)
 
     File.mkdir_p!(Path.join(project, "lib"))
 
@@ -1586,6 +1596,44 @@ defmodule TuistEx.DependencyCacheTest do
     assert second["value"] == 1
   end
 
+  test "portable keys ignore the checkout path inside configured values", %{
+    project: project,
+    dir: dir
+  } do
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false", "remote: false, portable: true")
+    )
+
+    File.write!(Path.join(project, "config/config.exs"), """
+    import Config
+    config :dep_probe, value: 1
+    config :cache_fixture,
+      assets: [cd: Path.expand("../assets", __DIR__), root: Path.expand("..", __DIR__)],
+      env: %{"NODE_PATH" => Path.expand("../deps", __DIR__) <> ":/usr/lib/node"}
+    """)
+
+    assert [%{"outcome" => "miss", "key" => key}] = run!(project)["dependency_cache"]
+    relocated = Path.join(dir, "relocated")
+    File.cp_r!(project, relocated)
+    File.rm_rf!(Path.join(relocated, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(relocated)["dependency_cache"]
+  end
+
+  test "scheduler counts do not change the key", %{project: project} do
+    assert [%{"outcome" => "miss", "key" => key}] =
+             run!(project, [], ["--erl", "+S 2:2"])["dependency_cache"]
+
+    File.rm_rf!(Path.join(project, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(project, [], ["--erl", "+S 3:3"])["dependency_cache"]
+  end
+
   test "unmodeled source links and custom compiler inputs bypass caching", %{project: project} do
     run!(project)
     File.rm_rf!(Path.join(project, "_build"))
@@ -2266,15 +2314,15 @@ defmodule TuistEx.DependencyCacheTest do
     File.write!(root, String.replace(File.read!(root), "dependencies: [:dep_probe], ", ""))
   end
 
-  defp run!(project, env \\ []) do
-    {output, status} = run(project, env)
+  defp run!(project, env \\ [], vm_args \\ []) do
+    {output, status} = run(project, env, vm_args)
     assert status == 0, output
     assert File.exists?(Path.join(project, "result.json")), output
     result = JSON.decode!(File.read!(Path.join(project, "result.json")))
     Map.put(result, "output", output)
   end
 
-  defp run(project, env \\ []) do
+  defp run(project, env \\ [], vm_args \\ []) do
     ebin = :tuist_ex |> :code.lib_dir() |> to_string() |> Path.join("ebin")
 
     script = """
@@ -2302,7 +2350,7 @@ defmodule TuistEx.DependencyCacheTest do
     end)
     """
 
-    System.cmd(System.find_executable("elixir"), ["-pa", ebin, "-e", script],
+    System.cmd(System.find_executable("elixir"), vm_args ++ ["-pa", ebin, "-e", script],
       cd: project,
       env:
         [

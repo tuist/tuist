@@ -722,10 +722,47 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
 
       # Then
-      assert %{"token" => token} = json_response(conn, 200)
+      assert %{"token" => token, "writable" => true} = json_response(conn, 200)
       {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+
+    test "tells a read-only credential that it cannot write to the project", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["account:cache:read", "project:cache:read"],
+          all_projects: true
+        })
+
+      handle = "#{project.account.name}/#{project.name}"
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
+
+      # Then
+      assert %{"token" => token, "writable" => false} = json_response(conn, 200)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == []
+    end
+
+    test "omits writability from a token that is not scoped to one project", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      conn = Plug.Conn.assign(conn, :current_subject, project)
+
+      # When
+      response = conn |> post(~p"/api/cache/token") |> json_response(200)
+
+      # Then
+      refute Map.has_key?(response, "writable")
     end
   end
 

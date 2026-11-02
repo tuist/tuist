@@ -68,6 +68,12 @@ registry:
 server:
   replicaCount: 2
 
+  # MCP agent feedback reaches Atlas with a projected ServiceAccount token
+  # (audience atlas-support-ingest) that Atlas verifies against this cluster's
+  # pinned JWKS. Atlas allowlists tuist:tuist-server in its managed values.
+  atlasSupportIngest:
+    enabled: true
+
   # Cloudflare Turnstile signup gate. Real site + secret key are synced from
   # the TURNSTILE 1Password item via external-secrets (secretsFrom: eso, the
   # default). Do NOT flip useTestKeys on here — Cloudflare's public test key
@@ -162,11 +168,6 @@ server:
         cache_egress_megabytes: "price_1UUlF7LWue9IBlPSzrgLAku5"
         cache_requests: "price_1UITBXLWue9IBlPSXlwD8vxP"
         passing_test_cases: "price_1UITBYLWue9IBlPSSp51pqjS"
-      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
-      # macOS baseline machine-minute, carried as a subscription item whose
-      # quantity is the minutes. Never blank it once an account carries the
-      # item: a plan change would stop recognising it and delete it.
-      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]

@@ -58,7 +58,39 @@ defmodule Tuist.BuildEntities.IdentityTest do
       refute id == Identity.id(1, :bazel, "action", Map.merge(identity, changes))
     end
 
-    assert id == Identity.id(1, :bazel, "action", Map.put(identity, "action_digest", "changing-input-hash"))
+    assert id ==
+             Identity.id(
+               1,
+               :bazel,
+               "action",
+               Map.put(identity, "action_digest", "changing-input-hash")
+             )
+  end
+
+  test "Cargo identity retains the exact recorded root, name and kind without inventing configuration" do
+    identity = %{"source" => "src/lib.rs", "name" => "widgets", "kind" => "lib"}
+    id = Identity.id(42, :cargo, "crate", identity)
+    assert id == "faa80433-8cc4-89ea-b408-9d0622ada24e"
+    assert Identity.fields(:cargo, "crate") == ~w(source name kind)
+
+    assert Identity.encode(:cargo, "crate", identity) ==
+             ~s({"source":"src/lib.rs","name":"widgets","kind":"lib"})
+
+    for changes <- [
+          %{"source" => "/checkout/src/lib.rs"},
+          %{"source" => "./src/lib.rs"},
+          %{"source" => "other/src/lib.rs"},
+          %{"name" => "other"},
+          %{"kind" => "test"}
+        ] do
+      refute id == Identity.id(42, :cargo, "crate", Map.merge(identity, changes))
+    end
+
+    refute id == Identity.id(43, :cargo, "crate", identity)
+    assert id == Identity.id(42, :cargo, "crate", Map.put(identity, "profile", "release"))
+
+    refute Identity.id(42, :cargo, "crate", %{"source" => "a:b", "name" => "c", "kind" => "lib"}) ==
+             Identity.id(42, :cargo, "crate", %{"source" => "a", "name" => "b:c", "kind" => "lib"})
   end
 
   test "exact-key Xcode and Bazel cache actions have no identity contract" do

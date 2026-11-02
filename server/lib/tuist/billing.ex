@@ -37,6 +37,9 @@ defmodule Tuist.Billing do
   # subscription beside the one that owes, so it is sent to settle instead.
   @outstanding_subscription_statuses ~w(past_due unpaid)
 
+  # Terminal in Stripe: a subscription in either never changes again.
+  @ended_subscription_statuses ~w(canceled incomplete_expired)
+
   def get_plans do
     [
       %{
@@ -403,6 +406,37 @@ defmodule Tuist.Billing do
     end
   end
 
+  # Air is the free tier, and a free account carries no subscription. Moving a
+  # Pro subscription onto Air's $0 Prices left it renewing into a $0 invoice
+  # every month, so a downgrade cancels it at the end of the period instead.
+  # The account keeps Pro until then, and the period closes on a regular cycle
+  # invoice, so late-reported usage, collection, and retries all behave as on
+  # any other renewal. An account with an open invoice settles it first, since
+  # a cancelled subscription stops Stripe collecting it.
+  #
+  # Only Pro offers a downgrade. Any other plan, or none, is left as it is.
+  defp change_plan(%{plan: :air, account: %Account{} = account}, %Subscription{plan: :pro} = subscription) do
+    case open_invoice(account.customer_id) do
+      {:ok, nil} ->
+        {:ok, stripe_subscription} = cancel_subscription_at_period_end(subscription)
+        on_subscription_change(stripe_subscription)
+
+      {:ok, _invoice} ->
+        {:ok, {:external_redirect, payment_settlement_url(account, subscription)}}
+    end
+  end
+
+  defp change_plan(%{plan: :air}, _current_subscription), do: :ok
+
+  # Keeping Pro withdraws a pending downgrade. Only the flag changes: swapping
+  # the items for the same Prices would drop the usage they accrued.
+  defp change_plan(%{plan: :pro}, %Subscription{plan: :pro, cancel_at_period_end: true} = subscription) do
+    {:ok, stripe_subscription} =
+      Stripe.Subscription.update(subscription.subscription_id, %{cancel_at_period_end: false})
+
+    on_subscription_change(stripe_subscription)
+  end
+
   defp change_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}, current_subscription) do
     customer_id = account.customer_id
 
@@ -422,9 +456,12 @@ defmodule Tuist.Billing do
       {:ok, stripe_subscription} =
         Stripe.Subscription.retrieve(current_subscription.subscription_id)
 
+      # A plan change keeps the subscription, so it also withdraws any
+      # cancellation scheduled for the end of the period.
       {:ok, _} =
         Stripe.Subscription.update(current_subscription.subscription_id, %{
-          items: reconcile_subscription_items(stripe_subscription, subscription_items)
+          items: reconcile_subscription_items(stripe_subscription, subscription_items),
+          cancel_at_period_end: false
         })
 
       :ok
@@ -439,15 +476,12 @@ defmodule Tuist.Billing do
   # usually unchanged by the plan change, deleting and re-adding them would
   # silently discard the runner usage already accrued this cycle.
   #
-  # The standing prepaid minutes item belongs to the account rather than the
-  # plan too, and deleting it would end a recurring prepaid arrangement.
-  #
-  # So: keep every existing item whose Price is a configured runner Price or
-  # the prepaid Price, delete the rest, and add only the runner Prices that
-  # aren't on the subscription yet. Kept items keep their Stripe item IDs,
-  # their accrued usage, and their quantity across the change.
+  # So: keep every existing item whose Price is a configured runner Price,
+  # delete the rest, and add only the runner Prices that aren't on the
+  # subscription yet. Kept items keep their Stripe item IDs and their
+  # accrued usage across the change.
   defp reconcile_subscription_items(stripe_subscription, subscription_items) do
-    kept_price_ids = plan_independent_price_ids()
+    kept_price_ids = configured_runner_price_ids()
 
     {retained, replaced} =
       Enum.split_with(stripe_subscription.items.data, fn item ->
@@ -466,30 +500,8 @@ defmodule Tuist.Billing do
     deletions ++ additions
   end
 
-  defp plan_independent_price_ids do
-    case runner_prepaid_price_id() do
-      nil -> configured_runner_price_ids()
-      price_id -> MapSet.put(configured_runner_price_ids(), price_id)
-    end
-  end
-
   defp subscription_item_price_id(%{price: %{id: price_id}}) when is_binary(price_id), do: price_id
   defp subscription_item_price_id(_item), do: nil
-
-  @doc """
-  The Price the standing prepaid minutes item is billed on, or `nil` until
-  one is configured for the environment.
-
-  Kept apart from the `runners` map on purpose. Every entry there is a
-  metered runner Price attached to every subscription, while the prepaid
-  item is licensed and carried only by accounts that buy it.
-  """
-  def runner_prepaid_price_id do
-    case Map.get(Tuist.Environment.stripe_prices() || %{}, "runner_prepaid_minutes") do
-      price_id when is_binary(price_id) and price_id != "" -> price_id
-      _ -> nil
-    end
-  end
 
   defp configured_runner_price_ids do
     (Tuist.Environment.stripe_prices() || %{})
@@ -574,6 +586,7 @@ defmodule Tuist.Billing do
         {:ok, sub} =
           Stripe.Subscription.update(current_subscription.subscription_id, %{
             items: reconcile_subscription_items(current_stripe_sub, subscription_items),
+            cancel_at_period_end: false,
             collection_method: "send_invoice",
             days_until_due: Map.get(params, :days_until_due, 30)
           })
@@ -737,10 +750,7 @@ defmodule Tuist.Billing do
 
     changes =
       if Trials.on_trial?(account) do
-        # The standing prepaid item goes with the runner items. With no
-        # runner usage invoiced, the credit it buys would have nothing to
-        # pay for.
-        Enum.map(present ++ prepaid_items(stripe_subscription), &%{id: &1.id, deleted: true})
+        Enum.map(present, &%{id: &1.id, deleted: true})
       else
         present_price_ids = MapSet.new(present, &subscription_item_price_id/1)
 
@@ -760,13 +770,6 @@ defmodule Tuist.Billing do
         # invoice usage the account ran while it had no runner item at
         # all, which is precisely the usage the trial covered.
         Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
-    end
-  end
-
-  defp prepaid_items(stripe_subscription) do
-    case runner_prepaid_price_id() do
-      nil -> []
-      price_id -> Enum.filter(stripe_subscription.items.data, &(subscription_item_price_id(&1) == price_id))
     end
   end
 
@@ -881,6 +884,88 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  One-off cleanup of the Air subscriptions earlier downgrades left behind,
+  each of which renews into a $0 invoice every month.
+
+  Cancels each one immediately and without a final invoice, which leaves the
+  account where an Air account that never subscribed is. Without `prorate`,
+  Stripe discards the metered usage accrued in the current period. Air is the
+  free plan and dispatch caps its runner usage at the free allowance, so the
+  little that could have been billed is forgiven.
+
+  Only touches a subscription that is still `active` or `trialing` in Stripe,
+  has no open invoice, since cancelling stops Stripe from collecting it, and
+  carries nothing beyond Air's own Prices and the runner Prices. Anything
+  else, such as standing prepaid minutes, is skipped and reported. Local rows
+  follow through the subscription webhooks.
+
+  Dry run by default. Run it from a remote console:
+
+      Tuist.Billing.cancel_air_subscriptions()
+      Tuist.Billing.cancel_air_subscriptions(dry_run: false)
+
+  Returns one entry per subscription with its `action` and its `result`.
+  """
+  def cancel_air_subscriptions(opts \\ []) do
+    dry_run = Keyword.get(opts, :dry_run, true)
+
+    from(s in Subscription,
+      where: s.plan == :air and s.status in ["active", "trialing"],
+      order_by: [asc: s.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.map(fn %Subscription{subscription_id: subscription_id} = subscription ->
+      action = air_subscription_cleanup_action(subscription_id)
+
+      result =
+        cond do
+          action != :cancel -> :skipped
+          dry_run -> :dry_run
+          true -> subscription_id |> Stripe.Subscription.cancel(%{invoice_now: false, prorate: false}) |> cleanup_result()
+        end
+
+      %{subscription_id: subscription_id, account_id: subscription.account_id, action: action, result: result}
+    end)
+  end
+
+  defp air_subscription_cleanup_action(subscription_id) do
+    free_price_ids = MapSet.union(air_price_ids(), configured_runner_price_ids())
+
+    with {:ok, %{status: status} = stripe_subscription} when status in ["active", "trialing"] <-
+           Stripe.Subscription.retrieve(subscription_id),
+         [] <-
+           stripe_subscription.items.data
+           |> Enum.map(&subscription_item_price_id/1)
+           |> Enum.reject(&MapSet.member?(free_price_ids, &1)),
+         {:ok, nil} <- open_invoice(stripe_subscription.customer) do
+      :cancel
+    else
+      {:ok, %Stripe.Subscription{status: status}} -> {:skip, {:status, status}}
+      {:ok, _invoice} -> {:skip, :open_invoice}
+      price_ids when is_list(price_ids) -> {:skip, {:unexpected_prices, price_ids}}
+      {:error, error} -> {:skip, {:error, error}}
+    end
+  end
+
+  defp cleanup_result({:ok, _cancelled}), do: :ok
+  defp cleanup_result({:error, error}), do: {:error, error}
+
+  defp air_price_ids do
+    prices = (Tuist.Environment.stripe_prices() || %{})["air"] || %{}
+    MapSet.new(List.wrap(prices["flat_monthly"]) ++ List.wrap(prices["usage"]))
+  end
+
+  # By customer rather than subscription: Stripe documents cancellation as
+  # stopping the collection of every finalized invoice the customer has.
+  defp open_invoice(customer_id) do
+    case Stripe.Invoice.list(%{customer: customer_id, status: "open", limit: 1}) do
+      {:ok, %{data: [invoice | _]}} -> {:ok, invoice}
+      {:ok, %{data: []}} -> {:ok, nil}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  @doc """
   Handles a failed invoice charge reported by Stripe: tells the account's
   admins about the first failure of an automatically charged subscription
   invoice. See `Tuist.Billing.PaymentFailedNotifications`.
@@ -901,9 +986,18 @@ defmodule Tuist.Billing do
     end
   end
 
+  # An event about a subscription already stored as ended was sent before it
+  # ended and arrived late or was redelivered. Applying it would give the
+  # account back a plan with no subscription left to bill it.
   defp on_subscription_change_for_account(subscription, account) do
+    case Repo.get_by(Subscription, subscription_id: subscription.id) do
+      %Subscription{status: status} when status in @ended_subscription_statuses -> :ok
+      current_subscription -> apply_subscription_change(subscription, account, current_subscription)
+    end
+  end
+
+  defp apply_subscription_change(subscription, account, current_subscription) do
     plan = get_plan(subscription)
-    current_subscription = Repo.get_by(Subscription, subscription_id: subscription.id)
 
     trial_end = stripe_timestamp(subscription, :trial_end)
     current_period_start = stripe_timestamp(subscription, :current_period_start)

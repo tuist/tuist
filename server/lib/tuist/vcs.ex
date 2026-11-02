@@ -37,7 +37,13 @@ defmodule Tuist.VCS do
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
-  @test_body_build_systems [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"mix", "Mix"}]
+  @test_body_build_systems [
+    {"xcode", "Xcode"},
+    {"gradle", "Gradle"},
+    {"bazel", "Bazel"},
+    {"mix", "Mix"},
+    {"cargo", "Cargo"}
+  ]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
@@ -941,11 +947,19 @@ defmodule Tuist.VCS do
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url})#{run_command(preview, preview_url)} | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
         """
       end)}
       """
     end
+  end
+
+  # Command-line previews have no install page or QR code; `tuist run` is how
+  # people and agents try them.
+  defp run_command(preview, preview_url) do
+    if Enum.any?(preview.app_builds, &(&1.type == :executable)),
+      do: "<br/>`tuist run #{preview_url}`",
+      else: ""
   end
 
   defp get_qr_code_image(%{
@@ -1942,7 +1956,7 @@ defmodule Tuist.VCS do
     api_url = if is_binary(api_url), do: String.trim(api_url), else: api_url
     payload = {account_id, normalize_client_url(client_url), normalize_github_app_owner(github_app_owner)}
     payload = if api_url in [nil, ""], do: payload, else: Tuple.insert_at(payload, 3, api_url)
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "github_state", payload)
   end
 
   @doc """
@@ -1956,7 +1970,7 @@ defmodule Tuist.VCS do
     token_max_age_seconds = 7_776_000
 
     case Phoenix.Token.verify(
-           TuistWeb.Endpoint,
+           Tuist.Web.endpoint(),
            "github_state",
            token,
            max_age: token_max_age_seconds
