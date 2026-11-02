@@ -224,18 +224,18 @@ defmodule Tuist.Runners.AllowanceTest do
       breakdown = Allowance.period_breakdown(account, {period_start, period_end})
 
       assert breakdown.minutes == 180
-      # 180 minutes at $0.075, of which 80 are past the allowance.
-      assert breakdown.gross == Money.new(1350, :USD)
-      assert breakdown.billed == Money.new(600, :USD)
+      # 180 minutes at $0.06, of which 80 are past the allowance.
+      assert breakdown.gross == Money.new(1080, :USD)
+      assert breakdown.billed == Money.new(480, :USD)
 
       [first, second, third] = breakdown.days
-      assert first.gross == Money.new(450, :USD)
+      assert first.gross == Money.new(360, :USD)
       assert first.billed == Money.new(0, :USD)
       # The allowance ran out 40 minutes into this day.
-      assert second.gross == Money.new(450, :USD)
-      assert second.billed == Money.new(150, :USD)
-      assert third.gross == Money.new(450, :USD)
-      assert third.billed == Money.new(450, :USD)
+      assert second.gross == Money.new(360, :USD)
+      assert second.billed == Money.new(120, :USD)
+      assert third.gross == Money.new(360, :USD)
+      assert third.billed == Money.new(360, :USD)
     end
 
     test "gives every day a stable id, since the table keys rows on it", %{account: account} do
@@ -315,7 +315,7 @@ defmodule Tuist.Runners.AllowanceTest do
       assert row.minutes == 60
       assert row.included_minutes == Allowance.free_monthly_minutes()
       assert row.previous_minutes == 0
-      assert row.gross == Money.new(450, :USD)
+      assert row.gross == Money.new(360, :USD)
       # Inside the allowance, so nothing of it is billable yet.
       assert row.billed == Money.new(0, :USD)
 
@@ -426,11 +426,11 @@ defmodule Tuist.Runners.AllowanceTest do
 
       # Every minute it ran, priced at the standard rate.
       assert breakdown.minutes == 240
-      assert breakdown.gross == Money.new(1800, :USD)
-      assert breakdown.trial_covered == Money.new(450, :USD)
+      assert breakdown.gross == Money.new(1440, :USD)
+      assert breakdown.trial_covered == Money.new(360, :USD)
       # 180 billable minutes, 100 of them included. The trial's 60 must
       # not have eaten the allowance on their way past.
-      assert breakdown.billed == Money.new(600, :USD)
+      assert breakdown.billed == Money.new(480, :USD)
     end
 
     test "counts only the part of a run that fell after the trial ended", %{account: account} do
@@ -444,8 +444,8 @@ defmodule Tuist.Runners.AllowanceTest do
       breakdown = Allowance.period_breakdown(account, period)
 
       assert breakdown.minutes == 120
-      assert breakdown.gross == Money.new(900, :USD)
-      assert breakdown.trial_covered == Money.new(450, :USD)
+      assert breakdown.gross == Money.new(720, :USD)
+      assert breakdown.trial_covered == Money.new(360, :USD)
       assert breakdown.billed == Money.new(0, :USD)
     end
 
@@ -459,7 +459,7 @@ defmodule Tuist.Runners.AllowanceTest do
       ran_minutes(account, DateTime.add(now, -3, :day), 180)
 
       assert [day] = Allowance.period_breakdown(account, period).days
-      assert day.gross == Money.new(1350, :USD)
+      assert day.gross == Money.new(1080, :USD)
       assert day.billed == Money.new(0, :USD)
     end
 
@@ -473,7 +473,7 @@ defmodule Tuist.Runners.AllowanceTest do
       breakdown = Allowance.period_breakdown(account, period)
 
       assert breakdown.trial_covered == Money.new(0, :USD)
-      assert breakdown.billed == Money.new(600, :USD)
+      assert breakdown.billed == Money.new(480, :USD)
     end
 
     test "prices a period that closed before the trial began", %{account: account} do
@@ -489,7 +489,7 @@ defmodule Tuist.Runners.AllowanceTest do
       breakdown = Allowance.period_breakdown(account, period)
 
       assert breakdown.trial_covered == Money.new(0, :USD)
-      assert breakdown.billed == Money.new(600, :USD)
+      assert breakdown.billed == Money.new(480, :USD)
     end
 
     test "covers only what ran after the trial started", %{account: account} do
@@ -503,9 +503,9 @@ defmodule Tuist.Runners.AllowanceTest do
       breakdown = Allowance.period_breakdown(account, period)
 
       assert breakdown.minutes == 240
-      assert breakdown.gross == Money.new(1800, :USD)
-      assert breakdown.trial_covered == Money.new(450, :USD)
-      assert breakdown.billed == Money.new(600, :USD)
+      assert breakdown.gross == Money.new(1440, :USD)
+      assert breakdown.trial_covered == Money.new(360, :USD)
+      assert breakdown.billed == Money.new(480, :USD)
     end
 
     test "prices nothing at all while the trial is still running", %{account: account} do
@@ -522,14 +522,14 @@ defmodule Tuist.Runners.AllowanceTest do
 
       breakdown = Allowance.period_breakdown(account)
 
-      assert breakdown.gross == Money.new(1350, :USD)
-      assert breakdown.trial_covered == Money.new(1350, :USD)
+      assert breakdown.gross == Money.new(1080, :USD)
+      assert breakdown.trial_covered == Money.new(1080, :USD)
       assert breakdown.billed == Money.new(0, :USD)
 
       # An allowance the account cannot reach yet is not a line worth
       # showing; the trial already covers everything above it.
       assert [row] = breakdown.platforms
-      assert row.trial_covered == Money.new(1350, :USD)
+      assert row.trial_covered == Money.new(1080, :USD)
       assert row.billed == Money.new(0, :USD)
       assert row.included_minutes == nil
     end
@@ -545,9 +545,9 @@ defmodule Tuist.Runners.AllowanceTest do
       assert [row] = Allowance.period_breakdown(account, period).platforms
 
       assert row.minutes == 240
-      assert row.gross == Money.new(1800, :USD)
-      assert row.trial_covered == Money.new(450, :USD)
-      assert row.billed == Money.new(600, :USD)
+      assert row.gross == Money.new(1440, :USD)
+      assert row.trial_covered == Money.new(360, :USD)
+      assert row.billed == Money.new(480, :USD)
       assert row.included_minutes == Allowance.free_monthly_minutes()
     end
   end

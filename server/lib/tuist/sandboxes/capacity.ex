@@ -551,17 +551,22 @@ defmodule Tuist.Sandboxes.Capacity do
   free the most. Returns `{:error, :no_node}` when no connected node has
   the template and `{:error, :no_capacity}` when none has room.
   """
-  def place(%Sandbox{node_name: nil, template: template} = sandbox) do
+  def place(%Sandbox{} = sandbox), do: place(sandbox, fn _node -> true end)
+
+  @doc """
+  `place/1` among the nodes `node_filter` accepts, such as the nodes that
+  can reach the store holding the archive a sandbox is restored from.
+  """
+  def place(%Sandbox{node_name: nil, template: template} = sandbox, node_filter) do
     ready =
-      Nodes.await(
-        fn ->
-          case ready_nodes(template) do
-            [] -> {:retry, []}
-            nodes -> nodes
-          end
-        end,
-        Nodes.presence_wait_ms()
-      )
+      fn ->
+        case ready_nodes(template) do
+          [] -> {:retry, []}
+          nodes -> nodes
+        end
+      end
+      |> Nodes.await(Nodes.presence_wait_ms())
+      |> Enum.filter(node_filter)
 
     candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox)))
 

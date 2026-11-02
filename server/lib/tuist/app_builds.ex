@@ -365,11 +365,11 @@ defmodule Tuist.AppBuilds do
   Signs a token that grants access to a preview's install endpoints for 24 hours.
   """
   def preview_install_token(%Preview{id: preview_id}) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, @preview_install_salt, preview_id)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), @preview_install_salt, preview_id)
   end
 
   def verify_preview_install_token(%Preview{id: preview_id}, token) when is_binary(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @preview_install_salt, token,
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @preview_install_salt, token,
            max_age: @preview_install_token_ttl_seconds
          ) do
       {:ok, ^preview_id} -> :ok

@@ -100,7 +100,7 @@ defmodule Tuist.OAuth.Clients do
         [URI.to_string(%{uri | host: "10.0.2.2"})]
 
       Environment.dev?() ->
-        http_config = Application.get_env(:tuist, TuistWeb.Endpoint)[:http] || []
+        http_config = Application.get_env(:tuist, Tuist.Web.endpoint())[:http] || []
         port = Keyword.get(http_config, :port, 8080)
         ["http://10.0.2.2:#{port}/oauth/callback/android"]
 

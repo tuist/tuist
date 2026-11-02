@@ -61,8 +61,8 @@ use crate::{
     metrics::shed_kind,
     state::SharedState,
     store::{
-        ArtifactReader, ClientDurability, DeferredDurability, RefreshTrigger,
-        SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath, try_allocate_exact_vec,
+        ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
+        try_allocate_exact_vec,
     },
     utils::{TempFileCleanup, action_cache_key, blob_key, temp_file_path},
 };
@@ -159,9 +159,14 @@ fn over_budget_shed_kind(state: &SharedState) -> &'static str {
 // timer resets on every chunk received, so an actively transferring upload is
 // never interrupted, while a stalled or vanished client is reclaimed promptly.
 const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
-/// Blobs of one BatchUpdateBlobs request persisted concurrently; matches the
-/// store's positioned segment write slots.
-const BATCH_UPDATE_PERSIST_CONCURRENCY: usize = 32;
+/// Blobs of one BatchUpdateBlobs request persisted under one store commit:
+/// one segment write, one segment fsync, one WriteBatch and one WAL flush per
+/// group, so the fixed cost of each is shared by this many blobs.
+const BATCH_UPDATE_GROUP_ITEMS: usize = 16;
+/// BatchUpdateBlobs groups of one request in flight at once, so one group's
+/// appends overlap another's durability barrier. Together with the group size
+/// this bounds the request to 32 decoded items at a time.
+const BATCH_UPDATE_GROUP_CONCURRENCY: usize = 2;
 /// Staged ByteStream uploads coalesce wire chunks up to this many bytes per
 /// temp-file write.
 pub(super) const REAPI_STAGING_WRITE_BUFFER_BYTES: u64 = 1024 * 1024;
@@ -624,7 +629,6 @@ impl ReapiService {
         stream: &mut tonic::Streaming<bytestream::WriteRequest>,
         mut first_chunk: bytestream::WriteRequest,
         resource: BlobResource,
-        durability: ClientDurability,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
         let wire_limit = match resource.compressor {
             BlobCompressor::Identity => resource.size_bytes,
@@ -686,13 +690,11 @@ impl ReapiService {
                 "blob was evicted during the upload; restart the write from offset zero",
             ));
         }
-        if durability == ClientDurability::Durable {
-            self.state
-                .store
-                .acknowledge_existing_client_manifest()
-                .await
-                .map_err(Status::internal)?;
-        }
+        self.state
+            .store
+            .acknowledge_existing_client_manifest()
+            .await
+            .map_err(Status::internal)?;
         self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "already_present", 0);
@@ -878,12 +880,7 @@ impl ReapiService {
                 if self.write_target_already_present(&parsed_resource).await {
                     cleanup.disarm();
                     return self
-                        .discard_stored_write(
-                            &mut stream,
-                            chunk,
-                            parsed_resource,
-                            write_durability(&metadata),
-                        )
+                        .discard_stored_write(&mut stream, chunk, parsed_resource)
                         .await;
                 }
                 let (policy, admitted_window) =
@@ -1133,10 +1130,8 @@ impl ReapiService {
         // billed twice — matching the HTTP upload path's `artifact_exists`
         // short-circuit — and concurrent uploads of the same missing blob
         // resolve to exactly one billed writer.
-        let durability = write_durability(&metadata);
-        let persisted = match (memory_payload.as_deref(), durability) {
-            (Some(payload), ClientDurability::Durable) => self
-                .state
+        let persisted = if let Some(payload) = memory_payload.as_deref() {
+            self.state
                 .store
                 .persist_admitted_artifact_from_bytes_and_replicate(
                     ArtifactProducer::Reapi,
@@ -1147,22 +1142,8 @@ impl ReapiService {
                     file_cache_policy,
                 )
                 .await
-                .map(|persisted| (persisted, None)),
-            (Some(payload), ClientDurability::Deferred) => {
-                self.state
-                    .store
-                    .persist_artifact_from_bytes_deferred(
-                        ArtifactProducer::Reapi,
-                        &resource.namespace_id,
-                        &resource.key,
-                        "application/octet-stream",
-                        payload,
-                        file_cache_policy,
-                    )
-                    .await
-            }
-            (None, ClientDurability::Durable) => self
-                .state
+        } else {
+            self.state
                 .store
                 .persist_artifact_from_path_and_replicate(
                     ArtifactProducer::Reapi,
@@ -1173,19 +1154,6 @@ impl ReapiService {
                     None,
                 )
                 .await
-                .map(|persisted| (persisted, None)),
-            (None, ClientDurability::Deferred) => {
-                self.state
-                    .store
-                    .persist_artifact_from_path_deferred(
-                        ArtifactProducer::Reapi,
-                        &resource.namespace_id,
-                        &resource.key,
-                        "application/octet-stream",
-                        StagedArtifactPath::new(temp_path, file_cache_policy),
-                    )
-                    .await
-            }
         }
         .map_err(|error| {
             if is_fd_pool_exhausted_error(&error) {
@@ -1196,15 +1164,13 @@ impl ReapiService {
                 Status::internal(format!("failed to persist CAS blob: {error}"))
             }
         })?;
-        let (persisted, deferred) = persisted;
-        if persisted.already_present && durability == ClientDurability::Durable {
+        if persisted.already_present {
             self.state
                 .store
                 .acknowledge_existing_client_manifest()
                 .await
                 .map_err(Status::internal)?;
         }
-        complete_deferred_durability(&self.state, deferred);
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
             "ok",
@@ -2424,7 +2390,6 @@ impl ContentAddressableStorage for ReapiService {
         };
         self.authorize_request(&request, auth).await?;
         let (metadata, mut extensions, message) = request.into_parts();
-        let durability = write_durability(&metadata);
         let memory_admission = extensions
             .remove::<GrpcWriteAdmission>()
             .expect("write decode admission was checked before authorization");
@@ -2443,19 +2408,21 @@ impl ContentAddressableStorage for ReapiService {
             batch_update_reply_bound_bytes(&message.requests),
             "batch update response",
         )?;
-        // Items decode and persist concurrently: each blob still returns only
-        // once its own bytes and manifest are durable, but a sequential await
-        // per blob made the batch pay one group-commit round per blob. An item
+        // Items decode and persist in groups: each blob still returns only once
+        // its own bytes and manifest are durable, but a group shares one
+        // segment fsync, one WriteBatch and one WAL flush instead of paying a
+        // blocking-pool hand-off and group-commit round per blob. A group
         // future does nothing until the bounded window first polls it, so
-        // decoded bytes are only ever held by in-flight items. Response order
+        // decoded bytes are only ever held by in-flight groups. Response order
         // matches request order.
-        let pending: Vec<_> = message
+        let groups: Vec<_> = message
             .requests
-            .iter()
-            .map(|item| update_batch_blob(&self.state, namespace_id, item, durability))
+            .chunks(BATCH_UPDATE_GROUP_ITEMS)
+            .map(|group| update_batch_blobs_group(&self.state, namespace_id, group))
             .collect();
-        let items: Vec<BatchUpdateItem> = futures_util::stream::iter(pending)
-            .buffered(BATCH_UPDATE_PERSIST_CONCURRENCY)
+        let items: Vec<BatchUpdateItem> = futures_util::stream::iter(groups)
+            .buffered(BATCH_UPDATE_GROUP_CONCURRENCY)
+            .flat_map(futures_util::stream::iter)
             .collect()
             .await;
 
@@ -2532,49 +2499,42 @@ impl ContentAddressableStorage for ReapiService {
                 .fold(0_u64, |total, size| total.saturating_add(size)),
         )
         .await?;
-        let budget_ref = &budget;
-        let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> =
-            futures_util::stream::iter(digests.into_iter().map(|digest| {
-                let budget = budget_ref;
-                async move {
-                    let analytics_started_at = Instant::now();
-                    let response =
-                        match batch_read_one_atomic(&self.state, namespace_id, &digest, budget)
-                            .await
-                        {
-                            Ok(Some(data)) => {
-                                let (data, compressor) = if compress_with_zstd {
-                                    maybe_compress_zstd_batch_response(data)
-                                } else {
-                                    (data, 0)
-                                };
-                                reapi::batch_read_blobs_response::Response {
-                                    digest: Some(digest),
-                                    data,
-                                    compressor,
-                                    status: Some(rpc_status(0, "")),
-                                }
-                            }
-                            Ok(None) => reapi::batch_read_blobs_response::Response {
-                                digest: Some(digest),
-                                data: Vec::new(),
-                                compressor: 0,
-                                status: Some(rpc_status(5, "blob not found")),
-                            },
-                            Err(status) => reapi::batch_read_blobs_response::Response {
-                                digest: Some(digest),
-                                data: Vec::new(),
-                                compressor: 0,
-                                status: Some(rpc_status_from_grpc_status(&status)),
-                            },
+        let reads = batch_read_many_atomic(&self.state, namespace_id, &digests, &budget).await;
+        let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> = digests
+            .into_iter()
+            .zip(reads)
+            .map(|(digest, (read, duration))| {
+                let response = match read {
+                    Ok(Some(data)) => {
+                        let (data, compressor) = if compress_with_zstd {
+                            maybe_compress_zstd_batch_response(data)
+                        } else {
+                            (data, 0)
                         };
+                        reapi::batch_read_blobs_response::Response {
+                            digest: Some(digest),
+                            data,
+                            compressor,
+                            status: Some(rpc_status(0, "")),
+                        }
+                    }
+                    Ok(None) => reapi::batch_read_blobs_response::Response {
+                        digest: Some(digest),
+                        data: Vec::new(),
+                        compressor: 0,
+                        status: Some(rpc_status(5, "blob not found")),
+                    },
+                    Err(status) => reapi::batch_read_blobs_response::Response {
+                        digest: Some(digest),
+                        data: Vec::new(),
+                        compressor: 0,
+                        status: Some(rpc_status_from_grpc_status(&status)),
+                    },
+                };
 
-                    (response, analytics_started_at.elapsed())
-                }
-            }))
-            .buffered(16)
-            .collect()
-            .await;
+                (response, duration)
+            })
+            .collect();
         let mut responses = Vec::with_capacity(read_results.len());
 
         for (response, duration) in read_results {
@@ -3702,6 +3662,164 @@ async fn batch_read_one(
     Ok(Some(bytes))
 }
 
+/// One `BatchReadBlobs` item: its bytes, a miss, or the item's failure.
+type BlobRead = Result<Option<Vec<u8>>, Status>;
+
+/// Blobs read per blocking-pool task by [`batch_read_many_atomic`].
+const BATCH_READ_GROUP_ITEMS: usize = 8;
+/// Read groups of one `BatchReadBlobs` request in flight at once: the same
+/// 16 concurrent reads the per-blob path allows, so a cold batch keeps as
+/// many reads in flight while a warm one pays one blocking-pool hand-off per
+/// group instead of per blob.
+const BATCH_READ_GROUP_CONCURRENCY: usize = 16;
+
+/// Reads a whole `BatchReadBlobs` request, returning one result and duration
+/// per digest in request order. Direct blobs are resolved on the async worker
+/// and read in groups, one blocking-pool task per group instead of one per
+/// blob. Recipes, misses and failed reads (for example a blob relocated by a
+/// concurrent promotion) take the per-blob path, so answers are unchanged.
+async fn batch_read_many_atomic(
+    state: &SharedState,
+    namespace_id: &str,
+    digests: &[reapi::Digest],
+    budget: &AtomicMaterializationBudget<'_>,
+) -> Vec<(BlobRead, Duration)> {
+    enum Plan {
+        Done(BlobRead),
+        Read(Box<ArtifactManifest>),
+        PerBlob,
+    }
+    // Each item reports the time spent on it: its own manifest lookup plus,
+    // for a grouped read, its group's read.
+    let mut plans = Vec::with_capacity(digests.len());
+    let mut durations = Vec::with_capacity(digests.len());
+    for digest in digests {
+        let started_at = Instant::now();
+        if is_empty_blob(digest) {
+            plans.push(Plan::Done(Ok(Some(Vec::new()))));
+            durations.push(started_at.elapsed());
+            continue;
+        }
+        let key = match digest_key(digest) {
+            Ok(key) => blob_key(&key),
+            Err(status) => {
+                plans.push(Plan::Done(Err(status)));
+                durations.push(started_at.elapsed());
+                continue;
+            }
+        };
+        let plan = match state
+            .store
+            .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
+            .await
+        {
+            Ok(Some(manifest)) => match budget.claim(manifest.size, "CAS response materialization")
+            {
+                Ok(()) => Plan::Read(Box::new(manifest)),
+                Err(status) => Plan::Done(Err(status)),
+            },
+            Ok(None) => Plan::PerBlob,
+            Err(error) => {
+                state
+                    .metrics
+                    .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+                Plan::Done(Err(Status::internal(error)))
+            }
+        };
+        plans.push(plan);
+        durations.push(started_at.elapsed());
+    }
+
+    let reads: Vec<(usize, &ArtifactManifest)> = plans
+        .iter()
+        .enumerate()
+        .filter_map(|(index, plan)| match plan {
+            Plan::Read(manifest) => Some((index, manifest.as_ref())),
+            _ => None,
+        })
+        .collect();
+    let group_reads: Vec<_> = reads
+        .chunks(BATCH_READ_GROUP_ITEMS)
+        .map(|group| async move {
+            let started_at = Instant::now();
+            let manifests: Vec<&ArtifactManifest> =
+                group.iter().map(|(_, manifest)| *manifest).collect();
+            let mut results = Vec::with_capacity(group.len());
+            for ((index, manifest), result) in group
+                .iter()
+                .zip(state.store.read_artifacts_bytes(&manifests).await)
+            {
+                let result = match result {
+                    Ok(bytes) => Ok(Some(bytes)),
+                    Err(_) => read_serving_bytes(state, manifest).await,
+                };
+                let result = match result {
+                    Ok(Some(bytes)) => {
+                        state.metrics.record_artifact_read(
+                            ArtifactProducer::Reapi,
+                            "ok",
+                            bytes.len() as u64,
+                        );
+                        Ok(Some(bytes))
+                    }
+                    Ok(None) => {
+                        state
+                            .metrics
+                            .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+                        Ok(None)
+                    }
+                    Err(error) => {
+                        state
+                            .metrics
+                            .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+                        Err(Status::internal(error))
+                    }
+                };
+                results.push((*index, result));
+            }
+            let group_duration = started_at.elapsed();
+            results
+                .into_iter()
+                .map(|(index, result)| (index, result, group_duration))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let groups: Vec<Vec<_>> = futures_util::stream::iter(group_reads)
+        .buffered(BATCH_READ_GROUP_CONCURRENCY)
+        .collect()
+        .await;
+    let mut results: Vec<Option<(BlobRead, Duration)>> = plans.iter().map(|_| None).collect();
+    for (index, result, group_duration) in groups.into_iter().flatten() {
+        results[index] = Some((result, durations[index] + group_duration));
+    }
+    let mut per_blob = Vec::new();
+    for (index, plan) in plans.into_iter().enumerate() {
+        match plan {
+            Plan::Done(result) => results[index] = Some((result, durations[index])),
+            Plan::Read(_) => {}
+            Plan::PerBlob => per_blob.push(index),
+        }
+    }
+    let per_blob_results: Vec<_> = futures_util::stream::iter(per_blob.into_iter().map(|index| {
+        let digest = &digests[index];
+        async move {
+            let started_at = Instant::now();
+            let result = batch_read_one_atomic(state, namespace_id, digest, budget).await;
+            (index, result, started_at.elapsed())
+        }
+    }))
+    .buffered(16)
+    .collect()
+    .await;
+    for (index, result, duration) in per_blob_results {
+        results[index] = Some((result, duration));
+    }
+    results
+        .into_iter()
+        .map(|result| result.expect("every digest has a read result"))
+        .collect()
+}
+
 /// Lock-free batch-read path. The memory permit travels with the returned bytes
 /// and is retained by the response, while an atomic request counter bounds the
 /// aggregate before any materialization starts.
@@ -4297,7 +4415,28 @@ struct BatchUpdateItem {
     stored: Option<(u64, Duration)>,
 }
 
-/// Decodes and persists one BatchUpdateBlobs item.
+fn rejected_batch_item(digest: Option<reapi::Digest>, mut status: RpcStatus) -> BatchUpdateItem {
+    truncate_status_message(&mut status.message, BATCH_UPDATE_STATUS_MESSAGE_MAX_BYTES);
+    BatchUpdateItem {
+        response: reapi::batch_update_blobs_response::Response {
+            digest,
+            status: Some(status),
+        },
+        stored: None,
+    }
+}
+
+/// One BatchUpdateBlobs item decoded and verified against its digest, ready
+/// to persist. Its decode admission lives until the item is persisted.
+struct DecodedBatchBlob<'a> {
+    digest: reapi::Digest,
+    key: String,
+    bytes: std::borrow::Cow<'a, [u8]>,
+    _admission: Option<crate::memory::MemoryPermit>,
+    started_at: Instant,
+}
+
+/// Decodes and verifies one BatchUpdateBlobs item, or answers it.
 ///
 /// A compressed item admits its declared decoded length before decoding and
 /// keeps that permit until its persist returns, so the batch never holds more
@@ -4307,36 +4446,27 @@ struct BatchUpdateItem {
 /// pool, so waiting here would be hold-and-wait. An item that cannot be
 /// admitted fails alone with RESOURCE_EXHAUSTED; identity items borrow the
 /// admitted request.
-async fn update_batch_blob(
+fn decode_batch_blob<'a>(
     state: &SharedState,
-    namespace_id: &str,
-    item: &reapi::batch_update_blobs_request::Request,
-    durability: ClientDurability,
-) -> BatchUpdateItem {
+    item: &'a reapi::batch_update_blobs_request::Request,
+) -> Result<DecodedBatchBlob<'a>, BatchUpdateItem> {
     let started_at = Instant::now();
-    let rejected = |digest: Option<reapi::Digest>, mut status: RpcStatus| {
-        truncate_status_message(&mut status.message, BATCH_UPDATE_STATUS_MESSAGE_MAX_BYTES);
-        BatchUpdateItem {
-            response: reapi::batch_update_blobs_response::Response {
-                digest,
-                status: Some(status),
-            },
-            stored: None,
-        }
-    };
     let Some(digest) = item.digest.clone() else {
-        return rejected(None, rpc_status(3, "missing digest"));
+        return Err(rejected_batch_item(None, rpc_status(3, "missing digest")));
     };
     // The digest is always the uncompressed content's digest, so decompression
     // bounds are the same as an identity upload: the decoder never grows past
     // `digest.size_bytes`, whatever the compressed input.
-    let (decoded, _decoded_admission) = match item.compressor {
+    let (bytes, admission) = match item.compressor {
         0 => (std::borrow::Cow::Borrowed(item.data.as_slice()), None),
         c if c == reapi::compressor::Value::Zstd as i32 => {
             let declared = match i64_to_usize_bounded(digest.size_bytes) {
                 Ok(declared) => declared,
                 Err(status) => {
-                    return rejected(Some(digest), rpc_status_from_grpc_status(&status));
+                    return Err(rejected_batch_item(
+                        Some(digest),
+                        rpc_status_from_grpc_status(&status),
+                    ));
                 }
             };
             let admission = match state.memory.try_acquire_reapi_write_decode(declared) {
@@ -4353,24 +4483,27 @@ async fn update_batch_blob(
                             .grpc_write_admission_metrics()
                             .record_decode_rejected();
                     }
-                    return rejected(
+                    return Err(rejected_batch_item(
                         Some(digest),
                         rpc_status(
                             8,
                             "compressed blob was rejected because the server's write decoding memory cannot hold its decoded size; retry the write",
                         ),
-                    );
+                    ));
                 }
             };
             match decompress_zstd_batch_item(&item.data, digest.size_bytes) {
                 Ok(bytes) => (std::borrow::Cow::Owned(bytes), admission),
                 Err(status) => {
-                    return rejected(Some(digest), rpc_status_from_grpc_status(&status));
+                    return Err(rejected_batch_item(
+                        Some(digest),
+                        rpc_status_from_grpc_status(&status),
+                    ));
                 }
             }
         }
         other => {
-            return rejected(
+            return Err(rejected_batch_item(
                 Some(digest),
                 rpc_status(
                     12,
@@ -4378,63 +4511,123 @@ async fn update_batch_blob(
                         "compressor {other} is not supported; only IDENTITY and ZSTD are advertised"
                     ),
                 ),
-            );
+            ));
         }
     };
-    match persist_cas_blob(state, namespace_id, &digest, decoded.as_ref(), durability).await {
-        Ok(newly_stored) => BatchUpdateItem {
-            stored: newly_stored.then(|| (decoded.len() as u64, started_at.elapsed())),
-            response: reapi::batch_update_blobs_response::Response {
-                digest: Some(digest),
-                status: Some(rpc_status(0, "")),
-            },
-        },
-        Err(error) => rejected(Some(digest), rpc_status(13, error)),
+    let key = validate_digest_bytes(&digest, &bytes).and_then(|()| {
+        digest_key(&digest)
+            .map(|key| blob_key(&key))
+            .map_err(|error| error.message().to_owned())
+    });
+    match key {
+        Ok(key) => Ok(DecodedBatchBlob {
+            digest,
+            key,
+            bytes,
+            _admission: admission,
+            started_at,
+        }),
+        Err(error) => Err(rejected_batch_item(Some(digest), rpc_status(13, error))),
     }
 }
 
+/// Decodes one group of BatchUpdateBlobs items and persists the valid ones
+/// with one store commit (see
+/// [`crate::store::Store::persist_artifacts_from_bytes_and_replicate`]).
+/// Responses keep request order.
+async fn update_batch_blobs_group(
+    state: &SharedState,
+    namespace_id: &str,
+    group: &[reapi::batch_update_blobs_request::Request],
+) -> Vec<BatchUpdateItem> {
+    let mut answers: Vec<Option<BatchUpdateItem>> = group.iter().map(|_| None).collect();
+    let mut decoded = Vec::with_capacity(group.len());
+    for (index, item) in group.iter().enumerate() {
+        match decode_batch_blob(state, item) {
+            Ok(blob) => decoded.push((index, blob)),
+            Err(answer) => answers[index] = Some(answer),
+        }
+    }
+    if !decoded.is_empty() {
+        let items: Vec<(&str, &[u8])> = decoded
+            .iter()
+            .map(|(_, blob)| (blob.key.as_str(), blob.bytes.as_ref()))
+            .collect();
+        let persisted = state
+            .store
+            .persist_artifacts_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                "application/octet-stream",
+                &items,
+            )
+            .await;
+        // A blob found already present acknowledges only once its manifest is
+        // durable, which may still be a concurrent writer's pending WAL row.
+        let acknowledged = if persisted.iter().any(|result| {
+            result
+                .as_ref()
+                .is_ok_and(|persisted| persisted.already_present)
+        }) {
+            state.store.acknowledge_existing_client_manifest().await
+        } else {
+            Ok(())
+        };
+        for ((index, blob), result) in decoded.into_iter().zip(persisted) {
+            let result = match result {
+                Ok(persisted) if persisted.already_present => {
+                    acknowledged.clone().map(|()| persisted)
+                }
+                result => result,
+            };
+            answers[index] = Some(match result {
+                Ok(persisted) => {
+                    state.metrics.record_artifact_write(
+                        ArtifactProducer::Reapi,
+                        "ok",
+                        persisted.manifest.size,
+                    );
+                    BatchUpdateItem {
+                        stored: (!persisted.already_present)
+                            .then(|| (blob.bytes.len() as u64, blob.started_at.elapsed())),
+                        response: reapi::batch_update_blobs_response::Response {
+                            digest: Some(blob.digest),
+                            status: Some(rpc_status(0, "")),
+                        },
+                    }
+                }
+                Err(error) => rejected_batch_item(Some(blob.digest), rpc_status(13, error)),
+            });
+        }
+    }
+    answers
+        .into_iter()
+        .map(|answer| answer.expect("every item is answered"))
+        .collect()
+}
+
+#[cfg(test)]
 async fn persist_cas_blob(
     state: &SharedState,
     namespace_id: &str,
     digest: &reapi::Digest,
     bytes: &[u8],
-    durability: ClientDurability,
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let persisted = match durability {
-        ClientDurability::Durable => {
-            let persisted = state
-                .store
-                .persist_artifact_from_bytes_and_replicate(
-                    ArtifactProducer::Reapi,
-                    namespace_id,
-                    &key,
-                    "application/octet-stream",
-                    bytes,
-                )
-                .await?;
-            if persisted.already_present {
-                state.store.acknowledge_existing_client_manifest().await?;
-            }
-            persisted
-        }
-        ClientDurability::Deferred => {
-            let (persisted, deferred) = state
-                .store
-                .persist_artifact_from_bytes_deferred(
-                    ArtifactProducer::Reapi,
-                    namespace_id,
-                    &key,
-                    "application/octet-stream",
-                    bytes,
-                    FileCachePolicy::Adaptive,
-                )
-                .await?;
-            complete_deferred_durability(state, deferred);
-            persisted
-        }
-    };
+    let persisted = state
+        .store
+        .persist_artifact_from_bytes_and_replicate(
+            ArtifactProducer::Reapi,
+            namespace_id,
+            &key,
+            "application/octet-stream",
+            bytes,
+        )
+        .await?;
+    if persisted.already_present {
+        state.store.acknowledge_existing_client_manifest().await?;
+    }
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
@@ -4811,35 +5004,6 @@ fn is_presence_lookup(metadata: &tonic::metadata::MetadataMap) -> bool {
         .get(LOOKUP_HEADER)
         .and_then(|value| value.to_str().ok())
         == Some(PRESENCE_LOOKUP)
-}
-
-const WRITE_DURABILITY_HEADER: &str = "x-tuist-write-durability";
-
-/// A CAS write may be acknowledged once it is readable when the client asks
-/// for it; every other write is acknowledged once durable.
-fn write_durability(metadata: &tonic::metadata::MetadataMap) -> ClientDurability {
-    match metadata
-        .get(WRITE_DURABILITY_HEADER)
-        .and_then(|value| value.to_str().ok())
-    {
-        Some("deferred") => ClientDurability::Deferred,
-        _ => ClientDurability::Durable,
-    }
-}
-
-/// Finishes a deferred write in the background. Its client already has the
-/// acknowledgement; a failure here leaves the durability marker for startup
-/// verification.
-fn complete_deferred_durability(state: &SharedState, deferred: Option<DeferredDurability>) {
-    let Some(deferred) = deferred else {
-        return;
-    };
-    let store = Arc::clone(&state.store);
-    tokio::spawn(async move {
-        if let Err(error) = store.complete_deferred_durability(deferred).await {
-            tracing::error!("deferred CAS write did not become durable: {error}");
-        }
-    });
 }
 
 fn reapi_usage_artifact_kind(metadata: &tonic::metadata::MetadataMap) -> &'static str {
@@ -6138,12 +6302,65 @@ mod tests {
             ..Default::default()
         }
         .encode_to_vec();
-        let shape =
-            inspect_batch_update_wire(&encoded).expect("valid structure should be admitted");
+        let shape = inspect_batch_update_wire(Wire::new(&[&encoded]))
+            .expect("valid structure should be admitted");
         assert_eq!(
             shape.structural_bytes,
             request_count as u64 * REAPI_BATCH_REQUEST_STRUCTURAL_BYTES
         );
+    }
+
+    #[test]
+    fn batch_update_wire_shape_is_independent_of_frame_boundaries() {
+        let digest = |byte: u8, size: i64| reapi::Digest {
+            hash: hex::encode([byte; 32]),
+            size_bytes: size,
+        };
+        let request = reapi::BatchUpdateBlobsRequest {
+            instance_name: "namespace/instance".to_owned(),
+            requests: vec![
+                reapi::batch_update_blobs_request::Request {
+                    digest: Some(digest(1, 3)),
+                    data: vec![7; 3],
+                    compressor: 0,
+                },
+                reapi::batch_update_blobs_request::Request {
+                    digest: Some(digest(2, 40)),
+                    data: vec![9; 40],
+                    compressor: 0,
+                },
+            ],
+            ..Default::default()
+        };
+        let encoded = request.encode_to_vec();
+        let whole = inspect_batch_update_wire(Wire::new(&[&encoded]))
+            .expect("valid structure should be admitted");
+        for frame in 1..=encoded.len() {
+            let frames: Vec<&[u8]> = encoded.chunks(frame).collect();
+            assert_eq!(
+                inspect_batch_update_wire(Wire::new(&frames)).ok(),
+                Some(whole),
+                "{frame}-byte frames"
+            );
+        }
+
+        // A multi-byte character split across frames is still valid UTF-8, and
+        // an invalid name is rejected wherever the frames break.
+        let named = |instance_name: Vec<u8>| {
+            let mut encoded = vec![0x0a, instance_name.len() as u8];
+            encoded.extend(instance_name);
+            encoded
+        };
+        let valid = named("ns/é".as_bytes().to_vec());
+        let invalid = named(vec![b'n', 0xc3, 0x28]);
+        for frame in 1..=valid.len() {
+            let frames: Vec<&[u8]> = valid.chunks(frame).collect();
+            assert!(inspect_batch_update_wire(Wire::new(&frames)).is_ok());
+        }
+        for frame in 1..=invalid.len() {
+            let frames: Vec<&[u8]> = invalid.chunks(frame).collect();
+            assert!(inspect_batch_update_wire(Wire::new(&frames)).is_err());
+        }
     }
 
     #[test]
@@ -6154,8 +6371,8 @@ mod tests {
             ..Default::default()
         }
         .encode_to_vec();
-        let shape =
-            inspect_action_result_wire(&encoded).expect("valid structure should be admitted");
+        let shape = inspect_action_result_wire(Wire::new(&[&encoded]))
+            .expect("valid structure should be admitted");
         assert_eq!(
             shape.structural_bytes,
             output_count as u64 * REAPI_ACTION_OUTPUT_STRUCTURAL_BYTES
@@ -6187,7 +6404,7 @@ mod tests {
                 .expect("Prost should accept balanced unknown groups"),
             request
         );
-        inspect_batch_update_wire(&encoded)
+        inspect_batch_update_wire(Wire::new(&[&encoded]))
             .expect("the admission scanner should accept what Prost accepts");
     }
 
@@ -8447,15 +8664,9 @@ mod tests {
             hash: hex::encode(Sha256::digest(b"world")),
             size_bytes: chunk.len() as i64,
         };
-        persist_cas_blob(
-            &context.state,
-            "ios",
-            &chunk_digest,
-            chunk,
-            ClientDurability::Durable,
-        )
-        .await
-        .expect("chunk should persist");
+        persist_cas_blob(&context.state, "ios", &chunk_digest, chunk)
+            .await
+            .expect("chunk should persist");
 
         let mut request = Request::new(reapi::SpliceBlobRequest {
             instance_name: "ios".into(),

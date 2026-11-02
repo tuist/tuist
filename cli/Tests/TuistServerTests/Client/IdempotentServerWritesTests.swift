@@ -76,6 +76,26 @@ struct IdempotentServerWritesTests {
         #expect(Self.isUUIDv7(id))
     }
 
+    @Test(.withMockedEnvironment(), arguments: [ServerFailure.status(502), .status(503), .transport(.networkConnectionLost)])
+    func replays_a_cargo_build_with_its_original_id(failure: ServerFailure) async throws {
+        try mockEnvironment()
+        let id = UUIDv7.generate()
+        let server = ReplayingServer(operationID: "createCargoBuild", failure: failure, status: .created) { id in
+            #"{"id":"\#(id)"}"#
+        }
+
+        try await Client.$additionalMiddlewares.withValue([server]) {
+            try await CargoReportService().submit(
+                Data(#"{"id":"\#(id)","duration_ms":42,"status":"success"}"#.utf8),
+                fullHandle: "acme/app",
+                serverURL: serverURL,
+                kind: "builds"
+            )
+        }
+
+        #expect(server.ids == [id, id])
+    }
+
     @Test(.withMockedEnvironment(), arguments: [ServerFailure.status(502), .transport(.networkConnectionLost)])
     func replays_a_token_refresh_after_an_ambiguous_failure(failure: ServerFailure) async throws {
         try mockEnvironment()
@@ -163,12 +183,19 @@ enum ServerFailure: Sendable, CustomTestStringConvertible {
 private final class ReplayingServer: ClientMiddleware, Sendable {
     private let operationID: String
     private let failure: ServerFailure
+    private let status: HTTPResponse.Status
     private let respond: @Sendable (String) -> String
     private let requestIDs = Mutex<[String?]>([])
 
-    init(operationID: String, failure: ServerFailure, respond: @escaping @Sendable (String) -> String) {
+    init(
+        operationID: String,
+        failure: ServerFailure,
+        status: HTTPResponse.Status = .ok,
+        respond: @escaping @Sendable (String) -> String
+    ) {
         self.operationID = operationID
         self.failure = failure
+        self.status = status
         self.respond = respond
     }
 
@@ -202,7 +229,7 @@ private final class ReplayingServer: ClientMiddleware, Sendable {
                 throw URLError(code)
             }
         }
-        var response = HTTPResponse(status: .ok)
+        var response = HTTPResponse(status: status)
         response.headerFields[.contentType] = "application/json"
         return (response, HTTPBody(respond(id ?? "")))
     }

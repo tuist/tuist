@@ -298,6 +298,10 @@ config :logger, :console,
     :snapshot_ms,
     :mem_bytes,
     :disks_synced,
+    :from_archive,
+    :archive_key,
+    :archive_bytes,
+    :stored_bytes,
     :disk_snapshot_id,
     :last_used_at,
     :freed_bytes,
@@ -588,6 +592,8 @@ config :tuist, :urls,
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
   feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
   shop: "https://shop.tuist.dev"
+
+config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 
 config :tuist_common, finch_name: Tuist.Finch
 

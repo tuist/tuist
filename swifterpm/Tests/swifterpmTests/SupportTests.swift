@@ -215,6 +215,40 @@ struct SupportTests {
         }
     }
 
+    @Test(arguments: [[:], ["CI": "1"]], [false, true])
+    func cachedDirectoryReplacementMovesReplacedDirectoryIntoTrash(
+        environment: [String: String], registryDownload: Bool
+    ) async throws {
+        try await Environment.$values.withValue(environment) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("cache/source")
+                let scratch = root.appendingPathComponent("scratch")
+                let destination = scratch.appendingPathComponent("checkouts/destination")
+                let trash = ScratchTrash(scratchDir: scratch)
+                try await fileSystem.atomicWrite("cached", to: source.appendingPathComponent("Package.swift"))
+                try await fileSystem.atomicWrite("private", to: destination.appendingPathComponent("Package.swift"))
+                let replacedInode = try #require(inode(destination))
+
+                if registryDownload {
+                    try await fileSystem.replaceWithRegistryDownloadDirectory(
+                        source: source, destination: destination, trash: trash
+                    )
+                } else {
+                    try await fileSystem.replaceWithCachedDirectory(source: source, destination: destination, trash: trash)
+                }
+
+                #expect(try await fileSystem.readTextFile(
+                    at: destination.appendingPathComponent("Package.swift").absolutePath
+                ) == "cached")
+                let entries = try await fileSystem.contentsOfDirectory(at: trash.directory)
+                #expect(entries.map { inode($0) } == [replacedInode])
+                #expect(try await fileSystem.readTextFile(
+                    at: try #require(entries.first).appendingPathComponent("Package.swift").absolutePath
+                ) == "private")
+            }
+        }
+    }
+
     @Test
     func registryDownloadReplacementAutomaticModeSymlinksContentsOutsideCI() async throws {
         try await Environment.$values.withValue([:]) {

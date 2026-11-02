@@ -440,6 +440,14 @@ defmodule TuistWeb.Router do
     get "/blog/bazel/timeline.json", BazelShowcaseController, :timeline, metadata: %{type: :marketing, robots_txt: false}
   end
 
+  scope "/", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    # Build traces for agents. The token is the authorization: the MCP server
+    # signs it for one build after authorizing the caller.
+    get "/build-traces/:token", BuildController, :signed_trace, metadata: %{robots_txt: false}
+  end
+
   scope "/" do
     pipe_through [
       :open_api,
@@ -1012,6 +1020,9 @@ defmodule TuistWeb.Router do
         end
 
         scope "/cargo" do
+          get "/crates", CargoCratesController, :index
+          get "/crates/:crate_id", CargoCratesController, :show
+          get "/crates/:crate_id/compilations", CargoCratesController, :history
           post "/builds", CargoController, :create_build
           get "/builds", CargoController, :list_builds
           get "/builds/:build_id", CargoController, :get_build
@@ -1684,6 +1695,8 @@ defmodule TuistWeb.Router do
       live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates/:crate_id", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
       live "/builds/bazel/actions", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/bazel/actions/:action_id", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
@@ -1714,6 +1727,8 @@ defmodule TuistWeb.Router do
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
       get "/builds/build-runs/:build_run_id/timeline.json", BuildController, :timeline
       get "/builds/invocations/:invocation_id/timeline.json", BuildController, :timeline
+      get "/builds/build-runs/:build_run_id/trace.json", BuildController, :trace
+      get "/builds/invocations/:invocation_id/trace.json", BuildController, :trace
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,

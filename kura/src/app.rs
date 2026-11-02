@@ -284,16 +284,6 @@ async fn initialize_and_serve(
         .await
         .map_err(|error| error.context("failed to sweep orphaned segments"))?;
     tracing::info!(swept, "removed orphaned segment files");
-    let mismatched = store
-        .verify_deferred_writes()
-        .await
-        .map_err(|error| format!("failed to verify deferred CAS writes: {error}"))?;
-    if !mismatched.is_empty() {
-        tracing::error!(
-            count = mismatched.len(),
-            "deferred CAS writes lost their bytes before becoming durable"
-        );
-    }
     bootstrap.recovery.check_running()?;
     bootstrap.recovery.set_phase(Phase::Configuring);
     establish_initial_memory_baseline(&memory).await?;
@@ -390,6 +380,9 @@ async fn initialize_and_serve(
     spawn_segment_promotion_task(state.clone());
     spawn_supervised("segment_reclamation", state.clone(), |state| async move {
         state.store.run_segment_reclamation_worker().await;
+    });
+    spawn_supervised("relaxed_durability", state.clone(), |state| async move {
+        state.store.run_relaxed_durability_worker().await;
     });
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
@@ -689,6 +682,18 @@ async fn initialize_and_serve(
             Ok(Ok(())) => {}
             result => warn!("failed to checkpoint usage during shutdown: {result:?}"),
         }
+    }
+    if !state
+        .store
+        .quiesce_segment_reclamation(producer_budget.remaining())
+        .await
+    {
+        warn!("segment eviction did not stop before the shutdown deadline");
+    }
+    if state.store.relaxed_durability_enabled()
+        && let Err(error) = state.store.sync_relaxed_durability().await
+    {
+        warn!("failed to sync relaxed durability writes during shutdown: {error}");
     }
     // Synchronous clean-shutdown stamp for backfill index staleness detection:
     // after it, any sequence gap the next boot observes means an index-unaware

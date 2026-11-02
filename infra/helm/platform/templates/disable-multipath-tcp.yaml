@@ -1,0 +1,89 @@
+{{- /*
+This file is shared with infra/helm/rack-cache-gateways through a symlink. The
+platform release is waited on, so it renders for every Linux node except a
+rack's; rack-cache-gateways, which nothing waits on, renders for rack nodes.
+*/ -}}
+{{- with .Values.disableMultipathTCP }}
+{{- if .enabled }}
+{{- $rack := eq $.Chart.Name "rack-cache-gateways" }}
+{{- $name := ternary "disable-multipath-tcp-rack" "disable-multipath-tcp" $rack }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/component: node-hardening
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+      app.kubernetes.io/component: node-hardening
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Replacing the pod leaves the host's sysctl as it is.
+      maxUnavailable: 100%
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/component: node-hardening
+    spec:
+      # net.mptcp.enabled is per network namespace. Writing it from the host's
+      # covers host-network listeners only; pod namespaces keep their own value.
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      terminationGracePeriodSeconds: 1
+      nodeSelector:
+        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/instance-type
+                    operator: {{ ternary "In" "NotIn" $rack }}
+                    values: ["rack"]
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: {{ $name }}
+          image: {{ .image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              printf 'net.mptcp.enabled = 0\n' > /host/etc/sysctl.d/99-tuist-disable-mptcp.conf
+              while true; do
+                echo 0 > /proc/sys/net/mptcp/enabled
+                sleep 60
+              done
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - test "$(cat /proc/sys/net/mptcp/enabled)" = 0
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              memory: 16Mi
+          volumeMounts:
+            - name: sysctl-d
+              mountPath: /host/etc/sysctl.d
+      volumes:
+        - name: sysctl-d
+          hostPath:
+            path: /etc/sysctl.d
+            type: DirectoryOrCreate
+{{- end }}
+{{- end }}

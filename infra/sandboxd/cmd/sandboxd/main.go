@@ -131,6 +131,7 @@ func main() {
 
 	netManager := network.NewManager(logger)
 	netManager.PodInterface = os.Getenv("POD_INTERFACE")
+	netManager.DaemonOnlyTCPPort = intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0)
 	switch backend := os.Getenv("NETWORK_BACKEND"); backend {
 	case "", "iproute2":
 	case "netlink":

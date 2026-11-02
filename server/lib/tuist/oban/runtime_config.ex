@@ -42,6 +42,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Sandboxes.AmpReconciler},
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
+    {"20 * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
@@ -49,6 +50,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
     {"@daily", PruneExpiredSubscriptionsWorker},
     {"@hourly", PruneJobKeysWorker},
+    {"@hourly", Tuist.Shards.Workers.PruneRecentShardPlansWorker},
     {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker}
   ]
 
