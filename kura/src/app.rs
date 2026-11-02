@@ -381,6 +381,9 @@ async fn initialize_and_serve(
     spawn_supervised("segment_reclamation", state.clone(), |state| async move {
         state.store.run_segment_reclamation_worker().await;
     });
+    spawn_supervised("relaxed_durability", state.clone(), |state| async move {
+        state.store.run_relaxed_durability_worker().await;
+    });
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
     // so a short leaf does not require a restart, and prove mesh-membership
@@ -679,6 +682,11 @@ async fn initialize_and_serve(
             Ok(Ok(())) => {}
             result => warn!("failed to checkpoint usage during shutdown: {result:?}"),
         }
+    }
+    if state.store.relaxed_durability_enabled()
+        && let Err(error) = state.store.sync_relaxed_durability().await
+    {
+        warn!("failed to sync relaxed durability writes during shutdown: {error}");
     }
     // Synchronous clean-shutdown stamp for backfill index staleness detection:
     // after it, any sequence gap the next boot observes means an index-unaware
