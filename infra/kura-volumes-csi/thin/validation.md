@@ -1,5 +1,41 @@
 # Thin stack qualification
 
+## Hosted staging migration rehearsal (2026-11-02)
+
+Staging ran this branch's server (`sha-fd5dca456951`) with the
+`KURA_VOLUME_TRANSPORT_KEYS` item and pinned public key, the CSI digest
+`sha256:b47cc008cd8dbb10b5863f757452de31fc30ed316f54625c5b8970e249d19772`,
+controller `sha-3ac7fcc8bd9d` and runtime `sha-6baa9ccacd17`. A 32 GiB thin pool
+was prepared on the Paris node with `prepare_pool.rb`; the source was a legacy
+`scw-local-nvme` fixture on the Canada node, a different host. The fixture had
+authorization and usage reporting off and an archived `Kura.Server` row so the
+key service could resolve its account. The in-cluster rollout probe ran an
+HTTP/1 and an h2c soak against the client Service throughout, journaling every
+acknowledged write.
+
+| Check | Result |
+| --- | --- |
+| Unselected source | Desired thin layout left the template, replica count and pod unchanged. |
+| v2 key transport | First real issuance: key version 1 for the standby's volume in 48 ms; every encrypted stage succeeded. |
+| Claim/node admission | Every thin PV was created for a claim the scheduler had selected for the Paris node. |
+| Single-copy move | Temporary standby on Paris, handoff, rebuild of ordinal 0 on thin, handback and standby release in about two minutes; the update hold was released afterwards. |
+| Abort before demotion | Unselecting the source while it held a write intent removed the intent 6 s later; no demotion followed. |
+| Two-replica move under load | Both ordinals moved one at a time with both soaks running. |
+| Destination crash | Killing the destination's Kura process during the second handoff rebound the source to the new process; the source refused 9 writes it could not prove (503) over 7 s instead of acknowledging them. |
+| Acknowledged writes | 34,667 journaled writes across three soak rounds and both corpora (2,048 objects) read back with 0 failures, the last round from each final replica separately. |
+| Cleanup | Fixture, claims and PVs removed; pool and config removed with the original `data` LV UUID unchanged and VG free back to 812,541,542,400 bytes. |
+
+The rehearsal found that the production port-forward client lacked the new
+rebind and abort operations, so every thin handoff failed as "migration
+preparation unavailable" until `3ac7fcc8bd9` (the unit tests used a complete
+stub). Live traffic did not cross the first single-copy handoff, which ran
+before the second soak round started. Two HTTP/1 PUTs failed with EOF at a
+300-second connection-age boundary during the stalled phase; that recycle race
+predates this branch and the h2c soak had none. A failed migration
+acknowledgment answers with the generic "server is draining" 503. Not covered:
+host reboot, public ingress and REAPI gRPC continuity, realistic cache sizes for
+the resumable walk, and armed-write throughput.
+
 ## Review remediation — 2026-10-29
 
 The review of `31233a1b5a4` correctly identified merge-time infrastructure
