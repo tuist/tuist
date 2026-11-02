@@ -1,0 +1,17 @@
+# Explicit opt-in after the database-first and capacity gates in
+# infra/k8s/onboarding.md, "HA gates before a fleet kernel rollout".
+# Do not add this overlay to the deployment cascade before staging validation.
+# Layer after managed-common and the managed environment overlay.
+postgresql:
+  cnpg:
+    pooler:
+      instances: 2
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: general
+    # Two old + two new PgBouncers x three db/user pairs x 20 = 240;
+    # up to 150 old/new web connections + 30 reserve = 420 in production.
+    # Keep per-replica pool capacity unchanged when a sibling is unavailable.
+    # This is an admission ceiling, not a safe concurrency/load target.
+    # Apply/verify this database-only change BEFORE enabling this overlay.
+    parameters:
+      max_connections: "450"

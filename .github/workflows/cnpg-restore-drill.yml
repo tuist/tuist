@@ -31,6 +31,10 @@ on:
           - staging
           - canary
           - production
+      staging_ha_rehearsal:
+        description: Test disposable synthetic staging database/pooler HA instead of restoring a backup
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,7 +42,7 @@ permissions:
 jobs:
   restore-drill:
     name: Restore drill (${{ inputs.environment || 'staging' }})
-    if: github.repository == 'tuist/tuist'
+    if: github.repository == 'tuist/tuist' && !inputs.staging_ha_rehearsal
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment || 'staging' }}
@@ -213,3 +217,69 @@ jobs:
             kubectl wait --for=delete "pv/$pv" --timeout=5m
           done
           kubectl delete storageclass "$RECOVERY" --ignore-not-found --wait=true --timeout=1m
+
+  staging-ha-rehearsal:
+    name: Disposable staging database HA rehearsal
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.staging_ha_rehearsal
+    runs-on: tuist-linux
+    environment: server-k8s-staging
+    concurrency:
+      group: cnpg-restore-drill-staging
+      cancel-in-progress: false
+    timeout-minutes: 40
+    env:
+      ENVIRONMENT: staging
+      KUBECONFIG: ${{ github.workspace }}/.kube/ha-rehearsal-config
+      REHEARSAL_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+      REHEARSAL_OUTPUT: ${{ github.workspace }}/ha-rehearsal-evidence
+    steps:
+      - name: Reject non-staging requests before loading credentials
+        env:
+          REQUESTED_ENVIRONMENT: ${{ inputs.environment }}
+        run: test "$REQUESTED_ENVIRONMENT" = staging
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl helm"
+          cache: "false"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install PyYAML==6.0.3
+      - name: Check rehearsal guards without credentials
+        run: python3 .github/scripts/cnpg-ha-rehearsal.test.py
+      - uses: 1password/install-cli-action@v2
+      - name: Load staging deployment identity
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" \
+            --vault tuist-k8s-staging --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Exercise synthetic database and chart-generated pooler HA
+        run: |
+          python3 .github/scripts/cnpg-ha-rehearsal.py run \
+            --run "$REHEARSAL_RUN" --output "$REHEARSAL_OUTPUT"
+      - name: Remove only this run's fixtures and verify volume deletion
+        if: always()
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          if [ -s "$KUBECONFIG" ]; then
+            python3 .github/scripts/cnpg-ha-rehearsal.py cleanup \
+              --run "$REHEARSAL_RUN" --output "$REHEARSAL_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-ha-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.REHEARSAL_OUTPUT }}
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Remove deployment credentials
+        if: always()
+        run: rm -f "$KUBECONFIG"
