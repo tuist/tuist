@@ -197,9 +197,9 @@ jobs:
             --enable-parseable-module-interfaces -Xswiftc -enable-library-evolution
           pd_path="$(swift build "${flags[@]}" --scratch-path .build/project-description --show-bin-path)"
           dist=build/cli-preview-macos
-          mkdir -p "$dist/Modules"
+          mkdir -p "$dist/ProjectDescription.swiftmodule"
           cp "$bin_path/tuist" "$pd_path/libProjectDescription.dylib" "$dist/"
-          cp "$pd_path/Modules/ProjectDescription.swiftinterface" "$dist/Modules/"
+          cp "$pd_path/ProjectDescription.swiftmodule/arm64-apple-macos.swiftinterface" "$dist/ProjectDescription.swiftmodule/"
           find "$bin_path" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$dist/" \;
           xcrun swift-stdlib-tool --copy --platform macosx --destination "$dist" \
             --scan-executable "$dist/tuist" --scan-executable "$dist/libProjectDescription.dylib"
