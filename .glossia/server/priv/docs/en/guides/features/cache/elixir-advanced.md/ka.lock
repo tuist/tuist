@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e8e38e687fd2b3d17c70e66f4fdecfa8c26aea6111462ee1ef3ee863c432e483",
+  "hash": "eddf11dc818aa83c300e27d511edd749b691b2500a8f9ad43a8da49ae9e60fae",
   "hash_tree": {
     "root": {
       "children": [
@@ -35,7 +35,7 @@
                   "content_hash": "adada249919dc9e8be76a18df5149702f7e470449eee30251faf629cb0fef9db"
                 },
                 "## Reuse across checkout paths": {
-                  "content_hash": "d4a935710125fccf70b2f9cfe6ddc4cba7dd13c5a289c26be380c725866af717"
+                  "content_hash": "c60a53bdaf8eb1325ddbd5761b11d8516d543d259d09296e44ebb5f5f3d11ca6"
                 },
                 "## Select dependencies": {
                   "content_hash": "80bc355dbded5561d9f491396106fd1c6d1c200a43bdc37a5ad5a8d84c93092f"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "231e2ec69925a251fe75095a95fc29d9f1cd73f2f5c7917ac60ffde675e9e10b",
+          "hash": "42e2d73b7e62f9d705c0a41930eac9474cf4709c996747ec03f54526ec518710",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/elixir-advanced.md",
           "metadata": {
-            "content_hash": "e47f7fe906eb206b74e71c7989cf49124d49dc293aeb3a2dfca414fab81c5076"
+            "content_hash": "f7a9efd7dffd9322722ad1ec5d1105f1358cdab0fe422c5877ae88f32bb8237f"
           }
         },
         {
@@ -254,14 +254,14 @@
         }
       ],
       "details": {},
-      "hash": "e8e38e687fd2b3d17c70e66f4fdecfa8c26aea6111462ee1ef3ee863c432e483",
+      "hash": "eddf11dc818aa83c300e27d511edd749b691b2500a8f9ad43a8da49ae9e60fae",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/elixir-advanced.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e63f6683bb8c3fafa1105a810581c89ade92d2bdf3aeb4cdc49fb8cefcc6c3b0",
+  "output_hash": "d286d064e5458381fc90a66992df6a5a0da4a5c8ff75412d508a9b933e83b39b",
   "output_path": "server/priv/docs/ka/guides/features/cache/elixir-advanced.md",
   "protection_state": "recorded",
   "provider": "",
@@ -281,8 +281,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4663c58a45478b5c1d0719109d77c3fb4c84b313",
+  "source_commit_sha": "23c4d55ddd5eaf0cf70f4f389e1ae4fbdd53a283",
   "source_path": "server/priv/docs/en/guides/features/cache/elixir-advanced.md",
-  "translated_at": "2026-11-02T14:05:20.336286Z",
-  "translation_session_id": "01a19c92-aab3-74fe-add4-4ffb927ed429"
+  "translated_at": "2026-11-02T17:30:25.178157Z",
+  "translation_session_id": "01a19d4a-3fea-7c21-bb6d-ea0c18a74b5d"
 }

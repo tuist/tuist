@@ -198,7 +198,8 @@ cache: [portable: true]
 ```
 
 Configured values that embed the checkout path, such as paths built from
-`__DIR__` in `config/config.exs`, don't change portable keys.
+`__DIR__` in `config/config.exs`, don't change portable keys. Neither does where
+your Elixir toolchain is installed: archives and rebar3 count by their contents.
 
 Cached BEAMs retain producer debug/source paths and compile-time `__DIR__`,
 `__ENV__.file` and `File.cwd!()` values. Portable reuse does not rewrite them.
