@@ -42,7 +42,7 @@ impl CommitThreads {
     /// Starts `threads` commit threads, each accepting up to `queue_depth`
     /// waiting commits before callers wait for room. The threads exit once
     /// this value is dropped and their queues drain.
-    pub(crate) fn new(threads: usize, queue_depth: usize) -> Self {
+    pub(crate) fn new(threads: usize, queue_depth: usize) -> std::io::Result<Self> {
         let lanes = (0..threads)
             .map(|index| {
                 let (sender, mut receiver) = mpsc::channel::<Job>(queue_depth);
@@ -54,15 +54,14 @@ impl CommitThreads {
                             // whose reply is dropped; the thread keeps serving.
                             let _ = std::panic::catch_unwind(AssertUnwindSafe(job));
                         }
-                    })
-                    .expect("metadata commit thread should start");
-                Lane {
+                    })?;
+                Ok(Lane {
                     sender,
                     in_flight: Arc::new(AtomicUsize::new(0)),
-                }
+                })
             })
-            .collect();
-        Self { lanes }
+            .collect::<std::io::Result<_>>()?;
+        Ok(Self { lanes })
     }
 
     /// Runs `operation` on the least busy commit thread. Once queued, the
@@ -103,7 +102,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_blocked_thread_does_not_hold_up_commits_on_another_thread() {
-        let threads = CommitThreads::new(2, 4);
+        let threads = CommitThreads::new(2, 4).unwrap();
         let (release, blocked) = std_mpsc::channel::<()>();
         let (started_tx, started) = oneshot::channel();
         let stuck = threads.run(move || {
@@ -125,7 +124,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_queued_commit_runs_after_its_caller_is_dropped() {
-        let threads = CommitThreads::new(1, 4);
+        let threads = CommitThreads::new(1, 4).unwrap();
         let (release, blocked) = std_mpsc::channel::<()>();
         let (ran_tx, ran) = std_mpsc::channel();
         let mut first = Box::pin(threads.run(move || {
@@ -145,7 +144,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_panicking_commit_fails_its_caller_and_the_thread_keeps_serving() {
-        let threads = CommitThreads::new(1, 4);
+        let threads = CommitThreads::new(1, 4).unwrap();
         assert!(threads.run(|| panic!("boom")).await.is_err());
         assert_eq!(threads.run(|| 1).await, Ok(1));
     }

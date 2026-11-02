@@ -1560,7 +1560,8 @@ impl Store {
             commit_threads: CommitThreads::new(
                 METADATA_COMMIT_THREADS,
                 METADATA_COMMIT_QUEUE_DEPTH,
-            ),
+            )
+            .map_err(|error| format!("failed to start metadata commit threads: {error}"))?,
             point_read_options: ReadOptions::default(),
             segment_refresh_lock: Mutex::new(()),
             segment_state_lock: Mutex::new(()),
@@ -5264,8 +5265,8 @@ impl Store {
         .map_err(|e| format!("eviction candidate task failed: {e}"))?
     }
 
-    // Re-read each candidate immediately before staging it rather than
-    // prefetching manifests for a whole page across intervening commits.
+    // Reads one candidate for paths outside runs; runs use
+    // `read_eviction_candidates` and are dropped at every eviction commit.
     async fn eviction_candidate(
         &self,
         artifact_id: &str,
@@ -5574,6 +5575,11 @@ impl Store {
         removed_artifact_ids: &mut Vec<String>,
         cascade: &mut CascadeProgress,
     ) -> Result<(), RecoveryError> {
+        // Shutdown quiesce covers inline evictions too: once it is set, no
+        // chunk starts, so only one already committing can follow the stamp.
+        if self.segment_reclamation_quiesced.load(Ordering::Acquire) {
+            return Err(RecoveryError::Interrupted);
+        }
         // An empty batch still carries a 12-byte header, so `size_in_bytes()`
         // is never zero and a small budget can trip the check before anything
         // is staged. Skip the write rather than spend a WAL append on nothing;
@@ -7059,9 +7065,10 @@ impl Store {
         // Holding up to BACKFILL_APPLY_GROUP_RECORDS write locks at once is
         // deadlock-free by ordering: the artifact write locks are striped, so
         // the group locks the deduplicated set of stripes its records hash to
-        // in ascending stripe order, and every other path in the store only
-        // ever holds ONE artifact write lock at a time (and never acquires a
-        // second while holding it), so no cycle can involve them. Two
+        // in ascending stripe order. The grouped persist also locks its
+        // stripes in ascending order, eviction only try-locks extra stripes
+        // and releases them all before it waits, and every other path holds
+        // one artifact write lock at a time, so no cycle can involve them. Two
         // concurrent group commits (different backfill peers) both acquire in
         // the same ascending order and therefore cannot deadlock each other.
         // Stripe dedup also means two group records that share a stripe (or
@@ -23740,6 +23747,40 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(syncs(&relaxed).1, before.1 + 2);
+
+        // The two inline bounds on dirty page cache: a relaxed append syncs
+        // before dropping its cached pages, and once relaxed writers have
+        // left the unsynced cap behind. Below both it stays unsynced.
+        let mut fsyncs = relaxed.segment_fsync_count.load(Ordering::Relaxed);
+        for (key, bytes, drops_cached_pages, synced) in [
+            ("blob/c", 1, false, false),
+            ("blob/d", 1, true, true),
+            (
+                "blob/e",
+                RELAXED_DURABILITY_MAX_UNSYNCED_SEGMENT_BYTES,
+                false,
+                true,
+            ),
+        ] {
+            relaxed
+                .persist_artifacts_from_bytes_and_replicate(
+                    ArtifactProducer::Reapi,
+                    "ns",
+                    "application/octet-stream",
+                    &[(key, b"bytes".as_slice())],
+                )
+                .await[0]
+                .as_ref()
+                .unwrap();
+            let seq = relaxed.pending_seq.load(Ordering::Acquire);
+            relaxed
+                .acknowledge_segment_bytes(ApplyDurability::Relaxed, seq, bytes, drops_cached_pages)
+                .await
+                .unwrap();
+            let now = relaxed.segment_fsync_count.load(Ordering::Relaxed);
+            assert_eq!(now > fsyncs, synced, "{key}");
+            fsyncs = now;
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
