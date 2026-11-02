@@ -500,7 +500,7 @@ func (m *Manager) watch(sb *Sandbox, inst vm.Instance, epoch uint64) {
 		reason = fmt.Sprintf("firecracker exited: %v", err)
 	}
 	sb.inst = nil
-	sb.agent = nil
+	sb.dropAgent()
 	sb.meta.State = protocol.StateError
 	sb.meta.Error = reason
 	meta := sb.meta
@@ -519,7 +519,7 @@ func (sb *Sandbox) detach() vm.Instance {
 	defer sb.mu.Unlock()
 	inst := sb.inst
 	sb.inst = nil
-	sb.agent = nil
+	sb.dropAgent()
 	sb.epoch++
 	return inst
 }
@@ -802,7 +802,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	// Invalidate watch, but retain the instance until death is confirmed.
 	// A failed kill must not make the next delete mistake a live VM for nil.
 	sb.epoch++
-	sb.agent = nil
+	sb.dropAgent()
 	sb.meta.State = protocol.StateError
 	sb.meta.Error = "deletion pending"
 	sb.mu.Unlock()
@@ -871,7 +871,7 @@ func (m *Manager) installSnapshot(sb *Sandbox, memNew, snapNew string) error {
 func (m *Manager) markDied(sb *Sandbox, reason string) {
 	sb.mu.Lock()
 	sb.inst = nil
-	sb.agent = nil
+	sb.dropAgent()
 	sb.meta.State = protocol.StateError
 	sb.meta.Error = reason
 	meta := sb.meta
@@ -881,6 +881,15 @@ func (m *Manager) markDied(sb *Sandbox, reason string) {
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
 	m.refreshGauges()
 	m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventSandboxDied, SandboxID: meta.ID, Reason: reason})
+}
+
+// dropAgent forgets the guest connection and closes a prewarmed one. The
+// caller holds sb.mu.
+func (sb *Sandbox) dropAgent() {
+	if spare, ok := sb.agent.(interface{ CloseSpare() }); ok {
+		spare.CloseSpare()
+	}
+	sb.agent = nil
 }
 
 // acquireAgent marks an exec in flight and returns the agent.
@@ -930,6 +939,15 @@ func (m *Manager) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 	code, err := vsock.RunProcess(ctx, agent, vsock.ExecRequest{Cmd: args.Cmd, Env: args.Env, Cwd: cwd, TimeoutMs: args.TimeoutMs}, out)
 	if err != nil {
 		return res, err
+	}
+	// An execution VM's action follows its preparation, and the VM is never
+	// paused in between: open the connection the action will use now.
+	if prewarmer, ok := agent.(interface{ Prewarm(context.Context) }); ok && preparesExecution(args.Cmd) {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			prewarmer.Prewarm(ctx)
+		}()
 	}
 	return protocol.ExecResult{ExitCode: code, DurationMs: time.Since(start).Milliseconds()}, nil
 }
@@ -1315,4 +1333,8 @@ func (m *Manager) observePhase(phase string, started time.Time) {
 		m.metrics.Phases.WithLabelValues(phase).Observe(duration.Seconds())
 	}
 	m.log.Debug("sandbox lifecycle phase", "phase", phase, "duration", duration)
+}
+
+func preparesExecution(cmd []string) bool {
+	return len(cmd) == 3 && cmd[0] == "/usr/local/bin/sbx-executor" && cmd[1] == "--prepare-cas"
 }
