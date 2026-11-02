@@ -251,23 +251,38 @@ enum CargoReadRecorder {
         depth--;
     }
 
+    /* A successful exec does not return, so it is logged before; `Y` withdraws an attempt that failed, such as
+       each PATH directory `execvp` tries before the one that holds the program. */
     static int my_execve(const char *path, char *const arguments[], char *const environment[]) {
+        int logged = ready && depth == 0;
         spawned(path, environment);
-        return execve(path, arguments, environment);
+        int result = execve(path, arguments, environment);
+        if (logged) { int saved = errno; depth++; emit('Y', path); depth--; errno = saved; }
+        return result;
     }
     INTERPOSE(my_execve, execve)
 
+    /* Spawns are logged once they succeed, and the real call runs with the guard held: `posix_spawnp` searches
+       PATH through `posix_spawn`, whose attempts are not separate spawns. */
     static int my_posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *actions,
                               const posix_spawnattr_t *attributes, char *const arguments[], char *const environment[]) {
-        spawned(path, environment);
-        return posix_spawn(pid, path, actions, attributes, arguments, environment);
+        int logged = ready && depth == 0;
+        depth++;
+        int result = posix_spawn(pid, path, actions, attributes, arguments, environment);
+        depth--;
+        if (logged && result == 0) spawned(path, environment);
+        return result;
     }
     INTERPOSE(my_posix_spawn, posix_spawn)
 
     static int my_posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *actions,
                                const posix_spawnattr_t *attributes, char *const arguments[], char *const environment[]) {
-        spawned(file, environment);
-        return posix_spawnp(pid, file, actions, attributes, arguments, environment);
+        int logged = ready && depth == 0;
+        depth++;
+        int result = posix_spawnp(pid, file, actions, attributes, arguments, environment);
+        depth--;
+        if (logged && result == 0) spawned(file, environment);
+        return result;
     }
     INTERPOSE(my_posix_spawnp, posix_spawnp)
 

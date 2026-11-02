@@ -43,6 +43,7 @@ struct CargoReadSet: Codable, Equatable {
             switch kind {
             case "P": processes += 1
             case "X": if !allowedSpawn(value) { spawns += 1 }
+            case "Y": if !allowedSpawn(value) { spawns -= 1 }
             case "x": passedThrough[pid, default: 0] += 1
             case "e": environReads[pid, default: 0] += 1
             case "E": variables.insert(value)

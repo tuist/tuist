@@ -52,9 +52,11 @@ struct CargoCompilerObserver {
                 arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
             )
         } else {
-            invocation = try? await CargoCacheInvocation.prepare(
-                arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
-            )
+            invocation = await Self.unlessFailed(environment) {
+                try await CargoCacheInvocation.prepare(
+                    arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+                )
+            }
         }
         if let rust = invocation as? CargoCacheInvocation, rust.isDeferred {
             // Another machine may have compiled this crate: its remembered sources key a lookup without rustc.
@@ -67,9 +69,11 @@ struct CargoCompilerObserver {
         // A deferred compilation learns only after rustc whether strict admission accepts its sources, so it is
         // recorded as well: when admission refuses them (assembly, `#[link]`), its reads key it instead.
         if !native, invocation == nil || (invocation as? CargoCacheInvocation)?.isDeferred == true {
-            recorded = try? await CargoRecordedInvocation.prepare(
-                arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
-            )
+            recorded = await Self.unlessFailed(environment) {
+                try await CargoRecordedInvocation.prepare(
+                    arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+                )
+            }
         }
         if let candidate = recorded, let index = candidate.index {
             var reads = await index.get(remote: nil)
@@ -148,6 +152,17 @@ struct CargoCompilerObserver {
             directory: directory, native: native, runner: runner, invocation: invocation, recorded: recorded,
             cache: cache, measurement: measurement, remote: remote, log: log, strict: strict
         ))
+    }
+
+    /// Runs a preparation whose refusal means "not cacheable". Any other failure (a probe that could not run) is
+    /// reported under `TUIST_DEBUG`, because it silently turns caching off for the crate.
+    private static func unlessFailed<T>(_ environment: [String: String], _ body: () async throws -> T?) async -> T? {
+        do { return try await body() } catch {
+            if !(error is CargoCacheInvocation.CacheError), environment["TUIST_DEBUG"] == "1" {
+                FileHandle.standardError.write(Data("Tuist Cargo cache: preparation failed: \(error)\n".utf8))
+            }
+            return nil
+        }
     }
 
     /// A restored build script is shimmed as a compiled one is, so its run is cached as well.

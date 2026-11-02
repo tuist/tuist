@@ -31,6 +31,12 @@ struct CargoProcess {
     ) async throws -> (stdout: Data, stderr: Data) {
         var stdout = Data()
         var stderr = Data()
+        // Captures are probes, never jobs: the jobserver descriptors Cargo named belong to the hook client, not to
+        // the process running the probe.
+        var environment = environment
+        for name in ["CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS"] {
+            environment[name] = nil
+        }
         for try await event in runner.run(
             arguments: ["/usr/bin/env", executable] + arguments,
             environment: environment,
