@@ -13,6 +13,7 @@ import json
 import os
 import pathlib
 import re
+import signal
 import subprocess
 import threading
 import time
@@ -81,11 +82,14 @@ class Rehearsal:
         existing = self.get(kind, metadata["name"])
         if existing:
             self.owned(existing)
+            assert not existing["metadata"].get("deletionTimestamp"), "Fixture cleanup has started"
         print(f"Applying {obj['kind']}/{metadata['name']}", flush=True)
         self.kubectl("apply", "-f", "-", stdin=json.dumps(obj))
 
     def patch(self, kind, name, patch, status=False):
-        self.owned(self.get(kind, name))
+        existing = self.get(kind, name)
+        self.owned(existing)
+        assert not existing["metadata"].get("deletionTimestamp"), "Fixture cleanup has started"
         args = ["patch", kind, name, "--type=merge", "-p", json.dumps(patch)]
         if status:
             args += ["--subresource=status"]
@@ -158,7 +162,7 @@ class Rehearsal:
     def ceiling_ready(self):
         if not self.database_ready():
             return False
-        pods = self.get("pods", selector=f"cnpg.io/cluster={self.cluster}")["items"]
+        pods = self.get("pods", selector=f"cnpg.io/cluster={self.cluster},cnpg.io/podRole=instance")["items"]
         if len(pods) != 2:
             return False
         try:
@@ -262,7 +266,7 @@ class Rehearsal:
                     fields = result.split("|")
                     event.update(ok=fields[:2] == [MARKERS, str(index)], result=result)
                 except (subprocess.SubprocessError, OSError) as error:
-                    event.update(ok=False, error=str(error))
+                    event.update(ok=False, error=str(error), stderr=getattr(error, "stderr", None))
                 event["duration"] = time.monotonic() - started
                 self.probes.append(event)
                 log.write(json.dumps(event) + "\n")
@@ -308,11 +312,17 @@ class Rehearsal:
                 assert self.sql(None, "SELECT string_agg(id::text||':'||payload,',' ORDER BY id) FROM markers", fixture=True,
                                 hostaddr=pod["status"]["podIP"]) == MARKERS
             self.phase = "pooler_eviction"
-            def eviction(pod):
-                return json.dumps({"apiVersion": "policy/v1", "kind": "Eviction", "metadata": {"name": pod["metadata"]["name"], "namespace": NS}})
-            self.kubectl("create", "-f", "-", stdin=eviction(pods[0]))
+            def eviction(pod, dry_run=False):
+                name = pod["metadata"]["name"]
+                assert name.startswith(self.pooler + "-")
+                options = {"preconditions": {"uid": pod["metadata"]["uid"]}}
+                if dry_run:
+                    options["dryRun"] = ["All"]
+                body = {"apiVersion": "policy/v1", "kind": "Eviction", "metadata": {"name": name, "namespace": NS}, "deleteOptions": options}
+                return self.kubectl("create", "--raw", f"/api/v1/namespaces/{NS}/pods/{name}/eviction", "-f", "-", stdin=json.dumps(body))
+            eviction(pods[0])
             try:
-                self.kubectl("create", "--dry-run=server", "-f", "-", stdin=eviction(pods[1]))
+                eviction(pods[1], dry_run=True)
             except subprocess.CalledProcessError as error:
                 assert "disruption budget" in error.stderr.lower(), error.stderr
                 self.save("second-eviction", {"denied": True, "reason": error.stderr})
@@ -325,7 +335,7 @@ class Rehearsal:
             self.wait("Replacing both poolers without changing their capacity", lambda: self.pooler_ready(2) and not old.intersection(p["metadata"]["uid"] for p in self.pooler_pods()))
             self.phase = "database_switchover"
             before = self.get("clusters.postgresql.cnpg.io", self.cluster)["status"]["currentPrimary"]
-            target = next(p["metadata"]["name"] for p in self.get("pods", selector=f"cnpg.io/cluster={self.cluster}")["items"] if p["metadata"]["name"] != before)
+            target = next(p["metadata"]["name"] for p in self.get("pods", selector=f"cnpg.io/cluster={self.cluster},cnpg.io/podRole=instance")["items"] if p["metadata"]["name"] != before)
             self.patch("clusters.postgresql.cnpg.io", self.cluster, {"status": {"targetPrimary": target,
                 "targetPrimaryTimestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "phase": "Switchover in progress", "phaseReason": f"Switching over to {target}"}}, status=True)
@@ -355,8 +365,10 @@ class Rehearsal:
         print(json.dumps(summary), flush=True)
 
     def cleanup(self):
-        resources = [("poolers.postgresql.cnpg.io", self.pooler), ("poddisruptionbudget", self.pooler),
-                     ("pod", self.client), ("clusters.postgresql.cnpg.io", self.cluster), ("storageclass", self.name)]
+        # Stop clients and remove the database before its Pooler: CNPG 1.29.1
+        # otherwise recreates children while foreground Pooler deletion waits.
+        resources = [("pod", self.client), ("clusters.postgresql.cnpg.io", self.cluster),
+                     ("poolers.postgresql.cnpg.io", self.pooler), ("poddisruptionbudget", self.pooler), ("storageclass", self.name)]
         # Check every existing object before deleting any. A collision must
         # never turn an unsuccessful provision into someone else's teardown.
         for kind, name in resources:
@@ -390,6 +402,11 @@ def quantity(value):
 
 
 if __name__ == "__main__":
+    def interrupted(signum, _frame):
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGINT, interrupted)
+    signal.signal(signal.SIGTERM, interrupted)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["run", "cleanup"])
     parser.add_argument("--run", required=True)

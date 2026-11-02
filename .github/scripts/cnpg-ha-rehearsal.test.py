@@ -35,10 +35,12 @@ class StagingRehearsalTest(unittest.TestCase):
         workflow = yaml.safe_load((ROOT / ".github/workflows/cnpg-restore-drill.yml").read_text())
         job = workflow["jobs"]["staging-ha-rehearsal"]
         self.assertEqual(job["environment"], "server-k8s-staging")
-        for environment, expected in [("staging", 0), ("canary", 1), ("production", 1), ("", 1)]:
-            with self.subTest(environment=environment):
+        for environment, cleanup, expected in [("staging", "", 0), ("canary", "", 1), ("production", "", 1),
+                                                ("", "", 1), ("staging", "123-2", 0), ("staging", "tuist-tuist-pg", 1),
+                                                ("staging", "123-2/../../", 1)]:
+            with self.subTest(environment=environment, cleanup=cleanup):
                 result = subprocess.run(["bash", "-euc", job["steps"][0]["run"]],
-                                        env={**os.environ, "REQUESTED_ENVIRONMENT": environment})
+                                        env={**os.environ, "REQUESTED_ENVIRONMENT": environment, "REQUESTED_CLEANUP_RUN": cleanup})
                 self.assertEqual(result.returncode, expected)
 
     def test_cleanup_refuses_foreign_resources_and_verifies_volume_deletion(self):
