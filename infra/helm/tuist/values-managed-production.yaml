@@ -68,6 +68,12 @@ registry:
 server:
   replicaCount: 2
 
+  # MCP agent feedback reaches Atlas with a projected ServiceAccount token
+  # (audience atlas-support-ingest) that Atlas verifies against this cluster's
+  # pinned JWKS. Atlas allowlists tuist:tuist-server in its managed values.
+  atlasSupportIngest:
+    enabled: true
+
   # Cloudflare Turnstile signup gate. Real site + secret key are synced from
   # the TURNSTILE 1Password item via external-secrets (secretsFrom: eso, the
   # default). Do NOT flip useTestKeys on here — Cloudflare's public test key
@@ -122,7 +128,7 @@ server:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
       # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
-      # millisecond costs 0.000125 cents, which is $0.075 per baseline
+      # millisecond costs 0.0001 cents, which is $0.06 per baseline
       # machine-minute.
       #
       # The 100 included minutes must stay in step with the free
@@ -150,10 +156,16 @@ server:
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
       # delete it, taking the cycle's accrued usage with it. Pause billing
-      # by removing the item, not by emptying this map.
+      # by removing the item, not by emptying this map. A replaced Price
+      # keeps being recognised the same way: its id moves under its meter in
+      # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
+      # and the renewal schedules have moved every item off it.
       runners:
         runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+        runner_macos_compute_unit_milliseconds: "price_1UXO5iLWue9IBlPSX793RSDB"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1U6woeLWue9IBlPSZpNHymSX"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in the live Stripe account by
@@ -162,11 +174,6 @@ server:
         cache_egress_megabytes: "price_1UUlF7LWue9IBlPSzrgLAku5"
         cache_requests: "price_1UITBXLWue9IBlPSXlwD8vxP"
         passing_test_cases: "price_1UITBYLWue9IBlPSSp51pqjS"
-      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
-      # macOS baseline machine-minute, carried as a subscription item whose
-      # quantity is the minutes. Never blank it once an account carries the
-      # item: a plan change would stop recognising it and delete it.
-      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -2073,13 +2080,13 @@ runnersFleet:
   # the largest working set ever measured.
   #
   # Priced at 2x the baseline, which is exactly what that multiplier
-  # already produces: $0.15 per machine-minute on demand and $0.12
-  # prepaid, against $0.075 / $0.06 for the 6 vCPU shape. No Stripe
-  # work is needed for it. Usage is reported gross into the single
-  # macOS meter weighted by `Catalog.billing_multiplier/3`, and prepaid
-  # is a money-denominated credit grant rather than a minutes ledger,
-  # so a new shape prices itself and the 1.25x funding ratio is
-  # untouched (see `Tuist.Runners.Prepaid`).
+  # already produces: $0.12 per machine-minute on demand, against $0.06
+  # for the 6 vCPU shape. No Stripe work is needed for it. Usage is
+  # reported gross into the single macOS meter weighted by
+  # `Catalog.billing_multiplier/3`, and prepaid is a money-denominated
+  # credit grant rather than a minutes ledger, so a new shape prices
+  # itself and prepaid pool terms are untouched (see
+  # `Tuist.Runners.Prepaid`).
   #
   # Cost tracks it: a 12 vCPU guest takes the whole M4-XL, EUR 0.49/h
   # against EUR 0.245 for a 6 vCPU slot on the same host. Revenue and
@@ -2276,7 +2283,7 @@ sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
   image:
-    tag: "sha-3b10e1eddbaf"
+    tag: "sha-1949e6dfc6f9"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
@@ -2288,6 +2295,9 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 32
   diskGiB: 100
+  networkPolicy:
+    # Amp Orb archives go to the in-rack shard-storage release.
+    archiveStoreEgress: true
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:

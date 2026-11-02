@@ -188,10 +188,16 @@ kuraController:
       enabled: false
       storeName: onepassword
       item: ""
-  # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
-  # changes the pod template and rolls these instances. No RBAC grant needed.
-  # Requires a Kura runtime image with built-in connectivity telemetry.
+  # Fixed, locally expiring timing observations in the existing Kura logs.
+  # Activation only patches live Pod annotations; it never rolls runtimes.
   connectivityDiagnostics:
+    # First deploy this controller with preparation off and establish it as the
+    # rollback floor. Enable separately; projection adoption then waits for an
+    # ordinary runtime image change (or a new StatefulSet). Keep false by default.
+    prepare: false
+    # Absolute RFC3339 deadline, at most 24 hours ahead. Missing/invalid/expired
+    # deadlines disable sampling without affecting controller availability.
+    expiresAt: ""
     # Keep identifying selections out of tracked values. The existing Secret
     # must contain an instances key with comma-separated exact instance names.
     # Provision it in the controller namespace before setting this reference.
@@ -902,6 +908,11 @@ server:
   # through an exec command without placing credentials in command arguments.
   seedAccountCredentials:
     secretName: ""
+  # Lets the MCP `report_feedback` tool publish agent feedback to Atlas with a
+  # projected ServiceAccount token instead of a shared secret. Atlas must pin
+  # this cluster's JWKS and allowlist the server's namespace:ServiceAccount.
+  atlasSupportIngest:
+    enabled: false
   networkPolicy:
     enabled: false
     # Applies a default-deny policy to every pod in the release. The
@@ -2570,8 +2581,8 @@ sandboxes:
   enabled: false
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
-  # server deploys publish/select the guest template automatically; sandboxd
-  # remains explicitly pinned. Empty tags are a render-time failure.
+  # server deploys publish and select both; environment values pin only the
+  # versions a first install starts from. Empty tags are a render-time failure.
   image:
     repository: ghcr.io/tuist/sandboxd
     tag: ""
@@ -2620,6 +2631,12 @@ sandboxes:
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200
+  # Hours an Amp Orb stays paused on its node before the server archives its
+  # kernel, rootfs and workspace (not its memory image) to the account's
+  # object storage and deletes the node copy, releasing its disk reservation.
+  # The next spawn restores it on any node and cold boots it. 0 keeps paused
+  # Orbs on their nodes. See infra/amp-orbs/README.md.
+  archiveAfterHours: 0
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
   prebuildShapes: "2x4096"
@@ -2648,6 +2665,11 @@ sandboxes:
       - "192.168.0.0/16"
     # Let guests reach in-cluster Kura cache pods on :4000.
     kuraEgress: true
+    # Let the daemon reach the in-rack archive store (the shard-storage
+    # release in the kura namespace) on :3900 to upload and restore Amp Orb
+    # archives. The daemon drops the guests' traffic to that port
+    # (DAEMON_ONLY_TCP_PORT), so only the daemon uses this rule.
+    archiveStoreEgress: false
 
 runnersFleet:
   customCacheVolumes:

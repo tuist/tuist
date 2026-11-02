@@ -51,29 +51,42 @@ enum WorkspaceRestorer {
         let sourcePins = resolved.pins.filter { PinKind.isSourceControl($0.kind) }
         let registryPins = resolved.pins.filter { PinKind.isRegistry($0.kind) }
         let skipped = resolved.pins.count - sourcePins.count - registryPins.count
+        let trash = ScratchTrash(scratchDir: scratchDir)
+        let sourceResults: [(String, URL)]
+        let registryResults: [(String, URL)]
+        do {
+            (sourceResults, registryResults) = try await PhaseTiming.measure("restoring package sources") {
+                async let restoredSources = restoreSourcePins(
+                    sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors,
+                    ownedCheckouts: resolved.nativeOwnedCheckouts, trash: trash
+                )
+                async let restoredRegistry = restoreRegistryPins(
+                    registryPins,
+                    scratchDir: scratchDir,
+                    cache: cache,
+                    registryConfig: registryConfig,
+                    trash: trash
+                )
+                return try await (restoredSources, restoredRegistry)
+            }
 
-        async let restoredSources = restoreSourcePins(
-            sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors,
-            ownedCheckouts: resolved.nativeOwnedCheckouts
-        )
-        async let restoredRegistry = restoreRegistryPins(
-            registryPins,
-            scratchDir: scratchDir,
-            cache: cache,
-            registryConfig: registryConfig
-        )
-
-        let (sourceResults, registryResults) = try await (restoredSources, restoredRegistry)
-
-        try await restoreBinaryArtifacts(
-            scratchDir: scratchDir,
-            packageDir: packageDir,
-            cache: cache,
-            mirrors: mirrors,
-            resolved: resolved,
-            disableSandbox: disableSandbox,
-            progress: progress
-        )
+            try await PhaseTiming.measure("restoring binary artifacts") {
+                try await restoreBinaryArtifacts(
+                    scratchDir: scratchDir,
+                    packageDir: packageDir,
+                    cache: cache,
+                    mirrors: mirrors,
+                    resolved: resolved,
+                    disableSandbox: disableSandbox,
+                    progress: progress,
+                    trash: trash
+                )
+            }
+        } catch {
+            await trash.purge()
+            throw error
+        }
+        await trash.purge()
 
         guard let progress else { return }
         for (identity, source) in sourceResults {
@@ -98,7 +111,8 @@ enum WorkspaceRestorer {
         mirrors: MirrorConfig,
         resolved: ResolvedPins,
         disableSandbox: Bool,
-        progress: RestoreProgressReporter?
+        progress: RestoreProgressReporter?,
+        trash: ScratchTrash
     ) async throws {
         let contexts = try await packageContexts(
             packageDir: packageDir,
@@ -131,7 +145,8 @@ enum WorkspaceRestorer {
                     scratchDir: scratchDir,
                     cache: cache,
                     mirrors: mirrors,
-                    progress: progress
+                    progress: progress,
+                    trash: trash
                 )
             }
         }
@@ -143,7 +158,8 @@ enum WorkspaceRestorer {
         scratchDir: URL,
         cache: Cache,
         mirrors: MirrorConfig,
-        progress: RestoreProgressReporter?
+        progress: RestoreProgressReporter?,
+        trash: ScratchTrash
     ) async throws {
         switch target.source {
         case let .remote(url, checksum):
@@ -177,7 +193,8 @@ enum WorkspaceRestorer {
             )
             try await replaceScratchArtifact(
                 source: cachedArtifact,
-                destination: scratchArtifact
+                destination: scratchArtifact,
+                trash: trash
             )
 
             progress?.restoredBinaryArtifact(
@@ -211,7 +228,8 @@ enum WorkspaceRestorer {
             )
             try await replaceScratchArtifact(
                 source: cachedArtifact,
-                destination: scratchArtifact
+                destination: scratchArtifact,
+                trash: trash
             )
             progress?.restoredBinaryArtifact(
                 identity: identity, target: target.name, path: cachedArtifact.path
@@ -219,7 +237,7 @@ enum WorkspaceRestorer {
         }
     }
 
-    private static func replaceScratchArtifact(source: URL, destination: URL) async throws {
+    private static func replaceScratchArtifact(source: URL, destination: URL, trash: ScratchTrash) async throws {
         let lock = try await PathLock.acquire(
             at: destination.deletingLastPathComponent()
                 .appendingPathComponent(".\(destination.lastPathComponent).lock")
@@ -227,7 +245,8 @@ enum WorkspaceRestorer {
         defer { _ = lock }
         try await fileSystem.replaceWithSymlinkedDirectory(
             source: source,
-            destination: destination
+            destination: destination,
+            trash: trash
         )
     }
 
@@ -676,7 +695,8 @@ enum WorkspaceRestorer {
         checkouts: URL,
         cache: Cache,
         mirrors: MirrorConfig,
-        ownedCheckouts: Set<String>
+        ownedCheckouts: Set<String>,
+        trash: ScratchTrash
     ) async throws -> [(String, URL)] {
         let results = try await ConcurrentTasks.map(pins) { pin in
             let location = mirrors.effectiveLocation(of: pin)
@@ -697,7 +717,7 @@ enum WorkspaceRestorer {
                     checkout, revision: pin.revision(), owned: ownedCheckouts.contains(checkout.lastPathComponent)
                 )
                 try await fileSystem.replaceWithSymlinkedDirectory(
-                    source: source, destination: checkout
+                    source: source, destination: checkout, trash: trash
                 )
                 return (pin.identity, source)
             } catch {
@@ -898,7 +918,8 @@ enum WorkspaceRestorer {
         _ pins: [ResolvedPin],
         scratchDir: URL,
         cache: Cache,
-        registryConfig: RegistryConfig
+        registryConfig: RegistryConfig,
+        trash: ScratchTrash
     ) async throws -> [(String, URL)] {
         let registryPaths = try await RegistryDownloadPaths(pins: pins, scratchDir: scratchDir)
         let results = try await ConcurrentTasks.map(pins) { pin in
@@ -909,7 +930,7 @@ enum WorkspaceRestorer {
                 .appendingPathComponent("registry/downloads")
                 .appendingPathComponent(registryPaths.subpath(for: pin))
             try await fileSystem.replaceWithRegistryDownloadDirectory(
-                source: source, destination: download
+                source: source, destination: download, trash: trash
             )
             return (pin.identity, source)
         }
@@ -1546,7 +1567,7 @@ enum WorkspaceRestorer {
         try? await ManifestCache.prune(scratchDirectory: scratchDir, keeping: retainedPackages)
     }
 
-    private static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
+    static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
         let statePath = scratchDir.appendingPathComponent("workspace-state.json")
         guard try await fileSystem.exists(statePath.absolutePath) else { return [] }
 

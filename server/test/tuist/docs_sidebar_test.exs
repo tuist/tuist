@@ -64,6 +64,28 @@ defmodule Tuist.Docs.SidebarTest do
     refute Enum.any?(rest, &(&1.label == "Tutorials"))
   end
 
+  test "previews separates build systems, supported types, and ways to run" do
+    bundles = Enum.find(Sidebar.guides_tree(), &(&1.label == "Bundles"))
+    previews = Enum.find(bundles.items, &(&1.label == "Previews"))
+
+    assert [build, types, run] = previews.items
+    assert build.label == "Build and publish"
+    assert {types.label, types.slug} == {"Supported types", "/en/guides/features/previews/types"}
+    assert run.label == "Run previews"
+
+    assert Enum.map(build.items, &{&1.label, &1.slug, &1.icon}) == [
+             {"Xcode", "/en/guides/features/previews/xcode", "brand_apple"},
+             {"Gradle", "/en/guides/features/previews/gradle", "brand_gradle"},
+             {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"}
+           ]
+
+    assert Enum.map(run.items, &{&1.label, &1.slug}) == [
+             {"CLI", "/en/guides/features/previews/run/cli"},
+             {"macOS app", "/en/guides/features/previews/run/macos"},
+             {"iPhone app", "/en/guides/features/previews/run/ios"}
+           ]
+  end
+
   test "links every Rust journey with the Rust brand logo" do
     rust_slugs =
       for group <- Sidebar.guides_tree(),

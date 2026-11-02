@@ -109,6 +109,12 @@ lockup panics and systemd watchdog from `cluster-api-provider-tuist` to cloud
 workers. Changing it rolls the pool, so set it as a MachineDeployment override
 one pool at a time.
 
+These nodes get `net.mptcp.enabled = 0` (Multipath TCP off) from the platform
+chart's `disableMultipathTCP` DaemonSet, not from the templates here: changing a
+ClusterClass template rolls every pool that uses it. A node that joins later gets
+the value when that pod starts, so the listeners its kubelet and Cilium opened
+before then stay MPTCP until they restart.
+
 Variables exposed by the ClusterClass: control plane replicas + machine
 type, per-pool machine type, region (default `fsn1`), SSH key name,
 optional Hetzner Cloud Network config, optional placement groups.

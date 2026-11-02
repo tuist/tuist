@@ -5,7 +5,9 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   The database owns the account-scoped Orb identity. The same cluster lock
   used by sandbox lifecycle operations serializes dispatch, including the
   first create, across web replicas. The unique index is the final identity
-  fence. Amp owns idle detection and sends pause when a turn finishes.
+  fence. Amp sends pause when a thread goes idle; a running Orb whose
+  guest stays quiet for ten minutes is paused as if it had (`pause_idle/2`),
+  in case Amp's pause never arrives.
 
   Project snapshots: a pause carrying Amp's `snapshot_id` syncs the guest's
   disks and saves them as a `Tuist.Sandboxes.DiskSnapshot` on the Orb's
@@ -13,14 +15,26 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   is cloned from it, so Amp skips the project's setup. Saving is best
   effort: a failed save never fails the pause, and Amp then reruns setup
   in the next new Orb.
+
+  An Orb paused long enough is archived to object storage by
+  `Tuist.Sandboxes.Archives`; a spawn restores it and a pause leaves it
+  archived.
   """
 
+  alias Tuist.Environment
+  alias Tuist.Guardian
+  alias Tuist.Kura
   alias Tuist.Repo
+  alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Sandbox
 
   require Logger
+
+  @cache_scopes ["account:cache:read", "project:cache:read"]
+  @cache_token_ttl_hours 6
 
   def dispatch(account, orb_id, params) do
     Sandboxes.with_sandbox_lock(
@@ -45,7 +59,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp dispatch_operation(account, orb_id, sandbox, %{operation: "spawn"} = params) do
     with {:ok, sandbox} <- find_or_create(account, orb_id, sandbox, params),
          {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, "amp:" <> orb_id) do
-      bootstrap(sandbox, params)
+      bootstrap(account, sandbox, params)
     end
   end
 
@@ -57,17 +71,60 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     with {:ok, _deleted} <- Sandboxes.delete(sandbox), do: {:ok, nil}
   end
 
+  # Pausing an archived Orb has nothing left to do: its disks are in object
+  # storage and a disk snapshot needs them on a node.
+  defp dispatch_operation(_account, _orb_id, %Sandbox{state: :archived} = sandbox, %{operation: "pause"}),
+    do: {:ok, sandbox}
+
   defp dispatch_operation(_account, _orb_id, %Sandbox{state: :paused} = sandbox, %{operation: "pause"} = params) do
     with {:ok, paused} <- Sandboxes.end_residency(sandbox) do
       save_snapshot(paused, params)
     end
   end
 
-  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params) do
-    # Keep the residency until the snapshot succeeds. A failed pause must
-    # not make an active Orb eligible for CI reclaim.
-    with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: snapshot_id(params) != nil),
+  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params), do: pause_orb(sandbox, params)
+
+  @doc """
+  Pauses a running Orb whose guest has been quiet since `last_active_at`,
+  as Amp's own pause would, unless a spawn or new activity came since.
+  """
+  def pause_idle(sandbox_id, %DateTime{} = last_active_at) do
+    case Repo.get(Sandbox, sandbox_id) do
+      %Sandbox{amp_orb_id: orb_id, account_id: account_id} when is_binary(orb_id) ->
+        Sandboxes.with_sandbox_lock(
+          "amp:#{account_id}:#{orb_id}",
+          fn -> pause_if_still_idle(sandbox_id, last_active_at) end,
+          wait: false
+        )
+
+      _ ->
+        {:ok, :skipped}
+    end
+  end
+
+  defp pause_if_still_idle(sandbox_id, last_active_at) do
+    case Repo.get(Sandbox, sandbox_id) do
+      %Sandbox{state: :running, last_active_at: %DateTime{} = active_at} = sandbox ->
+        if DateTime.compare(active_at, last_active_at) == :eq do
+          Logger.info("sandboxes: pausing an idle Orb", sandbox_id: sandbox_id, node: sandbox.node_name)
+          pause_orb(sandbox, %{})
+        else
+          {:ok, :skipped}
+        end
+
+      _ ->
+        {:ok, :skipped}
+    end
+  end
+
+  # Keep the residency until the snapshot succeeds. A failed pause must not
+  # make an active Orb eligible for CI reclaim. Every pause syncs the guest's
+  # disks, so they alone hold every write once a disk snapshot or the
+  # archive tier drops the memory image.
+  defp pause_orb(sandbox, params) do
+    with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: true),
          {:ok, paused} <- Sandboxes.end_residency(paused) do
+      :ok = Archives.enqueue_if_over_cap(paused.account_id)
       save_snapshot(paused, params)
     end
   end
@@ -121,8 +178,12 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     end
   end
 
-  defp bootstrap(sandbox, params) do
-    env = %{"ORB_TOKEN" => params.orb_token, "AMP_URL" => Map.get(params, :amp_url, "https://ampcode.com")}
+  defp bootstrap(account, sandbox, params) do
+    env =
+      Map.merge(
+        %{"ORB_TOKEN" => params.orb_token, "AMP_URL" => Map.get(params, :amp_url, "https://ampcode.com")},
+        cache_env(account, sandbox)
+      )
 
     # Credentials travel in the vsock exec environment, never in shell
     # source, the database or returned output. Amp's bootstrap is detached;
@@ -134,6 +195,25 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       _failure ->
         _ = Sandboxes.end_residency(sandbox)
         {:error, :orb_bootstrap_failed}
+    end
+  end
+
+  # Agents run arbitrary code in the guest, so it gets a read-only cache
+  # credential for its own account and nothing else the API would accept.
+  # The token is stateless and expires on its own; each spawn mints a fresh
+  # one. The endpoint is the in-cluster cache a Linux runner on the same Node
+  # would use, absent when the account has none.
+  defp cache_env(account, sandbox) do
+    {:ok, token, _claims} =
+      Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => @cache_scopes, "all_projects" => true},
+        ttl: {@cache_token_ttl_hours, :hour}
+      )
+
+    env = %{"TUIST_TOKEN" => token, "TUIST_URL" => Environment.app_url()}
+
+    case Kura.runner_cache_endpoint_url(account, :linux, Sites.node_site(sandbox.node_name)) do
+      url when is_binary(url) and url != "" -> Map.put(env, "TUIST_CACHE_ENDPOINT", url)
+      _ -> env
     end
   end
 end

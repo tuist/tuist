@@ -229,6 +229,18 @@ if gtm_ingest_token = System.get_env("ATLAS_GTM_INGEST_TOKEN") do
   config :atlas, :gtm_ingest, token: gtm_ingest_token
 end
 
+# Products report agent feedback with a projected Kubernetes ServiceAccount
+# token (audience `atlas-support-ingest`) from their own cluster, verified
+# offline against that cluster's pinned public JWKS (Atlas.WorkloadIdentity).
+# The subject is the one `namespace:service-account` allowed to report.
+if support_ingest_jwks = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_JWKS") do
+  config :atlas, :support_ingest,
+    issuer: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_ISSUER"),
+    audience: "atlas-support-ingest",
+    jwks: support_ingest_jwks,
+    subject: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT")
+end
+
 # Mailgun is the company's email provider: tuist.dev is already verified there
 # and has a sending history, which a second provider would not inherit. The
 # account is in Mailgun's EU region, so the base URL is not the default one.

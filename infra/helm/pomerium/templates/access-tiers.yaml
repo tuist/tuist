@@ -35,7 +35,7 @@ policy endpoint injects `tuist-staging-write` unconditionally
 (`TuistOps.JIT.Policy.always_write_env?/1`), so everything this
 file binds to the write group — including the directly-bound
 `tuist-cnpg-decommission`, `tuist-volume-decommission`,
-`tuist-fleet-unwedge` and `tuist-fleet-scale` roles — is standing
+`tuist-storageclass-write`, `tuist-fleet-unwedge` and `tuist-fleet-scale` roles — is standing
 access for every engineering identity in the staging cluster.
 That is intended: staging serves no customers and is the env we
 break on purpose.
@@ -74,6 +74,28 @@ subjects:
     name: tuist-eng
     apiGroup: rbac.authorization.k8s.io
 ---
+# The cluster's public ServiceAccount signing keys (`/openid/v1/jwks`). Other
+# clusters pin them to verify this cluster's workload tokens (Tuist <-> Atlas),
+# so reading them for a pin or a key rotation must not need an elevation. The
+# built-in role grants only the discovery document and the public JWKS.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-view-issuer-discovery
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:service-account-issuer-discovery
+subjects:
+  - kind: Group
+    name: tuist-admins
+    apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: tuist-eng
+    apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -94,7 +116,7 @@ subjects:
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, PersistentVolumes, CAPI machines, our Scaleway provider CRs, the Kura
 # CRs, the RunnerPool CRs, the CNPG Postgres clusters, DNSEndpoints, CRDs,
-# and RBAC objects.
+# Cilium network/egress policies, and RBAC objects.
 # This aggregates into `view` via the label below (no extra binding; both
 # tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
@@ -132,8 +154,14 @@ rules:
       - barmancloud.cnpg.io
     resources: ["*"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies", "ciliumegressgatewaypolicies"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["externaldns.k8s.io"]
     resources: ["dnsendpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
@@ -376,6 +404,44 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: tuist-volume-decommission
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
+---
+# StorageClass capability, bound like `tuist-volume-decommission`. A class
+# created outside the chart (by hand during a storage rehearsal, say) blocks
+# the next Helm upgrade that renders it: Helm refuses to adopt an object
+# without its ownership metadata. Clearing that needs a label and annotation on
+# the class, or deleting it, and the `edit` tier reaches no cluster-scoped
+# storage objects, so it was a break-glass action. Reads live in
+# `tuist-view-infra-read`.
+#
+# No `create`: classes are chart-rendered. Parameters are immutable, so
+# `update`/`patch` reach only metadata and the few mutable fields. Deleting a
+# class leaves its PersistentVolumes and their claims intact; only new claims
+# naming it stop provisioning. Not aggregated into `edit`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-storageclass-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-storageclass
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-storageclass-write
 subjects:
   - kind: Group
     name: tuist-{{ .Values.tuistEnv }}-write

@@ -19,6 +19,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication
   alias Tuist.Base64
@@ -2301,7 +2302,7 @@ defmodule Tuist.AccountsTest do
         :ok
       end)
 
-      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 3, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -2314,6 +2315,7 @@ defmodule Tuist.AccountsTest do
       assert account_id == account.id
       assert_receive {:purged, "runner-volume-masters/" <> _}
       assert_receive {:purged, "runner-gitlab-cache/" <> _}
+      assert_receive {:purged, "sandbox-archives/" <> _}
     end
   end
 
@@ -4290,6 +4292,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
     end
 
     test "deletes an organization account successfully" do
@@ -4304,15 +4307,35 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
     end
 
-    test "purges the account's runner cache-volume masters and GitLab caches from object storage" do
+    test "refuses to delete either account type if artifact cleanup cannot be durably enqueued" do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      accounts = [Accounts.get_account_from_user(user), Accounts.get_account_from_organization(organization)]
+
+      expect(Oban, :insert, 2, fn multi, :delete_account_artifacts, _changeset ->
+        Ecto.Multi.run(multi, :delete_account_artifacts, fn _repo, _changes -> {:error, :queue_unavailable} end)
+      end)
+
+      for account <- accounts do
+        assert_raise MatchError, fn -> Accounts.delete_account!(account) end
+        assert {:ok, _account} = Accounts.get_account_by_id(account.id)
+        refute_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
+      end
+
+      assert Accounts.get_user_by_id(user.id)
+      assert {:ok, _organization} = Accounts.get_organization_by_id(organization.id)
+    end
+
+    test "purges the account's runner cache-volume masters, GitLab caches and sandbox archives from object storage" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       test_pid = self()
 
-      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 3, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -4325,6 +4348,8 @@ defmodule Tuist.AccountsTest do
       assert rest == "#{account.id}/"
       assert_receive {:purged, gitlab_cache_prefix}
       assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"
+      assert_receive {:purged, sandbox_archives_prefix}
+      assert sandbox_archives_prefix == "sandbox-archives/#{account.id}/"
     end
 
     test "a failed cache-master purge does not skip the GitLab cache purge" do

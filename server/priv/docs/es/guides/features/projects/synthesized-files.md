@@ -11,18 +11,18 @@ Tuist puede generar archivos y código durante la generación para facilitar la 
 
 ## Recursos del target {#target-resources}
 
-Los proyectos de Xcode permiten añadir recursos a los targets. Sin embargo, esto plantea algunos desafíos a los equipos, especialmente cuando se trabaja con un proyecto modular donde las fuentes y los recursos suelen moverse de lugar:
+Los proyectos de Xcode permiten añadir recursos a los targets. Sin embargo, esto presenta algunos desafíos para los equipos, especialmente cuando se trabaja con un proyecto modular donde las fuentes y los recursos suelen moverse:
 
-- **Acceso inconsistente en tiempo de ejecución**: Dónde acaban los recursos en el producto final y cómo accedes a ellos depende del tipo de producto del target. Por ejemplo, si tu target representa una aplicación, los recursos se copian al bundle de la aplicación. Esto lleva a que el código que accede a los recursos haga suposiciones sobre la estructura del bundle, lo cual no es ideal porque dificulta razonar sobre el código y mover los recursos.
-- **Productos que no admiten recursos**: Hay ciertos productos, como las bibliotecas estáticas, que no son bundles y, por tanto, no admiten recursos. Debido a ello, debes recurrir a otro tipo de producto, por ejemplo frameworks, que podrían añadir cierta sobrecarga a tu proyecto o app. Por ejemplo, los frameworks estáticos se enlazarán estáticamente al producto final y se requiere una fase de compilación para copiar únicamente los recursos al producto final. O los frameworks dinámicos, donde Xcode copiará tanto el binario como los recursos al producto final, pero aumentará el tiempo de inicio de tu app porque el framework debe cargarse de forma dinámica.
-- **Propenso a errores en tiempo de ejecución**: Los recursos se identifican por su nombre y extensión (cadenas). Por tanto, un error tipográfico en cualquiera de ellos provocará un error en tiempo de ejecución al intentar acceder al recurso. Esto no es ideal porque no se detecta en tiempo de compilación y podría provocar fallos en la versión de release.
+- **Acceso inconsistente en tiempo de ejecución**: Dónde acaban los recursos en el producto final y cómo accedes a ellos depende del tipo de producto del target. Por ejemplo, si tu target representa una aplicación, los recursos se copian al bundle de la aplicación. Esto lleva a que el código que accede a los recursos asuma ciertas estructuras del bundle, lo cual no es ideal porque dificulta el razonamiento sobre el código y el movimiento de los recursos.
+- **Productos que no admiten recursos**: Hay ciertos productos, como las bibliotecas estáticas, que no son bundles y, por tanto, no admiten recursos. Debido a ello, debes recurrir a otro tipo de producto, como frameworks, lo que puede añadir cierta sobrecarga a tu proyecto o aplicación. Por ejemplo, los frameworks estáticos se enlazarán estáticamente al producto final y se requiere una fase de compilación para copiar solo los recursos al producto final. O los frameworks dinámicos, donde Xcode copiará tanto el binario como los recursos al producto final, pero aumentará el tiempo de inicio de tu aplicación porque el framework debe cargarse dinámicamente.
+- **Propenso a errores en tiempo de ejecución**: Los recursos se identifican por su nombre y extensión (cadenas). Por lo tanto, un error tipográfico en cualquiera de ellos provocará un error en tiempo de ejecución al intentar acceder al recurso. Esto no es ideal porque no se detecta en tiempo de compilación y puede provocar fallos en la versión de release.
 
 Tuist resuelve los problemas anteriores **generando una interfaz unificada para acceder a bundles y recursos** que abstrae los detalles de implementación.
 
 > [!WARNING]
 > **Recomendado**
 >
-> Aunque acceder a los recursos a través de la interfaz generada por Tuist no es obligatorio, lo recomendamos porque facilita razonar sobre el código y mover los recursos.
+> Aunque acceder a los recursos a través de la interfaz generada por Tuist no es obligatorio, lo recomendamos porque facilita el razonamiento sobre el código y el movimiento de los recursos.
 
 
 ## Recursos {#resources}
@@ -32,7 +32,7 @@ Tuist proporciona interfaces para declarar el contenido de archivos como `Info.p
 Cuando se genera tu proyecto, Tuist sintetizará el contenido de esos archivos y los escribirá en el directorio `Derived` relativo al directorio que contiene el proyecto que los define.
 
 > [!TIP]
-> **Añade el directorio Derived al .gitignore**
+> **Añadir Derived al .gitignore**
 >
 > Recomendamos añadir el directorio `Derived` al archivo `.gitignore` de tu proyecto.
 
@@ -43,7 +43,7 @@ Tuist genera una interfaz para acceder al bundle que contiene los recursos del t
 
 ### Swift {#swift}
 
-El target incluirá una extensión del tipo `Bundle` que expone el bundle:
+El target contendrá una extensión del tipo `Bundle` que expone el bundle:
 
 ```swift
 let bundle = Bundle.module
@@ -60,20 +60,20 @@ NSBundle *bundle = [MyFeatureResources bundle];
 > [!WARNING]
 > **Limitación con targets internos**
 >
-> Actualmente, Tuist no genera accesores de bundle de recursos para targets internos que contienen únicamente fuentes en Objective-C. Esta es una limitación conocida registrada en [issue #6456](https://github.com/tuist/tuist/issues/6456).
+> Actualmente, Tuist no genera accesores de bundle de recursos para targets internos que contienen solo fuentes en Objective-C. Esta es una limitación conocida registrada en la [incidencia #6456](https://github.com/tuist/tuist/issues/6456).
 
 
 > [!TIP]
 > **Admitir recursos en bibliotecas mediante bundles**
 >
-> Si un producto de target, por ejemplo una biblioteca, no admite recursos, Tuist incluirá los recursos en un target de tipo de producto `bundle`, asegurando que acaben en el producto final y que la interfaz apunte al bundle correcto. Estos bundles generados se etiquetan automáticamente con `tuist:synthesized` y heredan todas las etiquetas de su target padre, lo que te permite dirigirlos en <.localized_link href="/guides/features/projects/metadata-tags#system-tags">perfiles de caché</.localized_link>.
+> Si un producto de target, por ejemplo una biblioteca, no admite recursos, Tuist incluirá los recursos en un target de tipo de producto `bundle`, asegurando que acaben en el producto final y que la interfaz apunte al bundle correcto. Estos bundles generados se etiquetan automáticamente con `tuist:synthesized` y heredan todas las etiquetas de su target padre, lo que te permite dirigirte a ellos en los <.localized_link href="/guides/features/projects/metadata-tags#system-tags">perfiles de caché</.localized_link>.
 
 
 ## Accesores de recursos {#resource-accessors}
 
-Los recursos se identifican por su nombre y extensión mediante cadenas. Esto no es ideal porque no se detecta en tiempo de compilación y podría provocar fallos en la versión de release. Para evitarlo, Tuist integra [SwiftGen](https://github.com/SwiftGen/SwiftGen) en el proceso de generación del proyecto para sintetizar una interfaz que permita acceder a los recursos. Gracias a ello, puedes acceder a los recursos con confianza aprovechando el compilador para detectar cualquier problema.
+Los recursos se identifican por su nombre y extensión mediante cadenas. Esto no es ideal porque no se detecta en tiempo de compilación y puede provocar fallos en la versión de release. Para evitarlo, Tuist integra [SwiftGen](https://github.com/SwiftGen/SwiftGen) en el proceso de generación del proyecto para sintetizar una interfaz para acceder a los recursos. Gracias a ello, puedes acceder a los recursos con confianza, aprovechando el compilador para detectar cualquier problema.
 
-Tuist incluye [plantillas](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates) para generar accesores para los siguientes tipos de recursos de forma predeterminada:
+Tuist incluye [plantillas](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates) para sintetizar accesores para los siguientes tipos de recursos de forma predeterminada:
 
 | Tipo de recurso | Archivo generado |
 | --- | ---- |
@@ -87,7 +87,7 @@ Tuist incluye [plantillas](https://github.com/tuist/tuist/tree/main/cli/Sources/
 
 #### Plantillas personalizadas {#custom-templates}
 
-Si quieres proporcionar tus propias plantillas para generar accesores a otros tipos de recursos, que deben ser compatibles con [SwiftGen](https://github.com/SwiftGen/SwiftGen), puedes crearlas en `Tuist/ResourceSynthesizers/{name}.stencil`, donde el nombre es la versión en camelCase del recurso.
+Si quieres proporcionar tus propias plantillas para sintetizar accesores a otros tipos de recursos, que deben ser compatibles con [SwiftGen](https://github.com/SwiftGen/SwiftGen), puedes crearlas en `Tuist/ResourceSynthesizers/{name}.stencil`, donde el nombre es la versión en camelCase del recurso.
 
 | Recurso | Nombre de la plantilla |
 | --- | --- |
@@ -101,7 +101,7 @@ Si quieres proporcionar tus propias plantillas para generar accesores a otros ti
 | yaml | `YAML.stencil` |
 | files | `Files.stencil` |
 
-Si quieres configurar la lista de tipos de recursos para los que generar accesores, puedes usar la propiedad `Project.resourceSynthesizers` pasando la lista de sintetizadores de recursos que deseas utilizar:
+Si quieres configurar la lista de tipos de recursos para los que sintetizar accesores, puedes usar la propiedad `Project.resourceSynthesizers` pasando la lista de sintetizadores de recursos que quieras utilizar:
 
 ```swift
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
@@ -110,4 +110,4 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 > [!NOTE]
 > **Referencia**
 >
-> Puedes consultar [este ejemplo](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates) para ver cómo usar plantillas personalizadas para generar accesores a los recursos.
+> Puedes consultar [este ejemplo](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates) para ver cómo usar plantillas personalizadas para sintetizar accesores a recursos.

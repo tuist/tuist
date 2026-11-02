@@ -252,7 +252,7 @@ server:
       # end before production sees it. The Price is graduated: the first
       # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
       # baseline) are free, and beyond that each millisecond costs
-      # 0.000125 cents, which is $0.075 per baseline machine-minute.
+      # 0.0001 cents, which is $0.06 per baseline machine-minute.
       #
       # Two minutes rather than production's hundred so the free tier and
       # the dispatch cap can both be reached in one short job instead of
@@ -274,10 +274,16 @@ server:
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
       # delete it, taking the cycle's accrued usage with it. Pause billing
-      # by removing the item, not by emptying this map.
+      # by removing the item, not by emptying this map. A replaced Price
+      # keeps being recognised the same way: its id moves under its meter in
+      # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
+      # and the renewal schedules have moved every item off it.
       runners:
         runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
+        runner_macos_compute_unit_milliseconds: "price_1UXNkKLlKoN51eczld0hbV1t"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1U6UUkLlKoN51ecznSpfuCBI"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
@@ -286,11 +292,6 @@ server:
         cache_egress_megabytes: "price_1UUl1VLlKoN51eczSmpj5fSo"
         cache_requests: "price_1UIT1lLlKoN51eczkmyTm9on"
         passing_test_cases: "price_1UIT1nLlKoN51eczZGPDCDJ1"
-      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
-      # macOS baseline machine-minute, carried as a subscription item whose
-      # quantity is the minutes. Never blank it once an account carries the
-      # item: a plan change would stop recognising it and delete it.
-      runner_prepaid_minutes: "price_1UGEIyLlKoN51ecz7e39epNp"
       air:
         usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
         flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
@@ -889,10 +890,9 @@ buildersFleet:
 # which holds no sandbox, and grows up to 40 GiB as sandboxes need memory; the
 # kata runner pools keep the rest. The ceiling sits close to the box so
 # validation can drive a growth into idle warm runners, and the medium shape
-# is built at startup too. Tags are pinned to
-# `sha-<git-sha>` builds from sandboxd-image.yml / sandbox-image.yml on the
-# branch under validation. The admin API is on so validation Jobs can drive
-# the daemon without going through the server.
+# is built at startup too. A deployment from a branch builds and selects the
+# daemon and template images from that branch. The admin API is on so
+# validation Jobs can drive the daemon without going through the server.
 sandboxes:
   enabled: true
   image:
@@ -909,6 +909,7 @@ sandboxes:
   maxMemoryGiB: 40
   prebuildShapes: "2x4096,4x8192"
   diskGiB: 100
+  archiveAfterHours: 24
   admin:
     enabled: true
   logLevel: debug

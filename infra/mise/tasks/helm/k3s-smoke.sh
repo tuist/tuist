@@ -111,6 +111,7 @@ fi
 
 "$KUBECTL_BIN" get nodes -o wide
 "$KUBECTL_BIN" get storageclass
+KUBECTL="$KUBECTL_BIN" TUIST_HELM_TEST_UPGRADE=1 python3 "${CHART}/test-clickhouse-tailnet.py"
 "$KUBECTL_BIN" create namespace "$NAMESPACE" --dry-run=client -o yaml | "$KUBECTL_BIN" apply -f -
 "$KUBECTL_BIN" apply --dry-run=server -n "$NAMESPACE" -f "$rendered"
 

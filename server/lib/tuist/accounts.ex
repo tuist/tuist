@@ -24,6 +24,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Base64
@@ -44,6 +45,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.Profiles, as: RunnerProfiles
+  alias Tuist.Sandboxes.Archives, as: SandboxArchives
 
   require Logger
 
@@ -731,6 +733,7 @@ defmodule Tuist.Accounts do
     {:ok, _} =
       result =
       Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
       |> Multi.run(:delete_command_events, fn _repo, _changes ->
         CommandEvents.delete_account_events(account.id)
         {:ok, :deleted}
@@ -746,7 +749,13 @@ defmodule Tuist.Accounts do
   def delete_organization!(%Organization{} = organization) do
     account = get_account_from_organization(organization)
     destroy_account_kura_servers(account)
-    deleted = Repo.delete!(organization)
+
+    {:ok, %{delete_organization: deleted}} =
+      Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
+      |> Multi.delete(:delete_organization, organization)
+      |> Repo.transaction()
+
     purge_account_storage(account)
     deleted
   end
@@ -2720,6 +2729,7 @@ defmodule Tuist.Accounts do
   defp purge_account_storage(account) do
     purge_account_cache_masters(account)
     purge_account_gitlab_caches(account)
+    purge_account_sandbox_archives(account)
   end
 
   # The runner cache-volume master archive is customer-derived build cache
@@ -2734,6 +2744,21 @@ defmodule Tuist.Accounts do
     e ->
       Logger.warning(
         "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
+  end
+
+  # Archived Amp Orbs keep their disks under an account_id-keyed prefix, in
+  # the account's storage or an in-rack store, and their rows cascade with
+  # the account, so nothing else would find them.
+  # Best-effort, like the cache-master purge.
+  defp purge_account_sandbox_archives(account) do
+    SandboxArchives.purge_account(account)
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge sandbox archives on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
       )
 
       :ok
