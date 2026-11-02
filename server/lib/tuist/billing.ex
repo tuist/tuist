@@ -405,20 +405,18 @@ defmodule Tuist.Billing do
 
   # Air is the free tier, and a free account carries no subscription. Moving a
   # Pro subscription onto Air's $0 Prices left it renewing into a $0 invoice
-  # every month, so a downgrade cancels it instead, at once as the swap did.
-  # `invoice_now` and `prorate` bill the usage accrued so far, the runner
-  # usage the swap carried to the next renewal included, and credit the
-  # unused part of a standing prepaid item. An account with an open invoice
-  # settles it first, since cancelling stops Stripe collecting it.
+  # every month, so a downgrade cancels it at the end of the period instead.
+  # The account keeps Pro until then, and the period closes on a regular cycle
+  # invoice, so late-reported usage, collection, and retries all behave as on
+  # any other renewal. An account with an open invoice settles it first, since
+  # a cancelled subscription stops Stripe collecting it.
   #
   # Only Pro offers a downgrade. Any other plan, or none, is left as it is.
   defp change_plan(%{plan: :air, account: %Account{} = account}, %Subscription{plan: :pro} = subscription) do
     case open_invoice(account.customer_id) do
       {:ok, nil} ->
-        {:ok, cancelled} =
-          Stripe.Subscription.cancel(subscription.subscription_id, %{invoice_now: true, prorate: true})
-
-        on_subscription_change(cancelled)
+        {:ok, stripe_subscription} = cancel_subscription_at_period_end(subscription)
+        on_subscription_change(stripe_subscription)
 
       {:ok, _invoice} ->
         {:ok, {:external_redirect, payment_settlement_url(account, subscription)}}
@@ -426,6 +424,15 @@ defmodule Tuist.Billing do
   end
 
   defp change_plan(%{plan: :air}, _current_subscription), do: :ok
+
+  # Keeping Pro withdraws a pending downgrade. Only the flag changes: swapping
+  # the items for the same Prices would drop the usage they accrued.
+  defp change_plan(%{plan: :pro}, %Subscription{plan: :pro, cancel_at_period_end: true} = subscription) do
+    {:ok, stripe_subscription} =
+      Stripe.Subscription.update(subscription.subscription_id, %{cancel_at_period_end: false})
+
+    on_subscription_change(stripe_subscription)
+  end
 
   defp change_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}, current_subscription) do
     customer_id = account.customer_id
@@ -446,9 +453,12 @@ defmodule Tuist.Billing do
       {:ok, stripe_subscription} =
         Stripe.Subscription.retrieve(current_subscription.subscription_id)
 
+      # A plan change keeps the subscription, so it also withdraws any
+      # cancellation scheduled for the end of the period.
       {:ok, _} =
         Stripe.Subscription.update(current_subscription.subscription_id, %{
-          items: reconcile_subscription_items(stripe_subscription, subscription_items)
+          items: reconcile_subscription_items(stripe_subscription, subscription_items),
+          cancel_at_period_end: false
         })
 
       :ok
@@ -598,6 +608,7 @@ defmodule Tuist.Billing do
         {:ok, sub} =
           Stripe.Subscription.update(current_subscription.subscription_id, %{
             items: reconcile_subscription_items(current_stripe_sub, subscription_items),
+            cancel_at_period_end: false,
             collection_method: "send_invoice",
             days_until_due: Map.get(params, :days_until_due, 30)
           })

@@ -558,15 +558,16 @@ defmodule Tuist.BillingTest do
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
 
-      stub(Stripe.Subscription, :update, fn "sub_some-id",
-                                            %{
-                                              items: [
-                                                %{id: "air.usage", deleted: true},
-                                                %{id: "air.flat.monthly", deleted: true},
-                                                %{price: "pro.usage"},
-                                                %{price: "pro.flat.monthly", quantity: 1}
-                                              ]
-                                            } ->
+      expect(Stripe.Subscription, :update, fn "sub_some-id",
+                                              %{
+                                                items: [
+                                                  %{id: "air.usage", deleted: true},
+                                                  %{id: "air.flat.monthly", deleted: true},
+                                                  %{price: "pro.usage"},
+                                                  %{price: "pro.flat.monthly", quantity: 1}
+                                                ],
+                                                cancel_at_period_end: false
+                                              } ->
         {:ok, %{}}
       end)
 
@@ -590,28 +591,21 @@ defmodule Tuist.BillingTest do
       assert session_url == :ok
     end
 
-    test "cancels a pro subscription and bills its accrued usage when the account downgrades to air" do
+    test "schedules a pro subscription to cancel at the end of the period when the account downgrades to air" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, subscription_id: "sub_some-id")
 
       stub(Stripe.Invoice, :list, fn %{customer: "customer_id", status: "open"} -> {:ok, %Stripe.List{data: []}} end)
-      reject(&Stripe.Subscription.update/2)
+      reject(&Stripe.Subscription.cancel/2)
       reject(&Session.create/1)
 
-      # Without both, Stripe discards the usage accrued this period, runner
-      # usage included, which the swap this replaces still billed.
-      expect(Stripe.Subscription, :cancel, fn "sub_some-id", params ->
-        assert params == %{invoice_now: true, prorate: true}
-
-        {:ok,
-         %Stripe.Subscription{
-           id: "sub_some-id",
-           status: "canceled",
-           customer: "customer_id",
-           items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
-         }}
+      # Cancelling at once would stop Stripe collecting the period's draft
+      # invoice and lose usage reported after it, so the period runs out.
+      expect(Stripe.Subscription, :update, fn "sub_some-id", params ->
+        assert params == %{cancel_at_period_end: true}
+        {:ok, pro_stripe_subscription("sub_some-id", cancel_at_period_end: true)}
       end)
 
       # When
@@ -619,8 +613,35 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert got == :ok
-      assert Billing.get_current_active_subscription(account) == nil
-      assert Billing.effective_plan(account) == :air
+      assert %{plan: :pro, cancel_at_period_end: true} = Billing.get_current_active_subscription(account)
+    end
+
+    test "keeping pro withdraws a pending downgrade without touching the items" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        subscription_id: "sub_some-id",
+        cancel_at_period_end: true
+      )
+
+      reject(&Session.create/1)
+      reject(&Stripe.Subscription.retrieve/1)
+
+      expect(Stripe.Subscription, :update, fn "sub_some-id", params ->
+        assert params == %{cancel_at_period_end: false}
+        {:ok, pro_stripe_subscription("sub_some-id", cancel_at_period_end: false)}
+      end)
+
+      # When
+      got = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then
+      assert got == :ok
+      assert %{plan: :pro, cancel_at_period_end: false} = Billing.get_current_active_subscription(account)
     end
 
     test "creates no subscription when an account without one chooses air" do
@@ -2390,6 +2411,7 @@ defmodule Tuist.BillingTest do
                                                   %{price: "enterprise.usage"},
                                                   %{price: "enterprise.flat.monthly", quantity: 0}
                                                 ],
+                                                cancel_at_period_end: false,
                                                 collection_method: "send_invoice",
                                                 days_until_due: 30
                                               } ->
@@ -2682,6 +2704,16 @@ defmodule Tuist.BillingTest do
                {"sub_air_with_prepaid", :skipped}
              ]
     end
+  end
+
+  defp pro_stripe_subscription(subscription_id, opts) do
+    %Stripe.Subscription{
+      id: subscription_id,
+      status: "active",
+      customer: "customer_id",
+      cancel_at_period_end: Keyword.fetch!(opts, :cancel_at_period_end),
+      items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+    }
   end
 
   defp stripe_subscription(status, price_ids) do
