@@ -46,6 +46,11 @@ struct CargoCompilationCache {
     let root: URL
     var remote: (any REAPICacheStoring)?
     let measurement: CargoCacheMeasurement
+    /// Where a hit's compiler messages go: this process's streams for a hook, or the hook client a session serves.
+    var replay: (_ stdout: Data, _ stderr: Data) -> Void = { stdout, stderr in
+        FileHandle.standardOutput.write(stdout)
+        FileHandle.standardError.write(stderr)
+    }
 
     private let fileSystem: any FileSysteming
     private let command: Data
@@ -327,8 +332,7 @@ struct CargoCompilationCache {
         try invocation.certifyOutputs(metadataOnly: false)
         try write(try result.serializedData(), to: index)
         CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
-        FileHandle.standardOutput.write(result.stdoutRaw)
-        FileHandle.standardError.write(restoredStderr)
+        replay(result.stdoutRaw, restoredStderr)
         return true
     }
 

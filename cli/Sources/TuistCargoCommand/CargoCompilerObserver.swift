@@ -7,7 +7,41 @@ import TuistServer
 struct CargoCompilerObserver {
     let runner: CommandRunning
 
+    /// What a hook does next: replay a hit's compiler messages, or run the compiler and publish what it produced.
+    enum Decision {
+        case replayed(stdout: Data, stderr: Data)
+        case compile(CargoCompilerRun)
+    }
+
     func run(_ arguments: [String], environment: [String: String], directory: AbsolutePath, native: Bool = false) async throws {
+        switch try await decide(arguments, environment: environment, directory: directory, native: native) {
+        case let .replayed(stdout, stderr):
+            FileHandle.standardOutput.write(stdout)
+            FileHandle.standardError.write(stderr)
+        case let .compile(compilation):
+            do {
+                for try await event in runner.run(
+                    arguments: compilation.command, environment: compilation.environment, workingDirectory: directory
+                ) {
+                    switch event {
+                    case let .standardOutput(bytes):
+                        FileHandle.standardOutput.write(Data(bytes))
+                        compilation.standardOutput(Data(bytes))
+                    case let .standardError(bytes):
+                        FileHandle.standardError.write(compilation.standardError(Data(bytes)))
+                    }
+                }
+            } catch {
+                await compilation.finish(succeeded: false)
+                throw error
+            }
+            await compilation.finish(succeeded: true)
+        }
+    }
+
+    func decide(
+        _ arguments: [String], environment: [String: String], directory: AbsolutePath, native: Bool = false
+    ) async throws -> Decision {
         guard let compiler = arguments.first else { throw CargoReportError(message: "Missing compiler executable.") }
         var invocation: (any CargoCacheAction)?
         var recorded: CargoRecordedInvocation?
@@ -53,15 +87,17 @@ struct CargoCompilerObserver {
         let deferred = (invocation as? CargoCacheInvocation)?.isDeferred == true
         let measurement = (invocation ?? recorded).map(CargoCacheMeasurement.init)
         var cache: CargoCompilationCache?
+        let replayed = CargoReplay()
         if let invocation, let measurement, let root = environment["TUIST_CARGO_CACHE_DIR"] {
             cache = try? CargoCompilationCache(
                 invocation: invocation, root: URL(fileURLWithPath: root), remote: nil, measurement: measurement
             )
+            cache?.replay = { replayed.stdout = $0; replayed.stderr = $1 }
         } else { cache = nil }
-        defer { measurement?.write() }
         if !deferred, let cache, try await cache.restoreLocally() {
             measurement?.outcome(hit: true)
-            return
+            measurement?.write()
+            return .replayed(stdout: replayed.stdout, stderr: replayed.stderr)
         }
         if cache != nil || recorded != nil, !remoteResolved {
             remote = try? await Self.remote(environment)
@@ -69,7 +105,8 @@ struct CargoCompilerObserver {
         cache?.remote = remote
         if !deferred, let cache, try await cache.restoreRemotely() {
             measurement?.outcome(hit: true)
-            return
+            measurement?.write()
+            return .replayed(stdout: replayed.stdout, stderr: replayed.stderr)
         }
         try Task.checkCancellation()
         if measurement?.hasRemoteFailure == true {
@@ -82,7 +119,6 @@ struct CargoCompilerObserver {
         let strict = invocation is CargoCacheInvocation || invocation is CargoClangInvocation
         let log = recorded.flatMap { _ in environment["TUIST_CARGO_SESSION"] }
             .map { URL(fileURLWithPath: $0).appendingPathComponent("reads-\(UUID().uuidString).log") }
-        defer { if let log { try? FileManager.default.removeItem(at: log) } }
         let compileEnvironment = log.flatMap { recorded?.recordingEnvironment(log: $0) } ?? environment
         var remap = strict ? invocation?.remapArguments ?? [] : recorded?.remapArguments ?? []
         if remap.isEmpty, !native, environment["TUIST_CARGO_WORKSPACE_ROOT"] != nil, arguments.contains("--crate-name"),
@@ -93,74 +129,23 @@ struct CargoCompilerObserver {
         {
             remap = CargoRelocation(environment: environment, sysroot: identity.sysroot).remapArguments
         }
-        let started = Date()
-        var stdout = Data()
-        var stderr = Data()
-        var bounded = true
         let wrapper = environment["TUIST_CARGO_INNER_WRAPPER"].flatMap { $0.isEmpty ? nil : $0 }
-        var executionError: Error?
-        var diagnostics: [CargoDiagnostic] = []
-        var pending = Data()
-        do {
-            for try await event in runner.run(
-                // A recorded compiler starts directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
-                // It is the toolchain's own rustc, never the rustup proxy, which reads the whole environment and
-                // rustup's settings: recording those would key every compilation on unrelated variables.
-                arguments: (log != nil ?
-                    [recorded.map { $0.toolchain.appendingPathComponent("bin/rustc").path } ?? Self.executablePath(
-                        compiler,
-                        environment: environment,
-                        directory: directory
-                    )]
-                    : ["/usr/bin/env", wrapper ?? compiler]) + (wrapper == nil ? Array(arguments.dropFirst()) : arguments)
-                    + remap,
-                environment: compileEnvironment, workingDirectory: directory
-            ) {
-                switch event {
-                case let .standardOutput(bytes):
-                    FileHandle.standardOutput.write(Data(bytes))
-                    if stdout.count + stderr.count + bytes.count <= 1_000_000 {
-                        stdout.append(contentsOf: bytes)
-                    } else {
-                        bounded = false
-                    }
-                case let .standardError(bytes):
-                    if stdout.count + stderr.count + bytes.count <= 1_000_000 {
-                        stderr.append(contentsOf: bytes)
-                    } else {
-                        bounded = false
-                    }
-                    pending.append(contentsOf: bytes)
-                    if pending.count > 1_000_000 { pending.removeAll() }
-                    diagnostics += Self.diagnostics(from: &pending, remaining: 100 - diagnostics.count, invocation: invocation)
-                    FileHandle.standardError.write(Data(bytes))
-                }
-            }
-        } catch { executionError = error }
-        record(arguments, environment: environment, started: started, failed: executionError != nil, diagnostics: diagnostics)
-        if let executionError { throw executionError }
-        if !native { try? await CargoBuildScript.install(
-            arguments,
-            environment: environment,
-            directory: directory,
-            process: CargoProcess(runner: runner)
-        ) }
-        guard bounded, let root = environment["TUIST_CARGO_CACHE_DIR"] else { return }
-        var refreshed = strict ? invocation : nil
-        if let rust = refreshed as? CargoCacheInvocation { refreshed = await rust.refreshed(remote: remote) }
-        if var cache, let measurement, let refreshed {
-            if refreshed.key != invocation?.key, let rekeyed = try? CargoCompilationCache(
-                invocation: refreshed, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
-            ) { cache = rekeyed }
-            try? await cache.store(stdout: stdout, stderr: stderr)
-        } else if let recorded, let log, let measurement, let finished = recorded.recorded(log: log, started: started),
-                  let reads = finished.reads, let index = finished.index
-        {
-            await index.put(reads, remote: remote, environment: environment)
-            try? await CargoCompilationCache(
-                invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
-            ).store(stdout: stdout, stderr: stderr)
-        }
+        // A recorded compiler starts directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
+        // It is the toolchain's own rustc, never the rustup proxy, which reads the whole environment and
+        // rustup's settings: recording those would key every compilation on unrelated variables.
+        let command = (log != nil ?
+            [recorded.map { $0.toolchain.appendingPathComponent("bin/rustc").path } ?? Self.executablePath(
+                compiler,
+                environment: environment,
+                directory: directory
+            )]
+            : ["/usr/bin/env", wrapper ?? compiler]) + (wrapper == nil ? Array(arguments.dropFirst()) : arguments)
+            + remap
+        return .compile(CargoCompilerRun(
+            command: command, environment: compileEnvironment, arguments: arguments, hookEnvironment: environment,
+            directory: directory, native: native, runner: runner, invocation: invocation, recorded: recorded,
+            cache: cache, measurement: measurement, remote: remote, log: log, strict: strict
+        ))
     }
 
     private static func executablePath(_ executable: String, environment: [String: String], directory: AbsolutePath) -> String {
@@ -197,7 +182,7 @@ struct CargoCompilerObserver {
         return client
     }
 
-    private static func diagnostics(
+    static func diagnostics(
         from pending: inout Data, remaining: Int, invocation: (any CargoCacheAction)?
     ) -> [CargoDiagnostic] {
         var result: [CargoDiagnostic] = []
@@ -224,7 +209,7 @@ struct CargoCompilerObserver {
         return result
     }
 
-    private func record(
+    func record(
         _ arguments: [String],
         environment: [String: String],
         started: Date,

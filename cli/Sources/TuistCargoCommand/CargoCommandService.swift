@@ -161,7 +161,24 @@ public struct CargoCommandService {
                     environment: cache.environment, directory: context.directory, process: CargoProcess(runner: runner)
                 )) ?? cache.environment
             }
-            if innerWrapper == nil {
+            // Hooks served by this process start a small native client instead of the whole Swift binary.
+            var hookServer: CargoHookServer?
+            defer { hookServer?.stop() }
+            if innerWrapper == nil, let directory = environment["TUIST_CARGO_CACHE_DIR"],
+               let built = CargoHookServer.client(cacheDirectory: URL(fileURLWithPath: directory)),
+               // Inside the session, like the shell wrapper it replaces, so build scripts that honor `RUSTC_WRAPPER`
+               // (cc-rs) recognize and drop it.
+               case let client = root.appendingPathComponent("rustc-observer"),
+               (try? FileManager.default.copyItem(at: built, to: client)) != nil,
+               let fallback = try? CargoProcess.ownExecutable(), let server = CargoHookServer(runner: runner)
+            {
+                server.start()
+                hookServer = server
+                environment[CargoHookServer.socketVariable] = server.socketPath
+                environment[CargoHookServer.fallbackVariable] = fallback
+                environment["RUSTC_WRAPPER"] = client.path
+                environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
+            } else if innerWrapper == nil {
                 let wrapper = root.appendingPathComponent("rustc-observer")
                 try "#!/bin/sh\nexec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __compiler \"$@\"\n"
                     .write(
