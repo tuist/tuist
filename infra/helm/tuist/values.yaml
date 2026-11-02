@@ -2654,6 +2654,11 @@ sandboxes:
       - "192.168.0.0/16"
     # Let guests reach in-cluster Kura cache pods on :4000.
     kuraEgress: true
+    # Let the daemon reach the in-rack archive store (the shard-storage
+    # release in the kura namespace) on :3900 to upload and restore Amp Orb
+    # archives. The daemon drops the guests' traffic to that port
+    # (DAEMON_ONLY_TCP_PORT), so only the daemon uses this rule.
+    archiveStoreEgress: false
 
 runnersFleet:
   customCacheVolumes:

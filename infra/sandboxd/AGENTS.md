@@ -415,6 +415,7 @@ agent so the manager runs end to end without KVM).
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
+| `DAEMON_ONLY_TCP_PORT` | `0` | TCP port the daemon reaches through the pod and the guests may not: forwarded guest traffic to it is dropped. The chart sets the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `0` blocks nothing. |
 | `LOG_LEVEL` | `info` | slog level. |
 
 ### Validation scripts

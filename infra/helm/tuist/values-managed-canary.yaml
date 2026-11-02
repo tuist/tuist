@@ -872,6 +872,9 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 24
   diskGiB: 50
+  networkPolicy:
+    # Amp Orb archives go to the in-rack shard-storage release.
+    archiveStoreEgress: true
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
