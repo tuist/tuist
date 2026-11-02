@@ -71,7 +71,7 @@ An unconfirmed create holds its slot until that deadline has passed.
 ### VMs and warm pool
 
 Each action gets a fresh Firecracker VM, destroyed after that action and never
-reused. The scheduler keeps `busy + queued + warm_pool_size` VMs (capped at
+reused. The scheduler keeps `busy + queued + warm` VMs (capped at
 `max_concurrency`) by reserving and preparing new ones in the background. A
 prepared VM holds only the pristine image and workspace. It receives a CAS
 credential and action data only when the scheduler assigns it to one action.
@@ -86,20 +86,29 @@ from the template snapshot faults in each memory page on first touch; this moves
 that cost off the admitted action. Nothing leaves the guest and no credential
 exists yet.
 
+`warm` follows demand: the number of actions that arrived within the last
+preparation time, plus one. That is how many VMs are consumed while a
+replacement is prepared, so a burst of short serial actions keeps finding a
+ready VM. The scheduler measures preparation time as a moving average of its own
+preparations. A build's peak is held for one minute so the pause before the next
+build does not drain the pool; after that, `warm` falls to the current demand and
+idle VMs are retired. `warm_pool_size` caps `warm`.
+
 A used VM keeps its slot until the node confirms deletion, and its replacement
 takes about as long again to create and prepare. A serial chain of short actions
 therefore needs several times more slots than it has actions in flight: in the
-native benchmark, about ten slots and six warm VMs kept every action of an
-eight-action chain on a prepared VM.
+native benchmark, about ten slots kept every action of an eight-action chain on a
+prepared VM.
 
 The scheduler issues one project cache credential (30-minute TTL) and reuses it
 for that project's VMs while at least 13 minutes remain. Each VM is single-use
 and the credential has the same scope as the client's, so reuse does not widen
 what any action can reach.
 
-`warm_pool_size` is an opt-in account setting, default zero and capped at eight.
-Idle VMs consume real memory and disk: opt in only for accounts whose reserved
-hosts have that budget.
+`warm_pool_size` is an opt-in account setting, default zero and capped at eight:
+the most VMs the scheduler may keep warm for the account, not a fixed count.
+Idle VMs consume real memory and disk: set it only as high as the account's
+reserved hosts have budget for.
 
 ### Action cache
 
