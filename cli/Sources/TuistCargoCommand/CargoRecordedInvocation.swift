@@ -205,6 +205,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
 /// The compiler a hook runs, resolved once per Cargo session.
 struct CargoToolchainIdentity: Codable {
     let sysrootPath: String
+    let targetLibdirPath: String
     let version: String
     let compilerPaths: [String]
 
@@ -221,16 +222,20 @@ struct CargoToolchainIdentity: Codable {
         }
         if let memo, let data = try? Data(contentsOf: memo),
            let identity = try? JSONDecoder().decode(CargoToolchainIdentity.self, from: data) { return identity }
-        let sysroot = try await process.capture(
-            executable, arguments: ["--print", "sysroot"], environment: environment, directory: directory
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let paths = try await process.capture(
+            executable, arguments: ["--print", "sysroot", "--print", "target-libdir"], environment: environment,
+            directory: directory
+        ).split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         let version = try await process.capture(executable, arguments: ["-vV"], environment: environment, directory: directory)
-        guard sysroot.hasPrefix("/") else { throw CargoCacheInvocation.CacheError.unsupported }
+        guard paths.count == 2, paths.allSatisfy({ $0.hasPrefix("/") }) else { throw CargoCacheInvocation.CacheError.unsupported }
+        let sysroot = paths[0]
         let root = URL(fileURLWithPath: sysroot).standardizedFileURL
         let libraries = (try? FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("lib").path)) ?? []
         let compilers = [root.appendingPathComponent("bin/rustc").resolvingSymlinksInPath().path]
             + libraries.filter { $0.hasPrefix("librustc_driver") }.sorted().map { root.appendingPathComponent("lib/" + $0).path }
-        let identity = CargoToolchainIdentity(sysrootPath: root.path, version: version, compilerPaths: compilers)
+        let identity = CargoToolchainIdentity(
+            sysrootPath: root.path, targetLibdirPath: paths[1], version: version, compilerPaths: compilers
+        )
         if let memo, let data = try? JSONEncoder().encode(identity) { try? data.write(to: memo, options: .atomic) }
         return identity
     }

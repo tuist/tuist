@@ -4,6 +4,8 @@
 A: cold build publishes the registry dependency's unit.
 B: same project at another path restores it; Cargo compiles only the application.
 C: different rustflags in `.cargo/config.toml` miss, and Cargo compiles the dependency again.
+L: a different `Cargo.lock` (a new path dependency) still restores the registry dependency: the manifest is not
+   keyed by the lockfile, and Cargo's fingerprints decide what a build uses.
 D: B again after removing `target`, with the restored unit's rlib corrupted in the store: Cargo
    (or the blob check) must not link it, and the program must still print 42.
 """
@@ -58,6 +60,16 @@ try:
     b = checkout("b/nested", shared)
     compiled, restored = build(b, "moved")
     assert compiled == ["tuist-cargo-cache-smoke"] and restored >= 1
+    lock = checkout("lock", shared)
+    (lock / "extra" / "src").mkdir(parents=True)
+    (lock / "extra" / "Cargo.toml").write_text('[package]\nname = "extra"\nversion = "0.1.0"\nedition = "2021"\n')
+    (lock / "extra" / "src" / "lib.rs").write_text("pub fn unused() {}\n")
+    with (lock / "Cargo.toml").open("a") as manifest:
+        manifest.write('extra = { path = "extra" }\n')
+    subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=lock, env=env, check=True, capture_output=True)
+    assert (lock / "Cargo.lock").read_text() != (a / "Cargo.lock").read_text()
+    compiled, restored = build(lock, "lockfile")
+    assert compiled == ["extra", "tuist-cargo-cache-smoke"] and restored >= 1, compiled
     c = checkout("c", '[build]\nrustflags = ["-C", "overflow-checks=on"]\n')
     compiled, restored = build(c, "flags")
     assert compiled == ["itoa", "tuist-cargo-cache-smoke"] and restored == 0

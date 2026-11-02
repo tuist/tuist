@@ -202,7 +202,7 @@ public struct CargoCommandService {
                     environment["TUIST_CARGO_SCRIPT"] = try? CargoProcess.ownExecutable()
                 }
             }
-            await unitCache?.restore()
+            let restored = await unitCache?.restore() ?? CargoUnitCache.Restored()
             let units = unitCache
             let child = CargoExecutionContext(
                 executable: context.executable,
@@ -223,7 +223,7 @@ public struct CargoCommandService {
                 defer { group.cancelAll() }
                 try Task.checkCancellation()
                 try await executeSession(child, root: root, started: started, metadata: metadata)
-                await units?.store()
+                await units?.store(reusing: restored)
             }
         }
     }

@@ -71,7 +71,7 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
   python3 cli/Tests/Fixtures/CargoCache/units_e2e.py
 ```
 
-Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib is never linked. Every build's program must print `42`.
+Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; a checkout whose `Cargo.lock` differs (an added path dependency) still restores it; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib is never linked. Every build's program must print `42`.
 
 ## Recorded compilations and build-script runs
 
@@ -83,3 +83,12 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 ```
 
 Offline and local-only, through the public command with `TUIST_DEBUG=1`, whose per-task cache lines the script reads. The workspace lives under `$TMPDIR` on purpose: macOS names it through both `/var` and `/private/var`, and it sits inside the recorder's writable temporary area, which must not hide its sources. A proc macro reads an undeclared file and environment variable, so only the read recorder can cache the library that uses it. Its build script stamps `OUT_DIR` with the current time: warm builds must keep the cold stamp (restored run) and an input change must produce a new one (rerun). Changing the macro's file or variable must miss and change the value; unchanged builds must hit. A moved checkout must read its own files. Expected values are computed in the script. The script generates a lockfile first, because recording shares the dependency-unit cache's lockfile-keyed scope.
+
+## Remembered source lists
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  python3 cli/Tests/Fixtures/CargoCache/sources_e2e.py
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`. A path library is keyed by the sources an earlier compilation read, without a discovery run of rustc. Adding a submodule misses and is cached by that same build; editing it misses; adding `a/mod.rs` beside `a.rs` must fail compilation rather than restore the earlier result. A second library declares `#[link]` in a submodule, so it is deferred and strict admission refuses it only after rustc ran; on arm64 macOS that same cold build must record its reads and the warm build must hit. Program output is checked against values computed in the script.

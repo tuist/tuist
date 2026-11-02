@@ -19,8 +19,17 @@ struct CargoCacheInvocation: CargoCacheAction {
     let inputHasher: CargoInputHasher
     var compilerInputs: CargoCacheInputs?
     let relocation: CargoRelocation
+    /// Selects the source list of an earlier compilation with the same arguments, environment, externs and root
+    /// source, so its sources are hashed without running rustc to discover them. `nil` for registry leaves.
+    var sourceIndex: CargoReadIndex?
+    /// Sources must predate this moment to key a compilation found from rustc's own dep-info.
+    var prepared = Date()
 
-    static let keyVersion = "tuist-swift-cargo-cache-v5"
+    /// No remembered source list: the compilation runs first and is keyed afterwards from the dep-info rustc writes
+    /// anyway, instead of a separate discovery run of rustc.
+    var isDeferred: Bool { compilerInputs?.sources.isEmpty == true }
+
+    static let keyVersion = "tuist-swift-cargo-cache-v6"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
     static let ignoredEnvironment = Set([
@@ -91,11 +100,11 @@ struct CargoCacheInvocation: CargoCacheAction {
         let externs = try CargoCacheInputs.resolveExterns(
             arguments: arguments, environment: environment, directory: directory, inputHasher: inputHasher
         )
-        let paths = try await process.capture(
-            executable, arguments: ["--print", "sysroot", "--print", "target-libdir"],
-            environment: environment, directory: directory
-        ).split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        guard paths.count == 2, paths.allSatisfy({ $0.hasPrefix("/") }) else { return nil }
+        // Once per Cargo command: the toolchain cannot change under a running build.
+        let identity = try await CargoToolchainIdentity.resolve(
+            executable, environment: environment, directory: directory, process: process
+        )
+        let paths = [identity.sysrootPath, identity.targetLibdirPath]
         let toolchain = URL(fileURLWithPath: paths[0]).standardizedFileURL
         let hostTarget = URL(fileURLWithPath: paths[1]).standardizedFileURL.deletingLastPathComponent()
         guard hostTarget.deletingLastPathComponent() == toolchain.appendingPathComponent("lib/rustlib"),
@@ -130,13 +139,91 @@ struct CargoCacheInvocation: CargoCacheAction {
         }
         let rootSource = URL(fileURLWithPath: source, relativeTo: URL(fileURLWithPath: directory.pathString))
             .standardizedFileURL
-        _ = try candidate.inputHasher.sourceDigest(rootSource, validate: validateSource)
+        let rootDigest = try candidate.inputHasher.sourceDigest(rootSource, validate: validateSource)
+        if let cache = environment["TUIST_CARGO_CACHE_DIR"] {
+            var declared = [Self.keyVersion, "sources", directory.pathString, rootSource.path, rootDigest.hash]
+            declared += candidate.keyArguments
+            declared += environment.sorted { $0.key < $1.key }.filter { !Self.isIgnored($0.key) }.map { "\($0.key)=\($0.value)" }
+            for file in externs {
+                let digest = try inputHasher.digest(file, shared: true)
+                declared += [file.path, digest.hash]
+            }
+            let digest = REAPI.digest(try JSONEncoder().encode(declared.map(candidate.relocation.relative)))
+            candidate.sourceIndex = CargoReadIndex(
+                root: URL(fileURLWithPath: cache),
+                declaredKey: digest,
+                version: Self.keyVersion
+            )
+        }
+        if candidate.sourceIndex != nil {
+            // Deferred until a source list is found, here or in `CargoCompilerObserver` from the remote cache.
+            candidate.compilerInputs = CargoCacheInputs(sources: [], externs: externs)
+            if let listed = await candidate.sourceIndex?.get(remote: nil),
+               let keyed = try candidate.keyed(sources: listed) { return keyed }
+            return candidate
+        }
+        // Without a cache directory there is nowhere to remember sources: discover them now.
         candidate.compilerInputs = try await CargoCacheInputs.discover(
             arguments: arguments, environment: environment, directory: directory,
             externs: externs, process: process
         )
         candidate.key = try candidate.fingerprint()
         return candidate
+    }
+
+    /// This compilation keyed by a remembered source list, or `nil` when one of its files no longer exists.
+    func keyed(sources listed: CargoReadSet) throws -> CargoCacheInvocation? {
+        let sources = listed.entries.filter { $0.kind == "path" }.compactMap { relocation.absolute($0.name) }
+            .map { URL(fileURLWithPath: $0).standardizedFileURL }
+        guard !sources.isEmpty, sources.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else { return nil }
+        var keyed = self
+        guard let externs = compilerInputs?.externs else { return nil }
+        keyed.compilerInputs = CargoCacheInputs(sources: Set(sources).sorted { $0.path < $1.path }, externs: externs)
+        keyed.key = try keyed.fingerprint()
+        return keyed
+    }
+
+    /// The sources rustc's dep-info names for this compilation, once rustc has written it (before its metadata).
+    private func depInfoSources() -> [URL]? {
+        let path = output.appendingPathComponent(files[2])
+        guard (try? path.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap({ $0 }).map({ $0 < 2_000_000 }) == true,
+              let text = try? String(contentsOf: path, encoding: .utf8), let dependencies = try? Self.dependencies(text)
+        else { return nil }
+        let base = URL(fileURLWithPath: directory.pathString)
+        let sources = Set(dependencies.map { URL(fileURLWithPath: $0, relativeTo: base).standardizedFileURL })
+        guard !sources.isEmpty, sources.count <= 10000 else { return nil }
+        return sources.sorted { $0.path < $1.path }
+    }
+
+    /// This compilation keyed by rustc's dep-info, provided every source predates `prepared`: a file changed while
+    /// rustc read it would key new content with old output. Admission scans each source as it is hashed.
+    func keyedFromDepInfo() -> CargoCacheInvocation? {
+        guard let sources = depInfoSources() else { return nil }
+        let limit = prepared.timeIntervalSince1970
+        guard sources.allSatisfy({ file in
+            guard let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .attributeModificationDateKey]),
+                  let modified = values.contentModificationDate, let changed = values.attributeModificationDate
+            else { return false }
+            return max(modified, changed).timeIntervalSince1970 < limit
+        }) else { return nil }
+        guard let externs = compilerInputs?.externs else { return nil }
+        var keyed = self
+        keyed.compilerInputs = CargoCacheInputs(sources: sources, externs: externs)
+        guard let key = try? keyed.fingerprint() else { return nil }
+        keyed.key = key
+        return keyed
+    }
+
+    /// After a successful compilation, remembers the sources rustc actually read (a deferred compilation's first list,
+    /// or a new one after a module was added or removed) and returns the compilation keyed by them. `self` when the
+    /// remembered list was right; `nil` when the compilation cannot be keyed.
+    func refreshed(remote: (any REAPICacheStoring)?) async -> CargoCacheInvocation? {
+        guard let sourceIndex else { return self }
+        guard let sources = depInfoSources() else { return nil }
+        guard sources != compilerInputs?.sources else { return self }
+        let set = CargoReadSet(entries: sources.map { CargoReadSet.Entry(kind: "path", name: relocation.relative($0.path)) })
+        await sourceIndex.put(set, remote: remote, environment: environment)
+        return keyedFromDepInfo()
     }
 
     func fingerprint() throws -> REAPI.Digest {
@@ -148,6 +235,12 @@ struct CargoCacheInvocation: CargoCacheAction {
             for file in compilerInputs.sources {
                 let digest = try inputHasher.sourceDigest(file, validate: Self.validateSource)
                 inputs += [file.path, digest.hash, String(digest.sizeBytes)]
+            }
+            // A remembered source list cannot see a file that would now change module resolution, such as a new
+            // `foo/mod.rs` beside `foo.rs`: the directories holding the sources are keyed by their entries.
+            for parent in Set(compilerInputs.sources.map { $0.deletingLastPathComponent().path }).sorted() {
+                let entries = (try? FileManager.default.contentsOfDirectory(atPath: parent))?.sorted() ?? []
+                inputs += [parent + "/", entries.joined(separator: "\u{0}")]
             }
             for file in compilerInputs.externs {
                 let digest = try inputHasher.digest(file, shared: true)
@@ -170,7 +263,14 @@ struct CargoCacheInvocation: CargoCacheAction {
         }
         // Every path is keyed relative to its root; the compilation itself runs with matching remaps.
         inputs.append(relocation.remapArguments.map(relocation.relative).joined(separator: " "))
-        return REAPI.digest(try JSONEncoder().encode(inputs.map(relocation.relative)))
+        let encoded = try JSONEncoder().encode(inputs.map(relocation.relative))
+        let digest = REAPI.digest(encoded)
+        // Like blaze's `BLAZE_KEY_TRACE`: every key's inputs, so two builds' misses can be diffed.
+        if let trace = environment["TUIST_CARGO_KEY_TRACE"], !trace.isEmpty {
+            try? FileManager.default.createDirectory(atPath: trace, withIntermediateDirectories: true)
+            try? encoded.write(to: URL(fileURLWithPath: trace).appendingPathComponent("\(name)-\(digest.hash.prefix(12)).json"))
+        }
+        return digest
     }
 
     var remapArguments: [String] { relocation.remapArguments }
@@ -195,7 +295,7 @@ struct CargoCacheInvocation: CargoCacheAction {
         return files + additional
     }
 
-    private var keyArguments: [String] {
+    var keyArguments: [String] {
         var result: [String] = []
         var seen = false
         var index = 0
@@ -240,6 +340,10 @@ struct CargoCacheInvocation: CargoCacheAction {
     }
 
     func certifyOutputs(metadataOnly: Bool = false) throws {
+        if isDeferred {
+            guard let keyed = keyedFromDepInfo() else { throw CacheError.unsupported }
+            return try keyed.certifyOutputs(metadataOnly: metadataOnly)
+        }
         try validateDependencies()
         guard try fingerprint() == key else { throw CacheError.unsupported }
         for name in metadataOnly ? [files[1]] : Array(files.prefix(2)) {

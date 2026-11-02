@@ -152,11 +152,18 @@ struct CargoCompilationCacheTests {
         let generated = fixture.root.appendingPathComponent("generated.rs")
         try Data("pub fn generated() {}".utf8).write(to: generated)
         let report = "artifact: \(fixture.source.path) \(generated.path)\n"
-        try report.write(to: fixture.root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8)
         let arguments = fixture.invocation.arguments + [
             "--extern", "dependency=\(dependency.path)", "-L", "dependency=\(fixture.output.path)",
         ]
-        let original = try #require(await fixture.prepare(arguments: arguments))
+        let deferred = try #require(await fixture.prepare(arguments: arguments))
+        #expect(deferred.isDeferred)
+        let depInfo = fixture.output.appendingPathComponent(fixture.invocation.files[2])
+        let fixtureDepInfo = try Data(contentsOf: depInfo)
+        try report.write(to: depInfo, atomically: true, encoding: .utf8)
+        let original = try #require(await deferred.refreshed(remote: nil))
+        try fixtureDepInfo.write(to: depInfo)
+        #expect(original.compilerInputs?.sources.map(\.lastPathComponent).sorted() == ["generated.rs", "lib.rs"])
+        #expect(try await fixture.prepare(arguments: arguments)?.key == original.key)
         try Data("unrelated".utf8).write(to: dependency.deletingLastPathComponent().appendingPathComponent("unrelated.rlib"))
         #expect(try await fixture.prepare(arguments: arguments)?.key == original.key)
         try Data("pub fn changed() {}".utf8).write(to: generated)
@@ -165,7 +172,7 @@ struct CargoCompilationCacheTests {
         try Data("changed dependency".utf8).write(to: dependency)
         await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare(arguments: arguments) }
         try fixture.invocation.certifyOutputs()
-        #expect(try await fixture.prepare(arguments: arguments)?.key != original.key)
+        #expect(try await fixture.prepare(arguments: arguments)?.isDeferred == true)
     }
 
     @Test(.inTemporaryDirectory) func inspectsIncludedNonRustFilesBeforeCertifyingRegistryLibraries() async throws {
@@ -173,16 +180,18 @@ struct CargoCompilationCacheTests {
         let included = fixture.source.deletingLastPathComponent().appendingPathComponent("generated.txt")
         try Data("include!(\"generated.txt\");".utf8).write(to: fixture.source)
         try "artifact: \(fixture.source.path) \(included.path)\n".write(
-            to: fixture.root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8
+            to: fixture.output.appendingPathComponent(fixture.invocation.files[2]), atomically: true, encoding: .utf8
         )
-        try Data("pub fn generated() {}".utf8).write(to: included)
-        #expect(try await fixture.prepare()?.compilerInputs != nil)
-        try Data("core::arch::global_asm!(\".include \\\"hidden.s\\\"\");".utf8).write(to: included)
-        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
-        try Data(repeating: 65, count: 2_000_000).write(to: included)
-        #expect(try await fixture.prepare()?.compilerInputs != nil)
-        try Data(repeating: 65, count: 2_000_001).write(to: included)
-        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
+        func keyed(_ content: Data) async throws -> CargoCacheInvocation? {
+            try content.write(to: included)
+            let invocation = try #require(await fixture.prepare())
+            #expect(invocation.isDeferred)
+            return invocation.keyedFromDepInfo()
+        }
+        #expect(try await keyed(Data("pub fn generated() {}".utf8)) != nil)
+        #expect(try await keyed(Data("core::arch::global_asm!(\".include \\\"hidden.s\\\"\");".utf8)) == nil)
+        #expect(try await keyed(Data(repeating: 65, count: 2_000_000)) != nil)
+        #expect(try await keyed(Data(repeating: 65, count: 2_000_001)) == nil)
     }
 
     @Test(.inTemporaryDirectory) func rejectsUncertifiedDependenciesAndProceduralMacros() async throws {
@@ -337,17 +346,18 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.cache().restoreLocally())
     }
 
-    @Test(.inTemporaryDirectory) func renderedDiagnosticsAndUnexpectedStreamsAreNeverCached() async throws {
+    @Test(.inTemporaryDirectory) func diagnosticsReplayOnlyAtTheirWidthAndUnexpectedStreamsAreNeverCached() async throws {
         let fixture = try await fixture()
-        for diagnostic in [
-            Data("warning: terminal-specific rendering".utf8),
-            Data(#"{"$message_type":"diagnostic","rendered":"warning: narrow terminal"}"#.utf8),
-        ] {
-            try await fixture.cache().store(stdout: Data(), stderr: diagnostic)
-            #expect(try await fixture.cache().restoreLocally() == false)
-        }
+        try await fixture.cache().store(stdout: Data(), stderr: Data("warning: terminal-specific rendering".utf8))
+        #expect(try await fixture.cache().restoreLocally() == false)
         try await fixture.cache().store(stdout: Data("unexpected compiler output".utf8), stderr: Data())
         #expect(try await fixture.cache().restoreLocally() == false)
+        let narrow = try #require(await fixture.prepare(arguments: fixture.invocation.arguments + ["--diagnostic-width=80"]))
+        let diagnostic = Data(#"{"$message_type":"diagnostic","rendered":"warning: narrow terminal"}"#.utf8)
+        try await fixture.cache(invocation: narrow).store(stdout: Data(), stderr: diagnostic)
+        try fixture.removeOutputs()
+        #expect(try await fixture.cache().restoreLocally() == false)
+        #expect(try await fixture.cache(invocation: narrow).restoreLocally())
     }
 
     @Test(.inTemporaryDirectory) func neverReplaysTerminalSpecificRemoteCompilerStreams() async throws {

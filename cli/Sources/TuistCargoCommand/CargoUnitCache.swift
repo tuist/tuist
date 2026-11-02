@@ -13,7 +13,7 @@ import TuistREAPI
 /// target directory, here or on another machine, starts with them. Cargo stays the judge of freshness: restored
 /// units carry Cargo's own fingerprints, so a unit whose inputs differ here is rebuilt, never reused.
 struct CargoUnitCache {
-    static let version = "tuist-swift-cargo-units-v3"
+    static let version = "tuist-swift-cargo-units-v4"
 
     let profile: URL
     let root: URL
@@ -27,7 +27,11 @@ struct CargoUnitCache {
     /// Units whose fingerprints predate this command are leftovers of earlier builds, which may not match it.
     let sessionStarted: Date
     let relocation: CargoRelocation
+    /// `<name>-<version>` of every registry package in `Cargo.lock`, as Cargo names their source directories.
+    let lockedPackages: Set<String>
     var remote: (any REAPICacheStoring)?
+
+    static let maximumUnits = 4000
 
     struct Manifest: Codable, Equatable {
         var units: [Unit]
@@ -40,6 +44,9 @@ struct CargoUnitCache {
         /// Machine roots the unit's outputs name, such as a string from `env!("CARGO_MANIFEST_DIR")`; such a unit is
         /// restored only where those roots are the same.
         var bound: [String]?
+        /// The registry source directory (`<name>-<version>`) the unit was built from, when known. Restoration skips
+        /// units of packages the current `Cargo.lock` does not have.
+        var package: String?
     }
 
     struct File: Codable, Equatable {
@@ -80,19 +87,24 @@ struct CargoUnitCache {
         let options = Array(arguments.prefix(while: { $0 != "--" }))
         var metadataArguments = ["metadata", "--format-version", "1", "--no-deps", "--offline"]
         if let manifest = value("--manifest-path", in: options) { metadataArguments += ["--manifest-path", manifest] }
-        guard let metadata = try? await process.capture(
+        async let metadataOutput = try? process.capture(
             executable, arguments: metadataArguments, environment: environment, directory: directory
-        ),
-            let json = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
-            let target = json["target_directory"] as? String, let workspace = json["workspace_root"] as? String,
-            let lock = try? Data(contentsOf: URL(fileURLWithPath: workspace).appendingPathComponent("Cargo.lock")),
-            let rustc = try? await process.capture(
-                environment["RUSTC"] ?? "rustc", arguments: ["-vV"], environment: environment, directory: directory
-            ),
-            let sysroot = try? await process.capture(
-                environment["RUSTC"] ?? "rustc", arguments: ["--print", "sysroot"], environment: environment,
-                directory: directory
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        async let rustcOutput = try? process.capture(
+            environment["RUSTC"] ?? "rustc", arguments: ["-vV"], environment: environment, directory: directory
+        )
+        async let sysrootOutput = try? process.capture(
+            environment["RUSTC"] ?? "rustc", arguments: ["--print", "sysroot"], environment: environment, directory: directory
+        )
+        guard let metadata = await metadataOutput,
+              let json = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
+              let target = json["target_directory"] as? String, let workspace = json["workspace_root"] as? String,
+              let lock = try? String(
+                  contentsOf: URL(fileURLWithPath: workspace).appendingPathComponent("Cargo.lock"),
+                  encoding: .utf8
+              ),
+              let rustc = await rustcOutput,
+              let sysroot = await sysrootOutput?.trimmingCharacters(in: .whitespacesAndNewlines)
         else { return nil }
         let profileName = profileDirectory(options: options, kind: kind)
         let flags = environment.filter { key, _ in
@@ -101,7 +113,9 @@ struct CargoUnitCache {
         }.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }
         let cargoHome = URL(fileURLWithPath: environment["CARGO_HOME"] ?? FileManager.default
             .homeDirectoryForCurrentUser.appendingPathComponent(".cargo").path).standardizedFileURL
-        let inputs = [version, REAPI.digest(lock).hash, rustc, profileName, kind]
+        // Not keyed by `Cargo.lock`: like blaze, one manifest per configuration accumulates units across lockfiles
+        // (branches, dependency bumps), and Cargo's fingerprints decide which of them this build uses.
+        let inputs = [version, rustc, profileName, kind]
             + normalized(Array(options.dropFirst(commandIndex + 1))) + flags
             + configurations(from: URL(fileURLWithPath: directory.pathString), cargoHome: cargoHome)
         guard let encoded = try? JSONEncoder().encode(inputs),
@@ -129,8 +143,28 @@ struct CargoUnitCache {
                 ) { $1 },
                 sysroot: URL(fileURLWithPath: sysroot).standardizedFileURL
             ),
+            lockedPackages: lockedPackages(lock),
             remote: nil
         )
+    }
+
+    /// Registry packages of a `Cargo.lock`, as `<name>-<version>`.
+    static func lockedPackages(_ lock: String) -> Set<String> {
+        var result: Set<String> = []
+        for block in lock.components(separatedBy: "[[package]]").dropFirst() {
+            var fields: [String: String] = [:]
+            for line in block.split(separator: "\n") {
+                let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                guard parts.count == 2, parts[1].hasPrefix("\""), parts[1].hasSuffix("\""), parts[1].count >= 2 else { continue }
+                fields[parts[0]] = String(parts[1].dropFirst().dropLast())
+            }
+            if let name = fields["name"], let version = fields["version"], fields["source"]?.hasPrefix("registry+") == true
+                || fields["source"]?.hasPrefix("sparse+") == true
+            {
+                result.insert("\(name)-\(version)")
+            }
+        }
+        return result
     }
 
     /// Cargo's configuration files, nearest first, as Cargo discovers them: their profiles, flags and target
@@ -189,20 +223,22 @@ struct CargoUnitCache {
 extension CargoUnitCache {
     // MARK: - Restoration
 
-    /// Restores the units the manifest lists that the target directory lacks. Returns how many were restored.
+    /// Restores the units the manifest lists that the target directory lacks. Returns the restored units, which
+    /// publication reuses without reading them again while Cargo leaves them untouched.
     @discardableResult
-    func restore() async -> Int {
+    func restore() async -> Restored {
         guard let manifest = await manifest() else {
             debug("no dependency unit manifest")
-            return 0
+            return Restored()
         }
         let missing = manifest.units.filter {
             Self.isSafe($0) && Set($0.bound ?? []).isSubset(of: relocation.roots.map(\.path))
+                && ($0.package.map(lockedPackages.contains) ?? true)
                 && !FileManager.default.fileExists(atPath: profile.appendingPathComponent(".fingerprint/" + $0.name).path)
         }
         guard !missing.isEmpty else {
             debug("all \(manifest.units.count) dependency units are present")
-            return 0
+            return Restored(previous: manifest.units)
         }
         var needed: [REAPI.Digest: URL] = [:]
         let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
@@ -215,13 +251,13 @@ extension CargoUnitCache {
         if !needed.isEmpty {
             guard let remote else {
                 debug("\(needed.count) unit blobs are missing locally and there is no remote")
-                return 0
+                return Restored(previous: manifest.units)
             }
             do {
                 try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
                 let downloaded = try await remote.downloadBlobs(needed)
                 for (digest, file) in needed where downloaded.available.contains(digest) {
-                    if (try? REAPI.digest(file: file)) == digest { _ = try? publish(file, digest: digest) }
+                    _ = try? publish(file, expecting: digest)
                 }
             } catch {
                 debug("unit download failed: \(REAPI.describe(error))")
@@ -230,14 +266,38 @@ extension CargoUnitCache {
         return withBuildLock {
             // One modification time for every restored file: Cargo compares dependency outputs against dependents
             // and dep-info inputs against `invoked.timestamp`, and only a strictly newer file is stale.
-            let restoredAt = Date()
-            var restored = 0
-            for unit in missing where unit.files.allSatisfy({ hasBlob($0.digest) }) {
-                if materialize(unit, at: restoredAt) { restored += 1 }
-            }
-            debug("restored \(restored) of \(manifest.units.count) dependency units")
-            return restored
-        } ?? 0
+            // Whole seconds, so file systems with coarse timestamps still compare equal when publication checks them.
+            let restoredAt = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+            let candidates = missing.filter { $0.files.allSatisfy { hasBlob($0.digest) } }
+            let results = Self.concurrentMap(candidates) { materialize($0, at: restoredAt) }
+            let restored = zip(candidates, results).filter(\.1).map(\.0)
+            debug("restored \(restored.count) of \(manifest.units.count) dependency units")
+            return Restored(
+                units: Dictionary(restored.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }), at: restoredAt,
+                previous: manifest.units
+            )
+        } ?? Restored(previous: manifest.units)
+    }
+
+    struct Restored {
+        var units: [String: Unit] = [:]
+        var at = Date.distantPast
+        /// The manifest restoration read. Publication keeps its units this build did not see, so other lockfiles and
+        /// feature sets keep theirs.
+        var previous: [Unit] = []
+    }
+
+    /// Runs `body` over `items` on all cores, keeping their order.
+    static func concurrentMap<T, R>(_ items: [T], _ body: (T) -> R) -> [R] {
+        var results = [R?](repeating: nil, count: items.count)
+        let lock = NSLock()
+        DispatchQueue.concurrentPerform(iterations: items.count) { index in
+            let result = body(items[index])
+            lock.lock()
+            results[index] = result
+            lock.unlock()
+        }
+        return results.map { $0! }
     }
 
     private func manifest() async -> Manifest? {
@@ -256,10 +316,8 @@ extension CargoUnitCache {
             let file = root.appendingPathComponent("staging/" + UUID().uuidString)
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: file) }
-            if (try? await remote.downloadBlobs([output.digest: file]))?.available.contains(output.digest) == true,
-               (try? REAPI.digest(file: file)) == output.digest
-            {
-                _ = try? publish(file, digest: output.digest)
+            if (try? await remote.downloadBlobs([output.digest: file]))?.available.contains(output.digest) == true {
+                _ = try? publish(file, expecting: output.digest)
             }
         }
         guard hasBlob(output.digest), let data = try? Data(contentsOf: blobPath(output.digest)),
@@ -336,9 +394,13 @@ extension CargoUnitCache {
     // MARK: - Publication
 
     /// Records the registry and git dependency units in the target directory and publishes their manifest.
-    func store() async {
-        guard let units = withBuildLock({ collectUnits() }), !units.isEmpty else { return }
-        let manifest = Manifest(units: units.sorted { $0.name < $1.name })
+    func store(reusing restored: Restored = Restored()) async {
+        guard let current = withBuildLock({ collectUnits(reusing: restored) }), !current.isEmpty else { return }
+        let names = Set(current.map(\.name))
+        // Newest first: when the list is full, units no build has produced for longest fall off.
+        let units = (current.sorted { $0.name < $1.name } + restored.previous.filter { !names.contains($0.name) })
+            .prefix(Self.maximumUnits)
+        let manifest = Manifest(units: Array(units))
         guard let data = try? JSONEncoder().encode(manifest), data.count <= 64_000_000 else { return }
         let digest = REAPI.digest(data)
         var result = REAPI.ActionResult()
@@ -351,7 +413,7 @@ extension CargoUnitCache {
             try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
             let file = staging.appendingPathComponent("units.json")
             try data.write(to: file)
-            _ = try publish(file, digest: digest)
+            _ = try publish(file, expecting: digest)
             try write(result.serializedData(), to: index)
         } catch { return }
         guard previous?.outputFiles.first?.digest != digest, let remote else { return }
@@ -381,7 +443,7 @@ extension CargoUnitCache {
         }
     }
 
-    private func collectUnits() -> [Unit] {
+    private func collectUnits(reusing restored: Restored) -> [Unit] {
         let fingerprints = profile.appendingPathComponent(".fingerprint")
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: fingerprints.path) else { return [] }
         let deps = (try? FileManager.default.contentsOfDirectory(atPath: profile.appendingPathComponent("deps").path)) ?? []
@@ -389,8 +451,12 @@ extension CargoUnitCache {
         // A unit is a dependency's when every source its compiler read is in Cargo's registry or git checkouts
         // (or generated into this target directory). Build-script runs read nothing through rustc: they belong to
         // a package only when all of that package's compiled units are dependencies.
+        // A unit restored before Cargo started and left untouched by it is already known, file by file.
+        let reused = candidates
+            .compactMap { name in restored.units[name].flatMap { isUntouched($0, since: restored.at) ? $0 : nil } }
+        let reusedNames = Set(reused.map(\.name))
         var classified: [String: Bool] = [:]
-        for name in candidates {
+        for name in candidates where !reusedNames.contains(name) {
             let hash = String(name.suffix(16))
             let depInfo = deps.filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("deps/" + $0) }
                 + ((try? FileManager.default.contentsOfDirectory(atPath: profile.appendingPathComponent("build/" + name).path))
@@ -403,17 +469,38 @@ extension CargoUnitCache {
         for (name, dependency) in classified {
             packages[package(name), default: true] = packages[package(name), default: true] && dependency
         }
-        var units: [Unit] = []
+        let created = candidates.filter { name in
+            guard !reusedNames.contains(name),
+                  let created = (try? fingerprints.appendingPathComponent(name).resourceValues(forKeys: [.creationDateKey]))?
+                  .creationDate, created >= sessionStarted.addingTimeInterval(-1) else { return false }
+            return classified[name] ?? (packages[package(name)] == true && isPortableRun(name))
+        }
+        let collected = Self.concurrentMap(Array(created)) { collect($0, deps: deps) }.compactMap { $0 }
         var budget: Int64 = 8_000_000_000
-        for name in candidates {
-            let created = (try? fingerprints.appendingPathComponent(name).resourceValues(forKeys: [.creationDateKey]))?
-                .creationDate
-            guard let created, created >= sessionStarted.addingTimeInterval(-1) else { continue }
-            let isDependency = classified[name] ?? (packages[package(name)] == true && isPortableRun(name))
-            guard isDependency, let unit = collect(name, deps: deps, budget: &budget) else { continue }
+        var units = reused
+        for unit in collected {
+            budget -= unit.files.reduce(0) { $0 + $1.size }
+            guard budget >= 0 else { break }
             units.append(unit)
         }
         return units
+    }
+
+    /// Whether Cargo left a restored unit as it was written: every file still has the restoration's time and size,
+    /// and its fingerprint directory holds nothing else. Cargo rewrites a unit's fingerprint whenever it rebuilds it.
+    private func isUntouched(_ unit: Unit, since date: Date) -> Bool {
+        let fingerprint = ".fingerprint/" + unit.name
+        let listed = Set(unit.files.map(\.path).filter { $0.hasPrefix(fingerprint + "/") })
+        guard let present = try? FileManager.default
+            .contentsOfDirectory(atPath: profile.appendingPathComponent(fingerprint).path),
+            Set(present.map { fingerprint + "/" + $0 }) == listed
+        else { return false }
+        return unit.files.allSatisfy { file in
+            let values = try? profile.appendingPathComponent(file.path)
+                .resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey])
+            return values?.isRegularFile == true && values?.fileSize.map(Int64.init) == file.size
+                && values?.contentModificationDate == date
+        }
     }
 
     private func isDependencySource(_ depInfo: URL) -> Bool {
@@ -458,7 +545,7 @@ extension CargoUnitCache {
         }
     }
 
-    private func collect(_ name: String, deps: [String], budget: inout Int64) -> Unit? {
+    private func collect(_ name: String, deps: [String]) -> Unit? {
         let hash = String(name.suffix(16))
         var paths = deps.filter { file in
             guard let range = file.range(of: "-" + hash) else { return false }
@@ -486,10 +573,9 @@ extension CargoUnitCache {
             let file = profile.appendingPathComponent(path)
             guard let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
                   properties.isRegularFile == true, properties.isSymbolicLink != true,
-                  let size = properties.fileSize, Int64(size) <= budget,
-                  let digest = try? REAPI.digest(file: file), (try? publish(file, digest: digest)) != nil
+                  let size = properties.fileSize, size <= 4_000_000_000,
+                  let digest = try? publish(file)
             else { return nil }
-            budget -= Int64(size)
             if !path.hasPrefix(".fingerprint/"), !path.hasSuffix(".d"),
                !(path.hasPrefix("build/") && records.contains(URL(fileURLWithPath: path).lastPathComponent))
             {
@@ -508,8 +594,24 @@ extension CargoUnitCache {
         }
         guard files.contains(where: { $0.path.hasPrefix(".fingerprint/") }) else { return nil }
         return Unit(
-            name: name, directories: directories.sorted(), files: files, bound: bound.isEmpty ? nil : bound.sorted()
+            name: name, directories: directories.sorted(), files: files, bound: bound.isEmpty ? nil : bound.sorted(),
+            package: registryPackage(paths.filter { $0.hasSuffix(".d") }.map { profile.appendingPathComponent($0) })
         )
+    }
+
+    /// The `<name>-<version>` registry directory every dep-info source of the unit is in, if there is exactly one.
+    private func registryPackage(_ depInfo: [URL]) -> String? {
+        let registry = cargoHome.path + "/registry/src/"
+        var packages: Set<String> = []
+        for file in depInfo {
+            guard let text = try? String(contentsOf: file, encoding: .utf8),
+                  let sources = try? CargoCacheInvocation.dependencies(text) else { return nil }
+            for source in sources where source.hasPrefix(registry) {
+                let components = source.dropFirst(registry.count).split(separator: "/")
+                if components.count >= 2 { packages.insert(String(components[1])) }
+            }
+        }
+        return packages.count == 1 ? packages.first : nil
     }
 }
 
@@ -524,21 +626,26 @@ extension CargoUnitCache {
 
     /// Blobs carry the time they were last stored or restored, never their source's: build scripts copy
     /// files out of crate archives with years-old timestamps, which the cache's age-based pruning would evict.
-    private func publish(_ file: URL, digest: REAPI.Digest) throws -> URL {
-        let destination = blobPath(digest)
-        if hasBlob(digest) {
-            markUsed(digest)
-            return destination
-        }
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let temporary = destination.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+    /// Copies `file` into the store (a clone on APFS) and hashes the copy once: the digest describes exactly the bytes
+    /// stored, even if the source changes meanwhile.
+    @discardableResult
+    private func publish(_ file: URL, expecting expected: REAPI.Digest? = nil) throws -> REAPI.Digest {
+        let blobs = root.appendingPathComponent("blobs")
+        try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
+        let temporary = blobs.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
         try FileManager.default.copyItem(at: file, to: temporary)
-        guard try REAPI.digest(file: temporary) == digest else { throw REAPICacheError.corruptBlob }
+        let digest = try REAPI.digest(file: temporary)
+        if let expected, digest != expected { throw REAPICacheError.corruptBlob }
+        if hasBlob(digest) {
+            markUsed(digest)
+            return digest
+        }
         try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: temporary.path)
+        let destination = blobPath(digest)
         if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
         try FileManager.default.moveItem(at: temporary, to: destination)
-        return destination
+        return digest
     }
 
     private func markUsed(_ digest: REAPI.Digest) {

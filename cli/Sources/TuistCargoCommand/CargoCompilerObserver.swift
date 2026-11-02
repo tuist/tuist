@@ -21,21 +21,36 @@ struct CargoCompilerObserver {
             invocation = try? await CargoCacheInvocation.prepare(
                 arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
             )
-            if invocation == nil {
-                recorded = try? await CargoRecordedInvocation.prepare(
-                    arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
-                )
+        }
+        if let rust = invocation as? CargoCacheInvocation, rust.isDeferred {
+            // Another machine may have compiled this crate: its remembered sources key a lookup without rustc.
+            remote = try? await Self.remote(environment)
+            remoteResolved = true
+            if let listed = await rust.sourceIndex?.get(remote: remote), let keyed = try? rust.keyed(sources: listed) {
+                invocation = keyed
             }
+        }
+        // A deferred compilation learns only after rustc whether strict admission accepts its sources, so it is
+        // recorded as well: when admission refuses them (assembly, `#[link]`), its reads key it instead.
+        if !native, invocation == nil || (invocation as? CargoCacheInvocation)?.isDeferred == true {
+            recorded = try? await CargoRecordedInvocation.prepare(
+                arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+            )
         }
         if let candidate = recorded, let index = candidate.index {
             var reads = await index.get(remote: nil)
             if reads == nil {
-                remote = try? await Self.remote(environment)
+                if !remoteResolved { remote = try? await Self.remote(environment) }
                 remoteResolved = true
                 reads = await index.get(remote: remote)
             }
-            invocation = reads.flatMap(candidate.with)
+            if let found = reads.flatMap(candidate.with) {
+                invocation = found
+            } else if !(invocation is CargoCacheInvocation) {
+                invocation = nil
+            }
         }
+        let deferred = (invocation as? CargoCacheInvocation)?.isDeferred == true
         let measurement = (invocation ?? recorded).map(CargoCacheMeasurement.init)
         var cache: CargoCompilationCache?
         if let invocation, let measurement, let root = environment["TUIST_CARGO_CACHE_DIR"] {
@@ -44,7 +59,7 @@ struct CargoCompilerObserver {
             )
         } else { cache = nil }
         defer { measurement?.write() }
-        if let cache, try await cache.restoreLocally() {
+        if !deferred, let cache, try await cache.restoreLocally() {
             measurement?.outcome(hit: true)
             return
         }
@@ -52,7 +67,7 @@ struct CargoCompilerObserver {
             remote = try? await Self.remote(environment)
         }
         cache?.remote = remote
-        if let cache, try await cache.restoreRemotely() {
+        if !deferred, let cache, try await cache.restoreRemotely() {
             measurement?.outcome(hit: true)
             return
         }
@@ -68,7 +83,7 @@ struct CargoCompilerObserver {
         let log = recorded.flatMap { _ in environment["TUIST_CARGO_SESSION"] }
             .map { URL(fileURLWithPath: $0).appendingPathComponent("reads-\(UUID().uuidString).log") }
         defer { if let log { try? FileManager.default.removeItem(at: log) } }
-        let compileEnvironment = !strict ? log.flatMap { recorded?.recordingEnvironment(log: $0) } ?? environment : environment
+        let compileEnvironment = log.flatMap { recorded?.recordingEnvironment(log: $0) } ?? environment
         var remap = strict ? invocation?.remapArguments ?? [] : recorded?.remapArguments ?? []
         if remap.isEmpty, !native, environment["TUIST_CARGO_WORKSPACE_ROOT"] != nil, arguments.contains("--crate-name"),
            !arguments.contains(where: { $0.hasPrefix("--print") || $0.hasPrefix("--remap-path-prefix") }),
@@ -89,11 +104,14 @@ struct CargoCompilerObserver {
         do {
             for try await event in runner.run(
                 // A recorded compiler starts directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
-                arguments: (!strict && log != nil ? [Self.executablePath(
-                    compiler,
-                    environment: environment,
-                    directory: directory
-                )]
+                // It is the toolchain's own rustc, never the rustup proxy, which reads the whole environment and
+                // rustup's settings: recording those would key every compilation on unrelated variables.
+                arguments: (log != nil ?
+                    [recorded.map { $0.toolchain.appendingPathComponent("bin/rustc").path } ?? Self.executablePath(
+                        compiler,
+                        environment: environment,
+                        directory: directory
+                    )]
                     : ["/usr/bin/env", wrapper ?? compiler]) + (wrapper == nil ? Array(arguments.dropFirst()) : arguments)
                     + remap,
                 environment: compileEnvironment, workingDirectory: directory
@@ -128,7 +146,12 @@ struct CargoCompilerObserver {
             process: CargoProcess(runner: runner)
         ) }
         guard bounded, let root = environment["TUIST_CARGO_CACHE_DIR"] else { return }
-        if strict, let cache {
+        var refreshed = strict ? invocation : nil
+        if let rust = refreshed as? CargoCacheInvocation { refreshed = await rust.refreshed(remote: remote) }
+        if var cache, let measurement, let refreshed {
+            if refreshed.key != invocation?.key, let rekeyed = try? CargoCompilationCache(
+                invocation: refreshed, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
+            ) { cache = rekeyed }
             try? await cache.store(stdout: stdout, stderr: stderr)
         } else if let recorded, let log, let measurement, let finished = recorded.recorded(log: log, started: started),
                   let reads = finished.reads, let index = finished.index

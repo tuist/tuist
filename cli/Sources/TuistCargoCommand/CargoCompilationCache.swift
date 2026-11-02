@@ -10,6 +10,7 @@ import TuistREAPI
 
 protocol CargoCacheAction {
     var cacheVersion: String { get }
+    var arguments: [String] { get }
     var key: REAPI.Digest { get }
     var environment: [String: String] { get }
     var output: URL { get }
@@ -115,8 +116,10 @@ struct CargoCompilationCache {
         try await invocation.validateDependencies(restoring: false)
         guard try invocation.fingerprint() == invocation.key else { return }
         try? invocation.certifyOutputs(metadataOnly: false)
-        guard stdout.isEmpty, stderr.count <= 1_000_000, Self.hasOnlyArtifactMessages(stderr) else { return }
-        guard let storedStderr = invocation.storedOutput(stderr) else { return }
+        guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else { return }
+        // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them.
+        let widthMarker = messages.diagnostics ? Self.widthMarker(invocation.arguments) : Data()
+        guard let storedStderr = invocation.storedOutput(widthMarker + stderr) else { return }
         var result = REAPI.ActionResult()
         result.stdoutRaw = stdout
         result.stderrRaw = storedStderr
@@ -138,8 +141,7 @@ struct CargoCompilationCache {
                 content = relocated.appendingPathComponent(name)
                 try stored.write(to: content)
             }
-            let digest = try REAPI.digest(file: content)
-            let blob = try publish(content, digest: digest)
+            let (digest, blob) = try publish(content)
             blobs[digest] = blob
             result.outputFiles.append(.with { $0.path = name; $0.digest = digest })
             measurement.reference(digest)
@@ -188,11 +190,43 @@ struct CargoCompilationCache {
         }
     }
 
-    private static func hasOnlyArtifactMessages(_ data: Data) -> Bool {
-        data.split(separator: 10).allSatisfy { line in
-            guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else { return false }
-            return message["$message_type"] as? String == "artifact"
+    /// Whether a stream holds only rustc's JSON messages (artifact notifications, diagnostics, future-incompatibility
+    /// reports, and this cache's width marker), and whether any are diagnostics; `nil` for anything else.
+    static func messages(_ data: Data) -> (diagnostics: Bool, width: String?)? {
+        var diagnostics = false
+        var width: String?
+        for line in data.split(separator: 10) {
+            guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+                  let type = message["$message_type"] as? String else { return nil }
+            switch type {
+            case "artifact", "future_incompat": continue
+            case "diagnostic": diagnostics = true
+            case widthMessage:
+                guard width == nil, let value = message["width"] as? String else { return nil }
+                width = value
+            default: return nil
+            }
         }
+        return (diagnostics, width)
+    }
+
+    static let widthMessage = "tuist-diagnostic-width"
+
+    static func diagnosticWidth(_ arguments: [String]) -> String {
+        var width = ""
+        for (index, argument) in arguments.enumerated() {
+            if argument.hasPrefix("--diagnostic-width=") { width = String(argument.dropFirst(19)) }
+            if argument == "--diagnostic-width", index + 1 < arguments.count { width = arguments[index + 1] }
+        }
+        return width
+    }
+
+    static func widthMarker(_ arguments: [String]) -> Data {
+        let line = try? JSONSerialization.data(withJSONObject: [
+            "$message_type": widthMessage,
+            "width": diagnosticWidth(arguments),
+        ])
+        return (line ?? Data()) + Data([10])
     }
 
     private func debug(_ error: any Error) {
@@ -205,7 +239,9 @@ struct CargoCompilationCache {
         guard result.exitCode == 0, result.outputDirectories.isEmpty,
               result.outputFileSymlinks.isEmpty, result.outputDirectorySymlinks.isEmpty, result.outputSymlinks.isEmpty,
               !result.hasStdoutDigest, !result.hasStderrDigest,
-              result.stdoutRaw.isEmpty, result.stderrRaw.count <= 1_000_000, Self.hasOnlyArtifactMessages(result.stderrRaw),
+              result.stdoutRaw.isEmpty, result.stderrRaw.count <= 1_000_000, let messages = Self.messages(result.stderrRaw),
+              // Diagnostics replay only at the width they were rendered at.
+              !messages.diagnostics || messages.width == Self.diagnosticWidth(invocation.arguments),
               result.outputFiles.count <= 128,
               Set(result.outputFiles.map(\.path)).count == result.outputFiles.count,
               Set(invocation.files).isSubset(of: Set(result.outputFiles.map(\.path))),
@@ -236,15 +272,19 @@ struct CargoCompilationCache {
             let elapsed = Date().timeIntervalSince(started)
             var complete = true
             for (digest, file) in missing {
-                let verified = download.available.contains(digest) && (try? REAPI.digest(file: file)) == digest
+                let verified = download.available.contains(digest) && (try? publish(file, expecting: digest)) != nil
                 measurement.transfer(digest, operation: "download", status: verified ? "downloaded" : "failed", duration: elapsed)
-                if verified { _ = try publish(file, digest: digest) } else { complete = false }
+                if !verified { complete = false }
             }
             guard complete else { measurement.failure(endpoint: !download.remoteFailures.isEmpty); return false }
         }
         try await invocation.validateDependencies(restoring: true)
+        let replayed = result.stderrRaw.split(separator: 10, omittingEmptySubsequences: false).filter { line in
+            (try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any])?["$message_type"] as? String != Self
+                .widthMessage
+        }
         guard try invocation.fingerprint() == invocation.key,
-              let restoredStderr = invocation.restoredOutput(result.stderrRaw) else { return false }
+              let restoredStderr = invocation.restoredOutput(Data(replayed.joined(separator: [10]))) else { return false }
         let properties = try invocation.output.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard properties.isDirectory == true, properties.isSymbolicLink != true else { return false }
         for file in result.outputFiles {
@@ -291,16 +331,21 @@ struct CargoCompilationCache {
         return true
     }
 
-    private func publish(_ file: URL, digest: REAPI.Digest) throws -> URL {
-        let destination = blobPath(digest)
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let temporary = destination.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+    /// Copies `file` into the store (a clone on APFS) and hashes the copy once, so the digest describes exactly the
+    /// stored bytes.
+    @discardableResult
+    private func publish(_ file: URL, expecting expected: REAPI.Digest? = nil) throws -> (REAPI.Digest, URL) {
+        let blobs = root.appendingPathComponent("blobs")
+        try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
+        let temporary = blobs.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
         try FileManager.default.copyItem(at: file, to: temporary)
-        guard try REAPI.digest(file: temporary) == digest else { throw REAPICacheError.corruptBlob }
+        let digest = try REAPI.digest(file: temporary)
+        if let expected, digest != expected { throw REAPICacheError.corruptBlob }
+        let destination = blobPath(digest)
         if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
         try FileManager.default.moveItem(at: temporary, to: destination)
-        return destination
+        return (digest, destination)
     }
 
     private func write(_ data: Data, to file: URL) throws {
