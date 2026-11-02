@@ -1,0 +1,180 @@
+<div id="sandboxes">
+  <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_sandboxes", "Sandboxes")}</h1>
+    <span data-part="subtitle">
+      {dgettext(
+        "dashboard_sandboxes",
+        "Isolated Linux microVMs where coding agents work on your projects, with your account's Tuist cache close by."
+      )}
+    </span>
+  </div>
+
+  <.card
+    :if={@total == 0}
+    title={dgettext("dashboard_sandboxes", "Get started")}
+    icon="devices_code"
+    id="sandboxes-onboarding"
+  >
+    <.card_section data-part="onboarding">
+      <div data-part="hero">
+        <div data-part="hero-icon"><.devices_code /></div>
+        <h2 data-part="hero-title">
+          {dgettext("dashboard_sandboxes", "Run agents in sandboxes")}
+        </h2>
+        <p data-part="hero-subtitle">
+          {dgettext(
+            "dashboard_sandboxes",
+            "Connect an agent and every task it starts gets its own sandbox. Sandboxes pause when the agent goes idle and resume where they left off."
+          )}
+        </p>
+      </div>
+      <span data-part="providers-title">
+        {dgettext("dashboard_sandboxes", "Choose an agent to connect:")}
+      </span>
+      <.providers
+        account={@selected_account}
+        amp_integration={@amp_integration}
+        can_manage_integrations={@can_manage_integrations}
+      />
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@total > 0}
+    title={dgettext("dashboard_sandboxes", "Usage")}
+    icon="chart_column"
+    id="sandboxes-usage"
+  >
+    <div data-part="widgets">
+      <.widget
+        id="sandboxes-live"
+        title={dgettext("dashboard_sandboxes", "Sandboxes")}
+        value={"#{live_count(@counts)} / #{Sandboxes.max_live_sandboxes_per_account()}"}
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "Running and paused sandboxes, out of the most this account can keep at once."
+          )
+        }
+      />
+      <.widget
+        id="sandboxes-vcpus"
+        title={dgettext("dashboard_sandboxes", "vCPUs in use")}
+        value={"#{@usage.vcpus} / #{@selected_account.sandbox_vcpus_limit}"}
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "vCPUs held by running sandboxes, out of this account's limit. Paused sandboxes hold none."
+          )
+        }
+      />
+      <.widget
+        id="sandboxes-memory"
+        title={dgettext("dashboard_sandboxes", "Memory in use")}
+        value={"#{gigabytes(@usage.memory_mb / 1024)} / #{gigabytes(@selected_account.sandbox_memory_gb_limit)}"}
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "Memory held by running sandboxes, out of this account's limit. Paused sandboxes hold none."
+          )
+        }
+      />
+      <.widget
+        id="sandboxes-snapshots"
+        title={dgettext("dashboard_sandboxes", "Project snapshots")}
+        value={@snapshot_count}
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "Saved project disks new sandboxes start from, so agents skip the project's setup."
+          )
+        }
+      />
+    </div>
+  </.card>
+
+  <.card
+    :if={@total > 0}
+    title={dgettext("dashboard_sandboxes", "Sandboxes")}
+    icon="devices_code"
+    id="sandboxes-list"
+  >
+    <.card_section data-part="table-section">
+      <div data-part="table-toolbar">
+        <.dropdown
+          id="sandboxes-status-dropdown"
+          label={"#{filter_label(@filter)} (#{filter_count(@counts, @filter)})"}
+          secondary_text={dgettext("dashboard_sandboxes", "Status:")}
+        >
+          <.dropdown_item
+            :for={{filter, label} <- filter_options()}
+            value={filter}
+            label={"#{label} (#{filter_count(@counts, filter)})"}
+            patch={
+              if filter == "all",
+                do: ~p"/#{@selected_account.name}/sandboxes",
+                else: ~p"/#{@selected_account.name}/sandboxes?#{[status: filter]}"
+            }
+            data-selected={@filter == filter}
+          >
+            <:right_icon :if={@filter == filter}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <.table
+        id="sandboxes-table"
+        rows={@sandboxes}
+        row_key={fn sandbox -> "sandbox-#{sandbox.id}" end}
+        row_navigate={fn sandbox -> ~p"/#{@selected_account.name}/sandboxes/#{sandbox.id}" end}
+      >
+        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Name")}>
+          <.text_cell label={display_name(sandbox)} sublabel={short_id(sandbox.id)} />
+        </:col>
+        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Source")}>
+          <.badge_cell label={source_label(sandbox)} color="neutral" style="light-fill" />
+        </:col>
+        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Status")}>
+          <% status = status(sandbox) %>
+          <.status_badge_cell label={status.label} status={status.status} />
+        </:col>
+        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Resources")}>
+          <.text_cell label={resources(sandbox)} />
+        </:col>
+        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Last active")}>
+          <.text_cell
+            label={relative_time(last_active_at(sandbox))}
+            title={time(last_active_at(sandbox))}
+          />
+        </:col>
+        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Created")}>
+          <.text_cell
+            label={relative_time(sandbox.inserted_at)}
+            title={time(sandbox.inserted_at)}
+          />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="devices_code"
+            title={dgettext("dashboard_sandboxes", "No sandboxes with this status")}
+            subtitle={dgettext("dashboard_sandboxes", "Choose a different status to see more.")}
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@total > 0}
+    title={dgettext("dashboard_sandboxes", "Agents")}
+    icon="apps"
+    id="sandboxes-providers"
+  >
+    <.card_section>
+      <.providers
+        account={@selected_account}
+        amp_integration={@amp_integration}
+        can_manage_integrations={@can_manage_integrations}
+      />
+    </.card_section>
+  </.card>
+</div>

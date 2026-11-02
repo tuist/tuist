@@ -474,6 +474,8 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
       <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
+      <% sandboxes_path = ~p"/#{@selected_account.name}/sandboxes" %>
+      <% sandbox_snapshots_path = ~p"/#{@selected_account.name}/sandboxes/snapshots" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -519,6 +521,30 @@ defmodule TuistWeb.AppLayoutComponents do
           icon="category"
           navigate={runner_profiles_path}
           selected={String.starts_with?(@current_path, runner_profiles_path)}
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        :if={
+          FeatureFlags.sandboxes_enabled?(@selected_account) and
+            Authorization.authorize(:sandboxes_read, @current_user, @selected_account) == :ok
+        }
+        id="sidebar-sandboxes"
+        label={dgettext("dashboard_sandboxes", "Sandboxes")}
+        icon="devices_code"
+        navigate={sandboxes_path}
+        selected={
+          @current_path == sandboxes_path or
+            (String.starts_with?(@current_path, sandboxes_path <> "/") and
+               not String.starts_with?(@current_path, sandbox_snapshots_path))
+        }
+        default_open={String.starts_with?(@current_path, sandboxes_path)}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard_sandboxes", "Snapshots")}
+          icon="photo"
+          navigate={sandbox_snapshots_path}
+          selected={String.starts_with?(@current_path, sandbox_snapshots_path)}
         />
       </.sidebar_group>
       <.sidebar_item

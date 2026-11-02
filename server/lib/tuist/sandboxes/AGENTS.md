@@ -252,6 +252,14 @@ socket, the poller and the caller share a replica:
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and
   system prompt; sandboxes, exec/pause/resume/delete).
+- Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
+  `SandboxLive` (`/sandboxes/:sandbox_id`) and `SandboxSnapshotsLive`
+  (`/sandboxes/snapshots`) raise `NotFoundError` unless the flag is on and
+  `:sandboxes_read` allows the user; the sidebar entry uses the same gate.
+  Pause, resume and delete require `:sandboxes_update` (admins), are
+  rechecked per event and run in `start_async`, since node commands block.
+  Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
+  and Amp Orbs are not resumed from the dashboard (Amp resumes them).
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,

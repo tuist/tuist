@@ -126,12 +126,39 @@ defmodule Tuist.Sandboxes do
 
   # ----- Sandboxes -----
 
-  def list_sandboxes(%Account{id: account_id}) do
-    Repo.all(
+  @doc """
+  The account's sandboxes, newest first. `states: [...]` keeps only the
+  sandboxes in those states.
+  """
+  def list_sandboxes(%Account{id: account_id}, opts \\ []) do
+    query =
       from s in Sandbox,
         where: s.account_id == ^account_id and s.state != ^:deleted,
         order_by: [desc: s.inserted_at, desc: s.id]
-    )
+
+    query =
+      case Keyword.get(opts, :states) do
+        nil -> query
+        states -> where(query, [s], s.state in ^states)
+      end
+
+    Repo.all(query)
+  end
+
+  @doc """
+  How many of the account's sandboxes are in each state, with every state
+  present.
+  """
+  def count_sandboxes_by_state(%Account{id: account_id}) do
+    counts =
+      Repo.all(
+        from s in Sandbox,
+          where: s.account_id == ^account_id and s.state != ^:deleted,
+          group_by: s.state,
+          select: {s.state, count(s.id)}
+      )
+
+    Map.merge(Map.new(Sandbox.states() -- [:deleted], &{&1, 0}), Map.new(counts))
   end
 
   @doc """

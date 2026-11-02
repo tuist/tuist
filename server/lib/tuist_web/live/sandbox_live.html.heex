@@ -1,0 +1,210 @@
+<div id="sandbox">
+  <.button
+    navigate={~p"/#{@selected_account.name}/sandboxes"}
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_sandboxes", "Sandboxes")}
+    data-part="back-button"
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title">
+      <div data-part="sandbox-icon"><.devices_code /></div>
+      <h1>{display_name(@sandbox)}</h1>
+      <% status = status(@sandbox) %>
+      <.status_badge status={status.status} label={status.label} />
+    </div>
+    <div :if={@can_manage} data-part="actions">
+      <.button
+        :if={can_pause?(@sandbox)}
+        id="sandbox-pause"
+        variant="secondary"
+        size="medium"
+        label={
+          if @pending == :pause,
+            do: dgettext("dashboard_sandboxes", "Pausing…"),
+            else: dgettext("dashboard_sandboxes", "Pause")
+        }
+        disabled={not is_nil(@pending)}
+        phx-click="pause"
+      >
+        <:icon_left><.player_pause /></:icon_left>
+      </.button>
+      <.button
+        :if={can_resume?(@sandbox)}
+        id="sandbox-resume"
+        variant="secondary"
+        size="medium"
+        label={
+          if @pending == :resume,
+            do: dgettext("dashboard_sandboxes", "Resuming…"),
+            else: dgettext("dashboard_sandboxes", "Resume")
+        }
+        disabled={not is_nil(@pending)}
+        phx-click="resume"
+      >
+        <:icon_left><.player_play /></:icon_left>
+      </.button>
+      <.button
+        :if={can_delete?(@sandbox)}
+        id="sandbox-delete"
+        variant="destructive"
+        size="medium"
+        label={
+          if @pending == :delete,
+            do: dgettext("dashboard_sandboxes", "Deleting…"),
+            else: dgettext("dashboard_sandboxes", "Delete")
+        }
+        disabled={not is_nil(@pending)}
+        phx-click="request_delete"
+      >
+        <:icon_left><.trash /></:icon_left>
+      </.button>
+    </div>
+  </div>
+
+  <.alert
+    :if={@sandbox.state == :error}
+    id="sandbox-error"
+    status="error"
+    type="secondary"
+    size="large"
+    title={dgettext("dashboard_sandboxes", "This sandbox failed")}
+    description={
+      @sandbox.error_message ||
+        dgettext("dashboard_sandboxes", "The machine running it reported an error.")
+    }
+  />
+
+  <.alert
+    :if={@sandbox.amp_orb_id}
+    id="sandbox-amp-managed"
+    status="information"
+    type="secondary"
+    size="large"
+    title={dgettext("dashboard_sandboxes", "Amp manages this Orb")}
+    description={
+      dgettext(
+        "dashboard_sandboxes",
+        "Amp starts this sandbox when a thread needs it and pauses it when the thread goes idle. Deleting it discards its disk; Amp starts a fresh Orb the next time the thread runs."
+      )
+    }
+  />
+
+  <.card title={dgettext("dashboard_sandboxes", "Details")} icon="info_circle">
+    <.card_section>
+      <div data-part="metadata-grid">
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Source")}</div>
+          <span data-part="label">{source_label(@sandbox)}</span>
+        </div>
+        <div :if={@sandbox.amp_orb_id} data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Orb ID")}</div>
+          <span data-part="label">{@sandbox.amp_orb_id}</span>
+        </div>
+        <div :if={@sandbox.anthropic_session_id} data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Session ID")}</div>
+          <span data-part="label">{@sandbox.anthropic_session_id}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Sandbox ID")}</div>
+          <span data-part="label">{@sandbox.id}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Template")}</div>
+          <span data-part="label">{@sandbox.template}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "vCPUs")}</div>
+          <span data-part="label">{@sandbox.vcpus}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Memory")}</div>
+          <span data-part="label">{gigabytes(@sandbox.memory_mb / 1024)}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Disk")}</div>
+          <span data-part="label">{gigabytes(@sandbox.workspace_gb)}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Created")}</div>
+          <span data-part="label" title={time(@sandbox.inserted_at)}>
+            {relative_time(@sandbox.inserted_at)}
+          </span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Last active")}</div>
+          <span data-part="label" title={time(last_active_at(@sandbox))}>
+            {relative_time(last_active_at(@sandbox))}
+          </span>
+        </div>
+        <div :if={@sandbox.state == :paused} data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Paused")}</div>
+          <span data-part="label" title={time(@sandbox.paused_at || @sandbox.updated_at)}>
+            {relative_time(@sandbox.paused_at || @sandbox.updated_at)}
+          </span>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@snapshots != []}
+    title={dgettext("dashboard_sandboxes", "Project snapshots")}
+    icon="photo"
+  >
+    <.card_section>
+      <.table id="sandbox-snapshots-table" rows={@snapshots}>
+        <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Snapshot")}>
+          <.text_cell label={snapshot.amp_snapshot_id} />
+        </:col>
+        <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Status")}>
+          <% status = snapshot_status(snapshot) %>
+          <.status_badge_cell label={status.label} status={status.status} />
+        </:col>
+        <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Saved")}>
+          <.text_cell
+            label={relative_time(snapshot.inserted_at)}
+            title={time(snapshot.inserted_at)}
+          />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.modal
+    id="sandbox-confirm-delete"
+    title={dgettext("dashboard_sandboxes", "Delete sandbox")}
+    description={
+      dgettext(
+        "dashboard_sandboxes",
+        "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
+      )
+    }
+    on_dismiss="cancel_delete"
+  >
+    <:trigger><span hidden></span></:trigger>
+    <.line_divider />
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            label={dgettext("dashboard_sandboxes", "Cancel")}
+            variant="secondary"
+            phx-click="cancel_delete"
+          />
+        </:action>
+        <:action>
+          <.button
+            id="sandbox-confirm-delete-button"
+            label={dgettext("dashboard_sandboxes", "Delete sandbox")}
+            variant="destructive"
+            phx-click="delete"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
+</div>
