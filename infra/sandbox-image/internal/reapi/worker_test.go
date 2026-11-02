@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
@@ -41,6 +42,7 @@ type memoryCAS struct {
 	batchRead    func(context.Context, *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error)
 	beforeUpdate func()
 	beforeWrite  func() error
+	durability   atomic.Value
 }
 
 func (m *memoryCAS) BatchReadBlobs(ctx context.Context, request *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
@@ -83,6 +85,9 @@ func (m *memoryCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
 }
 func (m *memoryCAS) Write(s bs.ByteStream_WriteServer) error {
 	m.writes.Add(1)
+	if values := metadata.ValueFromIncomingContext(s.Context(), "x-tuist-write-durability"); len(values) == 1 {
+		m.durability.Store(values[0])
+	}
 	if m.beforeWrite != nil {
 		if err := m.beforeWrite(); err != nil {
 			return err
@@ -540,5 +545,16 @@ func TestIdenticalOutputsUploadOnce(t *testing.T) {
 	// One file blob and one tree.
 	if got := m.writes.Load(); got != 2 {
 		t.Fatalf("uploaded %d blobs, want 2", got)
+	}
+}
+
+func TestOutputUploadsAllowDeferredDurability(t *testing.T) {
+	w, m := harness(t)
+	d := action(t, m, "printf a > a", &re.Directory{}, []string{"a"})
+	if result, _ := w.Execute(context.Background(), d, false); result.Status.Code != 0 {
+		t.Fatalf("execution: %v", result)
+	}
+	if got := m.durability.Load(); got != "deferred" {
+		t.Fatalf("output upload durability header = %v", got)
 	}
 }

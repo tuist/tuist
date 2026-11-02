@@ -11,6 +11,7 @@ import (
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
@@ -103,7 +104,12 @@ func (u *outputUploads) add(d *re.Digest, upload func(context.Context) (*re.Dige
 	})
 }
 
+// The CAS may acknowledge outputs once they are readable. A node that does not
+// know the header acknowledges them once durable, as before.
+const writeDurabilityHeader = "x-tuist-write-durability"
+
 func (u *outputUploads) send(ctx context.Context) error {
+	ctx = metadata.AppendToOutgoingContext(ctx, writeDurabilityHeader, "deferred")
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(outputUploadConcurrency)
 	for _, job := range u.jobs {
