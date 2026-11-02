@@ -90,10 +90,7 @@ func mount(dev, target string) error {
 	if err := os.MkdirAll(target, 0o755); err != nil {
 		return err
 	}
-	// A workspace is a copy of a freshly formatted image. Zeroing its inode
-	// tables in the background would rewrite them in every sandbox, competing
-	// with the sandbox's own I/O; uninitialized tables are valid ext4.
-	if err := unix.Mount(dev, target, "ext4", 0, "noinit_itable"); err != nil {
+	if err := unix.Mount(dev, target, "ext4", 0, ""); err != nil {
 		return fmt.Errorf("mount %s on %s: %w", dev, target, err)
 	}
 	return nil
