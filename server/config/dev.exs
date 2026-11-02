@@ -214,7 +214,9 @@ config :tuist, Tuist.Repo,
 config :tuist, TuistWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 8080],
+  # Cookies on `localhost` are shared across every worktree's dev server port,
+  # so the `Cookie` header outgrows Bandit's 10_000-byte default.
+  http: [ip: {127, 0, 0, 1}, port: 8080, http_1_options: [max_header_length: 65_536]],
   check_origin: false,
   code_reloader: code_reloader_enabled,
   debug_errors: debug_errors_enabled,
