@@ -403,6 +403,30 @@ defmodule Tuist.Billing do
     end
   end
 
+  # Air is the free tier, and a free account carries no subscription. Moving a
+  # Pro subscription onto Air's $0 Prices left it renewing into a $0 invoice
+  # every month, so a downgrade cancels it instead, at once as the swap did.
+  # `invoice_now` and `prorate` bill the usage accrued so far, the runner
+  # usage the swap carried to the next renewal included, and credit the
+  # unused part of a standing prepaid item. An account with an open invoice
+  # settles it first, since cancelling stops Stripe collecting it.
+  #
+  # Only Pro offers a downgrade. Any other plan, or none, is left as it is.
+  defp change_plan(%{plan: :air, account: %Account{} = account}, %Subscription{plan: :pro} = subscription) do
+    case open_invoice(account.customer_id) do
+      {:ok, nil} ->
+        {:ok, cancelled} =
+          Stripe.Subscription.cancel(subscription.subscription_id, %{invoice_now: true, prorate: true})
+
+        on_subscription_change(cancelled)
+
+      {:ok, _invoice} ->
+        {:ok, {:external_redirect, payment_settlement_url(account, subscription)}}
+    end
+  end
+
+  defp change_plan(%{plan: :air}, _current_subscription), do: :ok
+
   defp change_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}, current_subscription) do
     customer_id = account.customer_id
 
@@ -878,6 +902,88 @@ defmodule Tuist.Billing do
   """
   def cancel_subscription_at_period_end(%Subscription{} = subscription) do
     Stripe.Subscription.update(subscription.subscription_id, %{cancel_at_period_end: true})
+  end
+
+  @doc """
+  One-off cleanup of the Air subscriptions earlier downgrades left behind,
+  each of which renews into a $0 invoice every month.
+
+  Cancels each one immediately and without a final invoice, which leaves the
+  account where an Air account that never subscribed is. Without `prorate`,
+  Stripe discards the metered usage accrued in the current period. Air is the
+  free plan and dispatch caps its runner usage at the free allowance, so the
+  little that could have been billed is forgiven.
+
+  Only touches a subscription that is still `active` or `trialing` in Stripe,
+  has no open invoice, since cancelling stops Stripe from collecting it, and
+  carries nothing beyond Air's own Prices and the runner Prices. Anything
+  else, such as standing prepaid minutes, is skipped and reported. Local rows
+  follow through the subscription webhooks.
+
+  Dry run by default. Run it from a remote console:
+
+      Tuist.Billing.cancel_air_subscriptions()
+      Tuist.Billing.cancel_air_subscriptions(dry_run: false)
+
+  Returns one entry per subscription with its `action` and its `result`.
+  """
+  def cancel_air_subscriptions(opts \\ []) do
+    dry_run = Keyword.get(opts, :dry_run, true)
+
+    from(s in Subscription,
+      where: s.plan == :air and s.status in ["active", "trialing"],
+      order_by: [asc: s.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.map(fn %Subscription{subscription_id: subscription_id} = subscription ->
+      action = air_subscription_cleanup_action(subscription_id)
+
+      result =
+        cond do
+          action != :cancel -> :skipped
+          dry_run -> :dry_run
+          true -> subscription_id |> Stripe.Subscription.cancel(%{invoice_now: false, prorate: false}) |> cleanup_result()
+        end
+
+      %{subscription_id: subscription_id, account_id: subscription.account_id, action: action, result: result}
+    end)
+  end
+
+  defp air_subscription_cleanup_action(subscription_id) do
+    free_price_ids = MapSet.union(air_price_ids(), configured_runner_price_ids())
+
+    with {:ok, %{status: status} = stripe_subscription} when status in ["active", "trialing"] <-
+           Stripe.Subscription.retrieve(subscription_id),
+         [] <-
+           stripe_subscription.items.data
+           |> Enum.map(&subscription_item_price_id/1)
+           |> Enum.reject(&MapSet.member?(free_price_ids, &1)),
+         {:ok, nil} <- open_invoice(stripe_subscription.customer) do
+      :cancel
+    else
+      {:ok, %Stripe.Subscription{status: status}} -> {:skip, {:status, status}}
+      {:ok, _invoice} -> {:skip, :open_invoice}
+      price_ids when is_list(price_ids) -> {:skip, {:unexpected_prices, price_ids}}
+      {:error, error} -> {:skip, {:error, error}}
+    end
+  end
+
+  defp cleanup_result({:ok, _cancelled}), do: :ok
+  defp cleanup_result({:error, error}), do: {:error, error}
+
+  defp air_price_ids do
+    prices = (Tuist.Environment.stripe_prices() || %{})["air"] || %{}
+    MapSet.new(List.wrap(prices["flat_monthly"]) ++ List.wrap(prices["usage"]))
+  end
+
+  # By customer rather than subscription: Stripe documents cancellation as
+  # stopping the collection of every finalized invoice the customer has.
+  defp open_invoice(customer_id) do
+    case Stripe.Invoice.list(%{customer: customer_id, status: "open", limit: 1}) do
+      {:ok, %{data: [invoice | _]}} -> {:ok, invoice}
+      {:ok, %{data: []}} -> {:ok, nil}
+      {:error, error} -> {:error, error}
+    end
   end
 
   @doc """
