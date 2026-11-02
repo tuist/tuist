@@ -624,6 +624,7 @@ impl ReapiService {
         stream: &mut tonic::Streaming<bytestream::WriteRequest>,
         mut first_chunk: bytestream::WriteRequest,
         resource: BlobResource,
+        durability: ClientDurability,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
         let wire_limit = match resource.compressor {
             BlobCompressor::Identity => resource.size_bytes,
@@ -685,11 +686,13 @@ impl ReapiService {
                 "blob was evicted during the upload; restart the write from offset zero",
             ));
         }
-        self.state
-            .store
-            .acknowledge_existing_client_manifest()
-            .await
-            .map_err(Status::internal)?;
+        if durability == ClientDurability::Durable {
+            self.state
+                .store
+                .acknowledge_existing_client_manifest()
+                .await
+                .map_err(Status::internal)?;
+        }
         self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "already_present", 0);
@@ -875,7 +878,12 @@ impl ReapiService {
                 if self.write_target_already_present(&parsed_resource).await {
                     cleanup.disarm();
                     return self
-                        .discard_stored_write(&mut stream, chunk, parsed_resource)
+                        .discard_stored_write(
+                            &mut stream,
+                            chunk,
+                            parsed_resource,
+                            write_durability(&metadata),
+                        )
                         .await;
                 }
                 let (policy, admitted_window) =
