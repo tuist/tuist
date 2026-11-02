@@ -837,13 +837,17 @@ defmodule AtlasWeb.SupportLive do
               </span>
             </div>
             <%= if origin = Support.agent_feedback_origin(@thread) do %>
-              <div data-part="detail-row">
+              <div id="support-feedback-channel" data-part="detail-row">
                 <span data-part="detail-label">{gettext("Channel")}</span>
-                <span data-part="detail-value">{gettext("Agent feedback")}</span>
+                <span data-part="detail-value">
+                  {if origin.source,
+                    do: gettext("Agent feedback via %{source}", source: origin.source),
+                    else: gettext("Agent feedback")}
+                </span>
               </div>
-              <div :if={origin.user_handle} id="support-tuist-user" data-part="detail-row">
-                <span data-part="detail-label">{gettext("Tuist user")}</span>
-                <span data-part="detail-value">{origin.user_handle}</span>
+              <div :if={origin.reporter_handle} id="support-reporter" data-part="detail-row">
+                <span data-part="detail-label">{gettext("Reporter")}</span>
+                <span data-part="detail-value">{origin.reporter_handle}</span>
               </div>
               <div :if={origin.account_handle} id="support-reported-from" data-part="detail-row">
                 <span data-part="detail-label">{gettext("Reported from")}</span>
@@ -856,10 +860,10 @@ defmodule AtlasWeb.SupportLive do
               </div>
               <div
                 :if={origin.organization_handles != []}
-                id="support-tuist-organizations"
+                id="support-organizations"
                 data-part="detail-row"
               >
-                <span data-part="detail-label">{gettext("Tuist organizations")}</span>
+                <span data-part="detail-label">{gettext("Organizations")}</span>
                 <span data-part="detail-value">{Enum.join(origin.organization_handles, ", ")}</span>
               </div>
             <% end %>

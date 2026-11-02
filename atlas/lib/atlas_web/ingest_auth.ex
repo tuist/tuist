@@ -2,7 +2,7 @@ defmodule AtlasWeb.IngestAuth do
   @moduledoc """
   Bearer authentication for machine-to-machine ingest endpoints.
 
-  Callers such as the Tuist server and marketing site authenticate with
+  Callers such as product servers and the marketing site authenticate with
   `Authorization: Bearer <token>`. Each endpoint passes its own configured
   token; an unset token keeps the endpoint closed.
   """

@@ -26,7 +26,7 @@ defmodule Atlas.Accounts.EventRouting do
   end
 
   @doc """
-  Finds the Atlas account that owns the given Tuist account handles.
+  Finds the Atlas account that owns the given account handles.
 
   Returns nil unless the handles resolve to exactly one account, so a caller
   passing every organization a user belongs to never guesses between them.

@@ -1,7 +1,7 @@
 defmodule AtlasWeb.SupportAgentFeedbackController do
   @moduledoc """
-  Receives feedback that AI agents report through the Tuist MCP server and turns
-  each report into a support conversation.
+  Receives feedback that AI agents report through a product's agent integration,
+  such as an MCP server, and turns each report into a support conversation.
   """
 
   use AtlasWeb, :controller

@@ -40,11 +40,12 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
     assert body == "Expected:\nTest runs filtered by branch\n\nActual:\nThe branch parameter was ignored"
 
     assert context == %{
+             "source" => "Tuist MCP",
              "tool_name" => "list_test_runs",
              "category" => "missing_data",
-             "tuist_user_id" => to_string(user.id),
-             "tuist_user_handle" => user.account.name,
-             "tuist_organization_handles" => []
+             "reporter_id" => to_string(user.id),
+             "reporter_handle" => user.account.name,
+             "organization_handles" => []
            }
   end
 
@@ -70,9 +71,9 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
              )
 
     assert_received {:posted, context}
-    assert context["tuist_account_handle"] == organization.account.name
-    assert context["tuist_project_handle"] == project.name
-    assert context["tuist_organization_handles"] == [organization.account.name]
+    assert context["account_handle"] == organization.account.name
+    assert context["project_handle"] == project.name
+    assert context["organization_handles"] == [organization.account.name]
 
     reject(&Req.post/2)
 
@@ -98,8 +99,8 @@ defmodule Tuist.MCP.Components.Tools.ReportFeedbackTest do
              )
 
     assert_received {:posted, context}
-    assert context["tuist_account_handle"] == organization.account.name
-    refute Map.has_key?(context, "tuist_project_handle")
+    assert context["account_handle"] == organization.account.name
+    refute Map.has_key?(context, "project_handle")
   end
 
   test "accepts reports from OAuth sessions, which authenticate as an account subject" do

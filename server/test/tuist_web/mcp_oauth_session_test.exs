@@ -111,9 +111,9 @@ defmodule TuistWeb.MCPOAuthSessionTest do
       assert result["structuredContent"] == %{"feedback_id" => "thread-1"}
       assert_received {:posted, %{"email" => email, "context" => context}}
       assert email == admin.email
-      assert context["tuist_user_handle"] == admin.account.name
-      assert context["tuist_account_handle"] == organization.account.name
-      assert context["tuist_project_handle"] == project.name
+      assert context["reporter_handle"] == admin.account.name
+      assert context["account_handle"] == organization.account.name
+      assert context["project_handle"] == project.name
     end
 
     test "lets a project member mark a test case as flaky, attributing the change to the user", %{

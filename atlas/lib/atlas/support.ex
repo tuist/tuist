@@ -32,7 +32,7 @@ defmodule Atlas.Support do
   @chat_email_verification_max_age 60 * 60 * 24 * 7
 
   @doc """
-  Bearer token the Tuist server presents when reporting agent feedback. Nil
+  Bearer token a trusted product presents when reporting agent feedback. Nil
   until `ATLAS_SUPPORT_INGEST_TOKEN` is configured, which keeps the endpoint closed.
   """
   def ingest_token do
@@ -221,12 +221,14 @@ defmodule Atlas.Support do
   def receive_chat(_thread, _attrs), do: {:error, :not_found}
 
   @doc """
-  Records feedback an AI agent reported through the Tuist MCP server.
+  Records feedback an AI agent reported through a product's agent integration,
+  such as an MCP server.
 
-  The Tuist server authenticates the user before calling the ingest endpoint,
-  so the email and Tuist handles are trusted. The conversation is linked to the
-  account that owns the reported Tuist account handle, then to the account the
-  email matches, then to the single account the user's own handles resolve to,
+  The product authenticates its user before calling the ingest endpoint, so the
+  email and handles it sends are trusted. Handles are the product's own account
+  identifiers, matched against `account_handles`. The conversation is linked to
+  the account that owns the reported account handle, then to the account the
+  email matches, then to the single account the reporter's own handles resolve to,
   and replies are emailed like any other support conversation. Every report
   starts its own conversation. The body is written by the agent, so it must be
   treated as untrusted input.
@@ -282,16 +284,18 @@ defmodule Atlas.Support do
   def receive_agent_feedback(_attrs), do: {:error, :invalid}
 
   @doc """
-  Returns who an agent feedback conversation came from on Tuist: the reporting
-  user's handle, the account and project the report is about, and the
-  organizations the user belongs to. Returns nil for other conversations.
+  Returns who an agent feedback conversation came from: the product it was sent
+  through, the reporter's handle, the account and project the report is about,
+  and the organizations the reporter belongs to. Returns nil for other
+  conversations.
   """
   def agent_feedback_origin(%Thread{metadata: %{"channel" => "agent_feedback"} = metadata}) do
     %{
-      user_handle: metadata["tuist_user_handle"],
-      account_handle: metadata["tuist_account_handle"],
-      project_handle: metadata["tuist_project_handle"],
-      organization_handles: metadata["tuist_organization_handles"] || []
+      source: metadata["source"],
+      reporter_handle: metadata["reporter_handle"],
+      account_handle: metadata["account_handle"],
+      project_handle: metadata["project_handle"],
+      organization_handles: metadata["organization_handles"] || []
     }
   end
 
@@ -1116,7 +1120,7 @@ defmodule Atlas.Support do
     end
   end
 
-  @agent_feedback_context_keys ~w(tool_name category tuist_user_id tuist_user_handle tuist_account_handle tuist_project_handle)
+  @agent_feedback_context_keys ~w(source tool_name category reporter_id reporter_handle account_handle project_handle)
   @agent_feedback_max_organization_handles 50
 
   defp agent_feedback_attrs(attrs) do
@@ -1148,9 +1152,9 @@ defmodule Atlas.Support do
           into: %{},
           do: {key, String.slice(value, 0, 255)}
 
-    case agent_feedback_organization_handles(context["tuist_organization_handles"]) do
+    case agent_feedback_organization_handles(context["organization_handles"]) do
       [] -> values
-      handles -> Map.put(values, "tuist_organization_handles", handles)
+      handles -> Map.put(values, "organization_handles", handles)
     end
   end
 
@@ -1167,15 +1171,15 @@ defmodule Atlas.Support do
 
   defp agent_feedback_organization_handles(_handles), do: []
 
-  # The Tuist server only forwards an account handle the reporting user belongs
+  # The sending product only forwards an account handle the reporting user belongs
   # to, so it is the strongest signal of which customer to get back to. The
   # email comes next, and the user's own handles last: they only decide when
   # they resolve to a single account.
   defp agent_feedback_account(%{customer_email: email, metadata: metadata}) do
-    (metadata["tuist_account_handle"] && EventRouting.find_account_by_handles([metadata["tuist_account_handle"]])) ||
+    (metadata["account_handle"] && EventRouting.find_account_by_handles([metadata["account_handle"]])) ||
       EventRouting.find_account([email]) ||
       EventRouting.find_account_by_handles(
-        Enum.reject([metadata["tuist_user_handle"] | metadata["tuist_organization_handles"] || []], &is_nil/1)
+        Enum.reject([metadata["reporter_handle"] | metadata["organization_handles"] || []], &is_nil/1)
       )
   end
 

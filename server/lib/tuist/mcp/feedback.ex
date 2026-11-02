@@ -31,11 +31,12 @@ defmodule Tuist.MCP.Feedback do
         "context" =>
           Map.merge(
             %{
+              "source" => "Tuist MCP",
               "tool_name" => arguments["tool_name"],
               "category" => arguments["category"],
-              "tuist_user_id" => to_string(user.id),
-              "tuist_user_handle" => user.account.name,
-              "tuist_organization_handles" => organization_handles
+              "reporter_id" => to_string(user.id),
+              "reporter_handle" => user.account.name,
+              "organization_handles" => organization_handles
             },
             attribution
           )
@@ -92,14 +93,14 @@ defmodule Tuist.MCP.Feedback do
 
   defp attribution(_arguments, _user, _organization_handles), do: {:ok, %{}}
 
-  defp project_attribution(nil, account_handle), do: {:ok, %{"tuist_account_handle" => account_handle}}
+  defp project_attribution(nil, account_handle), do: {:ok, %{"account_handle" => account_handle}}
 
   # An unknown project is dropped rather than failing the report: the account
   # is enough to get back to the customer.
   defp project_attribution(project_handle, account_handle) do
     case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
-      nil -> {:ok, %{"tuist_account_handle" => account_handle}}
-      project -> {:ok, %{"tuist_account_handle" => account_handle, "tuist_project_handle" => project.name}}
+      nil -> {:ok, %{"account_handle" => account_handle}}
+      project -> {:ok, %{"account_handle" => account_handle, "project_handle" => project.name}}
     end
   end
 

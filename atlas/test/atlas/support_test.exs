@@ -154,9 +154,11 @@ defmodule Atlas.SupportTest do
                  "email" => "Maya@Customer-#{suffix}.example",
                  "body" => "Expected: test runs filtered by branch\n\nActual: the branch was ignored",
                  "context" => %{
+                   "source" => "Example MCP",
                    "tool_name" => "list_test_runs",
                    "category" => "missing_data",
-                   "tuist_user_id" => "42",
+                   "reporter_id" => "42",
+                   "channel" => "email",
                    "unexpected" => "dropped"
                  }
                })
@@ -167,9 +169,10 @@ defmodule Atlas.SupportTest do
 
       assert thread.metadata == %{
                "channel" => "agent_feedback",
+               "source" => "Example MCP",
                "tool_name" => "list_test_runs",
                "category" => "missing_data",
-               "tuist_user_id" => "42"
+               "reporter_id" => "42"
              }
 
       assert message.kind == "chat"
@@ -181,7 +184,7 @@ defmodule Atlas.SupportTest do
       )
     end
 
-    test "links the thread to the Tuist account the agent reported from, ahead of the email domain" do
+    test "links the thread to the account the agent reported from, ahead of the email domain" do
       suffix = System.unique_integer([:positive])
       _email_account = insert_account!("customer-#{suffix}.example")
       reported_account = insert_account!("other-#{suffix}.example")
@@ -194,20 +197,20 @@ defmodule Atlas.SupportTest do
                  "email" => "maya@customer-#{suffix}.example",
                  "body" => "The branch filter was ignored.",
                  "context" => %{
-                   "tuist_user_handle" => "maya",
-                   "tuist_account_handle" => "Acme-#{suffix}",
-                   "tuist_project_handle" => "ios",
-                   "tuist_organization_handles" => ["acme-#{suffix}", "side-project"]
+                   "reporter_handle" => "maya",
+                   "account_handle" => "Acme-#{suffix}",
+                   "project_handle" => "ios",
+                   "organization_handles" => ["acme-#{suffix}", "side-project"]
                  }
                })
 
       assert thread.account_id == reported_account.id
-      assert thread.metadata["tuist_account_handle"] == "Acme-#{suffix}"
-      assert thread.metadata["tuist_project_handle"] == "ios"
-      assert thread.metadata["tuist_organization_handles"] == ["acme-#{suffix}", "side-project"]
+      assert thread.metadata["account_handle"] == "Acme-#{suffix}"
+      assert thread.metadata["project_handle"] == "ios"
+      assert thread.metadata["organization_handles"] == ["acme-#{suffix}", "side-project"]
     end
 
-    test "falls back to the user's Tuist organizations when the email matches no account" do
+    test "falls back to the reporter's organizations when the email matches no account" do
       suffix = System.unique_integer([:positive])
       account = insert_account!("acme-#{suffix}.example")
       {:ok, _handle} = Accounts.create_account_handle(account, %{"handle" => "acme-#{suffix}", "source" => "manual"})
@@ -217,8 +220,8 @@ defmodule Atlas.SupportTest do
                  "email" => "maya-#{suffix}@gmail.com",
                  "body" => "The branch filter was ignored.",
                  "context" => %{
-                   "tuist_user_handle" => "maya-#{suffix}",
-                   "tuist_organization_handles" => ["acme-#{suffix}"]
+                   "reporter_handle" => "maya-#{suffix}",
+                   "organization_handles" => ["acme-#{suffix}"]
                  }
                })
 
@@ -237,7 +240,7 @@ defmodule Atlas.SupportTest do
                Support.receive_agent_feedback(%{
                  "email" => "maya-#{suffix}@gmail.com",
                  "body" => "The branch filter was ignored.",
-                 "context" => %{"tuist_organization_handles" => ["acme-#{suffix}", "globex-#{suffix}"]}
+                 "context" => %{"organization_handles" => ["acme-#{suffix}", "globex-#{suffix}"]}
                })
 
       assert thread.account_id == nil

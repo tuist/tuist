@@ -6,7 +6,7 @@ defmodule AtlasWeb.SupportAgentFeedbackControllerTest do
   alias Atlas.Support
   alias Atlas.Support.Thread
 
-  @token "tuist-server-token"
+  @token "product-ingest-token"
   @body %{
     "name" => "Maya Chen",
     "email" => "maya@customer.example",

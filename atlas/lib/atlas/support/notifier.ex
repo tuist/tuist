@@ -326,11 +326,18 @@ defmodule Atlas.Support.Notifier do
     end
   end
 
-  defp agent_feedback_reporter(%{account_handle: account, project_handle: project}) when is_binary(account) do
-    if project, do: "Tuist project #{account}/#{project}", else: "Tuist account #{account}"
+  # "acme/ios · maya · Example MCP": where the report is about, who sent it and
+  # which product it came through, leaving out whatever the sender did not say.
+  defp agent_feedback_reporter(%{} = origin) do
+    location =
+      origin.account_handle && Enum.join(Enum.reject([origin.account_handle, origin.project_handle], &is_nil/1), "/")
+
+    case Enum.reject([location, origin.reporter_handle, origin.source], &is_nil/1) do
+      [] -> nil
+      parts -> Enum.join(parts, " · ")
+    end
   end
 
-  defp agent_feedback_reporter(%{user_handle: user}) when is_binary(user), do: "Tuist user #{user}"
   defp agent_feedback_reporter(_origin), do: nil
 
   defp inbound_message_block(opts) do
