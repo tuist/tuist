@@ -267,6 +267,10 @@ pub struct Store {
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
+    // Deferred client writes waiting for the next durability round, and
+    // whether a committer is running it.
+    deferred_queue: StdMutex<Vec<DeferredDurability>>,
+    deferred_committer: AtomicBool,
     // Group-commit durability. Writers reserve a monotonic `pending_seq` while
     // holding `segment_write_lock` (so their bytes are appended in order), then
     // a single fsync — serialized by `fsync_lock` — advances `durable_seq` to
@@ -614,6 +618,10 @@ pub(crate) struct DeferredDurability {
 }
 
 const DEFERRED_DURABILITY_MARKER_PREFIX: &[u8] = b"deferred-durability/";
+
+/// How often queued deferred writes are made durable: the bound on how long an
+/// acknowledged deferred write may stay volatile, beyond the syncs themselves.
+const DEFERRED_DURABILITY_INTERVAL: Duration = Duration::from_millis(50);
 
 fn deferred_durability_marker(segment_id: &str, offset: u64) -> Vec<u8> {
     let mut marker = DEFERRED_DURABILITY_MARKER_PREFIX.to_vec();
@@ -1537,6 +1545,8 @@ impl Store {
                 ACTION_CACHE_REMOVAL_LOG_MAX,
             ))),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
+            deferred_queue: StdMutex::new(Vec::new()),
+            deferred_committer: AtomicBool::new(false),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
             fsync_lock: Mutex::new(()),
@@ -2284,22 +2294,63 @@ impl Store {
         Ok((manifest, wal_seq, marker))
     }
 
-    /// Makes a deferred write durable: its segment bytes, then the WAL holding
-    /// its manifest and marker, and only then removes the marker. Concurrent
-    /// completions share each fsync through the usual group commit.
+    /// Queues a deferred write for the next durability round. The caller that
+    /// finds no committer running becomes it: every
+    /// [`DEFERRED_DURABILITY_INTERVAL`] it makes the queued segment bytes
+    /// durable, then the WAL holding their manifests and markers, and only then
+    /// removes the markers. A write to a file blocks while that file is being
+    /// synced, so batching rounds keeps most deferred writes clear of a sync.
     pub(crate) async fn complete_deferred_durability(
         &self,
         deferred: DeferredDurability,
     ) -> Result<(), String> {
-        self.ensure_segment_durable(deferred.segment_seq).await?;
-        if let Some(seq) = deferred.wal_seq {
-            self.ensure_wal_durable(seq).await?;
+        self.deferred_queue
+            .lock()
+            .expect("deferred durability queue lock should not be poisoned")
+            .push(deferred);
+        if self.deferred_committer.swap(true, Ordering::AcqRel) {
+            return Ok(());
+        }
+        loop {
+            tokio::time::sleep(DEFERRED_DURABILITY_INTERVAL).await;
+            let round = std::mem::take(
+                &mut *self
+                    .deferred_queue
+                    .lock()
+                    .expect("deferred durability queue lock should not be poisoned"),
+            );
+            if !round.is_empty() {
+                if let Err(error) = self.commit_deferred_round(&round).await {
+                    self.deferred_committer.store(false, Ordering::Release);
+                    return Err(error);
+                }
+                continue;
+            }
+            self.deferred_committer.store(false, Ordering::Release);
+            let queued = !self
+                .deferred_queue
+                .lock()
+                .expect("deferred durability queue lock should not be poisoned")
+                .is_empty();
+            if !queued || self.deferred_committer.swap(true, Ordering::AcqRel) {
+                return Ok(());
+            }
+        }
+    }
+
+    async fn commit_deferred_round(&self, round: &[DeferredDurability]) -> Result<(), String> {
+        let segment_seq = round.iter().map(|d| d.segment_seq).max().unwrap_or(0);
+        self.ensure_segment_durable(segment_seq).await?;
+        if let Some(wal_seq) = round.iter().filter_map(|d| d.wal_seq).max() {
+            self.ensure_wal_durable(wal_seq).await?;
         }
         let mut batch = WriteBatch::default();
-        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), &deferred.marker);
+        for deferred in round {
+            batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), &deferred.marker);
+        }
         self.write_batch_deferring_durability(
             batch,
-            "deferred durability marker",
+            "deferred durability markers",
             ApplyDurability::DeferredBatch,
             Vec::new(),
         )
@@ -14352,6 +14403,54 @@ mod tests {
             .expect("durability should complete");
         assert!(store.segment_fsync_count.load(Ordering::Relaxed) > fsyncs_before);
         assert!(store.wal_write_counts().2 > flushes_before);
+        assert_eq!(deferred_markers(&store), 0);
+    }
+
+    #[tokio::test]
+    async fn deferred_writes_share_one_durability_round() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                &cas_key(b"durable"),
+                "application/octet-stream",
+                b"durable",
+            )
+            .await
+            .expect("durable persist should succeed");
+        let mut pending = Vec::new();
+        for i in 0..5 {
+            let bytes = format!("payload {i}").into_bytes();
+            let (_, deferred) = store
+                .persist_artifact_from_bytes_deferred(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &cas_key(&bytes),
+                    "application/octet-stream",
+                    &bytes,
+                    FileCachePolicy::Adaptive,
+                )
+                .await
+                .expect("deferred persist should succeed");
+            pending.push(deferred.expect("a new blob leaves durability work"));
+        }
+        let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
+        let (_, _, flushes_before) = store.wal_write_counts();
+
+        futures_util::future::try_join_all(
+            pending
+                .into_iter()
+                .map(|deferred| store.complete_deferred_durability(deferred)),
+        )
+        .await
+        .expect("durability should complete");
+
+        assert_eq!(
+            store.segment_fsync_count.load(Ordering::Relaxed) - fsyncs_before,
+            1
+        );
+        assert_eq!(store.wal_write_counts().2 - flushes_before, 1);
         assert_eq!(deferred_markers(&store), 0);
     }
 
