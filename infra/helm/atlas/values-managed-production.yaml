@@ -112,12 +112,12 @@ env:
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
   # The Tuist server reports MCP agent feedback with a projected ServiceAccount
   # token (audience atlas-support-ingest) from the Tuist production cluster.
-  # Atlas verifies it offline against that cluster's pinned public JWKS, set in
-  # ATLAS_SUPPORT_INGEST_TOKEN_JWKS from
+  # Atlas verifies it offline against that cluster's pinned public JWKS, from
   # `kubectl --context tuist-k8s-production get --raw /openid/v1/jwks`.
   # Add the new key here before the Tuist cluster rotates its signing key.
   ATLAS_SUPPORT_INGEST_TOKEN_ISSUER: "https://kubernetes.default.svc.cluster.local"
   ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT: "tuist:tuist-server"
+  ATLAS_SUPPORT_INGEST_TOKEN_JWKS: '{"keys":[{"use":"sig","kty":"RSA","kid":"ThNjNgV4Cy9fBbCAci-HQ6ZflqRRLaf8JPC_18l4cIY","alg":"RS256","n":"wNQWOfA0AvS-skdlR3o5uU-1Kt5Zzkysm7qhV5BXdDOZD3JN5AbwFXunRGrETUossi1fRGCEEaTh_GKbqnlWPHQDkfH8XSt6DS1MgejxNFKTAElokBC31s-bNnu_62JQ9HV2bpGjLmuEBX4sAhKo3iho5KxujH-ZLt61EEAOgskG5TrEshXFqHZeghXqzRBkWZjLSAXI8idQuGUrioQExgdygng01aO6J8-uNltH4IsEyHKilhkPTPZW_ZNcdBKAdgibQv4YZuh9u_0EMcUUz_LWOP-Y31br9QLsHymoDtCsRgAcFJvxy93uQ3RZU1DnkSHQ9wl4UgZPsdxsnwa-Sw","e":"AQAB"}]}'
   # POC access request pings go to #customers. The default in
   # Atlas.Accounts.POCs.Notifier is a by-name lookup, but that relies on the
   # channel being tracked in Atlas' slack_channels table; the escape hatch is
