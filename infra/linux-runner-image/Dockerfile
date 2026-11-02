@@ -259,7 +259,7 @@ ENV NODE_OPTIONS=--use-openssl-ca \
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
 ARG KUBECTL_VERSION=1.37.0
 # renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=4.3.0
+ARG HELM_VERSION=4.3.1
 # renovate: datasource=github-releases depName=cli/cli
 ARG GH_VERSION=2.100.0
 RUN ARCH="$(dpkg --print-architecture)" \
