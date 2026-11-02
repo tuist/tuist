@@ -5,7 +5,8 @@
 # object annotated for another release. The previous owner must already have
 # stopped rendering the object and kept it (helm.sh/resource-policy: keep).
 # Objects that are absent, already owned by this release, or owned by any other
-# release stay untouched. Idempotent.
+# release stay untouched. A moved object's field managers are cleared, so the
+# new release owns every field it renders. Idempotent.
 # Usage: helm-move-release-objects.sh <rendered-json-array> <from-release> <to-release> <namespace>
 set -euo pipefail
 render="${1:?rendered JSON array required}"
@@ -29,6 +30,10 @@ while IFS= read -r object; do
   kubectl --request-timeout=30s -n "$object_namespace" annotate --overwrite "$resource" "$name" \
     "meta.helm.sh/release-name=$to" "meta.helm.sh/release-namespace=$namespace"
   kubectl --request-timeout=30s -n "$object_namespace" label --overwrite "$resource" "$name" app.kubernetes.io/managed-by=Helm
+  # Clearing the field managers hands ownership of every field to the new
+  # release; a server-side apply would otherwise conflict wherever its values
+  # differ from what the previous release or a manual edit set.
+  kubectl --request-timeout=30s -n "$object_namespace" patch "$resource" "$name" --type=merge -p '{"metadata":{"managedFields":[{}]}}'
 done < <(jq -c --arg ns "$namespace" '
   .[] | select(.metadata.name != null) | {
     resource: "\(.kind).\(.apiVersion | split("/") | if length == 2 then "\(.[1]).\(.[0])" else "\(.[0])." end)",
