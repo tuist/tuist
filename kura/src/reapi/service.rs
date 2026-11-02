@@ -61,8 +61,8 @@ use crate::{
     metrics::shed_kind,
     state::SharedState,
     store::{
-        ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
-        try_allocate_exact_vec,
+        ArtifactReader, ClientDurability, DeferredDurability, RefreshTrigger,
+        SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath, try_allocate_exact_vec,
     },
     utils::{TempFileCleanup, action_cache_key, blob_key, temp_file_path},
 };
@@ -1125,8 +1125,10 @@ impl ReapiService {
         // billed twice — matching the HTTP upload path's `artifact_exists`
         // short-circuit — and concurrent uploads of the same missing blob
         // resolve to exactly one billed writer.
-        let persisted = if let Some(payload) = memory_payload.as_deref() {
-            self.state
+        let durability = write_durability(&metadata);
+        let persisted = match (memory_payload.as_deref(), durability) {
+            (Some(payload), ClientDurability::Durable) => self
+                .state
                 .store
                 .persist_admitted_artifact_from_bytes_and_replicate(
                     ArtifactProducer::Reapi,
@@ -1137,8 +1139,22 @@ impl ReapiService {
                     file_cache_policy,
                 )
                 .await
-        } else {
-            self.state
+                .map(|persisted| (persisted, None)),
+            (Some(payload), ClientDurability::Deferred) => {
+                self.state
+                    .store
+                    .persist_artifact_from_bytes_deferred(
+                        ArtifactProducer::Reapi,
+                        &resource.namespace_id,
+                        &resource.key,
+                        "application/octet-stream",
+                        payload,
+                        file_cache_policy,
+                    )
+                    .await
+            }
+            (None, ClientDurability::Durable) => self
+                .state
                 .store
                 .persist_artifact_from_path_and_replicate(
                     ArtifactProducer::Reapi,
@@ -1149,6 +1165,19 @@ impl ReapiService {
                     None,
                 )
                 .await
+                .map(|persisted| (persisted, None)),
+            (None, ClientDurability::Deferred) => {
+                self.state
+                    .store
+                    .persist_artifact_from_path_deferred(
+                        ArtifactProducer::Reapi,
+                        &resource.namespace_id,
+                        &resource.key,
+                        "application/octet-stream",
+                        StagedArtifactPath::new(temp_path, file_cache_policy),
+                    )
+                    .await
+            }
         }
         .map_err(|error| {
             if is_fd_pool_exhausted_error(&error) {
@@ -1159,13 +1188,15 @@ impl ReapiService {
                 Status::internal(format!("failed to persist CAS blob: {error}"))
             }
         })?;
-        if persisted.already_present {
+        let (persisted, deferred) = persisted;
+        if persisted.already_present && durability == ClientDurability::Durable {
             self.state
                 .store
                 .acknowledge_existing_client_manifest()
                 .await
                 .map_err(Status::internal)?;
         }
+        complete_deferred_durability(&self.state, deferred);
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
             "ok",
@@ -2385,6 +2416,7 @@ impl ContentAddressableStorage for ReapiService {
         };
         self.authorize_request(&request, auth).await?;
         let (metadata, mut extensions, message) = request.into_parts();
+        let durability = write_durability(&metadata);
         let memory_admission = extensions
             .remove::<GrpcWriteAdmission>()
             .expect("write decode admission was checked before authorization");
@@ -2412,7 +2444,7 @@ impl ContentAddressableStorage for ReapiService {
         let pending: Vec<_> = message
             .requests
             .iter()
-            .map(|item| update_batch_blob(&self.state, namespace_id, item))
+            .map(|item| update_batch_blob(&self.state, namespace_id, item, durability))
             .collect();
         let items: Vec<BatchUpdateItem> = futures_util::stream::iter(pending)
             .buffered(BATCH_UPDATE_PERSIST_CONCURRENCY)
@@ -4271,6 +4303,7 @@ async fn update_batch_blob(
     state: &SharedState,
     namespace_id: &str,
     item: &reapi::batch_update_blobs_request::Request,
+    durability: ClientDurability,
 ) -> BatchUpdateItem {
     let started_at = Instant::now();
     let rejected = |digest: Option<reapi::Digest>, mut status: RpcStatus| {
@@ -4340,7 +4373,7 @@ async fn update_batch_blob(
             );
         }
     };
-    match persist_cas_blob(state, namespace_id, &digest, decoded.as_ref()).await {
+    match persist_cas_blob(state, namespace_id, &digest, decoded.as_ref(), durability).await {
         Ok(newly_stored) => BatchUpdateItem {
             stored: newly_stored.then(|| (decoded.len() as u64, started_at.elapsed())),
             response: reapi::batch_update_blobs_response::Response {
@@ -4357,22 +4390,43 @@ async fn persist_cas_blob(
     namespace_id: &str,
     digest: &reapi::Digest,
     bytes: &[u8],
+    durability: ClientDurability,
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let persisted = state
-        .store
-        .persist_artifact_from_bytes_and_replicate(
-            ArtifactProducer::Reapi,
-            namespace_id,
-            &key,
-            "application/octet-stream",
-            bytes,
-        )
-        .await?;
-    if persisted.already_present {
-        state.store.acknowledge_existing_client_manifest().await?;
-    }
+    let persisted = match durability {
+        ClientDurability::Durable => {
+            let persisted = state
+                .store
+                .persist_artifact_from_bytes_and_replicate(
+                    ArtifactProducer::Reapi,
+                    namespace_id,
+                    &key,
+                    "application/octet-stream",
+                    bytes,
+                )
+                .await?;
+            if persisted.already_present {
+                state.store.acknowledge_existing_client_manifest().await?;
+            }
+            persisted
+        }
+        ClientDurability::Deferred => {
+            let (persisted, deferred) = state
+                .store
+                .persist_artifact_from_bytes_deferred(
+                    ArtifactProducer::Reapi,
+                    namespace_id,
+                    &key,
+                    "application/octet-stream",
+                    bytes,
+                    FileCachePolicy::Adaptive,
+                )
+                .await?;
+            complete_deferred_durability(state, deferred);
+            persisted
+        }
+    };
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
@@ -4749,6 +4803,35 @@ fn is_presence_lookup(metadata: &tonic::metadata::MetadataMap) -> bool {
         .get(LOOKUP_HEADER)
         .and_then(|value| value.to_str().ok())
         == Some(PRESENCE_LOOKUP)
+}
+
+const WRITE_DURABILITY_HEADER: &str = "x-tuist-write-durability";
+
+/// A CAS write may be acknowledged once it is readable when the client asks
+/// for it; every other write is acknowledged once durable.
+fn write_durability(metadata: &tonic::metadata::MetadataMap) -> ClientDurability {
+    match metadata
+        .get(WRITE_DURABILITY_HEADER)
+        .and_then(|value| value.to_str().ok())
+    {
+        Some("deferred") => ClientDurability::Deferred,
+        _ => ClientDurability::Durable,
+    }
+}
+
+/// Finishes a deferred write in the background. Its client already has the
+/// acknowledgement; a failure here leaves the durability marker for startup
+/// verification.
+fn complete_deferred_durability(state: &SharedState, deferred: Option<DeferredDurability>) {
+    let Some(deferred) = deferred else {
+        return;
+    };
+    let store = Arc::clone(&state.store);
+    tokio::spawn(async move {
+        if let Err(error) = store.complete_deferred_durability(deferred).await {
+            tracing::error!("deferred CAS write did not become durable: {error}");
+        }
+    });
 }
 
 fn reapi_usage_artifact_kind(metadata: &tonic::metadata::MetadataMap) -> &'static str {
@@ -8356,9 +8439,15 @@ mod tests {
             hash: hex::encode(Sha256::digest(b"world")),
             size_bytes: chunk.len() as i64,
         };
-        persist_cas_blob(&context.state, "ios", &chunk_digest, chunk)
-            .await
-            .expect("chunk should persist");
+        persist_cas_blob(
+            &context.state,
+            "ios",
+            &chunk_digest,
+            chunk,
+            ClientDurability::Durable,
+        )
+        .await
+        .expect("chunk should persist");
 
         let mut request = Request::new(reapi::SpliceBlobRequest {
             instance_name: "ios".into(),

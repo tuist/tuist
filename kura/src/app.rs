@@ -284,6 +284,16 @@ async fn initialize_and_serve(
         .await
         .map_err(|error| error.context("failed to sweep orphaned segments"))?;
     tracing::info!(swept, "removed orphaned segment files");
+    let mismatched = store
+        .verify_deferred_writes()
+        .await
+        .map_err(|error| format!("failed to verify deferred CAS writes: {error}"))?;
+    if !mismatched.is_empty() {
+        tracing::error!(
+            count = mismatched.len(),
+            "deferred CAS writes lost their bytes before becoming durable"
+        );
+    }
     bootstrap.recovery.check_running()?;
     bootstrap.recovery.set_phase(Phase::Configuring);
     establish_initial_memory_baseline(&memory).await?;

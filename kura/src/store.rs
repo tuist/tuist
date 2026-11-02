@@ -593,6 +593,36 @@ pub struct BackfillIndexPage {
     pub next_after: Option<Vec<u8>>,
 }
 
+/// When a client write is acknowledged. `Deferred` is opt-in per request: the
+/// write is acknowledged once it is readable, and
+/// [`Store::complete_deferred_durability`] makes it durable afterwards.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ClientDurability {
+    Durable,
+    Deferred,
+}
+
+/// A deferred write's outstanding durability work. Its marker was committed in
+/// the same batch as the manifest and is removed only once the segment bytes
+/// are durable, so a marker that survives a crash names a blob whose bytes may
+/// be missing.
+#[derive(Debug)]
+pub(crate) struct DeferredDurability {
+    segment_seq: u64,
+    wal_seq: Option<u64>,
+    marker: Vec<u8>,
+}
+
+const DEFERRED_DURABILITY_MARKER_PREFIX: &[u8] = b"deferred-durability/";
+
+fn deferred_durability_marker(segment_id: &str, offset: u64) -> Vec<u8> {
+    let mut marker = DEFERRED_DURABILITY_MARKER_PREFIX.to_vec();
+    marker.extend_from_slice(format!("{segment_id}@{offset}").as_bytes());
+    marker
+}
+
+type MarkerEntry = (Box<[u8]>, Box<[u8]>);
+
 /// Durability mode of a replicated apply's storage writes.
 ///
 /// `Sync` is the live-path contract and the default everywhere: each record's
@@ -626,6 +656,11 @@ pub struct BackfillIndexPage {
 ///   to the WAL (phase 3). Inline artifacts are WAL-only and have no such
 ///   ordering dependency; they simply take the non-sync commit and ride the
 ///   batch-end barrier.
+///
+/// Opt-in deferred client writes ([`ClientDurability::Deferred`]) also append
+/// with `DeferredBatch`, but their manifests reach the WAL before their segment
+/// bytes are durable. Their durability marker replaces the invariant above for
+/// those writes: it is verified at startup until the bytes are durable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ApplyDurability {
     Sync,
@@ -1864,6 +1899,80 @@ impl Store {
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
+    /// A client write acknowledged once readable. The caller completes the
+    /// returned [`DeferredDurability`]; nothing is returned for a blob the
+    /// store already held.
+    pub(crate) async fn persist_artifact_from_path_deferred(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        staged: StagedArtifactPath<'_>,
+    ) -> Result<(PersistedArtifact, Option<DeferredDurability>), String> {
+        let spec = self.client_spec(producer, namespace_id, key, content_type);
+        let (outcome, already_present, deferred) = self
+            .persist_segment_artifact(
+                spec,
+                SegmentArtifactSource::Path(staged),
+                ClientDurability::Deferred,
+            )
+            .await?;
+        Ok((
+            outcome.into_persisted(already_present, producer, namespace_id, key)?,
+            deferred,
+        ))
+    }
+
+    /// [`Self::persist_artifact_from_path_deferred`] for bytes already in memory.
+    pub(crate) async fn persist_artifact_from_bytes_deferred(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        file_cache_policy: FileCachePolicy,
+    ) -> Result<(PersistedArtifact, Option<DeferredDurability>), String> {
+        let spec = self.client_spec(producer, namespace_id, key, content_type);
+        let (outcome, already_present, deferred) = self
+            .persist_segment_artifact(
+                spec,
+                SegmentArtifactSource::Memory {
+                    bytes,
+                    file_cache_policy,
+                },
+                ClientDurability::Deferred,
+            )
+            .await?;
+        Ok((
+            outcome.into_persisted(already_present, producer, namespace_id, key)?,
+            deferred,
+        ))
+    }
+
+    fn client_spec<'a>(
+        &'a self,
+        producer: ArtifactProducer,
+        namespace_id: &'a str,
+        key: &'a str,
+        content_type: &'a str,
+    ) -> PersistArtifactSpec<'a> {
+        PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms: 0,
+            branch: None,
+            trunk: None,
+            origin_region: Some(&self.region),
+            content_sha256: None,
+            sync_feed_row: true,
+            server_stamped: true,
+        }
+    }
+
     #[cfg(test)]
     pub async fn apply_replicated_artifact_from_path<'a>(
         &self,
@@ -1940,6 +2049,22 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         source: SegmentArtifactSource<'_>,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        let (outcome, already_present, _) = self
+            .persist_segment_artifact(spec, source, ClientDurability::Durable)
+            .await?;
+        Ok((outcome, already_present))
+    }
+
+    async fn persist_segment_artifact(
+        &self,
+        spec: PersistArtifactSpec<'_>,
+        source: SegmentArtifactSource<'_>,
+        durability: ClientDurability,
+    ) -> Result<(PersistArtifactOutcome, bool, Option<DeferredDurability>), String> {
+        let apply_durability = match durability {
+            ClientDurability::Durable => ApplyDurability::Sync,
+            ClientDurability::Deferred => ApplyDurability::DeferredBatch,
+        };
         // Read side of the namespace lock, held across this apply's tombstone
         // precheck and its commit. A delete taking the write side therefore
         // cannot commit its snapshot-scanned batch in between and leave this
@@ -1969,20 +2094,20 @@ impl Store {
                     if let SegmentArtifactSource::Path(staged) = source {
                         self.io.remove_file_if_exists(staged.path).await;
                     }
-                    return Ok((outcome, already_present));
+                    return Ok((outcome, already_present, None));
                 }
                 SegmentApplyPrecheck::Proceed {
                     existing,
                     already_present,
                 } => (existing, already_present),
             };
-        let (location, evicted_segments, _durability_seq) = match source {
+        let (location, evicted_segments, segment_seq) = match source {
             SegmentArtifactSource::Path(staged) => {
                 self.append_to_segment(
                     staged.path,
                     size,
                     staged.file_cache_policy,
-                    ApplyDurability::Sync,
+                    apply_durability,
                 )
                 .await?
             }
@@ -1990,26 +2115,55 @@ impl Store {
                 bytes,
                 file_cache_policy,
             } => {
-                self.append_preloaded_to_segment(
-                    bytes,
-                    None,
-                    file_cache_policy,
-                    ApplyDurability::Sync,
-                )
-                .await?
+                self.append_preloaded_to_segment(bytes, None, file_cache_policy, apply_durability)
+                    .await?
             }
         };
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
 
-        let manifest = self
-            .commit_segment_manifest(&spec, &artifact_id, existing.as_ref(), &location, size)
-            .await?;
+        let (manifest, deferred) = match durability {
+            ClientDurability::Durable => {
+                let manifest = self
+                    .commit_segment_manifest(
+                        &spec,
+                        &artifact_id,
+                        existing.as_ref(),
+                        &location,
+                        size,
+                    )
+                    .await?;
+                (manifest, None)
+            }
+            ClientDurability::Deferred => {
+                let (manifest, wal_seq, marker) = self
+                    .commit_deferred_segment_manifest(
+                        &spec,
+                        &artifact_id,
+                        existing.as_ref(),
+                        &location,
+                        size,
+                    )
+                    .await?;
+                (
+                    manifest,
+                    Some(DeferredDurability {
+                        segment_seq,
+                        wal_seq,
+                        marker,
+                    }),
+                )
+            }
+        };
 
         self.evict_segments(evicted_segments).await?;
 
-        Ok((PersistArtifactOutcome::Applied(manifest), already_present))
+        Ok((
+            PersistArtifactOutcome::Applied(manifest),
+            already_present,
+            deferred,
+        ))
     }
 
     /// The LWW/tombstone gate of a segment-backed apply, evaluated under the
@@ -2083,6 +2237,132 @@ impl Store {
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
         Ok(manifest)
+    }
+
+    /// The manifest commit of a deferred client write. Unlike every other
+    /// segment apply, its segment bytes are not durable when the manifest
+    /// reaches the WAL, and nothing waits for the WAL flush. The durability
+    /// marker committed in the same batch covers that window: it names the
+    /// write until [`Self::complete_deferred_durability`] has made the bytes
+    /// durable, and a marker found at startup is verified against its digest.
+    async fn commit_deferred_segment_manifest(
+        &self,
+        spec: &PersistArtifactSpec<'_>,
+        artifact_id: &str,
+        existing: Option<&ArtifactManifest>,
+        location: &SegmentLocation,
+        size: u64,
+    ) -> Result<(ArtifactManifest, Option<u64>, Vec<u8>), String> {
+        let mut batch = WriteBatch::default();
+        let mut feed = Vec::new();
+        let manifest = self.stage_segment_manifest(
+            &mut batch,
+            spec,
+            artifact_id,
+            existing,
+            location,
+            size,
+            &mut feed,
+        )?;
+        let marker = deferred_durability_marker(&location.segment_id, location.offset);
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_SEGMENT_STATE),
+            &marker,
+            artifact_id.as_bytes(),
+        );
+        let wal_seq = self
+            .write_batch_deferring_durability(
+                batch,
+                "manifest batch",
+                ApplyDurability::Sync,
+                vec![location.pin.clone()],
+            )
+            .await?;
+        commit_sync_feed_tickets(feed);
+        self.note_segment_manifest_committed(&manifest, &location.segment_id)
+            .await?;
+        Ok((manifest, wal_seq, marker))
+    }
+
+    /// Makes a deferred write durable: its segment bytes, then the WAL holding
+    /// its manifest and marker, and only then removes the marker. Concurrent
+    /// completions share each fsync through the usual group commit.
+    pub(crate) async fn complete_deferred_durability(
+        &self,
+        deferred: DeferredDurability,
+    ) -> Result<(), String> {
+        self.ensure_segment_durable(deferred.segment_seq).await?;
+        if let Some(seq) = deferred.wal_seq {
+            self.ensure_wal_durable(seq).await?;
+        }
+        let mut batch = WriteBatch::default();
+        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), &deferred.marker);
+        self.write_batch_deferring_durability(
+            batch,
+            "deferred durability marker",
+            ApplyDurability::DeferredBatch,
+            Vec::new(),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Checks every deferred write whose durability was never confirmed, which
+    /// only a crash leaves behind. Returns the artifact ids whose stored bytes
+    /// no longer match their CAS digest. Markers of verified writes, of
+    /// superseded writes and of evicted artifacts are removed.
+    pub(crate) async fn verify_deferred_writes(&self) -> Result<Vec<String>, String> {
+        let markers: Vec<MarkerEntry> = self
+            .db
+            .prefix_iterator_cf(
+                self.cf(ROCKSDB_CF_SEGMENT_STATE),
+                DEFERRED_DURABILITY_MARKER_PREFIX,
+            )
+            .take_while(|entry| {
+                entry
+                    .as_ref()
+                    .is_ok_and(|(key, _)| key.starts_with(DEFERRED_DURABILITY_MARKER_PREFIX))
+            })
+            .collect::<Result<_, _>>()
+            .map_err(|error| format!("failed to list deferred durability markers: {error}"))?;
+        let mut mismatched = Vec::new();
+        for (marker, artifact_id) in markers {
+            let artifact_id = String::from_utf8_lossy(&artifact_id).into_owned();
+            if let Some(manifest) = self.manifest(&artifact_id)?
+                && manifest.segment_id.as_ref().map(|segment_id| {
+                    deferred_durability_marker(segment_id, manifest.segment_offset.unwrap_or(0))
+                }) == Some(marker.to_vec())
+                && !self.cas_bytes_match(&manifest).await
+            {
+                mismatched.push(artifact_id);
+                continue;
+            }
+            let mut batch = WriteBatch::default();
+            batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), &marker);
+            self.write_batch_with_segment_pins(
+                batch,
+                "deferred durability marker",
+                ApplyDurability::Sync,
+                Vec::new(),
+            )
+            .await?;
+        }
+        Ok(mismatched)
+    }
+
+    async fn cas_bytes_match(&self, manifest: &ArtifactManifest) -> bool {
+        let Some((hash, size)) = manifest
+            .key
+            .strip_prefix("blob/")
+            .and_then(|digest| digest.split_once('/'))
+        else {
+            return true;
+        };
+        let Ok(bytes) = self.read_artifact_bytes(manifest).await else {
+            return false;
+        };
+        size.parse::<usize>().ok() == Some(bytes.len())
+            && hex::encode(sha2::Sha256::digest(&bytes)) == hash
     }
 
     /// Stages the manifest/metadata mutations of a segment-backed apply into
@@ -13996,6 +14276,121 @@ mod tests {
             .expect("indexed scan should succeed");
         assert_eq!(manifests.len(), 1);
         assert_eq!(manifests[0].key, "action_cache/bb/10");
+    }
+
+    fn deferred_markers(store: &Store) -> usize {
+        store
+            .db
+            .prefix_iterator_cf(
+                store.cf(ROCKSDB_CF_SEGMENT_STATE),
+                DEFERRED_DURABILITY_MARKER_PREFIX,
+            )
+            .take_while(|entry| {
+                entry
+                    .as_ref()
+                    .is_ok_and(|(key, _)| key.starts_with(DEFERRED_DURABILITY_MARKER_PREFIX))
+            })
+            .count()
+    }
+
+    fn cas_key(bytes: &[u8]) -> String {
+        format!(
+            "blob/{}/{}",
+            hex::encode(sha2::Sha256::digest(bytes)),
+            bytes.len()
+        )
+    }
+
+    // An opted-in client write is readable when acknowledged, with no fsync on
+    // that path; completing it performs both syncs and drops its marker.
+    #[tokio::test]
+    async fn deferred_write_is_readable_before_it_is_durable() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                &cas_key(b"durable"),
+                "application/octet-stream",
+                b"durable",
+            )
+            .await
+            .expect("durable persist should succeed");
+        assert_eq!(deferred_markers(&store), 0);
+        let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
+        let (_, _, flushes_before) = store.wal_write_counts();
+
+        let (persisted, deferred) = store
+            .persist_artifact_from_bytes_deferred(
+                ArtifactProducer::Reapi,
+                "ios",
+                &cas_key(b"payload"),
+                "application/octet-stream",
+                b"payload",
+                FileCachePolicy::Adaptive,
+            )
+            .await
+            .expect("deferred persist should succeed");
+
+        assert_eq!(
+            store.segment_fsync_count.load(Ordering::Relaxed),
+            fsyncs_before
+        );
+        assert_eq!(store.wal_write_counts().2, flushes_before);
+        assert_eq!(
+            store
+                .read_artifact_bytes(&persisted.manifest)
+                .await
+                .expect("a deferred write should be readable"),
+            b"payload"
+        );
+        assert_eq!(deferred_markers(&store), 1);
+
+        store
+            .complete_deferred_durability(deferred.expect("a new blob leaves durability work"))
+            .await
+            .expect("durability should complete");
+        assert!(store.segment_fsync_count.load(Ordering::Relaxed) > fsyncs_before);
+        assert!(store.wal_write_counts().2 > flushes_before);
+        assert_eq!(deferred_markers(&store), 0);
+    }
+
+    #[tokio::test]
+    async fn startup_verification_reports_deferred_blobs_whose_bytes_do_not_match() {
+        let (_temp_dir, _config, store) = temp_store();
+        let (_, intact) = store
+            .persist_artifact_from_bytes_deferred(
+                ArtifactProducer::Reapi,
+                "ios",
+                &cas_key(b"intact"),
+                "application/octet-stream",
+                b"intact",
+                FileCachePolicy::Adaptive,
+            )
+            .await
+            .expect("deferred persist should succeed");
+        // Stands in for bytes a crash lost: the stored body no longer hashes
+        // to the digest its key names.
+        let (lost, lost_deferred) = store
+            .persist_artifact_from_bytes_deferred(
+                ArtifactProducer::Reapi,
+                "ios",
+                &format!("blob/{}/7", "0".repeat(64)),
+                "application/octet-stream",
+                b"garbage",
+                FileCachePolicy::Adaptive,
+            )
+            .await
+            .expect("deferred persist should succeed");
+        // Neither completed: a crash left both markers behind.
+        drop((intact, lost_deferred));
+
+        let mismatched = store
+            .verify_deferred_writes()
+            .await
+            .expect("verification should succeed");
+        assert_eq!(mismatched, vec![lost.manifest.artifact_id.clone()]);
+        assert_eq!(deferred_markers(&store), 1);
     }
 
     #[tokio::test]
