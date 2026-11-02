@@ -32,14 +32,24 @@ type Worker struct {
 	// their invoking user, against a temporary directory and an in-memory CAS.
 	Credential *syscall.Credential
 	// Start launches the action's command; nil uses exec.Cmd.Start.
-	Start   func(*exec.Cmd) error
-	entries int
+	Start func(*exec.Cmd) error
+	// Outputs up to this many bytes in total are returned by Inlined instead of
+	// uploaded; the caller must store them before answering the client.
+	InlineBytes int
+	entries     int
+	inlined     *re.BatchUpdateBlobsRequest
+}
+
+// Inlined returns the outputs of a successful Execute that were not uploaded.
+func (w *Worker) Inlined() *re.BatchUpdateBlobsRequest {
+	return w.inlined
 }
 
 // Execute reports whether the result may be published to the action cache.
 // Publication is the caller's job, after the client already has the result.
 // It never looks the action up: clients check the action cache before Execute.
 func (w *Worker) Execute(ctx context.Context, digest *re.Digest) (*re.ExecuteResponse, bool) {
+	w.inlined = nil
 	result, cacheable, err := w.execute(ctx, digest)
 	response := &re.ExecuteResponse{Result: result, Status: &rpc.Status{}}
 	if err != nil {
@@ -58,7 +68,11 @@ func (w *Worker) Execute(ctx context.Context, digest *re.Digest) (*re.ExecuteRes
 		response.Status.Code = int32(code)
 		response.Status.Message = code.String()
 	}
+	if err != nil {
+		w.inlined = nil
+	}
 	if proto.Size(response) > MaxResponse {
+		w.inlined = nil
 		return &re.ExecuteResponse{Status: &rpc.Status{Code: int32(codes.ResourceExhausted), Message: "action result too large"}}, false
 	}
 	return response, err == nil && cacheable
@@ -181,7 +195,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	if timedOut {
 		result.ExitCode = 124
 	}
-	uploads := newOutputUploads(w.CAS)
+	uploads := newOutputUploads(w.CAS, w.InlineBytes)
 	if result.StdoutDigest, err = uploads.log(stdout); err != nil {
 		return nil, false, err
 	}
@@ -199,6 +213,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	if err = uploads.send(ctx); err != nil {
 		return nil, false, err
 	}
+	w.inlined = uploads.inlined
 	if timedOut {
 		metadata.OutputUploadCompletedTimestamp = timestamppb.Now()
 		metadata.WorkerCompletedTimestamp = timestamppb.Now()

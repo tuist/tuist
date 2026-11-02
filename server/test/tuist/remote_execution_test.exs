@@ -267,6 +267,40 @@ defmodule Tuist.RemoteExecutionTest do
     assert %{"inputs" => "cHJlZmV0Y2hlZA=="} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
   end
 
+  test "a gateway that stores outputs receives the ones its VM returned", %{project: project} do
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => false, "outputs" => "b3V0cHV0cw=="})
+
+    assert {:ok, %{done: true, code: 0} = operation} = submit(project, %{}, wait: 5_000, inline_outputs: true)
+    assert %{outputs: "b3V0cHV0cw==", cas_endpoint: "grpcs://cache.example"} = operation
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], env: env}}
+    assert %{"inline_outputs" => true} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
+  end
+
+  test "VMs store their own outputs for gateways that do not", %{project: project} do
+    stub_node()
+
+    assert {:ok, %{done: true} = operation} = submit(project)
+    refute Map.has_key?(operation, :outputs)
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], env: env}}
+    refute Map.has_key?(JSON.decode!(env["SBX_EXECUTION_REQUEST"]), "inline_outputs")
+  end
+
+  test "a result whose outputs only the VM returned is retried by gateways that do not store them",
+       %{project: project} do
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true, "outputs" => "b3V0cHV0cw=="})
+
+    assert {:ok, %{done: true, code: 14, response: nil} = operation} = submit(project)
+    refute Map.has_key?(operation, :outputs)
+    refute Map.has_key?(operation, :cacheable)
+  end
+
+  test "oversized returned outputs fail the action", %{project: project} do
+    outputs = String.duplicate("a", 65_537)
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true, "outputs" => outputs})
+
+    assert {:ok, %{done: true, code: 13}} = submit(project, %{}, wait: 5_000, inline_outputs: true)
+  end
+
   test "invalid requests are rejected before scheduling", %{project: project} do
     assert {:error, :invalid_request} = submit(project, %{"hash" => "short"})
     assert {:error, :invalid_request} = submit(project, %{"size" => -1})

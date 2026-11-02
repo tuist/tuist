@@ -24,7 +24,7 @@ defmodule TuistWeb.RemoteExecutionController do
   end
 
   def create(conn, params) do
-    case RemoteExecution.submit(conn.assigns.execution_project, params) do
+    case RemoteExecution.submit(conn.assigns.execution_project, params, inline_outputs: inline_outputs?(conn)) do
       {:ok, operation} ->
         conn |> put_status(:accepted) |> json(operation)
 
@@ -40,7 +40,7 @@ defmodule TuistWeb.RemoteExecutionController do
   end
 
   def show(conn, %{"id" => id} = params) do
-    case RemoteExecution.await(conn.assigns.execution_project, id, params["after"]) do
+    case RemoteExecution.await(conn.assigns.execution_project, id, params["after"], inline_outputs: inline_outputs?(conn)) do
       {:ok, operation} ->
         json(conn, operation)
 
@@ -48,6 +48,9 @@ defmodule TuistWeb.RemoteExecutionController do
         conn |> put_status(:not_found) |> json(%{message: "operation not found"})
     end
   end
+
+  # The gateway stores the small outputs a VM returns before answering.
+  defp inline_outputs?(conn), do: get_req_header(conn, "x-tuist-inline-outputs") == ["1"]
 
   defp authorize(conn, _opts) do
     conn = put_resp_header(conn, "cache-control", "private, no-store")

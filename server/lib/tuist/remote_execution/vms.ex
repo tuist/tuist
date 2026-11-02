@@ -29,6 +29,8 @@ defmodule Tuist.RemoteExecution.VMs do
   @exec_timeout_ms 780_000
   @max_stdout_bytes 262_144
   @max_response_bytes 131_072
+  # Base64 of the outputs a VM returns for its gateway to store.
+  @max_outputs_bytes 65_536
   @token_ttl_seconds 1800
 
   def lease_seconds, do: @lease_seconds
@@ -169,9 +171,12 @@ defmodule Tuist.RemoteExecution.VMs do
   end
 
   defp decode(stdout) do
-    with {:ok, %{"response" => response, "cacheable" => cacheable}} when is_boolean(cacheable) <- JSON.decode(stdout),
-         {:ok, bytes} when byte_size(bytes) <= @max_response_bytes <- Base.decode64(response) do
-      {:ok, response, cacheable}
+    with {:ok, %{"response" => response, "cacheable" => cacheable} = result} when is_boolean(cacheable) <-
+           JSON.decode(stdout),
+         {:ok, bytes} when byte_size(bytes) <= @max_response_bytes <- Base.decode64(response),
+         outputs when is_nil(outputs) or (is_binary(outputs) and byte_size(outputs) <= @max_outputs_bytes) <-
+           Map.get(result, "outputs") do
+      {:ok, response, cacheable, outputs}
     else
       _ -> {:error, 13, "invalid execution result"}
     end

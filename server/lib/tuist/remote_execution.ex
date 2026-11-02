@@ -92,7 +92,9 @@ defmodule Tuist.RemoteExecution do
   Queues an action and waits up to `:wait` milliseconds for its result.
   Identical in-flight actions of the project share one operation. `inputs`
   are blobs the gateway already read for the action; they are passed to its
-  VM unchanged, which verifies them against their digests.
+  VM unchanged, which verifies them against their digests. With
+  `inline_outputs: true` the caller stores the small outputs the VM returns
+  (`outputs`, for `cas_endpoint`) before answering its client.
   """
   def submit(project, params, opts \\ [])
 
@@ -110,10 +112,11 @@ defmodule Tuist.RemoteExecution do
         hash: hash,
         size: size,
         skip_cache: skip_cache,
-        inputs: inputs
+        inputs: inputs,
+        inline_outputs: Keyword.get(opts, :inline_outputs, false)
       }
 
-      Scheduler.submit(project.account_id, attrs, wait(opts))
+      project.account_id |> Scheduler.submit(attrs, wait(opts)) |> deliverable(opts)
     else
       {:error, :invalid_request}
     end
@@ -127,12 +130,27 @@ defmodule Tuist.RemoteExecution do
   """
   def await(project, id, after_state, opts \\ []) do
     case Ecto.UUID.cast(id) do
-      {:ok, id} -> Scheduler.await(project.account_id, project.id, id, after_state, wait(opts))
+      {:ok, id} -> project.account_id |> Scheduler.await(project.id, id, after_state, wait(opts)) |> deliverable(opts)
       :error -> {:error, :not_found}
     end
   end
 
   def maintain, do: VMs.reap()
+
+  # Outputs the VM returned instead of storing them reach only a gateway that
+  # stores them before answering. Any other caller retries the action.
+  defp deliverable({:ok, %{outputs: outputs} = operation}, opts) when is_binary(outputs) do
+    if Keyword.get(opts, :inline_outputs, false) do
+      {:ok, operation}
+    else
+      {:ok,
+       operation
+       |> Map.drop([:outputs, :cacheable, :action_hash, :action_size, :cas_endpoint])
+       |> Map.merge(%{response: nil, code: 14, message: "execution outputs are unavailable"})}
+    end
+  end
+
+  defp deliverable(result, _opts), do: result
 
   defp cached_authorization(key) do
     if Environment.test?(), do: nil, else: KeyValueStore.get(key)

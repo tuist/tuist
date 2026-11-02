@@ -95,6 +95,9 @@ type operation struct {
 	ActionHash  string `json:"action_hash"`
 	ActionSize  int64  `json:"action_size"`
 	CASEndpoint string `json:"cas_endpoint"`
+	// Small outputs the VM returned instead of storing them; set with
+	// CASEndpoint.
+	Outputs string `json:"outputs"`
 }
 
 func (g *Gateway) call(ctx context.Context, method, account, project, suffix, auth string, body any) (operation, error) {
@@ -110,6 +113,7 @@ func (g *Gateway) call(ctx context.Context, method, account, project, suffix, au
 	}
 	r.Header.Set("Authorization", auth)
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set(inlineOutputsHeader, "1")
 	response, err := g.Client.Do(r)
 	if err != nil {
 		return out, status.Error(codes.Unavailable, "execution control plane unavailable")
@@ -253,6 +257,13 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 						return status.Error(codes.Internal, "invalid execution protobuf")
 					}
 				}
+				if op.Outputs != "" {
+					if err := g.storeOutputs(ctx, account, project, auth, op); err != nil {
+						log.Printf("execution outputs could not be stored: %v", status.Code(err))
+						response = &re.ExecuteResponse{Status: &rpc.Status{Code: int32(codes.Unavailable), Message: "execution outputs could not be stored"}}
+						op.Cacheable = false
+					}
+				}
 				// Admission belongs to the durable operation, not this gateway's
 				// stream lifetime or the guest's start time. Leave cached execution
 				// metadata and older operations with unknown admission untouched.
@@ -364,4 +375,44 @@ func (g *Gateway) Wait(ctx context.Context) {
 	case <-done:
 	case <-ctx.Done():
 	}
+}
+
+// The control plane asks the VM to return small outputs instead of storing
+// them only for gateways that send this header.
+const inlineOutputsHeader = "X-Tuist-Inline-Outputs"
+
+// Matches the VM's inline budget, base64-encoded.
+const maxInlineOutputs = 64 << 10
+
+// storeOutputs writes the outputs the VM returned before the client can read
+// the result that references them.
+func (g *Gateway) storeOutputs(ctx context.Context, account, project, auth string, op operation) error {
+	b, err := base64.StdEncoding.DecodeString(op.Outputs)
+	if err != nil || len(b) > maxInlineOutputs {
+		return status.Error(codes.Internal, "invalid execution outputs")
+	}
+	var request re.BatchUpdateBlobsRequest
+	if err = proto.Unmarshal(b, &request); err != nil {
+		return status.Error(codes.Internal, "invalid execution outputs")
+	}
+	conn, err := g.conn(op.CASEndpoint)
+	if err != nil {
+		return err
+	}
+	request.InstanceName = project
+	request.DigestFunction = re.DigestFunction_SHA256
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", auth, "x-tuist-account-handle", account, "x-tuist-write-durability", "deferred"))
+	response, err := re.NewContentAddressableStorageClient(conn).BatchUpdateBlobs(ctx, &request)
+	if err != nil {
+		return err
+	}
+	if len(response.Responses) != len(request.Requests) {
+		return status.Error(codes.Internal, "incomplete output storage response")
+	}
+	for _, item := range response.Responses {
+		if code := item.GetStatus().GetCode(); code != 0 {
+			return status.Error(codes.Code(code), "output was not stored")
+		}
+	}
+	return nil
 }

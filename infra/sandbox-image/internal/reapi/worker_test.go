@@ -562,6 +562,64 @@ func TestOutputUploadsAllowDeferredDurability(t *testing.T) {
 	}
 }
 
+func TestSmallOutputsAreReturnedInsteadOfUploaded(t *testing.T) {
+	w, m := harness(t)
+	w.InlineBytes = 1 << 10
+	d := action(t, m, "printf a > a; mkdir c; printf b > c/d; printf log", &re.Directory{}, []string{"a", "c"})
+	result, _ := w.Execute(context.Background(), d)
+	if result.Status.Code != 0 {
+		t.Fatalf("execution: %v", result)
+	}
+	if got := m.writes.Load(); got != 0 {
+		t.Fatalf("uploaded %d blobs, want none", got)
+	}
+	inlined := map[string][]byte{}
+	for _, r := range w.Inlined().GetRequests() {
+		inlined[r.Digest.Hash] = r.Data
+	}
+	want := []*re.Digest{result.Result.OutputFiles[0].Digest, result.Result.OutputDirectories[0].TreeDigest, result.Result.StdoutDigest}
+	for _, d := range want {
+		b, ok := inlined[d.Hash]
+		h := sha256.Sum256(b)
+		if !ok || int64(len(b)) != d.SizeBytes || hex.EncodeToString(h[:]) != d.Hash {
+			t.Fatalf("output %v not returned intact: %v", d, inlined)
+		}
+	}
+	// The file inside c is the fourth.
+	if len(inlined) != len(want)+1 {
+		t.Fatalf("returned %d blobs, want %d", len(inlined), len(want)+1)
+	}
+}
+
+func TestOutputsBeyondTheInlineBudgetAreUploaded(t *testing.T) {
+	w, m := harness(t)
+	w.InlineBytes = inlineEntryBytes + 8
+	d := action(t, m, "printf small > a; printf 'larger than the budget' > b", &re.Directory{}, []string{"a", "b"})
+	result, _ := w.Execute(context.Background(), d)
+	if result.Status.Code != 0 {
+		t.Fatalf("execution: %v", result)
+	}
+	requests := w.Inlined().GetRequests()
+	if len(requests) != 1 || string(requests[0].Data) != "small" {
+		t.Fatalf("inlined %v, want only the small output", requests)
+	}
+	large := result.Result.OutputFiles[1].Digest
+	if _, ok := m.blobs[large.Hash]; !ok || m.writes.Load() != 1 {
+		t.Fatalf("the large output was not uploaded (%d writes)", m.writes.Load())
+	}
+}
+
+func TestOutputsAreUploadedWithoutAnInlineBudget(t *testing.T) {
+	w, m := harness(t)
+	d := action(t, m, "printf a > a", &re.Directory{}, []string{"a"})
+	if result, _ := w.Execute(context.Background(), d); result.Status.Code != 0 {
+		t.Fatalf("execution: %v", result)
+	}
+	if len(w.Inlined().GetRequests()) != 0 || m.writes.Load() != 1 {
+		t.Fatalf("inlined %v with %d writes", w.Inlined(), m.writes.Load())
+	}
+}
+
 func TestPreparedEmptyRootIsUsed(t *testing.T) {
 	w, m := harness(t)
 	if err := os.Mkdir(w.Root, 0o755); err != nil {

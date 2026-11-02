@@ -452,3 +452,94 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 		t.Fatalf("credentials: %v", auth)
 	}
 }
+
+type outputStore struct {
+	re.UnimplementedContentAddressableStorageServer
+	refuse  bool
+	updates chan *re.BatchUpdateBlobsRequest
+	headers chan metadata.MD
+}
+
+func (o *outputStore) BatchUpdateBlobs(ctx context.Context, r *re.BatchUpdateBlobsRequest) (*re.BatchUpdateBlobsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	o.headers <- md
+	o.updates <- r
+	response := &re.BatchUpdateBlobsResponse{}
+	for _, item := range r.Requests {
+		code := int32(codes.OK)
+		if o.refuse {
+			code = int32(codes.ResourceExhausted)
+		}
+		response.Responses = append(response.Responses, &re.BatchUpdateBlobsResponse_Response{Digest: item.Digest, Status: &rpc.Status{Code: code}})
+	}
+	return response, nil
+}
+
+func TestInlinedOutputsAreStoredBeforeTheResult(t *testing.T) {
+	for _, refuse := range []bool{false, true} {
+		store := &outputStore{refuse: refuse, updates: make(chan *re.BatchUpdateBlobsRequest, 1), headers: make(chan metadata.MD, 1)}
+		cache := &actionCache{updates: make(chan *re.UpdateActionResultRequest, 1), auth: make(chan []string, 1)}
+		l := bufconn.Listen(1 << 20)
+		s := grpc.NewServer()
+		re.RegisterContentAddressableStorageServer(s, store)
+		re.RegisterActionCacheServer(s, cache)
+		go s.Serve(l)
+		t.Cleanup(s.Stop)
+		g := New("https://control.example")
+		var dialed atomic.Value
+		g.Dial = func(endpoint string) (*grpc.ClientConn, error) {
+			dialed.Store(endpoint)
+			return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
+		}
+		blob := []byte("output")
+		h := sha256.Sum256(blob)
+		digest := &re.Digest{Hash: hex.EncodeToString(h[:]), SizeBytes: int64(len(blob))}
+		outputs, _ := proto.Marshal(&re.BatchUpdateBlobsRequest{Requests: []*re.BatchUpdateBlobsRequest_Request{{Digest: digest, Data: blob}}})
+		b, _ := proto.Marshal(&re.ExecuteResponse{Result: &re.ActionResult{OutputFiles: []*re.OutputFile{{Path: "out", Digest: digest}}}})
+		hash := strings.Repeat("a", 64)
+		op, _ := json.Marshal(map[string]any{"id": id, "state": "completed", "done": true, "response": base64.StdEncoding.EncodeToString(b),
+			"outputs": base64.StdEncoding.EncodeToString(outputs), "cacheable": true, "action_hash": hash, "action_size": 5, "cas_endpoint": "grpcs://cache.example"})
+		client, _ := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
+			if r.Header.Get("X-Tuist-Inline-Outputs") != "1" {
+				t.Errorf("the gateway did not declare inline outputs: %v", r.Header)
+			}
+			return response(202, string(op)), nil
+		})
+		stream, err := client.Execute(authenticated(), &re.ExecuteRequest{InstanceName: "app", ActionDigest: &re.Digest{Hash: hash, SizeBytes: 5}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		finished, err := stream.Recv()
+		if err != nil || !finished.Done {
+			t.Fatalf("result: %v %v", finished, err)
+		}
+		// Stored before the client got the result.
+		var update *re.BatchUpdateBlobsRequest
+		select {
+		case update = <-store.updates:
+		default:
+			t.Fatal("outputs were not stored before the result")
+		}
+		md := <-store.headers
+		if update.InstanceName != "app" || len(update.Requests) != 1 || string(update.Requests[0].Data) != "output" || dialed.Load() != "grpcs://cache.example" {
+			t.Fatalf("update: %v to %v", update, dialed.Load())
+		}
+		if md.Get("authorization")[0] != "Bearer secret" || md.Get("x-tuist-account-handle")[0] != "tuist" || md.Get("x-tuist-write-durability")[0] != "deferred" {
+			t.Fatalf("headers: %v", md)
+		}
+		var result re.ExecuteResponse
+		if finished.GetResponse().UnmarshalTo(&result) != nil {
+			t.Fatal(finished)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		g.Wait(ctx)
+		cancel()
+		if refuse {
+			if result.Status.GetCode() != int32(codes.Unavailable) || len(cache.updates) != 0 {
+				t.Fatalf("an unstored result was delivered or published: %v", &result)
+			}
+		} else if result.Status.GetCode() != 0 || len(cache.updates) != 1 {
+			t.Fatalf("result: %v, published %d", &result, len(cache.updates))
+		}
+	}
+}

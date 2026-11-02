@@ -18,17 +18,38 @@ import (
 
 const outputUploadConcurrency = 8
 
+// Upper bound on one inlined blob's protobuf framing around its data.
+const inlineEntryBytes = 96
+
 // The CAS acknowledges a new blob only once it is durable, and concurrent
 // writes share that cost. Outputs are hashed while the result is assembled and
-// uploaded together afterwards, each distinct blob once.
+// uploaded together afterwards, each distinct blob once. Blobs that fit the
+// inline budget are returned to the caller instead, which stores them in the
+// CAS before it answers the client.
 type outputUploads struct {
-	cas  *CAS
-	seen map[string]bool
-	jobs []func(context.Context) error
+	cas     *CAS
+	seen    map[string]bool
+	pending []pendingOutput
+	budget  int
+	inlined *re.BatchUpdateBlobsRequest
 }
 
-func newOutputUploads(cas *CAS) *outputUploads {
-	return &outputUploads{cas: cas, seen: map[string]bool{}}
+type pendingOutput struct {
+	digest *re.Digest
+	open   func() (outputReader, error)
+}
+
+type outputReader interface {
+	io.ReadSeeker
+	io.Closer
+}
+
+type unclosed struct{ io.ReadSeeker }
+
+func (unclosed) Close() error { return nil }
+
+func newOutputUploads(cas *CAS, inlineBytes int) *outputUploads {
+	return &outputUploads{cas: cas, seen: map[string]bool{}, budget: inlineBytes, inlined: &re.BatchUpdateBlobsRequest{}}
 }
 
 func (u *outputUploads) file(root *os.Root, p string) (*re.Digest, error) {
@@ -41,14 +62,7 @@ func (u *outputUploads) file(root *os.Root, p string) (*re.Digest, error) {
 	if err != nil {
 		return nil, err
 	}
-	u.add(d, func(ctx context.Context) (*re.Digest, error) {
-		f, err := root.Open(p)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		return u.cas.Write(ctx, f)
-	})
+	u.add(d, func() (outputReader, error) { return root.Open(p) })
 	return d, nil
 }
 
@@ -60,14 +74,11 @@ func (u *outputUploads) log(f *os.File) (*re.Digest, error) {
 	if err != nil || info.Size() == 0 {
 		return nil, err
 	}
-	if _, err = f.Seek(0, io.SeekStart); err != nil {
-		return nil, err
-	}
-	d, err := digestReader(f)
+	d, err := digestReader(io.NewSectionReader(f, 0, info.Size()))
 	if err != nil {
 		return nil, err
 	}
-	u.add(d, func(ctx context.Context) (*re.Digest, error) { return u.cas.Write(ctx, f) })
+	u.add(d, func() (outputReader, error) { return unclosed{io.NewSectionReader(f, 0, d.SizeBytes)}, nil })
 	return d, nil
 }
 
@@ -83,25 +94,16 @@ func (u *outputUploads) message(m proto.Message) (*re.Digest, error) {
 	if err != nil {
 		return nil, err
 	}
-	u.add(d, func(ctx context.Context) (*re.Digest, error) { return u.cas.Write(ctx, bytes.NewReader(b)) })
+	u.add(d, func() (outputReader, error) { return unclosed{bytes.NewReader(b)}, nil })
 	return d, nil
 }
 
-func (u *outputUploads) add(d *re.Digest, upload func(context.Context) (*re.Digest, error)) {
+func (u *outputUploads) add(d *re.Digest, open func() (outputReader, error)) {
 	if u.seen[d.Hash] {
 		return
 	}
 	u.seen[d.Hash] = true
-	u.jobs = append(u.jobs, func(ctx context.Context) error {
-		got, err := upload(ctx)
-		if err != nil {
-			return err
-		}
-		if got.Hash != d.Hash || got.SizeBytes != d.SizeBytes {
-			return status.Error(codes.DataLoss, "output changed during upload")
-		}
-		return nil
-	})
+	u.pending = append(u.pending, pendingOutput{digest: d, open: open})
 }
 
 // The CAS may acknowledge outputs once they are readable. A node that does not
@@ -112,10 +114,61 @@ func (u *outputUploads) send(ctx context.Context) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, writeDurabilityHeader, "deferred")
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(outputUploadConcurrency)
-	for _, job := range u.jobs {
-		g.Go(func() error { return job(ctx) })
+	var uploads []pendingOutput
+	for _, o := range u.pending {
+		cost := o.digest.SizeBytes + inlineEntryBytes
+		if cost > int64(u.budget) {
+			uploads = append(uploads, o)
+			continue
+		}
+		u.budget -= int(cost)
+		if err := u.inline(o); err != nil {
+			return err
+		}
+	}
+	for _, o := range uploads {
+		g.Go(func() error {
+			r, err := o.open()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			got, err := u.cas.Write(ctx, r)
+			if err != nil {
+				return err
+			}
+			return unchanged(o.digest, got)
+		})
 	}
 	return g.Wait()
+}
+
+func (u *outputUploads) inline(o pendingOutput) error {
+	r, err := o.open()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	b, err := io.ReadAll(io.LimitReader(r, o.digest.SizeBytes+1))
+	if err != nil {
+		return err
+	}
+	got, err := digestReader(bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	if err = unchanged(o.digest, got); err != nil {
+		return err
+	}
+	u.inlined.Requests = append(u.inlined.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: o.digest, Data: b})
+	return nil
+}
+
+func unchanged(want, got *re.Digest) error {
+	if got.Hash != want.Hash || got.SizeBytes != want.SizeBytes {
+		return status.Error(codes.DataLoss, "output changed during upload")
+	}
+	return nil
 }
 
 func digestReader(r io.Reader) (*re.Digest, error) {

@@ -286,6 +286,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
       vm: nil,
       response: nil,
       cacheable: false,
+      outputs: nil,
       code: 0,
       message: nil
     })
@@ -324,6 +325,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
       code: op.code,
       message: op.message
     }
+
+    base = if op.outputs, do: Map.merge(base, %{outputs: op.outputs, cas_endpoint: op.cas_endpoint}), else: base
 
     if op.cacheable,
       do: Map.merge(base, %{cacheable: true, action_hash: op.hash, action_size: op.size, cas_endpoint: op.cas_endpoint}),
@@ -365,6 +368,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
     }
 
     request = if op.inputs, do: Map.put(request, :inputs, op.inputs), else: request
+    request = if Map.get(op, :inline_outputs), do: Map.put(request, :inline_outputs, true), else: request
 
     token = cached_token(state, op.project_id)
     queue_time = now_ms() - op.queued_mono
@@ -483,7 +487,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     op =
       case result do
-        {:ok, response, cacheable} -> %{op | response: response, cacheable: cacheable}
+        {:ok, response, cacheable, outputs} -> %{op | response: response, cacheable: cacheable, outputs: outputs}
         {:error, code, message} -> %{op | code: code, message: message}
       end
 
