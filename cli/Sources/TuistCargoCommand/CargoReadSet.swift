@@ -70,6 +70,9 @@ struct CargoReadSet: Codable, Equatable {
         let scratch = allowedWrites.filter { within($0, rootPaths) }
         for (kind, path) in observed where !written.contains(path) {
             if within(path, excludedRoots) || within(path, scratch) { continue }
+            // Devices are not inputs: rustc opens `/dev/null`, whose modification time changes whenever any process
+            // writes to it, so keying it would refuse every run whose build output is discarded.
+            if path.hasPrefix("/dev/") { continue }
             if within(path, allowedWrites), !within(path, rootPaths) { continue }
             // Looking up `/` or a directory above a root says nothing a relocated key does not already hold.
             if path == "/" || relocation.roots.contains(where: { $0.path.hasPrefix(path + "/") }) { continue }
