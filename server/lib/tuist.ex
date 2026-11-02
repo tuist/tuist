@@ -205,7 +205,6 @@ defmodule Tuist do
       Authorization.Checks,
       Billing,
       Billing.Entitlements,
-      Billing.Workers.CreateRunnerPrepaidGrantWorker,
       Billing.Subscription,
       Billing.UsagePricing,
       Billing.UsageMeterProvisioning,
