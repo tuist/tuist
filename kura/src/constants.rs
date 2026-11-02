@@ -178,14 +178,6 @@ pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
 // compaction-blocking scale that shaped the constant above. Revisit if segments
 // ever grow far past `MAX_SEGMENT_BYTES` worth of small artifacts.
 pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
-// Eviction candidates read per blocking task, and the write-lock stripes the
-// reclamation worker holds between commits. One bound for both: a run of
-// candidates is read under its locks, and a commit ends the run.
-pub const SEGMENT_EVICTION_CANDIDATE_RUN: usize = 32;
-// Retired segments a rotating request may leave queued for the reclamation
-// worker instead of evicting them itself. With the one the worker is evicting,
-// this bounds retired-but-unreclaimed disk to two segments.
-pub const SEGMENT_RETIREMENT_HANDOFF_BACKLOG: usize = 1;
 // Payload ceiling of one segment-eviction write batch, and so of how much
 // memtable a single eviction can pin at once.
 //

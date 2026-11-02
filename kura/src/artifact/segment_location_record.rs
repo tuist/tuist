@@ -25,6 +25,30 @@ pub struct SegmentLocationRecord {
 }
 
 impl SegmentLocationRecord {
+    pub fn from_manifest(manifest: &ArtifactManifest) -> Result<Self, String> {
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .ok_or_else(|| "segment-backed manifest is missing segment id".to_string())?;
+        let segment_offset = manifest
+            .segment_offset
+            .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+
+        Ok(Self {
+            producer: manifest.producer,
+            namespace_id: manifest.namespace_id.clone(),
+            key: manifest.key.clone(),
+            content_type: manifest.content_type.clone(),
+            segment_id,
+            segment_offset,
+            size: manifest.size,
+            version_ms: manifest.version_ms,
+            created_at_ms: manifest.created_at_ms,
+            origin_region: manifest.origin_region.clone(),
+            content_sha256: manifest.content_sha256.clone(),
+        })
+    }
+
     pub fn into_manifest(self, artifact_id: &str) -> Result<ArtifactManifest, String> {
         Ok(ArtifactManifest {
             artifact_id: artifact_id.to_owned(),
@@ -45,47 +69,36 @@ impl SegmentLocationRecord {
         })
     }
 
-    /// Encodes a segment-backed manifest's location row straight from the
-    /// manifest's fields.
-    pub fn encode_manifest(manifest: &ArtifactManifest) -> Result<Vec<u8>, String> {
-        let segment_id = manifest
-            .segment_id
-            .as_deref()
-            .ok_or_else(|| "segment-backed manifest is missing segment id".to_string())?;
-        let segment_offset = manifest
-            .segment_offset
-            .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
-        let origin_region = manifest.origin_region.as_deref();
-        let content_sha256 = manifest.content_sha256.as_deref();
+    pub fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(
             2 + 8
                 + 8
                 + 8
-                + manifest.namespace_id.len()
-                + manifest.key.len()
-                + manifest.content_type.len()
-                + segment_id.len()
+                + self.namespace_id.len()
+                + self.key.len()
+                + self.content_type.len()
+                + self.segment_id.len()
                 + 24
-                + origin_region.map_or(0, str::len)
-                + content_sha256.map_or(0, str::len),
+                + self.origin_region.as_ref().map_or(0, String::len)
+                + self.content_sha256.as_ref().map_or(0, String::len),
         );
         bytes.push(SEGMENT_LOCATION_RECORD_VERSION);
-        bytes.push(producer_code(manifest.producer));
-        bytes.extend_from_slice(&segment_offset.to_le_bytes());
-        bytes.extend_from_slice(&manifest.size.to_le_bytes());
-        bytes.extend_from_slice(&manifest.version_ms.to_le_bytes());
-        bytes.extend_from_slice(&manifest.created_at_ms.to_le_bytes());
-        push_string(&mut bytes, &manifest.namespace_id);
-        push_string(&mut bytes, &manifest.key);
-        push_string(&mut bytes, &manifest.content_type);
-        push_string(&mut bytes, segment_id);
-        if origin_region.is_some() || content_sha256.is_some() {
-            push_string(&mut bytes, origin_region.unwrap_or(""));
+        bytes.push(producer_code(self.producer));
+        bytes.extend_from_slice(&self.segment_offset.to_le_bytes());
+        bytes.extend_from_slice(&self.size.to_le_bytes());
+        bytes.extend_from_slice(&self.version_ms.to_le_bytes());
+        bytes.extend_from_slice(&self.created_at_ms.to_le_bytes());
+        push_string(&mut bytes, &self.namespace_id);
+        push_string(&mut bytes, &self.key);
+        push_string(&mut bytes, &self.content_type);
+        push_string(&mut bytes, &self.segment_id);
+        if self.origin_region.is_some() || self.content_sha256.is_some() {
+            push_string(&mut bytes, self.origin_region.as_deref().unwrap_or(""));
         }
-        if let Some(content_sha256) = content_sha256 {
+        if let Some(content_sha256) = &self.content_sha256 {
             push_string(&mut bytes, content_sha256);
         }
-        Ok(bytes)
+        bytes
     }
 
     pub fn decode(bytes: &[u8], artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
@@ -235,9 +248,9 @@ mod tests {
     }
 
     fn round_trip(manifest: &ArtifactManifest) -> ArtifactManifest {
-        let encoded = SegmentLocationRecord::encode_manifest(manifest)
+        let record = SegmentLocationRecord::from_manifest(manifest)
             .expect("segment-backed manifest should encode");
-        SegmentLocationRecord::decode(&encoded, &manifest.artifact_id)
+        SegmentLocationRecord::decode(&record.encode(), &manifest.artifact_id)
             .expect("record should decode")
             .expect("record should be present")
     }
@@ -264,8 +277,9 @@ mod tests {
         let digest = "cd".repeat(32);
         for origin_region in [None, Some("us-east")] {
             let encoded =
-                SegmentLocationRecord::encode_manifest(&manifest(origin_region, Some(&digest)))
-                    .expect("segment-backed manifest should encode");
+                SegmentLocationRecord::from_manifest(&manifest(origin_region, Some(&digest)))
+                    .expect("segment-backed manifest should encode")
+                    .encode();
             let mut digest_tail = Vec::new();
             push_string(&mut digest_tail, &digest);
             let pre_digest_prefix = &encoded[..encoded.len() - digest_tail.len()];
