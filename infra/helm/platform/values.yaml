@@ -38,6 +38,14 @@ ingressCertificate:
     kind: ClusterIssuer
     name: letsencrypt-cloudflare
 
+# DaemonSet that holds net.mptcp.enabled at 0 in every Linux node's host network
+# namespace and persists it in /etc/sysctl.d. A listener opened before the value
+# changed stays MPTCP until its process restarts. See
+# templates/disable-multipath-tcp.yaml.
+disableMultipathTCP:
+  enabled: false
+  image: public.ecr.aws/docker/library/busybox:1.37
+
 cert-manager:
   enabled: true
   # CRDs are reconciled by k8s:install-platform before Helm runs. Keeping
