@@ -1076,6 +1076,41 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       assert {:ok, "../src/detail"} = File.read_link(Path.join([extracted_c_target, "include", "detail"]))
     end
 
+    test "repoints nested symlinks copied while flattening a root-level directory symlink" do
+      tmp = Path.join(System.tmp_dir!(), "zip_directory_root_directory_link_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      source = Path.join(tmp, "repo-v1.0.0")
+      c_target = Path.join([source, "Sources", "CDemo"])
+      File.mkdir_p!(Path.join(c_target, "include"))
+      File.mkdir_p!(Path.join([c_target, "src", "detail"]))
+
+      File.write!(Path.join(source, "README.md"), "readme")
+      File.write!(Path.join([c_target, "src", "demo.h"]), "header")
+      File.write!(Path.join([c_target, "src", "detail", "internal.h"]), "internal")
+      File.ln_s!("../src/demo.h", Path.join([c_target, "include", "demo.h"]))
+      File.ln_s!("../src/detail", Path.join([c_target, "include", "detail"]))
+      File.ln_s!("../../../README.md", Path.join([c_target, "include", "README.md"]))
+      File.ln_s!("Sources/CDemo/include", Path.join(source, "Headers"))
+
+      archive_path = Path.join(tmp, "source_archive.zip")
+      assert :ok = ReleaseWorker.zip_directory(source, archive_path)
+
+      extract_dir = Path.join(tmp, "extract")
+      File.mkdir_p!(extract_dir)
+      {_, 0} = System.cmd("unzip", ["-q", archive_path, "-d", extract_dir])
+
+      headers = Path.join([extract_dir, "repo-v1.0.0", "Headers"])
+
+      assert {:ok, %File.Stat{type: :directory}} = File.lstat(headers)
+      assert {:ok, "../Sources/CDemo/src/demo.h"} = File.read_link(Path.join(headers, "demo.h"))
+      assert {:ok, "../Sources/CDemo/src/detail"} = File.read_link(Path.join(headers, "detail"))
+      assert {:ok, "../README.md"} = File.read_link(Path.join(headers, "README.md"))
+      assert {:ok, "header"} = File.read(Path.join(headers, "demo.h"))
+      assert {:ok, "internal"} = File.read(Path.join([headers, "detail", "internal.h"]))
+      assert {:ok, "readme"} = File.read(Path.join(headers, "README.md"))
+    end
+
     test "flattens a root-level symlink even when it is named like a code-signed bundle" do
       tmp = Path.join(System.tmp_dir!(), "zip_directory_bundle_named_link_#{System.unique_integer([:positive])}")
       on_exit(fn -> File.rm_rf!(tmp) end)

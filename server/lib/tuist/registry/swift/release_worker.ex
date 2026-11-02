@@ -677,6 +677,26 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     resolved_target = resolve_symlink_target(symlink_path, target)
     File.rm!(symlink_path)
     File.cp_r!(resolved_target, symlink_path)
+    repoint_copied_symlinks(resolved_target, symlink_path)
+  end
+
+  # `File.cp_r!/2` copies nested symlinks verbatim, so each copy is repointed at
+  # the path its original resolved to; a relative target would otherwise resolve
+  # from the copy's location, dangling or escaping the package root.
+  defp repoint_copied_symlinks(source_directory, copy_directory) do
+    {output, 0} = System.cmd("find", [copy_directory, "-type", "l"])
+
+    output
+    |> String.split("\n", trim: true)
+    |> Enum.each(fn copied_link ->
+      {:ok, target} = File.read_link(copied_link)
+      original_link = Path.join(source_directory, Path.relative_to(copied_link, copy_directory))
+      resolved_target = resolve_symlink_target(original_link, target)
+      copy_parent = copied_link |> Path.expand() |> Path.dirname()
+
+      File.rm!(copied_link)
+      File.ln_s!(Path.relative_to(resolved_target, copy_parent, force: true), copied_link)
+    end)
   end
 
   defp symlink_creates_cycle?(symlink_path, resolved_target) do
