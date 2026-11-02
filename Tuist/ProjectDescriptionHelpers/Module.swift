@@ -510,6 +510,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.tuistExtension.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
