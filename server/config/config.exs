@@ -351,6 +351,7 @@ config :phoenix, :filter_parameters, [
   "secret",
   "token",
   "credential",
+  "mfa_code",
   "installation_receipt",
   "arguments"
 ]
