@@ -338,6 +338,28 @@ defmodule Tuist.Accounts.UserNotifier do
     ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
+  def deliver_passkey_change_notification(user, added?) do
+    subject =
+      if added?,
+        do: dgettext("dashboard_account", "Passkey added"),
+        else: dgettext("dashboard_account", "Passkey removed")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The passkeys that can sign in to your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
   @doc """
   Deliver instructions to view an agent registration OTP.
   """

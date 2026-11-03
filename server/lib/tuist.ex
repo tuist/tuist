@@ -200,6 +200,7 @@ defmodule Tuist do
       Accounts.AccountToken,
       Accounts.User,
       Accounts.UserMFA,
+      Accounts.UserPasskey,
       Accounts.UserToken,
       Authentication,
       Authentication.UnavailableError,

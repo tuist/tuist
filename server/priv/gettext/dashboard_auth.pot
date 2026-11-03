@@ -821,7 +821,7 @@ msgstr ""
 msgid "Set up authenticator app"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:120
+#: lib/tuist_web/controllers/user_mfa_controller.ex:160
 #, elixir-autogen, elixir-format
 msgid "Sign out and sign in again before changing two-factor authentication."
 msgstr ""
@@ -831,7 +831,7 @@ msgstr ""
 msgid "Store these codes securely. Losing both your authenticator and recovery codes can lock you out of your account."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:124
+#: lib/tuist_web/controllers/user_mfa_controller.ex:166
 #, elixir-autogen, elixir-format
 msgid "The code is invalid, already used, or too many attempts were made. Try a new code later."
 msgstr ""
@@ -852,7 +852,7 @@ msgstr ""
 msgid "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:115
+#: lib/tuist_web/controllers/user_mfa_controller.ex:155
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication · Tuist"
 msgstr ""
@@ -860,4 +860,36 @@ msgstr ""
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Verify"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:53
+#, elixir-autogen, elixir-format
+msgid "Passkey added."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:68
+#, elixir-autogen, elixir-format
+msgid "Passkey removed."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:125
+#, elixir-autogen, elixir-format
+msgid "Remove a passkey before adding another one."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:123
+#, elixir-autogen, elixir-format
+msgid "Sign out and sign in again before changing passkeys."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:162
+#: lib/tuist_web/controllers/user_passkey_controller.ex:92
+#: lib/tuist_web/controllers/user_passkey_controller.ex:129
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be verified. Try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:127
+#, elixir-autogen, elixir-format
+msgid "This passkey is already registered."
 msgstr ""
