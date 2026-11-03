@@ -964,8 +964,14 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   defp github_opts do
     # Retry transient connection failures in Req, but leave HTTP rate limits and
-    # upstream statuses to the worker's Oban snooze policy.
-    [finch: Tuist.Finch, retry: fn request, result -> is_exception(result) and Retry.should_retry?(request, result) end]
+    # upstream statuses to the worker's Oban snooze policy. Registry packages
+    # are public, so a token refused by an organization's IP allow list is
+    # retried anonymously.
+    [
+      finch: Tuist.Finch,
+      retry: fn request, result -> is_exception(result) and Retry.should_retry?(request, result) end,
+      anonymous_fallback: true
+    ]
   end
 
   defp fetch_manifests(full_handle, tag, token) do
