@@ -173,9 +173,10 @@ replicas converge through compaction during preparation: when the destination
 lacks records, it copies the source-retained records out of the sealed segments
 that hold the least of them and reclaims those segments, until what is missing
 fits (`kura.handover.compacted` logs segments reclaimed, bytes copied and why it
-stopped). It copies only while the copy plus 1 GiB fits without rotating out
-retained data, so a ring with no free or reclaimable room still cannot start;
-the final full-corpus check still refuses promotion when required data remains
+stopped). It copies a segment only while the copy plus 64 MiB fits without
+rotating out retained data, so a full ring starts from the active segment's
+remaining room, and it stops once the missing bytes fit with 1 GiB to spare.
+The final full-corpus check still refuses promotion when required data remains
 missing. When the destination knows
 the source's oldest retained version, a counted eviction or a record refused for
 capacity during the frozen repair ends the attempt instead of walking again, and

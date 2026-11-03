@@ -89,8 +89,9 @@ does not repair embedded/native verification or qualify running processes.
   compacts the least-retained of those segments (at most three quarters
   retained): it copies the filtered artifacts into the active segment without a
   sibling hint and reclaims the segment only when none of them is left. It
-  copies only while the store admits the copy plus 1 GiB without rotating out
-  anything at or after that version, and stops once the missing bytes fit.
+  copies a segment only while the store admits the copy plus 64 MiB without
+  rotating out anything at or after that version, and stops once the missing
+  bytes fit with 1 GiB to spare.
   Never compact under the frozen source.
   Repeat the retained walk if eviction committed during it, including cascaded
   action-cache removals. Publish the eviction generation from the blocking

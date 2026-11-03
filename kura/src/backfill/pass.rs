@@ -514,8 +514,12 @@ const RETAINED_ID_FILTER_BITS: u64 = 1 << 24;
 const RETAINED_ID_FILTER_HASHES: u64 = 4;
 // Only segments at most three quarters retained are worth copying out of.
 const COMPACTION_MAX_RETAINED_BYTES: u64 = MAX_SEGMENT_BYTES / 4 * 3;
-// Room kept free while copying, for the feed writes that keep arriving.
-const COMPACTION_MARGIN_BYTES: u64 = 2 * MAX_SEGMENT_BYTES;
+// Room the missing bytes must leave once compaction stops, for the feed
+// writes that keep arriving until the barrier.
+const COMPACTION_TARGET_MARGIN_BYTES: u64 = 2 * MAX_SEGMENT_BYTES;
+// Room kept free while one segment is copied, for the feed writes arriving
+// meanwhile. A rotation that still happens is counted and fails preparation.
+const COMPACTION_COPY_RESERVE_BYTES: u64 = MAX_SEGMENT_BYTES / 8;
 
 struct RetainedIds {
     bits: Vec<u64>,
@@ -569,9 +573,9 @@ enum CompactionStep {
 }
 
 fn compaction_step(admissible: u64, missing_bytes: u64, retained: u64) -> CompactionStep {
-    if admissible >= missing_bytes.saturating_add(COMPACTION_MARGIN_BYTES) {
+    if admissible >= missing_bytes.saturating_add(COMPACTION_TARGET_MARGIN_BYTES) {
         CompactionStep::Enough
-    } else if admissible < retained.saturating_add(COMPACTION_MARGIN_BYTES) {
+    } else if admissible < retained.saturating_add(COMPACTION_COPY_RESERVE_BYTES) {
         CompactionStep::NoRoom
     } else {
         CompactionStep::Copy
@@ -600,6 +604,8 @@ async fn compact_retained_segments(
         .filter(|(_, bytes)| *bytes <= COMPACTION_MAX_RETAINED_BYTES)
         .collect();
     segments.sort_by_key(|(_, bytes)| *bytes);
+    let candidates = segments.len();
+    let least_retained_bytes = segments.first().map(|(_, bytes)| *bytes);
     let (mut reclaimed, mut copied) = (0u64, 0u64);
     let mut stopped = CompactionStep::Copy;
     for (segment, bytes) in segments {
@@ -626,7 +632,8 @@ async fn compact_retained_segments(
             reclaimed += 1;
         }
     }
-    tracing::info!(event.name = "kura.handover.compacted", peer, reclaimed, last_step = ?stopped,
+    tracing::info!(event.name = "kura.handover.compacted", peer, candidates, least_retained_bytes = ?least_retained_bytes,
+        reclaimed, last_step = ?stopped,
         copied_bytes = copied, missing_bytes,
         admissible_bytes = store.handover_admissible_bytes(frontier_ms),
         "Compacted segments the source mostly no longer retains");
@@ -1980,11 +1987,34 @@ mod tests {
 
     #[test]
     fn compaction_copies_only_while_what_is_missing_does_not_fit_and_the_copy_does() {
-        let margin = COMPACTION_MARGIN_BYTES;
-        assert_eq!(compaction_step(10 + margin, 10, 1), CompactionStep::Enough);
-        assert_eq!(compaction_step(9 + margin, 10, 9), CompactionStep::Copy);
-        assert_eq!(compaction_step(9 + margin, 10, 10), CompactionStep::NoRoom);
+        let (target, reserve) = (
+            COMPACTION_TARGET_MARGIN_BYTES,
+            COMPACTION_COPY_RESERVE_BYTES,
+        );
+        assert_eq!(compaction_step(10 + target, 10, 1), CompactionStep::Enough);
+        assert_eq!(compaction_step(9 + target, 10, 9), CompactionStep::Copy);
+        assert_eq!(
+            compaction_step(9 + reserve, 10 + target, 9),
+            CompactionStep::Copy
+        );
+        assert_eq!(
+            compaction_step(9 + reserve, 10 + target, 10),
+            CompactionStep::NoRoom
+        );
         assert_eq!(compaction_step(0, 10, 0), CompactionStep::NoRoom);
+    }
+
+    #[test]
+    fn compaction_starts_in_a_full_ring_with_only_the_active_segment_left() {
+        let mib = 1024 * 1024;
+        assert_eq!(
+            compaction_step(236 * mib, 1439 * mib, 128 * mib),
+            CompactionStep::Copy
+        );
+        assert_eq!(
+            compaction_step(236 * mib, 1439 * mib, 200 * mib),
+            CompactionStep::NoRoom
+        );
     }
 
     #[test]
