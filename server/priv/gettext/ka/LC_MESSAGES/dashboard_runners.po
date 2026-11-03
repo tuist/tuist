@@ -40,7 +40,7 @@ msgstr "საშუალო ხანგრძლივობა"
 #: lib/tuist_web/live/runners_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Avg. job duration"
-msgstr "საშუალო დავალების ხანგრძლივობა"
+msgstr "საშუალო ჯობის ხანგრძლივობა"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:162
 #: lib/tuist_web/live/runners_live.html.heex:193
@@ -48,8 +48,8 @@ msgstr "საშუალო დავალების ხანგრძლ�
 msgid "Avg. workflow duration"
 msgstr "საშუალო სამუშაო პროცესის ხანგრძლივობა"
 
-#: lib/tuist/runners/analytics.ex:946
-#: lib/tuist_web/live/runner_job_live.html.heex:177
+#: lib/tuist/runners/analytics.ex:976
+#: lib/tuist_web/live/runner_job_live.html.heex:190
 #: lib/tuist_web/live/runner_jobs_live.ex:507
 #: lib/tuist_web/live/runner_jobs_live.html.heex:618
 #: lib/tuist_web/live/runner_workflow_live.ex:186
@@ -71,8 +71,8 @@ msgstr "ბრენჩი"
 msgid "Cancel"
 msgstr "გაუქმება"
 
-#: lib/tuist/runners/analytics.ex:910
-#: lib/tuist_web/live/runner_job_live.ex:262
+#: lib/tuist/runners/analytics.ex:940
+#: lib/tuist_web/live/runner_job_live.ex:265
 #: lib/tuist_web/live/runner_jobs_live.ex:498
 #: lib/tuist_web/live/runner_jobs_live.ex:523
 #: lib/tuist_web/live/runner_workflow_live.ex:177
@@ -81,9 +81,9 @@ msgstr "გაუქმება"
 #: lib/tuist_web/live/runners_live.ex:716
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
-msgstr "გაუქმებულია"
+msgstr "გაუქმებული"
 
-#: lib/tuist_web/live/runner_job_live.ex:270
+#: lib/tuist_web/live/runner_job_live.ex:273
 #: lib/tuist_web/live/runner_jobs_live.ex:494
 #: lib/tuist_web/live/runner_jobs_live.ex:516
 #: lib/tuist_web/live/runner_workflow_live.ex:173
@@ -91,7 +91,7 @@ msgstr "გაუქმებულია"
 #: lib/tuist_web/live/runners_live.ex:709
 #, elixir-autogen, elixir-format
 msgid "Claimed"
-msgstr "დაკავებული"
+msgstr "მოთხოვნილი"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:629
 #: lib/tuist_web/live/runner_workflow_live.html.heex:352
@@ -119,7 +119,7 @@ msgstr "გამოთვლის წუთები"
 msgid "Custom"
 msgstr "მორგებული"
 
-#: lib/tuist/runners/analytics.ex:949
+#: lib/tuist/runners/analytics.ex:979
 #: lib/tuist_web/live/runner_jobs_live.ex:562
 #: lib/tuist_web/live/runner_jobs_live.html.heex:553
 #: lib/tuist_web/live/runner_jobs_live.html.heex:641
@@ -132,10 +132,10 @@ msgstr "მორგებული"
 msgid "Duration"
 msgstr "ხანგრძლივობა"
 
-#: lib/tuist_web/live/runner_job_live.ex:259
-#: lib/tuist_web/live/runner_job_live.ex:516
-#: lib/tuist_web/live/runner_job_live.ex:553
-#: lib/tuist_web/live/runner_job_live.ex:576
+#: lib/tuist_web/live/runner_job_live.ex:262
+#: lib/tuist_web/live/runner_job_live.ex:519
+#: lib/tuist_web/live/runner_job_live.ex:556
+#: lib/tuist_web/live/runner_job_live.ex:579
 #: lib/tuist_web/live/runner_jobs_live.ex:643
 #: lib/tuist_web/live/runner_jobs_live.html.heex:195
 #: lib/tuist_web/live/runner_workflow_live.html.heex:220
@@ -150,7 +150,7 @@ msgstr "შეცდომა"
 msgid "Failed jobs"
 msgstr "შეცდომით დასრულებული სამუშაოები"
 
-#: lib/tuist/runners/analytics.ex:909
+#: lib/tuist/runners/analytics.ex:939
 #: lib/tuist_web/live/runner_jobs_live.ex:497
 #: lib/tuist_web/live/runner_jobs_live.ex:522
 #: lib/tuist_web/live/runner_workflow_live.ex:176
@@ -167,12 +167,12 @@ msgstr "შეცდომა"
 msgid "Filter"
 msgstr "ფილტრი"
 
-#: lib/tuist/runners/analytics.ex:944
+#: lib/tuist/runners/analytics.ex:974
 #: lib/tuist_web/components/runs/ci_context_card.ex:48
 #: lib/tuist_web/live/runner_jobs_live.ex:560
 #: lib/tuist_web/live/runner_jobs_live.html.heex:537
 #: lib/tuist_web/live/runner_jobs_live.html.heex:580
-#: lib/tuist_web/live/runner_volumes_live.html.heex:531
+#: lib/tuist_web/live/runner_volumes_live.html.heex:529
 #: lib/tuist_web/live/runner_workflow_live.ex:265
 #: lib/tuist_web/live/runner_workflow_live.html.heex:289
 #: lib/tuist_web/live/runner_workflow_live.html.heex:324
@@ -180,14 +180,14 @@ msgstr "ფილტრი"
 #: lib/tuist_web/live/runners_live.html.heex:626
 #, elixir-autogen, elixir-format
 msgid "Job"
-msgstr "ამოცანა"
+msgstr "დავალება"
 
-#: lib/tuist_web/live/runner_job_live.ex:66
+#: lib/tuist_web/live/runner_job_live.ex:67
 #: lib/tuist_web/live/runner_job_live.html.heex:6
 #: lib/tuist_web/live/runner_jobs_live.ex:43
 #: lib/tuist_web/live/runner_jobs_live.html.heex:467
 #: lib/tuist_web/live/runner_volumes_live.html.heex:360
-#: lib/tuist_web/live/runner_volumes_live.html.heex:507
+#: lib/tuist_web/live/runner_volumes_live.html.heex:505
 #: lib/tuist_web/live/runner_workflow_live.html.heex:181
 #: lib/tuist_web/live/runner_workflow_live.html.heex:250
 #: lib/tuist_web/live/runner_workflows_live.ex:271
@@ -196,22 +196,22 @@ msgstr "ამოცანა"
 #: lib/tuist_web/live/runners_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Jobs"
-msgstr "ამოცანები"
+msgstr "დავალებები"
 
 #: lib/tuist_web/live/runner_workflow_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Jobs that completed with conclusion=failure in the last 30 days."
-msgstr "ბოლო 30 დღის განმავლობაში დასრულებული ამოცანები, რომელთა შედეგი იყო failure."
+msgstr "ბოლო 30 დღის განმავლობაში დასრულებული დასკვნით=შეცდომა დავალებები."
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Jobs the runner pool is currently executing."
-msgstr "ამოცანები, რომელთა შესრულებასაც ამჟამად ასრულებს გამშვების პულში არსებული რესურსები."
+msgstr "რანერების პული ამჟამად ასრულებს ამ დავალებებს."
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:493
 #, elixir-autogen, elixir-format
 msgid "Jobs waiting for a runner to pick them up."
-msgstr "ამოცანები, რომლებიც ელოდებიან გამშვების მიერ აღებას."
+msgstr "დავალებები, რომლებიც ელიან რანერის მიერ აღებას."
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:77
 #: lib/tuist_web/live/runner_workflows_live.html.heex:77
@@ -267,7 +267,7 @@ msgstr "შემდეგი"
 #: lib/tuist_web/live/runner_workflow_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "No jobs match the current filters"
-msgstr "მიმდინარე ფილტრებს არცერთი სამუშაო არ შეესაბამება"
+msgstr "არჩევანს არ შეესაბამება არცერთი სამუშაო"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:686
 #: lib/tuist_web/live/runners_live.ex:731
@@ -294,7 +294,7 @@ msgstr "ჯერ არ არის სამუშაო პროცეს�
 msgid "Prev"
 msgstr "წინა"
 
-#: lib/tuist_web/live/runner_job_live.ex:267
+#: lib/tuist_web/live/runner_job_live.ex:270
 #: lib/tuist_web/live/runner_jobs_live.ex:493
 #: lib/tuist_web/live/runner_jobs_live.ex:515
 #: lib/tuist_web/live/runner_jobs_live.html.heex:491
@@ -303,16 +303,16 @@ msgstr "წინა"
 #: lib/tuist_web/live/runners_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "Queued"
-msgstr "რიგშია"
+msgstr "რიგში"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:506
+#: lib/tuist_web/live/runner_volumes_live.html.heex:504
 #: lib/tuist_web/live/runners_live.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "Recent jobs"
 msgstr "ბოლო დავალებები"
 
-#: lib/tuist/runners/analytics.ex:945
-#: lib/tuist_web/live/runner_job_live.html.heex:193
+#: lib/tuist/runners/analytics.ex:975
+#: lib/tuist_web/live/runner_job_live.html.heex:206
 #: lib/tuist_web/live/runner_jobs_live.html.heex:599
 #: lib/tuist_web/live/runner_volumes_live.ex:223
 #: lib/tuist_web/live/runner_volumes_live.html.heex:211
@@ -322,14 +322,14 @@ msgstr "ბოლო დავალებები"
 #: lib/tuist_web/live/runners_live.html.heex:637
 #, elixir-autogen, elixir-format
 msgid "Repository"
-msgstr "რეპოზიტორი"
+msgstr "რეპოზიტორია"
 
 #: lib/tuist_web/live/runners_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Runners"
-msgstr "გამშვებები"
+msgstr "მომუშავეები"
 
-#: lib/tuist_web/live/runner_job_live.ex:273
+#: lib/tuist_web/live/runner_job_live.ex:276
 #: lib/tuist_web/live/runner_jobs_live.ex:495
 #: lib/tuist_web/live/runner_jobs_live.ex:517
 #: lib/tuist_web/live/runner_jobs_live.html.heex:474
@@ -338,11 +338,11 @@ msgstr "გამშვებები"
 #: lib/tuist_web/live/runners_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "Running"
-msgstr "მიმდინარეობს"
+msgstr "მიმდინარე"
 
-#: lib/tuist/runners/analytics.ex:911
-#: lib/tuist_web/live/runner_job_live.ex:265
-#: lib/tuist_web/live/runner_job_live.ex:579
+#: lib/tuist/runners/analytics.ex:941
+#: lib/tuist_web/live/runner_job_live.ex:268
+#: lib/tuist_web/live/runner_job_live.ex:582
 #: lib/tuist_web/live/runner_jobs_live.ex:499
 #: lib/tuist_web/live/runner_jobs_live.ex:524
 #: lib/tuist_web/live/runner_workflow_live.ex:178
@@ -353,8 +353,8 @@ msgstr "მიმდინარეობს"
 msgid "Skipped"
 msgstr "გამოტოვებული"
 
-#: lib/tuist/runners/analytics.ex:947
-#: lib/tuist_web/live/runner_job_live.html.heex:122
+#: lib/tuist/runners/analytics.ex:977
+#: lib/tuist_web/live/runner_job_live.html.heex:135
 #: lib/tuist_web/live/runner_jobs_live.ex:489
 #: lib/tuist_web/live/runner_jobs_live.html.heex:366
 #: lib/tuist_web/live/runner_jobs_live.html.heex:417
@@ -367,7 +367,7 @@ msgstr "გამოტოვებული"
 msgid "Status"
 msgstr "სტატუსი"
 
-#: lib/tuist/runners/analytics.ex:908
+#: lib/tuist/runners/analytics.ex:938
 #: lib/tuist_web/live/runner_jobs_live.ex:496
 #: lib/tuist_web/live/runner_jobs_live.ex:521
 #: lib/tuist_web/live/runner_workflow_live.ex:175
@@ -393,13 +393,13 @@ msgstr "წარმატებული"
 
 #: lib/tuist_web/controllers/runner_job_logs_controller.ex:48
 #: lib/tuist_web/controllers/runner_job_redirect_controller.ex:33
-#: lib/tuist_web/live/runner_job_live.ex:106
-#: lib/tuist_web/live/runner_job_live.ex:139
+#: lib/tuist_web/live/runner_job_live.ex:109
+#: lib/tuist_web/live/runner_job_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "The job you are looking for doesn't exist or has been moved."
 msgstr "საძიებო სამუშაო არ არსებობს ან გადატანილია."
 
-#: lib/tuist_web/live/runner_job_live.ex:50
+#: lib/tuist_web/live/runner_job_live.ex:51
 #: lib/tuist_web/live/runner_jobs_live.ex:32
 #: lib/tuist_web/live/runner_profiles_live.ex:25
 #: lib/tuist_web/live/runner_workflow_live.ex:29
@@ -407,7 +407,7 @@ msgstr "საძიებო სამუშაო არ არსებობ
 #: lib/tuist_web/live/runners_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "საძიებო გვერდი არ არსებობს ან გადატანილია."
+msgstr "მოთხოვნილი გვერდი არ არსებობს ან გადატანილია."
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:217
 #: lib/tuist_web/live/runner_workflow_live.html.heex:130
@@ -420,32 +420,32 @@ msgstr "დრო, რომელსაც თითოეული სამ�
 #: lib/tuist_web/live/runners_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Total jobs"
-msgstr "სულ სამუშაოები"
+msgstr "სულ ამოცანები"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:166
 #: lib/tuist_web/live/runners_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Total wall-clock time from the first job start to the last job completion in a workflow run."
-msgstr "სამუშაოების ნაკადის შესრულებისას პირველი სამუშაოს დაწყებიდან ბოლო სამუშაოს დასრულებამდე გასული ზუსტი დრო."
+msgstr "სამუშაო პროცესის გაშვებისას პირველი ამოცანის დაწყებიდან ბოლო ამოცანის დასრულებამდე გასული რეალური დრო."
 
-#: lib/tuist/runners/analytics.ex:906
-#: lib/tuist/runners/analytics.ex:907
-#: lib/tuist/runners/analytics.ex:953
-#: lib/tuist/runners/analytics.ex:954
+#: lib/tuist/runners/analytics.ex:936
+#: lib/tuist/runners/analytics.ex:937
+#: lib/tuist/runners/analytics.ex:983
+#: lib/tuist/runners/analytics.ex:984
 #: lib/tuist_web/components/runs/ci_context_card.ex:101
-#: lib/tuist_web/live/runner_job_live.ex:275
-#: lib/tuist_web/live/runner_job_live.ex:286
-#: lib/tuist_web/live/runner_job_live.ex:290
-#: lib/tuist_web/live/runner_job_live.ex:511
-#: lib/tuist_web/live/runner_job_live.ex:561
-#: lib/tuist_web/live/runner_job_live.ex:581
+#: lib/tuist_web/live/runner_job_live.ex:278
+#: lib/tuist_web/live/runner_job_live.ex:289
+#: lib/tuist_web/live/runner_job_live.ex:293
+#: lib/tuist_web/live/runner_job_live.ex:514
+#: lib/tuist_web/live/runner_job_live.ex:564
+#: lib/tuist_web/live/runner_job_live.ex:584
 #: lib/tuist_web/live/runner_jobs_live.ex:519
 #: lib/tuist_web/live/runner_jobs_live.ex:604
 #: lib/tuist_web/live/runner_jobs_live.ex:608
 #: lib/tuist_web/live/runner_jobs_live.html.heex:594
 #: lib/tuist_web/live/runner_jobs_live.html.heex:602
 #: lib/tuist_web/live/runner_jobs_live.html.heex:623
-#: lib/tuist_web/live/runner_volumes_live.ex:683
+#: lib/tuist_web/live/runner_volumes_live.ex:691
 #: lib/tuist_web/live/runner_workflow_live.ex:303
 #: lib/tuist_web/live/runner_workflow_live.ex:304
 #: lib/tuist_web/live/runner_workflow_live.ex:311
@@ -464,20 +464,20 @@ msgid "Unknown"
 msgstr "უცნობი"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:27
-#: lib/tuist_web/live/runner_volumes_live.html.heex:515
+#: lib/tuist_web/live/runner_volumes_live.html.heex:513
 #: lib/tuist_web/live/runners_live.html.heex:384
 #: lib/tuist_web/live/runners_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "მეტის ნახვა"
 
-#: lib/tuist/runners/analytics.ex:943
+#: lib/tuist/runners/analytics.ex:973
 #: lib/tuist_web/components/runs/ci_context_card.ex:35
 #: lib/tuist_web/live/runner_jobs_live.ex:474
 #: lib/tuist_web/live/runner_jobs_live.ex:561
 #: lib/tuist_web/live/runner_jobs_live.html.heex:545
 #: lib/tuist_web/live/runner_jobs_live.html.heex:588
-#: lib/tuist_web/live/runner_volumes_live.html.heex:534
+#: lib/tuist_web/live/runner_volumes_live.html.heex:532
 #: lib/tuist_web/live/runner_workflows_live.ex:274
 #: lib/tuist_web/live/runner_workflows_live.html.heex:309
 #: lib/tuist_web/live/runner_workflows_live.html.heex:352
@@ -485,17 +485,17 @@ msgstr "მეტის ნახვა"
 #: lib/tuist_web/live/runners_live.html.heex:629
 #, elixir-autogen, elixir-format
 msgid "Workflow"
-msgstr "სამუშაოების ნაკადი"
+msgstr "სამუშაო პროცესი"
 
 #: lib/tuist_web/live/runner_workflow_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Workflow jobs enqueued in the last 30 days."
-msgstr "ბოლო 30 დღეში რიგში მყოფი სამუშაოების ნაკადის სამუშაოები."
+msgstr "ბოლო 30 დღეში რიგში ჩამდგარი სამუშაო პროცესის ამოცანები."
 
 #: lib/tuist_web/live/runners_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Workflow jobs received from GitHub in the selected window."
-msgstr "არჩეულ პერიოდში GitHub-დან მიღებული სამუშაოების ნაკადის სამუშაოები."
+msgstr "არჩეულ პერიოდში GitHub-დან მიღებული სამუშაო პროცესის ამოცანები."
 
 #: lib/tuist_web/live/runner_workflow_live.ex:36
 #: lib/tuist_web/live/runner_workflow_live.html.heex:3
@@ -503,7 +503,7 @@ msgstr "არჩეულ პერიოდში GitHub-დან მიღ�
 #: lib/tuist_web/live/runner_workflows_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Workflows"
-msgstr "სამუშაოების ნაკადები"
+msgstr "სამუშაო პროცესები"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:212
 #: lib/tuist_web/live/runner_workflow_live.html.heex:125
@@ -516,7 +516,7 @@ msgstr "p50 სამუშაოს ხანგრძლივობა"
 #: lib/tuist_web/live/runners_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "p50 workflow duration"
-msgstr "p50 სამუშაო პროცესის ხანგრძლივობა"
+msgstr "p50 ვორქფლოუს ხანგრძლივობა"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:211
 #: lib/tuist_web/live/runner_workflow_live.html.heex:124
@@ -529,7 +529,7 @@ msgstr "p90 სამუშაოს ხანგრძლივობა"
 #: lib/tuist_web/live/runners_live.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "p90 workflow duration"
-msgstr "p90 სამუშაო პროცესის ხანგრძლივობა"
+msgstr "p90 ვორქფლოუს ხანგრძლივობა"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:210
 #: lib/tuist_web/live/runner_workflow_live.html.heex:123
@@ -542,7 +542,7 @@ msgstr "p99 სამუშაოს ხანგრძლივობა"
 #: lib/tuist_web/live/runners_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "p99 workflow duration"
-msgstr "p99 სამუშაო პროცესის ხანგრძლივობა"
+msgstr "p99 ვორქფლოუს ხანგრძლივობა"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:257
 #: lib/tuist_web/live/runner_workflow_live.html.heex:56
@@ -559,8 +559,8 @@ msgstr "ბოლო თვის განმავლობაში"
 #: lib/tuist_web/live/runner_volumes_live.ex:315
 #: lib/tuist_web/live/runner_volumes_live.ex:325
 #: lib/tuist_web/live/runner_volumes_live.ex:335
-#: lib/tuist_web/live/runner_volumes_live.ex:420
-#: lib/tuist_web/live/runner_volumes_live.ex:649
+#: lib/tuist_web/live/runner_volumes_live.ex:421
+#: lib/tuist_web/live/runner_volumes_live.ex:657
 #: lib/tuist_web/live/runner_workflows_live.ex:282
 #: lib/tuist_web/live/runners_live.ex:409
 #, elixir-autogen, elixir-format
@@ -572,14 +572,14 @@ msgstr "ბოლო პერიოდის განმავლობაშ�
 #: lib/tuist_web/live/runners_live.ex:407
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "გასული კვირიდან"
+msgstr "ბოლო კვირის განმავლობაში"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:255
 #: lib/tuist_web/live/runner_workflows_live.ex:281
 #: lib/tuist_web/live/runners_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "გასული წლიდან"
+msgstr "ბოლო წლის განმავლობაში"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:253
 #: lib/tuist_web/live/runner_workflows_live.ex:279
@@ -592,13 +592,13 @@ msgstr "გუშინდელი დღიდან"
 #: lib/tuist_web/live/runner_workflow_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
-msgstr "რიგში ყოფნის საშ. დრო"
+msgstr "რიგში ყოფნის საშუალო დრო"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:259
 #: lib/tuist_web/live/runner_workflow_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Time each job spends waiting before a runner picks it up."
-msgstr "დრო, რომელსაც თითოეული სამუშაო ხარჯავს მოლოდინში, სანამ გამშვები მას აიღებს."
+msgstr "დრო, რომელსაც თითოეული ჯობი რიგში ატარებს, სანამ მას რანერი აირჩევს."
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:254
 #: lib/tuist_web/live/runner_workflow_live.html.heex:83
@@ -627,7 +627,7 @@ msgstr "ბოლო 30 დღის განმავლობაში გა
 #: lib/tuist_web/live/runner_workflows_live.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
-msgstr "ვერსიების შეცდომები"
+msgstr "წარუმატებელი გაშვებები"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:227
 #, elixir-autogen, elixir-format
@@ -637,12 +637,12 @@ msgstr "გაშვებები"
 #: lib/tuist_web/live/runner_workflows_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Workflow runs"
-msgstr "სამუშაო პროცესის გაშვებები"
+msgstr "სამუშაო პროცესების გაშვებები"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Workflow runs with at least one job that completed with conclusion=failure."
-msgstr "სამუშაო პროცესის გაშვებები, რომელთაგან მინიმუმ ერთი სამუშაო დასრულდა conclusion=failure სტატუსით."
+msgstr "სამუშაო პროცესების გაშვებები, რომლებშიც მინიმუმ ერთი ამოცანა დასრულდა დასკვნით failure."
 
 #: lib/tuist_web/live/runner_jobs_live.ex:544
 #: lib/tuist_web/live/runner_jobs_live.ex:558
@@ -658,7 +658,7 @@ msgstr "სამუშაო პროცესის გაშვებებ�
 #: lib/tuist_web/live/runners_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Any"
-msgstr "ყველა"
+msgstr "ნებისმიერი"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:29
 #: lib/tuist_web/live/runner_workflows_live.html.heex:29
@@ -672,17 +672,17 @@ msgstr "რეპოზიტორია:"
 #: lib/tuist_web/live/runners_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "ძიება..."
+msgstr "ძებნა..."
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "No workflows match the current search"
-msgstr "მიმდინარე ძიებას არ შეესაბამება სამუშაო პროცესები"
+msgstr "მიმდინარე ძებნას არ ემთხვევა არცერთი სამუშაო პროცესი"
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Search by name..."
-msgstr "ძიება სახელით..."
+msgstr "ძებნა სახელით..."
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:525
 #: lib/tuist_web/live/runner_volumes_live.html.heex:181
@@ -715,12 +715,12 @@ msgstr "ფანჯარაში მიღებული სამუშა�
 #: lib/tuist_web/live/runner_jobs_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Failed job runs"
-msgstr "ჩავარდნილი დავალებების გაშვებები"
+msgstr "წარუმატებელი დავალების გაშვებები"
 
-#: lib/tuist_web/live/runner_job_live.ex:256
-#: lib/tuist_web/live/runner_job_live.ex:525
-#: lib/tuist_web/live/runner_job_live.ex:550
-#: lib/tuist_web/live/runner_job_live.ex:573
+#: lib/tuist_web/live/runner_job_live.ex:259
+#: lib/tuist_web/live/runner_job_live.ex:528
+#: lib/tuist_web/live/runner_job_live.ex:553
+#: lib/tuist_web/live/runner_job_live.ex:576
 #: lib/tuist_web/live/runner_jobs_live.ex:642
 #: lib/tuist_web/live/runner_jobs_live.html.heex:178
 #, elixir-autogen, elixir-format
@@ -730,7 +730,7 @@ msgstr "გავლილი"
 #: lib/tuist_web/live/runner_jobs_live.ex:653
 #, elixir-autogen, elixir-format
 msgid "Passed job runs"
-msgstr "გავლილი სამუშაო გაშვებები"
+msgstr "გავლილი სამუშაოს გაშვებები"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:161
 #, elixir-autogen, elixir-format
@@ -740,10 +740,10 @@ msgstr "ყველა"
 #: lib/tuist_web/live/runner_jobs_live.ex:655
 #, elixir-autogen, elixir-format
 msgid "All job runs"
-msgstr "ყველა სამუშაო გაშვება"
+msgstr "ყველა სამუშაოს გაშვება"
 
-#: lib/tuist/runners/analytics.ex:926
-#: lib/tuist_web/live/runner_job_live.ex:283
+#: lib/tuist/runners/analytics.ex:956
+#: lib/tuist_web/live/runner_job_live.ex:286
 #: lib/tuist_web/live/runner_jobs_live.ex:557
 #: lib/tuist_web/live/runner_jobs_live.ex:601
 #: lib/tuist_web/live/runner_profiles_live.ex:441
@@ -770,8 +770,8 @@ msgstr "არ არის ხელმისაწვდომი"
 msgid "Platform:"
 msgstr "პლატფორმა:"
 
-#: lib/tuist/runners/analytics.ex:923
-#: lib/tuist_web/live/runner_job_live.ex:280
+#: lib/tuist/runners/analytics.ex:953
+#: lib/tuist_web/live/runner_job_live.ex:283
 #: lib/tuist_web/live/runner_jobs_live.ex:556
 #: lib/tuist_web/live/runner_jobs_live.ex:598
 #: lib/tuist_web/live/runner_profiles_live.ex:442
@@ -787,16 +787,16 @@ msgstr "macOS"
 #: lib/tuist_web/live/runner_jobs_live.html.heex:453
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform."
-msgstr "10 000 ჩანაწერის ლიმიტი მიღწეულია, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ თარიღის დიაპაზონის, რეპოზიტორიის ან პლატფორმის შევიწროება."
+msgstr "10 000 ჩანაწერის ლიმიტი მიღწეულია, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ თარიღების დიაპაზონის, რეპოზიტორიის ან პლატფორმის შევიწროვება."
 
-#: lib/tuist/runners/analytics.ex:929
-#: lib/tuist/runners/analytics.ex:933
+#: lib/tuist/runners/analytics.ex:959
+#: lib/tuist/runners/analytics.ex:963
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr "სხვა"
 
-#: lib/tuist/runners/analytics.ex:948
-#: lib/tuist_web/live/runner_job_live.html.heex:168
+#: lib/tuist/runners/analytics.ex:978
+#: lib/tuist_web/live/runner_job_live.html.heex:181
 #: lib/tuist_web/live/runner_jobs_live.html.heex:367
 #: lib/tuist_web/live/runner_jobs_live.html.heex:418
 #: lib/tuist_web/live/runner_jobs_live.html.heex:632
@@ -809,17 +809,17 @@ msgid "Platform"
 msgstr "პლატფორმა"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:19
-#: lib/tuist_web/live/runner_job_live.html.heex:114
+#: lib/tuist_web/live/runner_job_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "CI Details"
 msgstr "CI დეტალები"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:131
+#: lib/tuist_web/live/runner_job_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "CI duration"
 msgstr "CI ხანგრძლივობა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:187
+#: lib/tuist_web/live/runner_job_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr "კომიტის SHA"
@@ -832,34 +832,34 @@ msgstr "კომიტის SHA"
 #: lib/tuist_web/live/runner_workflow_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Enqueued at"
-msgstr "რიგში ჩასმის დრო"
+msgstr "რიგში დაყენებულია"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:48
+#: lib/tuist_web/live/runner_job_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:181
+#: lib/tuist_web/live/runner_job_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "None"
-msgstr "არაფერი"
+msgstr "არ არის"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:65
-#: lib/tuist_web/live/runner_job_live.html.heex:141
+#: lib/tuist_web/live/runner_job_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Queue time"
-msgstr "რიგში ყოფნის დრო"
+msgstr "ლოდინის დრო"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:151
+#: lib/tuist_web/live/runner_job_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "გაშვებული იყო"
+msgstr "გაშვების დრო"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:509
 #: lib/tuist_web/live/runner_workflow_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Search by job name..."
-msgstr "ძებნა სამუშაოს სახელით..."
+msgstr "მოძებნე სამუშაოს სახელით..."
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:346
 #, elixir-autogen, elixir-format
@@ -915,7 +915,7 @@ msgstr "პროფილი %{name} განახლდა."
 #: lib/tuist_web/live/runner_profiles_live.ex:294
 #, elixir-autogen, elixir-format
 msgid "Profile limit reached (%{max})."
-msgstr "პროფილების ლიმიტი მიღწეულია (%{max})."
+msgstr "პროფილების ლიმიტი ამოიწურა (%{max})."
 
 #: lib/tuist_web/live/runner_profiles_live.ex:32
 #: lib/tuist_web/live/runner_profiles_live.html.heex:4
@@ -946,7 +946,7 @@ msgstr "vCPU"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "Create one to let your workflows reference Tuist runners by name."
-msgstr "შექმენით ერთი, რათა თქვენმა სამუშაო პროცესებმა Tuist-ის გამშვებებს სახელით მიმართონ."
+msgstr "შექმენით ერთი, რათა თქვენმა სამუშაო ნაკადებმა Tuist-ის გამშვებებს სახელით მიმართონ."
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:22
 #, elixir-autogen, elixir-format
@@ -970,7 +970,7 @@ msgstr "რესურსების შერჩევა"
 #: lib/tuist_web/live/runner_volumes_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Last used"
-msgstr "ბოლოს გამოყენებული"
+msgstr "ბოლო გამოყენება"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:402
 #, elixir-autogen, elixir-format
@@ -980,7 +980,7 @@ msgstr "არასდროს"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: %{prefix}<name>."
-msgstr "vCPU-ისა და RAM-ის სახელდარქმეული პაკეტები. მიუთითეთ ისინი თქვენს სამუშაო ნაკადებში როგორც runs-on: %{prefix}<name>."
+msgstr "vCPU-ისა და RAM-ის სახელობითი პაკეტები. მიმართეთ მათ თქვენს სამუშაო პროცესებში როგორც runs-on: %{prefix}<name>."
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:60
 #, elixir-autogen, elixir-format
@@ -990,12 +990,12 @@ msgstr "მაგ., \"default\", \"large\", \"ci\""
 #: lib/tuist_web/live/runner_profiles_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Becomes part of your runs-on label, so it can't be renamed later."
-msgstr "ხდება თქვენი runs-on ლეიბლის ნაწილი, ამიტომ მოგვიანებით მისი გადარქმევა შეუძლებელია."
+msgstr "ხდება თქვენი runs-on ლეიბლის ნაწილი, ამიტომ მოგვიანებით ვერ გადაარქვამთ სახელს."
 
 #: lib/tuist_web/live/runner_profiles_live.ex:496
 #, elixir-autogen, elixir-format
 msgid "Select platform"
-msgstr "პლატფორმის არჩევა"
+msgstr "აირჩიეთ პლატფორმა"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:438
 #: lib/tuist_web/live/runner_profiles_live.html.heex:478
@@ -1011,70 +1011,70 @@ msgstr "წავშალოთ პროფილი %{name}? ამ ქმე
 #: lib/tuist_web/live/runner_profiles_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "Workflows using runs-on: %{label} will fail to dispatch until they're updated."
-msgstr "Workflows, რომლებიც იყენებენ runs-on: %{label}-ს, ვერ შესრულდება მანამ, სანამ არ განახლდებიან."
+msgstr "როლები, რომლებიც იყენებენ runs-on: %{label}-ს, ვერ გაეშვებიან მანამ, სანამ არ განახლდება."
 
 #: lib/tuist_web/live/runner_profiles_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "This profile is a default and can't be deleted."
 msgstr "ეს პროფილი ნაგულისხმევია და მისი წაშლა შეუძლებელია."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:649
+#: lib/tuist_web/live/runner_job_live.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Download logs"
 msgstr "ლოგების ჩამოტვირთვა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:720
+#: lib/tuist_web/live/runner_job_live.html.heex:744
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
 msgstr "ძველი ლოგების ჩატვირთვა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:84
-#: lib/tuist_web/live/runner_job_live.html.heex:637
+#: lib/tuist_web/live/runner_job_live.html.heex:97
+#: lib/tuist_web/live/runner_job_live.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "ლოგები"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:692
+#: lib/tuist_web/live/runner_job_live.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "No log lines match your search."
-msgstr "თქვენს ძებნას არცერთი ლოგის სტრიქონი არ ემთხვევა."
+msgstr "თქვენს ძიებას არ ემთხვევა ლოგის არცერთი ხაზი."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:656
+#: lib/tuist_web/live/runner_job_live.html.heex:669
 #, elixir-autogen, elixir-format
 msgid "No logs have been captured for this job yet."
-msgstr "ამ სამუშაოსთვის ჯერ კიდევ არ არის აღბეჭდილი ლოგები."
+msgstr "ამ სამუშაოსთვის ჯერ ლოგები არ აღრიცხულა."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:608
+#: lib/tuist_web/live/runner_job_live.html.heex:621
 #, elixir-autogen, elixir-format
 msgid "No logs were captured for this step."
-msgstr "ამ ნაბიჯისთვის ლოგები არ აღბეჭდილა."
+msgstr "ამ ნაბიჯისთვის ლოგები არ აღრიცხულა."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:79
+#: lib/tuist_web/live/runner_job_live.html.heex:92
 #: lib/tuist_web/live/runner_volumes_live.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "მიმოხილვა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:666
+#: lib/tuist_web/live/runner_job_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Search logs..."
 msgstr "ლოგების ძებნა..."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:411
+#: lib/tuist_web/live/runner_job_live.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "Steps"
 msgstr "ნაბიჯები"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:432
+#: lib/tuist_web/live/runner_job_live.html.heex:445
 #, elixir-autogen, elixir-format
 msgid "Steps will appear here once the job finishes."
 msgstr "ნაბიჯები გამოჩნდება აქ სამუშაოს დასრულების შემდეგ."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:422
-#: lib/tuist_web/live/runner_job_live.html.heex:677
+#: lib/tuist_web/live/runner_job_live.html.heex:435
+#: lib/tuist_web/live/runner_job_live.html.heex:701
 #, elixir-autogen, elixir-format
 msgid "Timestamps"
-msgstr "დროის ნიშნები"
+msgstr "დროის მონიშვნები"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:143
 #, elixir-autogen, elixir-format
@@ -1119,15 +1119,15 @@ msgstr "CPU I/O ლოდინი"
 msgid "In"
 msgstr "შემოსვლა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:752
+#: lib/tuist_web/live/runner_job_live.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "Machine metrics will appear here once the job has run on a Tuist runner."
-msgstr "მანქანის მეტრიკები გამოჩნდება აქ მას შემდეგ, რაც დავალება Tuist-ის გამშვებზე შესრულდება."
+msgstr "მანქანის მეტრიკები გამოჩნდება აქ, როგორც კი დავალება შესრულდება Tuist-ის გამშვებზე."
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:31
-#: lib/tuist_web/live/runner_job_live.html.heex:89
-#: lib/tuist_web/live/runner_job_live.html.heex:399
-#: lib/tuist_web/live/runner_job_live.html.heex:747
+#: lib/tuist_web/live/runner_job_live.html.heex:102
+#: lib/tuist_web/live/runner_job_live.html.heex:412
+#: lib/tuist_web/live/runner_job_live.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "მეტრიკები"
@@ -1136,7 +1136,7 @@ msgstr "მეტრიკები"
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:113
 #, elixir-autogen, elixir-format
 msgid "Out"
-msgstr "გამოსვლა"
+msgstr "გასვლა"
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:70
 #: lib/tuist_web/live/runner_volumes_live.html.heex:54
@@ -1160,152 +1160,152 @@ msgstr "გამოყენებულია"
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:63
 #, elixir-autogen, elixir-format
 msgid "Wait"
-msgstr "მოლოდინი"
+msgstr "ლოდინი"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:870
+#: lib/tuist_web/live/runner_job_live.html.heex:894
 #, elixir-autogen, elixir-format
 msgid "Start VNC"
 msgstr "VNC-ის დაწყება"
 
-#: lib/tuist_web/live/runner_job_live.ex:800
+#: lib/tuist_web/live/runner_job_live.ex:803
 #, elixir-autogen, elixir-format
 msgid "The runner pod is not available for this job."
-msgstr "მომუშავე პოდი ამ დავალებისთვის არ არის ხელმისაწვდომი."
+msgstr "რანერის პოდი ამ დავალებისთვის ხელმისაწვდომი არ არის."
+
+#: lib/tuist_web/live/runner_job_live.ex:800
+#, elixir-autogen, elixir-format
+msgid "VNC can be requested while the macOS runner job is claimed or running."
+msgstr "VNC შეიძლება მოითხოვოთ, როცა macOS რანერის დავალება მიღებული ან გაშვებულია."
 
 #: lib/tuist_web/live/runner_job_live.ex:797
 #, elixir-autogen, elixir-format
-msgid "VNC can be requested while the macOS runner job is claimed or running."
-msgstr "VNC შეიძლება მოითხოვოთ, როცა macOS-ის გამშვები დავალება მიღებულია ან შესრულდება."
-
-#: lib/tuist_web/live/runner_job_live.ex:794
-#, elixir-autogen, elixir-format
 msgid "VNC is available for macOS runner jobs."
-msgstr "VNC ხელმისაწვდომია macOS-ის გამშვები დავალებებისთვის."
+msgstr "VNC ხელმისაწვდომია macOS რანერის დავალებებისთვის."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:911
+#: lib/tuist_web/live/runner_job_live.html.heex:935
 #, elixir-autogen, elixir-format
 msgid "VNC session idle"
 msgstr "VNC სესია უმოქმედოა"
 
-#: lib/tuist_web/live/runner_job_live.ex:791
+#: lib/tuist_web/live/runner_job_live.ex:794
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to request interactive access."
-msgstr "თქვენ არ გაქვთ ნებართვა ინტერაქტიული წვდომის მოსათხოვნად."
+msgstr "არ გაქვთ უფლება მოითხოვოთ ინტერაქტიული წვდომა."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:857
+#: lib/tuist_web/live/runner_job_live.html.heex:881
 #, elixir-autogen, elixir-format
 msgid "Exit full screen"
 msgstr "სრულეკრანიანი რეჟიმის დატოვება"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:852
-#: lib/tuist_web/live/runner_job_live.html.heex:853
-#: lib/tuist_web/live/runner_job_live.html.heex:856
+#: lib/tuist_web/live/runner_job_live.html.heex:876
+#: lib/tuist_web/live/runner_job_live.html.heex:877
+#: lib/tuist_web/live/runner_job_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "Full screen"
 msgstr "სრული ეკრანი"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:920
+#: lib/tuist_web/live/runner_job_live.html.heex:944
 #, elixir-autogen, elixir-format
 msgid "VNC session active"
 msgstr "VNC სესია აქტიურია"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:917
+#: lib/tuist_web/live/runner_job_live.html.heex:941
 #, elixir-autogen, elixir-format
 msgid "VNC session ready"
-msgstr "VNC სესია მზად არის"
+msgstr "VNC სესია მზადაა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:923
+#: lib/tuist_web/live/runner_job_live.html.heex:947
 #, elixir-autogen, elixir-format
 msgid "VNC session unavailable"
 msgstr "VNC სესია მიუწვდომელია"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:914
+#: lib/tuist_web/live/runner_job_live.html.heex:938
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner relay"
-msgstr "რანერის რელეს ლოდინი"
+msgstr "მოლოდინი გამშვების რელესთვის"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:492
+#: lib/tuist_web/live/runner_job_live.html.heex:505
 #, elixir-autogen, elixir-format
 msgid "Build"
-msgstr "აწყობა"
+msgstr "ბილდი"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:225
+#: lib/tuist_web/live/runner_job_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "აწყობები"
+msgstr "ბილდები"
 
-#: lib/tuist_web/live/runner_job_live.ex:519
-#: lib/tuist_web/live/runner_job_live.ex:559
+#: lib/tuist_web/live/runner_job_live.ex:522
+#: lib/tuist_web/live/runner_job_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "Failed processing"
 msgstr "დამუშავება ვერ მოხერხდა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:217
+#: lib/tuist_web/live/runner_job_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Insights"
 msgstr "ანალიტიკა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:263
-#: lib/tuist_web/live/runner_volumes_live.ex:522
+#: lib/tuist_web/live/runner_job_live.html.heex:276
+#: lib/tuist_web/live/runner_volumes_live.ex:527
 #, elixir-autogen, elixir-format
 msgid "Module cache"
 msgstr "მოდულის ქეში"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:230
+#: lib/tuist_web/live/runner_job_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "No build runs have reported insights for this runner job yet."
-msgstr "ამ გამშვების დავალებისთვის ჯერ არ არის ანალიტიკური მონაცემები."
+msgstr "ამ გამშვების სამუშაოსთვის ბილდის გაშვებებმა ჯერ არ წარმოადგინეს ანალიტიკა."
 
-#: lib/tuist_web/live/runner_job_live.ex:491
-#: lib/tuist_web/live/runner_job_live.ex:503
+#: lib/tuist_web/live/runner_job_live.ex:494
+#: lib/tuist_web/live/runner_job_live.ex:506
 #, elixir-autogen, elixir-format
 msgid "No cache data"
 msgstr "ქეშის მონაცემები არ არის"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:325
+#: lib/tuist_web/live/runner_job_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "No test runs have reported insights for this runner job yet."
-msgstr "ამ გამშვების დავალებისთვის ტესტების გაშვების ანალიტიკა ჯერ არ არის."
+msgstr "ამ გამშვების სამუშაოსთვის ტესტების გაშვებებმა ჯერ არ წარმოადგინეს ანალიტიკა."
 
-#: lib/tuist_web/live/runner_job_live.ex:570
+#: lib/tuist_web/live/runner_job_live.ex:573
 #, elixir-autogen, elixir-format
 msgid "Passed (flaky)"
-msgstr "გავლილი (არასტაბილური)"
+msgstr "გადალახული (არასტაბილური)"
 
-#: lib/tuist_web/live/runner_job_live.ex:522
-#: lib/tuist_web/live/runner_job_live.ex:556
+#: lib/tuist_web/live/runner_job_live.ex:525
+#: lib/tuist_web/live/runner_job_live.ex:559
 #, elixir-autogen, elixir-format
 msgid "Processing"
 msgstr "დამუშავება"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:348
+#: lib/tuist_web/live/runner_job_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Selective testing"
 msgstr "შერჩევითი ტესტირება"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:520
+#: lib/tuist_web/live/runner_job_live.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "Test"
 msgstr "ტესტი"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:320
+#: lib/tuist_web/live/runner_job_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "ტესტები"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:242
-#: lib/tuist_web/live/runner_job_live.html.heex:335
+#: lib/tuist_web/live/runner_job_live.html.heex:255
+#: lib/tuist_web/live/runner_job_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Total duration"
 msgstr "სრული ხანგრძლივობა"
 
-#: lib/tuist_web/live/runner_job_live.ex:567
+#: lib/tuist_web/live/runner_job_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Unknown scheme"
 msgstr "უცნობი სქემა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:254
-#: lib/tuist_web/live/runner_volumes_live.ex:521
+#: lib/tuist_web/live/runner_job_live.html.heex:267
+#: lib/tuist_web/live/runner_volumes_live.ex:526
 #, elixir-autogen, elixir-format
 msgid "Xcode cache"
 msgstr "Xcode ქეში"
@@ -1313,7 +1313,7 @@ msgstr "Xcode ქეში"
 #: lib/tuist_web/components/runs/ci_context_card.ex:72
 #, elixir-autogen, elixir-format
 msgid "CI job duration"
-msgstr "CI სამუშაოს ხანგრძლივობა"
+msgstr "CI-დავალების ხანგრძლივობა"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:114
 #, elixir-autogen, elixir-format
@@ -1330,47 +1330,47 @@ msgstr "პროფილი"
 msgid "Step"
 msgstr "ნაბიჯი"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:774
+#: lib/tuist_web/live/runner_job_live.html.heex:798
 #, elixir-autogen, elixir-format
 msgid "Start terminal"
 msgstr "ტერმინალის გაშვება"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:95
-#: lib/tuist_web/live/runner_job_live.html.heex:763
+#: lib/tuist_web/live/runner_job_live.html.heex:108
+#: lib/tuist_web/live/runner_job_live.html.heex:787
 #, elixir-autogen, elixir-format
 msgid "Terminal"
 msgstr "ტერმინალი"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:824
+#: lib/tuist_web/live/runner_job_live.html.heex:848
 #, elixir-autogen, elixir-format
 msgid "Terminal session active"
 msgstr "ტერმინალის სესია აქტიურია"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:815
+#: lib/tuist_web/live/runner_job_live.html.heex:839
 #, elixir-autogen, elixir-format
 msgid "Terminal session idle"
 msgstr "ტერმინალის სესია უმოქმედოა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:821
+#: lib/tuist_web/live/runner_job_live.html.heex:845
 #, elixir-autogen, elixir-format
 msgid "Terminal session ready"
 msgstr "ტერმინალის სესია მზადაა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:827
+#: lib/tuist_web/live/runner_job_live.html.heex:851
 #, elixir-autogen, elixir-format
 msgid "Terminal session unavailable"
 msgstr "ტერმინალის სესია მიუწვდომელია"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:101
-#: lib/tuist_web/live/runner_job_live.html.heex:841
+#: lib/tuist_web/live/runner_job_live.html.heex:114
+#: lib/tuist_web/live/runner_job_live.html.heex:865
 #, elixir-autogen, elixir-format
 msgid "VNC"
 msgstr "VNC"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:818
+#: lib/tuist_web/live/runner_job_live.html.heex:842
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner shell"
-msgstr "რანერის გარსის მოლოდინი"
+msgstr "მოლოდინი რანერის გარსზე"
 
 #: lib/tuist_web/live/runners_live.html.heex:310
 #, elixir-autogen, elixir-format
@@ -1415,37 +1415,37 @@ msgstr "პიკური მეხსიერება"
 #: lib/tuist_web/live/runners_live.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "Every recent job was skipped or cancelled"
-msgstr "ყველა ბოლო დავალება გამოტოვებული ან გაუქმებული იყო"
+msgstr "ბოლო დროის ყველა ჯობი გამოტოვებული ან გაუქმებული იყო"
 
 #: lib/tuist_web/live/runners_live.html.heex:506
 #, elixir-autogen, elixir-format
 msgid "Every recent workflow run was skipped or cancelled"
-msgstr "ყველა ბოლო სამუშაო პროცესის გაშვება გამოტოვებული ან გაუქმებული იყო"
+msgstr "ბოლო დროის ყველა სამუშაო პროცესის გაშვება გამოტოვებული ან გაუქმებული იყო"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:478
 #, elixir-autogen, elixir-format
 msgid "Tahoe"
 msgstr "Tahoe"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:70
+#: lib/tuist_web/live/runner_job_live.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Buildkite"
 msgstr "Buildkite"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:59
+#: lib/tuist_web/live/runner_job_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "GitLab"
 msgstr "GitLab"
 
-#: lib/tuist_web/live/runner_job_live.ex:204
-#: lib/tuist_web/live/runner_volumes_live.html.heex:537
+#: lib/tuist_web/live/runner_job_live.ex:207
+#: lib/tuist_web/live/runner_volumes_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "ქეში"
 
-#: lib/tuist_web/live/runner_job_live.ex:228
+#: lib/tuist_web/live/runner_job_live.ex:231
 #: lib/tuist_web/live/runner_volumes_live.ex:225
-#: lib/tuist_web/live/runner_volumes_live.ex:569
+#: lib/tuist_web/live/runner_volumes_live.ex:577
 #: lib/tuist_web/live/runner_volumes_live.html.heex:237
 #: lib/tuist_web/live/runner_volumes_live.html.heex:346
 #: lib/tuist_web/live/runner_volumes_live.html.heex:560
@@ -1456,51 +1456,52 @@ msgstr "ტევადობა"
 #: lib/tuist_web/live/runner_volumes_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Could not load volumes. Retrying automatically."
-msgstr "მოცულობების ჩატვირთვა ვერ მოხერხდა. ხდება ავტომატური გამეორება."
+msgstr "ვერ მოვხსენით ვოლუმები. ხელახლა ცდა ავტომატურად."
 
 #: lib/tuist_web/live/runner_volumes_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Could not update volume. Please retry."
-msgstr "მოცულობის განახლება ვერ მოხერხდა. გთხოვთ, სცადოთ ხელახლა."
+msgstr "ვერ განვაახლეთ ვოლუმი. გთხოვთ, სცადოთ ხელახლა."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:709
+#: lib/tuist_web/live/runner_volumes_live.ex:717
 #, elixir-autogen, elixir-format
 msgid "Deleted"
 msgstr "წაშლილია"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:708
+#: lib/tuist_web/live/runner_volumes_live.ex:716
 #, elixir-autogen, elixir-format
 msgid "Deletion pending"
 msgstr "წაშლა მიმდინარეობს"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:711
+#: lib/tuist_web/live/runner_volumes_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr "ცარიელი"
 
-#: lib/tuist_web/live/runner_job_live.ex:210
-#: lib/tuist_web/live/runner_volumes_live.html.heex:542
+#: lib/tuist_web/live/runner_job_live.ex:213
+#: lib/tuist_web/live/runner_volumes_live.html.heex:541
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "მოხვედრა"
+msgstr "ქეშში მოხვედრა"
 
-#: lib/tuist_web/live/runner_job_live.ex:211
-#: lib/tuist_web/live/runner_volumes_live.html.heex:543
+#: lib/tuist_web/live/runner_job_live.ex:214
+#: lib/tuist_web/live/runner_volumes_live.html.heex:540
+#: lib/tuist_web/live/runner_volumes_live.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "გამოტოვება"
+msgstr "ქეშში ვერ მოხვედრა"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "No recorded uses"
-msgstr "ჩაწერილი გამოყენებები არ არის"
+msgstr "გამოყენება არ დაფიქსირებულა"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:710
+#: lib/tuist_web/live/runner_volumes_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Ready"
-msgstr "მზად"
+msgstr "მზად არის"
 
-#: lib/tuist_web/live/runner_job_live.ex:201
+#: lib/tuist_web/live/runner_job_live.ex:204
 #: lib/tuist_web/live/runner_volumes_live.ex:222
 #: lib/tuist_web/live/runner_volumes_live.html.heex:203
 #, elixir-autogen, elixir-format
@@ -1508,9 +1509,9 @@ msgid "Volume"
 msgstr "მოცულობა"
 
 #: lib/tuist_web/components/app_layout_components.ex:509
-#: lib/tuist_web/live/runner_job_live.ex:171
+#: lib/tuist_web/live/runner_job_live.ex:174
 #: lib/tuist_web/live/runner_volumes_live.ex:31
-#: lib/tuist_web/live/runner_volumes_live.ex:567
+#: lib/tuist_web/live/runner_volumes_live.ex:575
 #: lib/tuist_web/live/runner_volumes_live.html.heex:7
 #: lib/tuist_web/live/runner_volumes_live.html.heex:32
 #: lib/tuist_web/live/runner_volumes_live.html.heex:44
@@ -1520,22 +1521,22 @@ msgstr "მოცულობა"
 msgid "Volumes"
 msgstr "მოცულობები"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:557
+#: lib/tuist_web/live/runner_volumes_live.ex:565
 #, elixir-autogen, elixir-format
 msgid "%{count} copy unmeasured"
 msgid_plural "%{count} copies unmeasured"
-msgstr[0] "%{count} ასლის მოცულობა გაუზომავია"
+msgstr[0] "%{count} ასლი გაუზომავია"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Total used space"
 msgstr "გამოყენებული სივრცე ჯამში"
 
-#: lib/tuist_web/live/runner_job_live.ex:225
+#: lib/tuist_web/live/runner_job_live.ex:228
 #: lib/tuist_web/live/runner_volumes_live.ex:224
-#: lib/tuist_web/live/runner_volumes_live.ex:568
+#: lib/tuist_web/live/runner_volumes_live.ex:576
 #: lib/tuist_web/live/runner_volumes_live.html.heex:226
-#: lib/tuist_web/live/runner_volumes_live.html.heex:398
+#: lib/tuist_web/live/runner_volumes_live.html.heex:400
 #: lib/tuist_web/live/runner_volumes_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Used space"
@@ -1566,10 +1567,10 @@ msgstr "ტომები ვერ მოიძებნა"
 msgid "Search volumes or repositories"
 msgstr "მოძებნეთ ტომები ან რეპოზიტორიები"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:687
+#: lib/tuist_web/live/runner_volumes_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Summed across saved snapshots and job copies, including copies awaiting deletion. Shared data may be counted more than once; these are not unique physical bytes or a billing amount."
-msgstr "ჯამდება შენახული სნეპშოტებისა და დავალების კოპირებების მიხედვით, წაშლის მოლოდინში მყოფი კოპიების ჩათვლით. გაზიარებული მონაცემები შესაძლოა ერთზე მეტჯერ იყოს დათვლილი; ეს არ არის უნიკალური ფიზიკური ბაიტები ან გადასახდელი თანხა."
+msgstr "ჯამდება შენახული სნეპშოტებისა და დავალების ასლების მიხედვით, წასაშლელად მოლოდინში მყოფი ასლების ჩათვლით. გაზიარებული მონაცემები შესაძლოა ერთზე მეტჯერ დაითვალოს; ეს არ არის უნიკალური ფიზიკური ბაიტები ან გადასახდელი თანხა."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:318
 #, elixir-autogen, elixir-format
@@ -1589,45 +1590,45 @@ msgstr "შენახვის გაზომვები ჯერ არ �
 #: lib/tuist_web/live/runner_volumes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Storage history will appear after a volume reports its size."
-msgstr "შენახვის ისტორია გამოჩნდება მას შემდეგ, რაც მოცულობა თავის ზომას იტყობინება."
+msgstr "შენახვის ისტორია გამოჩნდება მას შემდეგ, რაც მოცულობა შეატყობინებს თავის ზომას."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Volumes with stored copies at the end of the selected period, regardless of search. Trends compare with the end of the previous period."
-msgstr "მოცულობები შენახული ასლებით შერჩეული პერიოდის ბოლოსთვის, ძიების მიუხედავად. ტრენდები შედარებულია წინა პერიოდის ბოლოსთან."
+msgstr "მოცულობები შენახული ასლებით შერჩეული პერიოდის ბოლოსთვის, ძებნის მიუხედავად. ტენდენციები ადარებს წინა პერიოდის ბოლოსთან."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:439
-#: lib/tuist_web/live/runner_volumes_live.html.heex:414
+#: lib/tuist_web/live/runner_volumes_live.ex:444
+#: lib/tuist_web/live/runner_volumes_live.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
-msgstr "ჰიტების მაჩვენებელი"
+msgstr "ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:144
-#: lib/tuist_web/live/runner_volumes_live.html.heex:498
+#: lib/tuist_web/live/runner_volumes_live.html.heex:496
 #, elixir-autogen, elixir-format
 msgid "No data in this period"
 msgstr "მონაცემები ამ პერიოდში არ არის"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:421
+#: lib/tuist_web/live/runner_volumes_live.html.heex:419
 #, elixir-autogen, elixir-format
 msgid "Share of mounts with a known cache result that reused a saved cache in the selected period."
-msgstr "მაუნტების წილი ცნობილი ქეშის შედეგით, რომლებმაც ხელახლა გამოიყენეს შენახული ქეში შერჩეულ პერიოდში."
+msgstr "მაუნთების წილი ცნობილი ქეშ-შედეგით, რომლებმაც ხელახლა გამოიყენეს შენახული ქეში შერჩეულ პერიოდში."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "Clears the saved cache for future jobs. Running jobs can finish."
-msgstr "შლის შენახულ ქეშს მომავალი დავალებებისთვის. მიმდინარე დავალებები დასრულებაშია."
+msgstr "შლის შენახულ ქეშს მომავალი ჯობებისთვის. მიმდინარე ჯობებს შეუძლიათ დასრულება."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:438
-#: lib/tuist_web/live/runner_volumes_live.html.heex:469
+#: lib/tuist_web/live/runner_volumes_live.ex:443
+#: lib/tuist_web/live/runner_volumes_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "Job runs"
-msgstr "დავალების გაშვებები"
+msgstr "ჯობის გაშვებები"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:476
+#: lib/tuist_web/live/runner_volumes_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Number of job runs that mounted this volume during the selected period."
-msgstr "ამ ტომის მონტირებული დავალების გაშვებების რაოდენობა შერჩეული პერიოდის განმავლობაში."
+msgstr "ამ ტომზე მიმაგრებული ჯობის გაშვებების რაოდენობა შერჩეულ პერიოდში."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:22
 #: lib/tuist_web/live/runner_volumes_live.html.heex:638
@@ -1639,59 +1640,59 @@ msgstr "ტომის გასუფთავება"
 #: lib/tuist_web/live/runner_volumes_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "Volume cleared. Running jobs can finish."
-msgstr "ტომი გასუფთავდა. მიმდინარე დავალებები დასრულებაშია."
+msgstr "ტომი გასუფთავდა. მიმდინარე ჯობებს შეუძლიათ დასრულება."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:563
 #, elixir-autogen, elixir-format
 msgid "Mounted at"
-msgstr "მონტირებულია"
+msgstr "მიმაგრებულია"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "ქეშის მოხვედრის მაჩვენებელი"
+msgstr "ქეშში მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate will appear after a volume mount reports its cache result."
-msgstr "ქეშის მოხვედრის მაჩვენებელი გამოჩნდება ტომის მონტირების შემდეგ, როცა ის ქეშის შედეგს აცნობებს."
+msgstr "ქეშში მოხვედრის მაჩვენებელი გამოჩნდება მას შემდეგ, რაც ტომის მიმაგრება აცნობებს თავის ქეშის შედეგს."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Percentage of volume mounts that reused saved data during the selected period."
-msgstr "მოცემულ პერიოდში შენახული მონაცემების ხელახლა გამოყენების პროცენტული მაჩვენებელი."
+msgstr "მოცემულ პერიოდში შენახული მონაცემების ხელახლა გამოყენების წილი ტომის მაუნტებში."
 
 #: lib/tuist_web/live/runner_volumes_live.ex:319
-#: lib/tuist_web/live/runner_volumes_live.ex:411
+#: lib/tuist_web/live/runner_volumes_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "მონაცემები არ არის"
 
 #: lib/tuist_web/live/runner_volumes_live.ex:322
-#: lib/tuist_web/live/runner_volumes_live.ex:414
+#: lib/tuist_web/live/runner_volumes_live.ex:415
 #, elixir-autogen, elixir-format
 msgid "No previous data"
 msgstr "წინა მონაცემები არ არის"
 
-#: lib/tuist_web/live/runner_job_live.ex:183
+#: lib/tuist_web/live/runner_job_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "%{volume} ran out of space"
 msgstr "%{volume}-ს ადგილი ამოეწურა"
 
-#: lib/tuist_web/live/runner_job_live.ex:188
+#: lib/tuist_web/live/runner_job_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job."
-msgstr "ამ სამუშაომ გამოიყენა %{used} მოცულობის %{capacity}-დან. სრულად დაკავებულ მოცულობაზე ჩაწერა ვერ ხერხდება და იწვევს ისეთ შეცდომებს, როგორიცაა „No space left on device“, რამაც შეიძლება სამუშოს შესრულება შეაფერხოს."
+msgstr "ამ ჯობმა გამოიყენა %{used} ტომის %{capacity}-დან. სავსე ტომზე ჩაწერა იწვევს შეცდომებს, როგორიცაა \"No space left on device\", რამაც შეიძლება ჯობის ჩავარდნა გამოიწვიოს."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "This volume is almost full"
-msgstr "ეს მოცულობა თითქმის სრულად არის დაკავებული"
+msgstr "ეს ტომი თითქმის სავსეა"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:497
+#: lib/tuist_web/live/runner_volumes_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot."
-msgstr "შენახული სნეპშოტი იყენებს %{used}-ს %{capacity}-დან. თუ სამუშოს დროს ადგილი ამოიწურება, შემდეგი სამუშო დაიწყება ცარიელი მოცულობიდან და შეინახავს ახალ სნეპშოტს."
+msgstr "შენახული სნეპშოტი იკავებს %{used}-ს %{capacity}-დან. თუ ჯობას ადგილი ამოეწურება, შემდეგი ჯობა დაიწყება ცარიელი ტომით და შეინახავს ახალ სნეპშოტს."
 
 #: lib/tuist_web/live/runner_profiles_live.ex:409
 #: lib/tuist_web/live/runner_profiles_live.ex:416
@@ -1702,13 +1703,13 @@ msgstr "ნებისმიერი ბრენჩი"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Save cache from"
-msgstr "კეშის შენახვა"
+msgstr "ქეშის შენახვა"
 
 #: lib/tuist_web/live/runner_profiles_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "%{branches} + %{count} more"
 msgid_plural "%{branches} + %{count} more"
-msgstr[0] "%{branches} + კიდევ %{count}"
+msgstr[0] "%{branches} + %{count} მეტი"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:311
 #, elixir-autogen, elixir-format
@@ -1734,7 +1735,7 @@ msgstr "დამატებითი ბრენჩები"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Jobs and pull requests from these branches also save their changes. Use * as a wildcard."
-msgstr "ჯობები და pull request-ები ამ ბრენჩებიდან ასევე ინახავენ ცვლილებებს. გამოიყენეთ * როგორც ვაილდქარდი."
+msgstr "ამ ბრენჩებზე ჯობები და pull request-ები ასევე ინახავენ ცვლილებებს. გამოიყენეთ * როგორც ვაილდკარდი."
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:271
 #, elixir-autogen, elixir-format
@@ -1749,25 +1750,25 @@ msgstr "შტოები არ არის"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "e.g. develop, release/* or *"
-msgstr "მაგ. develop, release/* ან *"
+msgstr "მაგ., develop, release/* ან *"
 
-#: lib/tuist_web/live/runner_job_live.ex:209
-#: lib/tuist_web/live/runner_volumes_live.html.heex:541
+#: lib/tuist_web/live/runner_job_live.ex:212
+#: lib/tuist_web/live/runner_volumes_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Older copy"
 msgstr "ძველი ასლი"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:596
+#: lib/tuist_web/live/runner_job_live.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "This step's output couldn't be separated from the rest of the job's log."
-msgstr "ამ ნაბიჯის შედეგების გამოყოფა ჯობის დანარჩენი ლოგიდან ვერ მოხერხდა."
+msgstr "ამ ნაბიჯის შედეგი ვერ გამოიყოფა დანარჩენი ჯობის ლოგისგან."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:604
+#: lib/tuist_web/live/runner_job_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "View the full log"
 msgstr "სრული ლოგის ნახვა"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:523
+#: lib/tuist_web/live/runner_volumes_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "Gradle cache"
 msgstr "Gradle ქეში"
@@ -1775,78 +1776,78 @@ msgstr "Gradle ქეში"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Every successful job from the repository saves its changes, including pull requests. Forks never save."
-msgstr "რეპოზიტორიის თითოეული წარმატებული ჯობი ინახავს ცვლილებებს, პულ-რეკვესტების ჩათვლით. ფორკები არასდროს ინახავენ."
+msgstr "რეპოზიტორიის ყოველი წარმატებული ჯობა ინახავს ცვლილებებს, პულ-რეკვესტების ჩათვლით. ფორკები არასდროს ინახავენ."
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Limit to specific branches"
-msgstr "შეზღუდეთ კონკრეტული ბრენჩებით"
+msgstr "შეზღუდვა კონკრეტული ბრენჩებისთვის"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Only jobs on the branches below save their changes."
-msgstr "მხოლოდ ქვემოთ ჩამოთვლილ ბრენჩებზე შესრულებული სამუშაოები ინახავენ ცვლილებებს."
+msgstr "მხოლოდ ქვემოთ ჩამოთვლილ ბრენჩებზე შესრულებული ჯობები ინახავენ ცვლილებებს."
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Cached checkouts"
-msgstr "ქეშირებული გადმოწერები"
+msgstr "ქეშირებული ჩექაუთები"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Keeps each repository checked out on a \"checkout\" cache volume, so actions/checkout only fetches what changed."
-msgstr "ინახავს თითოეულ რეპოზიტორიას შემოწმებულს \"checkout\" ქეშის ტომზე, რათა actions/checkout-მა მხოლოდ შეცვლილი ფაილები გადმოწეროს."
+msgstr "ინახავს თითოეულ რეპოზიტორიას „checkout“ ქეშის ტომზე, რათა actions/checkout-მა მხოლოდ შეცვლილი ფაილები ჩამოტვირთოს."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:621
+#: lib/tuist_web/live/runner_job_live.html.heex:634
 #, elixir-autogen, elixir-format
 msgid "Load earlier lines"
 msgstr "ადრეული სტრიქონების ჩატვირთვა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:583
+#: lib/tuist_web/live/runner_job_live.html.heex:596
 #, elixir-autogen, elixir-format
 msgid "Loading logs"
 msgstr "ლოგების ჩატვირთვა"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:620
+#: lib/tuist_web/live/runner_job_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "Loading..."
 msgstr "მიმდინარეობს ჩატვირთვა..."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:590
+#: lib/tuist_web/live/runner_job_live.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "This step's logs couldn't be loaded. Collapse and expand the step to retry."
-msgstr "ამ ეტაპის ლოგების ჩატვირთვა ვერ მოხერხდა. სცადეთ ხელახლა ეტაპის შეკუმშვით და გაშლით."
+msgstr "ამ ეტაპის ლოგების ჩატვირთვა ვერ მოხერხდა. სცადეთ ხელახლა ეტაპის დაკეცვითა და გაშლით."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "A smaller size was requested"
 msgstr "მოთხოვნილი იყო უფრო მცირე ზომა"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:512
+#: lib/tuist_web/live/runner_volumes_live.ex:517
 #, elixir-autogen, elixir-format
 msgid "Saved at %{capacity}. New contents will use %{pending} after the next clear."
-msgstr "შენახულია %{capacity}. შემდეგი გასუფთავების შემდეგ ახალი შინაარსი გამოიყენებს %{pending}-ს."
+msgstr "შენახულია %{capacity}. შემდეგი გასუფთავების შემდეგ ახალი შიგთავსი გამოიყენებს %{pending}-ს."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:201
+#: lib/tuist_web/live/runner_job_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Runner"
-msgstr "Runner"
+msgstr "რანერი"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:608
 #, elixir-autogen, elixir-format
 msgid "Image"
-msgstr "Image"
+msgstr "გამოსახულება"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:363
 #: lib/tuist_web/live/runner_volumes_live.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "Images"
-msgstr "Images"
+msgstr "გამოსახულებები"
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Images appear after a job that may save this repository's caches finishes and its data root is saved."
-msgstr "გამოსახულებები ჩნდება სამუშაოს დასრულების შემდეგ, რომელმაც შესაძლოა შეინახოს ამ რეპოზიტორიის ქეშები და მონაცემთა ძირეული დირექტორია."
+msgstr "გამოსახულებები გამოჩნდება სამუშაოს დასრულების შემდეგ, რომელიც შეიძლება ინახავდეს ამ რეპოზიტორიის ქეშებს და მონაცემთა ძირითადი საქაღალდე შენახული იქნება."
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:622
 #, elixir-autogen, elixir-format
@@ -1859,7 +1860,7 @@ msgid "Size"
 msgstr "ზომა"
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:205
-#: lib/tuist_web/live/runner_volumes_live.ex:524
+#: lib/tuist_web/live/runner_volumes_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "Image cache"
 msgstr "სურათების ქეში"
@@ -1867,34 +1868,54 @@ msgstr "სურათების ქეში"
 #: lib/tuist_web/live/runner_profiles_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Starts each job with the container images and build cache its repository's earlier jobs pulled and built, for job containers, services and Docker commands in steps."
-msgstr "თითოეული სამუშაოს დაწყება ხდება კონტეინერის სურათებითა და აგების ქეშით, რომლებიც რეპოზიტორიის წინა სამუშაოებმა ჩამოტვირთეს და ააგეს. ეს ეხება სამუშაოს კონტეინერებს, სერვისებს და Docker-ის ბრძანებებს ნაბიჯებში."
+msgstr "ყოველი ამოცანა იწყება კონტეინერის სურათებით და ბილდის ქეშით, რომლებიც რეპოზიტორიის წინა ამოცანებმა ჩამოტვირთეს და ააგეს. ეს ეხება ამოცანის კონტეინერებს, სერვისებს და ნაბიჯებში გამოყენებულ Docker-ის ბრძანებებს."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:428
+#: lib/tuist_web/live/runner_volumes_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Avg. Initialize containers"
 msgstr "კონტეინერების ინიციალიზაციის საშუალო დრო"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:450
+#: lib/tuist_web/live/runner_volumes_live.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Initialize containers step of jobs that started from saved images. For jobs that pulled every layer, the same statistic was %{cold}."
-msgstr "დავალებების კონტეინერების ინიციალიზაციის ნაბიჯი, რომლებიც შენახული სურათებიდან გაეშვა. იმ დავალებებისთვის, რომლებმაც თითოეული ფენა ჩამოტვირთეს, იგივე სტატისტიკა არის %{cold}."
+msgstr "ამოცანების „კონტეინერების ინიციალიზაციის“ ნაბიჯი, რომლებიც შენახული სურათებიდან გაეშვა. ამოცანებისთვის, რომლებმაც ყოველი ფენა ჩამოტვირთეს, იგივე მაჩვენებელი იყო %{cold}."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:425
+#: lib/tuist_web/live/runner_volumes_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "p50 Initialize containers"
 msgstr "p50 კონტეინერების ინიციალიზაცია"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:426
+#: lib/tuist_web/live/runner_volumes_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "p90 Initialize containers"
 msgstr "p90 კონტეინერების ინიციალიზაცია"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:427
+#: lib/tuist_web/live/runner_volumes_live.ex:428
 #, elixir-autogen, elixir-format
 msgid "p99 Initialize containers"
 msgstr "p99 კონტეინერების ინიციალიზაცია"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:358
+#: lib/tuist_web/live/runner_volumes_live.ex:359
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "საშუალო"
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:403
+#, elixir-autogen, elixir-format
+msgid "Size of the current saved cache, independent of the selected date range."
+msgstr "მიმდინარე შენახული ქეშის ზომა, არჩეული თარიღების დიაპაზონისგან დამოუკიდებლად."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Bitrise"
+msgstr "Bitrise"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:672
+#, elixir-autogen, elixir-format
+msgid "Logs for Bitrise builds stay on Bitrise."
+msgstr "Bitrise-ზე აგებული ბილდების ლოგები რჩება Bitrise-ზე."
+
+#: lib/tuist_web/live/runner_job_live.html.heex:677
+#, elixir-autogen, elixir-format
+msgid "Open the build on Bitrise"
+msgstr "გახსენით ბილდი Bitrise-ზე"

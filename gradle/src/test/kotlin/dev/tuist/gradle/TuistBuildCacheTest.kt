@@ -14,6 +14,8 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import java.io.EOFException
 import java.io.InputStream
 import java.io.OutputStream
@@ -124,6 +126,48 @@ class TuistBuildCacheTest {
         val request = mockServer.takeRequest()
         val authHeader = request.getHeader("Authorization")
         assertEquals("Bearer test-token", authHeader)
+    }
+
+    @ParameterizedTest
+    @CsvSource("GET,302,false", "PUT,307,false", "GET,302,true", "PUT,307,true")
+    fun `cache transfers only follow redirects when authenticated`(method: String, status: Int, authenticated: Boolean) {
+        MockWebServer().use { destination ->
+            destination.start()
+            destination.enqueue(MockResponse().setBody("redirected cache bytes"))
+            mockServer.enqueue(
+                MockResponse().setResponseCode(status).setHeader("Location", destination.url("/redirected"))
+            )
+            val token = if (authenticated) "test-token" else ""
+            val service = createService { createConfig().copy(token = token) }
+            val key = TestBuildCacheKey("private-entry")
+            val reader = TestBuildCacheEntryReader()
+            val transfer = {
+                if (method == "GET") {
+                    assertTrue(service.load(key, reader))
+                } else {
+                    service.store(key, TestBuildCacheEntryWriter("private artifact bytes"))
+                }
+            }
+
+            if (authenticated) {
+                transfer()
+                assertEquals(1, destination.requestCount)
+                val request = destination.takeRequest()
+                assertEquals(method, request.method)
+                if (method == "GET") {
+                    assertEquals("redirected cache bytes", reader.content)
+                } else {
+                    assertEquals("private artifact bytes", request.body.readUtf8())
+                }
+            } else {
+                val failure = assertThrows<BuildCacheException> { transfer() }
+                assertTrue(failure.message!!.contains("HTTP $status"))
+                assertEquals(0, destination.requestCount)
+                assertNull(reader.content)
+            }
+            assertEquals(1, mockServer.requestCount)
+            assertEquals(if (authenticated) "Bearer test-token" else null, mockServer.takeRequest().getHeader("Authorization"))
+        }
     }
 
     @Test

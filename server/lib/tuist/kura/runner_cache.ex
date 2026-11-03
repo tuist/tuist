@@ -201,18 +201,32 @@ defmodule Tuist.Kura.RunnerCache do
   # flag enables, and of those only the ones whose cache traffic comes from the
   # site: a node reserves its full claim on the site's few storage nodes
   # whether or not anything reads it. An account both flags drop, or whose
-  # traffic from the site stops, has its node torn down. A region without a
-  # site serves the rented fleet, so it holds nodes for the accounts with
-  # recent jobs there.
+  # traffic from the site stops, has its node torn down. Operators override
+  # the traffic rule per account: `:runner_site_cache_pinned` admits a site
+  # account without traffic, and `:runner_site_cache_excluded` admits the
+  # account to no site's region. A region without a site serves the rented
+  # fleet, so it holds nodes for the accounts with recent jobs there.
   defp admitted_account_ids(%Regions{} = region, account_ids) do
     case Regions.site(region) do
       nil ->
         {:ok, MapSet.intersection(account_ids, rented_job_account_ids(region))}
 
       site ->
-        account_ids
-        |> MapSet.filter(&site_account?(%Account{id: &1}))
+        site_account_ids =
+          MapSet.filter(account_ids, fn account_id ->
+            account = %Account{id: account_id}
+            site_account?(account) and not FeatureFlags.runner_site_cache_excluded?(account)
+          end)
+
+        pinned = MapSet.filter(site_account_ids, &FeatureFlags.runner_site_cache_pinned?(%Account{id: &1}))
+
+        site_account_ids
+        |> MapSet.difference(pinned)
         |> site_traffic_account_ids(region, site)
+        |> case do
+          {:ok, trafficked} -> {:ok, MapSet.union(pinned, trafficked)}
+          {:error, reason} -> {:error, reason}
+        end
     end
   end
 

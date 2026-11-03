@@ -76,7 +76,12 @@ defmodule Atlas.Automations.DomainRegistryTest do
     actor = insert_user!(%{scopes: ["automation:write"]})
 
     for entry <- DomainRegistry.entries(), entry["permissions"] != [] do
-      assert {:error, _} = DomainRuntime.authorize(entry, actor)
+      if Enum.any?(entry["permissions"], &(not String.starts_with?(&1, "automation:"))) do
+        assert {:error, _} = DomainRuntime.authorize(entry, actor)
+      else
+        assert :ok = DomainRuntime.authorize(entry, actor)
+      end
+
       assert {:error, _} = DomainRuntime.authorize(entry, nil)
     end
   end

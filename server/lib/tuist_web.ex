@@ -89,6 +89,8 @@ defmodule TuistWeb do
     quote do
       use Phoenix.LiveComponent
 
+      @before_compile TuistWeb.LiveComponent
+
       unquote(html_helpers())
     end
   end

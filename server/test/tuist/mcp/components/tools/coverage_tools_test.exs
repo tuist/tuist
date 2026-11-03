@@ -69,7 +69,7 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     end
 
     test "is not available while the account does not have code coverage", %{conn: conn, handles: handles} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
 
       assert %{
                "isError" => true,
@@ -78,7 +78,7 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     end
 
     test "refuses someone without access to the project before saying anything else", %{handles: handles} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
       other = AccountsFixtures.user_fixture(preload: [:account])
       conn = %Plug.Conn{assigns: %{current_subject: other}}
 

@@ -47,6 +47,7 @@ defmodule Atlas.Orbit.Runs do
   import Ecto.Query
 
   alias Atlas.Agents.Sessions
+  alias Atlas.Environments
   alias Atlas.Environments.Commands
   alias Atlas.Inference
   alias Atlas.LLMs.Runner
@@ -54,9 +55,11 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Agent
   alias Atlas.Orbit.Checkpoints
+  alias Atlas.Orbit.Compactor
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.ModelFence
   alias Atlas.Orbit.Rendering
+  alias Atlas.Orbit.Reply
   alias Atlas.Orbit.Run
   alias Atlas.Orbit.Subagents
   alias Atlas.Orbit.Thread
@@ -390,27 +393,38 @@ defmodule Atlas.Orbit.Runs do
 
     client_opts =
       opts
-      |> Keyword.get_lazy(:client_opts, fn -> Runner.orbit_client_opts(acting_user, timeout: @max_duration) end)
+      |> Keyword.get_lazy(:client_opts, fn ->
+        Runner.orbit_client_opts(acting_user, timeout: @max_duration, model: run.model)
+      end)
       |> ModelFence.wrap(run, parent)
 
-    {prompt, images, store_opts} =
+    {prompt, images, store_opts, compaction_opts} =
       case Checkpoints.load(run) do
         {:ok, snapshot} ->
-          {resume_prompt(), [], [session_store: {Checkpoints.Store, snapshot: snapshot}]}
+          # Condukt 1.14 protects only the newly supplied prompt, not the
+          # original request inside a restored snapshot. Keep its images and
+          # request intact until that protected boundary can be restored.
+          {resume_prompt(), [], [session_store: {Checkpoints.Store, snapshot: snapshot}], legacy_compaction()}
 
         :none ->
-          {prompt, images} = Agent.input(transcript_messages(thread, run), run.id, acting_user)
-          {prompt, images, []}
+          {prompt, images, snapshot} = Agent.session_input(transcript_messages(thread, run), run, acting_user)
+
+          # Condukt 1.14 counts base64 image bytes as text tokens. Its blocking
+          # policy would reject ordinary screenshots before vision inference.
+          compaction_opts =
+            if images == [], do: Compactor.session_options(client_opts, run.model), else: legacy_compaction()
+
+          {prompt, images, [session_store: {Checkpoints.Store, snapshot: snapshot}], compaction_opts}
       end
 
     session_opts =
       client_opts ++
         store_opts ++
+        compaction_opts ++
         [
           tools: Tools.build(run) ++ [Subagents.tool(run)],
-          system_prompt: Agent.system_prompt(thread, audience, description),
+          system_prompt: Agent.system_prompt(thread, audience, description) <> Reply.instructions(),
           load_project_instructions: false,
-          compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000},
           max_tokens: @max_tokens
         ]
 
@@ -439,6 +453,8 @@ defmodule Atlas.Orbit.Runs do
     Process.get({__MODULE__, :result})
   end
 
+  defp legacy_compaction, do: [compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000}]
+
   defp resume_prompt do
     "You were interrupted by a server restart while answering. Continue from where you left off and answer the request above."
   end
@@ -449,7 +465,7 @@ defmodule Atlas.Orbit.Runs do
   defp transcript_messages(thread, run) do
     recent =
       Message
-      |> where([message], message.thread_id == ^thread.id)
+      |> where([message], message.thread_id == ^thread.id and is_nil(message.recipient_id))
       |> order_by(desc: :position)
       |> limit(@transcript_messages)
       |> Repo.all()
@@ -459,6 +475,7 @@ defmodule Atlas.Orbit.Runs do
         from message in Message,
           where:
             message.thread_id == ^thread.id and message.address_agent == true and
+              is_nil(message.recipient_id) and
               message.position >= ^run.trigger_seq
       )
 
@@ -474,6 +491,7 @@ defmodule Atlas.Orbit.Runs do
   # here so a restore before its worker exits cannot restart pre-archive follow-ups.
   def archive!(%Thread{status: "archived"} = thread) do
     Commands.archive!(thread.id)
+    if thread.environment_id, do: Environments.stop_hosted!(thread.environment_id)
 
     from(run in Run,
       where: run.thread_id == ^thread.id and run.status in ^Run.active_statuses(),
@@ -530,12 +548,20 @@ defmodule Atlas.Orbit.Runs do
     end
   end
 
-  defp finish!(run, thread, {:ok, text}) when is_binary(text) and text != "" do
+  defp finish!(run, thread, {:ok, text}) when is_binary(text) do
+    case Reply.decode(text) do
+      {"", _} -> finalize!(run, "failed", "empty_response", "The assistant did not reply. Try again.", thread)
+      {body, suggestions} -> finish!(run, thread, {:reply, body, suggestions})
+    end
+  end
+
+  defp finish!(run, thread, {:reply, body, suggestions}) do
     message =
       Orbit.append!(thread, %{
         kind: "agent",
         run_id: run.id,
-        body: Rendering.truncate(text, @reply_limit),
+        body: Rendering.truncate(body, @reply_limit),
+        suggestions: suggestions,
         author_name: Orbit.agent_name()
       })
 
@@ -558,7 +584,15 @@ defmodule Atlas.Orbit.Runs do
   defp finish!(run, thread, {:error, reason}) do
     category = error_category(reason)
     Logger.error("thread run failed: #{category}")
-    finalize!(run, "failed", category, failure_message(category), thread)
+
+    provider =
+      case run.model do
+        "chatgpt:" <> model -> "ChatGPT (#{model}) could not reply. "
+        "workspace" -> "The workspace model could not reply. "
+        nil -> ""
+      end
+
+    finalize!(run, "failed", category, provider <> failure_message(category), thread)
   end
 
   defp finish!(run, thread, _other), do: finish!(run, thread, {:error, :invalid_result})
@@ -771,6 +805,9 @@ defmodule Atlas.Orbit.Runs do
   defp error_category({:error, reason}), do: error_category(reason)
   defp error_category(:crashed), do: "crashed"
   defp error_category({:session_exit, _}), do: "session_exit"
+  defp error_category(%{response_body: %{"error" => %{"code" => "model_not_found"}}}), do: "model_not_found"
+  defp error_category(%{response_body: %{"error" => %{"code" => "context_length"}}}), do: "context_length"
+  defp error_category(%{status: status}) when status in [400, 422], do: "provider_request"
   defp error_category(%{status: status}) when status in [401, 403], do: "provider_auth"
   defp error_category(%{status: 402}), do: "provider_billing"
   defp error_category(%{status: 429}), do: "provider_rate_limited"
@@ -785,12 +822,32 @@ defmodule Atlas.Orbit.Runs do
 
   defp failure_message("timeout"), do: "The assistant took too long and was stopped. Try a narrower question."
 
+  defp failure_message("model_not_found"),
+    do:
+      "This model is not available to your AI account. Choose another model above the composer, then send your message again. Your conversation is saved."
+
+  defp failure_message("context_length"),
+    do:
+      "This conversation exceeds the model's context limit. Start a new conversation with the details you need to continue. Your existing conversation is saved."
+
+  defp failure_message("provider_request"),
+    do:
+      "The AI provider rejected the request. Choose another model and send your message again. If it still fails, ask an administrator to check the provider integration."
+
   defp failure_message("provider_auth"),
-    do: "The AI provider rejected the credentials. Check your connected AI accounts in Settings."
+    do:
+      "Your AI account needs attention. Reconnect it in Settings → AI accounts, or choose another model, then send your message again."
 
   defp failure_message("provider_billing"),
     do: "The AI provider requires billing or subscription access. Check your connected AI accounts."
 
-  defp failure_message("provider_rate_limited"), do: "The AI provider's usage limit was reached. Try again later."
+  defp failure_message("provider_rate_limited"),
+    do:
+      "This AI account's usage limit was reached. Wait and try again, or choose another model. Your conversation is saved."
+
+  defp failure_message("provider_unavailable"),
+    do:
+      "The AI provider is temporarily unavailable. Try again in a moment, or choose another model. Your conversation is saved."
+
   defp failure_message(_category), do: "The assistant could not reply. Try again in a moment."
 end

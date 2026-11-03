@@ -5,20 +5,25 @@
 # failures, whose titles name the broken layer, as this job's own.
 #
 # Env: GH_TOKEN, GITHUB_REPOSITORY, ENVIRONMENT, and optionally REF and
-# GATE_MINUTES. Canary promotion also requires EXPECTED_LINUX_IMAGE.
+# GATE_MINUTES. Canary promotion also requires EXPECTED_LINUX_IMAGE and
+# EXPECTED_MACOS_IMAGES (a JSON array of the macOS image digests it deployed).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
 if [ "$ENVIRONMENT" = canary ]; then
   [[ "${EXPECTED_LINUX_IMAGE:-}" =~ @sha256:[a-f0-9]{64}$ ]] ||
     fail 'Linux acceptance' 'the cascade did not supply the intended Linux image digest'
+  jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and test("@sha256:[a-f0-9]{64}$"))' \
+    <<< "${EXPECTED_MACOS_IMAGES:-null}" >/dev/null 2>&1 ||
+    fail 'macOS acceptance' 'the cascade did not supply the intended macOS image digests'
 fi
 
 ref="${REF:-main}"
 correlation="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-${ENVIRONMENT}-$(date +%s)"
 gh workflow run runners-acceptance.yml --repo "${GITHUB_REPOSITORY}" --ref "${ref}" \
   -f environment="${ENVIRONMENT}" -f correlation_id="${correlation}" \
-  -f expected_linux_image="${EXPECTED_LINUX_IMAGE:-}"
+  -f expected_linux_image="${EXPECTED_LINUX_IMAGE:-}" \
+  -f expected_macos_images="${EXPECTED_MACOS_IMAGES:-}"
 
 run_id=""
 for _ in $(seq 1 36); do

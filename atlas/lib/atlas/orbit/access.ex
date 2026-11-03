@@ -25,10 +25,15 @@ defmodule Atlas.Orbit.Access do
   alias Atlas.Users.User
 
   def can_read?(%Thread{} = thread, %User{} = user) do
-    participant?(thread, user) and holds_all?(user, thread.required_scopes)
+    participant?(thread, user) and eligible?(thread, user)
   end
 
   def can_read?(_thread, _user), do: false
+
+  def eligible?(%Thread{} = thread, %User{} = user) do
+    (is_nil(thread.signal_reader_ids) or user.id in thread.signal_reader_ids) and
+      holds_all?(user, thread.required_scopes)
+  end
 
   def participant?(%Thread{id: thread_id}, %User{id: user_id}) do
     Repo.exists?(
@@ -48,7 +53,7 @@ defmodule Atlas.Orbit.Access do
   def audience(%Thread{} = thread) do
     thread
     |> participants()
-    |> Enum.filter(&holds_all?(&1, thread.required_scopes))
+    |> Enum.filter(&eligible?(thread, &1))
   end
 
   def participants(%Thread{id: thread_id}) do

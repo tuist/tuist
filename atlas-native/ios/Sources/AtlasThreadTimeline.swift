@@ -1,5 +1,46 @@
 import SwiftUI
 
+struct AtlasThreadTranscript<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    private var usesList: Bool {
+        #if os(iOS)
+        if #available(iOS 26.0, *) { return true }
+        #endif
+        return false
+    }
+
+    var body: some View {
+        if usesList {
+            List {
+                content
+                    .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+            .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 0)
+            .buttonStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 14) { content }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .frame(maxWidth: 720).frame(maxWidth: .infinity)
+                    .background {
+                        if #unavailable(iOS 18.0, macOS 15.0) {
+                            GeometryReader { content in
+                                Color.clear.preference(key: AtlasThreadScrollPreference.self, value: content.frame(in: .global))
+                            }
+                        }
+                    }
+            }
+        }
+    }
+}
+
 struct AtlasThreadTimeline: View {
     let timeline: AtlasThreadTimelineData
     let selfId: String?
@@ -71,8 +112,7 @@ struct AtlasThreadNavigation: View {
                 }
             }
             .buttonStyle(.plain)
-            .background(.regularMaterial, in: Capsule())
-            .overlay { Capsule().strokeBorder(.primary.opacity(0.12)) }
+            .modifier(AtlasComposerSurface(shape: Capsule(), interactive: true))
         }
     }
 

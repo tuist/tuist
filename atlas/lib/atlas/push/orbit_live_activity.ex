@@ -51,7 +51,7 @@ defmodule Atlas.Push.OrbitLiveActivity do
     runs =
       Repo.all(
         from [run, thread] in eligible,
-          order_by: [asc: fragment("COALESCE(?, ?)", run.started_at, run.inserted_at), asc: run.id],
+          order_by: [asc: coalesce(run.started_at, run.inserted_at), asc: run.id],
           limit: 3,
           select: %{
             run_id: run.id,
@@ -60,7 +60,7 @@ defmodule Atlas.Push.OrbitLiveActivity do
             status: run.status,
             activity: run.activity,
             active_count: fragment("count(*) OVER ()"),
-            started_at: type(fragment("COALESCE(?, ?)", run.started_at, run.inserted_at), :utc_datetime_usec)
+            started_at: coalesce(run.started_at, run.inserted_at)
           }
       )
 

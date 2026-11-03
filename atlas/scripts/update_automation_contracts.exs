@@ -283,6 +283,9 @@ excluded =
         name == "update_my_profile" ->
           "Personal self-description requires an explicit caller request, not automated workflow inference or mutation of personal preferences."
 
+        name in ~w(create_signal_source list_signal_sources set_signal_source_enabled ingest_signal list_signals get_signal get_signal_candidates decide_signal get_my_business_profile update_my_business_profile) ->
+          "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter."
+
         String.contains?(name, "automation") ->
           "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior."
 
@@ -399,6 +402,13 @@ policies = [
 ]
 
 path = "priv/automation/contracts/v1.json"
+previous = path |> File.read!() |> JSON.decode!()
+
+# Keep explicitly reviewed exclusions and domain policies when projecting a new
+# capability. They contain context that cannot be reconstructed from tool names.
+excluded = Map.merge(excluded, previous["excluded_tools"])
+known_domains = MapSet.new(Enum.map(previous["domain_policies"], & &1["domain"]))
+policies = previous["domain_policies"] ++ Enum.reject(policies, &MapSet.member?(known_domains, &1.domain))
 
 File.write!(
   path,

@@ -290,8 +290,8 @@ defmodule Tuist.Accounts.UserNotifier do
   Deliver instructions to reset a user password.
   """
   def deliver_reset_password_instructions(%{user: user, reset_password_url: reset_password_url}) do
-    deliver(
-      user.email,
+    user.email
+    |> build_email(
       dgettext("dashboard_account", "Reset password instructions"),
       %{
         title: dgettext("dashboard_account", "Did you request to reset your password?"),
@@ -310,6 +310,54 @@ defmodule Tuist.Accounts.UserNotifier do
         ]
       }
     )
+    |> Mailer.deliver_now()
+  rescue
+    # Bamboo raises ArgumentError for missing adapter settings, even with deliver_now/1.
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_mfa_change_notification(user, enabled?) do
+    subject =
+      if enabled?,
+        do: dgettext("dashboard_account", "Two-factor authentication enabled"),
+        else: dgettext("dashboard_account", "Two-factor authentication disabled")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The two-factor authentication settings for your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_passkey_change_notification(user, added?) do
+    subject =
+      if added?,
+        do: dgettext("dashboard_account", "Passkey added"),
+        else: dgettext("dashboard_account", "Passkey removed")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The passkeys that can sign in to your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
   @doc """

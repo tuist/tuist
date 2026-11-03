@@ -145,6 +145,7 @@ private struct BazelSetupConfiguration {
     let projectHandle: String
     let fullHandle: String
     var networkTrustedReporting = false
+    var networkTrustedCache = false
 }
 
 public struct BazelSetupCommandService {
@@ -186,12 +187,20 @@ public struct BazelSetupCommandService {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let canonicalDirectoryPath = try canonicalPath(directoryPath)
         let setupConfiguration = try await setupConfiguration(directoryPath: directoryPath)
+        let buildInsights = buildInsights &&
+            (!setupConfiguration.networkTrustedCache || setupConfiguration.networkTrustedReporting)
 
         let bazelWorkspacePath = try await bazelWorkspacePath(startingAt: canonicalDirectoryPath)
         let bazelrcDirectoryPath = bazelWorkspacePath ?? canonicalDirectoryPath
         let bazelrcPath = bazelrcDirectoryPath.appending(component: BazelrcFile.name)
         let bazelrcContent: String
-        if let endpoint = setupConfiguration.endpoint, setupConfiguration.networkTrustedReporting {
+        if let endpoint = setupConfiguration.endpoint, setupConfiguration.networkTrustedCache {
+            bazelrcContent = BazelrcFile.renderNetworkTrustedCache(
+                endpoint: endpoint, accountHandle: setupConfiguration.accountHandle,
+                projectHandle: setupConfiguration.projectHandle, buildInsights: buildInsights,
+                actorOverride: Environment.current.variables["TUIST_ACTOR_ID"]
+            )
+        } else if let endpoint = setupConfiguration.endpoint, setupConfiguration.networkTrustedReporting {
             bazelrcContent = buildInsights ? BazelrcFile.renderNetworkTrustedReports(
                 endpoint: endpoint, accountHandle: setupConfiguration.accountHandle,
                 projectHandle: setupConfiguration.projectHandle,
@@ -230,8 +239,9 @@ public struct BazelSetupCommandService {
             bazelrcPath: bazelrcPath,
             bazelrcImportResult: bazelrcImportResult,
             buildInsights: buildInsights,
-            remoteCacheConfigured: setupConfiguration.endpoint != nil && !setupConfiguration.networkTrustedReporting,
-            networkTrustedReporting: setupConfiguration.networkTrustedReporting
+            remoteCacheConfigured: setupConfiguration.endpoint != nil &&
+                (!setupConfiguration.networkTrustedReporting || setupConfiguration.networkTrustedCache),
+            networkTrustedReporting: setupConfiguration.networkTrustedReporting && !setupConfiguration.networkTrustedCache
         )
     }
 
@@ -242,6 +252,27 @@ public struct BazelSetupCommandService {
             throw BazelSetupCommandServiceError.missingFullHandle
         }
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
+        if try await ServerCacheAccessMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        ) {
+            guard let cacheURL = try await cacheURL(serverURL: serverURL, accountHandle: accountHandle),
+                  let host = cacheURL.host
+            else {
+                throw BazelSetupCommandServiceError.invalidCacheEndpoint("No self-hosted cache endpoint configured.")
+            }
+            try ServerReportPublishingMode.validateDestination(cacheURL)
+            let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
+            try await remoteCacheProbeService.probe(
+                endpoint: endpoint, accountHandle: accountHandle, instanceName: projectHandle, token: nil
+            )
+            return BazelSetupConfiguration(
+                endpoint: endpoint, accountHandle: accountHandle, projectHandle: projectHandle, fullHandle: fullHandle,
+                networkTrustedReporting: try await ServerReportPublishingMode.usesNetworkTrust(
+                    serverURL: serverURL, authenticationController: serverAuthenticationController
+                ),
+                networkTrustedCache: true
+            )
+        }
         if try await ServerReportPublishingMode.usesNetworkTrust(
             serverURL: serverURL, authenticationController: serverAuthenticationController
         ) {

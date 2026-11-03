@@ -195,7 +195,9 @@ superseded, cleared, or idle for seven days. A superseded replica used in the
 last 24 hours is first refreshed to the new HEAD in the background (see below).
 Physical free-space watermarks drive admission and LRU eviction because reflinks
 share blocks; summed logical sizes cannot measure host disk consumption.
-Defaults are eight allocations per pod, 100 active branches per host, 20 GB
+An attach needs the free-space reserve plus what its copy is expected to
+allocate beyond the default capacity: its expected size less the blocks its
+local master already allocates. Defaults are eight allocations per pod, 100 active branches per host, 20 GB
 logical volume capacity, and a 40 GB free-space reserve.
 
 A cold machine can restore accepted images from the existing object storage.
@@ -409,8 +411,21 @@ host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This warms hosts after an observed miss and does not replicate every volume to
-every host. Dispatch separately prefers handing a polling host a queued job whose
+This warms hosts after an observed miss. Separately, every 10 minutes the agent
+asks the server which HEADs its node should hold (`GET
+/api/internal/runners/cache-volumes/masters?node_name=<node>`, with the same
+agent token): first volumes at least two workflow runs used this week and left
+idle for four hours, so an account's first jobs of the day start warm, then
+volumes used in the last day, for the repositories the server places on this
+node (a few nodes per repository; dispatch leaves its young jobs to them). The
+agent restores the ones it lacks one at a time, separately from the job
+prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
+only into free space above the reserve, never evicting, and as a speculative
+master that pressure eviction takes first until a job clones it.
+`tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
+heads' used bytes it installed (`job`, `prewarm`, `recent`). Checkout HEADs in the list (`kind: "checkout"`)
+go to the checkout populator as a `Spare` restore: free space only, never
+evicting, never replacing a job's request; they are not counted there. Dispatch separately prefers handing a polling host a queued job whose
 predicted custom volumes the host's Node labels advertise (see
 `Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
 the built-in volume. Both that preference and the macOS Pod placement preference
@@ -513,7 +528,15 @@ The agent:
   local clone of the head assigned at allocation), it offers that HEAD's clone as
   `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
   at a time), so the guest merges the job's images with it before publishing;
-  otherwise it answers no merge.
+  otherwise it answers no merge. The guest merges three ways against the data
+  root the job mounted: each side's additions and changes are kept, an image or
+  builder one side removed is not brought back from the other, and a builder one
+  side removed is also removed from the merged root unless the other side changed
+  it. Merging does not copy a builder both sides hold in the same state. While another job of the lineage on this host
+  has finished with a changed, clean data root that is not yet published, it
+  first waits up to two minutes for that publication, since HEAD moves only once
+  the upload completes. Jobs on other hosts, or ones still tearing down, can
+  still supersede it.
 
 An older local clone cannot publish without merging its assigned head: comparing
 only the allocation's base would allow a successful CAS to erase content absent
@@ -539,16 +562,18 @@ above the guest target for metadata/shutdown writes; it never mounts or parses
 the guest filesystem. Roll out the controller/agent and runner images together.
 
 Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
-server gates it per account with `:runner_docker_cache` on canary and
-production, and each runner profile can turn it off.
+server gates it per account with `:runner_docker_cache` in production. Non-production
+environments enable the server rollout policy by default. Each runner profile
+can still turn it off.
 
 ### Canary qualification before production enablement
 
-Production's Docker cache pool flag remains off during recovery. Canary enables
-cache volumes and Docker caching only for its default `2vcpu-8gb` pool, using a
-bounded 200 GB host store with the 40 GB admission reserve. The server's
-`runner_docker_cache` account flag and runner-profile opt-out still apply; the
-acceptance probe fails if either prevents mounting. Do not bypass that failure.
+Managed production enables Docker caching on its Linux pools through the normal
+canary-gated deployment cascade. Canary enables cache volumes and Docker caching
+only for its default `2vcpu-8gb` pool, using a bounded 200 GB host store with the
+40 GB admission reserve. Runner-profile opt-outs still apply; the acceptance
+probe fails if authorization or a profile opt-out prevents mounting. Do not
+bypass that failure.
 
 The normal production cascade runs native and actual job-container Linux probes,
 then five separate jobs on that canary pool: cold, warm layers, changed source,
@@ -570,6 +595,23 @@ or the production allocated-byte publication cap under realistic pressure.
 The cascade passes the intended runner-image digest before staging holds to the
 probe, which compares it with the Pod's declared image. Running on a held older
 image cannot qualify a candidate. Hotfix deployment still bypasses acceptance;
-use the normal cascade for this recovery. After canary passes, separately qualify
-one production pool and its host publication/allocation evidence before widening
-enablement. Keeping the production pool flag off is the immediate rollback.
+use the normal cascade for enablement. After production deploys, verify actual
+new Pod images, DinD readiness/restarts, ordinary native/container jobs, cache
+attachment, host publication and subsequent reuse. Canary's single-host results
+do not replace production publication/allocation and cross-host observations.
+
+### Production off switches
+
+The server `runner_docker_cache` flag controls new allocations. Disabling it
+does not remove the DinD supervisor or undo a cache already attached to a job.
+For a supervisor/startup regression, set the affected Linux RunnerPools'
+`spec.dockerCache` to false through human-authorized production JIT access. The
+controller replaces idle Pods with ordinary DinD; running jobs finish on their
+existing configuration. This is a quick mitigation, not an instantaneous change
+to every Pod.
+
+Persist that rollback by setting
+`runnersFleetLinux.cacheVolumes.dockerCache.enabled: false` in the production
+overlay and deploying it; a live-only patch can be overwritten by a subsequent
+deployment. Verify new Pods have the flag off, DinD is Ready, and native and
+container jobs complete. Clearing saved volumes is not required for rollback.

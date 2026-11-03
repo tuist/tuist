@@ -11,7 +11,7 @@ public protocol RemoteCacheProbing: Sendable {
     /// performs on start-up. It validates that the endpoint is reachable over gRPC, that
     /// TLS terminates correctly, and that the server authorizes the request and responds
     /// without an error. Throws a ``RemoteCacheProbeError`` when the endpoint is not usable.
-    func probe(endpoint: GRPCEndpoint, accountHandle: String, instanceName: String, token: String) async throws
+    func probe(endpoint: GRPCEndpoint, accountHandle: String, instanceName: String, token: String?) async throws
 }
 
 public struct RemoteCacheProbeService: RemoteCacheProbing {
@@ -21,13 +21,13 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
         self.fileSystem = fileSystem
     }
 
-    public func probe(endpoint: GRPCEndpoint, accountHandle: String, instanceName: String, token: String) async throws {
+    public func probe(endpoint: GRPCEndpoint, accountHandle: String, instanceName: String, token: String?) async throws {
         Logger.current.debug("Probing remote cache availability at \(endpoint.authority) (GetCapabilities)")
 
         let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
 
         var metadata = Metadata()
-        metadata.addString("Bearer \(token)", forKey: "authorization")
+        if let token { metadata.addString("Bearer \(token)", forKey: "authorization") }
         metadata.addString(accountHandle, forKey: "x-tuist-account-handle")
 
         let request = Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest.with {

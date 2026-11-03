@@ -9,6 +9,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   use Oban.Worker, queue: :swift_registry_release
 
+  alias Tuist.GitHub.Retry
   alias Tuist.Registry
   alias Tuist.Registry.S3
   alias Tuist.Registry.Swift.Lock
@@ -18,8 +19,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   alias TuistCommon.Registry.Swift.KeyNormalizer
 
   require Logger
-
-  @github_opts [finch: Tuist.Finch, retry: false]
 
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
@@ -44,17 +43,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   @doc false
   def release_deferred_event_name, do: @release_deferred_event
-
-  # Symlinks nested inside these code-signed bundles are part of the bundle's
-  # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
-  # the `Binary`/`Resources` links). Code signing records them as symlinks in
-  # `_CodeSignature/CodeResources`, so flattening them into real copies
-  # invalidates the signature ("a sealed resource is missing or invalid"). They
-  # always live well below the package root, so the SwiftPM root-level symlink
-  # extraction bug that `resolve_symlinks/1` works around
-  # (https://github.com/swiftlang/swift-package-manager/pull/9411) does not
-  # apply to them, and they are safe to keep as symlinks in the archive.
-  @signed_bundle_extensions ~w(.xcframework .framework .app .appex .bundle .dSYM .plugin .systemextension .xpc)
 
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
@@ -167,12 +155,33 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
+  # Organizations with an IP allow list refuse the App's installation token with
+  # a 403 on every request while still serving their public repositories to a
+  # personal access token. Every GitHub request precedes the first upload, so
+  # the release is rebuilt from scratch with the fallback token.
+  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
+    case sync_release_with_token(scope, name, full_handle, tag, version, token, opts) do
+      {:error, reason} = error ->
+        with true <- forbidden?(reason),
+             fallback_token when is_binary(fallback_token) <- Registry.swift_registry_github_fallback_token(token) do
+          Logger.info("GitHub refused the mirror's token for #{scope}/#{name}@#{tag}; retrying with the fallback token")
+
+          sync_release_with_token(scope, name, full_handle, tag, version, fallback_token, opts)
+        else
+          _no_fallback -> error
+        end
+
+      result ->
+        result
+    end
+  end
+
   # Briefly deletes a dead process's files from inside its single
   # `Briefly.Entry` server, and every `Briefly.create/1` from a new job process
   # makes a 5s call to that same server. Removing a cloned or extracted package
   # tree there stalls it long enough for concurrent release jobs to crash on the
   # call timeout, so the tree is removed here, in the job's own process.
-  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
+  defp sync_release_with_token(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
 
     try do
@@ -181,6 +190,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       File.rm_rf(tmp_dir)
     end
   end
+
+  defp forbidden?({:http_error, 403}), do: true
+  defp forbidden?(tuple) when is_tuple(tuple), do: tuple |> Tuple.to_list() |> Enum.any?(&forbidden?/1)
+  defp forbidden?(list) when is_list(list), do: Enum.any?(list, &forbidden?/1)
+  defp forbidden?(map) when is_map(map), do: map |> Map.values() |> Enum.any?(&forbidden?/1)
+  defp forbidden?(_reason), do: false
 
   defp sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts) do
     archive_path = Path.join(tmp_dir, "source_archive.zip")
@@ -254,15 +269,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
              token,
              tag,
              archive_path,
-             @github_opts
+             github_opts()
            ) do
       normalize_archive(tmp_dir, archive_path)
     end
   end
 
-  # SwiftPM does not correctly handle symlinks when unzipping archives, which breaks
-  # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
-  # This workaround resolves symlinks by repacking the archive before upload.
+  # SwiftPM does not correctly handle root-level symlinks when unzipping archives,
+  # which breaks packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
+  # This workaround flattens them by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
   # A single listing answers both questions asked of a downloaded archive, so
   # the archive it passes through untouched is inspected exactly once. An
@@ -277,7 +292,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp fetch_submodule_paths(full_handle, tag, token) do
-    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, @github_opts) do
+    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, github_opts()) do
       {:ok, content} -> {:ok, parse_gitmodules_paths(content)}
       {:error, :not_found} -> {:ok, []}
       {:error, reason} -> {:error, {:gitmodules_fetch_failed, reason}}
@@ -606,10 +621,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     base_name = Path.basename(directory)
 
     with :ok <- remove_symlinks_outside_root(directory),
-         :ok <- resolve_symlinks(directory) do
-      # `-y` stores the symlinks that `resolve_symlinks/1` deliberately preserved
-      # (those inside code-signed bundles) as symlinks instead of following them
-      # and inlining their target, which would otherwise break the signature.
+         :ok <- resolve_root_symlinks(directory) do
+      # `-y` stores the remaining (nested) symlinks as symlinks instead of
+      # following them and inlining their target.
       case System.cmd("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
@@ -617,13 +631,16 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp resolve_symlinks(directory) do
-    case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
+  # Only symlinks directly under the package root are flattened: those are the
+  # ones un-patched SwiftPM clients fail to extract
+  # (https://github.com/swiftlang/swift-package-manager/pull/9411). Nested
+  # symlinks extract correctly and must be preserved, both because packages rely
+  # on them and because flattening the ones sealed inside code-signed bundles
+  # (e.g. a framework's `Versions/Current -> A`) invalidates the signature.
+  defp resolve_root_symlinks(directory) do
+    case System.cmd("find", [directory, "-mindepth", "1", "-maxdepth", "1", "-type", "l"], stderr_to_stdout: true) do
       {output, 0} ->
-        symlink_paths =
-          output
-          |> String.split("\n", trim: true)
-          |> Enum.reject(&within_signed_bundle?/1)
+        symlink_paths = String.split(output, "\n", trim: true)
 
         {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
 
@@ -634,20 +651,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       {output, status} ->
         {:error, {:find_symlinks_failed, status, output}}
     end
-  end
-
-  defp within_signed_bundle?(path) do
-    # Inspect only the ancestor directories, not the symlink's own basename: the
-    # bundle whose sealed layout we protect is always a real directory above the
-    # symlink. A root-level symlink that happens to be named like a bundle (e.g.
-    # `Foo.framework -> ...`) must still be flattened, so it does not reintroduce
-    # the SwiftPM root-level extraction failure on un-patched clients.
-    path
-    |> Path.split()
-    |> Enum.drop(-1)
-    |> Enum.any?(fn component ->
-      Enum.any?(@signed_bundle_extensions, &String.ends_with?(component, &1))
-    end)
   end
 
   defp classify_symlinks(symlink_paths) do
@@ -700,6 +703,26 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     resolved_target = resolve_symlink_target(symlink_path, target)
     File.rm!(symlink_path)
     File.cp_r!(resolved_target, symlink_path)
+    repoint_copied_symlinks(resolved_target, symlink_path)
+  end
+
+  # `File.cp_r!/2` copies nested symlinks verbatim, so each copy is repointed at
+  # the path its original resolved to; a relative target would otherwise resolve
+  # from the copy's location, dangling or escaping the package root.
+  defp repoint_copied_symlinks(source_directory, copy_directory) do
+    {output, 0} = System.cmd("find", [copy_directory, "-type", "l"])
+
+    output
+    |> String.split("\n", trim: true)
+    |> Enum.each(fn copied_link ->
+      {:ok, target} = File.read_link(copied_link)
+      original_link = Path.join(source_directory, Path.relative_to(copied_link, copy_directory))
+      resolved_target = resolve_symlink_target(original_link, target)
+      copy_parent = copied_link |> Path.expand() |> Path.dirname()
+
+      File.rm!(copied_link)
+      File.ln_s!(Path.relative_to(resolved_target, copy_parent, force: true), copied_link)
+    end)
   end
 
   defp symlink_creates_cycle?(symlink_path, resolved_target) do
@@ -966,9 +989,21 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     )
   end
 
+  defp github_opts do
+    # Retry transient connection failures in Req, but leave HTTP rate limits and
+    # upstream statuses to the worker's Oban snooze policy. Registry packages
+    # are public, so a token refused by an organization's IP allow list is
+    # retried anonymously.
+    [
+      finch: Tuist.Finch,
+      retry: fn request, result -> is_exception(result) and Retry.should_retry?(request, result) end,
+      anonymous_fallback: true
+    ]
+  end
+
   defp fetch_manifests(full_handle, tag, token) do
     with {:ok, contents} <-
-           TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
+           TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, github_opts()) do
       {manifest_payloads, failures} =
         contents
         |> Enum.map(&Map.get(&1, "path"))
@@ -976,7 +1011,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         |> Enum.reduce({[], []}, fn path, {manifest_payloads, failures} ->
           filename = Path.basename(path)
 
-          case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts) do
+          case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, github_opts()) do
             {:ok, content} ->
               manifest_payload = %{
                 content: content,

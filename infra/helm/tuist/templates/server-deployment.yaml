@@ -66,11 +66,23 @@ spec:
         - name: server
           image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          {{- with .Values.server.seedAccountCredentials.secretName }}
+          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeOpenBao.enabled .Values.server.atlasSupportIngest.enabled }}
           volumeMounts:
+            {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
+            - name: kura-openbao-identity
+              mountPath: /var/run/tuist/kura-openbao
+              readOnly: true
+            {{- end }}
+            {{- if .Values.server.seedAccountCredentials.secretName }}
             - name: seed-account-credentials
               mountPath: /var/run/tuist/seed-account
               readOnly: true
+            {{- end }}
+            {{- if .Values.server.atlasSupportIngest.enabled }}
+            - name: atlas-support-ingest-token
+              mountPath: /var/run/secrets/atlas-support-ingest
+              readOnly: true
+            {{- end }}
           {{- end }}
           command:
             - /app/bin/tuist
@@ -91,6 +103,44 @@ spec:
               containerPort: {{ .Values.server.cluster.distributionPort }}
             {{- end }}
           env:
+            {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
+            {{- if not (kindIs "bool" .Values.server.config.kuraVolumeOpenBao.wrapNewShares) }}
+            {{- fail "kuraVolumeOpenBao.wrapNewShares must be a boolean" }}
+            {{- end }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES
+              value: {{ .Values.server.config.kuraVolumeOpenBao.wrapNewShares | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_ADDRESS
+              value: {{ required "kuraVolumeOpenBao.address is required" .Values.server.config.kuraVolumeOpenBao.address | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_KEY_NAME
+              value: {{ required "kuraVolumeOpenBao.keyName is required" .Values.server.config.kuraVolumeOpenBao.keyName | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_ROLE
+              value: {{ required "kuraVolumeOpenBao.role is required" .Values.server.config.kuraVolumeOpenBao.role | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_TRANSIT_MOUNT
+              value: {{ required "kuraVolumeOpenBao.transitMount is required" .Values.server.config.kuraVolumeOpenBao.transitMount | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_AUTH_MOUNT
+              value: {{ required "kuraVolumeOpenBao.authMount is required" .Values.server.config.kuraVolumeOpenBao.authMount | quote }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_DECRYPT_KEY_NAMES
+              value: {{ join "," .Values.server.config.kuraVolumeOpenBao.decryptKeyNames | quote }}
+            {{- if .Values.server.config.kuraVolumeOpenBao.caConfigMap }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_CA_CERT_FILE
+              value: /var/run/tuist/kura-openbao/ca.crt
+            {{- end }}
+            {{- end }}
+            {{- if .Values.server.externalSecrets.shardStorage.item }}
+            - name: TUIST_SHARD_STORAGE_TARGETS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "server-external-secrets") }}
+                  key: shard-storage-targets
+            {{- else if .Values.server.externalSecrets.shardStorage.secret }}
+            # Published by the separate shard-storage release; absent until it syncs.
+            - name: TUIST_SHARD_STORAGE_TARGETS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.externalSecrets.shardStorage.secret }}
+                  key: targets.json
+                  optional: true
+            {{- end }}
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
@@ -132,6 +182,10 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.server.atlasSupportIngest.enabled }}
+            - name: TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH
+              value: /var/run/secrets/atlas-support-ingest/token
+            {{- end }}
             - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
               value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
             {{- if .Values.server.turnstile.enabled }}
@@ -296,11 +350,27 @@ spec:
             - name: TUIST_RUNNER_HOST_IDENTITY_NAMESPACE
               value: {{ .Release.Namespace | quote }}
             {{- end }}
+            {{- if .Values.ampOrbProvider.enabled }}
+            - name: TUIST_AMP_PROVIDER_NAMESPACE
+              value: {{ .Values.ampOrbProvider.namespace | quote }}
+            - name: TUIST_AMP_PROVIDER_URL
+              value: {{ .Values.ampOrbProvider.url | quote }}
+            - name: TUIST_AMP_PROVIDER_IMAGE
+              value: {{ printf "%s:%s-provider" .Values.ampOrbProvider.image.repository .Values.sandboxes.templateImage.tag | quote }}
+            - name: TUIST_AMP_PROVIDER_NODE_SELECTOR
+              value: {{ .Values.ampOrbProvider.nodeSelector | toJson | quote }}
+            {{- end }}
             {{- if .Values.sandboxes.enabled }}
             # Sandboxes namespace: the principal namespace the server requires
             # on the sandboxd node connection's TokenReview.
             - name: TUIST_SANDBOXES_NAMESPACE
               value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+            {{- with .Values.sandboxes.archiveAfterHours }}
+            # Hours an Amp Orb stays paused on its node before its disks move
+            # to object storage (Tuist.Sandboxes.Archives).
+            - name: TUIST_SANDBOX_ARCHIVE_AFTER_HOURS
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
@@ -476,6 +546,17 @@ spec:
               value: {{ .Values.cache.s3.bucket | quote }}
             - name: TUIST_CACHE_XCODE_S3_BUCKET_NAME
               value: {{ .Values.cache.s3.xcodeCacheBucket | quote }}
+            {{- with .Values.kuraVolumesCSI.lvmRegions }}
+            - name: TUIST_KURA_LVM_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.kuraVolumesCSI.thinRegions }}
+            {{- if not $.Values.kuraVolumesCSI.enabled }}
+            {{- fail "kuraVolumesCSI.thinRegions requires kuraVolumesCSI.enabled, which installs the kura-thin-encrypted-nvme StorageClass" }}
+            {{- end }}
+            - name: TUIST_KURA_THIN_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- with .Values.server.kuraEndpointUrls }}
             - name: TUIST_KURA_ENDPOINTS
               value: {{ join "," . | quote }}
@@ -579,11 +660,42 @@ spec:
                 command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
-      {{- with .Values.server.seedAccountCredentials.secretName }}
+      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeOpenBao.enabled .Values.server.atlasSupportIngest.enabled }}
       volumes:
+        {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
+        - name: kura-openbao-identity
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: openbao.kura.tuist.dev
+                  expirationSeconds: 3600
+                  path: token
+              {{- with .Values.server.config.kuraVolumeOpenBao.caConfigMap }}
+              - configMap:
+                  name: {{ . | quote }}
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              {{- end }}
+
+        {{- end }}
+        {{- with .Values.server.seedAccountCredentials.secretName }}
         - name: seed-account-credentials
           secret:
             secretName: {{ . }}
             optional: true
+        {{- end }}
+        {{- if .Values.server.atlasSupportIngest.enabled }}
+        # Projected ServiceAccount token for Atlas' support ingest only. Atlas
+        # verifies it offline against this cluster's pinned JWKS, so there is
+        # no shared secret; the kubelet rotates the file in place.
+        - name: atlas-support-ingest-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: atlas-support-ingest
+                  expirationSeconds: 3600
+        {{- end }}
       {{- end }}
 {{- end }}

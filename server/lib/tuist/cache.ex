@@ -16,6 +16,7 @@ defmodule Tuist.Cache do
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Repo
 
   @short_cache_ttl to_timeout(second: 10)
 
@@ -51,7 +52,7 @@ defmodule Tuist.Cache do
     accounts =
       resource
       |> with_resolved_membership()
-      |> resolve_accessible_accounts()
+      |> billing_accounts()
 
     blocked_ids = Billing.cache_blocked_account_ids(accounts)
     blocked = Enum.filter(accounts, &MapSet.member?(blocked_ids, &1.id))
@@ -62,6 +63,11 @@ defmodule Tuist.Cache do
       payment_failed: blocked |> Enum.filter(&MapSet.member?(failed_ids, &1.id)) |> account_handles()
     }
   end
+
+  # A project credential may explain its owner's billing refusal without
+  # gaining the account-wide cache grants deliberately excluded below.
+  defp billing_accounts(%Project{} = project), do: [Repo.preload(project, :account).account]
+  defp billing_accounts(resource), do: resolve_accessible_accounts(resource)
 
   defp billing_refusal_claims(resource) do
     %{payment_required: required, payment_failed: failed} = billing_refusals(resource)

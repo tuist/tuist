@@ -53,6 +53,8 @@ const CONFIRMED_TTL: Duration = Duration::from_secs(25 * 60);
 /// paying the full timeout.
 const UNAVAILABLE_BACKOFF: Duration = Duration::from_secs(3);
 
+const NETWORK_POLICY_TTL: Duration = Duration::from_secs(60);
+
 const _: () = assert!(REFUSAL_TTL.as_secs() <= REVALIDATE_AFTER.as_secs());
 const _: () = assert!(REVALIDATE_AFTER.as_secs() < CONFIRMED_TTL.as_secs());
 
@@ -86,6 +88,17 @@ impl AccessEntry {
 }
 
 struct EntryExpiry;
+
+impl<K> Expiry<K, (bool, Instant)> for EntryExpiry {
+    fn expire_after_create(
+        &self,
+        _key: &K,
+        value: &(bool, Instant),
+        created_at: Instant,
+    ) -> Option<Duration> {
+        Some(value.1.saturating_duration_since(created_at))
+    }
+}
 
 impl<K> Expiry<K, AccessEntry> for EntryExpiry {
     fn expire_after_create(
@@ -204,6 +217,8 @@ fn unreachable_deny() -> DenyDecision {
 
 pub struct AuthEngine {
     backend: TuistBackend,
+    /// Separate from credential grants: no stale-on-outage grace or sliding expiry.
+    network_policies: AsyncCache<String, (bool, Instant)>,
     /// One entry per credential and target: the access level the last
     /// evaluation settled. Everything else below is what it takes to fill this
     /// in and to void it.
@@ -248,6 +263,10 @@ impl AuthEngine {
 
         Ok(Self {
             backend,
+            network_policies: AsyncCache::builder()
+                .max_capacity(8)
+                .expire_after(EntryExpiry)
+                .build(),
             entries: Cache::builder()
                 .max_capacity(config.cache_max_entries as u64)
                 // moka defaults to TinyLFU, whose admission filter can reject a
@@ -308,6 +327,35 @@ impl AuthEngine {
     }
 
     pub async fn evaluate_access(&self, ctx: &RequestContext) -> AccessDecision {
+        // Presence, including a blank credential, never selects network trust.
+        if ctx.authorization.is_none()
+            && !ctx
+                .headers
+                .keys()
+                .any(|key| key.eq_ignore_ascii_case("authorization"))
+            && matches!(
+                ctx.operation.as_str(),
+                "artifact.read" | "artifact.write" | "artifact.inspect" | "capabilities.read"
+            )
+            && let Ok(target) = super::target::request_target(ctx)
+        {
+            let (allowed, expires_at) = self
+                .network_policies
+                .get_with(target.account.to_string(), async {
+                    let expires_at = Instant::now() + NETWORK_POLICY_TTL;
+                    (
+                        self.backend
+                            .network_cache_access(&target.account)
+                            .await
+                            .unwrap_or(false),
+                        expires_at,
+                    )
+                })
+                .await;
+            if allowed && Instant::now() < expires_at {
+                return AccessDecision::Allow;
+            }
+        }
         // Resolved once, then read by the key, the entry check, and the policy
         // alike. Resolving it separately in each is how the key and the policy
         // came to disagree about which project a request named.
@@ -517,6 +565,7 @@ impl AuthEngine {
         // Approximate, and only used to decide whether anything was worth
         // reporting; the caches are performance state, not correctness state.
         let held = self.entries.entry_count();
+        self.network_policies.invalidate_all();
         self.entries.invalidate_all();
         self.consultations.invalidate_all();
         self.revocations.invalidate_all();

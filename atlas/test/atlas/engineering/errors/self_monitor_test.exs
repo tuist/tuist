@@ -149,8 +149,12 @@ defmodule Atlas.Engineering.Errors.SelfMonitorTest do
           end)
 
           Logger.warning("warning should not become a native issue")
-          assert {:error, 503} = PersonalProviders.complete("claude", "setup-token-secret", %{"messages" => []})
-          assert {:error, 401} = PersonalProviders.complete("chatgpt", "invalid-token-secret", %{"messages" => []})
+
+          assert {:error, 503, :http_error} =
+                   PersonalProviders.complete("claude", "setup-token-secret", %{"messages" => []})
+
+          assert {:error, 401, :invalid_account_claim} =
+                   PersonalProviders.complete("chatgpt", "invalid-token-secret", %{"messages" => []})
 
           assert_receive {:ingested, [claude_row]}
           assert_receive {:ingested, [chatgpt_row]}

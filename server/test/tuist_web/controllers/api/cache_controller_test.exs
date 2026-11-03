@@ -63,6 +63,32 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert json_response(conn, :unauthorized)
       refute_enqueued(worker: ProvisionOnDemandWorker)
     end
+
+    test "network trust permits discovery but never invalid credentials or other cache APIs", %{conn: conn} do
+      stub(Tuist.Environment, :network_trusted_cache_access_enabled?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://cache.internal"] end)
+      assert conn |> get(~p"/api/cache/endpoint") |> json_response(200) == %{"endpoint" => "https://cache.internal"}
+
+      for header <- ["", "Bearer ", "Bearer rejected", "Bearer padded ", "Basic invalid"] do
+        conn |> put_req_header("authorization", header) |> get(~p"/api/cache/endpoint") |> json_response(401)
+      end
+
+      conn
+      |> Authentication.put_current_user(AccountsFixtures.user_fixture())
+      |> put_req_header("authorization", "Bearer rejected")
+      |> get(~p"/api/cache/endpoint")
+      |> json_response(401)
+
+      %{conn | req_headers: [{"authorization", "Bearer one"}, {"authorization", "Bearer two"}]}
+      |> get(~p"/api/cache/endpoint")
+      |> json_response(401)
+
+      for path <- ["/api/cache/access", "/api/cache/endpoints"] do
+        conn |> get(path) |> json_response(401)
+      end
+
+      conn |> post(~p"/api/cache/token", %{}) |> json_response(401)
+    end
   end
 
   describe "GET /api/cache/endpoints" do
@@ -696,10 +722,47 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
 
       # Then
-      assert %{"token" => token} = json_response(conn, 200)
+      assert %{"token" => token, "writable" => true} = json_response(conn, 200)
       {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+
+    test "tells a read-only credential that it cannot write to the project", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["account:cache:read", "project:cache:read"],
+          all_projects: true
+        })
+
+      handle = "#{project.account.name}/#{project.name}"
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
+
+      # Then
+      assert %{"token" => token, "writable" => false} = json_response(conn, 200)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == []
+    end
+
+    test "omits writability from a token that is not scoped to one project", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      conn = Plug.Conn.assign(conn, :current_subject, project)
+
+      # When
+      response = conn |> post(~p"/api/cache/token") |> json_response(200)
+
+      # Then
+      refute Map.has_key?(response, "writable")
     end
   end
 

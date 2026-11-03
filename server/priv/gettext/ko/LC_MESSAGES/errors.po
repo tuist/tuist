@@ -12,7 +12,7 @@ msgid ""
 msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/docs_live.ex:143
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1092
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "페이지를 찾을 수 없습니다"

@@ -7,6 +7,7 @@ struct AtlasBusinessView: View {
     @State private var listRevision = 0
     private let loadList: Bool
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
 
     init(resource: AtlasBusinessResource, loadList: Bool = true, request: @escaping ([String: Any]) async throws -> Data) {
         self.loadList = loadList
@@ -20,7 +21,7 @@ struct AtlasBusinessView: View {
 
     var body: some View {
         list.onChange(of: model.page?.page) { previous, page in
-            if previous != nil, page == 1 { listRevision += 1 }
+            if let previous, previous != 1, page == 1 { listRevision += 1 }
         }
     }
 
@@ -48,7 +49,10 @@ struct AtlasBusinessView: View {
             if value.isEmpty, !model.query.isEmpty { Task { await model.load(query: "") } }
         }
         .refreshable { await model.load(query: query) }
-        .task(id: loadList) { if loadList, model.page == nil { await model.load() } }
+        .task(id: loadList) {
+            model.cachedRequest = AtlasReadCache.scoped(cachedRead, operation: "business")
+            if loadList, model.page == nil { await model.load() }
+        }
         .navigationDestination(for: AtlasRecordRoute.self) { route in
             AtlasLinkedBusinessDetail(model: model, id: route.id).id(route.identity)
         }
@@ -126,7 +130,7 @@ struct AtlasBusinessView: View {
             }
             if let error = model.errorMessage {
                 Section {
-                    Text(error).foregroundStyle(.red)
+                    Text(model.page?.cached == true ? "Couldn’t refresh" : error).foregroundStyle(.secondary)
                     Button(model.nextPageFailed ? "Retry loading more" : "Retry") {
                         Task {
                             if model.nextPageFailed { await model.loadMore(retry: true) } else { await model.load(query: query) }
@@ -259,29 +263,6 @@ private struct AtlasBusinessRow: View {
                 }
             }
         }.frame(minHeight: 44, alignment: .leading).padding(.vertical, 4)
-    }
-}
-
-struct AtlasAccountLogo: View {
-    let item: AtlasBusinessRecord
-    var size: CGFloat = 40
-
-    private var url: URL? {
-        guard !item["primary_domain"].isEmpty else { return nil }
-        var components = URLComponents(string: "https://www.google.com/s2/favicons")!
-        components.queryItems = [URLQueryItem(name: "domain", value: item["primary_domain"]), URLQueryItem(name: "sz", value: "128")]
-        return components.url
-    }
-
-    var body: some View {
-        AsyncImage(url: url) { image in
-            image.resizable().scaledToFit()
-        } placeholder: {
-            Text(String(item["name"].prefix(1)).uppercased()).font(.headline).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary)
-        }
-        .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size / 5))
-        .accessibilityHidden(true)
     }
 }
 

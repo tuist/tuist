@@ -110,6 +110,14 @@ env:
   # Customer-support activity belongs in its own channel, separate from the
   # operational notification stream. Add the Atlas Slack bot to this channel.
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
+  # The Tuist server reports MCP agent feedback with a projected ServiceAccount
+  # token (audience atlas-support-ingest) from the Tuist production cluster.
+  # Atlas verifies it offline against that cluster's pinned public JWKS, from
+  # `kubectl --context tuist-k8s-production get --raw /openid/v1/jwks`.
+  # Add the new key here before the Tuist cluster rotates its signing key.
+  ATLAS_SUPPORT_INGEST_TOKEN_ISSUER: "https://kubernetes.default.svc.cluster.local"
+  ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT: "tuist:tuist-server"
+  ATLAS_SUPPORT_INGEST_TOKEN_JWKS: '{"keys":[{"use":"sig","kty":"RSA","kid":"ThNjNgV4Cy9fBbCAci-HQ6ZflqRRLaf8JPC_18l4cIY","alg":"RS256","n":"wNQWOfA0AvS-skdlR3o5uU-1Kt5Zzkysm7qhV5BXdDOZD3JN5AbwFXunRGrETUossi1fRGCEEaTh_GKbqnlWPHQDkfH8XSt6DS1MgejxNFKTAElokBC31s-bNnu_62JQ9HV2bpGjLmuEBX4sAhKo3iho5KxujH-ZLt61EEAOgskG5TrEshXFqHZeghXqzRBkWZjLSAXI8idQuGUrioQExgdygng01aO6J8-uNltH4IsEyHKilhkPTPZW_ZNcdBKAdgibQv4YZuh9u_0EMcUUz_LWOP-Y31br9QLsHymoDtCsRgAcFJvxy93uQ3RZU1DnkSHQ9wl4UgZPsdxsnwa-Sw","e":"AQAB"}]}'
   # POC access request pings go to #customers. The default in
   # Atlas.Accounts.POCs.Notifier is a by-name lookup, but that relies on the
   # channel being tracked in Atlas' slack_channels table; the escape hatch is
@@ -201,6 +209,13 @@ externalSecrets:
     # the same ingest pipeline external SDKs use — no HTTP hop, so an
     # ingest outage cannot loop back through the logger. This replaces the
     # previous route that posted envelopes to hive.tuist.dev.
+    # Personal OAuth needs client credentials, not the bot/signing credentials.
+    # Provision both fields before deployment; see the account-connections
+    # section in infra/k8s/atlas/onboarding.md.
+    ATLAS_SLACK_CLIENT_ID:
+      remoteRef: "atlas-slack-company/client_id"
+    ATLAS_SLACK_CLIENT_SECRET:
+      remoteRef: "atlas-slack-company/client_secret"
     ATLAS_SLACK_SIGNING_SECRET:
       remoteRef: "atlas-slack-company/password"
     SLACK_COMPANY_BOT_TOKEN:
@@ -233,6 +248,9 @@ externalSecrets:
       remoteRef: "atlas-github-app/app_name"
     ATLAS_GITHUB_APP_CLIENT_ID:
       remoteRef: "atlas-github-app/client_id"
+    # Provision the OAuth secret first; the App private key cannot replace it.
+    ATLAS_GITHUB_APP_CLIENT_SECRET:
+      remoteRef: "atlas-github-app/client_secret"
     ATLAS_GITHUB_APP_PRIVATE_KEY:
       remoteRef: "atlas-github-app/private_key"
     ATLAS_GITHUB_APP_WEBHOOK_SECRET:

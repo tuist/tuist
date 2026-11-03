@@ -33,7 +33,7 @@ defmodule Tuist.MCP.Components.Tools.CoverageTools do
   def commit_options(args), do: [git_commit_sha: Map.get(args, "git_commit_sha"), branch: Map.get(args, "branch")]
 
   def with_coverage(project, fun) do
-    if FeatureFlags.xcode_coverage_enabled?(project.account), do: fun.(), else: {:error, @not_enabled}
+    if FeatureFlags.coverage_enabled?(project.account, project), do: fun.(), else: {:error, @not_enabled}
   end
 end
 

@@ -1,156 +1,63 @@
 ---
 {
-  "title": "The cost of convenience",
+  "title": "El coste de la comodidad",
   "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it."
+  "description": "Cómo los comportamientos implícitos de Xcode causan problemas y cómo Tuist los previene."
 }
 ---
 # El coste de la comodidad {#the-cost-of-convenience}
 
-Diseñar un editor de código que el espectro **de proyectos de pequeña a gran
-escala pueda utilizar** es una tarea difícil. Muchas herramientas abordan el
-problema estratificando su solución y proporcionando extensibilidad. La capa
-inferior es de muy bajo nivel y cercana al sistema de compilación subyacente, y
-la capa superior es una abstracción de alto nivel que es cómoda de usar pero
-menos flexible. De este modo, facilitan las cosas sencillas y hacen posible todo
-lo demás.
+Diseñar un editor de código que pueda usar todo el espectro **desde proyectos pequeños hasta proyectos a gran escala** es una tarea complicada. Muchas herramientas abordan el problema añadiendo capas a su solución y ofreciendo extensibilidad. La capa más baja es muy cercana al sistema de compilación subyacente, mientras que la capa superior es una abstracción de alto nivel que resulta cómoda de usar pero menos flexible. De este modo, facilitan las tareas simples y hacen posible todo lo demás.
 
-Sin embargo, **[Apple](https://www.apple.com) decidió adoptar un enfoque
-diferente con Xcode**. La razón es desconocida, pero es probable que la
-optimización para los retos de los proyectos a gran escala nunca haya sido su
-objetivo. Invirtieron demasiado en la comodidad para los proyectos pequeños,
-proporcionaron poca flexibilidad y acoplaron fuertemente las herramientas con el
-sistema de compilación subyacente. Para lograr la comodidad, proporcionan
-valores predeterminados sensibles, que se pueden reemplazar fácilmente, y
-añadieron un montón de comportamientos implícitos resueltos en tiempo de
-compilación que son los culpables de muchos problemas a escala.
+Sin embargo, **[Apple](https://www.apple.com) decidió adoptar un enfoque diferente con Xcode**. Se desconoce el motivo, pero es probable que optimizar para los retos de los proyectos a gran escala nunca haya sido su objetivo. Sobreinvirtieron en comodidad para proyectos pequeños, ofrecieron poca flexibilidad y acoplaron fuertemente las herramientas al sistema de compilación subyacente. Para lograr esa comodidad, proporcionan valores predeterminados razonables, que puedes reemplazar fácilmente, y añadieron muchos comportamientos implícitos resueltos en tiempo de compilación que son la causa de numerosos problemas a escala.
 
 ## Explicitud y escala {#explicitness-and-scale}
 
-Cuando se trabaja a escala, la explicitud de **es clave**. Permite al sistema de
-compilación analizar y comprender la estructura y las dependencias del proyecto
-con antelación, y realizar optimizaciones que serían imposibles de otro modo. La
-misma explicitud es también clave para asegurar que las características del
-editor como [SwiftUI
-previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) o
-[Swift
-Macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/)
-funcionen de forma fiable y predecible. Debido a que Xcode y los proyectos Xcode
-adoptaron la implicitud como una opción de diseño válida para lograr la
-comodidad, un principio que el Gestor de paquetes Swift ha heredado, las
-dificultades de uso de Xcode también están presentes en el Gestor de paquetes
-Swift.
+Cuando trabajas a escala, **la explicitud es clave**. Permite que el sistema de compilación analice y comprenda la estructura del proyecto y sus dependencias por adelantado, y realice optimizaciones que de otro modo serían imposibles. Esa misma explicitud también es clave para garantizar que funcionalidades del editor como [las previsualizaciones de SwiftUI](https://developer.apple.com/documentation/swiftui/previews-in-xcode) o [las macros de Swift](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/) funcionen de forma fiable y predecible. Dado que Xcode y los proyectos de Xcode adoptaron la implicitud como una elección de diseño válida para lograr comodidad, un principio que el Administrador de Paquetes de Swift ha heredado, las dificultades de usar Xcode también están presentes en el Administrador de Paquetes de Swift.
 
 > [!NOTE]
-> **El Papel Del Tuista**
+> **El papel de Tuist**
 >
-> Podríamos resumir el papel de Tuist como una herramienta que evita los proyectos
-> definidos implícitamente y aprovecha la explicitud para ofrecer una mejor
-> experiencia al desarrollador (por ejemplo, validaciones, optimizaciones).
-> Herramientas como [Bazel](https://bazel.build) van más allá y lo llevan al nivel
-> del sistema de compilación.
+> Podríamos resumir el papel de Tuist como el de una herramienta que evita proyectos definidos de forma implícita y aprovecha la explicitud para ofrecer una mejor experiencia de desarrollo (por ejemplo, validaciones, optimizaciones). Herramientas como [Bazel](https://bazel.build) llevan esto más allá al aplicarlo directamente al nivel del sistema de compilación.
 
 
-Este es un tema del que apenas se habla en la comunidad, pero es importante.
-Mientras trabajábamos en Tuist, nos hemos dado cuenta de que muchas
-organizaciones y desarrolladores piensan que los retos actuales a los que se
-enfrentan se solucionarán con [Swift Package
-Manager](https://www.swift.org/documentation/package-manager/), pero de lo que
-no se dan cuenta es de que, como se basa en los mismos principios, aunque mitiga
-los tan conocidos conflictos de Git, degradan la experiencia del desarrollador
-en otras áreas y siguen haciendo que los proyectos no sean optimizables.
+Este es un tema apenas discutido en la comunidad, pero tiene gran importancia. Mientras trabajábamos en Tuist, observamos que muchas organizaciones y desarrolladores creen que los retos actuales a los que se enfrentan serán abordados por el [Administrador de Paquetes de Swift](https://www.swift.org/documentation/package-manager/), pero no se dan cuenta de que, al basarse en los mismos principios, aunque mitiga los tan conocidos conflictos de Git, degrada la experiencia de desarrollo en otras áreas y sigue haciendo que los proyectos no sean optimizables.
 
-En las siguientes secciones, discutiremos algunos ejemplos reales de cómo la
-implicitud afecta a la experiencia del desarrollador y a la salud del proyecto.
-La lista no es exhaustiva, pero debería darte una buena idea de los retos a los
-que podrías enfrentarte cuando trabajes con proyectos Xcode o paquetes Swift.
+En las siguientes secciones analizaremos ejemplos reales de cómo la implicitud afecta a la experiencia de desarrollo y a la salud del proyecto. La lista no es exhaustiva, pero debería darte una buena idea de los retos que podrías encontrar al trabajar con proyectos de Xcode o paquetes de Swift.
 
 ## La comodidad se interpone en tu camino {#convenience-getting-in-your-way}
 
-### Directorio de productos construidos compartidos {#directorio-de-productos-construidos-compartidos}
+### Directorio compartido de productos compilados {#shared-built-products-directory}
 
-Xcode utiliza un directorio dentro del directorio de datos derivados para cada
-producto. Dentro de él, almacena los artefactos de construcción, tales como los
-binarios compilados, los archivos dSYM, y los registros. Debido a que todos los
-productos de un proyecto van en el mismo directorio, que es visible por defecto
-de otros objetivos para vincular contra, **usted podría terminar con objetivos
-que implícitamente dependen unos de otros.** Si bien esto puede no ser un
-problema cuando se tienen sólo unos pocos objetivos, puede manifestarse como
-errores de compilación que son difíciles de depurar cuando el proyecto crece.
+Xcode utiliza un directorio dentro del directorio de datos derivados para cada producto. En él almacena los artefactos de compilación, como los binarios compilados, los archivos dSYM y los registros. Como todos los productos de un proyecto van al mismo directorio, que por defecto es visible desde otros destinos para enlazar contra ellos, **puedes acabar con destinos que dependen implícitamente entre sí.** Aunque esto puede no ser un problema cuando hay pocos destinos, puede manifestarse como compilaciones fallidas difíciles de depurar cuando el proyecto crece.
 
-La consecuencia de esta decisión de diseño es que muchos proyectos compilan
-accidentalmente con un gráfico que no está bien definido.
+La consecuencia de esta decisión de diseño es que muchos proyectos se compilan accidentalmente con un grafo mal definido.
 
 > [!TIP]
-> **Detección Tuista De Dependencias Implícitas**
+> **Detección de dependencias implícitas en Tuist**
 >
-> Tuist proporciona un
-> <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">comando</LocalizedLink>
-> para detectar dependencias implícitas. Puedes utilizar el comando para validar
-> en CI que todas tus dependencias son explícitas.
+> Tuist ofrece un <.localized_link href="/guides/features/projects/inspect/implicit-dependencies">comando</.localized_link> para detectar dependencias implícitas. Puedes usar el comando para validar en CI que todas tus dependencias sean explícitas.
 
 
-### Encontrar dependencias implícitas en esquemas {#find-implicit-dependencies-in-schemes}
+### Buscar dependencias implícitas en esquemas {#find-implicit-dependencies-in-schemes}
 
-Definir y mantener un gráfico de dependencias en Xcode se hace más difícil a
-medida que el proyecto crece. Es difícil porque están codificados en los
-archivos `.pbxproj` como fases de compilación y ajustes de compilación, no hay
-herramientas para visualizar y trabajar con el gráfico, y los cambios en el
-gráfico (por ejemplo, añadir un nuevo marco dinámico precompilado), podrían
-requerir cambios de configuración aguas arriba (por ejemplo, añadir una nueva
-fase de compilación para copiar el marco en el paquete).
+Definir y mantener un grafo de dependencias en Xcode se vuelve más difícil a medida que el proyecto crece. Es complicado porque están codificados en los archivos `.pbxproj` como fases de compilación y ajustes de compilación, no existen herramientas para visualizar y trabajar con el grafo, y los cambios en el grafo (por ejemplo, añadir un nuevo framework dinámico precompilado) pueden requerir cambios de configuración aguas arriba (por ejemplo, añadir una nueva fase de compilación para copiar el framework en el bundle).
 
-Apple decidió en algún momento que en lugar de evolucionar el modelo de grafos
-hacia algo más manejable, tendría más sentido añadir una opción para resolver
-las dependencias implícitas en tiempo de compilación. Esto es, una vez más, una
-elección de diseño cuestionable, ya que podría terminar con tiempos de
-compilación más lentos o compilaciones impredecibles. Por ejemplo, una
-compilación podría pasar localmente debido a algún estado en los datos
-derivados, que actúa como un
-[singleton](https://en.wikipedia.org/wiki/Singleton_pattern), pero luego fallar
-al compilar en CI porque el estado es diferente.
+Apple decidió en algún momento que, en lugar de evolucionar el modelo de grafo hacia algo más manejable, tendría más sentido añadir una opción para resolver dependencias implícitas en tiempo de compilación. Esta es nuevamente una elección de diseño cuestionable, porque puedes acabar con tiempos de compilación más lentos o compilaciones impredecibles. Por ejemplo, una compilación puede pasar localmente debido a cierto estado en los datos derivados, que actúa como un [singleton](https://en.wikipedia.org/wiki/Singleton_pattern), pero luego falla al compilar en CI porque el estado es diferente.
 
 > [!TIP]
-> Recomendamos deshabilitar esto en los esquemas de tu proyecto, y usar como Tuist
-> que facilita la gestión del grafo de dependencias.
+> Recomendamos desactivar esta opción en los esquemas de tu proyecto y usar herramientas como Tuist que facilitan la gestión del grafo de dependencias.
 
 
-### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
+### Previsualizaciones de SwiftUI y bibliotecas/frameworks estáticos {#swiftui-previews-and-static-librariesframeworks}
 
-Algunas funciones del editor como SwiftUI Previews o Swift Macros requieren la
-compilación del gráfico de dependencias del archivo que se está editando. Esta
-integración entre el editor requiere que el sistema de compilación resuelva
-cualquier implícito y la salida de los artefactos correctos que son necesarios
-para que esas características funcionen. Como se puede imaginar, **cuanto más
-implícito es el gráfico, más difícil es la tarea para el sistema de
-compilación**, y por lo tanto no es de extrañar que muchas de estas
-características no funcionen de forma fiable. A menudo escuchamos de los
-desarrolladores que dejaron de usar las vistas previas de SwiftUI hace mucho
-tiempo porque eran demasiado poco fiables. En su lugar, utilizan aplicaciones de
-ejemplo, o evitan ciertas cosas, como el uso de bibliotecas estáticas o fases de
-compilación de secuencias de comandos, porque hacen que la función se rompa.
+Algunas funcionalidades del editor, como las previsualizaciones de SwiftUI o las macros de Swift, requieren compilar el grafo de dependencias desde el archivo que se está editando. Esta integración entre el editor exige que el sistema de compilación resuelva cualquier implicitud y genere los artefactos correctos necesarios para que esas funcionalidades operen. Como puedes imaginar, **cuanto más implícito sea el grafo, más difícil será la tarea para el sistema de compilación**, por lo que no sorprende que muchas de estas funcionalidades no funcionen de forma fiable. A menudo escuchamos a desarrolladores decir que dejaron de usar las previsualizaciones de SwiftUI hace tiempo porque eran demasiado inestables. En su lugar, usan aplicaciones de ejemplo o evitan ciertas cosas, como el uso de bibliotecas estáticas o fases de compilación con scripts, porque provocan fallos en la funcionalidad.
 
-### Bibliotecas fusionables {#mergeable-libraries}
+### Bibliotecas combinables {#mergeable-libraries}
 
-Los frameworks dinámicos, aunque son más flexibles y fáciles de trabajar, tienen
-un impacto negativo en el tiempo de lanzamiento de las aplicaciones. Por otro
-lado, las librerías estáticas son más rápidas de lanzar, pero tienen un impacto
-en el tiempo de compilación y son un poco más difíciles de trabajar,
-especialmente en escenarios gráficos complejos. *¿No sería genial poder cambiar
-entre una u otra dependiendo de la configuración?* Eso es lo que debió pensar
-Apple cuando decidió trabajar en librerías fusionables. Pero una vez más,
-trasladaron más inferencia en tiempo de compilación al tiempo de compilación. Si
-razonar sobre un gráfico de dependencia, imaginar tener que hacerlo cuando la
-naturaleza estática o dinámica del objetivo se resolverá en tiempo de
-compilación sobre la base de algunos ajustes de compilación en algunos
-objetivos. Buena suerte haciendo que funcione de forma fiable al tiempo que
-garantiza características como las vistas previas SwiftUI no se rompen.
+Los frameworks dinámicos, aunque son más flexibles y fáciles de usar, tienen un impacto negativo en el tiempo de lanzamiento de las aplicaciones. Por otro lado, las bibliotecas estáticas se lanzan más rápido, pero afectan al tiempo de compilación y son un poco más difíciles de manejar, especialmente en escenarios de grafos complejos. *¿No sería genial poder cambiar entre uno u otro según la configuración?* Eso es lo que Apple debió pensar cuando decidió trabajar en las bibliotecas combinables. Pero una vez más, trasladaron más inferencia en tiempo de compilación al propio tiempo de compilación. Si ya es complejo razonar sobre un grafo de dependencias, imagina tener que hacerlo cuando la naturaleza estática o dinámica del destino se resuelva en tiempo de compilación en función de ciertos ajustes de compilación en algunos destinos. Buena suerte logrando que funcione de forma fiable mientras garantizas que funcionalidades como las previsualizaciones de SwiftUI no se rompan.
 
-**Muchos usuarios vienen a Tuist queriendo utilizar bibliotecas fusionables y
-nuestra respuesta es siempre la misma. No es necesario.** Puedes controlar la
-naturaleza estática o dinámica de tus objetivos en tiempo de generación, dando
-lugar a un proyecto cuyo gráfico se conoce antes de la compilación. No es
-necesario resolver variables en tiempo de compilación.
+**Muchos usuarios acuden a Tuist queriendo usar bibliotecas combinables y nuestra respuesta es siempre la misma. No lo necesitas.** Puedes controlar la naturaleza estática o dinámica de tus destinos en el momento de la generación, lo que da lugar a un proyecto cuyo grafo se conoce antes de la compilación. No hay variables que resolver en tiempo de compilación.
 
 ```bash
 # The value of TUIST_DYNAMIC can be read from the project {#the-value-of-tuist_dynamic-can-be-read-from-the-project}
@@ -158,48 +65,18 @@ necesario resolver variables en tiempo de compilación.
 TUIST_DYNAMIC=1 tuist generate
 ```
 
-## Explícito, explícito y explícito {#explícito-explícito-y-explícito}
+## Explícito, explícito y explícito {#explicit-explicit-and-explicit}
 
-Si hay un principio importante no escrito que recomendamos a cada desarrollador
-u organización que quiere que su desarrollo con Xcode escale, es que deben
-adoptar la explicitud. Y si la explicitud es difícil de manejar con proyectos
-Xcode en bruto, deberían considerar algo más, ya sea [Tuist](https://tuist.io) o
-[Bazel](https://bazel.build). **Sólo entonces la fiabilidad, la previsibilidad y
-las optimizaciones serán posibles.**
+Si hay un principio importante no escrito que recomendamos a todo desarrollador u organización que quiera escalar su desarrollo con Xcode, es que deben abrazar la explicitud. Y si la explicitud es difícil de gestionar con proyectos de Xcode en bruto, deberían considerar otra alternativa, ya sea [Tuist](https://tuist.io) o [Bazel](https://bazel.build). **Solo entonces serán posibles la fiabilidad, la predictibilidad y las optimizaciones.**
 
 ## Futuro {#future}
 
-Se desconoce si Apple hará algo para evitar todos los problemas anteriores. Sus
-continuas decisiones integradas en Xcode y el gestor de paquetes Swift no
-sugieren que lo vayan a hacer. Una vez que se permite la configuración implícita
-como un estado válido, **es difícil pasar de ahí sin introducir cambios de
-ruptura.** Volver a los primeros principios y repensar el diseño de las
-herramientas podría llevar a romper muchos proyectos de Xcode que se compilaron
-accidentalmente durante años. Imagina el alboroto de la comunidad si eso
-sucediera.
+Se desconoce si Apple hará algo para prevenir todos los problemas anteriores. Sus continuas decisiones integradas en Xcode y en el Swift Package Manager no sugieren que vayan a hacerlo. Una vez que permites la configuración implícita como un estado válido, **es difícil avanzar desde ahí sin introducir cambios rupturistas.** Volver a los principios básicos y replantear el diseño de las herramientas podría provocar la rotura de muchos proyectos de Xcode que han compilado accidentalmente durante años. Imagina el revuelo en la comunidad si eso ocurriera.
 
-Apple se encuentra en una especie de problema del huevo y la gallina. La
-comodidad es lo que ayuda a los desarrolladores a empezar rápidamente y crear
-más aplicaciones para su ecosistema. Pero su decisión de hacer que la
-experiencia sea cómoda a esa escala les está dificultando garantizar que algunas
-de las funciones de Xcode funcionen de forma fiable.
+Apple se encuentra en una especie de dilema del huevo y la gallina. La conveniencia es lo que ayuda a los desarrolladores a empezar rápidamente y a crear más aplicaciones para su ecosistema. Pero sus decisiones para hacer que la experiencia sea cómoda a esa escala están dificultando que garanticen el funcionamiento fiable de algunas funcionalidades de Xcode.
 
-Dado que el futuro es desconocido, intentamos **estar lo más cerca posible de
-los estándares de la industria y de los proyectos de Xcode**. Evitamos los
-problemas anteriores y aprovechamos los conocimientos que tenemos para ofrecer
-una mejor experiencia al desarrollador. Lo ideal sería no tener que recurrir a
-la generación de proyectos para ello, pero la falta de extensibilidad de Xcode y
-el gestor de paquetes Swift hacen que sea la única opción viable. Y también es
-una opción segura porque tendrán que romper los proyectos de Xcode para romper
-los proyectos de Tuist.
+Dado que el futuro es incierto, intentamos **acercarnos lo máximo posible a los estándares de la industria y a los proyectos de Xcode**. Prevenimos los problemas anteriores y aprovechamos el conocimiento que tenemos para ofrecer una mejor experiencia de desarrollo. Idealmente, no tendríamos que recurrir a la generación de proyectos para ello, pero la falta de extensibilidad de Xcode y del Swift Package Manager la convierten en la única opción viable. Además, es una opción segura, porque tendrán que romper los proyectos de Xcode para romper los proyectos de Tuist.
 
-Idealmente, **el sistema de construcción fuera más extensible**, pero ¿no sería
-una mala idea tener plugins/extensiones que contratan con un mundo de
-implícitos? No parece una buena idea. Así que parece que necesitaremos
-herramientas externas como Tuist o [Bazel](https://bazel.build) para
-proporcionar una mejor experiencia al desarrollador. O quizás Apple nos
-sorprenda a todos y haga Xcode más extensible y explícito...
+Idealmente, **el sistema de compilación sería más extensible**, pero ¿no sería mala idea tener plugins o extensiones que interactúen con un mundo de implicitud? No parece una buena idea. Así que parece que necesitaremos herramientas externas como Tuist o [Bazel](https://bazel.build) para ofrecer una mejor experiencia de desarrollo. O quizás Apple nos sorprenda a todos y haga Xcode más extensible y explícito...
 
-Hasta que eso ocurra, tienes que elegir si quieres abrazar la convenciencia de
-Xcode y asumir la deuda que conlleva, o confiar en nosotros en este viaje para
-ofrecer una mejor experiencia al desarrollador. No te decepcionaremos.
+Hasta que eso ocurra, tienes que elegir si quieres abrazar la comodidad de Xcode y asumir la deuda técnica que conlleva, o confiar en nosotros en este viaje para ofrecerte una mejor experiencia de desarrollo. No te decepcionaremos.

@@ -1,7 +1,7 @@
 # Sharing Linux runner hosts with agent sandboxes
 
-Status: CI-first admission and zero additional warm sandbox memory are
-implemented. Managed overlays deploy the daemons; account flags control access
+Status: Queued CI and sandbox work have equal admission priority, with zero
+additional warm sandbox memory. Managed overlays deploy the daemons; account flags control access
 in canary and production. The controller and server must ship together before
 enabling accounts. Prior staging validation covered real sessions, pause/resume
 and elastic memory; the newer allocation protocol still needs live verification
@@ -9,7 +9,7 @@ during the initial Tuist-account rollout.
 
 ## Invariants
 
-CI is the primary use of these hosts. Never evict, resize or stop a runner that
+CI and sandboxes share these hosts. Never evict, resize or stop a runner that
 has claimed a job. Never pause a sandbox with an active turn. This means an
 already-admitted turn can delay a newly queued CI job until it finishes; an
 absolute promise that sandboxes never delay CI would require either interruptible
@@ -51,31 +51,34 @@ The priority order is:
 
 1. Memory already held by running CI jobs and active sandbox turns, plus daemon
    floors. This is committed capacity, not something the allocator can reclaim.
-2. Dispatchable queued CI demand, with the existing per-shape and per-node fit
-   constraints. Work withheld by account concurrency limits is not pressure.
-3. Queued sandbox turns that fit after CI demand is funded. A resumed turn must
-   fit its existing node; fleet-wide free bytes alone cannot admit it.
-4. CI warm floors and recent-demand headroom. There is no extra sandbox warm
-   pool, p95 buffer or post-turn grace on shared nodes.
+2. Dispatchable queued CI jobs and sandbox turns have equal priority for
+   uncommitted capacity. Both must fit the actual node; a resumed turn must fit
+   its existing node. An existing host reservation still protects its waiting
+   CI shape, but CI queued elsewhere does not veto every sandbox grant.
+3. CI warm floors and recent-demand headroom. Idle, unclaimed warm runners can
+   be retired for a deferred sandbox growth even while CI is queued. There is
+   no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes.
 
-Keep sandbox demand separate from ordinary `PoolDemand.Load`: that tier currently
-grants real load even past fleet capacity, whereas an unacknowledged sandbox turn
-can stay queued upstream. Treating both as identical pools would lose CI priority
-and admit memory that no node can supply. A future allocator that admits sandboxes
-while CI is still queued needs separate committed and queued sandbox demand;
-do not manufacture RunnerPool objects for daemon memory. The implementation is deliberately
-conservative: **any dispatchable queued CI work in the fleet blocks new sandbox
-turns** until those jobs have claimed runners. It does not attempt to fit sandbox
-turns alongside CI jobs that are still queued, even when aggregate memory appears
-sufficient. This avoids a speculative bin-pack promising a CI shape capacity on
-the wrong host, at the cost of sandbox queue latency under continuous CI demand.
-Account-concurrency-withheld jobs are already excluded by the CI signals API.
+Admission is opportunistic, not a global FIFO queue or a guaranteed resource
+split. Kubernetes arbitrates competing Pod requests. Keep sandbox demand
+separate from `PoolDemand.Load`: it grants real load even past fleet capacity,
+while sandbox memory requires a fresh per-node grant. Unknown fleet demand still
+fails closed. Claimed jobs, active turns, pending resizes and reserved hosts
+remain protected; equal priority does not authorize interrupting any of them.
 
-When dispatchable CI work is queued, immediately pause eligible idle sandboxes
-across that fleet and bypass the provisioning hold. Reclaim page
-cache and request the shrink, but do not spend the released memory until the
-kubelet confirms it. The daemon's existing worker/exec guards remain authoritative
-if activity races a pause. Busy sandboxes finish their turn normally.
+Each account has a separate sandbox vCPU and memory budget. Existing accounts
+start with their Linux CI limits; new accounts default to 32 vCPUs and 64 GiB.
+Operators can adjust these in the account's Sandbox concurrency card without
+changing CI limits. Creating, resuming and running rows count, including detached
+Amp processes; paused rows retain disk but release compute quota. The account
+row serializes admission and reservation across replicas before node commands
+are sent. Lowering a limit blocks new starts/resumes without stopping running
+work. The existing five-live-sandbox count (including paused disks) also applies.
+
+A host reservation or unhealthy node revokes admission and reclaims eligible idle
+sandboxes. Reclaim page cache and request a shrink, but do not spend the released
+memory until the kubelet confirms it. Worker/exec guards remain authoritative if
+activity races a pause. Queue depth alone does not trigger fleet-wide reclamation.
 
 The lexicographically first enabled pool in each fleet publishes per-node grants
 through `POST /api/internal/sandboxes/allocation`, authenticated as the exact
@@ -150,8 +153,9 @@ sandbox growth, stale coordination generations, a controller/server restart,
 active-turn protection, failed pause/shrink, and repeated demand/shrink cycles.
 Measure CI queue and job latency as well as sandbox startup latency.
 
-Coordinate a staging deployment before replacing its current experiment. Build
-matching daemon, guest and controller images and pin their immutable tags. The
+Coordinate a staging deployment before replacing its current experiment. A
+staging deployment from the branch builds the matching daemon and guest images;
+build the controller image and pin its immutable tag. The
 controller reaches canary/production through a `runners-controller@` release,
 separately from the server/chart. Keep account flags off until both sides and the
 metrics are present, then enable the Tuist account first.
@@ -160,7 +164,7 @@ Rollback first stops accepting new sandbox work through the account flag. Let
 active turns finish and shrink allocations before removing daemons; deleting a
 daemon is not a substitute for reclaim. Preserve node-local files needed for
 paused sessions. Canary and production chart values enable the daemons with
-their pinned images and 1 GiB floor per node. The account flag controls API and
+a 1 GiB floor per node. The account flag controls API and
 poller access, not the daemon's baseline resources or template prebuilds. Keep
 the global flag off and enable only the Tuist account initially, after matching
 releases are deployed and grants are confirmed. The generic chart default stays

@@ -25,9 +25,12 @@ struct AtlasApp: App {
         .commands { AtlasUpdateCommands(updater: updater) }
         Settings {
             AtlasDesktopSettings(server: authentication.server, accounts: authentication.accountSettings,
-                                 profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
+                                 profileRequest: authentication.businessRequest, profileModel: authentication.profileSettings,
+                                 notifications: authentication.pushNotifications,
                                  signOut: authentication.signOut, workstation: authentication.workstation, updater: updater)
                 .modifier(AtlasThemeScope(appearance: appearance, server: authentication.server))
+                .environment(\.atlasReadCache, authentication.cachedRead)
+                .environment(\.atlasEnvironmentRequest, authentication.server == nil ? nil : authentication.environmentRequest)
         }
         #else
         WindowGroup { root }
@@ -84,6 +87,7 @@ struct AtlasApp: App {
             .environment(\.atlasLiveActivity, authentication.liveActivity)
             #endif
             .environment(\.atlasEnvironmentRequest, authentication.environmentRequest)
+            .environment(\.atlasReadCache, authentication.cachedRead)
             .environment(\.atlasNavigation, navigation)
             .task { await authentication.restore(); navigation.resolve(server: authentication.server) }
             .onOpenURL { navigation.receive($0, server: authentication.server) }
@@ -112,11 +116,13 @@ struct AtlasApp: App {
                                automation: authentication) {
                 #if os(iOS)
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
-                                  profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
+                                  profileRequest: authentication.businessRequest, profileModel: authentication.profileSettings,
+                                  notifications: authentication.pushNotifications,
                                   sharedItems: authentication.sharedItems, connections: authentication.connectionSettings)
                 #else
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
-                                  profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
+                                  profileRequest: authentication.businessRequest, profileModel: authentication.profileSettings,
+                                  notifications: authentication.pushNotifications,
                                   connections: authentication.connectionSettings)
                 #endif
             }

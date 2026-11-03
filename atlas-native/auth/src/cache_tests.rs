@@ -158,3 +158,85 @@ fn retention_and_size_limits_do_not_turn_bad_storage_into_an_app_failure() {
     std::fs::write(directory.path().join("reads.sqlite3"), b"not a database").unwrap();
     assert!(Cache::open(directory.as_str(), &session).is_none());
 }
+
+#[test]
+fn local_read_surfaces_strip_write_authority_and_automation_payloads() {
+    let directory = TestDirectory::new();
+    let session = session();
+    let cache = Cache::open(directory.as_str(), &session).unwrap();
+    let business = json!({"surface":"business_list","resource":"accounts","page":1,"query":"Acme","filters":{}});
+    let record = json!({"id":"01922cc0-0000-7000-8000-000000000001","fields":{"name":"Acme"},"can_edit":true,"can_delete":true});
+    let request: Read = serde_json::from_value(business.clone()).unwrap();
+    cache.write(
+        &request.key().unwrap(),
+        &json!({"items":[record],"can_write":true,"options":{"users":["private-option"]}})
+            .to_string(),
+        cache.generation().unwrap(),
+    );
+    let value = read(session.clone(), directory.as_str(), request, true).unwrap()["value"].clone();
+    assert_eq!(value["items"][0]["fields"]["name"], "Acme");
+    assert_eq!(value["can_write"], false);
+    assert_eq!(value["items"][0]["can_edit"], false);
+    assert_eq!(value["items"][0]["can_delete"], false);
+    assert!(!value.to_string().contains("private-option"));
+    assert_eq!(value["cached"], true);
+    for kind in ["workflow", "execution", "approval"] {
+        let request: Read = serde_json::from_value(json!({"surface":"automation_record","kind":kind,"id":"01922cc0-0000-7000-8000-000000000001"})).unwrap();
+        let key = request.key().unwrap();
+        let response = json!({"id":"01922cc0-0000-7000-8000-000000000001","name":"Review release","can_run":true,"can_control":true,"can_decide":true,"revision_id":"authority","input_schema":{"secret":"input"},"payload_json":"private approval","payload_digest":"decision authority","outputs_json":"protected result","steps":[{"step_id":"inspect","status":"running","input":"private"}]});
+        let fresh = read_using(
+            session.clone(),
+            directory.as_str(),
+            request,
+            false,
+            |_, _| Ok(response.clone()),
+        )
+        .unwrap();
+        assert_eq!(fresh["value"], response);
+        // Inspect the stored payload before the local-read sanitizer runs again.
+        let persisted = cache.read(&key).unwrap();
+        for secret in [
+            "authority",
+            "private",
+            "protected result",
+            "input_schema",
+            "payload_digest",
+            "can_run",
+            "can_control",
+            "can_decide",
+        ] {
+            assert!(!persisted.contains(secret), "Persisted {secret}");
+        }
+        let request: Read = serde_json::from_value(json!({"surface":"automation_record","kind":kind,"id":"01922cc0-0000-7000-8000-000000000001"})).unwrap();
+        let value =
+            read(session.clone(), directory.as_str(), request, true).unwrap()["value"].clone();
+        assert_eq!(value["name"], "Review release");
+        assert_eq!(value["steps"][0]["status"], "running");
+        assert_eq!(value["cached"], true);
+        for field in [
+            "can_run",
+            "can_control",
+            "can_decide",
+            "revision_id",
+            "input_schema",
+            "payload_json",
+            "payload_digest",
+            "outputs_json",
+        ] {
+            assert!(value.get(field).is_none(), "{field}");
+        }
+        assert!(value["steps"][0].get("input").is_none());
+    }
+    let mut other = business;
+    other["query"] = json!("Other search");
+    assert!(
+        read(
+            session,
+            directory.as_str(),
+            serde_json::from_value(other).unwrap(),
+            true
+        )
+        .unwrap()["value"]
+            .is_null()
+    );
+}

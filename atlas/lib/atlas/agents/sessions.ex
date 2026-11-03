@@ -13,6 +13,7 @@ defmodule Atlas.Agents.Sessions do
 
   alias Atlas.Agents.Sessions.Session
   alias Atlas.Moodboard.Suggestions
+  alias Atlas.Orbit.Classification
   alias Atlas.Repo
   alias Condukt.SessionID
 
@@ -20,7 +21,7 @@ defmodule Atlas.Agents.Sessions do
 
   # Private threads and unpublished shares must not be readable in admin history.
   # Their rows keep only labels, status and fixed error categories.
-  @redacted_agents [inspect(Atlas.Orbit.Agent), inspect(Suggestions)]
+  @redacted_agents [inspect(Atlas.Orbit.Agent), inspect(Classification), inspect(Suggestions)]
   @category ~r/\A[a-z_]{1,64}\z/
   @label ~r/\A[a-z_]{1,64}:[0-9a-f-]{36}\z/
 

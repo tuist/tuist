@@ -12,7 +12,7 @@ msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/docs_live.ex:143
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1092
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "გვერდი ვერ მოიძებნა"
@@ -23,9 +23,9 @@ msgstr "გვერდი ვერ მოიძებნა"
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "Build-ი ვერ მოიძებნა"
+msgstr "ბილდი ვერ მოიძებნა"
 
 #: lib/tuist_web/controllers/build_controller.ex:67
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "თქვენ არ გაქვთ ამ Build-ზე წვდომის უფლება"
+msgstr "ამ ბილდზე წვდომა არ გაქვთ"

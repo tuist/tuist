@@ -35,7 +35,7 @@ msgstr "Slack 授權失敗：%{reason}"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:132
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
-msgstr "儲存頻道選擇失敗。請再試一次。"
+msgstr "無法儲存頻道選擇。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:194
 #, elixir-autogen, elixir-format
@@ -55,4 +55,4 @@ msgstr "授權請求已過期。請重新開始 Slack 連線流程。"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack 返回了意外的 webhook URL。請重試。"
+msgstr "Slack 返回咗一個意外嘅 webhook URL。請再試一次。"

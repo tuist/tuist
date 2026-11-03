@@ -71,6 +71,9 @@ type Instance interface {
 	API() *firecracker.Client
 	VsockPath() string
 	PID() int
+	// CPUTime is the VMM process's user and system time, its vCPU threads
+	// included; false where it cannot be read.
+	CPUTime() (time.Duration, bool)
 	Done() <-chan struct{}
 	ExitError() error
 	Kill(ctx context.Context) error
@@ -485,4 +488,43 @@ func (l *cappedLog) Close() error {
 	}
 	l.closed = true
 	return l.file.Close()
+}
+
+func (m *machine) CPUTime() (time.Duration, bool) { return processCPUTime(m.PID()) }
+
+// userHZ is the unit of utime and stime in /proc/<pid>/stat.
+const userHZ = 100
+
+func processCPUTime(pid int) (time.Duration, bool) {
+	if pid <= 0 {
+		return 0, false
+	}
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return 0, false
+	}
+	return parseStatCPUTime(string(data))
+}
+
+// parseStatCPUTime sums utime and stime, fields 14 and 15 of a
+// /proc/<pid>/stat line. Fields are counted from the last ')', since the
+// command name in field 2 can hold spaces and parentheses.
+func parseStatCPUTime(stat string) (time.Duration, bool) {
+	end := strings.LastIndexByte(stat, ')')
+	if end < 0 {
+		return 0, false
+	}
+	fields := strings.Fields(stat[end+1:])
+	if len(fields) < 13 {
+		return 0, false
+	}
+	utime, err := strconv.ParseInt(fields[11], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	stime, err := strconv.ParseInt(fields[12], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return time.Duration(utime+stime) * time.Second / userHZ, true
 }

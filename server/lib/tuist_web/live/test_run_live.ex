@@ -120,7 +120,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(
         OpenGraph.project_image_assigns(project,
           title:
-            if(project.build_system == :mix,
+            if(project.build_system in [:mix, :cargo],
               do: test_run_label(project, run.scheme),
               else: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme)
             ),

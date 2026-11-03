@@ -96,10 +96,13 @@ defmodule Atlas.Connections do
     )
   end
 
-  def access_token(%User{} = user, provider, scopes \\ []) do
+  def access_token(%User{} = user, provider, scopes \\ [], binding \\ nil) do
     # Providers can rotate refresh tokens; serialize consumers on the latest row.
     Repo.transaction(fn ->
-      with {:ok, connection} <- usable_connection(locked_connection(user, provider), user) do
+      connection = locked_connection(user, provider)
+
+      with :ok <- check_binding(connection, binding),
+           {:ok, connection} <- usable_connection(connection, user) do
         if scopes == [] or Enum.any?(scopes, &(&1 in connection.scopes)),
           do: {:ok, connection.access_token},
           else: {:error, :insufficient_scope}
@@ -109,6 +112,15 @@ defmodule Atlas.Connections do
       {:ok, result} -> result
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp check_binding(_connection, nil), do: :ok
+  defp check_binding(nil, _binding), do: {:error, :not_connected}
+
+  defp check_binding(connection, binding) do
+    if Map.take(connection, [:id, :provider_user_id, :workspace_id]) == binding,
+      do: :ok,
+      else: {:error, :connection_changed}
   end
 
   defp usable_connection(nil, _user), do: {:error, :not_connected}

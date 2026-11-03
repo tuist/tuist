@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import com.google.gson.JsonParser
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheException
@@ -92,7 +93,8 @@ class ServerConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
     private val projectDir: java.io.File,
-    private val httpClients: TuistHttpClients = TuistHttpClients()
+    private val httpClients: TuistHttpClients = TuistHttpClients(),
+    private val tokenProviderFactory: ((URI) -> TokenProvider)? = null
 ) : ConfigurationProvider {
 
     internal val resolvedServerUrl: java.net.URI by lazy {
@@ -112,7 +114,7 @@ class ServerConfigurationProvider(
     }
 
     internal val tokenProvider: TokenProvider by lazy {
-        TokenProvider(resolvedServerUrl, httpClients = httpClients)
+        tokenProviderFactory?.invoke(resolvedServerUrl) ?: TokenProvider(resolvedServerUrl, httpClients = httpClients)
     }
 
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
@@ -134,14 +136,30 @@ class DefaultConfigurationProvider(
     project: String?,
     serverUrl: String,
     projectDir: java.io.File,
-    private val httpClients: TuistHttpClients = TuistHttpClients()
+    private val httpClients: TuistHttpClients = TuistHttpClients(),
+    tokenProviderFactory: ((URI) -> TokenProvider)? = null
 ) : ConfigurationProvider {
 
-    private val server = ServerConfigurationProvider(project, serverUrl, projectDir, httpClients)
+    private val server = ServerConfigurationProvider(project, serverUrl, projectDir, httpClients, tokenProviderFactory)
 
     private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
 
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
+        val token = server.tokenProvider.getOptionalToken(forceRefresh)
+        if (token == null) {
+            if (!NetworkTrustDiscovery.available(server.resolvedServerUrl, "network_trusted_cache_access", httpClients)) {
+                throw TokenProvider.NotAuthenticatedException(server.resolvedServerUrl)
+            }
+            val handle = server.resolvedProject
+            val endpoint = server.tokenProvider.envProvider("TUIST_CACHE_ENDPOINT")?.takeUnless { it.isBlank() }
+                ?: NetworkTrustDiscovery.get(server.resolvedServerUrl.resolve("/api/cache/endpoint"), httpClients) { body ->
+                    JsonParser.parseString(body).asJsonObject["endpoint"]?.takeUnless { it.isJsonNull }?.asString
+                }
+            check(!endpoint.isNullOrBlank() && NetworkTrustDiscovery.isSelfHosted(URI(endpoint))) {
+                "Network-trusted caching requires a self-hosted cache endpoint."
+            }
+            return CacheConfiguration(endpoint, "", handle.accountHandle, handle.projectHandle)
+        }
         val serverConfiguration = server.getConfiguration(forceRefresh)
 
         val cacheEndpoint = cacheEndpointCache.getValue(forceRefresh) {

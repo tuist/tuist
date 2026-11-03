@@ -2,7 +2,11 @@ import XcodeGraph
 
 extension Scheme {
     public func targetDependencies() -> [TargetReference] {
-        let targets = (nonCodeCoverageTargetDependencies() + (testAction?.codeCoverageTargets ?? [])).uniqued()
+        let targets = (
+            nonCodeCoverageTargetDependencies()
+                + (testAction?.codeCoverageTargets ?? [])
+                + (testAction?.testPlans?.flatMap(\.codeCoverageTargets) ?? [])
+        ).uniqued()
         return targets.sorted { $0.name < $1.name }
     }
 

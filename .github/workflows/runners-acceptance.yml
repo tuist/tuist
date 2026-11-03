@@ -46,6 +46,10 @@ on:
         description: Candidate digest required by the cascade; a staged old image must not pass
         type: string
         default: ""
+      expected_macos_images:
+        description: JSON array of the macOS image digests the cascade deployed; a probe on any other image fails
+        type: string
+        default: ""
       cache_endpoint:
         description: Overrides the cache endpoint dispatch hands each job, e.g. to prove a broken endpoint fails fast
         required: false
@@ -160,8 +164,15 @@ jobs:
       EXPECTED_CACHE_HOST: ${{ inputs.cache_endpoint == '' && matrix.target.cache_host || '' }}
     steps:
       - name: Runner
+        env:
+          EXPECTED_MACOS_IMAGES: ${{ inputs.expected_macos_images }}
         run: |
           echo "runner     : ${RUNNER_NAME}"
+          echo "image      : ${TUIST_RUNNER_IMAGE:-unknown}"
+          if [ -n "$EXPECTED_MACOS_IMAGES" ] && ! jq -e --arg image "${TUIST_RUNNER_IMAGE:-}" 'index($image) != null' <<< "$EXPECTED_MACOS_IMAGES" >/dev/null; then
+            echo "::error title=macOS acceptance::Acceptance ran on ${TUIST_RUNNER_IMAGE:-unknown}, not one of the deployed images $EXPECTED_MACOS_IMAGES"
+            exit 1
+          fi
           echo "macOS      : $(sw_vers -productVersion)"
           echo "Xcode      : $(xcodebuild -version | head -n 1)"
           echo "cache      : ${TUIST_CACHE_ENDPOINT:-<none handed by dispatch>}"

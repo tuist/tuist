@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistSupport
 import XcodeGraph
 import XcodeMetadata
@@ -820,6 +821,213 @@ final class GraphLoaderTests: TuistUnitTestCase {
         var path: AbsolutePath
         var linkage: BinaryLinking
         var architectures: [BinaryArchitecture]
+    }
+}
+
+struct GraphLoaderXCFrameworkSignatureTests {
+    private let signature = XCFrameworkSignature.signedWithAppleCertificate(teamIdentifier: "TEAM", teamName: "Vendor")
+    private let path: AbsolutePath = "/Frameworks/SDK.xcframework"
+    private let subject: GraphLoader
+
+    init() {
+        let provider = MockXCFrameworkMetadataProviding()
+        given(provider).loadMetadata(at: .any, expectedSignature: .any, status: .any).willProduce { path, signature, status in
+            XCFrameworkMetadata(
+                path: path,
+                infoPlist: .test(),
+                linking: .dynamic,
+                mergeable: false,
+                status: status,
+                macroPath: nil,
+                expectedSignature: signature
+            )
+        }
+        subject = GraphLoader(
+            frameworkMetadataProvider: MockFrameworkMetadataProvider(),
+            libraryMetadataProvider: MockLibraryMetadataProvider(),
+            xcframeworkMetadataProvider: provider,
+            systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
+        )
+    }
+
+    @Test(arguments: [false, true])
+    func sharesExplicitSignatureWithoutChangingLinkageOrConditions(explicitFirst: Bool) async throws {
+        let app = Project.test(path: "/App", targets: [
+            .test(name: "App", dependencies: [
+                .xcframework(path: path, expectedSignature: nil, status: .required, condition: .when([.ios])),
+                .xcframework(path: "/Other/SDK.xcframework", expectedSignature: nil, status: .required),
+            ]),
+        ])
+        let feature = Project.test(path: "/Feature", targets: [
+            .test(name: "Feature", dependencies: [
+                .xcframework(path: path, expectedSignature: signature, status: .optional, condition: .when([.macos])),
+            ]),
+        ])
+        let projects = explicitFirst ? [feature, app] : [app, feature]
+
+        let graph = try await subject.loadWorkspace(
+            workspace: .test(projects: projects.map(\.path)),
+            projects: projects
+        )
+
+        let appDependency = dependency(expectedSignature: "AppleDeveloperProgram:TEAM:Vendor")
+        let featureDependency = dependency(expectedSignature: "AppleDeveloperProgram:TEAM:Vendor", status: .optional)
+        #expect(graph.dependencies[.target(name: "App", path: "/App")] == [
+            appDependency,
+            .testXCFramework(path: "/Other/SDK.xcframework"),
+        ])
+        #expect(graph.dependencies[.target(name: "Feature", path: "/Feature")] == [featureDependency])
+        #expect(graph
+            .dependencyConditions[GraphEdge(from: .target(name: "App", path: "/App"), to: appDependency)] == .when([.ios]))
+        #expect(graph
+            .dependencyConditions[GraphEdge(from: .target(name: "Feature", path: "/Feature"), to: featureDependency)] ==
+            .when([.macos]))
+        #expect(graph.projects[app.path] == app)
+        #expect(graph.projects[feature.path] == feature)
+    }
+
+    @Test(arguments: [
+        (nil, nil, nil),
+        (.unsigned, nil, nil),
+        (.selfSigned(fingerprint: "fingerprint"), .selfSigned(fingerprint: "fingerprint"), "SelfSigned:fingerprint"),
+        (
+            .signedWithAppleCertificate(teamIdentifier: "TEAM", teamName: "Vendor"),
+            .signedWithAppleCertificate(teamIdentifier: "TEAM", teamName: "Vendor"),
+            "AppleDeveloperProgram:TEAM:Vendor"
+        ),
+    ] as [(XCFrameworkSignature?, XCFrameworkSignature?, String?)])
+    func preservesConsistentSignatures(
+        first: XCFrameworkSignature?, second: XCFrameworkSignature?, expectedSignature: String?
+    ) async throws {
+        let project = Project.test(targets: [
+            .test(name: "First", dependencies: [.xcframework(path: path, expectedSignature: first, status: .required)]),
+            .test(name: "Second", dependencies: [.xcframework(path: path, expectedSignature: second, status: .required)]),
+        ])
+
+        let graph = try await subject.loadWorkspace(workspace: .test(projects: [project.path]), projects: [project])
+
+        let expected = dependency(expectedSignature: expectedSignature)
+        #expect(graph.dependencies[.target(name: "First", path: project.path)] == [expected])
+        #expect(graph.dependencies[.target(name: "Second", path: project.path)] == [expected])
+    }
+
+    @Test(arguments: [
+        XCFrameworkSignature.unsigned,
+        .selfSigned(fingerprint: "different"),
+        .signedWithAppleCertificate(teamIdentifier: "OTHER", teamName: "Other vendor"),
+    ], [false, true])
+    func rejectsConflictingExplicitExpectations(other: XCFrameworkSignature, reversed: Bool) async throws {
+        let first = Project.test(path: "/First", targets: [
+            .test(dependencies: [.xcframework(path: path, expectedSignature: signature, status: .required)]),
+        ])
+        let second = Project.test(path: "/Second", targets: [
+            .test(dependencies: [.xcframework(path: path, expectedSignature: other, status: .required)]),
+        ])
+        let projects = reversed ? [second, first] : [first, second]
+
+        do {
+            _ = try await subject.loadWorkspace(workspace: .test(projects: projects.map(\.path)), projects: projects)
+            Issue.record("Conflicting explicit signatures must not be silently replaced")
+        } catch let error as GraphLoadingError {
+            #expect(error.type == .abort)
+            #expect(error.description.contains(path.pathString))
+            #expect(error.description.contains("AppleDeveloperProgram:TEAM:Vendor"))
+            #expect(error.description.contains(other.signatureString() ?? "unsigned"))
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func mergesConditionsWhenSignatureResolutionCoalescesReferences(unconditional: Bool) async throws {
+        let project = Project.test(targets: [
+            .test(name: "App", dependencies: [
+                .xcframework(
+                    path: path,
+                    expectedSignature: nil,
+                    status: .required,
+                    condition: unconditional ? nil : .when([.ios])
+                ),
+                .xcframework(path: path, expectedSignature: signature, status: .required, condition: .when([.macos])),
+            ]),
+        ])
+
+        let graph = try await subject.loadWorkspace(workspace: .test(projects: [project.path]), projects: [project])
+
+        let dependency = dependency(expectedSignature: "AppleDeveloperProgram:TEAM:Vendor")
+        let target = GraphDependency.target(name: "App", path: project.path)
+        #expect(graph.dependencies[target] == [dependency])
+        #expect(graph.dependencyConditions[GraphEdge(from: target, to: dependency)] == (unconditional ? nil : .when([
+            .ios,
+            .macos,
+        ])))
+    }
+
+    @Test(arguments: [
+        (.staticFramework, .when([.macos]), nil, .when([.ios, .macos])),
+        (.staticFramework, nil, nil, nil),
+        (.staticFramework, .when([.macos]), .when([.ios]), .when([.ios])),
+        (.framework, .when([.macos]), nil, .when([.ios])),
+        (.framework, nil, nil, .when([.ios])),
+    ] as [(Product, PlatformCondition?, PlatformCondition?, PlatformCondition?)])
+    func preservesDirectAndTransitiveLinkConditions(
+        featureProduct: Product,
+        featureCondition: PlatformCondition?, frameworkCondition: PlatformCondition?, expectedCondition: PlatformCondition?
+    ) async throws {
+        let project = Project.test(targets: [
+            .test(name: "App", destinations: [.iPhone, .mac], dependencies: [
+                .xcframework(path: path, expectedSignature: signature, status: .required, condition: .when([.ios])),
+                .target(name: "Feature", condition: featureCondition),
+            ]),
+            .test(name: "Feature", destinations: [.iPhone, .mac], product: featureProduct, dependencies: [
+                .xcframework(path: path, expectedSignature: nil, status: .required, condition: frameworkCondition),
+            ]),
+        ])
+        let graph = try await subject.loadWorkspace(workspace: .test(projects: [project.path]), projects: [project])
+
+        let references = try GraphTraverser(graph: graph).linkableDependencies(path: project.path, name: "App")
+        let frameworks = references.filter {
+            if case .xcframework = $0 { return true }
+            return false
+        }
+
+        #expect(frameworks == [
+            .xcframework(
+                path: path,
+                expectedSignature: "AppleDeveloperProgram:TEAM:Vendor",
+                infoPlist: .test(),
+                status: .required,
+                condition: expectedCondition
+            ),
+        ])
+    }
+
+    @Test func ignoresExpectationsInUnreferencedProjects() async throws {
+        let included = Project.test(path: "/Included", targets: [
+            .test(dependencies: [.xcframework(path: path, expectedSignature: nil, status: .required)]),
+        ])
+        let excluded = Project.test(path: "/Excluded", targets: [
+            .test(dependencies: [.xcframework(path: path, expectedSignature: signature, status: .required)]),
+        ])
+
+        let graph = try await subject.loadWorkspace(
+            workspace: .test(projects: [included.path]),
+            projects: [included, excluded]
+        )
+
+        #expect(graph.dependencies[.target(name: "Target", path: included.path)] == [.testXCFramework(path: path)])
+        #expect(graph.projects[excluded.path] == nil)
+    }
+
+    private func dependency(expectedSignature: String?, status: LinkingStatus = .required) -> GraphDependency {
+        .xcframework(.init(
+            path: path,
+            infoPlist: .test(),
+            linking: .dynamic,
+            mergeable: false,
+            status: status,
+            swiftModules: [],
+            moduleMaps: [],
+            expectedSignature: expectedSignature
+        ))
     }
 }
 

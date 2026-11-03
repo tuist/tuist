@@ -192,7 +192,7 @@ async fn enroll(inputs: &EnrollmentInputs) -> Result<EnrollmentOutcome, String> 
     );
     let auth = STANDARD.encode(format!("{}:{}", inputs.client_id, inputs.client_secret));
 
-    let client = reqwest::Client::builder()
+    let client = crate::certificate_trust::client_builder()?
         .build()
         .map_err(|error| format!("failed to build enrollment HTTP client: {error}"))?;
 

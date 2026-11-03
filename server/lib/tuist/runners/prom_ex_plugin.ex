@@ -132,6 +132,17 @@ defmodule Tuist.Runners.PromExPlugin do
             tags: [:fleet],
             unit: :millisecond
           ),
+          distribution(
+            @metric_prefix ++ [:job, :executor_queue, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_executed(),
+            measurement: :queue_time_ms,
+            description:
+              "Time between webhook enqueue and the claim of the runner that ran the job, " <>
+                "observed once per job. `limit_held` marks jobs their account's concurrency limit held back.",
+            reporter_options: [buckets: @short_duration_buckets],
+            tags: [:fleet, :platform, :limit_held],
+            unit: :millisecond
+          ),
           counter(
             @metric_prefix ++ [:job, :running, :count],
             event_name: Telemetry.event_name_job_running(),

@@ -41,9 +41,10 @@ defmodule Tuist.Marketing.Blog.CoverArtwork do
     "#535659" => {"neutral-9", "#D2D2D2"},
     "#313335" => {"neutral-10", "#E4E4E4"},
     "#6F2CFF" => {"purple", "#8366FF"},
-    # Figma files sometimes carry the dark-scheme purple already; it is the
-    # same accent.
-    "#8366FF" => {"purple", "#8366FF"}
+    # Figma files sometimes carry the dark-scheme purple, or a slightly
+    # lighter light-scheme one, instead; it is the same accent.
+    "#8366FF" => {"purple", "#8366FF"},
+    "#7339FF" => {"purple", "#8366FF"}
   }
 
   # The page whites: the primary surface (and the OG wrapper's near-black

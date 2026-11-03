@@ -34,6 +34,7 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
         status: Keyword.get(attrs, :status, "success"),
         gradle_version: Keyword.get(attrs, :gradle_version, "8.5"),
         java_version: Keyword.get(attrs, :java_version, "17.0.1"),
+        tuist_version: Keyword.get(attrs, :tuist_version, ""),
         is_ci: Keyword.get(attrs, :is_ci, false),
         git_branch: Keyword.get(attrs, :git_branch),
         git_commit_sha: Keyword.get(attrs, :git_commit_sha),

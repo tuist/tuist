@@ -63,7 +63,10 @@ defmodule AtlasWeb.ConnectionController do
     user = conn.assigns.current_user
     state = Phoenix.Token.sign(conn, @salt, %{user_id: user.id, provider: provider, nonce: nonce})
 
-    with {:ok, location} <- Provider.authorization_url(provider, callback_url(provider), state, verifier),
+    with {:ok, location} <-
+           Provider.authorization_url(provider, callback_url(provider), state, verifier,
+             gmail: conn.params["gmail"] == "read"
+           ),
          {:ok, _} <- Connections.begin_authorization(user, provider, nonce) do
       conn
       |> put_session(:account_connection, %{

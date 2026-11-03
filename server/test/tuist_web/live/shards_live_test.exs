@@ -132,7 +132,7 @@ defmodule TuistWeb.ShardsLiveTest do
       assert has_element?(
                view,
                "#sharded-runs-table",
-               if(build_system == :cargo, do: "cargo nextest run", else: scheme)
+               if(build_system == :cargo, do: "Cargo tests", else: scheme)
              )
 
       assert has_element?(view, "#sharded-runs-table", if(build_system == :once, do: "Batch", else: "Module"))

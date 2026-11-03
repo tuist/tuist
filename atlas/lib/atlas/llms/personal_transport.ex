@@ -26,13 +26,29 @@ defmodule Atlas.LLMs.PersonalTransport do
     with %User{} = user <- Repo.get(User, Keyword.fetch!(opts, :user_id)),
          {:ok, body, conn} <- read_body(conn),
          {:ok, params} when is_map(params) <- JSON.decode(body) do
-      case personal_completion(conn, user, params, ["chatgpt", "claude"], nil) do
+      choice = Keyword.get(opts, :model)
+
+      case completion(conn, user, params, choice) do
         {:ok, completion} -> respond(conn, 200, completion)
-        {:stop, status} -> unavailable(conn, status)
-        {:fallback, status} -> fallback(conn, params, status)
+        {:stop, status, category} -> unavailable(conn, status, Atom.to_string(category))
+        {:fallback, failure} -> fallback(conn, params, failure)
       end
     else
       _ -> unavailable(conn, 503)
+    end
+  end
+
+  defp completion(conn, user, params, nil), do: personal_completion(conn, user, params, ["chatgpt", "claude"], nil)
+
+  defp completion(_conn, _user, _params, "workspace"), do: {:fallback, nil}
+
+  defp completion(conn, user, params, "chatgpt:" <> model) do
+    with {:ok, %{access_token: token}} <- Connections.credentials(user, "chatgpt"),
+         {:ok, reply} <- authorized_completion(conn, "chatgpt", token, Map.put(params, "model", model)) do
+      {:ok, reply}
+    else
+      {:error, status, category} -> {:stop, status, category}
+      {:error, _reason} -> {:stop, 401, :provider_auth}
     end
   end
 
@@ -41,29 +57,34 @@ defmodule Atlas.LLMs.PersonalTransport do
   defp personal_completion(conn, user, params, [provider | rest], last_status) do
     case Connections.credentials(user, provider) do
       {:ok, %{access_token: token}} ->
-        case authorized_completion(conn, provider, token, params) do
+        case authorized_completion(
+               conn,
+               provider,
+               token,
+               Map.put(params, "model", PersonalProviders.default_model(provider))
+             ) do
           {:ok, completion} ->
             {:ok, completion}
 
-          {:error, status} when status in [401, 402, 403, 408, 429] or status >= 500 ->
-            personal_completion(conn, user, params, rest, status)
+          {:error, status, category} when status in [401, 402, 403, 408, 429] or status >= 500 ->
+            personal_completion(conn, user, params, rest, {status, Atom.to_string(category)})
 
-          {:error, status} ->
-            {:stop, status}
+          {:error, status, category} ->
+            {:stop, status, category}
         end
 
       {:error, :not_connected} ->
         personal_completion(conn, user, params, rest, last_status)
 
       {:error, _category} ->
-        personal_completion(conn, user, params, rest, last_status || 502)
+        personal_completion(conn, user, params, rest, last_status || {502, "provider_error"})
     end
   end
 
   defp authorized_completion(conn, provider, token, params) do
     if ModelFence.authorized?(conn),
       do: PersonalProviders.complete(provider, token, params),
-      else: {:error, 409}
+      else: {:error, 409, :cancelled}
   end
 
   defp fallback(conn, params, last_status) do
@@ -81,7 +102,8 @@ defmodule Atlas.LLMs.PersonalTransport do
         |> LocalTransport.call(role: :orbit)
 
       true ->
-        unavailable(conn, last_status || 503, if(last_status, do: "provider_error", else: "not_configured"))
+        {status, code} = last_status || {503, "not_configured"}
+        unavailable(conn, status, code)
     end
   end
 

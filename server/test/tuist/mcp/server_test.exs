@@ -62,6 +62,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_bazel_build_step" in tool_names
       assert "list_xcode_build_steps" in tool_names
       assert "get_xcode_build_step" in tool_names
+      assert "get_build_trace" in tool_names
       assert "list_xcode_build_issues" in tool_names
       assert "list_xcode_build_cache_tasks" in tool_names
       assert "list_xcode_build_cas_outputs" in tool_names
@@ -109,7 +110,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.42.0"
+      assert server.version == "1.47.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
@@ -138,6 +139,23 @@ defmodule Tuist.MCP.ServerTest do
 
       stub(Environment, :tuist_hosted?, fn -> false end)
       refute "search_tuist" in Map.keys(Server.server().tools)
+    end
+
+    test "offers report_feedback only on the hosted installation with an Atlas workload token" do
+      token_path = Briefly.create!()
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
+      assert "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path <> ".missing" end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token_path, fn -> nil end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
     end
 
     test "offers codebase tools only when the hosted codebase service is configured" do

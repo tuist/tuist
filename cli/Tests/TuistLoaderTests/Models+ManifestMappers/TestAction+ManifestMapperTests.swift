@@ -245,9 +245,38 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?[0].isDefault == true)
         #expect(testAction.testPlans?[0].kind == .generated)
         #expect(testAction.testPlans?[0].testTargets.map(\.target.name) == ["AppTests"])
+        #expect(testAction.testPlans?[0].coverage == nil)
+        #expect(testAction.testPlans?[0].codeCoverageTargets == [])
         #expect(testAction.testPlans?[1].path == derivedDirectory.appending(component: "SnapshotTests.xctestplan"))
         #expect(testAction.testPlans?[1].isDefault == false)
         #expect(testAction.testPlans?[1].kind == .generated)
+        #expect(testAction.testPlans?[1].coverage == nil)
+        #expect(testAction.testPlans?[1].codeCoverageTargets == [])
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func generated_plan_coverage_does_not_override_referenced_plans(coverage: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let existingPlan = directory.appending(component: "Legacy.xctestplan")
+        try await fileSystem.writeText(testPlanContent, at: existingPlan)
+        let manifest = ProjectDescription.TestAction.testPlans([
+            .generated(name: "UnitTests", testTargets: ["AppTests"]),
+            .path("Legacy.xctestplan"),
+        ], coverage: coverage, codeCoverageTargets: ["App", .project(path: "../Framework", target: "Framework")])
+
+        let action = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: GeneratorPaths(manifestDirectory: directory, rootDirectory: directory)
+        )
+
+        let plans = try #require(action.testPlans)
+        #expect(plans[0].coverage == coverage)
+        #expect(plans[0].codeCoverageTargets == [
+            TargetReference(projectPath: directory, name: "App"),
+            TargetReference(projectPath: directory.parentDirectory.appending(component: "Framework"), name: "Framework"),
+        ])
+        #expect(plans[1].coverage == nil)
+        #expect(plans[1].codeCoverageTargets.isEmpty)
     }
 
     @Test(.inTemporaryDirectory) func action_with_generated_test_plan_honors_explicit_path() async throws {

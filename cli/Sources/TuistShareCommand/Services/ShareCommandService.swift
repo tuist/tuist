@@ -25,6 +25,7 @@ import TuistSupport
 enum ShareCommandServiceError: Equatable, LocalizedError {
     case fullHandleNotFound
     case multipleAppsSpecified([String])
+    case invalidExecutable
     #if os(macOS)
         case appNotSpecified
     #endif
@@ -36,12 +37,14 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
             return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
         case let .multipleAppsSpecified(apps):
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
+        case .invalidExecutable:
+            return "Specify one executable file, or one distribution directory with --executable pointing to an executable inside it."
         #if os(macOS)
             case .appNotSpecified:
                 return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
         #endif
         case .appleBuildsSharingNotSupportedOnLinux:
-            return "Sharing Apple app bundles and IPAs is only supported on macOS. On Linux, only APK files can be shared."
+            return "Sharing Apple app bundles and IPAs is only supported on macOS. On Linux, share an APK or an executable."
         }
     }
 }
@@ -149,7 +152,8 @@ struct ShareCommandService {
             derivedDataPath: String?,
             json: Bool,
             track: String?,
-            releaseNotes: String? = nil
+            releaseNotes: String? = nil,
+            executable: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -172,7 +176,14 @@ struct ShareCommandService {
                     relativeTo: path
                 )
             }
-            if appPaths.contains(where: { $0.extension == "apk" }) {
+            if executable != nil || (appPaths.count == 1 && !["app", "ipa", "apk"].contains(appPaths[0].extension ?? "") &&
+                isExecutableFile(appPaths[0]))
+            {
+                try await shareExecutable(
+                    appPaths, entryPoint: executable, path: path, fullHandle: fullHandle,
+                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes
+                )
+            } else if appPaths.contains(where: { $0.extension == "apk" }) {
                 try await shareAPK(
                     appPaths,
                     path: path,
@@ -238,7 +249,8 @@ struct ShareCommandService {
             apps: [String],
             json: Bool,
             track: String?,
-            releaseNotes: String? = nil
+            releaseNotes: String? = nil,
+            executable: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -253,6 +265,16 @@ struct ShareCommandService {
                     validating: $0,
                     relativeTo: path
                 )
+            }
+
+            if executable != nil || (appPaths.count == 1 && !["app", "ipa", "apk"].contains(appPaths[0].extension ?? "") &&
+                isExecutableFile(appPaths[0]))
+            {
+                try await shareExecutable(
+                    appPaths, entryPoint: executable, path: path, fullHandle: fullHandle,
+                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes
+                )
+                return
             }
 
             guard appPaths.allSatisfy({ $0.extension == "apk" }) else {
@@ -270,6 +292,60 @@ struct ShareCommandService {
             )
         }
     #endif
+
+    private func isExecutableFile(_ path: AbsolutePath) -> Bool {
+        let values = try? path.url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey, .isExecutableKey])
+        return values?.isRegularFile == true && values?.isExecutable == true
+    }
+
+    private func shareExecutable(
+        _ paths: [AbsolutePath],
+        entryPoint: String?,
+        path: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL,
+        json: Bool,
+        track: String?,
+        releaseNotes: String?
+    ) async throws {
+        guard paths.count == 1, let input = paths.first else {
+            throw ShareCommandServiceError.invalidExecutable
+        }
+        let source = try AbsolutePath(validating: input.url.resolvingSymlinksInPath().path)
+        let entryPoint = try entryPoint.map { try RelativePath(validating: $0) }
+        let executablePath: AbsolutePath
+        if let entryPoint {
+            executablePath = source.appending(entryPoint)
+            let resolved = try AbsolutePath(validating: executablePath.url.resolvingSymlinksInPath().path)
+            guard try await fileSystem.exists(source, isDirectory: true),
+                  resolved.isDescendant(of: source)
+            else { throw ShareCommandServiceError.invalidExecutable }
+        } else {
+            executablePath = source
+        }
+        guard isExecutableFile(executablePath), source.basename != ExecutablePreviewManifest.filename else {
+            throw ShareCommandServiceError.invalidExecutable
+        }
+        let gitInfo = await resolveGitInfo(at: path)
+        let preview = try await Noora.current.progressBarStep(
+            message: "Uploading \(executablePath.basename)",
+            successMessage: "\(executablePath.basename) uploaded",
+            errorMessage: "Failed to upload \(executablePath.basename)"
+        ) { updateProgress in
+            try await previewsUploadService.uploadPreview(
+                .executable(path: source, entryPoint: entryPoint),
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                gitBranch: gitInfo.branch,
+                gitCommitSHA: gitInfo.sha,
+                gitRef: gitInfo.ref,
+                track: track,
+                releaseNotes: releaseNotes,
+                updateProgress: updateProgress
+            )
+        }
+        outputResult(preview, displayName: executablePath.basename, json: json)
+    }
 
     // MARK: - Cross-platform APK sharing
 

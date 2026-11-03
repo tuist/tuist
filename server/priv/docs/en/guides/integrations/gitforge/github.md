@@ -88,7 +88,13 @@ Organization administrators can also change or clear the API URL on an existing 
 
 ## Pull/merge request comments {#pull-merge-request-comments}
 
-The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</.localized_link>:
+The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews/xcode#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</.localized_link>:
+
+Tuist updates one comment as results arrive. Gradle builds appear separately for each root project and set of requested tasks; rerunning the same tasks replaces that invocation's previous result. The full build history remains available on Tuist.
+
+Comments are enabled by default, preserving reporting for existing integrations. To turn them off or back on for a project, open **Project Settings → Integrations** and toggle **GitHub → Run report comments**. Each project has its own setting; repository connections remain managed in organization settings.
+
+Disabling comments does not disable build or test uploads, GitHub Actions job summaries, repository connections, or other GitHub integration features. Existing comments are not deleted.
 
 ![An image that shows the pull request comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
@@ -106,7 +112,11 @@ The GitHub app posts a Tuist run report, which includes a summary of the PR, inc
 
 ## GitHub Actions job summary {#github-actions-job-summary}
 
-When you run Tuist in GitHub Actions, it writes a run report to the [job summary](https://github.blog/news-insights/product-news/supercharging-github-actions-with-job-summaries/) of the workflow run, so you see your test and build results on the run's summary page with nothing extra to set up. The summary links to the full report on Tuist, where richer insights such as flaky tests and bundle-size deltas are available.
+The Tuist CLI and Gradle plugin write test and build results to the [job summary](https://github.blog/news-insights/product-news/supercharging-github-actions-with-job-summaries/) in GitHub Actions. The summary links to the full report on Tuist, where richer insights such as flaky tests and bundle-size deltas are available.
+
+For Gradle, each successfully uploaded build or test report appends its own summary, preserving other content written by tools such as `gradle/actions/setup-gradle`. This requires a plugin version that includes job summary support; older Gradle plugin versions only report through the GitHub App's PR comment. The GitHub App does not need to be connected for job summaries, and disabling **Run report comments** does not affect them.
+
+When a GitHub Actions summary destination is available, Gradle waits for uploads and summaries before exiting, even if `uploadInBackground` is enabled. GitHub captures the summary when the workflow step finishes.
 
 ![An image that shows the Tuist run report in the GitHub Actions job summary](/images/guides/integrations/gitforge/github/github-actions-job-summary.png)
 
@@ -115,5 +125,4 @@ This is particularly useful with [merge queues](https://docs.github.com/en/repos
 > [!NOTE]
 > **Requirements**
 >
-> Like the pull/merge request comment, the job summary is only written when your CI runs are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
-
+> Job summaries require a successful report upload. On the hosted Tuist server, your CI runs must be <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>. Self-hosted instances can also accept credential-free reports when network-trusted report publishing is enabled.

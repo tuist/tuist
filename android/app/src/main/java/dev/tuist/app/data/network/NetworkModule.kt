@@ -30,7 +30,7 @@ object NetworkModule {
     @Singleton
     @PlainClient
     fun providePlainOkHttpClient(): OkHttpClient {
-        val builder = OkHttpClient.Builder()
+        val builder = CertificateTrust.clientBuilder()
 
         if (BuildConfig.DEBUG) {
             val logging = HttpLoggingInterceptor().apply {
@@ -49,7 +49,7 @@ object NetworkModule {
         authInterceptor: AuthInterceptor,
         tokenRefreshAuthenticator: TokenRefreshAuthenticator,
     ): OkHttpClient {
-        val builder = OkHttpClient.Builder()
+        val builder = CertificateTrust.clientBuilder()
             .addInterceptor(requestIdInterceptor)
             .addInterceptor(authInterceptor)
             .authenticator(tokenRefreshAuthenticator)

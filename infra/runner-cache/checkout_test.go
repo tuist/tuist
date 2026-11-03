@@ -864,3 +864,68 @@ func TestCheckoutMaintainRemovesAbandonedRestoreDownloads(t *testing.T) {
 		t.Fatal("removed a download still being written")
 	}
 }
+
+func TestCheckoutSpareRestoreTakesOnlyItsOwnRoom(t *testing.T) {
+	c, _ := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	roomed, spared := 0, 0
+	c.Room = func(context.Context, uint64) (func(), error) {
+		roomed++
+		return func() {}, nil
+	}
+	c.Spare = func(context.Context, uint64) (func(), error) {
+		spared++
+		return nil, ErrCapacity
+	}
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	task.Spare = true
+
+	c.Process(context.Background(), task)
+	if roomed != 0 || spared != 1 || len(transfer.downloads) != 0 {
+		t.Fatalf("a spare restore reserved room %d times and spare room %d times, downloaded %d", roomed, spared, len(transfer.downloads))
+	}
+	c.Maintain()
+	if len(c.queue) != 0 {
+		t.Fatal("a spare restore refused for room waits for it")
+	}
+}
+
+func TestCheckoutSpareRestoreNeverReplacesAJobsRequest(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	spare := checkoutTestTask()
+	spare.BaseGeneration, spare.ImageDigest, spare.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	spare.Spare = true
+	restore := spare
+	restore.Spare = false
+
+	c.Enqueue(spare)
+	c.Enqueue(restore)
+	if c.pending[checkoutTestScope].Spare {
+		t.Fatal("a job's restore did not replace a spare one")
+	}
+	c.Enqueue(spare)
+	if c.pending[checkoutTestScope].Spare {
+		t.Fatal("a spare restore replaced a job's restore")
+	}
+
+	export := exportFrom(t, c, "job", checkoutTestCommit, nil)
+	c.Enqueue(export)
+	c.Enqueue(spare)
+	if c.pending[checkoutTestScope].Export != export.Export {
+		t.Fatal("a spare restore replaced a job's export")
+	}
+
+	c.Room = func(context.Context, uint64) (func(), error) { return nil, ErrCapacity }
+	scope := <-c.queue
+	task := c.pending[scope]
+	delete(c.pending, scope)
+	c.Process(context.Background(), task)
+	c.Enqueue(spare)
+	if _, err := os.Stat(export.Export); err != nil || c.waiting[checkoutTestScope].Export != export.Export {
+		t.Fatal("a spare restore displaced a build waiting for room")
+	}
+}

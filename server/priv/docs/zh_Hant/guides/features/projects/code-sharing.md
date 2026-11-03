@@ -1,35 +1,32 @@
 ---
 {
-  "title": "Code sharing",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
+  "title": "程式碼共用",
+  "titleTemplate": ":title · 專案 · 功能 · 指南 · Tuist",
+  "description": "了解如何在資訊清單檔案之間共用程式碼，以減少重複並確保一致性"
 }
 ---
-# 代碼分享{#code-sharing}
+# 程式碼共用 {#code-sharing}
 
-當我們在大型專案中使用 Xcode 時，其中一個不便之處就是它不允許透過`.xcconfig`
-檔重複使用專案中除建立設定以外的元素。能夠重複使用專案定義非常有用，原因如下：
+在使用 Xcode 處理大型專案時，其中一個不便之處在於除了透過 `.xcconfig` 檔案設定建置參數外，無法重複使用專案中的其他元素。能夠重複使用專案定義具有以下優點：
 
-- 它可以簡化**維護** ，因為變更可以在一個地方套用，而且所有專案都會自動取得變更。
-- 它可以定義**慣例** ，讓新專案符合這些慣例。
-- 專案的一致性更高**** ，因此因不一致而造成建置破損的可能性大幅降低。
-- 新增專案變得很容易，因為我們可以重複使用現有的邏輯。
+- 簡化**維護**作業，因為只需在一處套用變更，所有專案便會自動同步更新。
+- 可定義新專案遵循的**規範**。
+- 提升專案間的**一致性**，大幅降低因不一致而導致建置失敗的機率。
+- 新增專案變得更加輕鬆，因為可以直接重複使用既有邏輯。
 
-透過**專案描述輔助工具** 的概念，Tuist 可以在不同的清單檔案中重複使用程式碼。
+在 Tuist 中，得益於**專案描述輔助工具**的概念，我們可以在各個資訊清單檔案之間重複使用程式碼。
 
 > [!TIP]
-> **A Tuist Unique Asset**
+> **Tuist 的獨特優勢**
 >
-> 許多組織喜歡 Tuist，因為他們在專案描述輔助工具中看到了一個平台，讓平台團隊可以編纂他們自己的慣例，並提出他們自己的專案描述語言。例如，基於 YAML
-> 的專案產生器必須提出他們自己的基於 YAML 的專利模板解決方案，或強迫組織建立他們的工具。
+> 許多組織採用 Tuist，是因為他們將專案描述輔助工具視為平台團隊編碼自身規範、並發展出專屬專案描述語言的平台。例如，基於 YAML 的專案產生器必須自行開發專屬的 YAML 樣板解決方案，或迫使組織在其基礎上建構工具。
 
 
-## 專案描述協助{#project-description-helpers}
+## 專案描述輔助工具 {#project-description-helpers}
 
-專案描述輔助程式是 Swift 檔案，會被編譯成一個模組，`ProjectDescriptionHelpers`
-，而艙單檔案可以匯入這個模組。該模組是透過收集`Tuist/ProjectDescriptionHelpers` 目錄中的所有檔案來編譯。
+專案描述輔助工具是會被編譯為模組 `ProjectDescriptionHelpers` 的 Swift 檔案，資訊清單檔案可以匯入此模組。該模組會收集 `Tuist/ProjectDescriptionHelpers` 目錄中的所有檔案進行編譯。
 
-您可以在檔案頂端加入匯入語句，將它們匯入您的艙單檔案：
+您可以在資訊清單檔案頂部加入 import 陳述式來匯入它們：
 
 ```swift
 // Project.swift
@@ -37,14 +34,14 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` 可在下列艙單中找到：
+`ProjectDescriptionHelpers` 可在以下資訊清單中使用：
 - `Project.swift`
-- `Package.swift` (僅在`#TUIST` 編譯器旗號之後)
-- `工作區.swift`
+- `Package.swift`（僅在啟用 `#TUIST` 編譯器旗標時可用）
+- `Workspace.swift`
 
-## 範例{#example}
+## 範例 {#example}
 
-以下片段包含一個範例，說明我們如何擴充`Project` 模型，以加入靜態構造程式，以及如何從`Project.swift` 檔案使用這些構造程式：
+以下程式碼片段示範如何擴充 `Project` 模型以新增靜態建構子，以及如何在 `Project.swift` 檔案中使用它們：
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -91,7 +88,6 @@ let project = Project.featureFramework(name: "MyFeature")
 :::
 
 > [!TIP]
-> **A Tool To Establish Conventions**
+> **建立規範的工具**
 >
-> 請注意我們如何透過函式定義目標名稱、bundle 識別符和資料夾結構的慣例。
-
+> 請注意，我們透過函式定義了關於目標名稱、Bundle Identifier 與資料夾結構的規範。

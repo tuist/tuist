@@ -5,6 +5,7 @@ defmodule Tuist.DocsTest do
   alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Loader
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Docs.Page
 
@@ -15,6 +16,204 @@ defmodule Tuist.DocsTest do
       assert page.slug == "/en/guides/install-tuist"
       assert page.title == "Install Tuist"
       assert page.body =~ "Install Tuist"
+    end
+
+    @tag :tmp_dir
+    test "localized headings retain explicit IDs with or without a separating space", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "localized-headings.md")
+
+      File.write!(source_path, """
+      # 本地化标题{#localized-title}
+
+      ## 拉取/合并请求注释{#pullmerge-request-comments}
+
+      ## 测试覆盖率 {#test-coverage}
+
+      ## 普通标题
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+      document = Floki.parse_fragment!(page.body)
+
+      assert page.title == "本地化标题"
+
+      assert page.headings == [
+               %{level: 2, text: "拉取/合并请求注释", id: "pullmerge-request-comments"},
+               %{level: 2, text: "测试覆盖率", id: "test-coverage"},
+               %{level: 2, text: "普通标题", id: "普通标题"}
+             ]
+
+      assert Floki.text(Floki.find(document, "h1")) == "本地化标题"
+
+      for heading <- Enum.take(page.headings, 2) do
+        anchor = Floki.find(document, ~s(h2 a[id="#{heading.id}"][href="##{heading.id}"]))
+        assert anchor |> Floki.find("[data-part=heading-text]") |> Floki.text() == heading.text
+      end
+
+      refute page.body =~ "{#"
+    end
+
+    @tag :tmp_dir
+    test "heading examples remain literal code and do not enter page metadata", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "heading-examples.md")
+
+      File.write!(source_path, """
+      ```markdown
+      # 示例标题{#example-title}
+      ## 示例章节{#example-section}
+      ```
+
+      # 真实标题{#real-title}
+
+      ~~~~markdown
+      ## 围栏示例 {#fenced-example}
+      ~~~
+      ~~~~
+
+      ## 真实章节{#real-section}
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+
+      assert page.headings == [%{level: 2, text: "真实章节", id: "real-section"}]
+      assert page.title == "真实标题"
+
+      document = Floki.parse_fragment!(page.body)
+
+      assert Enum.map(Floki.find(document, "[data-part=code] code"), &Floki.text/1) == [
+               "# 示例标题{#example-title}\n## 示例章节{#example-section}\n",
+               "## 围栏示例 {#fenced-example}\n~~~\n"
+             ]
+
+      assert Floki.find(document, "h2 a[id=real-section]") != []
+    end
+
+    test "preview overview owns shared guidance separately from publication workflows" do
+      overview = Docs.get_page("/en/guides/features/previews")
+
+      for anchor <- ["what-you-can-preview", "publish-a-preview", "run-a-preview", "visibility", "tracks", "readme-badge"] do
+        assert Enum.any?(overview.headings, &(&1.id == anchor))
+      end
+
+      assert overview.markdown =~ "Private previews require authentication and project access"
+      assert overview.markdown =~ "bundle-id=com.example.app"
+      assert overview.markdown =~ "/guides/features/previews/run/cli"
+
+      for system <- ["xcode", "gradle", "bazel", "once"] do
+        page = Docs.get_page("/en/guides/features/previews/" <> system)
+
+        for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
+          refute Enum.any?(page.headings, &(&1.id == anchor))
+        end
+
+        assert page.markdown =~ ~s(href="/guides/features/previews#run-a-preview")
+        refute page.markdown =~ "<!-- @snippet:"
+
+        if system in ["bazel", "once"] do
+          refute page.markdown =~ "--release-notes"
+          refute page.markdown =~ "tuist share --json"
+          refute page.markdown =~ "monitorPreviewUpdates"
+          refute Enum.any?(page.headings, &(&1.id == "pullmerge-request-comments"))
+        end
+      end
+
+      for snippet <- ["_shared", "_tuist-share"] do
+        assert is_nil(Docs.get_page("/en/guides/features/previews/" <> snippet))
+      end
+    end
+
+    test "supported types preserve packaging, compatibility, and safety guidance separately from running" do
+      page = Docs.get_page("/en/guides/features/previews/types")
+
+      for text <- [
+            "tuist share path/to/MyApp.app",
+            "--executable bin/my-tool",
+            "macOS arm64, macOS x86_64, and Linux x86_64",
+            "not in a sandbox",
+            "Only run builds from authors and pull requests you trust"
+          ] do
+        assert page.markdown =~ text
+      end
+
+      for anchor <- [
+            "mobile-apps",
+            "desktop-apps",
+            "command-line-tools",
+            "multiple-cli-targets",
+            "client-and-server-compatibility"
+          ] do
+        assert Enum.any?(page.headings, &(&1.id == anchor))
+      end
+
+      refute page.markdown =~ "monitorPreviewUpdates"
+      refute page.markdown =~ "tuist run {url} -- --help"
+      refute page.markdown =~ "x-tuist-preview-capabilities"
+      refute page.markdown =~ "cli_previews"
+
+      cli = Docs.get_page("/en/guides/features/previews/run/cli")
+      assert cli.markdown =~ "tuist run {url} -- --help"
+      assert cli.markdown =~ "Child arguments are excluded from Tuist command analytics"
+      assert cli.markdown =~ "CLI distributions remain in Tuist's local `previews` cache"
+      assert cli.markdown =~ "returns the executable's exit status"
+    end
+
+    test "Gradle previews document explicit native publication separately from CLI sharing" do
+      page = Docs.get_page("/en/guides/features/previews/gradle")
+
+      assert page.markdown =~ "./gradlew :app:tuistShareDebug --track nightly"
+      assert page.markdown =~ "Ordinary `assemble`, `build`, and test tasks never publish"
+      assert page.markdown =~ "./gradlew :app:tuistShareMainDebug"
+      assert page.markdown =~ "`cpp-application` or `swift-application`"
+      assert page.markdown =~ "requires authentication"
+      assert page.markdown =~ "split APKs are rejected"
+      assert page.markdown =~ "## Share an existing APK"
+      assert page.markdown =~ "tuist share app/build/outputs/apk/debug/app-debug.apk"
+      refute page.markdown =~ "monitorPreviewUpdates"
+    end
+
+    test "Xcode publication links to independent companion guides with complete Swift SDK instructions" do
+      page = Docs.get_page("/en/guides/features/previews/xcode")
+
+      for anchor <- [
+            "release-notes",
+            "preview-metadata-compatibility",
+            "pullmerge-request-comments",
+            "automations"
+          ] do
+        assert Enum.any?(page.headings, &(&1.id == anchor))
+      end
+
+      assert page.markdown =~ "--release-notes"
+      assert page.markdown =~ "10,000 characters"
+      assert page.markdown =~ "cannot overwrite existing notes"
+      assert page.markdown =~ "tuist share --json"
+      assert page.markdown =~ "qrCodeURL"
+      assert page.markdown =~ "/guides/features/previews/run/macos"
+      assert page.markdown =~ "/guides/features/previews/run/ios"
+      refute page.markdown =~ "monitorPreviewUpdates"
+
+      macos = Docs.get_page("/en/guides/features/previews/run/macos")
+      assert macos.markdown =~ "brew install --cask tuist/tuist/tuist"
+      assert macos.markdown =~ "falls back to paginated history"
+
+      ios = Docs.get_page("/en/guides/features/previews/run/ios")
+
+      for anchor <- [
+            "in-app-update-notifications",
+            "sdk-installation",
+            "sdk-monitor-updates",
+            "sdk-single-check",
+            "sdk-stop-monitoring"
+          ] do
+        assert Enum.any?(ios.headings, &(&1.id == anchor))
+      end
+
+      assert ios.markdown =~ "monitorPreviewUpdates"
+      assert ios.markdown =~ "sdk.checkForUpdate()"
+      assert ios.markdown =~ "task.cancel()"
+      assert ios.markdown =~ "disabled on simulators and App Store builds"
+      assert ios.markdown =~ "browse previews without filtering on older servers"
+      refute ios.markdown =~ "/api/projects/"
     end
 
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
@@ -90,8 +289,10 @@ defmodule Tuist.DocsTest do
       refute getting_started =~ "## Coverage and selective testing"
       refute getting_started =~ "compiler-invocation timings"
       sharding = Docs.get_page("/en/guides/features/test-sharding/rust").markdown
-      assert sharding =~ "does not shard plain `cargo test` runs"
-      assert sharding =~ "tuist cargo test --workspace"
+      assert sharding =~ "tuist cargo test -p store --no-run --shard-max 4"
+      assert sharding =~ "TUIST_SHARD_PLAN_ID=<plan-id> TUIST_SHARD_INDEX=0 tuist cargo test -p store"
+      assert sharding =~ "Multi-package sharding is not supported"
+      assert sharding =~ "target-level sharding, not build-once distribution"
       refute sharding =~ "test-build"
       assert Docs.get_page("/en/guides/features/test-sharding").markdown =~ "test-sharding/rust"
       tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
@@ -112,7 +313,10 @@ defmodule Tuist.DocsTest do
 
       assert flaky =~ "Cargo does not automatically retry failed tests"
       assert flaky =~ "CI runs on the same commit"
-      assert flaky =~ "does not apply quarantine yet"
+      assert flaky =~ "**Muted** tests still run and report their actual results"
+      assert flaky =~ "**Skipped** tests are excluded from execution and reported as quarantined skips"
+      assert flaky =~ "Skip quarantine requires one selected package"
+      assert flaky =~ "TUIST_TEST_SKIP_QUARANTINE=1 tuist cargo test --workspace"
       refute flaky =~ "Quarantine boundaries"
     end
 
@@ -133,6 +337,15 @@ defmodule Tuist.DocsTest do
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
       assert selective_testing_page.source_path == "en/guides/features/selective-testing/index.md"
+    end
+
+    @tag :locale
+    test "current translations take precedence over obsolete pages at the same URL" do
+      for locale <- ~w(es ja ko ru yue_Hant zh_Hans zh_Hant) do
+        page = Docs.get_page("/#{locale}/guides/features/selective-testing")
+
+        assert page.source_path == "#{locale}/guides/features/selective-testing/index.md"
+      end
     end
 
     test "loads static CLI documentation pages" do
@@ -178,25 +391,26 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
 
-    test "self-hosting documents instance-wide reporting configuration and automatic client discovery" do
+    test "self-hosting documents independent insights and cache access with shared setup" do
       page = Docs.get_page("/en/guides/server/self-host/server")
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true"
-      assert page.markdown =~ "No client-side opt-in is required"
-      assert page.markdown =~ "GET /.well-known/tuist.json"
+
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true"
+      assert page.markdown =~ "no client opt-in is needed"
       assert page.markdown =~ "does not follow redirects"
-      assert page.markdown =~ "Upgrade the server before credential-free clients"
-      assert page.markdown =~ "tools sharing a credential directory"
-      assert page.markdown =~ "discovery manifest does not probe"
+      assert page.markdown =~ "Upgrade every server and Kura replica before upgrading clients"
+      assert page.markdown =~ "Older tools can delete credentials"
+      assert page.markdown =~ "omit Git origins from unsigned reports"
+      assert page.markdown =~ "Keep Kura authentication enabled"
+      assert page.markdown =~ "across all accounts and projects, including private projects"
+      assert page.markdown =~ "restart **every relevant server replica**"
+      assert page.markdown =~ "within 60 seconds"
+      assert page.markdown =~ "dashboard and administration still require authentication"
       refute page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
-      assert page.markdown =~ "all existing and newly created"
-      assert page.markdown =~ "across every account on the instance"
-      assert page.markdown =~ "reads the variable at startup"
-      assert page.markdown =~ "no project allowlist or dashboard toggle"
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false"
-      assert page.markdown =~ "every relevant server replica"
-      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING"
-      refute page.markdown =~ "enable **Network-trusted report publishing** in each"
-      assert Enum.any?(page.headings, &(&1.id == "network-trusted-report-publishing"))
+
+      assert Enum.any?(page.headings, &(&1.id == "network-trusted-access"))
+      assert page.body =~ ~s(id="network-trusted-report-publishing")
+      assert page.body =~ ~s(id="network-trusted-cache-access")
     end
 
     test "wraps Markdown tables in a scroll container" do

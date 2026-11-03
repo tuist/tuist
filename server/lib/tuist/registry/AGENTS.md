@@ -154,6 +154,12 @@ would arrive as every package in a pass failing, which `SyncWorker` treats as
 one systemic failure rather than as several hundred unrelated ones. A token
 that cannot be minted at all logs and falls back to the personal access token.
 
+Organizations with an IP allow list answer the installation token with a
+non-throttling 403 on every request, even for public repositories, while a
+personal access token from the same egress IP is still accepted. `SyncWorker` and `ReleaseWorker` retry
+such a 403 once with `Registry.swift_registry_github_fallback_token/1`, so the
+personal access token has to stay configured alongside the App.
+
 `SWIFT_REGISTRY_SYNC_LIMIT` is the batch size and therefore what decides whether
 one pass fits inside that budget: each package costs at least one tag-listing
 request, plus one per extra page of tags.

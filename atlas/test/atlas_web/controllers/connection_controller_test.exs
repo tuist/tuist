@@ -72,6 +72,19 @@ defmodule AtlasWeb.ConnectionControllerTest do
     refute params["scope"] =~ "https://www.googleapis.com/auth/calendar "
   end
 
+  test "Gmail read consent is explicit and cannot request email writes", %{conn: conn} do
+    {conn, _} = log_in_user(conn)
+    response = get(conn, ~p"/connections/google/authorize?gmail=read")
+    params = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+    assert "https://www.googleapis.com/auth/gmail.readonly" in String.split(params["scope"])
+    refute params["scope"] =~ "gmail.modify"
+    refute params["scope"] =~ "gmail.send"
+
+    response = get(conn, ~p"/connections/google/authorize?gmail=write")
+    params = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+    refute params["scope"] =~ "gmail"
+  end
+
   test "callback completes the connection once and retains the Atlas login", %{conn: conn} do
     {conn, user} = log_in_user(conn)
     response = get(conn, ~p"/connections/github/authorize")

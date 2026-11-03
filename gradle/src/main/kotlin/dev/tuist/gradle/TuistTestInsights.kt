@@ -401,6 +401,7 @@ abstract class TuistTestInsightsService :
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
+    private val jobSummary by lazy { GitHubActionsJobSummary() }
 
     internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
@@ -485,7 +486,8 @@ abstract class TuistTestInsightsService :
             return
         }
 
-        val shouldUploadInBackground = parameters.uploadInBackground.orNull ?: !ciDetector.isCi()
+        // GitHub uploads the summary when the step ends, so it must be written before Gradle returns.
+        val shouldUploadInBackground = (parameters.uploadInBackground.orNull ?: !ciDetector.isCi()) && !jobSummary.isEnabled
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading test insights in the background...")
@@ -600,7 +602,12 @@ abstract class TuistTestInsightsService :
                     when (val status = connection.responseCode) {
                         HttpURLConnection.HTTP_OK -> {
                             BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, TestResponse::class.java)
+                                Gson().fromJson(reader, TestResponse::class.java).also { response ->
+                                    val dashboardUrl = URI(baseUrl).resolve(
+                                        "/${config.accountHandle}/${config.projectHandle}/tests/test-runs/${response.id}"
+                                    )
+                                    jobSummary.writeTests(report, dashboardUrl.toString())
+                                }
                             }
                         }
                         HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()

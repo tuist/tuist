@@ -429,6 +429,7 @@ fn basic_auth(client_id: &str, client_secret: &str) -> String {
 
 fn http_client() -> reqwest::Client {
     crate::control_plane_http::client_builder()
+        .expect("mesh heartbeat TLS configuration should build")
         .build()
         .expect("mesh heartbeat HTTP client should build")
 }

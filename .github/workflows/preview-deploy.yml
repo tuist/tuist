@@ -323,7 +323,7 @@ jobs:
             exit 0
           fi
           CHANGED="$(git diff --name-only "$BASE" "$REF" || true)"
-          echo "$CHANGED" | grep -qE '^kura/' \
+          echo "$CHANGED" | grep -qE '^(kura/|infra/certificate-trust/(policy\.json|pem-store\.sh)$)' \
             && echo "kura_runtime=true" >> "$GITHUB_OUTPUT" \
             || echo "kura_runtime=false" >> "$GITHUB_OUTPUT"
 
@@ -424,6 +424,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ./kura
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 

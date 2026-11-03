@@ -5,13 +5,20 @@ import org.json.JSONObject
 
 // Thin adapter over the Rust `orbit_session` handle. Rust owns thread state, pagination,
 // stale-request guards, drafts, client IDs and the live connection; this class only forwards commands,
-// applies newer snapshots and keeps view-only state (create form, Ask toggle, expanded tool cards).
+// applies newer snapshots and keeps view-only state (create form and expanded tool cards).
 class AtlasOrbitModel(
     private val request: (JSONObject, (Result<JSONObject>) -> Unit) -> Unit,
 ) {
     data class Assistant(
         val name: String,
         val configured: Boolean,
+        val searchable: Boolean = false,
+        val domains: List<Domain> = emptyList(),
+    )
+
+    data class Domain(
+        val id: String,
+        val name: String,
     )
 
     data class Person(
@@ -27,9 +34,26 @@ class AtlasOrbitModel(
         val summary: String,
         val participants: List<Person>,
         val updatedAt: String,
+        val priority: String? = null,
+        val ownerId: String? = null,
+        val domain: String? = null,
+        val agentStatus: String? = null,
     ) {
         val isPrivate get() = kind == "private"
         val archived get() = status == "archived"
+        val priorityTitle get() = priority?.replaceFirstChar(Char::uppercase)
+        val activityLabel: String?
+            get() =
+                if (status != "active") {
+                    null
+                } else {
+                    when (agentStatus) {
+                        "queued" -> "Pip is queued"
+                        "running" -> "Pip is running"
+                        "compacting" -> "Pip is compacting"
+                        else -> null
+                    }
+                }
     }
 
     data class Message(
@@ -46,6 +70,7 @@ class AtlasOrbitModel(
         val component: String? = null,
         val attachments: List<Attachment> = emptyList(),
         val parentMessageId: String? = null,
+        val noticeKind: String? = null,
     ) {
         val isTool get() = kind == "tool" || toolName != null
     }
@@ -86,6 +111,9 @@ class AtlasOrbitModel(
         val uploadPending: Boolean = false,
         val uploadFilename: String? = null,
         val cached: Boolean = false,
+        val statusFilter: String = "active",
+        val query: String = "",
+        val domainFilter: String = "",
     ) {
         val privateThread get() = threads.firstOrNull { it.isPrivate }
         val shared get() = threads.filter { !it.isPrivate }
@@ -119,7 +147,6 @@ class AtlasOrbitModel(
     // Local draft writes still in flight; the view must not overwrite what the person is typing with an older echo.
     var draftsInFlight = 0
         private set
-    private val askAssistant = mutableMapOf<String, Boolean>()
     private var connection: String? = null
     private var opening = false
     private var closed = false
@@ -207,6 +234,8 @@ class AtlasOrbitModel(
 
     fun openPrivate() = command(JSONObject().put("action", "private"))
 
+    fun newPrivate() = command(JSONObject().put("action", "create_private"))
+
     fun select(id: String) {
         viewEpoch += 1
         AtlasOrbitAttachments.clear()
@@ -240,6 +269,24 @@ class AtlasOrbitModel(
 
     fun refresh() = command(JSONObject().put("action", if (selectionId == null) "load" else "refresh"))
 
+    fun filterStatus(status: String) {
+        if (status in listOf("active", "archived")) command(JSONObject().put("action", "load").put("status", status))
+    }
+
+    fun filter(
+        query: String? = null,
+        domain: String? = null,
+    ) {
+        val action = JSONObject().put("action", "load")
+        if (query != null) action.put("query", query)
+        if (domain != null) action.put("domain", domain)
+        command(action)
+    }
+
+    fun archive(thread: Thread) {
+        command(JSONObject().put("action", "archive").put("id", thread.id).put("archived", !thread.archived))
+    }
+
     fun back(): Boolean {
         when {
             createDraft != null -> discardCreate()
@@ -247,17 +294,6 @@ class AtlasOrbitModel(
             else -> return false
         }
         return true
-    }
-
-    // View preference only; Rust decides who a message addresses (private threads always reach the assistant).
-    fun askAssistant(id: String) = askAssistant[id] == true
-
-    fun setAskAssistant(
-        id: String,
-        value: Boolean,
-    ) {
-        askAssistant[id] = value
-        listener?.invoke()
     }
 
     // Rust keeps the canonical draft and the client ID it reuses when a failed send is retried.
@@ -291,7 +327,7 @@ class AtlasOrbitModel(
                 .put("id", id)
                 .put("body", body)
                 .put("attachment_ids", JSONArray(snapshot.draftAttachments.map { it.id }))
-                .put("address_agent", askAssistant(id)),
+                .put("address_agent", true),
         )
         listener?.invoke()
     }
@@ -589,7 +625,14 @@ class AtlasOrbitModel(
     private fun parse(value: JSONObject) =
         Snapshot(
             value.getLong("sequence"),
-            value.optJSONObject("assistant")?.let { Assistant(it.getString("name"), it.getBoolean("configured")) },
+            value.optJSONObject("assistant")?.let { assistant ->
+                Assistant(
+                    assistant.getString("name"),
+                    assistant.getBoolean("configured"),
+                    assistant.optBoolean("searchable"),
+                    assistant.optJSONArray("domains")?.objects()?.map { Domain(it.getString("id"), it.getString("name")) } ?: emptyList(),
+                )
+            },
             value.getJSONArray("threads").objects().map(::thread),
             value.optJSONObject("selected")?.let(::thread),
             value.getJSONArray("messages").objects().map(::message),
@@ -610,6 +653,9 @@ class AtlasOrbitModel(
             value.optBoolean("upload_pending"),
             value.nullableString("upload_filename"),
             value.optBoolean("cached"),
+            value.optString("status_filter", "active"),
+            value.optString("query"),
+            value.optString("domain_filter"),
         )
 
     private fun thread(value: JSONObject) =
@@ -621,6 +667,10 @@ class AtlasOrbitModel(
             value.optString("summary"),
             value.optJSONArray("participants")?.objects()?.map { Person(it.getString("id"), it.getString("name")) } ?: emptyList(),
             value.getString("updated_at"),
+            value.nullableString("priority")?.takeIf { it in listOf("now", "today", "later") },
+            value.nullableString("owner_id"),
+            value.nullableString("domain"),
+            value.nullableString("agent_status"),
         )
 
     private fun message(value: JSONObject) =
@@ -641,6 +691,7 @@ class AtlasOrbitModel(
                 .nullableString(
                     "parent_message_id",
                 )?.takeIf { it.matches(Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) },
+            value.nullableString("notice_kind"),
         )
 
     private fun attachment(value: JSONObject) =

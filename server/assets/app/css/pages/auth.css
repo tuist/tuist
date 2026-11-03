@@ -170,6 +170,19 @@
       flex-direction: column;
       gap: var(--noora-spacing-4);
     }
+
+    & [data-part="turnstile-pending"],
+    & [data-part="turnstile-error"] {
+      font: var(--noora-font-body-small);
+    }
+
+    & [data-part="turnstile-pending"] {
+      color: var(--noora-surface-label-secondary);
+    }
+
+    & [data-part="turnstile-error"] {
+      color: var(--noora-surface-label-destructive);
+    }
   }
 
   & [data-part="background"] {

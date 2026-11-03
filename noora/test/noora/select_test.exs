@@ -13,11 +13,13 @@ defmodule Noora.SelectTest do
         id: "language",
         label: "Language",
         field: form[:language],
+        disabled: true,
         item: [%{value: "json", label: "JSON"}, %{value: "javascript", label: "JavaScript"}]
       })
 
     assert html =~ ~s(data-value="javascript")
     assert html =~ ~s(name="automation[language]")
+    assert html =~ "data-disabled"
     assert html =~ "JavaScript"
   end
 

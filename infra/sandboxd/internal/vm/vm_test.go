@@ -7,6 +7,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 )
@@ -218,5 +219,23 @@ func TestCappedLogStartsOverPastTheLimitAndRefusesSymlinks(t *testing.T) {
 	}
 	if tail := LogTail(link, 4096); tail != "" {
 		t.Fatalf("LogTail followed a symlink and returned %q", tail)
+	}
+}
+
+func TestParseStatCPUTime(t *testing.T) {
+	stat := "4242 (fire (cracker)) S 1 4242 4242 0 -1 4194560 812 0 0 0 1234 566 0 0 20 0 9 0 51 2147483648 3000 18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 17 3 0 0 0 0 0\n"
+	if got, ok := parseStatCPUTime(stat); !ok || got != 18*time.Second {
+		t.Fatalf("got %v %v, want 18s", got, ok)
+	}
+	for _, bad := range []string{"", "4242 fire S 1", "4242 (fire) S 1 2 3"} {
+		if _, ok := parseStatCPUTime(bad); ok {
+			t.Fatalf("parsed %q", bad)
+		}
+	}
+}
+
+func TestProcessCPUTimeOfAMissingProcess(t *testing.T) {
+	if _, ok := processCPUTime(0); ok {
+		t.Fatal("read a CPU time for pid 0")
 	}
 }

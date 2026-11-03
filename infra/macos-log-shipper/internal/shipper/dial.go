@@ -2,7 +2,6 @@ package shipper
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -44,9 +43,14 @@ func dialContextVia(resolver *net.Resolver, timeout time.Duration) func(context.
 		// "no such host" hid the fact that MagicDNS was answering and refusing
 		// the name — the push log named the symptom every minute for hours
 		// while saying nothing about the half that mattered.
-		return nil, fmt.Errorf("magicdns: %w; system resolver: %w", primaryErr, systemErr)
+		return nil, &resolverFailures{primary: primaryErr, system: systemErr}
 	}
 }
+
+type resolverFailures struct{ primary, system error }
+
+func (failure *resolverFailures) Error() string   { return "magicdns and system resolver failed" }
+func (failure *resolverFailures) Unwrap() []error { return []error{failure.primary, failure.system} }
 
 // magicDNSResolver answers from tailscaled rather than from /etc/resolv.conf.
 func magicDNSResolver(timeout time.Duration) *net.Resolver {
@@ -62,9 +66,9 @@ func magicDNSResolver(timeout time.Duration) *net.Resolver {
 // NewHTTPClient returns the client the shipper pushes with. Every dial
 // resolves again, so a receiver that moves to a new tailnet address is picked
 // up without restarting the agent.
-func NewHTTPClient(timeout time.Duration) *http.Client {
-	return &http.Client{
+func NewHTTPClient(timeout time.Duration) (*http.Client, error) {
+	return certificateTrustClient(&http.Client{
 		Timeout:   timeout,
 		Transport: &http.Transport{DialContext: dialContextVia(magicDNSResolver(5*time.Second), 10*time.Second)},
-	}
+	}, nil)
 }

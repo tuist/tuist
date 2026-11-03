@@ -67,7 +67,8 @@ with `--fail-orbit-refresh` to catch accidental model recreation.
 data and in-memory environment storage. `--press settings-this-mac` selects the
 native This Mac tab; `--scroll-content bottom` exposes the lower permissions and
 save controls. `--press orbit-environment` opens the production tool-environment
-popover for the selected private fixture thread. These fixtures neither enroll
+menu for the selected private fixture thread. `--hosted-environment` starts
+with the fictional Tuist workspace selected. These fixtures neither enroll
 this Mac nor access a real Keychain, microphone, display or live Atlas session.
 
 `--environment-jobs` adds a fictional queued job to the selected private conversation
@@ -75,6 +76,13 @@ on iOS/macOS. `--environment-running`, `--environment-completed` and
 `--environment-unknown` render the corresponding authoritative-shaped states.
 Mac `--press environment-stop` exercises the Stop action without claiming the Mac has
 acknowledged it. Fixtures never execute the displayed xcodebuild command.
+
+`--workspace --orbit-suggestions` supplies two successive fictional replies with different
+follow-up prompts after explicit sends. The composer UI test checks horizontal reachability,
+draft-only selection/editing, replacement after each reply, and reset in a new conversation.
+`--reduce-transparency` and `--increased-contrast` exercise the system-surface fallback;
+light and dark accessibility-text states retain screenshot attachments. This is fixture-backed
+rendering/interaction evidence, not live model quality or inference evidence.
 
 `--live-activity` renders the shared production ActivityKit view and requests real
 local activities through the preview's separately identified WidgetKit extension.

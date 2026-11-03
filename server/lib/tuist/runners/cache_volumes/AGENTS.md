@@ -6,8 +6,30 @@ these schemas persist volume identities and per-job uses.
 - Account-scope all browser reads and writes. Agent reports, uploads and
   publications are separately authenticated and bound to the node that received
   the allocation. Read-only image `retain` and `download` requests may name a use
-  from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
-  listed by `VolumePrefetch`) under the use that published it.
+  from any node: hosts prefetch a custom HEAD (`prefetch_heads/4`, listed by
+  `VolumePrefetch`) under the use that published it.
+- `prefetch_heads/4` lists, for a macOS host of a class or a Linux host of a
+  fleet (Linux job shapes share its nodes), first up to 32
+  `prewarm` HEADs (volumes at least two workflow runs used in the last seven
+  days and unused for four hours) and then up to 8 `recent` HEADs (used in the
+  last day). Each list takes the accounts in turn, most recently active first,
+  and each account's volumes most recently used first. An idle volume's HEAD
+  cannot change before its next job, so one download per host covers the whole
+  idle period, including a weekend. Two runs leave out keys one run made for
+  itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
+  host gets only the repositories `VolumePlacement` places on it: every volume of
+  an account's repository goes to the same hosts, one more than the repository's
+  jobs ran on at once over the week and at least two, picked by rendezvous
+  hashing weighted by advertised cache capacity, and the caps apply per host.
+  Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
+  schedule learned per
+  weekday and UTC hour covered none of the customer first-of-day starts from
+  2026-10-08 to 10-22, whose start times move by hours from day to day. The
+  `reason` reaches the hosts' `tuist_runner_cache_volume_prefetched_bytes_total`
+  metric. macOS hosts ask `GET /api/internal/runners/cache-masters` with their
+  per-machine token; the Linux agent asks
+  `GET /api/internal/runners/cache-volumes/masters?node_name=` with the agent
+  token every Linux node shares, which only answers for Linux fleets.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
@@ -55,11 +77,43 @@ these schemas persist volume identities and per-job uses.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   job GitHub's API names the runner on and records it through
   `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  The API lags too, so a miss snoozes and asks again every two seconds for 20
+  seconds; keep that window inside the agent's wait.
   The API's job status can still read `queued` for minutes after the job
   started, so a `queued` job carrying the runner's name binds too; the log line
   `recorded execution from GitHub API` says which status bound it.
   An agent that is still answered 425 at its deadline reports `execution_pending`
   (macOS reason, Linux 425 to the guest), never `denied`.
+- The one job-supplied input that may bind a session is a GitHub Actions OIDC
+  token the job minted for the `tuist-runner-cache` audience
+  (`Runners.ExecutionTokens`). The job-started hook requests it when the
+  workflow grants `id-token: write`, before any attach, and the agent forwards it
+  unread to `/runners/cache-volumes/execution`. Its `check_run_id` must be a
+  GitHub job of the session's account in the claimed repository, not yet
+  completed and bound to no other session, and the session must not be bound to
+  another job: a token names no runner, so it never overrides GitHub's report.
+  The check and the bind run under the per-account lock GitHub's reports take. With `FeatureFlags.runner_oidc_execution_enabled?/1`
+  it binds through `Dispatch.record_execution/3`; without it the job is only
+  logged (`execution token names a job (not binding)`) beside the session's
+  binding. Never accept any other claim or variable from the job this way.
+  A token that binds also stores its claims on the session
+  (`execution_identity`, tied to the job it named), which `Identity.resolve/1`
+  reads only while the account has the flag. It takes a
+  push, schedule or workflow_dispatch job's identity from them without reading
+  the run; only the default branch comes from GitHub's repository (cached for
+  five minutes), or from the volumes' recorded `default_branch` when GitHub cannot
+  answer. Only a `refs/heads/` ref saves as the default branch; a tag of the same
+  name never does. A pull request job still reads the run to tell a fork apart, and when
+  GitHub cannot answer it attaches read-only (`same_repository` false, no writer
+  branch), so its custom volumes and checkout still read and its Docker volume
+  stays unavailable. A checkout needs a known default branch.
+- GitLab's identity is captured right after the job is acquired, by
+  `Workers.CaptureGitLabIdentityWorker` (`Identity.capture_gitlab/1`,
+  `runner_gitlab_jobs.cache_volume_identity`), so allocation does not call
+  GitLab; it resolves live only when that capture has not landed, and uses the
+  stored identity only while the assignment holds its payload. The worker is
+  enqueued in the assignment's transaction; keep GitLab calls out of the
+  acquisition itself: a GitLab failure there must never fail the job.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
@@ -167,7 +221,11 @@ these schemas persist volume identities and per-job uses.
   under the use through `image/3` (`checkout_publish`): only the generation and the
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
-  `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
+  `prefetch_heads` lists checkout HEADs in a list of their own (`@checkout_limit`,
+  after the custom volumes' lists, so they never take a custom volume's place), as
+  `kind: "checkout"` with the `checkout_generation`, `clone_url`, `default_branch`,
+  `uid` and `volume_key` a host restores the master with. A host without the
+  master still answers a job cold and restores it in the background.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
   default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the

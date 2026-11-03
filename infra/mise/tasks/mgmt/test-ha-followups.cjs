@@ -124,3 +124,43 @@ for (const scenario of ['unready', 'tailscale-down', 'reference', 'ghost']) {
     assert.equal(deletes(calls).length, 0);
   });
 }
+
+test('management workflow distinguishes deferred Tailscale replacement from API failure', () => {
+  const workflow = JSON.parse(execFileSync('yq', ['-o=json', '.', path.join(root, '.github/workflows/mgmt-cluster-apply.yml')], { encoding: 'utf8' }));
+  const guard = workflow.jobs.apply.steps.find(s => s.name === 'Guard management Tailscale DaemonSet replacement');
+  const desired = execFileSync('yq', ['-r', 'select(.kind == "DaemonSet") | .spec.template.spec.containers[0].image', path.join(root, 'infra/k8s/mgmt/tailscale.yaml')], { encoding: 'utf8' }).trim();
+  const fixture = image => JSON.stringify({ kind: 'DaemonSet', metadata: { name: 'tailscale', namespace: 'mgmt-tailscale' }, spec: { template: { spec: { containers: [{ name: 'tailscale', image }] } } } });
+  fs.mkdirSync(path.join(root, 'tmp'), { recursive: true });
+  const dir = fs.mkdtempSync(path.join(root, 'tmp/mgmt-qualification-test-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'kubectl'), '#!/bin/sh\nprintf "%s" "$GUARD_FIXTURE"\nexit "$GUARD_EXIT"\n', { mode: 0o755 });
+    for (const scenario of [
+      { name: 'old image', raw: fixture('old-image'), qualified: false, apply: false },
+      { name: 'missing DaemonSet', raw: '', qualified: false, apply: false },
+      { name: 'unchanged image', raw: fixture(desired), qualified: false, apply: true },
+      { name: 'qualified replacement', raw: fixture('old-image'), qualified: true, apply: true },
+      { name: 'qualified migration', raw: '', qualified: true, apply: true },
+      { name: 'malformed response', raw: '{', qualified: true, error: true },
+      { name: 'API unavailable', raw: '', exit: 1, qualified: true, error: true },
+      { name: 'API status must not resemble deferral', raw: '', exit: 3, qualified: false, error: true },
+    ]) {
+      const output = path.join(dir, 'output');
+      const summary = path.join(dir, 'summary');
+      fs.writeFileSync(output, '');
+      fs.writeFileSync(summary, '');
+      const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', guard.run], {
+        cwd: root,
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GUARD_FIXTURE: scenario.raw, GUARD_EXIT: String(scenario.exit || 0), ACCESS_QUALIFIED: String(scenario.qualified), GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary },
+        encoding: 'utf8', timeout: 15000,
+      });
+      assert.equal(result.status, scenario.error ? 1 : 0, `${scenario.name}: ${result.stderr}`);
+      assert.equal(fs.readFileSync(output, 'utf8'), scenario.error ? '' : `apply=${scenario.apply}\n`, scenario.name);
+      if (scenario.apply === false) {
+        assert.match(result.stdout, /::warning::.*deferred pending qualification/, scenario.name);
+        assert.match(fs.readFileSync(summary, 'utf8'), /replacement deferred/, scenario.name);
+      }
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

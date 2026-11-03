@@ -79,11 +79,27 @@ enum BazelrcFile {
         """
     }
 
+    static func renderNetworkTrustedCache(
+        endpoint: GRPCEndpoint, accountHandle: String, projectHandle: String, buildInsights: Bool, actorOverride: String? = nil
+    ) -> String {
+        let reports = buildInsights ? renderNetworkTrustedReports(
+            endpoint: endpoint, accountHandle: accountHandle, projectHandle: projectHandle, actorOverride: actorOverride
+        ) : ""
+        return """
+        # Network-trusted cache: access is enforced by the self-hosted Kura policy.
+        \(remoteCacheFlag)\(endpoint.url)
+        build --remote_header=x-tuist-account-handle=\(accountHandle)
+        build --remote_instance_name=\(projectHandle)
+        \(remoteCacheCompressionFlag)
+        \(reports)
+        """
+    }
+
     static func renderNetworkTrustedReports(
         endpoint: GRPCEndpoint, accountHandle: String, projectHandle: String, actorOverride: String? = nil
     ) -> String {
         """
-        # Reporting only: no remote cache, downloader, credential helper, or artifact uploader.
+        # Network-trusted reporting: no credential helper or artifact uploader.
         \(buildEventServiceFlag)\(endpoint.url)
         build --bes_header=x-tuist-account-handle=\(accountHandle)
         build --bes_header=x-tuist-project-handle=\(projectHandle)

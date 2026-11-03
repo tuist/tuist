@@ -239,6 +239,13 @@ type RunnerPoolAutoscaling struct {
 	// +optional
 	MinWarmPoolFloor *int32 `json:"minWarmPoolFloor,omitempty"`
 
+	// MaxLearnedWarmPoolFloor caps the warm floor the server learns from
+	// the pool's own jobs: the burst its jobs arrive in, kept idle above
+	// the pool's load while the pool has had a job in the last day. 0
+	// turns the learned floor off, leaving only MinWarmPoolFloor.
+	// +optional
+	MaxLearnedWarmPoolFloor int32 `json:"maxLearnedWarmPoolFloor,omitempty"`
+
 	// MaxReplicas is the hard ceiling on the autoscaler-driven
 	// `spec.replicas` value. 0 disables autoscaling-driven scale
 	// changes (the static `spec.replicas` still applies).
@@ -419,6 +426,14 @@ type RunnerPoolStatus struct {
 	// of several starved pools on a fleet goes first.
 	// +optional
 	UnplaceableSince *metav1.Time `json:"unplaceableSince,omitempty"`
+
+	// LastDemandAt is when the autoscaler last saw the pool with real work
+	// (occupied, queued or held at an account's limit), stamped at most
+	// every demandStampInterval. tart-kubelet ranks the images it keeps
+	// within a host's golden budget by it, so the images in use stay on
+	// every host and the idle ones give way.
+	// +optional
+	LastDemandAt *metav1.Time `json:"lastDemandAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -9,6 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
@@ -45,6 +46,8 @@ type poolLister struct {
 	// upcoming is the data of the upcoming runner images ConfigMap.
 	upcoming    map[string]string
 	upcomingErr error
+	// budgets is the data of the golden budgets ConfigMap, keyed by fleet.
+	budgets map[string]string
 	// pods are the Pods on this host.
 	pods []corev1.Pod
 }
@@ -53,11 +56,18 @@ func (l *poolLister) Get(context.Context, client.ObjectKey, client.Object, ...cl
 	return errors.New("unexpected Get")
 }
 
-func (l *poolLister) List(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+func (l *poolLister) List(_ context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	if l.err != nil {
 		return l.err
 	}
 	if cms, ok := list.(*corev1.ConfigMapList); ok {
+		selector := (&client.ListOptions{}).ApplyOptions(opts).LabelSelector
+		if selector != nil && selector.Matches(labels.Set{goldenBudgetsLabel: "true"}) {
+			if l.budgets != nil {
+				cms.Items = append(cms.Items, corev1.ConfigMap{Data: l.budgets})
+			}
+			return nil
+		}
 		return l.listUpcoming(cms)
 	}
 	if pods, ok := list.(*corev1.PodList); ok {

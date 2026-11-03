@@ -37,6 +37,8 @@ on:
       - .github/scripts/runner-kvm-*
       - .github/scripts/linux-runner-image-*
       - .github/scripts/ghcr-manifest-digest*
+      - .github/scripts/helm-adopt-release-objects*
+      - .github/scripts/helm-move-release-objects*
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -54,6 +56,8 @@ on:
       - .github/scripts/runner-kvm-*
       - .github/scripts/linux-runner-image-*
       - .github/scripts/ghcr-manifest-digest*
+      - .github/scripts/helm-adopt-release-objects*
+      - .github/scripts/helm-move-release-objects*
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -142,8 +146,12 @@ jobs:
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test per-node Hubble collection with Alloy
+        run: bash infra/helm/k8s-monitoring/test-hubble-metrics.sh
       - name: Test runner macOS host health alerts
         run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
+      - name: Test runner queue time alert
+        run: bash infra/helm/k8s-monitoring/test-runner-queue-time-alert.sh
 
   render:
     name: Render
@@ -251,6 +259,8 @@ jobs:
         run: python3 infra/helm/tuist/test-cluster-cookie.py
       - name: Test SSO domain verification deployment policy
         run: python3 infra/helm/tuist/test-sso-domain-verification.py
+      - name: Test ClickHouse tailnet Service exposure
+        run: python3 infra/helm/tuist/test-clickhouse-tailnet.py
       - name: CNPG promotion stays in the environment write tier
         run: |
           mise use -g yq@4.52.5
@@ -271,6 +281,10 @@ jobs:
           bash .github/scripts/linux-runner-image-prepare.test.sh
           bash infra/mise/tasks/helm/linux-image-staging.sh
           bash .github/scripts/ghcr-manifest-digest.test.sh
+      - name: Deploys adopt objects already annotated for their release
+        run: bash .github/scripts/helm-adopt-release-objects.test.sh
+      - name: Deploys move objects only from the release that owns them
+        run: bash .github/scripts/helm-move-release-objects.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.
@@ -290,7 +304,7 @@ jobs:
             kubeconform -strict -summary xcresult-processor.yaml
           done
       # The rack charts render with another chart's values, which the loop
-      # above cannot express.
+      # above cannot express. Deploys pass the CSI image; CI pins a placeholder.
       - name: kubeconform the rack charts
         run: |
           set -euo pipefail
@@ -298,7 +312,8 @@ jobs:
             helm template tuist-rack-nodes infra/helm/rack-nodes --namespace tuist \
               -f infra/helm/tuist/values.yaml \
               -f infra/helm/tuist/values-managed-common.yaml \
-              -f "infra/helm/tuist/values-managed-$env.yaml" > rack-nodes.yaml
+              -f "infra/helm/tuist/values-managed-$env.yaml" \
+              --set kuraVolumesCSI.image.tag=validation > rack-nodes.yaml
             kubeconform -strict -summary rack-nodes.yaml
           done
           for overlay in values-tuist-staging.yaml values-tuist.yaml; do
