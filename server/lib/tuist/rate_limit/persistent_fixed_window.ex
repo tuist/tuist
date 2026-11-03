@@ -14,15 +14,7 @@ defmodule Tuist.RateLimit.PersistentFixedWindow do
   def start_link(opts), do: RedisPool.start_link(__MODULE__, opts)
 
   def hit(key, scale, limit, increment \\ 1) do
-    FixWindow.hit(
-      RedisPool.connection(__MODULE__),
-      @prefix,
-      key,
-      scale,
-      limit,
-      increment,
-      @timeout
-    )
+    FixWindow.hit(RedisPool.connection(__MODULE__), @prefix, key, scale, limit, increment, @timeout)
   end
 
   def inc(key, scale, increment \\ 1) do
