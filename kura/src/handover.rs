@@ -3709,12 +3709,9 @@ mod tests {
         assert!(walk.missing_bytes >= 96 * 1024, "{}", walk.missing_bytes);
         require_room_for_barrier(&pair.target.state, &walk).unwrap();
 
-        walk.missing_bytes = pair
-            .target
-            .state
-            .store
-            .handover_admissible_bytes(walk.frontier_ms.unwrap())
-            + 1;
+        // Admissible bytes track the host's free disk, which concurrent tests
+        // change between readings.
+        walk.missing_bytes = u64::MAX;
         let error = require_room_for_barrier(&pair.target.state, &walk).unwrap_err();
         assert!(error.contains("cannot hold the retained corpus"), "{error}");
     }
