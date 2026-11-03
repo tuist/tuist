@@ -473,7 +473,9 @@ address nobody answers for and whose gateway does (`busybox arping`).
 
 **A preinstalled box earns its install with its TPM.** The vendor's acceptance
 report carries the box's SMBIOS UUID and its TPM check code from the unit
-sheet. Declaring the box takes both:
+sheet, or from `sudo rack-node check-code` (the internet boot server serves
+`/tools/rack-node`) on any Linux the box boots; neither shows a code
+without a key. Declaring the box takes both:
 
 ```yaml
 - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f

@@ -23,4 +23,13 @@ defmodule TuistWeb.EndpointTest do
 
     assert request.headers == %{"accept" => "application/json"}
   end
+
+  test "keeps second-factor codes out of Sentry request bodies" do
+    conn = %{Plug.Test.conn(:post, "/users/mfa") | params: %{"mfa_code" => "RECOVERYCODE", "recovery" => "true"}}
+
+    request =
+      Sentry.PlugContext.build_request_interface_data(conn, body_scrubber: {TuistWeb.Endpoint, :scrub_sentry_body})
+
+    assert request.data == %{"recovery" => "true"}
+  end
 end
