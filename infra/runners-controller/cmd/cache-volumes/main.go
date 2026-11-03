@@ -150,7 +150,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unavailable", 403)
 		return
 	}
-	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
+	slot, err := a.store.AcquireSlot(ctx, identity, input.PodName, input.PodUID)
 	outcome = err
 	// A job that mounted an older copy, started empty or timed out fetches the
 	// saved version in the background for the next job on this host.
@@ -163,7 +163,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": warm, "id": identity.ID})
+	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": slot.Warm, "id": identity.ID, "base_generation": identity.BaseGeneration, "mounted_generation": slot.MountedGeneration, "head_saved_at": identity.HeadSavedAt})
 }
 func (a *agent) gone(name, uid string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

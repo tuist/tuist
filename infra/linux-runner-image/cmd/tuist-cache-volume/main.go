@@ -230,16 +230,16 @@ func attach(key string, targets []string, size int64) error {
 	if runtime.GOOS == "darwin" {
 		return attachMac(key, targets, root, size)
 	}
-	return attachUsing(key, targets, root, func() (string, string, bool, error) {
+	return attachUsing(key, targets, root, func() (grant, error) {
 		client, err := newCacheHTTPClient(30 * time.Second)
 		if err != nil {
-			return "", "", false, err
+			return grant{}, err
 		}
 		defer client.CloseIdleConnections()
 		return acquire(client, key, size)
 	}, bindDirectory)
 }
-func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
+func attachUsing(key string, targets []string, root string, getVolume func() (grant, error), mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
 	absolute := make([]string, len(targets))
 	for i, p := range targets {
@@ -269,7 +269,8 @@ func attachUsing(key string, targets []string, root string, getVolume func() (st
 			}
 		}
 	}
-	directory, lease, warm, err := getVolume()
+	granted, err := getVolume()
+	directory, lease, warm := granted.Directory, granted.ID, granted.Warm
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "::warning::Cache volume unavailable: %v\n", err)
 		return coldDirectories(absolute)
@@ -308,7 +309,7 @@ func attachUsing(key string, targets []string, root string, getVolume func() (st
 			return err
 		}
 	}
-	fmt.Printf("Tuist cache volume attached (warm=%t)\n", warm)
+	fmt.Println(granted.attached())
 	return writeOutput(warm)
 }
 
@@ -361,10 +362,10 @@ func emptyTarget(path string) error {
 	}
 	return nil
 }
-func acquire(client *http.Client, key string, size int64) (string, string, bool, error) {
+func acquire(client *http.Client, key string, size int64) (grant, error) {
 	endpoint := os.Getenv("TUIST_CACHE_VOLUME_URL")
 	if endpoint == "" {
-		return "", "", false, errors.New("cache volumes disabled")
+		return grant{}, errors.New("cache volumes disabled")
 	}
 	request := map[string]any{"pod_name": os.Getenv("TUIST_CACHE_VOLUME_POD"), "pod_uid": os.Getenv("TUIST_CACHE_VOLUME_UID"), "key": key, "architecture": runtime.GOARCH, "uid": os.Getuid()}
 	if size > 0 {
@@ -373,17 +374,49 @@ func acquire(client *http.Client, key string, size int64) (string, string, bool,
 	body, _ := json.Marshal(request)
 	req, err := http.NewRequest("POST", endpoint+"/acquire", bytes.NewReader(body))
 	if err != nil {
-		return "", "", false, cacheRequestError{err}
+		return grant{}, cacheRequestError{err}
 	}
 	req.Header.Set("Content-Type", "application/json")
-	var result struct {
-		Directory string `json:"directory"`
-		ID        string `json:"id"`
-		Warm      bool   `json:"warm"`
-	}
+	var result grant
 	err = requestJSON(client, req, &result)
-	return result.Directory, result.ID, result.Warm, err
+	return result, err
 }
+
+// grant is the agent's answer to an attach. BaseGeneration is the saved copy
+// the job starts from, nil when the agent does not say, and MountedGeneration
+// the older copy it cloned instead when that one was not on the host.
+type grant struct {
+	Directory         string `json:"directory"`
+	ID                string `json:"id"`
+	Warm              bool   `json:"warm"`
+	BaseGeneration    *int64 `json:"base_generation"`
+	MountedGeneration int64  `json:"mounted_generation"`
+	HeadSavedAt       string `json:"head_saved_at"`
+}
+
+// attached is the line a job prints for its attached volume: what its copy
+// started from.
+func (g grant) attached() string {
+	line := fmt.Sprintf("Tuist cache volume attached (warm=%t)", g.Warm)
+	if g.BaseGeneration == nil {
+		return line
+	}
+	latest := fmt.Sprintf("generation %d", *g.BaseGeneration)
+	if saved, err := time.Parse(time.RFC3339, g.HeadSavedAt); err == nil {
+		latest += ", saved " + saved.UTC().Format(time.RFC3339)
+	}
+	switch {
+	case *g.BaseGeneration <= 0:
+		return line + ": nothing has been saved to this volume yet"
+	case !g.Warm:
+		return "::notice::" + line + ": started empty because the latest copy (" + latest + ") is not on this runner host yet. Changes from this job will not replace that copy unless the volume ends up more than twice its size."
+	case g.MountedGeneration > 0:
+		return fmt.Sprintf("%s: started from an older copy (generation %d) because the latest copy (%s) is not on this runner host yet", line, g.MountedGeneration, latest)
+	default:
+		return line + ": started from the latest copy (" + latest + ")"
+	}
+}
+
 func requestJSON(client *http.Client, req *http.Request, result any) error {
 	response, err := client.Do(req)
 	if err != nil {

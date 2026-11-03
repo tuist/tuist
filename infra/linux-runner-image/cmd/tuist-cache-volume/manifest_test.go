@@ -18,8 +18,8 @@ func attachLayout(t *testing.T, base string, targets ...string) map[string]strin
 	cache := filepath.Dir(base)
 	sources := map[string]string{}
 	mounted := map[string]string{}
-	err := attachUsing("key", targets, cache, func() (string, string, bool, error) {
-		return filepath.Base(base), "lease", true, nil
+	err := attachUsing("key", targets, cache, func() (grant, error) {
+		return grant{Directory: filepath.Base(base), ID: "lease", Warm: true}, nil
 	}, func(_ string, source, target string) error {
 		sources[target] = filepath.Base(source)
 		return nil

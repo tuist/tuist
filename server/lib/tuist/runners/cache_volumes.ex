@@ -417,10 +417,15 @@ defmodule Tuist.Runners.CacheVolumes do
         can_publish: usage.can_publish,
         uid: volume.uid,
         volume_bytes: usage.volume_bytes || volume_bytes,
-        head_size_bytes: saved_head && saved_head.size_bytes
+        head_size_bytes: saved_head && saved_head.size_bytes,
+        head_saved_at: saved_head && saved_at(saved_head)
       }
     end)
   end
+
+  # A published use's `finished_at` is when it was saved.
+  defp saved_at(%Usage{finished_at: nil}), do: nil
+  defp saved_at(%Usage{finished_at: at}), do: at |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   # The volume row of the job's identity, created on first use.
   defp insert_volume!(job, identity, attrs) do
@@ -738,6 +743,62 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
     do: is_integer(mounted) and is_integer(base) and mounted < base
+
+  @doc """
+  Why the changes of discarded uses were not saved, by use ID, for the
+  `{use, volume}` pairs given: `:read_only` when the job could not save,
+  `:started_empty` when it started empty although its lineage had a saved copy
+  (`cold_publish?/2` decides when such a use may replace it), and `:saved_first`
+  when another use based on the same copy published first. A discard the server
+  cannot explain (an unchanged or full copy, a failed job) has no entry.
+  """
+  def discard_reasons(pairs) do
+    discarded = for {use, volume} <- pairs, use.status == "discarded", volume.key != @checkout_key, do: {use, volume}
+
+    contested =
+      for {use, volume} <- discarded, use.can_publish == true, not cold?(volume, use), do: use
+
+    saved =
+      case contested do
+        [] ->
+          []
+
+        _ ->
+          Repo.all(
+            from(u in Usage,
+              where:
+                u.volume_id in ^Enum.uniq(Enum.map(contested, & &1.volume_id)) and
+                  u.base_generation in ^Enum.uniq(Enum.map(contested, & &1.base_generation)) and
+                  not is_nil(u.published_generation),
+              select: {u.id, u.volume_id, u.generation, u.base_generation}
+            )
+          )
+      end
+
+    discarded
+    |> Map.new(fn {use, volume} ->
+      reason =
+        cond do
+          use.can_publish == false ->
+            :read_only
+
+          cold?(volume, use) ->
+            :started_empty
+
+          Enum.any?(saved, fn {id, volume_id, generation, base} ->
+            id != use.id and volume_id == use.volume_id and generation == use.generation and
+                base == use.base_generation
+          end) ->
+            :saved_first
+
+          true ->
+            nil
+        end
+
+      {use.id, reason}
+    end)
+    |> Map.reject(fn {_id, reason} -> is_nil(reason) end)
+  end
 
   @doc """
   Whether a Docker use's guest could not mount the saved data root and started

@@ -101,7 +101,7 @@ func cacheOperations(t *testing.T, endpoint string) map[string]func(*http.Client
 	t.Setenv("TUIST_CACHE_VOLUME_POD", "fixture-pod-private")
 	t.Setenv("TUIST_CACHE_VOLUME_UID", "fixture-uid-private")
 	return map[string]func(*http.Client) error{
-		"acquire": func(client *http.Client) error { _, _, _, err := acquire(client, "fixture-key-private", 0); return err },
+		"acquire": func(client *http.Client) error { _, err := acquire(client, "fixture-key-private", 0); return err },
 		"checkout": func(client *http.Client) error {
 			_, err := (&linuxCheckoutClient{endpoint: endpoint, pod: "fixture-pod-private", uid: "fixture-uid-private", http: client}).request(context.Background())
 			return err

@@ -43,6 +43,8 @@ type Identity struct {
 	// HeadSizeBytes is the measured used bytes of the saved head, or zero when
 	// unknown.
 	HeadSizeBytes int64 `json:"head_size_bytes"`
+	// HeadSavedAt is when the saved head was published, in RFC 3339, or empty.
+	HeadSavedAt string `json:"head_saved_at,omitempty"`
 }
 
 // DefaultMaxVolumeBytes is the largest volume a host accepts when its agent
@@ -300,19 +302,23 @@ func (s *Store) lock(id string) func() {
 	}
 }
 func (s *Store) Acquire(ctx context.Context, identity Identity, pod, uid string) (bool, error) {
+	slot, err := s.AcquireSlot(ctx, identity, pod, uid)
+	return slot.Warm, err
+}
+
+// AcquireSlot is Acquire returning the attached slot, which records the older
+// generation a branch was cloned from.
+func (s *Store) AcquireSlot(ctx context.Context, identity Identity, pod, uid string) (Slot, error) {
 	if !valid(identity, pod, uid, s.MaxVolumeBytes) {
-		return false, errors.New("invalid identity")
+		return Slot{}, errors.New("invalid identity")
 	}
 	unlock := s.lock(identity.ID)
 	defer unlock()
 	s.mu.Lock()
 	slot, err := s.allocate(identity, pod, uid)
 	s.mu.Unlock()
-	if err != nil {
-		return false, err
-	}
-	if slot.State == "active" {
-		return slot.Warm, nil
+	if err != nil || slot.State == "active" {
+		return slot, err
 	}
 	return s.attach(ctx, slot)
 }
@@ -355,19 +361,19 @@ func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 	}
 	return slot, nil
 }
-func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
+func (s *Store) attach(ctx context.Context, slot Slot) (Slot, error) {
 	if err := ctx.Err(); err != nil {
-		return false, err
+		return Slot{}, err
 	}
 	start := time.Now()
 	if err := s.root.MkdirAll("pods/"+slot.PodUID+"/"+slot.Scope, 0755); err != nil {
-		return false, err
+		return Slot{}, err
 	}
 	if err := s.backend.Attach(ctx, slot, s.activePath(slot)); err != nil {
-		return false, err
+		return Slot{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return false, err
+		return Slot{}, err
 	}
 	slot.State = "active"
 	slot.AttachMS = time.Since(start).Milliseconds()
@@ -381,17 +387,17 @@ func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
 		slot.SizeBytes, slot.CapacityBytes = &used, &capacity
 	}
 	if err := ctx.Err(); err != nil {
-		return false, err
+		return Slot{}, err
 	}
 	if err := s.save(slot); err != nil {
-		return false, err
+		return Slot{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		// A slow journal fsync must not make an expired restoration publishable.
 		slot.State = "allocated"
-		return false, errors.Join(err, s.save(slot))
+		return Slot{}, errors.Join(err, s.save(slot))
 	}
-	return slot.Warm, nil
+	return slot, nil
 }
 
 // Reporter returns hold/wait, seal, keep, delete, or forget. A remote delete

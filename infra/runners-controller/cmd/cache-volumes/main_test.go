@@ -151,3 +151,39 @@ func TestReportPublishesAnEmptyStartOnlyWhenTheServerAllowsIt(t *testing.T) {
 		})
 	}
 }
+
+// olderCopyBackend clones generation 2 for every use, as a host does whose
+// local master is older than the use's base.
+type olderCopyBackend struct{ testBackend }
+
+func (olderCopyBackend) MountedGeneration(cachevolumes.Slot) int64 { return 2 }
+
+func TestAcquireTellsTheGuestWhichCopyItStartedFrom(t *testing.T) {
+	root := t.TempDir()
+	s, err := cachevolumes.Open(root, olderCopyBackend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "runner", Namespace: "runners", UID: types.UID("uid"), Labels: map[string]string{"tuist.dev/runner": "true"}}, Spec: corev1.PodSpec{NodeName: "node"}, Status: corev1.PodStatus{PodIP: "10.0.0.5", Phase: corev1.PodRunning}}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"id": "00000000-0000-0000-0000-000000000001", "account_id": 1, "scope": strings.Repeat("a", 64), "parent_id": "00000000-0000-0000-0000-000000000002", "base_generation": 3, "image_digest": strings.Repeat("b", 40), "content_digest": strings.Repeat("c", 64), "head_saved_at": "2026-11-03T16:36:23Z"})
+	}))
+	defer upstream.Close()
+	tokenPath := filepath.Join(root, "token")
+	os.WriteFile(tokenPath, []byte("agent-token"), 0600)
+	a := &agent{tokenPath: tokenPath, store: s, kube: fake.NewSimpleClientset(pod), namespace: "runners", node: "node", authorizeURL: upstream.URL, http: upstream.Client()}
+	body, _ := json.Marshal(request{PodName: "runner", PodUID: "uid", Key: "gradle"})
+	req := httptest.NewRequest("POST", "/acquire", bytes.NewReader(body))
+	req.RemoteAddr = "10.0.0.5:1234"
+	w := httptest.NewRecorder()
+	a.serve(w, req)
+
+	var answer map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&answer); err != nil || w.Code != 200 {
+		t.Fatal("acquisition failed", w.Code, err)
+	}
+	if answer["warm"] != true || answer["base_generation"] != float64(3) || answer["mounted_generation"] != float64(2) || answer["head_saved_at"] != "2026-11-03T16:36:23Z" {
+		t.Fatalf("answered %v", answer)
+	}
+}

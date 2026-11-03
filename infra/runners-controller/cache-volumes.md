@@ -82,6 +82,11 @@ The filesystem-specific implementation lives in `../runner-cache/local.go`:
   downloads the assigned version in the background through a presigned URL,
   checks its SHA-256 and restores it sparsely, so the host's next job is warm.
   It never advertises a hit from corrupt data.
+- The agent's acquire answer carries the use's `base_generation`, the
+  `mounted_generation` it cloned instead (0 when none) and the saved head's
+  `head_saved_at`, from the server's allocation. The guest prints which copy the
+  job started from, and a `::notice::` when it started empty although a copy was
+  saved. A guest answered without `base_generation` prints only `warm`.
 - Archives hold only the image's data: the agent walks the extents the host
   filesystem reports with `SEEK_DATA`/`SEEK_HOLE`, drops zero chunks, and stores
   each remaining run with its offset in a zstd stream. Saving and restoring
