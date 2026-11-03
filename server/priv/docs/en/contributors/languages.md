@@ -7,7 +7,7 @@
 ---
 # Languages {#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist does not support yet, you can help Tuist speak that language by improving the English source and the localization context that drives our translation pipeline.
+Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist does not support yet, you can help Tuist speak that language by improving the English source and the localization context that [Glossia](https://glossia.ai) uses to translate it.
 
 Since language support is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
 
@@ -29,14 +29,14 @@ Since language support is a continuous effort, we add languages as we see contri
 
 ## How to help {#how-to-translate}
 
-Tuist language support is driven from the repository. Contributors update the English source and the translation context, and our translation pipeline produces the localized files automatically.
+Tuist language support is driven from the repository. Contributors update the English source and the translation context, and [Glossia](https://glossia.ai) produces the localized files automatically.
 
 The workflow is:
 
 1. Update the English source content.
 2. Update the relevant `L10N.md` context if translators need more guidance.
 3. Open a pull request with those source changes.
-4. After the changes land on `main`, the translation workflow regenerates the target `.po` files and opens a follow-up pull request with the translated updates.
+4. After the changes land on `main`, Glossia translates what changed and keeps a translation pull request open with the updated localized files.
 
 > [!WARNING]
 > **Don't Modify Generated Localized Content**
@@ -46,7 +46,7 @@ The workflow is:
 
 ## L10N.md structure {#l10n-md-structure}
 
-`L10N.md` files define the context that is sent to the translation model. The easiest way to think about them is as scoped language instructions that can live at different directory levels.
+`L10N.md` files define the context that Glossia uses when translating. The easiest way to think about them is as scoped language instructions that can live at different directory levels.
 
 For example:
 
@@ -65,7 +65,7 @@ For example:
 
 ## Directory context {#directory-context}
 
-The translation script walks from the repository root down to the directory being translated and combines every `L10N.md` file it finds on that path.
+Glossia walks from the repository root down to the directory being translated and combines every `L10N.md` file it finds on that path.
 
 In the example above:
 

@@ -48,6 +48,10 @@ defmodule Tuist do
       Ops.Database,
       Ops.FeatureFlags,
       Observability,
+      RateLimit,
+      RateLimit.InMemory,
+      RateLimit.PersistentFixedWindow,
+      RateLimit.PersistentTokenBucket,
       BrowserTelemetry.Receipts,
       # App
       # -----
@@ -91,6 +95,7 @@ defmodule Tuist do
       Kura.Identity,
       Kura.Registrations,
       Kura.RegisteredEndpoint,
+      Kura.VolumeKeys,
       Gradle,
       Gradle.Analytics,
       Gradle.Metrics,
@@ -194,6 +199,7 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.User,
+      Accounts.UserToken,
       Authentication,
       Authentication.UnavailableError,
       Authentication.SubjectCache,
