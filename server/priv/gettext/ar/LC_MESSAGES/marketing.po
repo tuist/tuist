@@ -2802,11 +2802,6 @@ msgstr "%{vcpus} vCPU · %{memory} جيجابايت"
 msgid "/min"
 msgstr "/دقيقة"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:329
-#, elixir-autogen, elixir-format
-msgid "100 free macOS minutes every month"
-msgstr "100 دقيقة مجانية لنظام macOS كل شهر"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:999
 #, elixir-autogen, elixir-format
 msgid "How are Tuist Runners billed?"
@@ -2873,11 +2868,6 @@ msgstr "+ بدءاً من %{macos}/دقيقة على macOS و%{linux}/دقيقة
 msgid "Commit for a year or run at higher volume and we'll lower your rate."
 msgstr "التزم لمدة عام أو زد حجم التشغيل وسنخفض سعرك."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
-#, elixir-autogen, elixir-format
-msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes a month and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
-msgstr "لكل دقيقة من وقت المهمة، بدءاً من لحظة بدء مزود CI للمهمة وحتى انتهائها، دون تقريب لأعلى إلى دقائق كاملة. لا تُحتسب رسوم على إقلاع الجهاز وتنظيفه. تتضمن كل خطة 100 دقيقة مجانية لنظام macOS شهرياً و100 غيغابايت من مساحة تخزين وحدات التخزين المؤقتة، مع احتساب أي تخزين إضافي بسعر 0.10 دولار لكل غيغابايت-شهر. تتوفر خصومات للالتزامات السنوية وحالات الاستخدام الأعلى. تواصل معنا عبر contact@tuist.dev لترتيب التسعير السنوي أو حسب الحجم."
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Price"
@@ -2888,12 +2878,22 @@ msgstr "السعر"
 msgid "Tuist Runners are invite-only while we scale capacity. Tell us about your workloads and we'll get you set up, including yearly and volume pricing."
 msgstr "مشغّلات Tuist متاحة بالدعوة فقط أثناء توسيعنا للسعة. أخبرنا عن أحمال العمل الخاصة بك وسنقوم بإعداد حسابك، بما في ذلك خيارات التسعير السنوي وحسب الحجم."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:331
-#, elixir-autogen, elixir-format
-msgid "Included on every plan, Air too."
-msgstr "متضمنة في كل خطة، حتى خطة Air."
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Keep dependencies and build outputs between jobs. Beyond 100 GB per account, storage is %{price} per GB-month."
 msgstr "احتفظ بالتبعيات ومخرجات البناء بين المهام. بعد تجاوز 100 غيغابايت لكل حساب، تكون تكلفة التخزين %{price} لكل غيغابايت-شهر."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:329
+#, elixir-autogen, elixir-format
+msgid "100 free macOS and 2,500 free Linux minutes every month"
+msgstr "100 دقيقة مجانية لنظام macOS و2,500 دقيقة مجانية لنظام Linux كل شهر"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:331
+#, elixir-autogen, elixir-format
+msgid "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
+msgstr "متضمنة في كل خطة، بما في ذلك Air. تُحتسب دقائق Linux على جهاز بـ 2 vCPU / 8 GB من الذاكرة، لذا تعمل الأجهزة الأصغر لفترة أطول."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
+#, elixir-autogen, elixir-format
+msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
+msgstr "لكل دقيقة من وقت المهمة، بدءاً من لحظة بدء مزود خدمة CI للمهمة وحتى انتهائها، دون تقريب للأعلى إلى دقائق كاملة. لا تُفرض رسوم على إقلاع الجهاز وتنظيفه. تتضمن كل خطة 100 دقيقة مجانية لنظام macOS و2,500 دقيقة مجانية لنظام Linux شهرياً، محسوبة على جهاز Linux بـ 2 vCPU / 8 GB، و100 GB من مساحة تخزين وحدات التخزين المؤقتة، مع فرض رسوم قدرها $0.10 لكل GB-شهر للتخزين الزائد عن ذلك. تحصل الالتزامات السنوية والاستخدام الأعلى على خصومات. تواصل معنا عبر contact@tuist.dev لترتيب التسعير السنوي أو حسب الحجم."

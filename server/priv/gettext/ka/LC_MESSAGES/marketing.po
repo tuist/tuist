@@ -2802,11 +2802,6 @@ msgstr "%{vcpus} vCPU · %{memory} GB"
 msgid "/min"
 msgstr "/წთ"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:329
-#, elixir-autogen, elixir-format
-msgid "100 free macOS minutes every month"
-msgstr "100 უფასო macOS წუთი ყოველ თვეში"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:999
 #, elixir-autogen, elixir-format
 msgid "How are Tuist Runners billed?"
@@ -2873,11 +2868,6 @@ msgstr "+ %{macos}/წთ-დან macOS-ზე და %{linux}/წთ-და�
 msgid "Commit for a year or run at higher volume and we'll lower your rate."
 msgstr "გამოიწერეთ ერთი წლის ვადით ან გაზარდეთ მოცულობა და ჩვენ შევამცირებთ თქვენს ტარიფს."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
-#, elixir-autogen, elixir-format
-msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes a month and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
-msgstr "ჯობის დროის ყოველი წუთისთვის, თქვენი CI პროვაიდერის მიერ ჯობის დაწყებიდან მის დასრულებამდე, წუთების მთელ რიცხვებამდე დამრგვალების გარეშე. მანქანის ჩატვირთვა და გასუფთავება არ იბეგრება. ყოველი გეგმა მოიცავს 100 უფასო macOS-წუთს თვეში და 100 GB ქეშის მოცულობის საცავს, ამ ზღვარზე მეტი საცავი კი $0.10 ღირს თვეში ერთ GB-ზე. წლიური ვალდებულებები და მაღალი მოხმარება ფასდაკლებას იძლევა. დაგვიკავშირდით contact@tuist.dev-ზე წლიური ან მოცულობითი ფასების შესათანხმებლად."
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Price"
@@ -2888,12 +2878,22 @@ msgstr "ფასი"
 msgid "Tuist Runners are invite-only while we scale capacity. Tell us about your workloads and we'll get you set up, including yearly and volume pricing."
 msgstr "Tuist Runners-ით სარგებლობა მხოლოდ მიწვევითაა ხელმისაწვდომი, სანამ სიმძლავრეს გავზრდით. მოგვწერეთ თქვენი დატვირთვების შესახებ და ჩვენ დაგეხმარებით ყველაფრის მოწყობაში, მათ შორის წლიური და მოცულობითი ფასების განსაზღვრაში."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:331
-#, elixir-autogen, elixir-format
-msgid "Included on every plan, Air too."
-msgstr "ჩართულია ყოველ გეგმაში, Air-ის ჩათვლით."
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Keep dependencies and build outputs between jobs. Beyond 100 GB per account, storage is %{price} per GB-month."
 msgstr "შეინახეთ დამოკიდებულებები და ბილდის შედეგები ჯობებს შორის. ანგარიშზე 100 GB-ს ზემოთ, საცავის ფასია %{price} თვეში ერთ GB-ზე."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:329
+#, elixir-autogen, elixir-format
+msgid "100 free macOS and 2,500 free Linux minutes every month"
+msgstr "100 უფასო macOS და 2,500 უფასო Linux წუთი ყოველ თვეში"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:331
+#, elixir-autogen, elixir-format
+msgid "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
+msgstr "შედის ყველა გეგმაში, Air-ის ჩათვლით. Linux წუთები ითვლება 2 vCPU / 8 GB მანქანაზე, ამიტომ უფრო მცირე კონფიგურაციაზე დრო უფრო ხანგრძლივია."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
+#, elixir-autogen, elixir-format
+msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
+msgstr "ყოველი სამუშაოს შესრულების წუთისთვის, CI პროვაიდერის მიერ სამუშაოს დაწყებიდან დასრულებამდე, მთელ წუთებამდე დამრგვალების გარეშე. მანქანის ჩატვირთვა და გასუფთავება არ იბეგრება. ყველა გეგმა მოიცავს 100 უფასო macOS წუთს და 2,500 უფასო Linux წუთს თვეში, რომელიც ითვლება 2 vCPU / 8 GB Linux მანქანაზე, და 100 GB ქეშის საცავის მოცულობას, ხოლო ზედმეტი საცავი ღირს $0.10 თვეში ერთ GB-ზე. წლიური ვალდებულებები და მაღალი გამოყენება ფასდაკლებებს იღებს. დაგვიკავშირდით contact@tuist.dev-ზე წლიური ან მოცულობითი ფასების დასადგენად."

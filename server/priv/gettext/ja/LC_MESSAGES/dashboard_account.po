@@ -12,7 +12,7 @@ msgid ""
 msgstr "Language: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist/billing.ex:72
-#: lib/tuist_web/live/billing_live.ex:397
+#: lib/tuist_web/live/billing_live.ex:422
 #, elixir-autogen, elixir-format
 msgid "$0"
 msgstr "$0"
@@ -27,7 +27,7 @@ msgstr "%{inviter} が %{organization} 組織への参加に招待しました"
 msgid "%{month}/%{year}"
 msgstr "%{year}年%{month}月"
 
-#: lib/tuist/accounts/user_notifier.ex:363
+#: lib/tuist/accounts/user_notifier.ex:408
 #: lib/tuist_web/live/accept_invitation_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -39,20 +39,20 @@ msgid "Add payment method"
 msgstr "支払い方法を追加"
 
 #: lib/tuist_web/live/members_live.ex:175
-#: lib/tuist_web/live/members_live.ex:821
+#: lib/tuist_web/live/members_live.ex:831
 #, elixir-autogen, elixir-format
 msgid "Admin"
 msgstr "管理者"
 
 #: lib/tuist/billing.ex:50
-#: lib/tuist_web/live/billing_live.ex:367
+#: lib/tuist_web/live/billing_live.ex:392
 #: lib/tuist_web/live/billing_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
 #: lib/tuist/billing.ex:59
-#: lib/tuist_web/live/billing_live.ex:372
+#: lib/tuist_web/live/billing_live.ex:397
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
 msgstr "全機能、クレジットカード不要"
@@ -131,7 +131,7 @@ msgstr "モジュールキャッシュバイナリなどのアーティファク
 msgid "Community support"
 msgstr "コミュニティサポート"
 
-#: lib/tuist_web/live/billing_live.ex:373
+#: lib/tuist_web/live/billing_live.ex:398
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
 msgstr "フォーラム経由のコミュニティサポート"
@@ -146,18 +146,18 @@ msgstr "コミュニティサポート: コミュニティフォーラムでの�
 msgid "Completely free for open source projects"
 msgstr "オープンソースプロジェクトでは完全無料"
 
-#: lib/tuist/accounts/user_notifier.ex:279
+#: lib/tuist/accounts/user_notifier.ex:280
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
 msgstr "メールアドレスを確認"
 
-#: lib/tuist/accounts/user_notifier.ex:275
+#: lib/tuist/accounts/user_notifier.ex:276
 #, elixir-autogen, elixir-format
 msgid "Confirmation instructions"
 msgstr "確認手順"
 
 #: lib/tuist/billing.ex:92
-#: lib/tuist_web/live/billing_live.ex:434
+#: lib/tuist_web/live/billing_live.ex:459
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr "営業に連絡"
@@ -167,7 +167,7 @@ msgstr "営業に連絡"
 msgid "Create organization"
 msgstr "組織を作成"
 
-#: lib/tuist_web/live/billing_live.ex:424
+#: lib/tuist_web/live/billing_live.ex:449
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
 msgstr "プランを作成するか、インスタンスをセルフホストする"
@@ -178,15 +178,15 @@ msgstr "プランを作成するか、インスタンスをセルフホストす
 msgid "Create your plan or self-host your instance."
 msgstr "プランを作成するか、インスタンスをセルフホストします。"
 
-#: lib/tuist_web/live/billing_live.ex:379
-#: lib/tuist_web/live/billing_live.ex:408
+#: lib/tuist_web/live/billing_live.ex:404
+#: lib/tuist_web/live/billing_live.ex:433
 #: lib/tuist_web/live/billing_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Current plan"
 msgstr "現在のプラン"
 
 #: lib/tuist/billing.ex:91
-#: lib/tuist_web/live/billing_live.ex:425
+#: lib/tuist_web/live/billing_live.ex:450
 #: lib/tuist_web/live/billing_live.html.heex:169
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
@@ -194,7 +194,7 @@ msgid "Custom"
 msgstr "カスタム"
 
 #: lib/tuist/billing.ex:94
-#: lib/tuist_web/live/billing_live.ex:427
+#: lib/tuist_web/live/billing_live.ex:452
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
 msgstr "カスタム条項"
@@ -310,12 +310,12 @@ msgstr "組織を削除すると、その組織に属するすべてのプロジ
 msgid "Deleting your account will also delete all the projects that belong to it"
 msgstr "アカウントを削除すると、そのアカウントに属するすべてのプロジェクトも削除されます"
 
-#: lib/tuist/accounts/user_notifier.ex:297
+#: lib/tuist/accounts/user_notifier.ex:298
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr "パスワードのリセットをリクエストしましたか？"
 
-#: lib/tuist_web/live/billing_live.ex:385
+#: lib/tuist_web/live/billing_live.ex:410
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
 msgstr "ダウングレード"
@@ -346,7 +346,7 @@ msgid "Enter your username to confirm"
 msgstr "確認のため、ユーザー名を入力してください"
 
 #: lib/tuist/billing.ex:88
-#: lib/tuist_web/live/billing_live.ex:423
+#: lib/tuist_web/live/billing_live.ex:448
 #: lib/tuist_web/live/billing_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
@@ -358,7 +358,7 @@ msgid "Europe"
 msgstr "ヨーロッパ"
 
 #: lib/tuist/billing.ex:53
-#: lib/tuist_web/live/billing_live.ex:369
+#: lib/tuist_web/live/billing_live.ex:394
 #: lib/tuist_web/live/billing_live.html.heex:166
 #: lib/tuist_web/live/billing_live.html.heex:167
 #, elixir-autogen, elixir-format
@@ -370,7 +370,7 @@ msgstr "Free"
 msgid "Free tier exceeded"
 msgstr "無料枠の超過"
 
-#: lib/tuist_web/live/billing_live.ex:371
+#: lib/tuist_web/live/billing_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
 msgstr "無料枠内"
@@ -401,7 +401,7 @@ msgstr "手厚い無料月間ティア: 利用量はフリーティアの制限�
 msgid "Get started"
 msgstr "始める"
 
-#: lib/tuist_web/live/billing_live.ex:368
+#: lib/tuist_web/live/billing_live.ex:393
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr "クレジットカード不要で始められます"
@@ -412,18 +412,18 @@ msgstr "クレジットカード不要で始められます"
 msgid "Get started with no credit card required—try with no commitment."
 msgstr "クレジットカード不要で始められます。拘束なくお試しください。"
 
-#: lib/tuist/accounts/user_notifier.ex:357
+#: lib/tuist/accounts/user_notifier.ex:402
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr "Hola %{invitee_email}、以下のボタンをクリックして組織に参加できます。"
 
-#: lib/tuist/accounts/user_notifier.ex:299
+#: lib/tuist/accounts/user_notifier.ex:300
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr "%{name}さん、以下のボタンをクリックしてパスワードをリセットできます："
 
-#: lib/tuist/accounts/user_notifier.ex:282
-#: lib/tuist/accounts/user_notifier.ex:309
+#: lib/tuist/accounts/user_notifier.ex:283
+#: lib/tuist/accounts/user_notifier.ex:310
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr "このリクエストを行っていない場合は、このメールを無視してください。"
@@ -433,7 +433,7 @@ msgstr "このリクエストを行っていない場合は、このメールを
 msgid "Invitation not found"
 msgstr "招待が見つかりません"
 
-#: lib/tuist/accounts/user_notifier.ex:347
+#: lib/tuist/accounts/user_notifier.ex:392
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr "%{organization_name}への招待"
@@ -485,7 +485,7 @@ msgstr "メンバー"
 msgid "Members"
 msgstr "メンバー"
 
-#: lib/tuist_web/live/billing_live.ex:329
+#: lib/tuist_web/live/billing_live.ex:354
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr "人気No.1"
@@ -519,7 +519,7 @@ msgid "No members found"
 msgstr "メンバーが見つかりません"
 
 #: lib/tuist/billing.ex:96
-#: lib/tuist_web/live/billing_live.ex:428
+#: lib/tuist_web/live/billing_live.ex:453
 #, elixir-autogen, elixir-format
 msgid "On-premise"
 msgstr "オンプレミス"
@@ -546,13 +546,13 @@ msgid "Passwords don't match"
 msgstr "パスワードが一致しません"
 
 #: lib/tuist/billing.ex:77
-#: lib/tuist_web/live/billing_live.ex:400
+#: lib/tuist_web/live/billing_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr "フリーティアの制限を下回る場合は無料"
 
 #: lib/tuist/billing.ex:79
-#: lib/tuist_web/live/billing_live.ex:401
+#: lib/tuist_web/live/billing_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
 msgstr "使った分だけお支払い（機能別）"
@@ -567,7 +567,7 @@ msgstr "支払い方法"
 msgid "Payments for your subscription are made using the default card."
 msgstr "サブスクリプションの料金は、デフォルトのカードで支払われます。"
 
-#: lib/tuist_web/live/members_live.ex:817
+#: lib/tuist_web/live/members_live.ex:827
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr "保留中"
@@ -587,7 +587,7 @@ msgstr "料金詳細"
 msgid "Priority support"
 msgstr "優先サポート"
 
-#: lib/tuist_web/live/billing_live.ex:429
+#: lib/tuist_web/live/billing_live.ex:454
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
 msgstr "Slackの共有チャンネルを通じた優先サポート"
@@ -598,7 +598,7 @@ msgid "Priority support: Via shared Slack channel"
 msgstr "優先サポート: 共有Slackチャンネル経由"
 
 #: lib/tuist/billing.ex:69
-#: lib/tuist_web/live/billing_live.ex:395
+#: lib/tuist_web/live/billing_live.ex:420
 #: lib/tuist_web/live/billing_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Pro"
@@ -649,12 +649,12 @@ msgstr "名前の変更は予期しない結果を招く可能性があります
 msgid "Renaming your organization can have unintended side effects."
 msgstr "組織の名前を変更すると、意図しない副作用が生じる可能性があります。"
 
-#: lib/tuist/accounts/user_notifier.ex:295
+#: lib/tuist/accounts/user_notifier.ex:296
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr "パスワードリセットの手順"
 
-#: lib/tuist/accounts/user_notifier.ex:303
+#: lib/tuist/accounts/user_notifier.ex:304
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr "パスワードをリセットする"
@@ -707,7 +707,7 @@ msgstr "設定"
 msgid "Standard support"
 msgstr "スタンダードサポート"
 
-#: lib/tuist_web/live/billing_live.ex:402
+#: lib/tuist_web/live/billing_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
 msgstr "Slackとメールによるスタンダードサポート"
@@ -747,7 +747,7 @@ msgstr "お客様の特定のニーズに合わせた契約"
 msgid "This action cannot be undone."
 msgstr "この操作は元に戻せません。"
 
-#: lib/tuist/accounts/user_notifier.ex:278
+#: lib/tuist/accounts/user_notifier.ex:279
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr "Tuistの使用を開始するには、メールアドレスを確認してください:"
@@ -808,7 +808,7 @@ msgstr "ユーザー名を更新しますか？"
 msgid "Updating your username can have unintended consequences."
 msgstr "ユーザー名の更新には予期しない影響が生じる可能性があります。"
 
-#: lib/tuist_web/live/billing_live.ex:414
+#: lib/tuist_web/live/billing_live.ex:439
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
 msgstr "アップグレード"
@@ -844,7 +844,7 @@ msgstr "従量制"
 msgid "Usage-based pricing"
 msgstr "従量課金制"
 
-#: lib/tuist_web/live/billing_live.ex:396
+#: lib/tuist_web/live/billing_live.ex:421
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
 msgstr "無料枠を超えた分は従量課金"
@@ -867,7 +867,7 @@ msgstr "オープンソースを維持する限り、すべてのTuist機能を�
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:684
 #: lib/tuist_web/live/members_live.ex:163
-#: lib/tuist_web/live/members_live.ex:823
+#: lib/tuist_web/live/members_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr "ユーザー"
@@ -909,22 +909,22 @@ msgstr "この操作を実行する権限がありません。"
 msgid "You have been invited"
 msgstr "招待されました"
 
-#: lib/tuist/accounts/user_notifier.ex:281
+#: lib/tuist/accounts/user_notifier.ex:282
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr "最近Tuistアカウントにサインアップしたため、このメールが届いています。"
 
-#: lib/tuist/accounts/user_notifier.ex:305
+#: lib/tuist/accounts/user_notifier.ex:306
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr "Tuistアカウントのパスワードリセットをリクエストしたため、このメールが届いています。"
 
-#: lib/tuist/accounts/user_notifier.ex:350
+#: lib/tuist/accounts/user_notifier.ex:395
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr "%{inviter_email}から%{organization_name} Tuist組織への招待を受けました。"
 
-#: lib/tuist/accounts/user_notifier.ex:277
+#: lib/tuist/accounts/user_notifier.ex:278
 #, elixir-autogen, elixir-format
 msgid "You're Almost Set!"
 msgstr "ほぼ完了です！"
@@ -935,7 +935,7 @@ msgid "You’ve exceeded your free tier quota and will incur charges for additio
 msgstr "無料プランの割り当てを超えたため、追加利用分に対して料金が発生します。"
 
 #: lib/tuist/billing.ex:73
-#: lib/tuist_web/live/billing_live.ex:398
+#: lib/tuist_web/live/billing_live.ex:423
 #, elixir-autogen, elixir-format
 msgid "and up"
 msgstr "以上"
@@ -1697,27 +1697,27 @@ msgstr "ボディをコピー"
 msgid "Copy payload"
 msgstr "ペイロードをコピー"
 
-#: lib/tuist/accounts/user_notifier.ex:393
+#: lib/tuist/accounts/user_notifier.ex:438
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
 msgstr "こんにちは %{user_email} さん、あなたのアカウントは ID プロバイダーの自動ユーザープロビジョニング (SCIM) によって %{organization_name} に追加されました。"
 
-#: lib/tuist/accounts/user_notifier.ex:408
+#: lib/tuist/accounts/user_notifier.ex:453
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
 msgstr "これが意図しないものである場合は、ID プロバイダー管理者（シングルサインオンを管理するチーム）に連絡して、このプロビジョニングを削除してください。Tuist の組織管理者も、あなたを %{organization_name} から削除できます。"
 
-#: lib/tuist/accounts/user_notifier.ex:399
+#: lib/tuist/accounts/user_notifier.ex:444
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
 msgstr "これが意図したものであれば、対応は不要です。ここで組織を開くことができます："
 
-#: lib/tuist/accounts/user_notifier.ex:405
+#: lib/tuist/accounts/user_notifier.ex:450
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr "%{organization_name} を開く"
 
-#: lib/tuist/accounts/user_notifier.ex:385
+#: lib/tuist/accounts/user_notifier.ex:430
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr "あなたは %{organization_name} Tuist 組織に追加されました"
@@ -1892,7 +1892,7 @@ msgstr "ノードが Tuist に提示するテナントスコープの資格情�
 msgid "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list."
 msgstr "この招待状を %{email} 宛てにメールで送信しました。リンクを直接共有することもできます。リンクは招待リストに残ります。"
 
-#: lib/tuist_web/live/members_live.ex:815
+#: lib/tuist_web/live/members_live.ex:825
 #, elixir-autogen, elixir-format
 msgid "Expired"
 msgstr "期限切れ"
@@ -2497,37 +2497,32 @@ msgstr "Entra アプリケーションのディレクトリ (テナント) ID。
 msgid "Under API permissions, grant the delegated openid, profile, and email permissions"
 msgstr "API の権限で、委任された openid、profile、email の権限を付与してください"
 
-#: lib/tuist_web/live/billing_live.ex:276
+#: lib/tuist_web/live/billing_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
 msgstr[0] "%{count} 分"
 
-#: lib/tuist_web/live/billing_live.ex:272
+#: lib/tuist_web/live/billing_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "%{count} second"
 msgid_plural "%{count} seconds"
 msgstr[0] "%{count}秒"
 
-#: lib/tuist_web/live/billing_live.ex:295
+#: lib/tuist_web/live/billing_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "free during your trial"
 msgstr "トライアル期間中は無料"
 
-#: lib/tuist_web/live/billing_live.ex:297
+#: lib/tuist_web/live/billing_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "no paid plan to bill against"
 msgstr "課金対象の有料プランがありません"
 
-#: lib/tuist_web/live/billing_live.ex:299
+#: lib/tuist_web/live/billing_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "on your next invoice"
 msgstr "次の請求書に反映されます"
-
-#: lib/tuist_web/live/billing_live.ex:293
-#, elixir-autogen, elixir-format
-msgid "within your %{count} free minutes"
-msgstr "%{count}分の無料枠内です"
 
 #: lib/tuist_web/live/billing_live.html.heex:119
 #, elixir-autogen, elixir-format
@@ -2542,7 +2537,7 @@ msgstr "内訳を表示"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:685
 #: lib/tuist_web/live/members_live.ex:187
-#: lib/tuist_web/live/members_live.ex:822
+#: lib/tuist_web/live/members_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Viewer"
 msgstr "閲覧者"
@@ -2557,115 +2552,110 @@ msgstr "登録メンバーのロール"
 msgid "The role members get when they join through automatic enrollment."
 msgstr "自動登録で参加したメンバーに付与されるロールです。"
 
-#: lib/tuist/accounts/user_notifier.ex:477
+#: lib/tuist/accounts/user_notifier.ex:522
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr "Proプランは無料利用枠と同じ内容を含み、それを超えた分は従量課金となります。"
 
-#: lib/tuist/accounts/user_notifier.ex:658
+#: lib/tuist/accounts/user_notifier.ex:710
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr "このアカウントのリモートキャッシュアクセスは一時停止中です。キャッシュを引き続き使用するにはProプランにアップグレードするか、無料利用枠がリセットされるまでお待ちください。"
 
-#: lib/tuist/accounts/user_notifier.ex:474
+#: lib/tuist/accounts/user_notifier.ex:519
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
 msgstr "利用状況を確認してアップグレード"
 
-#: lib/tuist/accounts/user_notifier.ex:667
+#: lib/tuist/accounts/user_notifier.ex:719
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr "Airプランの上限に近づいています"
 
-#: lib/tuist/accounts/user_notifier.ex:668
+#: lib/tuist/accounts/user_notifier.ex:720
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr "月間の無料利用枠の上限に近づいています。リモートキャッシュへのアクセスを継続するには、上限に達する前にProプランにアップグレードしてください。"
 
-#: lib/tuist/accounts/user_notifier.ex:480
-#: lib/tuist/accounts/user_notifier.ex:567
-#: lib/tuist/accounts/user_notifier.ex:605
+#: lib/tuist/accounts/user_notifier.ex:525
+#: lib/tuist/accounts/user_notifier.ex:612
+#: lib/tuist/accounts/user_notifier.ex:650
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr "このTuistアカウントを管理しているため、このメールが届いています。"
 
-#: lib/tuist/accounts/user_notifier.ex:657
+#: lib/tuist/accounts/user_notifier.ex:709
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr "Airプランの上限に達しました"
 
-#: lib/tuist/accounts/user_notifier.ex:467
+#: lib/tuist/accounts/user_notifier.ex:512
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr "無料利用枠は%{date}（UTC）にリセットされます。"
 
-#: lib/tuist/accounts/user_notifier.ex:611
-#, elixir-autogen, elixir-format
-msgid "%{usage} of %{limit} baseline runner minutes used"
-msgstr "ベースラインランナーの利用時間 %{limit} 分のうち %{usage} 分を使用済み"
-
-#: lib/tuist/accounts/user_notifier.ex:638
+#: lib/tuist/accounts/user_notifier.ex:690
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr "このアカウントでは新しいランナージョブが一時停止されています。ジョブの実行を継続するにはProプランにアップグレードするか、無料のランナー利用枠がリセットされるまでお待ちください。"
 
-#: lib/tuist/accounts/user_notifier.ex:637
+#: lib/tuist/accounts/user_notifier.ex:689
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr "Airプランのランナー上限に達しました"
 
-#: lib/tuist/accounts/user_notifier.ex:648
+#: lib/tuist/accounts/user_notifier.ex:700
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr "月間の無料ランナー利用枠の上限に近づいています。ランナーの使用を継続するには、上限に達する前にProプランにアップグレードしてください。"
 
-#: lib/tuist/accounts/user_notifier.ex:647
+#: lib/tuist/accounts/user_notifier.ex:699
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
 msgstr "Airランナーの上限に近づいています"
 
-#: lib/tuist/accounts/user_notifier.ex:450
+#: lib/tuist/accounts/user_notifier.ex:495
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air limit"
 msgstr "%{account_name}はAirプランの上限の%{percentage}%に達しました"
 
-#: lib/tuist/accounts/user_notifier.ex:445
+#: lib/tuist/accounts/user_notifier.ex:490
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
 msgstr "%{account_name}はAirランナーの上限の%{percentage}%に達しました"
 
-#: lib/tuist/accounts/user_notifier.ex:229
+#: lib/tuist/accounts/user_notifier.ex:230
 #, elixir-autogen, elixir-format
 msgid "All rights reserved."
 msgstr "All rights reserved."
 
-#: lib/tuist/accounts/user_notifier.ex:685
+#: lib/tuist/accounts/user_notifier.ex:737
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
 msgstr "%{email}さん、以下のボタンをクリックしてメールアドレスを変更できます:"
 
-#: lib/tuist/accounts/user_notifier.ex:690
+#: lib/tuist/accounts/user_notifier.ex:742
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
 msgstr "この変更をリクエストしていない場合は、このメールを無視してください。"
 
-#: lib/tuist/accounts/user_notifier.ex:226
+#: lib/tuist/accounts/user_notifier.ex:227
 #, elixir-autogen, elixir-format
 msgid "This email was sent by Tuist. By using our services, you agree to our"
 msgstr "このメールはTuistから送信されました。サービスの利用により、以下に同意したものとみなされます:"
 
-#: lib/tuist/accounts/user_notifier.ex:681
+#: lib/tuist/accounts/user_notifier.ex:733
 #, elixir-autogen, elixir-format
 msgid "Update email instructions"
 msgstr "メールアドレス更新手順"
 
-#: lib/tuist/accounts/user_notifier.ex:683
-#: lib/tuist/accounts/user_notifier.ex:689
+#: lib/tuist/accounts/user_notifier.ex:735
+#: lib/tuist/accounts/user_notifier.ex:741
 #, elixir-autogen, elixir-format
 msgid "Update your email"
 msgstr "メールアドレスを更新"
 
-#: lib/tuist/accounts/user_notifier.ex:227
+#: lib/tuist/accounts/user_notifier.ex:228
 #, elixir-autogen, elixir-format
 msgid "terms of service"
 msgstr "利用規約"
@@ -2705,23 +2695,17 @@ msgstr "キャッシュエグレス"
 msgid "Cache egress:"
 msgstr "キャッシュエグレス:"
 
-#: lib/tuist_web/live/billing_live.ex:283
 #: lib/tuist_web/live/billing_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "of your usage"
 msgstr "使用量の"
 
-#: lib/tuist_web/live/billing_live.ex:287
-#, elixir-autogen, elixir-format
-msgid "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)"
-msgstr "使用量（%{free}分の無料ランナー時間と%{prepaid}分のプリペイド）"
-
-#: lib/tuist/accounts/user_notifier.ex:621
+#: lib/tuist/accounts/user_notifier.ex:673
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
 msgstr "キャッシュリクエスト %{usage} / %{limit} 使用済み"
 
-#: lib/tuist/accounts/user_notifier.ex:614
+#: lib/tuist/accounts/user_notifier.ex:666
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
 msgstr "キャッシュエグレス %{usage} / %{limit} 使用済み"
@@ -2815,8 +2799,8 @@ msgstr "アカウント「%{account}」のサブスクリプションに対す�
 msgid "A payment for your subscription failed"
 msgstr "サブスクリプションの支払いが失敗しました"
 
-#: lib/tuist/accounts/user_notifier.ex:566
-#: lib/tuist/accounts/user_notifier.ex:604
+#: lib/tuist/accounts/user_notifier.ex:611
+#: lib/tuist/accounts/user_notifier.ex:649
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
@@ -2832,47 +2816,47 @@ msgstr "未払いの請求書が支払われるまで、ご利用のプランは
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
 msgstr "支払い再試行中はプランが有効です。プランを維持するには、未払いの請求書を支払うか、お支払い方法を更新してください。"
 
-#: lib/tuist/accounts/user_notifier.ex:547
+#: lib/tuist/accounts/user_notifier.ex:592
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
 msgstr "%{account_name} のTuistサブスクリプションの支払いに失敗しました"
 
-#: lib/tuist/accounts/user_notifier.ex:564
+#: lib/tuist/accounts/user_notifier.ex:609
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
 msgstr "プランを維持するには、未払いの請求書を支払うか、お支払い方法を更新してください:"
 
-#: lib/tuist/accounts/user_notifier.ex:554
+#: lib/tuist/accounts/user_notifier.ex:599
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
 msgstr "%{account_name} のサブスクリプションに登録されているお支払い方法からの引き落としに失敗しました。お支払いは自動的に再試行されます。"
 
-#: lib/tuist/accounts/user_notifier.ex:552
+#: lib/tuist/accounts/user_notifier.ex:597
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
 msgstr "サブスクリプションの支払いに失敗しました"
 
-#: lib/tuist/accounts/user_notifier.ex:559
+#: lib/tuist/accounts/user_notifier.ex:604
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
 msgstr "支払い再試行中はプランが有効です。再試行期間終了時にも支払いが完了していない場合、請求書が支払われるまで %{account_name} はAirプランの無料枠に制限されます。"
 
-#: lib/tuist/accounts/user_notifier.ex:586
+#: lib/tuist/accounts/user_notifier.ex:631
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
 msgstr "サブスクリプションの支払いに失敗したため、%{account_name} はAirプランに移行しました"
 
-#: lib/tuist/accounts/user_notifier.ex:598
+#: lib/tuist/accounts/user_notifier.ex:643
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
 msgstr "未払いの請求書を支払うと、プランが復旧します。支払い前に支払い方法を更新することもできます："
 
-#: lib/tuist/accounts/user_notifier.ex:593
+#: lib/tuist/accounts/user_notifier.ex:638
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
 msgstr "%{account_name} のサブスクリプションの決済を完了できず、再試行も終了しました。%{account_name} は現在、Air プランの無料枠に制限されています。"
 
-#: lib/tuist/accounts/user_notifier.ex:591
+#: lib/tuist/accounts/user_notifier.ex:636
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
 msgstr "アカウントが Air プランに移行しました"
@@ -3076,3 +3060,59 @@ msgstr "それまではProプランが維持され、利用分は通常通り請
 #, elixir-autogen, elixir-format
 msgid "Your plan switches to Air on %{date}"
 msgstr "%{date}にAirプランへ切り替わります"
+
+#: lib/tuist/accounts/user_notifier.ex:331
+#: lib/tuist/accounts/user_notifier.ex:353
+#, elixir-autogen, elixir-format
+msgid "If you did not make this change, contact Tuist support immediately and secure your account."
+msgstr "この変更を行っていない場合は、直ちにTuistサポートへ連絡し、アカウントを保護してください。"
+
+#: lib/tuist/accounts/user_notifier.ex:330
+#, elixir-autogen, elixir-format
+msgid "The two-factor authentication settings for your Tuist account were changed."
+msgstr "Tuistアカウントの二段階認証設定が変更されました。"
+
+#: lib/tuist/accounts/user_notifier.ex:324
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication disabled"
+msgstr "二段階認証が無効になりました"
+
+#: lib/tuist/accounts/user_notifier.ex:323
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication enabled"
+msgstr "二段階認証が有効になりました"
+
+#: lib/tuist/accounts/user_notifier.ex:345
+#, elixir-autogen, elixir-format
+msgid "Passkey added"
+msgstr "パスキーが追加されました"
+
+#: lib/tuist/accounts/user_notifier.ex:346
+#, elixir-autogen, elixir-format
+msgid "Passkey removed"
+msgstr "パスキーが削除されました"
+
+#: lib/tuist/accounts/user_notifier.ex:352
+#, elixir-autogen, elixir-format
+msgid "The passkeys that can sign in to your Tuist account were changed."
+msgstr "Tuistアカウントへのサインインに使用できるパスキーが変更されました。"
+
+#: lib/tuist/accounts/user_notifier.ex:657
+#, elixir-autogen, elixir-format
+msgid "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})"
+msgstr "無料ランナー時間の%{usage} / %{limit}を使用（macOS分として換算、Linux %{linux}分は%{limit}分として換算）"
+
+#: lib/tuist_web/live/billing_live.ex:299
+#, elixir-autogen, elixir-format
+msgid "of your free minutes, counted in macOS minutes (%{linux} Linux minutes count as %{macos})"
+msgstr "無料分のうち（macOS分として換算、Linux %{linux}分はmacOS %{macos}分として換算）"
+
+#: lib/tuist_web/live/billing_live.ex:308
+#, elixir-autogen, elixir-format
+msgid "of your usage (%{free} free macOS minutes plus %{prepaid} prepaid)"
+msgstr "利用量のうち（無料macOS %{free}分＋プリペイド %{prepaid}分）"
+
+#: lib/tuist_web/live/billing_live.ex:315
+#, elixir-autogen, elixir-format
+msgid "within your %{macos} free macOS and %{linux} free Linux minutes"
+msgstr "無料macOS %{macos}分と無料Linux %{linux}分の範囲内"
