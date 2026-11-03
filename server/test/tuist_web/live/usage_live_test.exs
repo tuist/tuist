@@ -10,7 +10,10 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
+  alias Tuist.Repo
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.CacheVolumes.SavedSize
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -388,6 +391,53 @@ defmodule TuistWeb.UsageLiveTest do
     end
   end
 
+  describe "cache volume storage" do
+    test "walks the period's GB-months down to what the allowance leaves", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository_id: 1,
+          repository: "org/app",
+          key: "deps",
+          architecture: "arm64",
+          uid: 501
+        })
+
+      Repo.insert!(%SavedSize{
+        volume_id: volume.id,
+        size_bytes: 42_000_000_000,
+        observed_at: DateTime.add(DateTime.utc_now(), -60, :day)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-storage-stored", "42.0 GB")
+      assert has_element?(lv, "[data-kind='storage']", "100.0 GB-months included")
+      assert has_element?(lv, "[data-kind='storage']", "$0.10 per GB-month")
+      assert has_element?(lv, "#storage-chart")
+    end
+
+    test "shows an empty state for an account that saved nothing", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part='storage-usage-empty']")
+    end
+
+    test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute has_element?(lv, "[data-part='storage-usage-card']")
+    end
+  end
+
   describe "runner usage with prepaid credit" do
     setup do
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
@@ -549,7 +599,7 @@ defmodule TuistWeb.UsageLiveTest do
     test "scopes the page to a billing period rather than a free range", %{conn: conn, account: account} do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/usage")
 
-      assert html =~ "Runner time and cache traffic billed to this account"
+      assert html =~ "Runner time, cache volume storage, and cache traffic billed to this account"
       assert html =~ "Billing period:"
       # Both the free-range and project controls are gone: the page
       # reports one period, and everything on it follows that period.
@@ -567,7 +617,7 @@ defmodule TuistWeb.UsageLiveTest do
       account = user.account
       started = DateTime.add(now, -2, :hour)
 
-      Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
+      Repo.insert!(%Tuist.Runners.RunnerSession{
         account_id: account.id,
         workflow_job_id: System.unique_integer([:positive]),
         fleet_name: "tuist-macos",

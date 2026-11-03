@@ -9,6 +9,7 @@ defmodule TuistWeb.BillingLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
 
@@ -37,14 +38,16 @@ defmodule TuistWeb.BillingLive do
     runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit, billing_period)
 
     usage_pricing = usage_pricing(selected_account, billing_period)
+    storage_usage = storage_usage(selected_account, billing_period)
 
-    # Runner time is billed alongside the usage meters, so the headline
-    # figure has to carry both or it understates the bill for anyone
-    # using runners.
+    # Runner time and cache volume storage are billed alongside the usage
+    # meters, so the headline figure has to carry all of them or it
+    # understates the bill for anyone using runners.
     estimated_next_payment =
       usage_pricing
       |> usage_payment()
       |> Money.add(runner_usage.billed)
+      |> Money.add(storage_payment(storage_usage))
       |> format_money()
 
     next_charge_date = next_charge_date(billing_period)
@@ -76,6 +79,7 @@ defmodule TuistWeb.BillingLive do
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
       |> assign(:usage_pricing, usage_pricing)
+      |> assign(:storage_usage, storage_usage)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
       |> assign(:payment_issue, payment_issue(selected_account, subscription))
@@ -155,21 +159,34 @@ defmodule TuistWeb.BillingLive do
   defp usage_period(_billing_period, now), do: {%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, now}
 
   defp usage_pricing(account, billing_period) do
-    UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
+    UsagePricing.period_breakdown(account, usage_window(account, billing_period))
   end
+
+  defp usage_window(account, billing_period), do: billing_period || hd(Billing.recent_billing_periods(account, 1))
+
+  # `nil` for a period older than the saved-size history, which has no
+  # storage figures to show.
+  defp storage_usage(account, billing_period) do
+    storage = CacheVolumeBilling.period_breakdown(account, usage_window(account, billing_period))
+    if storage.history_complete, do: storage
+  end
+
+  defp storage_payment(%{billed: %Money{} = billed}), do: billed
+  defp storage_payment(_storage), do: Money.new(0, :USD)
 
   defp usage_payment(%{cache: cache, tests: tests}) do
     Money.add(cache.billed || Money.new(0, :USD), tests.billed || Money.new(0, :USD))
   end
 
-  def usage_allowance_exceeded?(%{cache: cache, tests: tests}) do
-    cache.egress.billable > 0 or cache.requests.billable > 0 or tests.billable > 0
+  def usage_allowance_exceeded?(%{cache: cache, tests: tests}, storage) do
+    cache.egress.billable > 0 or cache.requests.billable > 0 or tests.billable > 0 or
+      (not is_nil(storage) and storage.billable > 0)
   end
 
   @doc """
   One row per usage-based meter the period has gone past the allowance of.
   """
-  def usage_pricing_rows(%{cache: cache, tests: tests}) do
+  def usage_pricing_rows(%{cache: cache, tests: tests}, storage) do
     Enum.filter(
       [
         %{
@@ -193,9 +210,23 @@ defmodule TuistWeb.BillingLive do
           price: TuistWeb.UsageLive.passing_test_case_rate_label(),
           total: tests.charge
         }
-      ],
+      ] ++ storage_rows(storage),
       &Money.positive?(&1.total)
     )
+  end
+
+  defp storage_rows(nil), do: []
+
+  defp storage_rows(storage) do
+    [
+      %{
+        id: "cache-volume-storage",
+        label: dgettext("dashboard_account", "Cache volume storage"),
+        quantity: TuistWeb.UsageLive.gigabyte_months_label(storage.billable),
+        price: TuistWeb.UsageLive.storage_rate_label(),
+        total: storage.charge
+      }
+    ]
   end
 
   defp next_charge_date({_period_start, %DateTime{} = period_end}) do

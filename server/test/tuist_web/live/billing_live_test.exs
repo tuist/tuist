@@ -10,6 +10,7 @@ defmodule TuistWeb.BillingLiveTest do
   alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
   alias Tuist.Repo
+  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Trials
@@ -402,6 +403,39 @@ defmodule TuistWeb.BillingLiveTest do
       assert lv |> element("[data-part='next-payment']") |> render() =~ "6.50"
       assert has_element?(lv, "#usage-pricing-table", "10.0 GB above free tier")
       assert has_element?(lv, "#usage-pricing-table", "$2 per million")
+    end
+
+    test "adds cache volume storage past its allowance to the estimate", %{conn: conn, account: account} do
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(true) end)
+
+      stub(CacheVolumeBilling, :period_breakdown, fn _account, _period ->
+        %{
+          history_complete: true,
+          included: 100_000_000_000,
+          byte_months: 125_000_000_000,
+          stored_bytes: 130_000_000_000,
+          billable: 25_000_000_000,
+          charge: Money.new(250, :USD),
+          billed: Money.new(250, :USD)
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert lv |> element("[data-part='next-payment']") |> render() =~ "9.00"
+      assert has_element?(lv, "#cache-volume-storage-progress", "125.0 GB-months")
+      assert has_element?(lv, "#usage-pricing-table", "25.0 GB-months above free tier")
+      assert has_element?(lv, "#usage-pricing-table", "$0.10 per GB-month")
     end
   end
 

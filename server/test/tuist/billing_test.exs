@@ -14,6 +14,8 @@ defmodule Tuist.BillingTest do
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.CacheVolumes.SavedSize
+  alias Tuist.Runners.CacheVolumes.Volume
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -1109,6 +1111,79 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "add_missing_runner_subscription_items/1" do
+    setup do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos",
+            "runner_cache_volume_megabyte_months" => "runner.storage"
+          }
+        }
+      end)
+
+      stub(Stripe.Subscription, :retrieve, fn
+        "sub_without_storage" ->
+          {:ok,
+           %Stripe.Subscription{
+             items: %{
+               data: [
+                 %{id: "si_flat", price: %{id: "pro.flat.monthly"}},
+                 %{id: "si_macos", price: %{id: "runner.macos"}}
+               ]
+             }
+           }}
+
+        "sub_with_storage" ->
+          {:ok,
+           %Stripe.Subscription{
+             items: %{
+               data: [
+                 %{id: "si_macos", price: %{id: "runner.macos"}},
+                 %{id: "si_storage", price: %{id: "runner.storage"}}
+               ]
+             }
+           }}
+      end)
+
+      without = AccountsFixtures.organization_fixture().account
+      with_storage = AccountsFixtures.organization_fixture().account
+      on_trial = AccountsFixtures.organization_fixture().account
+      Repo.update!(Ecto.Changeset.change(on_trial, runner_trial_started_at: DateTime.utc_now(:second)))
+
+      BillingFixtures.subscription_fixture(account_id: without.id, subscription_id: "sub_without_storage")
+      BillingFixtures.subscription_fixture(account_id: with_storage.id, subscription_id: "sub_with_storage")
+      BillingFixtures.subscription_fixture(account_id: on_trial.id, subscription_id: "sub_on_trial")
+
+      %{account: without}
+    end
+
+    test "lists the Prices a subscription is missing without changing it", %{account: account} do
+      reject(&Stripe.Subscription.update/2)
+
+      assert Billing.add_missing_runner_subscription_items() == [
+               %{
+                 subscription_id: "sub_without_storage",
+                 account_id: account.id,
+                 prices: ["runner.storage"],
+                 result: :dry_run
+               }
+             ]
+    end
+
+    test "adds them without invoicing what was stored before" do
+      expect(Stripe.Subscription, :update, fn "sub_without_storage", params ->
+        assert params == %{items: [%{price: "runner.storage"}], proration_behavior: "none"}
+        {:ok, %{}}
+      end)
+
+      assert [%{subscription_id: "sub_without_storage", result: :ok}] =
+               Billing.add_missing_runner_subscription_items(dry_run: false)
+    end
+  end
+
   describe "retired runner Prices" do
     setup do
       stub(Environment, :stripe_prices, fn ->
@@ -1486,6 +1561,40 @@ defmodule Tuist.BillingTest do
 
       assert Billing.customer_meter_values(account, period_start, period_end) == [
                %{event_name: "runner_macos_compute_unit_milliseconds", value: 750_125}
+             ]
+    end
+
+    test "reports cache volume storage in megabyte-months once its key exists" do
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer-#{UUIDv7.generate()}")
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      stub(RunnerBilling, :compute_units_by_platform, fn _account_id, _period_start, _period_end -> [] end)
+
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository_id: 1,
+          repository: "org/app",
+          key: "deps",
+          architecture: "arm64",
+          uid: 501
+        })
+
+      Repo.insert!(%SavedSize{
+        volume_id: volume.id,
+        size_bytes: 73_000_000_000,
+        observed_at: ~U[2026-07-01 00:00:00.000000Z]
+      })
+
+      assert Billing.customer_meter_values(account, period_start, period_end) == []
+
+      stub(Environment, :stripe_prices, fn ->
+        %{"runners" => %{"runner_cache_volume_megabyte_months" => ""}}
+      end)
+
+      # 73 GB for a day of a 730-hour month is 2.4 GB-months.
+      assert Billing.customer_meter_values(account, period_start, period_end) == [
+               %{event_name: "runner_cache_volume_megabyte_months", value: 2_400}
              ]
     end
 

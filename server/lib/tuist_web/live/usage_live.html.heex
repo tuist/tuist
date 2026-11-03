@@ -5,7 +5,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_usage",
-          "Runner time and cache traffic billed to this account."
+          "Runner time, cache volume storage, and cache traffic billed to this account."
         )}
       </span>
     </div>
@@ -162,6 +162,125 @@
       title={dgettext("dashboard_usage", "No runner usage in this period")}
       get_started_href="https://tuist.dev/en/docs/guides/features/runners"
     />
+  </.card>
+
+  <.card
+    :if={@runner_breakdown.minutes > 0 or @runners_enabled}
+    title={dgettext("dashboard_usage", "Cache volume storage")}
+    icon="folders"
+    data-part="storage-usage-card"
+  >
+    <.async_result :let={storage} assign={@storage}>
+      <:loading>
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
+          <.skeleton_chart />
+        </.card_section>
+      </:loading>
+      <.card_section :if={not storage.history_complete} data-part="usage-summary-section">
+        <span data-part="info-label">
+          {dgettext(
+            "dashboard_usage",
+            "Cache volume storage is kept for the last 90 days. Pick a more recent billing period to see it."
+          )}
+        </span>
+      </.card_section>
+      <.card_section :if={storage.history_complete} data-part="usage-summary-section">
+        <span data-part="info-label">
+          {dgettext(
+            "dashboard_usage",
+            "Billing period %{from} to %{to}. What each cache volume keeps saved between jobs, counted once however many machines hold a copy, for as long as it is kept. Docker and checkout caches are free.",
+            from: Timex.format!(storage.period_start, "{Mshort} {D}"),
+            to: Timex.format!(storage.period_end, "{Mshort} {D}, {YYYY}")
+          )}
+        </span>
+        <div data-part="widgets">
+          <.widget
+            id="widget-storage-stored"
+            title={dgettext("dashboard_usage", "Saved now")}
+            description={dgettext("dashboard_usage", "Across every billed cache volume")}
+            value={TuistWeb.UsageLive.format_bytes(storage.stored_bytes)}
+          />
+          <.widget
+            id="widget-storage-gigabyte-months"
+            title={dgettext("dashboard_usage", "Storage")}
+            description={
+              dgettext("dashboard_usage", "%{amount} free each period",
+                amount: TuistWeb.UsageLive.gigabyte_months_label(storage.included)
+              )
+            }
+            value={TuistWeb.UsageLive.gigabyte_months_label(storage.byte_months)}
+          />
+          <.widget
+            id="widget-storage-charge"
+            title={dgettext("dashboard_usage", "Usage")}
+            description={TuistWeb.UsageLive.usage_charge_description(storage)}
+            value={format_money(storage.charge)}
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={storage.history_complete and TuistWeb.UsageLive.storage_used?(storage)}
+        data-part="usage-detail-section"
+        data-chart-frame="standard"
+      >
+        <div data-part="chart">
+          <.chart
+            id="storage-chart"
+            type="bar"
+            extra_options={
+              TuistWeb.UsageLive.usage_chart_options(
+                TuistWeb.UsageLive.usage_chart_dates(storage),
+                :bytes
+              )
+            }
+            series={TuistWeb.UsageLive.storage_chart_series(storage)}
+            y_axis_min={0}
+          />
+        </div>
+        <div data-part="receipts">
+          <div data-part="receipt" data-kind="storage">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Storage")}</span>
+              <span data-part="shape">{TuistWeb.UsageLive.storage_rate_label()}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line">
+                <dt>
+                  {dgettext("dashboard_usage", "%{amount} stored",
+                    amount: TuistWeb.UsageLive.gigabyte_months_label(storage.byte_months)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(storage.gross)}</dd>
+              </div>
+              <div :if={storage.trial_covered > 0} data-part="line" data-kind="credit">
+                <dt>{dgettext("dashboard_usage", "Covered by your trial")}</dt>
+                <dd>{TuistWeb.UsageLive.credit_label(storage.trial_credit)}</dd>
+              </div>
+              <div data-part="line" data-kind="credit">
+                <dt>
+                  {dgettext("dashboard_usage", "%{amount} included",
+                    amount: TuistWeb.UsageLive.gigabyte_months_label(storage.included)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.credit_label(storage.included_credit)}</dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{TuistWeb.UsageLive.usage_total_label(storage)}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(storage.charge)}</dd>
+              </div>
+            </dl>
+            <% storage_pace = TuistWeb.UsageLive.storage_pace_label(storage) %>
+            <p :if={storage_pace} data-part="footnote">{storage_pace}</p>
+          </div>
+        </div>
+      </.card_section>
+      <.usage_empty_state
+        :if={storage.history_complete and not TuistWeb.UsageLive.storage_used?(storage)}
+        data-part="storage-usage-empty"
+        title={dgettext("dashboard_usage", "No cache volume storage in this period")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/runners"
+      />
+    </.async_result>
   </.card>
 
   <.card
