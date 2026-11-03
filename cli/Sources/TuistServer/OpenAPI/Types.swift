@@ -10162,6 +10162,43 @@ public enum Components {
                 case window_days
             }
         }
+        /// A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SkippedTest`.
+        public struct SkippedTest: Codable, Hashable, Sendable {
+            /// The test module (target, Gradle module, Mix app, or crate).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SkippedTest/module`.
+            public var module: Swift.String
+            /// The name of the test. Absent when the whole module is skipped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SkippedTest/name`.
+            public var name: Swift.String?
+            /// The suite (class) of the test. Absent when the whole module is skipped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SkippedTest/suite`.
+            public var suite: Swift.String?
+            /// Creates a new `SkippedTest`.
+            ///
+            /// - Parameters:
+            ///   - module: The test module (target, Gradle module, Mix app, or crate).
+            ///   - name: The name of the test. Absent when the whole module is skipped.
+            ///   - suite: The suite (class) of the test. Absent when the whole module is skipped.
+            public init(
+                module: Swift.String,
+                name: Swift.String? = nil,
+                suite: Swift.String? = nil
+            ) {
+                self.module = module
+                self.name = name
+                self.suite = suite
+            }
+            public enum CodingKeys: String, CodingKey {
+                case module
+                case name
+                case suite
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/BazelBuildAction`.
         public struct BazelBuildAction: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BazelBuildAction/first_seen_at`.
@@ -10501,7 +10538,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/skipped_test_suites`.
             public var skipped_test_suites: [Swift.String]?
-            /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+            /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_impact_run_id`.
             public var test_impact_run_id: Swift.String?
@@ -10525,7 +10562,7 @@ public enum Components {
             ///   - shard_min: Minimum number of shards.
             ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
-            ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+            ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -10619,6 +10656,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/skip`.
             public var skip: [Swift.String]?
+            /// For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/skipped_tests`.
+            public var skipped_tests: [Components.Schemas.SkippedTest]?
             /// The test suites assigned to this shard, grouped by module name.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
@@ -10643,10 +10684,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
             public var suites: Components.Schemas.Shard.suitesPayload
-            /// For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
-            ///
-            /// - Remark: Generated from `#/components/schemas/Shard/test_impact_skip`.
-            public var test_impact_skip: [Components.Schemas.TestImpactSkippedTest]?
             /// Creates a new `Shard`.
             ///
             /// - Parameters:
@@ -10655,24 +10692,24 @@ public enum Components {
             ///   - modules: The test modules assigned to this shard.
             ///   - shard_plan_id: The UUID of the shard plan.
             ///   - skip: Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
+            ///   - skipped_tests: For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
-            ///   - test_impact_skip: For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
             public init(
                 download_url: Swift.String? = nil,
                 download_urls: [Swift.String],
                 modules: [Swift.String],
                 shard_plan_id: Swift.String,
                 skip: [Swift.String]? = nil,
-                suites: Components.Schemas.Shard.suitesPayload,
-                test_impact_skip: [Components.Schemas.TestImpactSkippedTest]? = nil
+                skipped_tests: [Components.Schemas.SkippedTest]? = nil,
+                suites: Components.Schemas.Shard.suitesPayload
             ) {
                 self.download_url = download_url
                 self.download_urls = download_urls
                 self.modules = modules
                 self.shard_plan_id = shard_plan_id
                 self.skip = skip
+                self.skipped_tests = skipped_tests
                 self.suites = suites
-                self.test_impact_skip = test_impact_skip
             }
             public enum CodingKeys: String, CodingKey {
                 case download_url
@@ -10680,8 +10717,8 @@ public enum Components {
                 case modules
                 case shard_plan_id
                 case skip
+                case skipped_tests
                 case suites
-                case test_impact_skip
             }
         }
         /// - Remark: Generated from `#/components/schemas/PreviewTracks`.
@@ -18593,43 +18630,6 @@ public enum Components {
                 case projects
             }
         }
-        /// A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
-        ///
-        /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest`.
-        public struct TestImpactSkippedTest: Codable, Hashable, Sendable {
-            /// The test module (target, Gradle module, Mix app, or crate).
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest/module`.
-            public var module: Swift.String
-            /// The name of the test. Absent when the whole module is skipped.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest/name`.
-            public var name: Swift.String?
-            /// The suite (class) of the test. Absent when the whole module is skipped.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest/suite`.
-            public var suite: Swift.String?
-            /// Creates a new `TestImpactSkippedTest`.
-            ///
-            /// - Parameters:
-            ///   - module: The test module (target, Gradle module, Mix app, or crate).
-            ///   - name: The name of the test. Absent when the whole module is skipped.
-            ///   - suite: The suite (class) of the test. Absent when the whole module is skipped.
-            public init(
-                module: Swift.String,
-                name: Swift.String? = nil,
-                suite: Swift.String? = nil
-            ) {
-                self.module = module
-                self.name = name
-                self.suite = suite
-            }
-            public enum CodingKeys: String, CodingKey {
-                case module
-                case name
-                case suite
-            }
-        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPage`.
@@ -21831,8 +21831,8 @@ public enum Components {
             public var reason: Swift.String?
             /// The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
             ///
-            /// - Remark: Generated from `#/components/schemas/TestImpactRun/skip`.
-            public var skip: [Components.Schemas.TestImpactSkippedTest]?
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/skipped_tests`.
+            public var skipped_tests: [Components.Schemas.SkippedTest]?
             /// Creates a new `TestImpactRun`.
             ///
             /// - Parameters:
@@ -21841,21 +21841,21 @@ public enum Components {
             ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
             ///   - outcome: `selected` or `fallback`. On `fallback` the client runs default selective testing. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
             ///   - reason: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, or `tracked_file_changed`.
-            ///   - skip: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
+            ///   - skipped_tests: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
             public init(
                 counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
                 id: Swift.String,
                 matched_path: Swift.String? = nil,
                 outcome: Swift.String,
                 reason: Swift.String? = nil,
-                skip: [Components.Schemas.TestImpactSkippedTest]? = nil
+                skipped_tests: [Components.Schemas.SkippedTest]? = nil
             ) {
                 self.counts = counts
                 self.id = id
                 self.matched_path = matched_path
                 self.outcome = outcome
                 self.reason = reason
-                self.skip = skip
+                self.skipped_tests = skipped_tests
             }
             public enum CodingKeys: String, CodingKey {
                 case counts
@@ -21863,7 +21863,7 @@ public enum Components {
                 case matched_path
                 case outcome
                 case reason
-                case skip
+                case skipped_tests
             }
         }
         /// - Remark: Generated from `#/components/schemas/TestSuiteRunStatus`.
@@ -101057,7 +101057,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/skipped_test_suites`.
                     public var skipped_test_suites: [Swift.String]?
-                    /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+                    /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_impact_run_id`.
                     public var test_impact_run_id: Swift.String?
@@ -101081,7 +101081,7 @@ public enum Operations {
                     ///   - shard_min: Minimum number of shards.
                     ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
-                    ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+                    ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
