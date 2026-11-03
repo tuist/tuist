@@ -303,6 +303,11 @@ socket, the poller and the caller share a replica:
   rechecked per event and run in `start_async`, since node commands block.
   Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
   and Amp Orbs are not resumed from the dashboard (Amp resumes them).
+  The overview charts come from `Analytics` over ClickHouse
+  `sandbox_events`, which `Events` writes on every state change: through
+  `update_sandbox/2`, and explicitly where a state is written another way
+  (create, delete, `mark_error`, `Archives`). A new state write must record
+  its event too, or sessions and concurrency drift.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,

@@ -6,14 +6,20 @@ defmodule Tuist.SandboxesTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
+
+  defp events(%Sandbox{id: id}) do
+    ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^id, order_by: e.inserted_at, select: e.event))
+  end
 
   describe "agent environments" do
     test "create_agent_environment/2 stores the key encrypted and lists it back without it" do
@@ -103,6 +109,7 @@ defmodule Tuist.SandboxesTest do
       assert sandbox.last_active_at
       assert [%Sandbox{id: id}] = Sandboxes.list_sandboxes(account)
       assert id == sandbox.id
+      assert events(sandbox) == ["created", "started"]
     end
 
     test "applies the requested shape" do
@@ -127,8 +134,11 @@ defmodule Tuist.SandboxesTest do
 
       assert {:error, :no_node} = Sandboxes.create_sandbox(account, %{})
 
-      assert [%Sandbox{state: :error, node_name: nil, error_message: message}] = Sandboxes.list_sandboxes(account)
+      assert [%Sandbox{state: :error, node_name: nil, error_message: message} = sandbox] =
+               Sandboxes.list_sandboxes(account)
+
       assert message =~ "no node"
+      assert events(sandbox) == ["created", "failed"]
     end
 
     test "marks the sandbox as errored when the node rejects the create" do
@@ -156,6 +166,7 @@ defmodule Tuist.SandboxesTest do
       end)
 
       assert {:ok, %Sandbox{state: :paused, paused_at: %DateTime{}}} = Sandboxes.pause(sandbox)
+      assert events(sandbox) == ["paused"]
     end
 
     test "pause/1 leaves the sandbox running when the node refuses" do
@@ -244,6 +255,7 @@ defmodule Tuist.SandboxesTest do
 
       assert {:ok, %Sandbox{}} = Sandboxes.delete(sandbox)
       assert Repo.get(Sandbox, sandbox_id) == nil
+      assert events(sandbox) == ["deleted"]
     end
 
     test "removes the row when the node is not connected" do
@@ -366,6 +378,8 @@ defmodule Tuist.SandboxesTest do
 
       assert %Sandbox{state: :error, error_message: "firecracker exited", residency_work_id: nil, residency_epoch: 5} =
                Repo.reload!(sandbox)
+
+      assert events(sandbox) == ["failed"]
     end
   end
 

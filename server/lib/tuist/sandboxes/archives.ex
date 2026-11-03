@@ -36,6 +36,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
@@ -256,6 +257,8 @@ defmodule Tuist.Sandboxes.Archives do
                 archived_at: now()
               })
               |> Repo.update()
+
+            Events.record(archived, "archived")
 
             Logger.info("sandboxes: sandbox archived",
               sandbox_id: sandbox.id,

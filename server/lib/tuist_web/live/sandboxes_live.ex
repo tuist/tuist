@@ -3,20 +3,25 @@ defmodule TuistWeb.SandboxesLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.Skeleton
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AmpIntegrations
+  alias Tuist.Sandboxes.Analytics
   alias Tuist.Sandboxes.Concurrency
-  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Utilities.Query
 
   @refresh_interval 5_000
   @filters ["all", "running", "paused", "error"]
+  @widgets ["created", "compute", "session_duration", "failed"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: user}} = socket) do
@@ -33,9 +38,65 @@ defmodule TuistWeb.SandboxesLive do
   end
 
   @impl true
-  def handle_params(params, _uri, socket) do
+  def handle_params(params, uri, %{assigns: %{selected_account: account}} = socket) do
     filter = if params["status"] in @filters, do: params["status"], else: "all"
-    {:noreply, socket |> assign(:filter, filter) |> load()}
+
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    {:noreply,
+     socket
+     |> assign(
+       uri: URI.parse(uri),
+       filter: filter,
+       analytics_preset: preset,
+       analytics_period: period,
+       analytics_trend_label: trend_label(preset),
+       analytics_selected_widget: if(params["widget"] in @widgets, do: params["widget"], else: "created"),
+       session_duration_percentile: params["session-duration"] || "avg"
+     )
+     |> load()
+     |> assign_async(:analytics, fn ->
+       {:ok, %{analytics: Analytics.overview(account.id, start_datetime: start_datetime, end_datetime: end_datetime)}}
+     end)}
+  end
+
+  @impl true
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    {:noreply, patch_with_param(socket, "widget", widget)}
+  end
+
+  def handle_event("select_session_duration_percentile", %{"type" => type}, socket) do
+    {:noreply, patch_with_param(socket, "session-duration", type)}
+  end
+
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{socket.assigns.selected_account.name}/sandboxes?#{query}")}
+  end
+
+  defp patch_with_param(socket, key, value) do
+    push_patch(socket, to: status_patch(socket.assigns.selected_account, socket.assigns.uri, key, value))
+  end
+
+  def status_patch(account, uri, key \\ "status", value) do
+    query =
+      if key == "status" and value == "all", do: Query.drop(uri.query, "status"), else: Query.put(uri.query, key, value)
+
+    "/#{account.name}/sandboxes?#{query}"
   end
 
   @impl true
@@ -52,7 +113,6 @@ defmodule TuistWeb.SandboxesLive do
       counts: counts,
       total: counts |> Map.values() |> Enum.sum(),
       usage: Concurrency.usage(account.id),
-      snapshot_count: account.id |> DiskSnapshots.list() |> length(),
       amp_integration: account.id |> AmpIntegrations.get() |> AmpIntegrations.public_status()
     )
   end
@@ -88,6 +148,135 @@ defmodule TuistWeb.SandboxesLive do
   end
 
   def running_count(counts), do: Enum.sum(for state <- [:creating, :resuming, :running], do: counts[state])
+
+  defp trend_label("last-24-hours"), do: dgettext("dashboard_sandboxes", "since yesterday")
+  defp trend_label("last-7-days"), do: dgettext("dashboard_sandboxes", "since last week")
+  defp trend_label("last-12-months"), do: dgettext("dashboard_sandboxes", "since last year")
+  defp trend_label("custom"), do: dgettext("dashboard_sandboxes", "since last period")
+  defp trend_label(_), do: dgettext("dashboard_sandboxes", "since last month")
+
+  def vcpu_hours(value) when value < 10, do: format_number(value, fractional_digits: 1)
+  def vcpu_hours(value), do: format_number(value)
+
+  def count_series(%{dates: dates, values: values}, name) do
+    [
+      %{
+        color: "var:noora-chart-primary",
+        data: dates |> Enum.zip(values) |> Enum.map(&Tuple.to_list/1),
+        name: name,
+        type: "line",
+        smooth: 0.1,
+        symbol: "none"
+      }
+    ]
+  end
+
+  @doc """
+  The peak usage charts, each against the account's limit, with what is in
+  use right now.
+  """
+  def concurrency_charts(concurrency, counts, usage, account) do
+    [
+      %{
+        id: "sandboxes",
+        title: dgettext("dashboard_sandboxes", "Running sandboxes"),
+        subtitle:
+          dgettext("dashboard_sandboxes", "%{count} of %{limit} running now",
+            count: running_count(counts),
+            limit: Sandboxes.max_running_sandboxes_per_account()
+          ),
+        values: concurrency.sandboxes,
+        limit: Sandboxes.max_running_sandboxes_per_account(),
+        usage_label: dgettext("dashboard_sandboxes", "Peak sandboxes")
+      },
+      %{
+        id: "vcpus",
+        title: dgettext("dashboard_sandboxes", "vCPUs"),
+        subtitle:
+          dgettext("dashboard_sandboxes", "%{count} of %{limit} in use now",
+            count: usage.vcpus,
+            limit: account.sandbox_vcpus_limit
+          ),
+        values: concurrency.vcpus,
+        limit: account.sandbox_vcpus_limit,
+        usage_label: dgettext("dashboard_sandboxes", "Peak vCPUs")
+      },
+      %{
+        id: "memory",
+        title: dgettext("dashboard_sandboxes", "Memory"),
+        subtitle:
+          dgettext("dashboard_sandboxes", "%{count} of %{limit} in use now",
+            count: gigabytes(usage.memory_mb / 1024),
+            limit: gigabytes(account.sandbox_memory_gb_limit)
+          ),
+        values: concurrency.memory_gb,
+        limit: account.sandbox_memory_gb_limit,
+        usage_label: dgettext("dashboard_sandboxes", "Peak memory (GB)")
+      }
+    ]
+  end
+
+  def concurrency_chart_series(values, limit, usage_label) do
+    [
+      %{
+        data:
+          Enum.map(
+            values,
+            &if(&1 >= limit, do: %{value: &1, itemStyle: %{color: "var:noora-chart-destructive"}}, else: &1)
+          ),
+        itemStyle: %{color: "var:noora-chart-primary"},
+        name: usage_label,
+        type: "bar",
+        barMaxWidth: 18
+      },
+      %{
+        data: List.duplicate(limit, length(values)),
+        name: dgettext("dashboard_sandboxes", "Limit"),
+        type: "line",
+        symbol: "none",
+        silent: true,
+        itemStyle: %{color: "var:noora-chart-destructive"},
+        lineStyle: %{color: "var:noora-chart-destructive", type: "dashed", width: 1.5}
+      }
+    ]
+  end
+
+  def concurrency_chart_options(analytics_preset) do
+    hourly? = analytics_preset == "last-24-hours"
+
+    %{
+      grid: %{left: 34, right: 24, top: 8, bottom: 36},
+      legend: %{
+        left: "left",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-secondary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        itemWidth: 10,
+        itemHeight: 4
+      },
+      xAxis: %{
+        boundaryGap: true,
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: if(hourly?, do: "fn:toLocaleDateHour", else: "fn:toLocaleDate"),
+          hideOverlap: true,
+          padding: [8, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      tooltip: if(hourly?, do: %{dateFormat: "hour"}, else: %{})
+    }
+  end
 
   attr :account, :map, required: true
   attr :amp_integration, :map, default: nil

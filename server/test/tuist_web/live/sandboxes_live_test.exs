@@ -11,6 +11,7 @@ defmodule TuistWeb.SandboxesLiveTest do
   alias Tuist.Repo
   alias Tuist.Sandboxes.AmpIntegration
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -94,8 +95,28 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "#sandbox-#{paused.id}", "4 vCPU · 8 GB RAM · 10 GB disk")
       assert has_element?(lv, "#sandbox-#{archived.id}", "Archived")
       refute has_element?(lv, "#sandbox-#{other.id}")
-      assert has_element?(lv, "#sandboxes-live", "1 / 5")
-      assert has_element?(lv, "#sandboxes-vcpus", "2 / 32")
+      assert has_element?(lv, "#sandboxes-concurrency-sandboxes", "1 of 5 running now")
+      assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
+    end
+
+    test "charts the account's sandbox history", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-history")
+      Events.record(sandbox, "created")
+      Events.record(sandbox, "started")
+      Events.record(sandbox_fixture(amp_orb_id: "orb-of-another-account"), "created")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
+      render_async(lv)
+
+      assert has_element?(lv, "#widget-sandboxes-created", "1")
+      assert has_element?(lv, "#widget-sandboxes-failed", "No data yet")
+      assert has_element?(lv, "#sandboxes-created-chart")
+
+      render_click(lv, "select_widget", %{"widget" => "compute"})
+      render_async(lv)
+
+      assert_patch(lv, ~p"/#{account.name}/sandboxes?widget=compute")
+      assert has_element?(lv, "#sandboxes-compute-chart")
     end
 
     test "filters sandboxes by status", %{conn: conn, account: account} do

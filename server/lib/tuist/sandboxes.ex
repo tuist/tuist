@@ -23,6 +23,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
+  alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
@@ -247,6 +248,7 @@ defmodule Tuist.Sandboxes do
                Repo.insert(changeset)
              end
            end) do
+      Events.record(sandbox, "created")
       boot(sandbox, Keyword.get(opts, :from_disk_snapshot))
     end
   end
@@ -590,7 +592,10 @@ defmodule Tuist.Sandboxes do
       with {:ok, sandbox} <- update_sandbox(sandbox, %{state: :deleted, residency_work_id: nil}),
            :ok <- delete_on_node(sandbox),
            :ok <- Archives.delete_object(sandbox) do
-        Repo.delete(sandbox)
+        with {:ok, deleted} <- Repo.delete(sandbox) do
+          Events.record(deleted, "deleted")
+          {:ok, deleted}
+        end
       else
         {:error, reason} ->
           {:ok, _} = update_sandbox(sandbox, %{state: :error, error_message: error_message(reason)})
@@ -1018,7 +1023,11 @@ defmodule Tuist.Sandboxes do
   defp error_or_revert(%Sandbox{state: :creating, archived_at: %DateTime{}} = sandbox, _message, _from_state),
     do: Archives.revert_restore(sandbox.id)
 
-  defp error_or_revert(%Sandbox{} = sandbox, message, from_state), do: mark_error(sandbox.id, message, from_state)
+  defp error_or_revert(%Sandbox{} = sandbox, message, from_state) do
+    if mark_error(sandbox.id, message, from_state) == 1 and sandbox.state != :error, do: Events.record(sandbox, "failed")
+
+    :ok
+  end
 
   # Errors a sandbox from outside its lock (the node's socket process must
   # never wait on one), so it only applies when the row is still in the
@@ -1029,12 +1038,13 @@ defmodule Tuist.Sandboxes do
         if from_state, do: where(query, [s], s.state == ^from_state), else: query
       end)
 
-    Repo.update_all(query,
-      set: [state: :error, error_message: message, residency_work_id: nil, updated_at: now()],
-      inc: [residency_epoch: 1]
-    )
+    {count, _} =
+      Repo.update_all(query,
+        set: [state: :error, error_message: message, residency_work_id: nil, updated_at: now()],
+        inc: [residency_epoch: 1]
+      )
 
-    :ok
+    count
   end
 
   defp maybe_put(attrs, _key, nil), do: attrs
@@ -1067,9 +1077,10 @@ defmodule Tuist.Sandboxes do
   # ----- Helpers -----
 
   defp update_sandbox(%Sandbox{} = sandbox, attrs) do
-    sandbox
-    |> Sandbox.update_changeset(attrs)
-    |> Repo.update()
+    with {:ok, updated} <- sandbox |> Sandbox.update_changeset(attrs) |> Repo.update() do
+      Events.record_transition(sandbox, updated)
+      {:ok, updated}
+    end
   end
 
   defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
