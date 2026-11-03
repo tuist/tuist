@@ -377,7 +377,10 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "accepts the impact run of coverage-based test selection", %{conn: conn, user: user, project: project} do
+      test_impact_run_id = UUIDv7.generate()
+
       expect(Tests, :create_test, fn attrs ->
+        assert attrs.test_impact_run_id == test_impact_run_id
         {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
       end)
 
@@ -385,7 +388,7 @@ defmodule TuistWeb.API.TestsControllerTest do
         duration: 100,
         is_ci: true,
         status: "success",
-        test_impact_run_id: UUIDv7.generate(),
+        test_impact_run_id: test_impact_run_id,
         test_modules: [
           %{
             name: "AppTests",

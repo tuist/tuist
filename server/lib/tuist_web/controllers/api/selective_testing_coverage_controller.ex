@@ -5,6 +5,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
   alias OpenApiSpex.Schema
   alias Tuist.FeatureFlags
   alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Storage
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -149,6 +150,12 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description:
                "The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff."
            },
+           parent_shas: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "The parents of the checked-out commit, as sent to the baseline request, when it's a merge commit the server's history doesn't have. The evidence window is walked from them."
+           },
            baseline_sha: %Schema{
              type: :string,
              description: "The baseline the baseline request returned. When absent, `fallback_reason` says why."
@@ -218,13 +225,30 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
 
   def create_run(%{assigns: %{selected_project: selected_project}} = conn, _params) do
     if FeatureFlags.test_impact_analysis_enabled?(selected_project.account, selected_project) do
-      conn
-      |> put_status(:not_implemented)
-      |> json(%{message: "Coverage-based test selection isn't available yet."})
+      {:ok, %{run: run, skip: skip}} = Runs.create(selected_project, conn.body_params)
+      json(conn, run_response(run, skip))
     else
       conn
       |> put_status(:not_found)
       |> json(%{message: "Test impact analysis isn't enabled for this project."})
     end
   end
+
+  defp run_response(%{outcome: "selected"} = run, skip) do
+    %{
+      id: run.id,
+      outcome: run.outcome,
+      counts: %{requested: run.requested_count, selected: run.selected_count, skipped: run.skipped_count},
+      skip: skip
+    }
+  end
+
+  defp run_response(run, _skip) do
+    %{id: run.id, outcome: run.outcome}
+    |> put_present(:reason, run.reason)
+    |> put_present(:matched_path, run.matched_path)
+  end
+
+  defp put_present(response, _key, value) when value in [nil, ""], do: response
+  defp put_present(response, key, value), do: Map.put(response, key, value)
 end

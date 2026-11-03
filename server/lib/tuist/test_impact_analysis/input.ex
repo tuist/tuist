@@ -174,9 +174,14 @@ defmodule Tuist.TestImpactAnalysis.Input do
     })
   end
 
-  defp baseline_tests(_project_id, [], _modules), do: []
+  @doc """
+  The tests the baseline's runs executed, one per test case, as
+  `%{test_case_id, module_name, suite_name, name}`, narrowed to `modules`
+  unless nil.
+  """
+  def baseline_tests(_project_id, [], _modules), do: []
 
-  defp baseline_tests(project_id, run_ids, modules) do
+  def baseline_tests(project_id, run_ids, modules) do
     query =
       from(r in TestCaseRun,
         where: r.project_id == ^project_id and r.test_run_id in ^run_ids and not is_nil(r.test_case_id),

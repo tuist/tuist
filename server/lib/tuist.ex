@@ -175,6 +175,7 @@ defmodule Tuist do
       Tests.CoverageCommit,
       Tests.TestRunStressCandidate,
       TestImpactAnalysis.Baselines,
+      TestImpactAnalysis.Runs,
       TestImpactAnalysis.Storage,
       Shards,
       Shards.Analytics,

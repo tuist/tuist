@@ -144,7 +144,8 @@ defmodule TuistWeb.API.ShardsController do
       granularity: Map.get(body_params, :granularity, "module"),
       git_branch: Map.get(body_params, :git_branch),
       build_run_id: Map.get(body_params, :build_run_id),
-      gradle_build_id: Map.get(body_params, :gradle_build_id)
+      gradle_build_id: Map.get(body_params, :gradle_build_id),
+      test_impact_run_id: Map.get(body_params, :test_impact_run_id)
     }
 
     result =

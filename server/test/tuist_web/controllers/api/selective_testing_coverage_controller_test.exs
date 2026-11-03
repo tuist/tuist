@@ -137,17 +137,63 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       assert json_response(conn, :not_found)["message"] == "Test impact analysis isn't enabled for this project."
     end
 
-    test "accepts a fallback without a baseline", %{conn: conn, user: user, project: project} do
+    test "records a fallback without a baseline", %{conn: conn, user: user, project: project} do
       stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
 
-      conn =
-        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs", %{
+      response =
+        conn
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs", %{
           build_system: "xcode",
           head_sha: "head",
           fallback_reason: "history_unavailable"
         })
+        |> json_response(:ok)
 
-      assert json_response(conn, :not_implemented)
+      assert %{"id" => id, "outcome" => "fallback", "reason" => "history_unavailable"} = response
+      refute Map.has_key?(response, "skip")
+      assert_schema(response, "TestImpactRun", Spec.spec())
+      assert {:ok, %{outcome: "fallback", baseline_sha: nil}} = Storage.get_run(project.id, id)
+    end
+
+    test "records a selection against the baseline with its counts and skip list", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
+
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("head", ["base"], 1)
+        ])
+
+      [baseline_run_id] = CoverageFixtures.commit_coverage(project, repository_id, "base")
+
+      response =
+        conn
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs", %{
+          @run_params
+          | head_sha: "head",
+            commit_sha: "head",
+            baseline_sha: "base",
+            git_branch: "feature"
+        })
+        |> json_response(:ok)
+
+      assert %{
+               "id" => id,
+               "outcome" => "selected",
+               "counts" => %{"requested" => 0, "selected" => 0, "skipped" => 0},
+               "skip" => []
+             } = response
+
+      assert_schema(response, "TestImpactRun", Spec.spec())
+
+      assert {:ok, %{baseline_run_ids: [^baseline_run_id], requested_modules: ["AppTests"]}} =
+               Storage.get_run(project.id, id)
+
+      assert {:ok, %{changed_files_count: 3}} = Storage.get_diff(project.id, "head", "base")
     end
 
     test "rejects a changed file without a path or status", %{conn: conn, user: user, project: project} do

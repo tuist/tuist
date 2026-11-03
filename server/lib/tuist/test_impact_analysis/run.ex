@@ -17,6 +17,7 @@ defmodule Tuist.TestImpactAnalysis.Run do
     field :head_sha, Ch, type: "String"
     field :commit_sha, Ch, type: "String"
     field :baseline_sha, Ch, type: "Nullable(String)"
+    field :baseline_run_ids, Ch, type: "Array(UUID)", default: []
     field :git_branch, Ch, type: "String", default: ""
     field :dirty, :boolean, default: false
     field :strategy, Ch, type: "LowCardinality(String)", default: "coverage"
@@ -47,6 +48,7 @@ defmodule Tuist.TestImpactAnalysis.Run do
       :head_sha,
       :commit_sha,
       :baseline_sha,
+      :baseline_run_ids,
       :git_branch,
       :dirty,
       :strategy,
