@@ -8,7 +8,7 @@ defmodule Tuist.Registry.Swift.SwiftPackageIndex do
 
   require Logger
 
-  @github_opts [finch: Tuist.Finch, retry: false]
+  @github_opts [finch: Tuist.Finch, retry: false, anonymous_fallback: true]
 
   def list_packages(token) do
     with {:ok, json} <- TuistCommon.GitHub.fetch_packages_json(token, @github_opts),

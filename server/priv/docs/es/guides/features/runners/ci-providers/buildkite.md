@@ -2,7 +2,7 @@
 {
   "title": "Buildkite",
   "titleTemplate": ":title · Proveedores de CI · Runners · Funcionalidades · Guías · Tuist",
-  "description": "Ejecuta tu primer trabajo de Buildkite en los Runners de Tuist: conecta tu clúster, asigna a una cola el nombre de un perfil de Tuist y dirígela desde un paso."
+  "description": "Ejecuta tu primer trabajo de Buildkite en los runners de Tuist: conecta tu clúster, asigna a una cola el nombre de un perfil de Tuist y apúntala desde un paso."
 }
 ---
 # Buildkite {#buildkite}
@@ -10,13 +10,13 @@
 > [!IMPORTANT]
 > **Solo por invitación**
 >
-> Los Tuist Runners están disponibles solo por invitación. [Ponte en contacto](mailto:contact@tuist.dev) o escríbenos en el [Slack de la comunidad](https://slack.tuist.dev) para solicitar acceso para tu cuenta.
+> Tuist Runners está disponible actualmente solo por invitación. [Contacta con nosotros](mailto:contact@tuist.dev) o escríbenos en el [Slack de la comunidad](https://slack.tuist.dev) para solicitar acceso para tu cuenta.
 
-Tuist supervisa las colas autoalojadas de tu clúster de Buildkite y ejecuta los trabajos que encuentra allí en la flota. Tus pipelines siguen ejecutándose en Buildkite; solo cambia el cómputo. Para ejecutar un trabajo en la flota necesitas tres cambios: conecta tu clúster, asigna a una cola el nombre de un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Tuist y apúntala desde un paso.
+Tuist monitoriza las colas autoalojadas de tu clúster de Buildkite y ejecuta los trabajos que encuentra allí en la flota. Tus pipelines siguen ejecutándose en Buildkite; solo cambia el cómputo. Para ejecutar un trabajo en la flota se necesitan tres cambios: conecta tu clúster, asigna a una cola el nombre de un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Tuist y apúntala desde un paso.
 
-1. **Solicita acceso.** Los runners están disponibles solo por invitación durante la beta. [Ponte en contacto](mailto:contact@tuist.dev) indicando la cuenta que quieres habilitar.
-2. **Conecta tu clúster.** En Buildkite, abre tu clúster, ve a **Tokens de agente** y crea un token; comienza con `bkct_`. En el panel de Tuist, ve a **Configuración → Integraciones**, elige **Conectar** en la tarjeta de Buildkite e introduce el slug de tu organización y el token. El token se almacena cifrado y no se vuelve a mostrar. Para cambiar la organización o rotar el token más adelante, edita los campos de la tarjeta y elige **Guardar cambios**. Tuist comenzará a supervisar el clúster en menos de un minuto.
-3. **Asigna a una cola el nombre de un perfil de Tuist.** Cada cuenta habilitada empieza con dos <.localized_link href="/guides/features/runners/profiles">perfiles</.localized_link> listos para usar, `linux` y `macos`, y un trabajo se recoge cuando la clave de su cola coincide con la etiqueta de un perfil. Crea colas autoalojadas en tu clúster con las claves `tuist-linux` y `tuist-macos`, luego apunta a una desde un paso:
+1. **Solicita acceso.** Los runners están disponibles solo por invitación durante la beta. [Contacta con nosotros](mailto:contact@tuist.dev) indicando la cuenta que quieres habilitar.
+2. **Conecta tu clúster.** En Buildkite, abre tu clúster, ve a **Tokens de agente** y crea un token; comienza por `bkct_`. En el panel de Tuist, ve a **Ajustes → Integraciones**, elige **Conectar** en la tarjeta de Buildkite e introduce el slug de tu organización y el token. El token se almacena cifrado y no se vuelve a mostrar. Para cambiar la organización o rotar el token más adelante, edita los campos de la tarjeta y elige **Guardar cambios**. Tuist comienza a monitorizar el clúster en menos de un minuto.
+3. **Asigna a una cola el nombre de un perfil de Tuist.** Cada cuenta habilitada empieza con dos <.localized_link href="/guides/features/runners/profiles">perfiles</.localized_link> listos para usar, `linux` y `macos`, y un trabajo se recoge cuando la clave de su cola coincide con la etiqueta de un perfil. Crea colas autoalojadas en tu clúster con las claves `tuist-linux` y `tuist-macos`, y luego apunta a una desde un paso:
 
    ```yaml
    # .buildkite/pipeline.yml
@@ -31,10 +31,10 @@ Tuist supervisa las colas autoalojadas de tu clúster de Buildkite y ejecuta los
 
 ## Pausar y desconectar {#pausing-and-disconnecting}
 
-Pausar el envío en una cola de Buildkite impide que Tuist tome nuevos trabajos de ella. Los trabajos que ya se están ejecutando no se ven afectados.
+Pausar el despacho en una cola de Buildkite impide que Tuist tome nuevos trabajos de ella. Los trabajos que ya se están ejecutando no se ven afectados.
 
-Desconectar el clúster en la tarjeta de Buildkite bajo **Configuración → Integraciones** hace que Tuist deje de supervisarlo por completo.
+Desconectar el clúster desde la tarjeta de Buildkite en **Ajustes → Integraciones** hace que Tuist deje de monitorizarlo por completo.
 
 ## Volúmenes de caché {#cache-volumes}
 
-Mantén las cachés de Xcode, de módulos y de Gradle, así como otros directorios, entre trabajos con <.localized_link href="/guides/features/runners/cache-volumes">volúmenes de caché</.localized_link>. Añádelos después del checkout y antes de los comandos que los utilicen.
+Mantén las cachés de Xcode, de módulos y de Gradle, así como otros directorios, entre trabajos mediante <.localized_link href="/guides/features/runners/cache-volumes">volúmenes de caché</.localized_link>. Añádelos después del checkout y antes de los comandos que los utilicen.

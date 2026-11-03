@@ -31,6 +31,6 @@ Sources checked on **2026-10-08**: [Cirun documentation](https://docs.cirun.io/)
 
 ## Limitations
 
-You still need to own cloud permissions, machine configuration, network policy, and operational cost. Cache integration support and lifecycle behavior can change. Tuist capabilities vary by toolchain; selective testing requires generated Xcode projects. Licenses and supported server self-hosting are separate questions. Tuist Runners are invite-only with no public pricing, and no guaranteed saving is claimed.
+You still need to own cloud permissions, machine configuration, network policy, and operational cost. Cache integration support and lifecycle behavior can change. Tuist capabilities vary by toolchain; selective testing requires generated Xcode projects. Licenses and supported server self-hosting are separate questions. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No guaranteed saving is claimed.
 
 Related: [RunsOn](/marketing-markdown/compare/runs-on), [Buildkite](/marketing-markdown/compare/buildkite), and [all comparisons](/marketing-markdown/compare).

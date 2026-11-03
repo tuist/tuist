@@ -79,6 +79,7 @@ defmodule TuistWeb.BillingLive do
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
       |> assign(:payment_issue, payment_issue(selected_account, subscription))
+      |> assign(:downgrade_date, downgrade_date(subscription, billing_period))
 
     {:ok, socket}
   end
@@ -93,6 +94,12 @@ defmodule TuistWeb.BillingLive do
   end
 
   defp payment_issue(_account, _subscription), do: nil
+
+  # A downgrade to Air keeps Pro until the period it was made in ends.
+  defp downgrade_date(%{plan: :pro, cancel_at_period_end: true}, {_period_start, %DateTime{} = period_end}),
+    do: Timex.format!(period_end, "{Mfull} {D}")
+
+  defp downgrade_date(_subscription, _billing_period), do: nil
 
   @impl true
   def handle_params(_params, uri, socket) do
@@ -128,14 +135,13 @@ defmodule TuistWeb.BillingLive do
         {:ok, {:external_redirect, session_url}} ->
           redirect(socket, external: session_url)
 
+        # Reloaded rather than assigned, because a downgrade only takes
+        # effect at the end of the period and the page has to say so.
         :ok ->
-          socket
+          push_navigate(socket, to: URI.parse(uri).path)
       end
 
-    {
-      :noreply,
-      assign(socket, :plan, new_plan)
-    }
+    {:noreply, socket}
   end
 
   # The window the next invoice will cover. A subscription renewing

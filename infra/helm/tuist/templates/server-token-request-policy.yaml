@@ -1,0 +1,45 @@
+{{- if and .Values.server.enabled .Values.server.atlasSupportIngest.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "server-token-request") }}
+{{- $serviceAccount := include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+{{- /*
+Atlas accepts agent feedback from any token for the server ServiceAccount, so
+only kubelets may mint one: they project tokens into the server's own pods. The
+tart-kubelet ClusterRole grants `serviceaccounts/token: create` cluster-wide to
+every Mac host identity, which would otherwise let a compromised host mint a
+token Atlas trusts. Real kubelets authenticate in the `system:nodes` group;
+tart-kubelet hosts authenticate as ServiceAccounts and never run server pods.
+*/}}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["serviceaccounts/token"]
+  validations:
+    - expression: >-
+        request.name != {{ $serviceAccount | quote }} ||
+        (has(request.userInfo.groups) && 'system:nodes' in request.userInfo.groups)
+      message: Only kubelets may mint tokens for the server ServiceAccount.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $name }}
+  validationActions: [Deny]
+{{- end }}

@@ -33,6 +33,33 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     refute has_element?(view, "#build-environment")
   end
 
+  test "failed build details share the recorded failure category", %{conn: conn, user: user, project: project} do
+    id =
+      build(project, user, status: "failure", custom_metadata: %{values: %{"tuist.failure_category" => "verification"}})
+
+    {:ok, view, _} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}")
+    assert has_element?(view, "[data-part=build-details]", "Verification")
+
+    successful = build(project, user, custom_metadata: %{values: %{"tuist.failure_category" => "verification"}})
+    {:ok, view, _} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{successful}")
+    refute has_element?(view, "[data-part=build-details]", "Failure category")
+  end
+
+  test "the Status filter scopes build analytics", %{conn: conn, user: user, project: project} do
+    build(project, user, duration_ms: 2_000)
+    build(project, user, status: "failure", duration_ms: 10_000)
+
+    passed = Cargo.build_analytics(project.id, status: "success")
+    assert passed.total.count == 1
+    assert passed.failed.count == 0
+    assert passed.duration.total_average_duration == 2000.0
+    assert Cargo.build_analytics(project.id, status: "failure").duration.total_average_duration == 10_000.0
+
+    {:ok, home, _} = live(conn, "/#{user.account.name}/#{project.name}/builds?analytics-build-status=failure")
+    render_async(home, 5000)
+    assert has_element?(home, "#cargo-builds-status")
+  end
+
   test "splits the Xcode-style Builds home from Build Runs", %{conn: conn, user: user, project: project} do
     build(project, user, command: "check", duration_ms: 90)
     {:ok, home, _} = live(conn, "/#{user.account.name}/#{project.name}/builds")

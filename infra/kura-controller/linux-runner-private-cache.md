@@ -67,29 +67,24 @@ Historical measurements in [#14766](https://github.com/tuist/tuist/pull/14766)
 used a dedicated Gravelines instance versus Canada with different egress limits.
 They do not establish the final same-instance production performance.
 
-## Staging migration remains separate
+## Staging
 
-Staging still needs the old `ovh-gra-runners` experiment retired before this
-release is deployed there. The current request leaves staging alone.
+Staging advertises `scw-fr-par-runners,eu-west,ca-east`. Its EU-West capacity is
+`ns3220989.ip-162-19-86.eu`, adopted under the `gra-runners-cache` fleet
+identity and labelled `kura-dedibox`. The host also runs the staging shard
+store and holds the migrated RISE-S fixtures and retained recovery archives: do
+not reinstall it or delete those backups.
 
-1. On the old server release, inventory old-region rows, KuraInstances,
-   Services, pods and jobs retaining their URLs. Remove every enrollment of
-   `kura_linux_runner_cache`; a global false alone does not override actor or
-   percentage gates. Verify ordinary regional selection for new jobs.
-2. Preserve old-region reconciliation while normal lifecycle drains it. The
-   minimum drain is 15 minutes with job protection up to six hours. Require no
-   non-destroyed old-region rows or serving CRs/pods/Services; a timer alone is
-   not proof. Do not rewrite a live instance's region in SQL.
-3. Reuse `ns3220989.ip-162-19-86.eu` as ordinary EU-West capacity. Preserve the
-   `gra-runners-cache` fleet identity/adoption prefix and update its persistent
-   cache pool to `kura-dedibox` without Machine replacement. This host also holds
-   the migrated RISE-S fixtures and retained recovery archives: do not reinstall
-   it or delete those backups. Verify fixture scheduling, storage, public
-   DNS/TLS, ingress and capacity before deploying the new region catalog.
-4. Staging then advertises `scw-fr-par-runners,eu-west,ca-east`. Verify its
-   existing regional cache before qualifying its already
-   enrolled RISE-M. Remove the obsolete stored flag only once no old server
-   depends on it. The old RISE-S OVH contract was cancelled by the user.
+The `ovh-gra-runners` region never reached main. Its one staging row, the
+`tuist` account's `kura-tuist-ovh-gra-runners`, was moved to `eu-west` in
+place, the same way the `eu-central` rename did it: `kura_servers.region`,
+`kura_storage_rollups.region` and `kura_deployments.cluster_id` were rewritten,
+and `provisioner_node_ref` was kept, so the KuraInstance and its encrypted
+volumes survived. The account's EU-West lifecycle row is `keep_warm`, because
+the account resolves no service region on staging and would otherwise be
+drained after a day. A row whose region is not in the catalog is never
+reconciled or rolled out, so retire a region by tombstoning it in
+`Tuist.Kura.Regions` rather than deleting its spec.
 
 ## Staging fixture preservation, 2026-10-26
 
