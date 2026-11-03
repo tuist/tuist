@@ -912,14 +912,16 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp test_units([], _context, _tracked_now), do: {[], %{}}
 
   defp test_units(tests, context, tracked_now) do
-    versions = TestSources.versions(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id))
-    paths = versions |> Map.values() |> Enum.concat() |> Enum.flat_map(& &1.paths) |> Enum.uniq()
-    missing = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
-    now = Map.merge(blobs_now(context.repository_id, context.sha, missing), context.blobs)
+    evidence =
+      TestSources.lookup(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id), fn paths ->
+        missing = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
+        Map.merge(blobs_now(context.repository_id, context.sha, missing), context.blobs)
+      end)
+
     depths = Map.new(context.baseline, &{&1.git_commit_sha, &1.depth})
 
     tests
-    |> Enum.map(&{&1, source_version(Map.get(versions, &1.test_case_id, []), now)})
+    |> Enum.map(&{&1, source_version(Map.get(evidence, &1.test_case_id))})
     |> Enum.reduce({[], %{}, %{}}, fn
       {_test, :none}, acc ->
         acc
@@ -937,21 +939,13 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   # The latest version the commit reproduces, nil when it reproduces none,
   # and `:none` for a test without versions.
-  defp source_version([], _now), do: :none
-
-  defp source_version(versions, now),
-    do: versions |> Enum.filter(&reproduced?(&1, now)) |> Enum.max_by(&to_datetime(&1.ran_at), DateTime, fn -> nil end)
+  defp source_version(nil), do: :none
+  defp source_version(%{reproduced: reproduced}), do: reproduced
 
   defp remember_validity(validity, _context, _tracked_now, nil), do: validity
 
   defp remember_validity(validity, context, tracked_now, source),
     do: Map.put_new_lazy(validity, source.sha, fn -> validity(context, tracked_now, source.sha) end)
-
-  # Every file the version executed has, at the commit, the blob it had then.
-  defp reproduced?(version, now) do
-    Enum.all?(version.paths, &is_binary(now[&1])) and
-      TestSources.fingerprint(Enum.map(version.paths, &{&1, now[&1]})) == version.fingerprint
-  end
 
   defp version_failure(_context, nil, _validity), do: :executed_file_changed
 
