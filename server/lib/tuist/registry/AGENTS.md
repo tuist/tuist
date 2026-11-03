@@ -154,9 +154,9 @@ would arrive as every package in a pass failing, which `SyncWorker` treats as
 one systemic failure rather than as several hundred unrelated ones. A token
 that cannot be minted at all logs and falls back to the personal access token.
 
-Some organizations answer the installation token with a non-throttling 403 on
-every request, the shape of an IP allow list, while their public repositories
-still answer a personal access token. `SyncWorker` and `ReleaseWorker` retry
+Organizations with an IP allow list answer the installation token with a
+non-throttling 403 on every request, even for public repositories, while a
+personal access token from the same egress IP is still accepted. `SyncWorker` and `ReleaseWorker` retry
 such a 403 once with `Registry.swift_registry_github_fallback_token/1`, so the
 personal access token has to stay configured alongside the App.
 
