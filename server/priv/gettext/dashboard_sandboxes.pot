@@ -11,7 +11,7 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:194
+#: lib/tuist_web/live/sandboxes_live.ex:195
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} RAM · %{disk} disk"
 msgstr ""
@@ -61,7 +61,7 @@ msgstr ""
 msgid "An admin can connect it"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.html.heex:194
+#: lib/tuist_web/live/sandbox_live.html.heex:200
 #: lib/tuist_web/live/sandbox_snapshots_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -120,8 +120,8 @@ msgstr ""
 msgid "Delete"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.html.heex:179
-#: lib/tuist_web/live/sandbox_live.html.heex:202
+#: lib/tuist_web/live/sandbox_live.html.heex:185
+#: lib/tuist_web/live/sandbox_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Delete sandbox"
 msgstr ""
@@ -133,7 +133,7 @@ msgstr ""
 msgid "Delete snapshot"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:191
+#: lib/tuist_web/live/sandboxes_live.ex:192
 #, elixir-autogen, elixir-format
 msgid "Deleting"
 msgstr ""
@@ -160,7 +160,7 @@ msgid "Expires"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.ex:70
-#: lib/tuist_web/live/sandboxes_live.ex:190
+#: lib/tuist_web/live/sandboxes_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -248,7 +248,7 @@ msgstr ""
 msgid "Pausing…"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.html.heex:155
+#: lib/tuist_web/live/sandbox_live.html.heex:161
 #: lib/tuist_web/live/sandbox_snapshots_live.html.heex:13
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
@@ -300,11 +300,6 @@ msgstr ""
 msgid "Running"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:54
-#, elixir-autogen, elixir-format
-msgid "Running and paused sandboxes, out of the most this account can keep at once."
-msgstr ""
-
 #: lib/tuist_web/live/sandbox_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Sandbox ID"
@@ -320,13 +315,12 @@ msgstr ""
 #: lib/tuist_web/live/sandbox_live.html.heex:6
 #: lib/tuist_web/live/sandboxes_live.ex:29
 #: lib/tuist_web/live/sandboxes_live.html.heex:3
-#: lib/tuist_web/live/sandboxes_live.html.heex:51
 #: lib/tuist_web/live/sandboxes_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.html.heex:167
+#: lib/tuist_web/live/sandbox_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Saved"
 msgstr ""
@@ -356,7 +350,7 @@ msgstr ""
 msgid "Session ID"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.html.heex:160
+#: lib/tuist_web/live/sandbox_live.html.heex:166
 #: lib/tuist_web/live/sandbox_snapshots_live.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Snapshot"
@@ -396,7 +390,7 @@ msgstr ""
 msgid "Starting"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.html.heex:163
+#: lib/tuist_web/live/sandbox_live.html.heex:169
 #: lib/tuist_web/live/sandbox_snapshots_live.html.heex:23
 #: lib/tuist_web/live/sandboxes_live.html.heex:136
 #, elixir-autogen, elixir-format
@@ -434,7 +428,7 @@ msgstr ""
 msgid "The sandbox is busy with an agent task and was not paused."
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.html.heex:181
+#: lib/tuist_web/live/sandbox_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
 msgstr ""
@@ -472,4 +466,20 @@ msgstr ""
 #: lib/tuist_web/live/sandboxes_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "vCPUs in use"
+msgstr ""
+
+#: lib/tuist_web/live/sandbox_live.html.heex:150
+#: lib/tuist_web/live/sandboxes_live.ex:190
+#, elixir-autogen, elixir-format
+msgid "Archived"
+msgstr ""
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Running sandboxes"
+msgstr ""
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:54
+#, elixir-autogen, elixir-format
+msgid "Running sandboxes, out of the most this account can run at once. Paused and archived sandboxes don't count."
 msgstr ""

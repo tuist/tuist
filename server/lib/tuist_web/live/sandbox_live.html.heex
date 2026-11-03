@@ -146,6 +146,12 @@
             {relative_time(@sandbox.paused_at || @sandbox.updated_at)}
           </span>
         </div>
+        <div :if={@sandbox.state == :archived} data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Archived")}</div>
+          <span data-part="label" title={time(@sandbox.archived_at || @sandbox.updated_at)}>
+            {relative_time(@sandbox.archived_at || @sandbox.updated_at)}
+          </span>
+        </div>
       </div>
     </.card_section>
   </.card>

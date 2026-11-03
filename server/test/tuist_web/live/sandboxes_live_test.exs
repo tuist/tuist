@@ -82,6 +82,7 @@ defmodule TuistWeb.SandboxesLiveTest do
     test "lists the account's sandboxes with their usage", %{conn: conn, account: account} do
       active = sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
       paused = sandbox_fixture(account: account, amp_orb_id: "orb-paused", state: :paused, vcpus: 4, memory_mb: 8192)
+      archived = sandbox_fixture(account: account, amp_orb_id: "orb-archived", state: :archived, node_name: nil)
       other = sandbox_fixture(amp_orb_id: "orb-of-another-account")
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
@@ -91,8 +92,9 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "#sandbox-#{active.id}", "Amp Orb")
       assert has_element?(lv, "#sandbox-#{paused.id}", "Paused")
       assert has_element?(lv, "#sandbox-#{paused.id}", "4 vCPU · 8 GB RAM · 10 GB disk")
+      assert has_element?(lv, "#sandbox-#{archived.id}", "Archived")
       refute has_element?(lv, "#sandbox-#{other.id}")
-      assert has_element?(lv, "#sandboxes-live", "2 / 5")
+      assert has_element?(lv, "#sandboxes-live", "1 / 5")
       assert has_element?(lv, "#sandboxes-vcpus", "2 / 32")
     end
 

@@ -59,7 +59,7 @@ defmodule TuistWeb.SandboxesLive do
 
   defp filter_states("all"), do: nil
   defp filter_states("running"), do: [:creating, :resuming, :running]
-  defp filter_states("paused"), do: [:paused]
+  defp filter_states("paused"), do: [:paused, :archived]
   defp filter_states("error"), do: [:error]
 
   def filter_options do
@@ -87,7 +87,7 @@ defmodule TuistWeb.SandboxesLive do
     end
   end
 
-  def live_count(counts), do: Enum.sum(for state <- [:creating, :resuming, :running, :paused], do: counts[state])
+  def running_count(counts), do: Enum.sum(for state <- [:creating, :resuming, :running], do: counts[state])
 
   attr :account, :map, required: true
   attr :amp_integration, :map, default: nil
@@ -187,6 +187,7 @@ defmodule TuistWeb.SandboxesLive do
   def status(%Sandbox{state: :creating}), do: %{label: dgettext("dashboard_sandboxes", "Starting"), status: "in_progress"}
   def status(%Sandbox{state: :resuming}), do: %{label: dgettext("dashboard_sandboxes", "Resuming"), status: "in_progress"}
   def status(%Sandbox{state: :paused}), do: %{label: dgettext("dashboard_sandboxes", "Paused"), status: "disabled"}
+  def status(%Sandbox{state: :archived}), do: %{label: dgettext("dashboard_sandboxes", "Archived"), status: "disabled"}
   def status(%Sandbox{state: :error}), do: %{label: dgettext("dashboard_sandboxes", "Failed"), status: "error"}
   def status(%Sandbox{state: :deleted}), do: %{label: dgettext("dashboard_sandboxes", "Deleting"), status: "disabled"}
 

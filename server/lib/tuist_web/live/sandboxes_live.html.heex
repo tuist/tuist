@@ -48,12 +48,12 @@
     <div data-part="widgets">
       <.widget
         id="sandboxes-live"
-        title={dgettext("dashboard_sandboxes", "Sandboxes")}
-        value={"#{live_count(@counts)} / #{Sandboxes.max_live_sandboxes_per_account()}"}
+        title={dgettext("dashboard_sandboxes", "Running sandboxes")}
+        value={"#{running_count(@counts)} / #{Sandboxes.max_running_sandboxes_per_account()}"}
         description={
           dgettext(
             "dashboard_sandboxes",
-            "Running and paused sandboxes, out of the most this account can keep at once."
+            "Running sandboxes, out of the most this account can run at once. Paused and archived sandboxes don't count."
           )
         }
       />
