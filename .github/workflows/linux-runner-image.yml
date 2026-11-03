@@ -22,6 +22,7 @@ on:
   pull_request:
     paths:
       - infra/linux-runner-image/**
+      - infra/runner-image/bitrise-hooks/**
       - .github/actions/setup-docker-builder/**
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/java-store.sh
@@ -135,6 +136,9 @@ jobs:
 
       - name: Test job-start hook
         run: bash infra/linux-runner-image/run-job_test.sh
+
+      - name: Test Bitrise build start hook
+        run: bash infra/linux-runner-image/bitrise-build-start_test.sh
 
       # Runs on the image's own base rather than the CI runner, because
       # the assertions are about how Ubuntu's awk (mawk) formats byte

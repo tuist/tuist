@@ -91,7 +91,8 @@ defmodule TuistWeb.RunnersController do
       {:error, :unknown_account} ->
         conn |> put_status(:not_found) |> json(%{error: "account not configured"})
 
-      {:error, mint_failure} when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] ->
+      {:error, mint_failure}
+      when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed, :bitrise_mint_failed] ->
         conn |> put_status(:bad_gateway) |> json(%{error: "credential mint failed"})
 
       {:error, :not_in_cluster} ->
@@ -222,6 +223,10 @@ defmodule TuistWeb.RunnersController do
         waiting_trace: credential.waiting_trace
       }
     }
+  end
+
+  defp credential_fields(%{kind: :bitrise} = credential) do
+    %{bitrise_intro_secret: credential.intro_secret, bitrise_report_token: credential.report_token}
   end
 
   defp credential_fields(%{kind: :buildkite} = credential) do

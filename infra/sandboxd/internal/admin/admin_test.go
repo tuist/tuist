@@ -43,6 +43,9 @@ func (f *fakeBackend) SaveDisks(ctx context.Context, args protocol.SaveDisksArgs
 	return protocol.SaveDisksResult{}, nil
 }
 func (f *fakeBackend) DeleteDisks(ctx context.Context, id string) error { return nil }
+func (f *fakeBackend) Archive(ctx context.Context, args protocol.ArchiveArgs) (protocol.ArchiveResult, error) {
+	return protocol.ArchiveResult{}, nil
+}
 func (f *fakeBackend) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.OutputFunc) (protocol.ExecResult, error) {
 	out("stdout", []byte("out\n"))
 	out("stderr", []byte("err\n"))

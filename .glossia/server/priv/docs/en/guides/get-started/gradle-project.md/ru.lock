@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "63def019c083d86dabab8f7fba98e8f1d77ee1a6efd3f68986eab8f563a9b4b9",
+  "hash": "d6818a3b3a2c8fc9154ba096197e019b538e75541ea4dde914a60dd57b004ca9",
   "hash_tree": {
     "root": {
       "children": [
@@ -32,7 +32,7 @@
                   "content_hash": "9d1a4a661bded4216bef465a256696805f00e353a7b71cd3301a8403bbcb206a"
                 },
                 "## Previews": {
-                  "content_hash": "2688ecb551d3c5c1cad70b5759df8b4c0a3f98d2071013ced8596b2192131b2e"
+                  "content_hash": "7c211cf636d26596be4ae1cddc492ce3c806551c0e5a981a0c2b1263ddee775b"
                 },
                 "## Remote build cache": {
                   "content_hash": "188df66c8df99d52e03db6c31c161e12580ae70ab34b572f906995f69395865e"
@@ -47,11 +47,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "9e89d1455cc144cbe5eaf702036e5e5bd954fed052e3469b96a4807a61ed0520",
+          "hash": "1b00f4ef3144d5e5949df176af0b5f195c4b11afafc381eeca59e57191af4778",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started/gradle-project.md",
           "metadata": {
-            "content_hash": "b8f04d0b825b9ed2337539483a5b9ca896f3a4780dcda97f72a9b14dae761655"
+            "content_hash": "1f8ae1519595e381784421986f2959b91b1f11b1524c0b35e73534846f7193d3"
           }
         },
         {
@@ -137,7 +137,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -150,21 +150,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -225,19 +225,25 @@
                         "definition_hash": "5bfbcbe7115309c7054f4ae731dc8cd026280eceb239c69c75cadc7aa2512479",
                         "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
                         "translation_hash": "fed3110d0058f029d9644577cfc55cea87579b5571689c2b679fee607ff013b4"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "5333d1ef6ad53f55a278ad34659373b59457597f7c78719bc78853bedaae8b6e"
                       }
                     }
                   },
-                  "hash": "d277aff24ba1dab7e065adf2845ecfd3afcd9f4da257ea6a8881bf2ebdea22f5",
+                  "hash": "838a62ddda384d8e7570f54f2261a602fe75f0ba43ee3e1db194d8121aacb6fd",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "b6f68db24ae09466614eadd8a76e9f55e93c4cbb67ecbb96d9be154e0b4dd4d9"
+                    "content_hash": "7fa374e1b0e54febb50df86bb724eb06f77de150d62bb177be9d056b12b7caff"
                   }
                 }
               ],
               "details": {},
-              "hash": "545e691c2ee49e94c3892c5e450a65daaded889b1e907f26cd74df31217d1030",
+              "hash": "7661efad20c6ca7d5bbedde6dc718a8c77b067853bfe14639331e5e106efc739",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -247,21 +253,21 @@
             }
           ],
           "details": {},
-          "hash": "c5cbebd548b7fc08ba7eecc8d05da17306f6933d195434e862099d3fe65d25f0",
+          "hash": "d71d401c857db6d609ff07dc656d7875b6b620680513d5eaf11628914c771092",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "63def019c083d86dabab8f7fba98e8f1d77ee1a6efd3f68986eab8f563a9b4b9",
+      "hash": "d6818a3b3a2c8fc9154ba096197e019b538e75541ea4dde914a60dd57b004ca9",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started/gradle-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "4007480b63b77f62c7c8702d977bc77f28d251d09083576f4c6cab6ff3a2759a",
+  "output_hash": "f1eb8bdd09623cd1b3cd42c0bfddb739328875327dcd16b0439c522f89468bfe",
   "output_path": "server/priv/docs/ru/guides/get-started/gradle-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,10 +275,11 @@
     "compiler_version": 3,
     "glossary": {
       "applied": [
+        "repo:features",
         "repo:flaky-tests",
         "repo:tests"
       ],
-      "content_hash": "b6f68db24ae09466614eadd8a76e9f55e93c4cbb67ecbb96d9be154e0b4dd4d9",
+      "content_hash": "7fa374e1b0e54febb50df86bb724eb06f77de150d62bb177be9d056b12b7caff",
       "shadowed": [],
       "version": null
     },
@@ -282,8 +289,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
+  "source_commit_sha": "b733764844499811e416b12ea58c83090dabc0f6",
   "source_path": "server/priv/docs/en/guides/get-started/gradle-project.md",
-  "translated_at": "2026-10-29T16:25:24.817634Z",
-  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
+  "translated_at": "2026-11-02T15:27:25.979929Z",
+  "translation_session_id": "01a19cd5-7349-71ea-bf79-3b644843be50"
 }

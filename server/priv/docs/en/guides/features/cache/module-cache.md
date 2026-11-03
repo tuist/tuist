@@ -38,21 +38,25 @@ If a binary fails to upload, the command still uploads the rest, then exits with
 
 ### Destination selection {#destination-selection}
 
-Use `--destination simulator` or `--destination device` to cache and generate for one destination:
+Use `--destination simulator` or `--destination device` to cache, generate, and test for one destination:
 
 ```bash
 tuist cache --destination simulator
 tuist generate --destination simulator
+tuist test --destination simulator
 
 tuist cache --destination device
 tuist generate --destination device
+tuist test --destination device -- -destination 'platform=iOS,id=DEVICE_IDENTIFIER'
 ```
 
 The default is `all`, which preserves every destination supported by your targets, including Mac Catalyst. A later `tuist cache` reuses cached slices and builds only the missing SDKs. Normal generation keeps a module's sources if any required slices are missing.
 
 Restricted generation limits source targets to the selected destination and preserves native macOS targets, including macros. Neither restricted mode includes Mac Catalyst. Regenerate with `--destination all` to restore all destinations.
 
-Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching requires `--destination all`.
+`tuist test --destination` uses and downloads only the selected destination's slices, so a simulator test run can use binaries from a simulator-only or a full warm. It fails when the destination passed to `xcodebuild` after `--` doesn't match, and `--destination device` requires a device `-destination`. Selective-testing hashes don't depend on the destination, so runs with different `--destination` values share test results.
+
+Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching always downloads full artifacts and requires `--destination all` when warming.
 
 ### Remote upload admission {#remote-upload-admission}
 
