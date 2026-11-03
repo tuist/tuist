@@ -151,7 +151,7 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: "price_1UXi2WQ9gGM5W1agxzvD1sls"
+        runner_linux_compute_unit_milliseconds: "price_1UXks7Q9gGM5W1agX8NDowQb"
         runner_macos_compute_unit_milliseconds: "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.

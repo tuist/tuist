@@ -382,33 +382,33 @@ defmodule Tuist.Runners.AllowanceTest do
     end
 
     test "bills Linux past its own free tier, at its own rate", %{account: account} do
-      # 2,660 minutes on the 2 vCPU / 8 GB baseline is 160 past the 2,500
-      # free ones, and at $0.0024 those are 38.4 cents. macOS sits inside
-      # its own allowance.
+      # 340 minutes on a 16 vCPU / 64 GB machine are 2,720 minutes on the
+      # 2 vCPU / 8 GB baseline, 220 past the 2,500 free ones, and at $0.0024
+      # those are 52.8 cents. macOS sits inside its own allowance.
       stub(DateTime, :utc_now, fn -> ~U[2024-01-17 12:00:00.000000Z] end)
-      started = DateTime.add(DateTime.utc_now(), -4, :hour)
+      started = DateTime.add(DateTime.utc_now(), -6, :hour)
 
-      ran_linux_minutes(account, started, 2_660, {2, 8, 10_000})
+      ran_linux_minutes(account, started, 340, {16, 64, Catalog.billing_multiplier(:linux, 16, 64)})
       ran_minutes(account, started, 60)
 
       breakdown = Allowance.period_breakdown(account)
 
-      assert breakdown.minutes == 2_720
+      assert breakdown.minutes == 2_780
       assert breakdown.free_minutes == %{macos: 100, linux: 2_500}
-      assert breakdown.gross == Money.new(360 + 638, :USD)
-      assert breakdown.billed == Money.new(38, :USD)
+      assert breakdown.gross == Money.new(360 + 652, :USD)
+      assert breakdown.billed == Money.new(52, :USD)
 
       assert [day] = breakdown.days
-      assert day.minutes == 2_720
-      assert day.gross == Money.new(360 + 638, :USD)
-      assert day.billed == Money.new(38, :USD)
+      assert day.minutes == 2_780
+      assert day.gross == Money.new(360 + 652, :USD)
+      assert day.billed == Money.new(52, :USD)
 
       assert [macos, linux] = breakdown.platforms
       assert macos.billed == Money.new(0, :USD)
       assert linux.platform == :linux
-      assert linux.minutes == 2_660
-      assert linux.gross == Money.new(638, :USD)
-      assert linux.billed == Money.new(38, :USD)
+      assert linux.minutes == 2_720
+      assert linux.gross == Money.new(652, :USD)
+      assert linux.billed == Money.new(52, :USD)
       assert linux.included_minutes == 2_500
     end
 
