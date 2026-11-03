@@ -9,39 +9,55 @@ import XcodeGraphMapper
 @testable import TuistCore
 
 struct TestImpactAffectedModulesTests {
+    private struct Golden: Decodable {
+        struct ChangedFile: Decodable {
+            let path: String
+            let affectedModules: [String]?
+        }
+
+        struct Scenario: Decodable {
+            struct Variant: Decodable {
+                let changedFiles: [ChangedFile]?
+            }
+
+            let name: String
+            let changedFiles: [ChangedFile]?
+            let variants: [String: Variant]?
+        }
+
+        let scenarios: [Scenario]
+    }
+
     /// The plain Xcode variant of the coverage test selection test bed, mapped as a project without
     /// manifests is, against the modules its golden expectations list for each changed file.
     @Test(.inTemporaryDirectory) func mapsTheTestBedsChangedFilesToTheirTestModules() async throws {
         let repository = try #require(FileSystem.temporaryTestDirectory)
+        let testBed = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "CoverageTestSelection"))
         try await FileSystem().copy(
-            SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "CoverageTestSelection/xcodeproj/Shop.xcodeproj")),
+            testBed.appending(components: "xcodeproj", "Shop.xcodeproj"),
             to: repository.appending(component: "Shop.xcodeproj")
         )
         let graph = try await XcodeGraphMapper().map(at: repository.appending(component: "Shop.xcodeproj"))
         let subject = TestImpactAffectedModules(graph: graph)
-        let core = ["AppTests", "AppUITests", "CoreTests"]
-        let catalog = ["AppTests", "AppUITests", "CatalogTests"]
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let golden = try decoder.decode(
+            Golden.self,
+            from: try Data(contentsOf: testBed.appending(component: "golden.json").url)
+        )
 
-        let expected: [String: [String]?] = [
-            "Core/Sources/Discount.swift": core,
-            "Core/Sources/Money.swift": core,
-            "Core/Sources/Models.swift": core,
-            "Catalog/Sources/Catalog.swift": catalog,
-            "Catalog/Sources/Search.swift": catalog,
-            "Catalog/Resources/products.json": catalog,
-            "App/Resources/Assets.xcassets/Brand.colorset/Contents.json": ["AppTests", "AppUITests"],
-            "CoreTests/DiscountTests.swift": ["CoreTests"],
-            // The plain project lists its files, so a new one has no owner until it's added.
-            "Catalog/Sources/Featured.swift": [],
-            "CatalogTests/Fixtures/catalog-fixture.json": [],
-            "README.md": [],
-            "docs/notes.md": [],
-            "Configs/Base.xcconfig": nil,
-        ]
-        for (path, modules) in expected {
-            let got = subject.affectedModules(path: try repository.appending(RelativePath(validating: path)))
-            #expect(got == modules, "\(path)")
+        var checked = 0
+        for scenario in golden.scenarios {
+            let changedFiles = scenario.variants?["xcodeproj"]?.changedFiles ?? scenario.changedFiles ?? []
+            // Scenarios that edit the project are classified against the checkout's graph, not this one.
+            guard !changedFiles.contains(where: { $0.path.hasSuffix(".xcodeproj/project.pbxproj") }) else { continue }
+            for file in changedFiles where !file.path.hasPrefix("bulk/") {
+                let got = subject.affectedModules(path: try repository.appending(RelativePath(validating: file.path)))
+                #expect(got.map(Set.init) == file.affectedModules.map(Set.init), "\(scenario.name): \(file.path)")
+                checked += 1
+            }
         }
+        #expect(checked > 0)
     }
 
     @Test func attributesFilesInsideABuildableFolderExceptTheExcludedOnes() throws {
