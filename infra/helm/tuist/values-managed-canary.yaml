@@ -67,6 +67,9 @@ server:
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
       enabled: false # Enable only after this environment's wrapping-key prerequisite is ready.
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
+      enabled: true
     originAppKey:
       enabled: true
     externalSecrets:
@@ -449,6 +452,8 @@ egressTreeAgent:
 # server deployments preserve its installed image; upgrades require an explicit digest.
 kuraVolumesCSI:
   enabled: false # Separate infrastructure opt-in; tenant enrollment stays independent.
+  # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: nk4ZDtWdt8FCgqpqKfSEloNrVVwkLacRMEJzbt75tVY=
   thinRegions: []
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
