@@ -14,6 +14,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistExtension
 import TuistGenerator
 import TuistGit
 import TuistLoader
@@ -600,7 +601,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .value(.test(device: .test(name: "Test iPhone"))),
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(1)
         verify(xcodebuildController)
@@ -2658,7 +2660,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -2721,7 +2724,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2825,7 +2829,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2903,7 +2908,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
 
@@ -3020,7 +3026,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(generator)
@@ -5032,7 +5039,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
     }
@@ -5087,7 +5095,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(0)
 
@@ -5149,7 +5158,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(0)
 
@@ -5207,7 +5217,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(1)
     }
@@ -5810,7 +5821,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(1)
     }
@@ -6056,7 +6068,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(0)
 
@@ -7287,7 +7300,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(0)
         verify(cacheStorage)
@@ -7358,7 +7372,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .called(1)
     }
@@ -8764,9 +8779,120 @@ struct TestServiceBinaryCacheCoverageTests {
                 config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
                 skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
                 cacheStorage: .any, destination: .any, schemeName: .any,
-                coverage: .value(expected)
+                coverage: .value(expected),
+                sdkSelection: .any
             )
             .called(1)
+    }
+}
+
+struct TestServiceCacheDestinationTests {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies(),
+        arguments: [
+            (CacheDestination.all, [String](), BinaryCacheSDKSelection.all),
+            (.simulator, [], .simulators),
+            (.simulator, ["-destination", "platform=iOS Simulator,name=iPhone 17"], .simulators),
+            (.device, ["-destination", "platform=iOS,id=00008110-000A"], .devices),
+            (.device, ["-destination", "generic/platform=iOS"], .devices),
+        ]
+    )
+    func run_generatesWithTheSelectedDestination(
+        destination: CacheDestination,
+        passthroughXcodeBuildArguments: [String],
+        expected: BinaryCacheSDKSelection
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            cacheDestination: destination
+        )
+
+        verify(fixture.generatorFactory)
+            .testing(
+                config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
+                skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
+                cacheStorage: .any, destination: .any, schemeName: .any, coverage: .any,
+                sdkSelection: .value(expected)
+            )
+            .called(1)
+    }
+
+    @Test(arguments: [
+        (
+            CacheDestination.simulator,
+            ["-destination", "platform=iOS,id=00008110-000A"],
+            "-destination 'platform=iOS,id=00008110-000A'"
+        ),
+        (.simulator, ["-destination", "generic/platform=iOS"], "-destination 'generic/platform=iOS'"),
+        (
+            .simulator,
+            ["-destination", "platform=macOS,variant=Mac Catalyst"],
+            "-destination 'platform=macOS,variant=Mac Catalyst'"
+        ),
+        (
+            .device,
+            ["-destination", "platform=iOS Simulator,name=iPhone 17"],
+            "-destination 'platform=iOS Simulator,name=iPhone 17'"
+        ),
+        (
+            .device,
+            ["-destination", "platform=iOS,id=00008110-000A", "-destination", "generic/platform=iOS Simulator"],
+            "-destination 'generic/platform=iOS Simulator'"
+        ),
+    ])
+    func validate_rejectsConflictingXcodebuildDestinations(
+        destination: CacheDestination,
+        passthroughXcodeBuildArguments: [String],
+        argument: String
+    ) {
+        #expect(throws: TestServiceError.cacheDestinationConflict(destination: destination, argument: argument)) {
+            try TestService.validate(
+                cacheDestination: destination,
+                deviceName: nil,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        }
+    }
+
+    @Test func validate_rejectsASimulatorDeviceNameForDevices() {
+        #expect(throws: TestServiceError.cacheDestinationConflict(destination: .device, argument: "--device iPhone 17")) {
+            try TestService.validate(
+                cacheDestination: .device,
+                deviceName: "iPhone 17",
+                passthroughXcodeBuildArguments: ["-destination", "platform=iOS,id=00008110-000A"]
+            )
+        }
+    }
+
+    @Test func validate_requiresAnXcodebuildDestinationForDevices() {
+        #expect(throws: TestServiceError.deviceCacheDestinationRequiresXcodebuildDestination) {
+            try TestService.validate(cacheDestination: .device, deviceName: nil, passthroughXcodeBuildArguments: [])
+        }
+    }
+
+    @Test(arguments: [
+        (CacheDestination.simulator, ["-destination", "platform=macOS"]),
+        (.device, ["-destination", "platform=macOS,arch=arm64"]),
+        (.simulator, ["-destination", "id=6F3A2B10"]),
+        (.all, ["-destination", "platform=macOS,variant=Mac Catalyst"]),
+        (.simulator, []),
+    ])
+    func validate_acceptsCompatibleXcodebuildDestinations(
+        destination: CacheDestination,
+        passthroughXcodeBuildArguments: [String]
+    ) throws {
+        try TestService.validate(
+            cacheDestination: destination,
+            deviceName: nil,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
     }
 }
 
@@ -8843,7 +8969,8 @@ private struct TestServiceSchemePlanningFixture {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(generator)
@@ -8933,7 +9060,8 @@ private struct TestServiceSchemePlanningFixture {
         resultBundlePath: AbsolutePath? = nil,
         derivedDataPath: AbsolutePath? = nil,
         testTargets: [TestIdentifier] = [],
-        passthroughXcodeBuildArguments: [String] = []
+        passthroughXcodeBuildArguments: [String] = [],
+        cacheDestination: CacheDestination = .all
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -8960,7 +9088,8 @@ private struct TestServiceSchemePlanningFixture {
                 ignoreSelectiveTesting: false,
                 generateOnly: false,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                mode: .local
+                mode: .local,
+                cacheDestination: cacheDestination
             )
         }
     }
@@ -9159,7 +9288,8 @@ private struct TestServiceStressNewTestsFixture {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(generator)
@@ -9603,7 +9733,8 @@ struct TestServiceTargetQueryTests {
             cacheStorage: .any,
             destination: .any,
             schemeName: .any,
-            coverage: .any
+            coverage: .any,
+            sdkSelection: .any
         ).willReturn(generator)
         let inspector = MockBuildGraphInspecting()
         given(inspector).testableSchemes(graphTraverser: .any).willReturn([])
