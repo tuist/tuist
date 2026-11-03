@@ -446,6 +446,24 @@ defmodule TuistWeb.Authentication do
 
   def require_sso_authentication(conn, _opts), do: conn
 
+  @doc """
+  Refuses a WebMCP request when the session's sign-in method does not satisfy
+  the SSO enforcement of any of the user's organizations. Tools can reach any
+  of them, so this applies the dashboard's per-account check to all at once.
+  """
+  def require_sso_authentication_for_all_organizations(conn, _opts) do
+    if Accounts.sso_enforcement_satisfied?(current_user(conn), get_session(conn, :auth_method)) do
+      conn
+    else
+      conn
+      |> put_status(:forbidden)
+      |> json(%{
+        message: "Sign in with your organization's single sign-on provider to use Tuist tools in the browser."
+      })
+      |> halt()
+    end
+  end
+
   defp anonymous_public_account?(conn, account_handle) do
     if authenticated?(conn) do
       false

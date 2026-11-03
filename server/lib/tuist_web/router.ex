@@ -18,6 +18,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
+  alias TuistWeb.Plugs.MCPRateLimitPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
@@ -328,7 +329,32 @@ defmodule TuistWeb.Router do
     plug :accept_atlas_identity_header
     plug SentryContextPlug
     plug ObservabilityContextPlug
-    plug TuistWeb.Plugs.MCPRateLimitPlug
+    plug MCPRateLimitPlug
+  end
+
+  # WebMCP tools the dashboard registers in the browser run as the signed-in
+  # user, so the session cookie authenticates them and CSRF protection applies.
+  # Bearer tokens, operator grants and Atlas identities are not accepted.
+  pipeline :webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_user
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug :require_sso_authentication_for_all_organizations
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug MCPRateLimitPlug
+  end
+
+  # The documentation tools marketing and docs pages register need no identity.
+  # Those pages are shared-cached, so no session or CSRF token is involved.
+  pipeline :public_webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug MCPRateLimitPlug
   end
 
   pipeline :authenticated_api do
@@ -732,6 +758,18 @@ defmodule TuistWeb.Router do
     pipe_through [:mcp]
 
     forward "/mcp", Tuist.MCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
+  end
+
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:public_webmcp]
+
+    post "/public", WebMCPController, :public
+  end
+
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:webmcp]
+
+    post "/", WebMCPController, :signed_in
   end
 
   scope "/scim/v2", TuistWeb.SCIM do

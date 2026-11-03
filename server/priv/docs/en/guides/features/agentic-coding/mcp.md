@@ -181,6 +181,17 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
+## WebMCP
+
+In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
+
+- **Website and documentation pages** register the documentation and source tools (`search_tuist`, `search_tuist_code`, `list_tuist_files` and `read_tuist_file`). They don't need you to sign in.
+- **The dashboard**, when you're signed in, registers Tuist's read-only tools. They run as the signed-in user, so they only reach data you can read in the dashboard.
+
+Tools that create, change, or delete data are not available through WebMCP, because a browser agent receives the tools without you adding them and reads content that builds and tests produce. Connect an MCP client to the `/mcp` endpoint to use those tools.
+
+If one of your organizations enforces single sign-on, sign in to the dashboard with that provider to use the dashboard's tools. Organizations that enforce different providers can't share one browser session, so in that case use an MCP client instead.
+
 ## Build-system integrations use two credentials
 
 The credential used for Model Context Protocol tools does not authenticate the Gradle plugin or Bazel's remote services. Before an agent edits or verifies a Gradle or Bazel integration, it should run:

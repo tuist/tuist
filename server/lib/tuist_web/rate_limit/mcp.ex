@@ -11,6 +11,9 @@ defmodule TuistWeb.RateLimit.MCP do
 
   def hit(conn) do
     {key, failure_policy} = key_and_policy(conn)
+    # WebMCP gets its own bucket, so the same user's agents on /mcp cannot
+    # throttle the browser's tool calls, or the other way around.
+    key = if conn.assigns[:request_kind] == "webmcp", do: "web" <> key, else: key
 
     RateLimit.hit(key,
       limit: Tuist.Environment.mcp_rate_limit_bucket_size(),

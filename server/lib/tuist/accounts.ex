@@ -1721,6 +1721,21 @@ defmodule Tuist.Accounts do
   def sso_enforced_for_email?(_email), do: false
 
   @doc """
+  Returns true when a session signed in with `auth_method` satisfies the SSO
+  enforcement of every organization `user` belongs to. The dashboard enforces
+  SSO per visited account; callers that can reach any of the user's
+  organizations in one session, such as WebMCP, use this stricter check.
+  """
+  def sso_enforcement_satisfied?(%User{} = user, auth_method) do
+    user
+    |> get_user_organization_accounts()
+    |> Enum.all?(fn %{organization: organization} ->
+      not organization.sso_enforced or is_nil(organization.sso_provider) or
+        organization.sso_provider == auth_method
+    end)
+  end
+
+  @doc """
   Returns true when at least one organization on this instance has an Okta or
   generic OAuth2 SSO provider configured. Drives whether the login page surfaces
   the SSO entry point: the generic login form has no email yet, so it can't
