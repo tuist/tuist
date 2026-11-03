@@ -87,8 +87,8 @@ fixture revision always produces the same SHAs. The script tags each scenario's 
 | `tracked_file` | `Configs/Base.xcconfig` | `fallback`, `tracked_file_changed` |
 | `declaration_only_change` | `Models.swift` | `owned_without_evidence` for everything depending on `Core` |
 | `unowned_file` | `README.md` and `Discount.swift` | Same as `source_change` |
-| `unowned_file_only` | `README.md` | Every hashed target matches |
-| `unowned_test_fixture` | `catalog-fixture.json` | Nothing runs: accepted gap |
+| `unowned_file_only` | `README.md` | Every target's hash matches: `no_selection_call` |
+| `unowned_test_fixture` | `catalog-fixture.json` | `no_selection_call`, so nothing runs: accepted gap |
 | `dirty_checkout` | Uncommitted `Discount.swift`, untracked `Featured.swift` | Differs per variant: the plain project doesn't own the new file |
 | `local_merge` | Merge commit of a branch (`Discount.swift`) into `main` (`Catalog.swift`) | Both sides' changes select tests |
 | `swift_testing_only_source` | `Search.swift`, executed only by Swift Testing | Every `CatalogTests` test runs |
@@ -112,12 +112,15 @@ Each scenario has:
   `local_merge`), and `baseline`, the run expected to be its baseline. `scheme` overrides the
   top-level scheme.
 - `changed_files`: what the CLI sends, with `affected_modules`.
-- `hash.skipped`: the test targets selective testing skips by hash before coverage. `null` means
-  no pruning. `AppUITests` never appears: Tuist gives UI test targets no selective testing hash.
+- `hash.skipped`: the test targets selective testing skips by hash before the selection call.
+  `null` means no pruning. `tuist hash selective-testing` passes no destination, so it leaves out
+  UI test targets, which `tuist test` does hash; `AppUITests`' entries come from `App`'s measured
+  hash and its own sources.
 - `outcome` and `reason`. For `selected`, `run` maps each test that runs to its `reason` and
   `matched_path`, and `skip` maps each skipped test to `unaffected`. Tests in targets skipped by
   hash aren't listed. `known_to_server: false` marks a test the baseline doesn't have, and
   `exists_at_checkout: false` one the checkout deleted. For `fallback`, `run_targets` are the targets that run whole.
+  `no_selection_call` means hash pruning skipped every target, so the CLI never asks the server.
 - `variants.xcodeproj`: fields that differ for the plain project.
 
 The hash stage was measured on the generated variant. The top-level `assumptions` list the
