@@ -12,7 +12,7 @@ msgid ""
 msgstr "Language: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist/billing.ex:72
-#: lib/tuist_web/live/billing_live.ex:397
+#: lib/tuist_web/live/billing_live.ex:413
 #, elixir-autogen, elixir-format
 msgid "$0"
 msgstr "$0"
@@ -27,7 +27,7 @@ msgstr "%{inviter} 邀請你加入 %{organization} 組織"
 msgid "%{month}/%{year}"
 msgstr "%{month}/%{year}"
 
-#: lib/tuist/accounts/user_notifier.ex:363
+#: lib/tuist/accounts/user_notifier.ex:407
 #: lib/tuist_web/live/accept_invitation_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -39,20 +39,20 @@ msgid "Add payment method"
 msgstr "新增付款方式"
 
 #: lib/tuist_web/live/members_live.ex:175
-#: lib/tuist_web/live/members_live.ex:821
+#: lib/tuist_web/live/members_live.ex:831
 #, elixir-autogen, elixir-format
 msgid "Admin"
 msgstr "管理員"
 
 #: lib/tuist/billing.ex:50
-#: lib/tuist_web/live/billing_live.ex:367
+#: lib/tuist_web/live/billing_live.ex:383
 #: lib/tuist_web/live/billing_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
 #: lib/tuist/billing.ex:59
-#: lib/tuist_web/live/billing_live.ex:372
+#: lib/tuist_web/live/billing_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
 msgstr "所有功能，無需信用卡"
@@ -131,7 +131,7 @@ msgstr "選擇模組快取二進位檔等構件產品的儲存位置，以確保
 msgid "Community support"
 msgstr "社群支援"
 
-#: lib/tuist_web/live/billing_live.ex:373
+#: lib/tuist_web/live/billing_live.ex:389
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
 msgstr "透過論壇提供社群支援"
@@ -157,7 +157,7 @@ msgid "Confirmation instructions"
 msgstr "確認說明"
 
 #: lib/tuist/billing.ex:92
-#: lib/tuist_web/live/billing_live.ex:434
+#: lib/tuist_web/live/billing_live.ex:450
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr "聯絡銷售團隊"
@@ -167,7 +167,7 @@ msgstr "聯絡銷售團隊"
 msgid "Create organization"
 msgstr "建立組織"
 
-#: lib/tuist_web/live/billing_live.ex:424
+#: lib/tuist_web/live/billing_live.ex:440
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
 msgstr "建立您的方案或自行託管實例"
@@ -178,15 +178,15 @@ msgstr "建立您的方案或自行託管實例"
 msgid "Create your plan or self-host your instance."
 msgstr "建立您的方案或自行託管實例。"
 
-#: lib/tuist_web/live/billing_live.ex:379
-#: lib/tuist_web/live/billing_live.ex:408
+#: lib/tuist_web/live/billing_live.ex:395
+#: lib/tuist_web/live/billing_live.ex:424
 #: lib/tuist_web/live/billing_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Current plan"
 msgstr "目前方案"
 
 #: lib/tuist/billing.ex:91
-#: lib/tuist_web/live/billing_live.ex:425
+#: lib/tuist_web/live/billing_live.ex:441
 #: lib/tuist_web/live/billing_live.html.heex:169
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
@@ -194,7 +194,7 @@ msgid "Custom"
 msgstr "自訂"
 
 #: lib/tuist/billing.ex:94
-#: lib/tuist_web/live/billing_live.ex:427
+#: lib/tuist_web/live/billing_live.ex:443
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
 msgstr "自訂條款"
@@ -315,7 +315,7 @@ msgstr "刪除您的帳戶也將同時刪除屬於該帳戶的所有專案"
 msgid "Did you request to reset your password?"
 msgstr "您是否要求重設密碼？"
 
-#: lib/tuist_web/live/billing_live.ex:385
+#: lib/tuist_web/live/billing_live.ex:401
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
 msgstr "降級"
@@ -346,7 +346,7 @@ msgid "Enter your username to confirm"
 msgstr "輸入您的使用者名稱以確認"
 
 #: lib/tuist/billing.ex:88
-#: lib/tuist_web/live/billing_live.ex:423
+#: lib/tuist_web/live/billing_live.ex:439
 #: lib/tuist_web/live/billing_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
@@ -358,7 +358,7 @@ msgid "Europe"
 msgstr "歐洲"
 
 #: lib/tuist/billing.ex:53
-#: lib/tuist_web/live/billing_live.ex:369
+#: lib/tuist_web/live/billing_live.ex:385
 #: lib/tuist_web/live/billing_live.html.heex:166
 #: lib/tuist_web/live/billing_live.html.heex:167
 #, elixir-autogen, elixir-format
@@ -370,7 +370,7 @@ msgstr "Free"
 msgid "Free tier exceeded"
 msgstr "已超出 Free 方案限制"
 
-#: lib/tuist_web/live/billing_live.ex:371
+#: lib/tuist_web/live/billing_live.ex:387
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
 msgstr "Free 方案額度內"
@@ -401,7 +401,7 @@ msgstr " generous 的每月免費方案：用量上限為免費方案限額"
 msgid "Get started"
 msgstr "立即開始"
 
-#: lib/tuist_web/live/billing_live.ex:368
+#: lib/tuist_web/live/billing_live.ex:384
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr "無需信用卡即可開始使用"
@@ -412,7 +412,7 @@ msgstr "無需信用卡即可開始使用"
 msgid "Get started with no credit card required—try with no commitment."
 msgstr "無需信用卡即可開始使用——零承諾試用。"
 
-#: lib/tuist/accounts/user_notifier.ex:357
+#: lib/tuist/accounts/user_notifier.ex:401
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr "Hola %{invitee_email}，您可以點擊下方按鈕加入組織："
@@ -433,7 +433,7 @@ msgstr "如果你沒有提出此請求，請忽略這封電子郵件。"
 msgid "Invitation not found"
 msgstr "找不到邀請"
 
-#: lib/tuist/accounts/user_notifier.ex:347
+#: lib/tuist/accounts/user_notifier.ex:391
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr "加入 %{organization_name} 的邀請"
@@ -485,7 +485,7 @@ msgstr "成員"
 msgid "Members"
 msgstr "成員"
 
-#: lib/tuist_web/live/billing_live.ex:329
+#: lib/tuist_web/live/billing_live.ex:345
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr "最受歡迎"
@@ -519,7 +519,7 @@ msgid "No members found"
 msgstr "找不到成員"
 
 #: lib/tuist/billing.ex:96
-#: lib/tuist_web/live/billing_live.ex:428
+#: lib/tuist_web/live/billing_live.ex:444
 #, elixir-autogen, elixir-format
 msgid "On-premise"
 msgstr "本地部署"
@@ -546,13 +546,13 @@ msgid "Passwords don't match"
 msgstr "密碼不符"
 
 #: lib/tuist/billing.ex:77
-#: lib/tuist_web/live/billing_live.ex:400
+#: lib/tuist_web/live/billing_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr "若低於免費方案限額，則無需付費"
 
 #: lib/tuist/billing.ex:79
-#: lib/tuist_web/live/billing_live.ex:401
+#: lib/tuist_web/live/billing_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
 msgstr "依功能使用量付費"
@@ -567,7 +567,7 @@ msgstr "付款方式"
 msgid "Payments for your subscription are made using the default card."
 msgstr "訂閱費用將透過預設信用卡支付。"
 
-#: lib/tuist_web/live/members_live.ex:817
+#: lib/tuist_web/live/members_live.ex:827
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr "待處理"
@@ -587,7 +587,7 @@ msgstr "定價詳情"
 msgid "Priority support"
 msgstr "優先支援"
 
-#: lib/tuist_web/live/billing_live.ex:429
+#: lib/tuist_web/live/billing_live.ex:445
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
 msgstr "透過共用 Slack 頻道提供優先支援"
@@ -598,7 +598,7 @@ msgid "Priority support: Via shared Slack channel"
 msgstr "優先支援：透過共享 Slack 頻道"
 
 #: lib/tuist/billing.ex:69
-#: lib/tuist_web/live/billing_live.ex:395
+#: lib/tuist_web/live/billing_live.ex:411
 #: lib/tuist_web/live/billing_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Pro"
@@ -707,7 +707,7 @@ msgstr "設定"
 msgid "Standard support"
 msgstr "標準支援"
 
-#: lib/tuist_web/live/billing_live.ex:402
+#: lib/tuist_web/live/billing_live.ex:418
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
 msgstr "透過 Slack 和電子郵件提供標準支援"
@@ -808,7 +808,7 @@ msgstr "要更新您的使用者名稱嗎？"
 msgid "Updating your username can have unintended consequences."
 msgstr "更新使用者名稱可能會產生非預期的後果。"
 
-#: lib/tuist_web/live/billing_live.ex:414
+#: lib/tuist_web/live/billing_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
 msgstr "升級"
@@ -844,7 +844,7 @@ msgstr "依用量計費"
 msgid "Usage-based pricing"
 msgstr "依用量計費"
 
-#: lib/tuist_web/live/billing_live.ex:396
+#: lib/tuist_web/live/billing_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
 msgstr "免費方案後的依用量計費"
@@ -867,7 +867,7 @@ msgstr "只要保持開源，即可使用所有 Tuist 功能。"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:684
 #: lib/tuist_web/live/members_live.ex:163
-#: lib/tuist_web/live/members_live.ex:823
+#: lib/tuist_web/live/members_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr "使用者"
@@ -919,7 +919,7 @@ msgstr "你收到這封電子郵件，是因為你最近註冊了 Tuist 帳號�
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr "您收到這封電子郵件，是因為您請求重設 Tuist 帳號的密碼。"
 
-#: lib/tuist/accounts/user_notifier.ex:350
+#: lib/tuist/accounts/user_notifier.ex:394
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr "%{inviter_email} 邀請您加入 %{organization_name} Tuist 組織"
@@ -935,7 +935,7 @@ msgid "You’ve exceeded your free tier quota and will incur charges for additio
 msgstr "您已超出免費方案的配額，額外用量將產生費用。"
 
 #: lib/tuist/billing.ex:73
-#: lib/tuist_web/live/billing_live.ex:398
+#: lib/tuist_web/live/billing_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "and up"
 msgstr "起"
@@ -1697,27 +1697,27 @@ msgstr "複製內文"
 msgid "Copy payload"
 msgstr "複製承載資料"
 
-#: lib/tuist/accounts/user_notifier.ex:393
+#: lib/tuist/accounts/user_notifier.ex:437
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
 msgstr "嗨 %{user_email}，你的帳戶已由身分識別供應商的自動使用者佈建 (SCIM) 加入 %{organization_name}。"
 
-#: lib/tuist/accounts/user_notifier.ex:408
+#: lib/tuist/accounts/user_notifier.ex:452
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
 msgstr "若此情況非預期，請聯絡你的身分識別供應商管理員（負責管理單一登入的團隊）以移除此佈建。Tuist 中的組織管理員也可以將你從 %{organization_name} 移除。"
 
-#: lib/tuist/accounts/user_notifier.ex:399
+#: lib/tuist/accounts/user_notifier.ex:443
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
 msgstr "若此為預期行為，則無需採取任何動作。你可以在此處開啟組織："
 
-#: lib/tuist/accounts/user_notifier.ex:405
+#: lib/tuist/accounts/user_notifier.ex:449
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr "開啟 %{organization_name}"
 
-#: lib/tuist/accounts/user_notifier.ex:385
+#: lib/tuist/accounts/user_notifier.ex:429
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr "你已加入 Tuist 組織 %{organization_name}"
@@ -1892,7 +1892,7 @@ msgstr "你的節點向 Tuist 出示的租戶範圍憑證。此憑證僅授權�
 msgid "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list."
 msgstr "我們已將此邀請寄送至 %{email}。你也可以直接分享連結。它會保留在邀請清單中。"
 
-#: lib/tuist_web/live/members_live.ex:815
+#: lib/tuist_web/live/members_live.ex:825
 #, elixir-autogen, elixir-format
 msgid "Expired"
 msgstr "已過期"
@@ -2497,34 +2497,34 @@ msgstr "你的 Entra 應用程式之目錄 (租用戶) ID。Tuist 會由此推�
 msgid "Under API permissions, grant the delegated openid, profile, and email permissions"
 msgstr "在 API 權限下，授予委派的 openid、profile 和 email 權限"
 
-#: lib/tuist_web/live/billing_live.ex:276
+#: lib/tuist_web/live/billing_live.ex:292
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
 msgstr[0] "%{count} 分鐘"
 
-#: lib/tuist_web/live/billing_live.ex:272
+#: lib/tuist_web/live/billing_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "%{count} second"
 msgid_plural "%{count} seconds"
 msgstr[0] "%{count} 秒"
 
-#: lib/tuist_web/live/billing_live.ex:295
+#: lib/tuist_web/live/billing_live.ex:311
 #, elixir-autogen, elixir-format
 msgid "free during your trial"
 msgstr "試用期間免費"
 
-#: lib/tuist_web/live/billing_live.ex:297
+#: lib/tuist_web/live/billing_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "no paid plan to bill against"
 msgstr "無可計費的付費方案"
 
-#: lib/tuist_web/live/billing_live.ex:299
+#: lib/tuist_web/live/billing_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "on your next invoice"
 msgstr "於下一張發票中"
 
-#: lib/tuist_web/live/billing_live.ex:293
+#: lib/tuist_web/live/billing_live.ex:309
 #, elixir-autogen, elixir-format
 msgid "within your %{count} free minutes"
 msgstr "包含於 %{count} 分鐘免費額度內"
@@ -2542,7 +2542,7 @@ msgstr "查看明細"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:685
 #: lib/tuist_web/live/members_live.ex:187
-#: lib/tuist_web/live/members_live.ex:822
+#: lib/tuist_web/live/members_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Viewer"
 msgstr "檢視者"
@@ -2557,79 +2557,79 @@ msgstr "註冊成員的角色"
 msgid "The role members get when they join through automatic enrollment."
 msgstr "成員透過自動註冊加入時獲得的角色。"
 
-#: lib/tuist/accounts/user_notifier.ex:477
+#: lib/tuist/accounts/user_notifier.ex:521
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr "Pro 方案包含相同的免費額度，超出後依用量計費。"
 
-#: lib/tuist/accounts/user_notifier.ex:658
+#: lib/tuist/accounts/user_notifier.ex:702
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr "此帳戶的遠端快取存取已暫停。升級至 Pro 以繼續使用快取，或等待免費額度重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:474
+#: lib/tuist/accounts/user_notifier.ex:518
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
 msgstr "檢視用量並升級"
 
-#: lib/tuist/accounts/user_notifier.ex:667
+#: lib/tuist/accounts/user_notifier.ex:711
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr "你即將達到 Air 方案的額度上限"
 
-#: lib/tuist/accounts/user_notifier.ex:668
+#: lib/tuist/accounts/user_notifier.ex:712
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr "你即將用盡每月的免費額度。請在達到上限前升級至 Pro，以確保遠端快取存取不中斷。"
 
-#: lib/tuist/accounts/user_notifier.ex:480
-#: lib/tuist/accounts/user_notifier.ex:567
-#: lib/tuist/accounts/user_notifier.ex:605
+#: lib/tuist/accounts/user_notifier.ex:524
+#: lib/tuist/accounts/user_notifier.ex:611
+#: lib/tuist/accounts/user_notifier.ex:649
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr "你收到這封電子郵件是因為你管理此 Tuist 帳號。"
 
-#: lib/tuist/accounts/user_notifier.ex:657
+#: lib/tuist/accounts/user_notifier.ex:701
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr "你已達到 Air 方案上限"
 
-#: lib/tuist/accounts/user_notifier.ex:467
+#: lib/tuist/accounts/user_notifier.ex:511
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr "你的免費額度將於 %{date}（UTC）重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:611
+#: lib/tuist/accounts/user_notifier.ex:655
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} baseline runner minutes used"
 msgstr "已使用 %{usage} / %{limit} 基準執行器分鐘數"
 
-#: lib/tuist/accounts/user_notifier.ex:638
+#: lib/tuist/accounts/user_notifier.ex:682
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr "此帳號的新執行器工作已暫停。升級至 Pro 以繼續執行工作，或等待你的免費執行器額度重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:637
+#: lib/tuist/accounts/user_notifier.ex:681
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr "你已達到 Air 執行器上限"
 
-#: lib/tuist/accounts/user_notifier.ex:648
+#: lib/tuist/accounts/user_notifier.ex:692
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr "你即將用盡每月的免費執行器額度。請在達到上限前升級至 Pro，以繼續使用執行器。"
 
-#: lib/tuist/accounts/user_notifier.ex:647
+#: lib/tuist/accounts/user_notifier.ex:691
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
 msgstr "Air 執行器用量即將達到上限"
 
-#: lib/tuist/accounts/user_notifier.ex:450
+#: lib/tuist/accounts/user_notifier.ex:494
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air limit"
 msgstr "%{account_name} 已使用 %{percentage}% 的 Air 額度"
 
-#: lib/tuist/accounts/user_notifier.ex:445
+#: lib/tuist/accounts/user_notifier.ex:489
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
 msgstr "%{account_name} 已使用 %{percentage}% 的 Air 執行器額度"
@@ -2639,12 +2639,12 @@ msgstr "%{account_name} 已使用 %{percentage}% 的 Air 執行器額度"
 msgid "All rights reserved."
 msgstr "保留所有權利。"
 
-#: lib/tuist/accounts/user_notifier.ex:685
+#: lib/tuist/accounts/user_notifier.ex:729
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
 msgstr "你好，%{email}，你可以點擊下方按鈕變更電子郵件："
 
-#: lib/tuist/accounts/user_notifier.ex:690
+#: lib/tuist/accounts/user_notifier.ex:734
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
 msgstr "如果你未要求此變更，請忽略這封電子郵件。"
@@ -2654,13 +2654,13 @@ msgstr "如果你未要求此變更，請忽略這封電子郵件。"
 msgid "This email was sent by Tuist. By using our services, you agree to our"
 msgstr "此電子郵件由 Tuist 發送。使用我們的服務即表示你同意我們的"
 
-#: lib/tuist/accounts/user_notifier.ex:681
+#: lib/tuist/accounts/user_notifier.ex:725
 #, elixir-autogen, elixir-format
 msgid "Update email instructions"
 msgstr "更新電子郵件指示"
 
-#: lib/tuist/accounts/user_notifier.ex:683
-#: lib/tuist/accounts/user_notifier.ex:689
+#: lib/tuist/accounts/user_notifier.ex:727
+#: lib/tuist/accounts/user_notifier.ex:733
 #, elixir-autogen, elixir-format
 msgid "Update your email"
 msgstr "更新你的電子郵件"
@@ -2705,23 +2705,23 @@ msgstr "快取出站流量"
 msgid "Cache egress:"
 msgstr "快取流出量："
 
-#: lib/tuist_web/live/billing_live.ex:283
+#: lib/tuist_web/live/billing_live.ex:299
 #: lib/tuist_web/live/billing_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "of your usage"
 msgstr "佔您的用量"
 
-#: lib/tuist_web/live/billing_live.ex:287
+#: lib/tuist_web/live/billing_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)"
 msgstr "佔您的用量（%{free} 分鐘免費執行器時間加上 %{prepaid} 預付）"
 
-#: lib/tuist/accounts/user_notifier.ex:621
+#: lib/tuist/accounts/user_notifier.ex:665
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
 msgstr "已使用 %{usage} / %{limit} 次快取請求"
 
-#: lib/tuist/accounts/user_notifier.ex:614
+#: lib/tuist/accounts/user_notifier.ex:658
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
 msgstr "已使用 %{usage} / %{limit} 的快取流出量"
@@ -2815,8 +2815,8 @@ msgstr "帳號「%{account}」的訂閱付款失敗，因此該帳號已限制�
 msgid "A payment for your subscription failed"
 msgstr "你的訂閱付款失敗"
 
-#: lib/tuist/accounts/user_notifier.ex:566
-#: lib/tuist/accounts/user_notifier.ex:604
+#: lib/tuist/accounts/user_notifier.ex:610
+#: lib/tuist/accounts/user_notifier.ex:648
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
@@ -2832,47 +2832,47 @@ msgstr "在付清未結發票之前，你的方案僅限使用 Air 方案的免�
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
 msgstr "在重試付款期間，你的方案仍會保持啟用狀態。請付清未結發票或更新付款方式以維持方案。"
 
-#: lib/tuist/accounts/user_notifier.ex:547
+#: lib/tuist/accounts/user_notifier.ex:591
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
 msgstr "%{account_name} 的 Tuist 訂閱付款失敗"
 
-#: lib/tuist/accounts/user_notifier.ex:564
+#: lib/tuist/accounts/user_notifier.ex:608
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
 msgstr "請付清未結發票或更新付款方式以維持你的方案："
 
-#: lib/tuist/accounts/user_notifier.ex:554
+#: lib/tuist/accounts/user_notifier.ex:598
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
 msgstr "我們無法對 %{account_name} 訂閱項目中儲存的付款方式進行扣款。系統將自動重試付款。"
 
-#: lib/tuist/accounts/user_notifier.ex:552
+#: lib/tuist/accounts/user_notifier.ex:596
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
 msgstr "你的訂閱付款失敗"
 
-#: lib/tuist/accounts/user_notifier.ex:559
+#: lib/tuist/accounts/user_notifier.ex:603
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
 msgstr "在重試付款期間，你的方案仍會保持啟用狀態。若重試結束後仍未成功，%{account_name} 將僅限使用 Air 方案的免費層級，直到付清發票為止。"
 
-#: lib/tuist/accounts/user_notifier.ex:586
+#: lib/tuist/accounts/user_notifier.ex:630
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
 msgstr "%{account_name} 已切換至 Air 方案，因為其訂閱付款失敗"
 
-#: lib/tuist/accounts/user_notifier.ex:598
+#: lib/tuist/accounts/user_notifier.ex:642
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
 msgstr "支付未結清的發票即可恢復你的方案。你也可以在付款前更新付款方式："
 
-#: lib/tuist/accounts/user_notifier.ex:593
+#: lib/tuist/accounts/user_notifier.ex:637
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
 msgstr "我們無法收取 %{account_name} 訂閱方案的費用，且已停止重試。%{account_name} 現在僅限使用 Air 方案的免費層級。"
 
-#: lib/tuist/accounts/user_notifier.ex:591
+#: lib/tuist/accounts/user_notifier.ex:635
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
 msgstr "你的帳戶已移至 Air 方案"
@@ -3076,3 +3076,39 @@ msgstr "在此之前，你將繼續使用 Pro，期間的使用量照常計費�
 #, elixir-autogen, elixir-format
 msgid "Your plan switches to Air on %{date}"
 msgstr "你的方案將於 %{date} 切換為 Air"
+
+#: lib/tuist/accounts/user_notifier.ex:330
+#: lib/tuist/accounts/user_notifier.ex:352
+#, elixir-autogen, elixir-format
+msgid "If you did not make this change, contact Tuist support immediately and secure your account."
+msgstr "如果你未進行此變更，請立即聯絡 Tuist 支援並保護你的帳戶。"
+
+#: lib/tuist/accounts/user_notifier.ex:329
+#, elixir-autogen, elixir-format
+msgid "The two-factor authentication settings for your Tuist account were changed."
+msgstr "你 Tuist 帳戶的雙重驗證設定已變更。"
+
+#: lib/tuist/accounts/user_notifier.ex:323
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication disabled"
+msgstr "雙重驗證已停用"
+
+#: lib/tuist/accounts/user_notifier.ex:322
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication enabled"
+msgstr "雙重驗證已啟用"
+
+#: lib/tuist/accounts/user_notifier.ex:344
+#, elixir-autogen, elixir-format
+msgid "Passkey added"
+msgstr "通行金鑰已新增"
+
+#: lib/tuist/accounts/user_notifier.ex:345
+#, elixir-autogen, elixir-format
+msgid "Passkey removed"
+msgstr "通行金鑰已移除"
+
+#: lib/tuist/accounts/user_notifier.ex:351
+#, elixir-autogen, elixir-format
+msgid "The passkeys that can sign in to your Tuist account were changed."
+msgstr "可登入你 Tuist 帳戶的通行金鑰已變更。"

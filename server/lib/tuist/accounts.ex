@@ -2172,7 +2172,10 @@ defmodule Tuist.Accounts do
       Repo.one(
         from session in UserToken.valid_session_query(token),
           join: user in assoc(session, :user),
+          left_join: factor in Tuist.Accounts.UserMFA,
+          on: factor.user_id == user.id,
           where: user.active,
+          where: is_nil(factor.confirmed_at) or session.mfa_verified_at >= factor.confirmed_at,
           preload: [user: user]
       )
 

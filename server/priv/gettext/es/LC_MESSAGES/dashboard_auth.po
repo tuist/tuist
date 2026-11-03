@@ -442,7 +442,7 @@ msgstr "Iniciar sesión con SSO"
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr "No hay ninguna organización SSO configurada para este correo electrónico. Revisa la dirección y pide al administrador de tu organización que verifique la configuración del dominio SSO."
 
-#: lib/tuist_web/controllers/auth_controller.ex:576
+#: lib/tuist_web/controllers/auth_controller.ex:584
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr "Ya existe una cuenta con este correo electrónico. Por favor, inicia sesión en su lugar."
@@ -557,7 +557,7 @@ msgstr "Verifica que eres humano"
 msgid "Google sign-in could not be completed. Please try logging in again."
 msgstr "No se ha podido completar el inicio de sesión con Google. Intenta iniciar sesión de nuevo."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:57
+#: lib/tuist_web/controllers/sso_link_controller.ex:61
 #, elixir-autogen, elixir-format
 msgid "Already linked"
 msgstr "Ya vinculado"
@@ -573,7 +573,7 @@ msgstr "Cancelar"
 msgid "Link account"
 msgstr "Vincular cuenta"
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:120
+#: lib/tuist_web/controllers/sso_link_controller.ex:125
 #, elixir-autogen, elixir-format
 msgid "Link expired"
 msgstr "Enlace caducado"
@@ -583,7 +583,7 @@ msgstr "Enlace caducado"
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
 msgstr "Vincula solo si %{organization} es tu organización. Cualquier persona que pueda iniciar sesión en esta cuenta del proveedor de identidad podrá acceder a toda tu cuenta de Tuist."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:128
+#: lib/tuist_web/controllers/sso_link_controller.ex:133
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
 msgstr "Vincular inicio de sesión único · Tuist"
@@ -593,12 +593,12 @@ msgstr "Vincular inicio de sesión único · Tuist"
 msgid "Link single sign-on?"
 msgstr "¿Vincular inicio de sesión único?"
 
-#: lib/tuist_web/controllers/auth_controller.ex:435
+#: lib/tuist_web/controllers/auth_controller.ex:441
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr "Inicia sesión en tu cuenta de Tuist para vincularla al inicio de sesión único de tu organización."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:121
+#: lib/tuist_web/controllers/sso_link_controller.ex:126
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
 msgstr "Vuelve a iniciar sesión con el inicio de sesión único para vincular tu cuenta."
@@ -613,7 +613,7 @@ msgstr "Has iniciado sesión en Tuist como %{email}"
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
 msgstr "La cuenta del proveedor de identidad de %{organization} que iniciará sesión en tu cuenta de Tuist."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:59
+#: lib/tuist_web/controllers/sso_link_controller.ex:63
 #, elixir-autogen, elixir-format
 msgid "This identity provider account is already linked to another Tuist account."
 msgstr "Esta cuenta del proveedor de identidad ya está vinculada a otra cuenta de Tuist."
@@ -749,3 +749,147 @@ msgstr "Tests inestables"
 #, elixir-autogen, elixir-format
 msgid "Speed up CI by testing only what changed."
 msgstr "Acelera la CI ejecutando tests solo para lo que ha cambiado."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Add this setup key to your authenticator app, then enter its six-digit code. The key expires in five minutes."
+msgstr "Añade esta clave de configuración a tu aplicación de autenticación y, a continuación, introduce el código de seis dígitos. La clave caduca en cinco minutos."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Authentication code"
+msgstr "Código de autenticación"
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:17
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Authentication or recovery code"
+msgstr "Código de autenticación o de recuperación"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Back to dashboard"
+msgstr "Volver al panel"
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Back to sign in"
+msgstr "Volver a iniciar sesión"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Cancel setup"
+msgstr "Cancelar configuración"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Changing your factor requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
+msgstr "Para cambiar tu factor, debes haber iniciado sesión en los últimos cinco minutos. Restablecer la contraseña no lo elimina. Guarda los códigos de recuperación en un lugar seguro."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Disable two-factor authentication"
+msgstr "Desactivar la autenticación de dos factores"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Enable two-factor authentication"
+msgstr "Activar la autenticación de dos factores"
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Enter a code from your authenticator app or an unused recovery code."
+msgstr "Introduce un código de tu aplicación de autenticación o un código de recuperación sin usar."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "I saved my recovery codes"
+msgstr "He guardado mis códigos de recuperación"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Protect your account with an authenticator app and recovery codes."
+msgstr "Protege tu cuenta con una aplicación de autenticación y códigos de recuperación."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Save your recovery codes"
+msgstr "Guarda tus códigos de recuperación"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Set up authenticator app"
+msgstr "Configurar la aplicación de autenticación"
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:160
+#, elixir-autogen, elixir-format
+msgid "Sign out and sign in again before changing two-factor authentication."
+msgstr "Cierra sesión e inicia sesión de nuevo antes de cambiar la autenticación de dos factores."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Store these codes securely. Losing both your authenticator and recovery codes can lock you out of your account."
+msgstr "Guarda estos códigos en un lugar seguro. Si pierdes tanto la aplicación de autenticación como los códigos de recuperación, podrías quedar bloqueado fuera de tu cuenta."
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:166
+#, elixir-autogen, elixir-format
+msgid "The code is invalid, already used, or too many attempts were made. Try a new code later."
+msgstr "El código no es válido, ya se ha utilizado o se han realizado demasiados intentos. Prueba con un nuevo código más tarde."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "These codes are shown only once. Each code replaces your authenticator code for one sign-in."
+msgstr "Estos códigos se muestran solo una vez. Cada código sustituye al código de tu autenticador para un único inicio de sesión."
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:2
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication"
+msgstr "Autenticación en dos pasos"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
+msgstr "La autenticación en dos pasos está activada para todos los nuevos inicios de sesión desde el navegador, incluido el inicio de sesión único."
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:155
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication · Tuist"
+msgstr "Autenticación en dos pasos · Tuist"
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Verify"
+msgstr "Verificar"
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:53
+#, elixir-autogen, elixir-format
+msgid "Passkey added."
+msgstr "Clave de acceso añadida."
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:68
+#, elixir-autogen, elixir-format
+msgid "Passkey removed."
+msgstr "Clave de acceso eliminada."
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:125
+#, elixir-autogen, elixir-format
+msgid "Remove a passkey before adding another one."
+msgstr "Elimina una clave de acceso antes de añadir otra."
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:123
+#, elixir-autogen, elixir-format
+msgid "Sign out and sign in again before changing passkeys."
+msgstr "Cierra sesión y vuelve a iniciarla antes de cambiar las claves de acceso."
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:162
+#: lib/tuist_web/controllers/user_passkey_controller.ex:92
+#: lib/tuist_web/controllers/user_passkey_controller.ex:129
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be verified. Try again."
+msgstr "No se ha podido verificar la clave de acceso. Inténtalo de nuevo."
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:127
+#, elixir-autogen, elixir-format
+msgid "This passkey is already registered."
+msgstr "Esta clave de acceso ya está registrada."
