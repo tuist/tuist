@@ -420,42 +420,53 @@ defmodule TuistWeb.Authentication do
 
     if user_session && socket.router && LiveView.connected?(socket) do
       schedule_session_check(user_session)
-      # An automatic reconnect remounts the view, calls handle_params and
-      # replays phx-change forms (form recovery, which can push_patch) with no
-      # user action. Requests in that short window revalidate without renewing.
-      reconnect? = ((LiveView.get_connect_params(socket) || %{})["_mounts"] || 0) > 0
-      automatic_until = if reconnect?, do: System.monotonic_time(:millisecond) + @reconnect_recovery_ms
 
       socket
-      |> Phoenix.Component.assign(:browser_session_automatic_until, automatic_until)
-      |> LiveView.attach_hook(:browser_session, :handle_event, fn _, _, socket ->
-        check_live_session(socket, token, touch: not automatic_request?(socket.assigns))
-      end)
-      |> LiveView.attach_hook(:browser_session, :handle_params, fn params, url, socket ->
-        socket
-        |> Phoenix.Component.assign(
-          sso_route_params: params,
-          browser_session_path: if(!socket.assigns[:browser_session_login_required?], do: request_path(url))
-        )
-        |> check_live_session(token, touch: not automatic_request?(socket.assigns))
-      end)
-      |> LiveView.attach_hook(:browser_session, :handle_info, fn
-        :check_browser_session, socket ->
-          case check_live_session(socket, token, []) do
-            {:cont, socket} ->
-              schedule_session_check(socket.assigns.current_user_session)
-              {:halt, socket}
-
-            halted ->
-              halted
-          end
-
-        _, socket ->
-          {:cont, socket}
-      end)
+      |> Phoenix.Component.assign(:browser_session_automatic_until, reconnect_recovery_deadline(socket))
+      |> attach_browser_session_hooks(token)
     else
       socket
     end
+  end
+
+  # An automatic reconnect remounts the view, calls handle_params and replays
+  # phx-change forms (form recovery, which can push_patch) with no user action.
+  # Requests before this deadline revalidate without renewing activity.
+  defp reconnect_recovery_deadline(socket) do
+    connect_params = LiveView.get_connect_params(socket) || %{}
+
+    if (connect_params["_mounts"] || 0) > 0 do
+      System.monotonic_time(:millisecond) + @reconnect_recovery_ms
+    end
+  end
+
+  defp attach_browser_session_hooks(socket, token) do
+    socket
+    |> LiveView.attach_hook(:browser_session, :handle_event, fn _, _, socket ->
+      check_live_session(socket, token, touch: not automatic_request?(socket.assigns))
+    end)
+    |> LiveView.attach_hook(:browser_session, :handle_params, fn params, url, socket ->
+      socket
+      |> Phoenix.Component.assign(
+        sso_route_params: params,
+        browser_session_path: if(!socket.assigns[:browser_session_login_required?], do: request_path(url))
+      )
+      |> check_live_session(token, touch: not automatic_request?(socket.assigns))
+    end)
+    |> LiveView.attach_hook(:browser_session, :handle_info, fn
+      :check_browser_session, socket ->
+        case check_live_session(socket, token, []) do
+          {:cont, socket} ->
+            schedule_session_check(socket.assigns.current_user_session)
+            {:halt, socket}
+
+          halted ->
+            halted
+        end
+
+      _, socket ->
+        {:cont, socket}
+    end)
   end
 
   defp automatic_request?(assigns) do
