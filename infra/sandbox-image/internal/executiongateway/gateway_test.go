@@ -15,7 +15,6 @@ import (
 	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	bs "google.golang.org/genproto/googleapis/bytestream"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -451,113 +450,5 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 	}
 	if auth, _ := store.auth.Load().([]string); len(auth) != 2 || auth[0] != "Bearer secret" || auth[1] != "tuist" {
 		t.Fatalf("credentials: %v", auth)
-	}
-}
-
-type storedWrite struct {
-	name string
-	data []byte
-}
-
-type outputStore struct {
-	bs.UnimplementedByteStreamServer
-	refuse  bool
-	writes  chan storedWrite
-	headers chan metadata.MD
-}
-
-func (o *outputStore) Write(s bs.ByteStream_WriteServer) error {
-	md, _ := metadata.FromIncomingContext(s.Context())
-	o.headers <- md
-	var w storedWrite
-	for {
-		r, err := s.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		if r.ResourceName != "" {
-			w.name = r.ResourceName
-		}
-		w.data = append(w.data, r.Data...)
-		if r.FinishWrite {
-			break
-		}
-	}
-	o.writes <- w
-	if o.refuse {
-		return status.Error(codes.ResourceExhausted, "full")
-	}
-	return s.SendAndClose(&bs.WriteResponse{CommittedSize: int64(len(w.data))})
-}
-
-func TestInlinedOutputsAreStoredBeforeTheResult(t *testing.T) {
-	for _, refuse := range []bool{false, true} {
-		store := &outputStore{refuse: refuse, writes: make(chan storedWrite, 1), headers: make(chan metadata.MD, 1)}
-		cache := &actionCache{updates: make(chan *re.UpdateActionResultRequest, 1), auth: make(chan []string, 1)}
-		l := bufconn.Listen(1 << 20)
-		s := grpc.NewServer()
-		bs.RegisterByteStreamServer(s, store)
-		re.RegisterActionCacheServer(s, cache)
-		go s.Serve(l)
-		t.Cleanup(s.Stop)
-		g := New("https://control.example")
-		var dialed atomic.Value
-		g.Dial = func(endpoint string) (*grpc.ClientConn, error) {
-			dialed.Store(endpoint)
-			return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
-		}
-		blob := []byte("output")
-		h := sha256.Sum256(blob)
-		digest := &re.Digest{Hash: hex.EncodeToString(h[:]), SizeBytes: int64(len(blob))}
-		outputs, _ := proto.Marshal(&re.BatchUpdateBlobsRequest{Requests: []*re.BatchUpdateBlobsRequest_Request{{Digest: digest, Data: blob}}})
-		b, _ := proto.Marshal(&re.ExecuteResponse{Result: &re.ActionResult{OutputFiles: []*re.OutputFile{{Path: "out", Digest: digest}}}})
-		hash := strings.Repeat("a", 64)
-		op, _ := json.Marshal(map[string]any{"id": id, "state": "completed", "done": true, "response": base64.StdEncoding.EncodeToString(b),
-			"outputs": base64.StdEncoding.EncodeToString(outputs), "cacheable": true, "action_hash": hash, "action_size": 5, "cas_endpoint": "grpcs://cache.example"})
-		client, _ := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
-			if r.Header.Get("X-Tuist-Inline-Outputs") != "1" {
-				t.Errorf("the gateway did not declare inline outputs: %v", r.Header)
-			}
-			return response(202, string(op)), nil
-		})
-		stream, err := client.Execute(authenticated(), &re.ExecuteRequest{InstanceName: "app", ActionDigest: &re.Digest{Hash: hash, SizeBytes: 5}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		finished, err := stream.Recv()
-		if err != nil || !finished.Done {
-			t.Fatalf("result: %v %v", finished, err)
-		}
-		// Stored before the client got the result.
-		var stored storedWrite
-		select {
-		case stored = <-store.writes:
-		default:
-			t.Fatal("outputs were not stored before the result")
-		}
-		md := <-store.headers
-		if !strings.HasPrefix(stored.name, "app/uploads/") || !strings.HasSuffix(stored.name, "/blobs/"+digest.Hash+"/6") || string(stored.data) != "output" || dialed.Load() != "grpcs://cache.example" {
-			t.Fatalf("write: %v to %v", stored, dialed.Load())
-		}
-		if md.Get("authorization")[0] != "Bearer secret" || md.Get("x-tuist-account-handle")[0] != "tuist" {
-			t.Fatalf("headers: %v", md)
-		}
-		var result re.ExecuteResponse
-		if finished.GetResponse().UnmarshalTo(&result) != nil {
-			t.Fatal(finished)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		g.Wait(ctx)
-		cancel()
-		if refuse {
-			if result.Status.GetCode() != int32(codes.Unavailable) || len(cache.updates) != 0 {
-				t.Fatalf("an unstored result was delivered or published: %v", &result)
-			}
-		} else if result.Status.GetCode() != 0 || len(cache.updates) != 1 {
-			t.Fatalf("result: %v, published %d", &result, len(cache.updates))
-		}
 	}
 }

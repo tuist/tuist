@@ -63,7 +63,7 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> true end)
     project_id = project.id
 
-    expect(RemoteExecution, :submit, fn %{id: ^project_id}, %{"hash" => _, "size" => 10}, [inline_outputs: false] ->
+    expect(RemoteExecution, :submit, fn %{id: ^project_id}, %{"hash" => _, "size" => 10} ->
       {:ok, %{id: "op", state: "completed", done: true, response: "result", cacheable: true}}
     end)
 
@@ -77,25 +77,9 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
           queue_full: :too_many_requests,
           unavailable: :service_unavailable
         ] do
-      expect(RemoteExecution, :submit, fn _, _, _ -> {:error, error} end)
+      expect(RemoteExecution, :submit, fn _, _ -> {:error, error} end)
       assert conn |> post(prefix <> "/operations", %{}) |> json_response(status)
     end
-  end
-
-  test "a gateway that stores returned outputs says so on every call", %{conn: conn, project: project, prefix: prefix} do
-    stub(Introspection, :token_response, fn _, _ -> grant(project) end)
-    stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> true end)
-    id = Ecto.UUID.generate()
-    conn = put_req_header(conn, "x-tuist-inline-outputs", "1")
-
-    expect(RemoteExecution, :submit, fn _, _, [inline_outputs: true] -> {:ok, %{id: id, state: "queued"}} end)
-    expect(RemoteExecution, :await, fn _, ^id, nil, [inline_outputs: true] -> {:ok, %{id: id, state: "queued"}} end)
-
-    assert conn
-           |> post(prefix <> "/operations", %{"hash" => String.duplicate("a", 64), "size" => 10})
-           |> json_response(:accepted)
-
-    assert conn |> get(prefix <> "/operations/#{id}") |> json_response(:ok)
   end
 
   test "operations stay readable after admission is disabled", %{conn: conn, project: project, prefix: prefix} do
@@ -103,14 +87,12 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> false end)
     id = Ecto.UUID.generate()
 
-    expect(RemoteExecution, :await, fn %{id: _}, ^id, "executing", [inline_outputs: false] ->
-      {:ok, %{id: id, state: "completed", done: true}}
-    end)
+    expect(RemoteExecution, :await, fn %{id: _}, ^id, "executing" -> {:ok, %{id: id, state: "completed", done: true}} end)
 
     assert %{"id" => ^id, "done" => true} =
              conn |> get(prefix <> "/operations/#{id}?after=executing") |> json_response(:ok)
 
-    expect(RemoteExecution, :await, fn _, _, _, _ -> {:error, :not_found} end)
+    expect(RemoteExecution, :await, fn _, _, _ -> {:error, :not_found} end)
     assert conn |> get(prefix <> "/operations/#{id}") |> json_response(:not_found)
 
     stub(Introspection, :token_response, fn _, _ -> %{active: false} end)
