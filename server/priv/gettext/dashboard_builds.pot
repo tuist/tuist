@@ -816,7 +816,7 @@ msgstr ""
 #: lib/tuist_web/live/mix_build_live.ex:352
 #: lib/tuist_web/live/run_detail_live.ex:353
 #: lib/tuist_web/live/run_detail_live.ex:386
-#: lib/tuist_web/live/test_run_live.ex:1423
+#: lib/tuist_web/live/test_run_live.ex:1436
 #: lib/tuist_web/live/xcode_builds_live.ex:400
 #: lib/tuist_web/live/xcode_builds_live.ex:403
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127

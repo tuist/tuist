@@ -113,6 +113,7 @@ defmodule TuistWeb.TestSelection.Components do
   def fallback_label("history_unavailable"), do: dgettext("dashboard_tests", "History too shallow")
   def fallback_label("tracked_file_changed"), do: dgettext("dashboard_tests", "Tracked file changed")
   def fallback_label("diff_too_large"), do: dgettext("dashboard_tests", "Diff too large")
+  def fallback_label("diff_unavailable"), do: dgettext("dashboard_tests", "Diff unavailable")
   def fallback_label(reason), do: reason
 
   def fallback_description("excluded_branch"),
@@ -143,6 +144,9 @@ defmodule TuistWeb.TestSelection.Components do
 
   def fallback_description("diff_too_large"),
     do: dgettext("dashboard_tests", "More than 5,000 files changed since the baseline.")
+
+  def fallback_description("diff_unavailable"),
+    do: dgettext("dashboard_tests", "The changed files since the baseline couldn't be read.")
 
   def fallback_description(reason), do: reason
 
