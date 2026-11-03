@@ -1,0 +1,5 @@
+package,version,archive_written,published_checksum,catalog_state
+alamofire/alamofire,4.0.1,2026-07-27T02:00:05Z,a4400a525fba74d03d86fe9422a7e8bb72bad2d973be83b09df1b6dbf35fe5c6,absent
+alamofire/alamofire,4.3.0,2026-02-19T04:11:52Z,,absent
+kean/nuke,12.8.0,2026-02-19T05:02:18Z,1f0e5cbb2b7a6d4c9e83a1d7f4b2c6e8a9d0f3b5c7e1a4d6f8b0c2e4a6d8f0b2,absent
+scinfu/swiftsoup,2.8.7,2026-07-28T16:14:40Z,,absent
