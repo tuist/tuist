@@ -80,11 +80,18 @@ defmodule Tuist.Runners.Prepaid do
 
   @bp_basis 10_000
 
-  # US cents per machine-minute on the macOS 6 vCPU / 14 GB baseline:
-  # $0.06 on demand. This duplicates what the Stripe Price says, the same
-  # way `Tuist.Billing.UsagePricing` duplicates the usage meter Prices, and
-  # has to be kept in step with it by hand.
-  @macos_on_demand_rate 6
+  # Hundredths of a US cent per compute-unit minute, one minute on the
+  # platform's baseline machine, on demand: $0.06 on the macOS 6 vCPU /
+  # 14 GB baseline and $0.0024 on the Linux 2 vCPU / 8 GB one, which puts
+  # the 1 vCPU / 2 GB Linux machine at $0.001. This duplicates what each
+  # platform's Stripe Price says, the same way `Tuist.Billing.UsagePricing`
+  # duplicates the usage meter Prices, and has to be kept in step with it
+  # by hand.
+  @on_demand_rates %{macos: 600, linux: 24}
+
+  # US cents per minute on the macOS baseline, the machine credit is
+  # quoted in.
+  @macos_on_demand_rate div(@on_demand_rates.macos, 100)
 
   # Par. Granting less than was paid would be a premium for prepaying,
   # which is only ever a typo.
@@ -114,8 +121,8 @@ defmodule Tuist.Runners.Prepaid do
   @expiry_grace_days 4
 
   @doc """
-  What `total_ms` of compute-unit milliseconds costs at the gross
-  on-demand rate.
+  What `total_ms` of `platform`'s compute-unit milliseconds costs at the
+  gross on-demand rate.
 
   Proportional to the millisecond, because that is how the runner Price
   charges: its tiers are in raw meter units and Stripe applies no
@@ -125,8 +132,19 @@ defmodule Tuist.Runners.Prepaid do
   worth half a minute's money, not nothing, and a figure that truncated
   to minutes would understate every bill that is not a round number.
   """
-  def on_demand_cost_for_milliseconds(total_ms) when is_integer(total_ms) and total_ms >= 0 do
-    Money.new(div(total_ms * @macos_on_demand_rate, 60_000), :USD)
+  def on_demand_cost_for_milliseconds(platform, total_ms)
+      when is_map_key(@on_demand_rates, platform) and is_integer(total_ms) and total_ms >= 0 do
+    Money.new(div(total_ms * Map.fetch!(@on_demand_rates, platform), 6_000_000), :USD)
+  end
+
+  @doc """
+  `on_demand_cost_for_milliseconds/2` in dollars, unrounded, for a chart
+  that sums many small amounts. Resolving each to whole cents first would
+  drop most of a day of small Linux machines.
+  """
+  def on_demand_dollars(platform, total_ms)
+      when is_map_key(@on_demand_rates, platform) and is_integer(total_ms) and total_ms >= 0 do
+    total_ms * Map.fetch!(@on_demand_rates, platform) / 600_000_000
   end
 
   @doc """

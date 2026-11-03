@@ -11,7 +11,7 @@
 msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/usage_live.ex:420
+#: lib/tuist_web/live/usage_live.ex:424
 #: lib/tuist_web/live/usage_live.html.heex:205
 #: lib/tuist_web/live/usage_live.html.heex:259
 #: lib/tuist_web/live/usage_live.html.heex:310
@@ -33,7 +33,7 @@ msgstr "გვერდი, რომელსაც ეძებთ, არ ა
 msgid "Usage"
 msgstr "გამოყენება"
 
-#: lib/tuist_web/live/usage_live.ex:413
+#: lib/tuist_web/live/usage_live.ex:417
 #: lib/tuist_web/live/usage_live.html.heex:190
 #: lib/tuist_web/live/usage_live.html.heex:255
 #: lib/tuist_web/live/usage_live.html.heex:270
@@ -47,11 +47,6 @@ msgstr "ეგრესი"
 msgid "Unknown"
 msgstr "უცნობი"
 
-#: lib/tuist_web/live/usage_live.html.heex:51
-#, elixir-autogen, elixir-format
-msgid "%{count} free each month"
-msgstr "%{count} უფასო თვეში"
-
 #: lib/tuist_web/live/usage_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
@@ -61,11 +56,6 @@ msgstr "სტანდარტული ტარიფით, უფასო
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr "დაბეგვრილი"
-
-#: lib/tuist_web/live/usage_live.html.heex:39
-#, elixir-autogen, elixir-format
-msgid "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs."
-msgstr "ბილინგის პერიოდი %{from}-დან %{to}-მდე. წუთები იზომება macOS 6 vCPU / 14 GB საბაზისო კონფიგურაციით; უფრო მძლავრი მანქანა მოიხმარს ერთ წუთზე მეტს თითოეული გაშვებული წუთისთვის."
 
 #: lib/tuist_web/live/usage_live.html.heex:49
 #, elixir-autogen, elixir-format
@@ -87,12 +77,12 @@ msgstr "რანერის გამოყენება"
 msgid "Usage value"
 msgstr "გამოყენების მაჩვენებელი"
 
-#: lib/tuist_web/live/usage_live.ex:328
+#: lib/tuist_web/live/usage_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr "Linux"
 
-#: lib/tuist_web/live/usage_live.ex:327
+#: lib/tuist_web/live/usage_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr "macOS"
@@ -107,7 +97,7 @@ msgstr "%{count} წუთი შედის"
 msgid "%{count} minutes run"
 msgstr "%{count} წუთი"
 
-#: lib/tuist_web/live/usage_live.ex:541
+#: lib/tuist_web/live/usage_live.ex:545
 #: lib/tuist_web/live/usage_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
@@ -143,33 +133,33 @@ msgstr "წინასწარ გადახდილი კრედიტ�
 msgid "Billing period:"
 msgstr "გადახდის პერიოდი:"
 
-#: lib/tuist_web/live/usage_live.ex:303
+#: lib/tuist_web/live/usage_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
 msgstr "წინა პერიოდში გამოიყენეთ %{count} წუთი."
 
-#: lib/tuist_web/live/usage_live.ex:323
+#: lib/tuist_web/live/usage_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr "წინა პერიოდში გამოიყენეთ %{count}."
 
-#: lib/tuist_web/live/usage_live.ex:315
+#: lib/tuist_web/live/usage_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
 msgstr "წინა პერიოდში არაფერი გაშვებულა."
 
-#: lib/tuist_web/live/usage_live.ex:309
+#: lib/tuist_web/live/usage_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
 msgstr "მიმდინარე პერიოდში სავარაუდოდ დაგჭირდებათ დაახლოებით %{count} წუთი."
 
 #: lib/tuist_web/live/usage_live.ex:212
-#: lib/tuist_web/live/usage_live.ex:465
+#: lib/tuist_web/live/usage_live.ex:469
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr "პროგნოზი"
 
-#: lib/tuist_web/live/usage_live.ex:336
+#: lib/tuist_web/live/usage_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} – %{to}"
 msgstr "მიმდინარე პერიოდი %{from} – %{to}"
@@ -179,7 +169,7 @@ msgstr "მიმდინარე პერიოდი %{from} – %{to}"
 msgid "Covered by your trial"
 msgstr "მოიცავს საცდელი პერიოდი"
 
-#: lib/tuist_web/live/usage_live.ex:538
+#: lib/tuist_web/live/usage_live.ex:542
 #: lib/tuist_web/live/usage_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
@@ -236,7 +226,7 @@ msgstr "გადახდის პერიოდი %{from}-დან %{to}-�
 msgid "Cache usage"
 msgstr "ქეშის გამოყენება"
 
-#: lib/tuist_web/live/usage_live.ex:540
+#: lib/tuist_web/live/usage_live.ex:544
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr "სავარაუდო ამ პერიოდისთვის"
@@ -253,17 +243,17 @@ msgstr "უფასო"
 msgid "Not billed"
 msgstr "არ ირიცხება"
 
-#: lib/tuist_web/live/usage_live.ex:563
+#: lib/tuist_web/live/usage_live.ex:567
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr "ამ პერიოდში სავარაუდოდ %{count} წარმატებული ტესტი იქნება."
 
-#: lib/tuist_web/live/usage_live.ex:555
+#: lib/tuist_web/live/usage_live.ex:559
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr "ამ პერიოდში სავარაუდოდ %{count} მოთხოვნა იქნება."
 
-#: lib/tuist_web/live/usage_live.ex:549
+#: lib/tuist_web/live/usage_live.ex:553
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr "ამ პერიოდში სავარაუდოდ %{size} იქნება."
@@ -279,22 +269,22 @@ msgstr "გავლილი ტესტები"
 msgid "Test insights usage"
 msgstr "ტესტების ანალიტიკის გამოყენება"
 
-#: lib/tuist_web/live/usage_live.ex:536
+#: lib/tuist_web/live/usage_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr "რა ჯდება ამ პერიოდში. არ არსებობს გამოწერა, რომელზეც ეს დაეფაროს."
 
-#: lib/tuist_web/live/usage_live.ex:528
+#: lib/tuist_web/live/usage_live.ex:532
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr "%{count}-ზე ერთხელ"
 
-#: lib/tuist_web/live/usage_live.ex:525
+#: lib/tuist_web/live/usage_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr "GB-ზე ერთხელ"
 
-#: lib/tuist_web/live/usage_live.ex:530
+#: lib/tuist_web/live/usage_live.ex:534
 #, elixir-autogen, elixir-format
 msgid "per million"
 msgstr "მილიონზე ერთხელ"
@@ -340,7 +330,17 @@ msgstr "ამ პერიოდში ქეშის გამოყენე
 msgid "Tuist Runners discount"
 msgstr "Tuist Runners-ის ფასდაკლება"
 
-#: lib/tuist_web/live/usage_live.ex:532
+#: lib/tuist_web/live/usage_live.ex:536
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr "უცნობი პროექტი"
+
+#: lib/tuist_web/live/usage_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{count} free macOS minutes each month"
+msgstr "%{count} უფასო macOS წუთი თვეში"
+
+#: lib/tuist_web/live/usage_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs."
+msgstr "გადახდის პერიოდი %{from}-დან %{to}-მდე. წუთები იზომება თითოეული პლატფორმის საბაზისო მანქანაზე: macOS 6 vCPU / 14 GB და Linux 2 vCPU / 8 GB; უფრო დიდი მანქანა მოიხმარს ერთ წუთზე მეტს ყოველ გაშვებულ წუთზე."

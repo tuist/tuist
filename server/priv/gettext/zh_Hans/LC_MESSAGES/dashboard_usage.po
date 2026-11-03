@@ -11,7 +11,7 @@
 msgid ""
 msgstr "Language: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/usage_live.ex:420
+#: lib/tuist_web/live/usage_live.ex:424
 #: lib/tuist_web/live/usage_live.html.heex:205
 #: lib/tuist_web/live/usage_live.html.heex:259
 #: lib/tuist_web/live/usage_live.html.heex:310
@@ -33,7 +33,7 @@ msgstr "你访问的页面不存在或已被移动。"
 msgid "Usage"
 msgstr "用量"
 
-#: lib/tuist_web/live/usage_live.ex:413
+#: lib/tuist_web/live/usage_live.ex:417
 #: lib/tuist_web/live/usage_live.html.heex:190
 #: lib/tuist_web/live/usage_live.html.heex:255
 #: lib/tuist_web/live/usage_live.html.heex:270
@@ -47,11 +47,6 @@ msgstr "出站流量"
 msgid "Unknown"
 msgstr "未知"
 
-#: lib/tuist_web/live/usage_live.html.heex:51
-#, elixir-autogen, elixir-format
-msgid "%{count} free each month"
-msgstr "每月 %{count} 次免费额度"
-
 #: lib/tuist_web/live/usage_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
@@ -61,11 +56,6 @@ msgstr "按标准费率计费，扣除免费额度后"
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr "已计费"
-
-#: lib/tuist_web/live/usage_live.html.heex:39
-#, elixir-autogen, elixir-format
-msgid "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs."
-msgstr "计费周期 %{from} 至 %{to}。分钟数按 macOS 6 vCPU / 14 GB 基准计算；更大的机器每运行一分钟将消耗超过一分钟的额度。"
 
 #: lib/tuist_web/live/usage_live.html.heex:49
 #, elixir-autogen, elixir-format
@@ -87,12 +77,12 @@ msgstr "Runner 用量"
 msgid "Usage value"
 msgstr "用量值"
 
-#: lib/tuist_web/live/usage_live.ex:328
+#: lib/tuist_web/live/usage_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr "Linux"
 
-#: lib/tuist_web/live/usage_live.ex:327
+#: lib/tuist_web/live/usage_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr "macOS"
@@ -107,7 +97,7 @@ msgstr "包含 %{count} 分钟"
 msgid "%{count} minutes run"
 msgstr "运行 %{count} 分钟"
 
-#: lib/tuist_web/live/usage_live.ex:541
+#: lib/tuist_web/live/usage_live.ex:545
 #: lib/tuist_web/live/usage_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
@@ -143,33 +133,33 @@ msgstr "预付费额度"
 msgid "Billing period:"
 msgstr "账单周期："
 
-#: lib/tuist_web/live/usage_live.ex:303
+#: lib/tuist_web/live/usage_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
 msgstr "上一周期共消耗 %{count} 分钟。"
 
-#: lib/tuist_web/live/usage_live.ex:323
+#: lib/tuist_web/live/usage_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr "上一周期共消耗 %{count}。"
 
-#: lib/tuist_web/live/usage_live.ex:315
+#: lib/tuist_web/live/usage_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
 msgstr "上一周期未运行任何任务。"
 
-#: lib/tuist_web/live/usage_live.ex:309
+#: lib/tuist_web/live/usage_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
 msgstr "本周期预计消耗约 %{count} 分钟。"
 
 #: lib/tuist_web/live/usage_live.ex:212
-#: lib/tuist_web/live/usage_live.ex:465
+#: lib/tuist_web/live/usage_live.ex:469
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr "预测"
 
-#: lib/tuist_web/live/usage_live.ex:336
+#: lib/tuist_web/live/usage_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} – %{to}"
 msgstr "当前周期 %{from} – %{to}"
@@ -179,7 +169,7 @@ msgstr "当前周期 %{from} – %{to}"
 msgid "Covered by your trial"
 msgstr "由试用期覆盖"
 
-#: lib/tuist_web/live/usage_live.ex:538
+#: lib/tuist_web/live/usage_live.ex:542
 #: lib/tuist_web/live/usage_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
@@ -236,7 +226,7 @@ msgstr "计费周期 %{from} 至 %{to}。仅对通过的测试用例计费。构
 msgid "Cache usage"
 msgstr "缓存用量"
 
-#: lib/tuist_web/live/usage_live.ex:540
+#: lib/tuist_web/live/usage_live.ex:544
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr "本期预估"
@@ -253,17 +243,17 @@ msgstr "免费"
 msgid "Not billed"
 msgstr "不计费"
 
-#: lib/tuist_web/live/usage_live.ex:563
+#: lib/tuist_web/live/usage_live.ex:567
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr "预计本期通过约 %{count} 个测试用例。"
 
-#: lib/tuist_web/live/usage_live.ex:555
+#: lib/tuist_web/live/usage_live.ex:559
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr "预计本期产生约 %{count} 次请求。"
 
-#: lib/tuist_web/live/usage_live.ex:549
+#: lib/tuist_web/live/usage_live.ex:553
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr "预计本期用量约为 %{size}。"
@@ -279,22 +269,22 @@ msgstr "通过的测试用例"
 msgid "Test insights usage"
 msgstr "测试洞察用量"
 
-#: lib/tuist_web/live/usage_live.ex:536
+#: lib/tuist_web/live/usage_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr "本期费用。无订阅可扣费。"
 
-#: lib/tuist_web/live/usage_live.ex:528
+#: lib/tuist_web/live/usage_live.ex:532
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr "每 %{count}"
 
-#: lib/tuist_web/live/usage_live.ex:525
+#: lib/tuist_web/live/usage_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr "每 GB"
 
-#: lib/tuist_web/live/usage_live.ex:530
+#: lib/tuist_web/live/usage_live.ex:534
 #, elixir-autogen, elixir-format
 msgid "per million"
 msgstr "每百万次"
@@ -340,7 +330,17 @@ msgstr "本周期无缓存使用"
 msgid "Tuist Runners discount"
 msgstr "Tuist Runners 折扣"
 
-#: lib/tuist_web/live/usage_live.ex:532
+#: lib/tuist_web/live/usage_live.ex:536
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr "未知项目"
+
+#: lib/tuist_web/live/usage_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{count} free macOS minutes each month"
+msgstr "每月 %{count} 分钟免费 macOS 时长"
+
+#: lib/tuist_web/live/usage_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs."
+msgstr "计费周期： %{from} 至 %{to}。分钟数按各平台基准机型计算：macOS 为 6 vCPU / 14 GB，Linux 为 2 vCPU / 8 GB；使用更高配置的机型时，每运行一分钟将消耗超过一分钟的额度。"

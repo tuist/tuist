@@ -11,7 +11,7 @@
 msgid ""
 msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5);\n"
 
-#: lib/tuist_web/live/usage_live.ex:420
+#: lib/tuist_web/live/usage_live.ex:424
 #: lib/tuist_web/live/usage_live.html.heex:205
 #: lib/tuist_web/live/usage_live.html.heex:259
 #: lib/tuist_web/live/usage_live.html.heex:310
@@ -33,7 +33,7 @@ msgstr "الصفحة التي تبحث عنها غير موجودة أو تم ن
 msgid "Usage"
 msgstr "الاستخدام"
 
-#: lib/tuist_web/live/usage_live.ex:413
+#: lib/tuist_web/live/usage_live.ex:417
 #: lib/tuist_web/live/usage_live.html.heex:190
 #: lib/tuist_web/live/usage_live.html.heex:255
 #: lib/tuist_web/live/usage_live.html.heex:270
@@ -47,11 +47,6 @@ msgstr "حركة الخروج"
 msgid "Unknown"
 msgstr "غير معروف"
 
-#: lib/tuist_web/live/usage_live.html.heex:51
-#, elixir-autogen, elixir-format
-msgid "%{count} free each month"
-msgstr "%{count} مجاني كل شهر"
-
 #: lib/tuist_web/live/usage_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
@@ -61,11 +56,6 @@ msgstr "بالسعر القياسي، قبل المستوى المجاني"
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr "مفوترة"
-
-#: lib/tuist_web/live/usage_live.html.heex:39
-#, elixir-autogen, elixir-format
-msgid "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs."
-msgstr "فترة الفوترة من %{from} إلى %{to}. تُقاس الدقائق بناءً على معيار macOS بـ 6 أنوية معالجة افتراضية و14 غيغابايت من الذاكرة؛ فالآلة الأكبر تستهلك أكثر من دقيقة واحدة مقابل كل دقيقة تشغيل."
 
 #: lib/tuist_web/live/usage_live.html.heex:49
 #, elixir-autogen, elixir-format
@@ -87,12 +77,12 @@ msgstr "استخدام المشغّل"
 msgid "Usage value"
 msgstr "قيمة الاستخدام"
 
-#: lib/tuist_web/live/usage_live.ex:328
+#: lib/tuist_web/live/usage_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr "لينكس"
 
-#: lib/tuist_web/live/usage_live.ex:327
+#: lib/tuist_web/live/usage_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr "ماك أو إس"
@@ -107,7 +97,7 @@ msgstr "%{count} دقائق مشمولة"
 msgid "%{count} minutes run"
 msgstr "%{count} دقيقة تشغيل"
 
-#: lib/tuist_web/live/usage_live.ex:541
+#: lib/tuist_web/live/usage_live.ex:545
 #: lib/tuist_web/live/usage_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
@@ -143,33 +133,33 @@ msgstr "رصيد مدفوع مسبقاً"
 msgid "Billing period:"
 msgstr "فترة الفوترة:"
 
-#: lib/tuist_web/live/usage_live.ex:303
+#: lib/tuist_web/live/usage_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
 msgstr "استهلكت الفترة الماضية %{count} دقيقة."
 
-#: lib/tuist_web/live/usage_live.ex:323
+#: lib/tuist_web/live/usage_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr "استهلكت الفترة الماضية %{count}."
 
-#: lib/tuist_web/live/usage_live.ex:315
+#: lib/tuist_web/live/usage_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
 msgstr "لم يتم تشغيل أي شيء في الفترة الماضية."
 
-#: lib/tuist_web/live/usage_live.ex:309
+#: lib/tuist_web/live/usage_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
 msgstr "في طريقك لاستهلاك نحو %{count} دقيقة خلال هذه الفترة."
 
 #: lib/tuist_web/live/usage_live.ex:212
-#: lib/tuist_web/live/usage_live.ex:465
+#: lib/tuist_web/live/usage_live.ex:469
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr "المتوقع"
 
-#: lib/tuist_web/live/usage_live.ex:336
+#: lib/tuist_web/live/usage_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} – %{to}"
 msgstr "الفترة الحالية من %{from} إلى %{to}"
@@ -179,7 +169,7 @@ msgstr "الفترة الحالية من %{from} إلى %{to}"
 msgid "Covered by your trial"
 msgstr "مغطى بفترة تجريبك"
 
-#: lib/tuist_web/live/usage_live.ex:538
+#: lib/tuist_web/live/usage_live.ex:542
 #: lib/tuist_web/live/usage_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
@@ -236,7 +226,7 @@ msgstr "فترة الفوترة من %{from} إلى %{to}. تُحسب رسوم �
 msgid "Cache usage"
 msgstr "استخدام ذاكرة التخزين المؤقت"
 
-#: lib/tuist_web/live/usage_live.ex:540
+#: lib/tuist_web/live/usage_live.ex:544
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr "تقديري لهذه الفترة"
@@ -253,17 +243,17 @@ msgstr "مجاني"
 msgid "Not billed"
 msgstr "غير مفوتر"
 
-#: lib/tuist_web/live/usage_live.ex:563
+#: lib/tuist_web/live/usage_live.ex:567
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr "في المسار نحو حوالي %{count} حالة اختبار ناجحة هذه الفترة."
 
-#: lib/tuist_web/live/usage_live.ex:555
+#: lib/tuist_web/live/usage_live.ex:559
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr "في المسار نحو حوالي %{count} طلب هذه الفترة."
 
-#: lib/tuist_web/live/usage_live.ex:549
+#: lib/tuist_web/live/usage_live.ex:553
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr "في المسار نحو حوالي %{size} هذه الفترة."
@@ -279,22 +269,22 @@ msgstr "حالات الاختبار الناجحة"
 msgid "Test insights usage"
 msgstr "استخدام رؤى الاختبارات"
 
-#: lib/tuist_web/live/usage_live.ex:536
+#: lib/tuist_web/live/usage_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr "ما وصلت إليه هذه الفترة. لا يوجد اشتراك لتفوتيرها."
 
-#: lib/tuist_web/live/usage_live.ex:528
+#: lib/tuist_web/live/usage_live.ex:532
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr "لكل %{count}"
 
-#: lib/tuist_web/live/usage_live.ex:525
+#: lib/tuist_web/live/usage_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr "لكل غيغابايت"
 
-#: lib/tuist_web/live/usage_live.ex:530
+#: lib/tuist_web/live/usage_live.ex:534
 #, elixir-autogen, elixir-format
 msgid "per million"
 msgstr "لكل مليون"
@@ -340,7 +330,17 @@ msgstr "لا يوجد استخدام لذاكرة التخزين المؤقت ف
 msgid "Tuist Runners discount"
 msgstr "خصم مشغّلات Tuist"
 
-#: lib/tuist_web/live/usage_live.ex:532
+#: lib/tuist_web/live/usage_live.ex:536
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr "مشروع غير معروف"
+
+#: lib/tuist_web/live/usage_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{count} free macOS minutes each month"
+msgstr "%{count} دقيقة مجانية لنظام macOS كل شهر"
+
+#: lib/tuist_web/live/usage_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs."
+msgstr "فترة الفوترة من %{from} إلى %{to}. تُقاس الدقائق على الجهاز الأساسي لكل منصة: macOS بـ 6 أنوية معالجة افتراضية و14 غيغابايت ذاكرة، وLinux بنواتين معالجة افتراضيتين و8 غيغابايت ذاكرة؛ يستهلك الجهاز الأكبر أكثر من دقيقة واحدة مقابل كل دقيقة تشغيل."
