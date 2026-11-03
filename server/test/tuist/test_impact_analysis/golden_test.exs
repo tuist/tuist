@@ -8,8 +8,10 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
   the golden entry.
 
   Hash pruning happens in the CLI before the server sees anything, so the
-  tests of `hash.skipped` targets are out of scope. Scenarios decided before
-  the pipeline runs are checked to be fallbacks only (`@decided_elsewhere`).
+  tests of `hash.skipped` targets are out of scope, and a scenario whose
+  every target is pruned never calls the server (`no_selection_call`).
+  Scenarios decided before the pipeline runs are checked to be fallbacks
+  only (`@decided_elsewhere`).
 
   The evidence window is the scenario's `baseline` run and the later runs
   the checkout contains, those of its scheme on its branch. A newer run on
@@ -47,14 +49,21 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
     name = if variant, do: "#{scenario["name"]} (#{variant})", else: scenario["name"]
     @scenario scenario
 
-    if reason = @decided_elsewhere[scenario["name"]] do
-      test "#{name} is a fallback decided outside the pipeline: #{reason}" do
-        assert @scenario["outcome"] == "fallback"
-      end
-    else
-      test name do
-        assert_golden(@scenario)
-      end
+    cond do
+      reason = @decided_elsewhere[scenario["name"]] ->
+        test "#{name} is a fallback decided outside the pipeline: #{reason}" do
+          assert @scenario["outcome"] == "fallback"
+        end
+
+      scenario["outcome"] == "no_selection_call" ->
+        test "#{name} never calls the server: hash pruning leaves nothing to decide" do
+          assert scope(@scenario) == []
+        end
+
+      true ->
+        test name do
+          assert_golden(@scenario)
+        end
     end
   end
 
@@ -67,7 +76,10 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
   end
 
   defp assert_golden(scenario) do
-    result = scenario |> checkout_input() |> TestImpactAnalysis.run()
+    input = checkout_input(scenario)
+    pruned = get_in(scenario, ["hash", "skipped"]) || []
+    refute Enum.any?(input.tests, &(&1.module_name in pruned))
+    result = TestImpactAnalysis.run(input)
 
     case scenario["outcome"] do
       "selected" ->
