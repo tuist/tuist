@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, HashSet, VecDeque},
     pin::Pin,
     sync::{
         Arc,
@@ -74,6 +74,11 @@ const DEFAULT_INSTANCE_NAME: &str = "default";
 // reader buffer.
 const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
+/// GetTree responses: directories per page unless the client asks for fewer,
+/// bytes per page, and directories per tree.
+const GET_TREE_PAGE_DIRECTORIES: usize = 1_000;
+const GET_TREE_PAGE_BYTES: usize = 1024 * 1024;
+const GET_TREE_MAX_DIRECTORIES: usize = 100_000;
 
 fn retain_response_permit<T>(
     response: &mut Response<T>,
@@ -2613,11 +2618,110 @@ impl ContentAddressableStorage for ReapiService {
         Ok(response)
     }
 
+    /// Streams the directories of a tree, root first and one level after the
+    /// other. Each level is one concurrent batch of local reads, so a client
+    /// pays one round trip for the tree instead of one per level. Directories
+    /// missing from the CAS are omitted with their subtrees, as the API asks.
+    /// The tree is materialized before streaming and held to one request's
+    /// response budget; a larger tree is refused, never truncated.
     async fn get_tree(
         &self,
-        _request: Request<reapi::GetTreeRequest>,
+        request: Request<reapi::GetTreeRequest>,
     ) -> Result<Response<Self::GetTreeStream>, Status> {
-        Err(Status::unimplemented("GetTree is not supported"))
+        require_sha256(request.get_ref().digest_function)?;
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let auth = GrpcRequestSpec {
+            operation: "artifact.read",
+            namespace_id: Some(authorization_namespace_id),
+        };
+        self.authorize_request(&request, auth).await?;
+        let (metadata, _extensions, message) = request.into_parts();
+        if !message.page_token.is_empty() {
+            return Err(Status::invalid_argument(
+                "GetTree does not issue page tokens",
+            ));
+        }
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let root = message
+            .root_digest
+            .ok_or_else(|| Status::invalid_argument("root_digest is required"))?;
+        digest_key(&root)?;
+        let page_size = usize::try_from(message.page_size)
+            .ok()
+            .filter(|size| *size > 0)
+            .unwrap_or(GET_TREE_PAGE_DIRECTORIES);
+        let limit_bytes = self.state.memory.reapi_response_budget_bytes() as u64;
+        let mut directories = Vec::new();
+        let mut seen = HashSet::from([root.hash.clone()]);
+        let mut level = vec![root];
+        let mut tree_bytes = 0_u64;
+        let mut permits = Vec::new();
+        while !level.is_empty() {
+            let level_bytes = level
+                .iter()
+                .map(|digest| u64::try_from(digest.size_bytes).unwrap_or(u64::MAX))
+                .fold(0_u64, u64::saturating_add);
+            tree_bytes = tree_bytes.saturating_add(level_bytes);
+            if tree_bytes > limit_bytes
+                || directories.len() + level.len() > GET_TREE_MAX_DIRECTORIES
+            {
+                return Err(Status::resource_exhausted(
+                    "GetTree tree exceeds one request's response budget",
+                ));
+            }
+            let mut budget = AtomicMaterializationBudget::reserve(&self.state, level_bytes).await?;
+            let reads = batch_read_many_atomic(&self.state, namespace_id, &level, &budget).await;
+            permits.extend(budget.take_permit());
+            let mut next = Vec::new();
+            for (read, _duration) in reads {
+                let Some(data) = read? else { continue };
+                let directory = reapi::Directory::decode(data.as_slice()).map_err(|_| {
+                    Status::invalid_argument("GetTree reached a blob that is not a Directory")
+                })?;
+                for child in &directory.directories {
+                    if let Some(digest) = &child.digest
+                        && seen.insert(digest.hash.clone())
+                    {
+                        digest_key(digest)?;
+                        next.push(digest.clone());
+                    }
+                }
+                directories.push(directory);
+            }
+            level = next;
+        }
+        let served_bytes: u64 = directories
+            .iter()
+            .map(|directory| directory.encoded_len() as u64)
+            .sum();
+        let mut pages = Vec::new();
+        let mut page = reapi::GetTreeResponse::default();
+        let mut page_bytes = 0;
+        for directory in directories {
+            let bytes = directory.encoded_len();
+            if !page.directories.is_empty()
+                && (page.directories.len() >= page_size || page_bytes + bytes > GET_TREE_PAGE_BYTES)
+            {
+                pages.push(Ok(std::mem::take(&mut page)));
+                page_bytes = 0;
+            }
+            page_bytes += bytes;
+            page.directories.push(directory);
+        }
+        if !page.directories.is_empty() || pages.is_empty() {
+            pages.push(Ok(page));
+        }
+        if served_bytes > 0 {
+            self.record_reapi_download(&metadata, namespace_id, served_bytes);
+        }
+        let mut response =
+            Response::new(Box::pin(tokio_stream::iter(pages)) as Self::GetTreeStream);
+        if !permits.is_empty() {
+            response.extensions_mut().insert(
+                crate::memory::ResponseTransportGuard::from_materialization_permits(permits),
+            );
+        }
+        Ok(response)
     }
 
     async fn split_blob(
@@ -11335,6 +11439,152 @@ mod tests {
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("producer=\"reapi\""));
         assert!(rendered.contains("result=\"ok\""));
+    }
+
+    async fn persist_directory(
+        context: &TestContext,
+        directory: &reapi::Directory,
+    ) -> reapi::Digest {
+        let bytes = directory.encode_to_vec();
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                &bytes,
+            )
+            .await
+            .expect("directory should persist");
+        digest
+    }
+
+    fn directory_node(name: &str, digest: &reapi::Digest) -> reapi::DirectoryNode {
+        reapi::DirectoryNode {
+            name: name.into(),
+            digest: Some(digest.clone()),
+        }
+    }
+
+    async fn get_tree_directories(
+        service: &ReapiService,
+        root: reapi::Digest,
+    ) -> Vec<reapi::Directory> {
+        let response = service
+            .get_tree(Request::new(reapi::GetTreeRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                root_digest: Some(root),
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("get tree should succeed");
+        let pages: Vec<_> = response.into_inner().collect().await;
+        pages
+            .into_iter()
+            .flat_map(|page| page.expect("page should stream").directories)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn get_tree_streams_every_directory_of_the_tree_root_first() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let leaf = reapi::Directory {
+            files: vec![reapi::FileNode {
+                name: "input".into(),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(Sha256::digest(b"input")),
+                    size_bytes: 5,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let leaf_digest = persist_directory(&context, &leaf).await;
+        let middle = reapi::Directory {
+            directories: vec![directory_node("leaf", &leaf_digest)],
+            ..Default::default()
+        };
+        let middle_digest = persist_directory(&context, &middle).await;
+        let root = reapi::Directory {
+            directories: vec![
+                directory_node("a", &middle_digest),
+                directory_node("b", &leaf_digest),
+            ],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+
+        let directories = get_tree_directories(&service, root_digest).await;
+
+        assert_eq!(directories, vec![root, middle, leaf]);
+        let rendered = context.state.metrics.render();
+        assert!(rendered.contains("kura_artifact_reads_total"));
+    }
+
+    #[tokio::test]
+    async fn get_tree_omits_subtrees_missing_from_the_cas() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let missing = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"missing directory")),
+            size_bytes: 17,
+        };
+        let root = reapi::Directory {
+            directories: vec![directory_node("gone", &missing)],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+
+        assert_eq!(
+            get_tree_directories(&service, root_digest).await,
+            vec![root]
+        );
+        assert!(get_tree_directories(&service, missing).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_tree_refuses_a_tree_beyond_one_requests_budget() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let oversized = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"oversized directory")),
+            size_bytes: 1 << 40,
+        };
+        let root = reapi::Directory {
+            directories: vec![directory_node("big", &oversized)],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+
+        let status = service
+            .get_tree(Request::new(reapi::GetTreeRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                root_digest: Some(root_digest),
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .err()
+            .expect("an oversized tree should be refused");
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
     }
 
     #[tokio::test]
