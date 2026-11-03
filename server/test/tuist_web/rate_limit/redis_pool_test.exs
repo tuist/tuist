@@ -1,7 +1,7 @@
 defmodule TuistWeb.RateLimit.RedisPoolTest do
   use ExUnit.Case, async: true
 
-  alias TuistWeb.RateLimit.RedisPool
+  alias Tuist.RateLimit.RedisPool
 
   @moduletag :capture_log
 

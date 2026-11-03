@@ -11,6 +11,23 @@ defmodule TuistWeb.API.InvitationsControllerTest do
     %{user: user}
   end
 
+  test "cancellation cannot reset the invitation email cooldown", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :mail_configured?, fn -> true end)
+    stub(Tuist.Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+    organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+    conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
+    path = "/api/organizations/#{organization.account.name}/invitations"
+    params = %{invitee_email: "cancel-#{user.id}@example.com"}
+
+    assert conn |> post(path, params) |> json_response(200)
+    assert_receive {:delivered_email, _}
+    assert conn |> delete(path, params) |> json_response(204)
+    response = post(conn, path, params)
+    assert json_response(response, 429)["message"] =~ "Too many invitations"
+    assert ["300"] = get_resp_header(response, "retry-after")
+    refute_receive {:delivered_email, _}
+  end
+
   describe "DELETE /api/organizations/:organization_name/invitations/:invitation_id" do
     test "deletes an invitation", %{conn: conn, user: user} do
       # Given

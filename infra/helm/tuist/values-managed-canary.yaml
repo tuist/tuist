@@ -64,6 +64,9 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: false # Enable only after this environment's wrapping-key prerequisite is ready.
     originAppKey:
       enabled: true
     externalSecrets:
@@ -441,6 +444,12 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
+
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
+kuraVolumesCSI:
+  enabled: false # Separate infrastructure opt-in; tenant enrollment stays independent.
+  thinRegions: []
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
@@ -870,6 +879,9 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 24
   diskGiB: 50
+  # Short so canary exercises archive and restore through the in-rack store
+  # within an hour of a pause.
+  archiveAfterHours: 1
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true

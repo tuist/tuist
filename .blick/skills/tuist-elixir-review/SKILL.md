@@ -199,8 +199,8 @@ In marketing copy and pricing UI:
 
 ### Flag (Severity: high)
 
-- Any modification to `server/priv/gettext/**/*.po`. Only the `tuistit`
-  bot may edit `.po` files; CI will fail otherwise.
+- Any modification to `server/priv/gettext/**/*.po` outside a Glossia
+  translation pull request. The Glossia GitHub App owns `.po` files.
 - Use of `mix gettext.extract --merge`. Only the no-`--merge` form is
   allowed in PRs.
 

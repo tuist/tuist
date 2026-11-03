@@ -186,6 +186,11 @@ pub struct Store {
     // Published by the blocking eviction commit while holding handover_hold.
     // A repair walk must revisit rows checked before a later eviction.
     pub(crate) handover_eviction_generation: Arc<AtomicU64>,
+    // A named handover sets the oldest version its source retains. Every
+    // capacity or pressure eviction of a segment that may hold a record at or
+    // after it is counted: it may have dropped data the barrier requires.
+    retained_loss_frontier_ms: AtomicU64,
+    retained_loss_evictions: AtomicU64,
     handover_enabled: bool,
     startup_recovery: Option<Arc<crate::startup::Recovery>>,
     db: Arc<DB>,
@@ -446,6 +451,9 @@ pub enum RefreshTrigger {
     ActionCache,
     /// A `FindMissingBlobs` that reported the blob present.
     FindMissing,
+    /// A named handover destination compacting a sealed segment so it can
+    /// reclaim the space the source no longer retains.
+    Handover,
 }
 
 impl RefreshTrigger {
@@ -455,6 +463,7 @@ impl RefreshTrigger {
             Self::Sibling => "sibling",
             Self::ActionCache => "action_cache",
             Self::FindMissing => "find_missing",
+            Self::Handover => "handover",
         }
     }
 
@@ -467,7 +476,16 @@ impl RefreshTrigger {
     /// Whether siblings are told about this refresh. A refresh that mirrors a
     /// sibling's is never echoed back.
     fn hints_siblings(self) -> bool {
-        self != Self::Sibling
+        !matches!(self, Self::Sibling | Self::Handover)
+    }
+
+    /// Whether this refresh may copy out of `generation`. Lifetime extension
+    /// only rescues Old data; compaction empties any sealed segment.
+    fn copies_from(self, generation: Option<SegmentGeneration>) -> bool {
+        match self {
+            Self::Handover => generation.is_some(),
+            _ => generation == Some(SegmentGeneration::Old),
+        }
     }
 }
 
@@ -1589,6 +1607,8 @@ impl Store {
             sync_feed: Arc::new(sync_feed),
             handover_hold: Arc::new(StdMutex::new(None)),
             handover_eviction_generation: Arc::new(AtomicU64::new(0)),
+            retained_loss_frontier_ms: AtomicU64::new(u64::MAX),
+            retained_loss_evictions: AtomicU64::new(0),
             handover_enabled: config.serving_authority.is_some(),
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: Arc::new(DurabilityWriters::default()),
@@ -3115,7 +3135,7 @@ impl Store {
         let Some(segment_id) = manifest.segment_id.as_deref() else {
             return Ok(Some(manifest));
         };
-        if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
+        if !trigger.copies_from(self.segment_generation(segment_id)?) {
             return Ok(Some(manifest));
         }
 
@@ -3127,7 +3147,7 @@ impl Store {
         let Some(current_segment_id) = current.segment_id.as_deref() else {
             return Ok(Some(current));
         };
-        if self.segment_generation(current_segment_id)? != Some(SegmentGeneration::Old) {
+        if !trigger.copies_from(self.segment_generation(current_segment_id)?) {
             return Ok(Some(current));
         }
         if !self.storage_exists(&current).await? {
@@ -4460,10 +4480,119 @@ impl Store {
             .collect())
     }
 
+    /// Counts, from now on, capacity and pressure evictions of segments that
+    /// may hold a record at or after `frontier_ms`, the oldest version a named
+    /// handover source retains. Destination-only reclaims are never counted.
+    pub(crate) fn watch_retained_evictions(&self, frontier_ms: u64) {
+        self.retained_loss_frontier_ms
+            .store(frontier_ms, Ordering::Release);
+    }
+
+    /// Extends the watch to segments that may hold `version_ms`, before a
+    /// record that old is checked as held, so its later eviction is counted.
+    pub(crate) fn lower_retained_watch(&self, version_ms: u64) -> u64 {
+        self.retained_loss_frontier_ms
+            .fetch_min(version_ms, Ordering::AcqRel)
+            .min(version_ms)
+    }
+
+    pub(crate) fn retained_loss_evictions(&self) -> u64 {
+        self.retained_loss_evictions.load(Ordering::Acquire)
+    }
+
+    /// Bytes this store can still write before rotation or disk pressure
+    /// evicts a segment that may hold a record at or after `frontier_ms`:
+    /// free ring slots and the active segment's remainder, bounded by disk
+    /// headroom, plus the next evictees whose newest record is older.
+    pub(crate) fn handover_admissible_bytes(&self, frontier_ms: u64) -> u64 {
+        let snapshot = self.segment_state_snapshot();
+        let state = &snapshot.state;
+        let segments = state.old.len() + state.current.len() + state.new.len();
+        let free_slots = self
+            .effective_segment_ring_limits()
+            .total_segments()
+            .saturating_sub(segments) as u64;
+        let active_remainder = state.active().map_or(0, |active| {
+            MAX_SEGMENT_BYTES.saturating_sub(
+                try_path_size_bytes(&self.segment_path(&active.segment_id))
+                    .unwrap_or(MAX_SEGMENT_BYTES),
+            )
+        });
+        let mut free = free_slots
+            .saturating_mul(MAX_SEGMENT_BYTES)
+            .saturating_add(active_remainder);
+        if let Some(available) = self.available_segment_disk_bytes() {
+            free = free.min(available.saturating_sub(
+                segment_rotation_required_bytes(0).saturating_add(2 * MAX_SEGMENT_BYTES),
+            ));
+        }
+        let sealed = state.new.len().saturating_sub(1);
+        let evictable = state
+            .old
+            .iter()
+            .chain(&state.current)
+            .chain(state.new.iter().take(sealed))
+            .take_while(|segment| segment.max_version_ms.is_some_and(|max| max < frontier_ms))
+            .count() as u64;
+        free.saturating_add(evictable.saturating_mul(MAX_SEGMENT_BYTES))
+    }
+
     // Called only after a complete named-source walk excluded every locally
     // retained source record from this sealed segment. Rotation still uses its
     // normal FIFO policy and unchanged capacity; this removes destination-only
     // segments first instead of repairing the shared corpus that FIFO evicts.
+    /// Copies every artifact of sealed `segment_id` that `keep` selects into
+    /// the active segment, without hinting siblings, so a named handover can
+    /// reclaim the rest. Returns the bytes copied and the selected artifacts
+    /// still in the segment; reclaim it only when none are left.
+    pub(crate) async fn compact_handover_segment(
+        &self,
+        segment_id: &str,
+        keep: impl Fn(&str) -> bool,
+    ) -> Result<(u64, u64), String> {
+        if self.is_active_segment(segment_id) || self.segment_generation(segment_id)?.is_none() {
+            return Ok((0, u64::MAX));
+        }
+        let prefix = segment_artifact_index_prefix(segment_id);
+        let (mut copied, mut left) = (0u64, 0u64);
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let page = self
+                .eviction_index_page(ROCKSDB_CF_SEGMENT_ARTIFACTS, &prefix, cursor.as_deref())
+                .await
+                .map_err(|error| error.to_string())?;
+            let Some(last) = page.last().cloned() else {
+                break;
+            };
+            cursor = Some(last);
+            for index_key in page {
+                let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
+                    .map_err(|error| format!("invalid segment index key: {error}"))?;
+                if !keep(artifact_id) {
+                    continue;
+                }
+                let Some(manifest) = self.manifest(artifact_id)? else {
+                    continue;
+                };
+                if manifest.segment_id.as_deref() != Some(segment_id) {
+                    continue;
+                }
+                let size = manifest.size;
+                match self
+                    .maybe_refresh_manifest(manifest, RefreshTrigger::Handover)
+                    .await?
+                {
+                    Some(current) if current.segment_id.as_deref() == Some(segment_id) => {
+                        left += 1;
+                    }
+                    Some(_) => copied = copied.saturating_add(size),
+                    None => {}
+                }
+            }
+        }
+        Ok((copied, left))
+    }
+
     pub(crate) async fn reclaim_handover_segment(&self, segment_id: &str) -> Result<(), String> {
         let mut recovery = self.disk_pressure_reclamation.lock().await;
         self.finish_segment_retirement(&mut recovery, true).await?;
@@ -5093,6 +5222,13 @@ impl Store {
     ) {
         let evicted_at_ms = now_ms();
         let newest_content_at_ms = segment.effective_max_version_ms();
+        if reason != "handover"
+            && segment
+                .max_version_ms
+                .is_none_or(|max| max >= self.retained_loss_frontier_ms.load(Ordering::Acquire))
+        {
+            self.retained_loss_evictions.fetch_add(1, Ordering::AcqRel);
+        }
         if reason == "capacity" {
             self.io.metrics().record_segment_shed_age(
                 evicted_at_ms.saturating_sub(newest_content_at_ms) as f64 / 1_000.0,
@@ -9465,6 +9601,27 @@ impl Store {
         })
     }
 
+    /// The lowest version in the backfill index. Rows are eventually exact, so
+    /// a stale row can only make this older than the oldest retained record.
+    pub fn backfill_index_oldest_version_ms(&self) -> Result<Option<u64>, String> {
+        let upper = backfill_index_prefix_upper_bound();
+        let mut iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(&upper, rocksdb::Direction::Reverse),
+        );
+        match iter.next() {
+            Some(item) => {
+                let (key, value) =
+                    item.map_err(|error| format!("failed to iterate backfill index: {error}"))?;
+                if !key.starts_with(BACKFILL_IDX_PREFIX.as_bytes()) {
+                    return Ok(None);
+                }
+                Ok(Some(decode_backfill_index_row(&key, &value)?.version_ms))
+            }
+            None => Ok(None),
+        }
+    }
+
     /// Resolves one requested backfill tuple against the CURRENT manifest —
     /// the read side of the eventually-exact index contract.
     ///
@@ -10992,6 +11149,31 @@ impl Store {
             .map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?
             .map(|bytes| decode_manifest_record(artifact_id, &bytes))
             .transpose()
+    }
+
+    /// [`Store::manifest_from_db`] for many ids in one RocksDB multi-get, in
+    /// request order.
+    pub(crate) fn manifests_from_db<'a>(
+        &self,
+        artifact_ids: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Vec<Option<ArtifactManifest>>, String> {
+        let artifact_ids: Vec<&str> = artifact_ids.into_iter().collect();
+        self.db
+            .batched_multi_get_cf(
+                self.cf(ROCKSDB_CF_MANIFESTS),
+                artifact_ids
+                    .iter()
+                    .map(|artifact_id| artifact_id.as_bytes()),
+                false,
+            )
+            .into_iter()
+            .zip(artifact_ids)
+            .map(|(row, artifact_id)| {
+                row.map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?
+                    .map(|bytes| decode_manifest_record(artifact_id, &bytes))
+                    .transpose()
+            })
+            .collect()
     }
 
     fn manifest_cache_get_retained(&self, artifact_id: &str) -> Option<Arc<ArtifactManifest>> {
@@ -19876,6 +20058,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn handover_compaction_copies_kept_artifacts_out_before_the_segment_is_reclaimed() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.sync_feed_activate().await.unwrap();
+        let mut manifests = Vec::new();
+        for key in ["retained", "destination-only"] {
+            manifests.push(
+                store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        key,
+                        "application/octet-stream",
+                        key.as_bytes(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+        let segment = manifests[0].segment_id.clone().unwrap();
+        assert_eq!(manifests[1].segment_id.as_deref(), Some(segment.as_str()));
+        assert_eq!(
+            store
+                .compact_handover_segment(&segment, |_| true)
+                .await
+                .unwrap(),
+            (0, u64::MAX),
+            "the active segment is never compacted"
+        );
+        store.age_every_segment_for_test();
+        let retained = manifests[0].artifact_id.clone();
+        let feed_head = store.sync_feed().head();
+
+        let (copied, left) = store
+            .compact_handover_segment(&segment, |id| id == retained)
+            .await
+            .unwrap();
+
+        assert_eq!((copied, left), (manifests[0].size, 0));
+        let moved = store.manifest(&retained).unwrap().unwrap();
+        assert_ne!(moved.segment_id.as_deref(), Some(segment.as_str()));
+        assert!(
+            store.pending_promotion_for_test(&retained).is_none()
+                && store.sync_feed().head() == feed_head,
+            "compaction neither queues a promotion nor hints the source"
+        );
+        store.reclaim_handover_segment(&segment).await.unwrap();
+        assert_eq!(
+            store.read_artifact_bytes(&moved).await.unwrap(),
+            b"retained".to_vec()
+        );
+        assert!(store.manifest(&manifests[1].artifact_id).unwrap().is_none());
+    }
+
+    #[tokio::test]
     async fn cancelled_handover_reclamation_respects_pins_and_finishes_retirement() {
         let (_temp_dir, _config, store) = temp_store();
         let store = Arc::new(store);
@@ -25334,6 +25570,80 @@ mod tests {
             .expect("eviction should succeed");
 
         assert_eq!(store.segment_generation(&segment_id).expect("lookup"), None);
+    }
+
+    fn aged_segment(segment_id: &str, max_version_ms: Option<u64>) -> SegmentReference {
+        let mut segment = SegmentReference::new(segment_id.into(), 1);
+        segment.max_version_ms = max_version_ms;
+        segment
+    }
+
+    #[tokio::test]
+    async fn handover_admissible_bytes_counts_free_slots_and_evictees_older_than_the_source() {
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.disk_available_override = Some(Arc::new(|| u64::MAX));
+        let limit = store.effective_segment_ring_limits().total_segments();
+        assert!(limit >= 5);
+        let full = SegmentState {
+            old: vec![
+                aged_segment("oldest", Some(10)),
+                aged_segment("older", Some(20)),
+                aged_segment("unsealed-stat", None),
+            ],
+            current: (0..limit - 4)
+                .map(|index| aged_segment(&format!("current-{index}"), Some(5)))
+                .collect(),
+            new: vec![aged_segment("active", Some(100))],
+        };
+        store
+            .mutate_segment_state(|state| *state = full.clone())
+            .await
+            .unwrap();
+        let active = store.segment_path("active");
+        std::fs::create_dir_all(active.parent().unwrap()).unwrap();
+        std::fs::File::create(&active)
+            .unwrap()
+            .set_len(MAX_SEGMENT_BYTES)
+            .unwrap();
+        // A full ring with an active segment that has no room left: only
+        // evictees whose newest record predates the source's oldest count,
+        // and a segment without an age stat stops the run.
+        assert_eq!(store.handover_admissible_bytes(5), 0);
+        assert_eq!(store.handover_admissible_bytes(15), MAX_SEGMENT_BYTES);
+        assert_eq!(
+            store.handover_admissible_bytes(u64::MAX),
+            2 * MAX_SEGMENT_BYTES
+        );
+
+        store
+            .mutate_segment_state(|state| {
+                state.current.pop();
+            })
+            .await
+            .unwrap();
+        assert_eq!(store.handover_admissible_bytes(5), MAX_SEGMENT_BYTES);
+
+        let reserve = segment_rotation_required_bytes(0) + 2 * MAX_SEGMENT_BYTES;
+        store.disk_available_override = Some(Arc::new(move || reserve + 7));
+        assert_eq!(store.handover_admissible_bytes(5), 7);
+        assert_eq!(store.handover_admissible_bytes(15), 7 + MAX_SEGMENT_BYTES);
+    }
+
+    #[tokio::test]
+    async fn retained_loss_evictions_count_segments_that_may_hold_the_source_corpus() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.watch_retained_evictions(50);
+        store.record_segment_eviction(&aged_segment("predates", Some(49)), 1, 1, "capacity");
+        assert_eq!(store.retained_loss_evictions(), 0);
+        store.record_segment_eviction(&aged_segment("frontier", Some(50)), 1, 1, "capacity");
+        store.record_segment_eviction(&aged_segment("unknown", None), 1, 1, "disk_pressure");
+        store.record_segment_eviction(
+            &aged_segment("destination-only", Some(90)),
+            1,
+            1,
+            "handover",
+        );
+        assert_eq!(store.retained_loss_evictions(), 2);
     }
 
     #[tokio::test]
