@@ -1,52 +1,58 @@
 defmodule Tuist.Tests.Selections do
   @moduledoc """
-  Coverage-based test selection. A commit's test impact
-  (`Tuist.Tests.TestImpact`) is what changed since its baseline, the nearest
-  ancestor whose full run recorded per-test coverage evidence, and which
-  tests that change reaches. Each invocation that asks for a selection gets
-  a selection run (`Tuist.Tests.TestSelectionRun`) that applies the impact to
-  the tests it requested: a test runs when its evidence executed a changed
-  file, its target changed, it failed at the baseline or it has no evidence;
-  otherwise it is skipped. Evidence only narrows what was requested.
+  The reads behind coverage-based test selection's pages. Each `tuist test`
+  invocation that asked for a selection has an impact run
+  (`Tuist.TestImpactAnalysis.Run`): the diff it used against its baseline,
+  the nearest ancestor whose full run recorded per-test coverage evidence,
+  the outcome (`selected`, or `fallback` when it continued as default
+  selective testing), the trace of the rules that decided it and the
+  counts. Only the tests it selected are stored
+  (`Tuist.TestImpactAnalysis.RunTest`); the skipped ones are the baseline
+  run's tests in the requested modules, minus the selected ones. The test
+  runs an invocation reported point to its impact run (`test_impact_run_id`).
 
-  The reads here back the Test Selection page and the selection tabs of a
-  test run and a test case run; nothing selects yet, so the rows come from
-  the seeds or a client that writes them.
+  These back the Test Selection page and the Selective Testing tabs of a
+  test run and a test case run.
   """
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.GitHistory
   alias Tuist.Repo
+  alias Tuist.Shards.ShardPlan
+  alias Tuist.Shards.ShardPlanTestSuite
+  alias Tuist.TestImpactAnalysis.Run
+  alias Tuist.TestImpactAnalysis.RunTest
+  alias Tuist.TestImpactAnalysis.Storage
+  alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
-  alias Tuist.Tests.TestImpact
-  alias Tuist.Tests.TestImpactChangedFile
-  alias Tuist.Tests.TestSelectionRun
-  alias Tuist.Tests.TestSelectionTest
 
-  @selected_reasons ~w(impacted target_changed failed_at_baseline no_evidence run_all)
+  @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
   @skipped_reasons ~w(unaffected)
-  @fallback_reasons ~w(no_baseline baseline_too_far deepen_budget_exhausted timeout platform_mismatch)
+  @fallback_reasons ~w(excluded_branch no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large)
 
-  @doc "Why a selection run selects a test (`TestSelectionTest.reason`)."
+  @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
   def selected_reasons, do: @selected_reasons
 
-  @doc "Why a selection run skips a test (`TestSelectionTest.reason`)."
+  @doc "Why an impact run skips a test."
   def skipped_reasons, do: @skipped_reasons
 
-  @doc "Why a selection run selected every test it requested (`TestSelectionRun.fallback_reason`)."
+  @doc "Why an impact run fell back to default selective testing (`Run.reason`)."
   def fallback_reasons, do: @fallback_reasons
 
-  defp runs, do: from(r in TestSelectionRun, hints: ["FINAL"])
+  @doc "Whether the impact run fell back to default selective testing."
+  def fallback?(%{outcome: outcome}), do: outcome == "fallback"
 
   @doc """
-  The project's selection runs over a period: totals, their trend against
-  the period before, and per-bucket series (hours for a period of two days
-  or less, days otherwise) of runs, selected and skipped tests, and skip
-  rate. The end is carried to the close of its second, as the date
-  picker's periods are in whole seconds.
+  The project's impact runs over a period: totals, their trend against the
+  period before, and per-bucket series (hours for a period of two days or
+  less, days otherwise) of runs, selected and skipped tests, and skip rate.
+  The end is carried to the close of its second, as the date picker's
+  periods are in whole seconds.
   """
   def analytics(project_id, {start_datetime, end_datetime}) do
     until = DateTime.add(end_datetime, 1, :second)
@@ -54,7 +60,7 @@ defmodule Tuist.Tests.Selections do
     format = bucket_format(bucket)
 
     rows =
-      from(r in runs(),
+      from(r in Run,
         where: r.project_id == ^project_id,
         where: r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
         group_by: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
@@ -101,15 +107,14 @@ defmodule Tuist.Tests.Selections do
   defp totals(project_id, start_datetime, until) do
     row =
       ClickHouseRepo.one(
-        from(r in runs(),
+        from(r in Run,
           where: r.project_id == ^project_id,
           where: r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
           select: %{
             runs: count(),
-            fallbacks: fragment("countIf(? != '')", r.fallback_reason),
+            fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
             selected: sum(r.selected_count),
-            skipped: sum(r.skipped_count),
-            skipped_duration: sum(r.skipped_duration)
+            skipped: sum(r.skipped_count)
           }
         )
       ) || %{}
@@ -122,7 +127,6 @@ defmodule Tuist.Tests.Selections do
       fallbacks: to_integer(row[:fallbacks]),
       selected: selected,
       skipped: skipped,
-      skipped_duration: to_integer(row[:skipped_duration]),
       skip_rate: skip_rate(selected, skipped)
     }
   end
@@ -163,18 +167,36 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc """
-  A page of the project's selection runs, newest first. Options: `:search`
-  (a commit SHA prefix, or part of a branch, scheme or test plan name),
-  `:fallback` (`true` for the runs that ran everything), `:page` and
-  `:page_size`. Returns `{rows, %{current_page, total_pages, total_count}}`.
+  A page of the project's impact runs, newest first, each with the id of
+  the latest test run that reported it (`test_run_id`, `nil` before one
+  did). Options: `:search` (a commit SHA prefix, or part of a branch,
+  scheme or test plan name), `:fallback` (`true` for the runs that fell
+  back), `:page` and `:page_size`. Returns
+  `{rows, %{current_page, total_pages, total_count}}`.
   """
   def list_runs(project_id, opts \\ []) do
-    runs()
-    |> where([r], r.project_id == ^project_id)
-    |> filter_run_search(Keyword.get(opts, :search))
-    |> filter_fallback(Keyword.get(opts, :fallback))
-    |> order_by([r], desc: r.inserted_at, desc: r.id)
-    |> paginate(opts)
+    {runs, meta} =
+      from(r in Run, where: r.project_id == ^project_id)
+      |> filter_run_search(Keyword.get(opts, :search))
+      |> filter_fallback(Keyword.get(opts, :fallback))
+      |> order_by([r], desc: r.inserted_at, desc: r.id)
+      |> paginate(opts)
+
+    test_runs = test_runs_by_impact_run(project_id, Enum.map(runs, & &1.id))
+
+    {Enum.map(runs, &Map.put(&1, :test_run_id, Map.get(test_runs, &1.id))), meta}
+  end
+
+  defp test_runs_by_impact_run(_project_id, []), do: %{}
+
+  defp test_runs_by_impact_run(project_id, ids) do
+    from(t in Test,
+      where: t.project_id == ^project_id and t.test_impact_run_id in ^ids,
+      group_by: t.test_impact_run_id,
+      select: {t.test_impact_run_id, fragment("toString(argMax(?, ?))", t.id, t.ran_at)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 
   defp filter_run_search(query, search) when search in [nil, ""], do: query
@@ -185,187 +207,363 @@ defmodule Tuist.Tests.Selections do
     where(
       query,
       [r],
-      fragment("startsWith(?, ?)", r.git_commit_sha, ^String.downcase(term)) or
+      fragment("startsWith(?, ?)", r.commit_sha, ^String.downcase(term)) or
+        fragment("startsWith(?, ?)", r.head_sha, ^String.downcase(term)) or
         fragment("positionCaseInsensitive(?, ?) > 0", r.git_branch, ^term) or
-        fragment("positionCaseInsensitive(?, ?) > 0", r.scheme, ^term) or
-        fragment("positionCaseInsensitive(?, ?) > 0", r.test_plan, ^term)
+        fragment("positionCaseInsensitive(?['scheme'], ?) > 0", r.build_context, ^term) or
+        fragment("positionCaseInsensitive(?['test_plan'], ?) > 0", r.build_context, ^term)
     )
   end
 
-  defp filter_fallback(query, true), do: where(query, [r], r.fallback_reason != "")
+  defp filter_fallback(query, true), do: where(query, [r], r.outcome == "fallback")
   defp filter_fallback(query, _fallback), do: query
 
-  @doc "A selection run of the project, by its id."
+  @doc "An impact run of the project, by its id."
   def get_run(project_id, id) do
-    with {:ok, id} <- Ecto.UUID.cast(id),
-         %TestSelectionRun{} = run <-
-           ClickHouseRepo.one(from(r in runs(), where: r.project_id == ^project_id and r.id == ^id, limit: 1)) do
-      {:ok, run}
-    else
+    case Ecto.UUID.cast(id) do
+      {:ok, id} -> Storage.get_run(project_id, id)
       _ -> {:error, :not_found}
     end
   end
 
-  @doc "The selection run whose results the test run reported, if any."
-  def run_for_test_run(project_id, test_run_id) do
-    ClickHouseRepo.one(
-      from(r in runs(),
-        where: r.project_id == ^project_id and r.test_run_id == ^test_run_id,
-        order_by: [desc: r.inserted_at],
-        limit: 1
-      )
-    )
-  end
-
-  @doc "The test impact a selection run applied, or `nil` when it fell back without a baseline."
-  def get_impact(%TestSelectionRun{baseline_sha: ""}), do: nil
-
-  def get_impact(%TestSelectionRun{project_id: project_id, git_commit_sha: head, baseline_sha: baseline}) do
-    ClickHouseRepo.one(
-      from(i in TestImpact,
-        hints: ["FINAL"],
-        where: i.project_id == ^project_id and i.head_sha == ^head and i.baseline_sha == ^baseline,
-        limit: 1
-      )
-    )
-  end
-
   @doc """
-  A page of the paths that changed between an impact's baseline and its
-  commit. Options: `:search` (part of the path), `:kind`, `:page` and
-  `:page_size`. The paths that reach the most tests come first.
+  The impact run a test run points to: `{:ok, run}`, `{:error, :expired}`
+  when it points to one past retention, or `{:error, :none}`.
   """
-  def impact_changed_files(%TestImpact{} = impact, opts \\ []) do
-    from(f in TestImpactChangedFile, hints: ["FINAL"])
-    |> where_impact(impact)
-    |> filter_path(:path, Keyword.get(opts, :search))
-    |> filter_field(:kind, Keyword.get(opts, :kind))
-    |> order_by([f], desc: f.impacted_tests_count, asc: f.path)
-    |> paginate(opts)
+  def run_for_test_run(_project_id, %{test_impact_run_id: nil}), do: {:error, :none}
+
+  def run_for_test_run(project_id, %{test_impact_run_id: id}) do
+    case Storage.get_run(project_id, id) do
+      {:ok, run} -> {:ok, run}
+      {:error, :not_found} -> {:error, :expired}
+    end
   end
 
-  @doc "The changed paths of the impact among `paths`, keyed by path."
-  def impact_changed_files_by_path(_impact, []), do: %{}
-
-  def impact_changed_files_by_path(%TestImpact{} = impact, paths) do
-    from(f in TestImpactChangedFile, hints: ["FINAL"], where: f.path in ^paths)
-    |> where_impact(impact)
-    |> ClickHouseRepo.all()
-    |> Map.new(&{&1.path, &1})
-  end
-
-  defp where_impact(query, %TestImpact{project_id: project_id, head_sha: head, baseline_sha: baseline}) do
-    where(query, [x], x.project_id == ^project_id and x.head_sha == ^head and x.baseline_sha == ^baseline)
-  end
-
-  @doc """
-  What a selection run's tests add up to: requested, selected and skipped
-  tests, the selected tests that failed or never reported a result, and the
-  number of tests per decision and reason.
-  """
-  def run_summary(%TestSelectionRun{} = run) do
-    rows =
-      ClickHouseRepo.all(
-        from(t in run_tests_query(run),
-          group_by: [t.decision, t.reason],
-          select: %{decision: t.decision, reason: t.reason, count: count()}
+  def run_for_test_run(project_id, test_run_id) when is_binary(test_run_id) do
+    id =
+      ClickHouseRepo.one(
+        from(t in Test,
+          where: t.project_id == ^project_id and t.id == ^test_run_id and not is_nil(t.test_impact_run_id),
+          select: t.test_impact_run_id,
+          limit: 1
         )
       )
 
+    run_for_test_run(project_id, %{test_impact_run_id: id})
+  end
+
+  @doc """
+  The diff an impact run used, or `nil` when it had no baseline, ran from a
+  dirty checkout (whose diff isn't stored) or its diff expired.
+  """
+  def get_diff(%Run{baseline_sha: baseline}) when baseline in [nil, ""], do: nil
+  def get_diff(%Run{dirty: true}), do: nil
+
+  def get_diff(%Run{project_id: project_id, commit_sha: commit_sha, baseline_sha: baseline_sha}) do
+    case Storage.get_diff(project_id, commit_sha, baseline_sha) do
+      {:ok, diff} -> diff
+      {:error, :not_found} -> nil
+    end
+  end
+
+  @doc "The project's tracked-file globs: a change to one makes selection fall back."
+  def tracked_file_globs(project), do: GitHistory.settings(project).tracked_file_globs
+
+  @doc """
+  A page of a diff's changed files, each with whether it's a tracked file
+  and how many of the run's selected tests it selected. Options: `:search`
+  (part of the path), `:tracked` (`true` for tracked files only), `:page`
+  and `:page_size`. The files that selected the most tests come first.
+  """
+  def changed_files(project, %Run{} = run, diff, opts \\ []) do
+    tracked = tracked_matcher(project)
+    counts = selected_counts_by_path(run)
+    search = opts |> Keyword.get(:search, "") |> to_string() |> String.trim() |> String.downcase()
+
+    diff.changed_files
+    |> Enum.map(fn file ->
+      Map.merge(file, %{
+        tracked: ExcludedPaths.excluded?(tracked, file.path),
+        selected_tests_count: Map.get(counts, file.path, 0)
+      })
+    end)
+    |> Enum.filter(
+      &((search == "" or String.contains?(String.downcase(&1.path), search)) and
+          (Keyword.get(opts, :tracked) != true or &1.tracked))
+    )
+    |> Enum.sort_by(&{-&1.selected_tests_count, &1.path})
+    |> paginate_list(opts)
+  end
+
+  @doc "The diff's changed files among `paths`, keyed by path."
+  def changed_files_by_path(nil, _paths), do: %{}
+
+  def changed_files_by_path(diff, paths) do
+    paths = MapSet.new(paths)
+    for file <- diff.changed_files, MapSet.member?(paths, file.path), into: %{}, do: {file.path, file}
+  end
+
+  defp tracked_matcher(project) do
+    project |> tracked_file_globs() |> ExcludedPaths.pattern() |> ExcludedPaths.compile()
+  end
+
+  defp selected_counts_by_path(%Run{} = run) do
+    from(t in selected_query(run),
+      where: t.matched_path != "",
+      group_by: t.matched_path,
+      select: {t.matched_path, count()}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {path, count} -> {path, to_integer(count)} end)
+  end
+
+  @doc """
+  What an impact run's tests add up to: requested, selected and skipped
+  tests, the skipped tests' estimated duration from the baseline, the
+  selected tests that failed or never reported a result in `test_run_id`,
+  and the number of tests per decision and reason.
+  """
+  def run_summary(%Run{} = run, test_run_id) do
+    selected_reasons =
+      from(t in selected_query(run), group_by: t.reason, select: %{reason: t.reason, count: count()})
+      |> ClickHouseRepo.all()
+      |> Enum.map(&%{decision: "selected", reason: &1.reason, count: to_integer(&1.count)})
+
+    skipped_reasons =
+      if run.skipped_count > 0, do: [%{decision: "skipped", reason: "unaffected", count: run.skipped_count}], else: []
+
     outcomes =
-      if is_nil(run.test_run_id) do
+      if is_nil(test_run_id) do
         %{not_run: 0, failed: 0, reported: false}
       else
         row =
           ClickHouseRepo.one(
-            from(t in run_tests_query(run),
-              left_join: o in subquery(outcomes_query(run)),
+            from(t in selected_query(run),
+              left_join: o in subquery(outcomes_query(run.project_id, test_run_id)),
               on: o.test_case_id == t.test_case_id,
               select: %{
-                not_run: fragment("countIf(? = 'selected' AND ifNull(?, '') = '')", t.decision, o.status),
+                not_run: fragment("countIf(ifNull(?, '') = '')", o.status),
                 failed: fragment("countIf(? = 'failure')", o.status)
               }
             )
           )
 
-        %{
-          not_run: to_integer(row.not_run),
-          failed: to_integer(row.failed),
-          reported: true
-        }
+        %{not_run: to_integer(row.not_run), failed: to_integer(row.failed), reported: true}
       end
 
-    reasons =
-      rows
-      |> Enum.map(&%{decision: &1.decision, reason: &1.reason, count: to_integer(&1.count)})
-      |> Enum.sort_by(&{&1.decision != "selected", -&1.count, &1.reason})
+    skipped_duration =
+      if has_baseline?(run) do
+        from(t in subquery(skipped_query(run)), select: sum(t.duration))
+        |> ClickHouseRepo.one()
+        |> to_integer()
+      else
+        0
+      end
 
     Map.merge(outcomes, %{
       requested: run.requested_count,
       selected: run.selected_count,
       skipped: run.skipped_count,
       skip_rate: skip_rate(run.selected_count, run.skipped_count),
-      reasons: reasons
+      skipped_duration: skipped_duration,
+      reasons: Enum.sort_by(selected_reasons ++ skipped_reasons, &{&1.decision != "selected", -&1.count, &1.reason})
     })
   end
 
   @doc """
-  A page of a selection run's tests with their outcome in the test run that
-  reported its results (`nil` when the run reported none for the test).
+  A page of an impact run's tests, the selected ones and the skipped ones
+  derived from the baseline, with their outcome in `test_run_id` (`nil`
+  when it reported none for the test) and the shard they were planned on.
   Options: `:search` (part of the module, suite or test name), `:decision`
-  (`selected` or `skipped`), `:flag` (`not_run`), `:shard`,
+  (`selected` or `skipped`), `:reason`, `:flag` (`not_run`), `:shard`,
   `:sort_by` (`decision`, `name`, `shard` or `duration`), `:sort_order`,
   `:page` and `:page_size`.
   """
-  def run_tests(%TestSelectionRun{} = run, opts \\ []) do
+  def run_tests(%Run{} = run, test_run_id, opts \\ []) do
+    plan = shard_plan(run)
+
     query =
       run
-      |> run_tests_query()
-      |> filter_test_search(Keyword.get(opts, :search))
-      |> filter_field(:decision, Keyword.get(opts, :decision))
-      |> filter_shard(Keyword.get(opts, :shard))
-      |> with_outcomes(run)
-      |> filter_flag(Keyword.get(opts, :flag), run)
-      |> sort_tests(Keyword.get(opts, :sort_by, "decision"), Keyword.get(opts, :sort_order, "asc"))
+      |> tests_query(plan, test_run_id, opts)
+      |> filter_shard(Keyword.get(opts, :shard), plan)
+      |> filter_flag(Keyword.get(opts, :flag))
+      |> sort_tests(Keyword.get(opts, :sort_by, "decision"), Keyword.get(opts, :sort_order, "asc"), plan)
 
     {rows, meta} = paginate(query, opts)
-    {Enum.map(rows, &normalize_outcome/1), meta}
+    {Enum.map(rows, &normalize_test/1), meta}
   end
 
-  @doc "One of a selection run's tests, by its test case id, with its outcome."
-  def get_run_test(%TestSelectionRun{} = run, test_case_id) do
+  @doc "One of an impact run's tests, by its test case id, with its outcome in `test_run_id`."
+  def get_run_test(%Run{} = run, test_run_id, test_case_id) do
     with {:ok, test_case_id} <- Ecto.UUID.cast(test_case_id),
          row when not is_nil(row) <-
            run
-           |> run_tests_query()
-           |> where([t], t.test_case_id == ^test_case_id)
-           |> with_outcomes(run)
+           |> tests_query(shard_plan(run), test_run_id, test_case_id: test_case_id)
            |> limit(1)
            |> ClickHouseRepo.one() do
-      {:ok, normalize_outcome(row)}
+      {:ok, normalize_test(row)}
     else
       _ -> {:error, :not_found}
     end
   end
 
-  defp run_tests_query(%TestSelectionRun{id: id, project_id: project_id}) do
-    from(t in TestSelectionTest, where: t.project_id == ^project_id and t.selection_run_id == ^id)
+  defp selected_query(%Run{id: id, project_id: project_id}) do
+    from(t in RunTest, where: t.project_id == ^project_id and t.test_impact_run_id == ^id)
   end
 
-  defp with_outcomes(query, %TestSelectionRun{test_run_id: nil}),
-    do: select(query, [t], %{test: t, status: "", test_case_run_id: ""})
+  defp has_baseline?(%Run{baseline_sha: baseline}), do: baseline not in [nil, ""]
 
-  defp with_outcomes(query, run) do
+  # The baseline run's tests in the requested modules, with their average
+  # duration there.
+  defp baseline_tests_query(%Run{project_id: project_id} = run) do
+    query =
+      from(c in TestCaseRun,
+        where: c.project_id == ^project_id and not is_nil(c.test_case_id),
+        where: c.test_run_id in subquery(baseline_test_runs(run)),
+        group_by: fragment("assumeNotNull(?)", c.test_case_id),
+        select: %{
+          test_case_id: fragment("assumeNotNull(?)", c.test_case_id),
+          module_name: fragment("any(?)", c.module_name),
+          suite_name: fragment("any(?)", c.suite_name),
+          name: fragment("any(?)", c.name),
+          duration: fragment("toInt64(avg(?))", c.duration)
+        }
+      )
+
+    case run.requested_modules do
+      [] -> query
+      modules -> where(query, [c], c.module_name in ^modules)
+    end
+  end
+
+  defp baseline_test_runs(%Run{project_id: project_id, baseline_sha: baseline_sha, build_context: context}) do
+    query =
+      from(r in CoverageRun,
+        where: r.project_id == ^project_id and r.git_commit_sha == ^baseline_sha,
+        select: r.test_run_id
+      )
+
+    case Map.get(context || %{}, "scheme", "") do
+      "" -> query
+      scheme -> where(query, [r], r.scheme == ^scheme)
+    end
+  end
+
+  defp skipped_query(run, filters \\ []) do
+    selected_ids = select(selected_query(run), [t], t.test_case_id)
+
+    from(b in subquery(baseline_tests_query(run)),
+      where: b.test_case_id not in subquery(selected_ids)
+    )
+    |> filter_branch(filters)
+    |> select([b], %{
+      test_case_id: b.test_case_id,
+      module_name: b.module_name,
+      suite_name: b.suite_name,
+      name: b.name,
+      decision: fragment("'skipped'"),
+      reason: fragment("'unaffected'"),
+      matched_path: fragment("''"),
+      duration: b.duration
+    })
+  end
+
+  # Filters apply inside each branch of the union: ClickHouse fails to push
+  # an outer filter into the skipped branch's subqueries.
+  defp requested_query(run, opts \\ []) do
+    reason = Keyword.get(opts, :reason)
+    filters = Keyword.take(opts, [:search, :test_case_id])
+    selected = selected_branch(run, if(reason in [nil, "", "any"], do: filters, else: [{:reason, reason} | filters]))
+
+    case {selected_branch?(opts), skipped_branch?(run, opts)} do
+      {true, true} -> union_all(selected, ^skipped_query(run, filters))
+      {false, true} -> skipped_query(run, filters)
+      {true, false} -> selected
+      {false, false} -> where(selected, false)
+    end
+  end
+
+  defp selected_branch?(opts),
+    do:
+      Keyword.get(opts, :decision) in [nil, "", "any", "selected"] and Keyword.get(opts, :reason) not in @skipped_reasons
+
+  # Skipped tests never ran, so they're never "planned, not run" and sit on
+  # no shard.
+  defp skipped_branch?(run, opts) do
+    has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
+      Keyword.get(opts, :reason) in [nil, "", "any" | @skipped_reasons] and Keyword.get(opts, :flag) != "not_run" and
+      not is_integer(Keyword.get(opts, :shard))
+  end
+
+  defp selected_branch(run, filters) do
+    query = filter_branch(selected_query(run), filters)
+
+    if has_baseline?(run) do
+      from(t in query,
+        left_join: b in subquery(baseline_tests_query(run)),
+        on: b.test_case_id == t.test_case_id,
+        select: %{
+          test_case_id: t.test_case_id,
+          module_name: t.module_name,
+          suite_name: t.suite_name,
+          name: t.name,
+          decision: fragment("'selected'"),
+          reason: fragment("toString(?)", t.reason),
+          matched_path: t.matched_path,
+          duration: fragment("ifNull(?, 0)", b.duration)
+        }
+      )
+    else
+      from(t in query,
+        select: %{
+          test_case_id: t.test_case_id,
+          module_name: t.module_name,
+          suite_name: t.suite_name,
+          name: t.name,
+          decision: fragment("'selected'"),
+          reason: fragment("toString(?)", t.reason),
+          matched_path: t.matched_path,
+          duration: fragment("toInt64(0)")
+        }
+      )
+    end
+  end
+
+  defp filter_branch(query, filters) do
+    Enum.reduce(filters, query, fn
+      {:search, search}, query -> filter_test_search(query, search)
+      {:test_case_id, id}, query -> where(query, [x], x.test_case_id == ^id)
+      {:reason, reason}, query -> where(query, [x], x.reason == ^reason)
+    end)
+  end
+
+  defp tests_query(run, plan, test_run_id, opts) do
+    from(t in subquery(requested_query(run, opts)))
+    |> join_outcomes(run, test_run_id)
+    |> join_shards(plan)
+  end
+
+  defp join_outcomes(query, run, test_run_id) do
     from(t in query,
-      left_join: o in subquery(outcomes_query(run)),
-      on: o.test_case_id == t.test_case_id,
-      select: %{test: t, status: o.status, test_case_run_id: o.test_case_run_id}
+      left_join: o in subquery(outcomes_query(run.project_id, test_run_id)),
+      on: o.test_case_id == t.test_case_id
+    )
+  end
+
+  defp join_shards(query, nil),
+    do: select(query, [t, o], %{test: t, status: o.status, test_case_run_id: o.test_case_run_id, shard_index: nil})
+
+  defp join_shards(query, plan) do
+    from([t, o] in query,
+      left_join: s in subquery(shard_suites_query(plan)),
+      on: s.module_name == t.module_name and s.test_suite_name == t.suite_name,
+      select: %{test: t, status: o.status, test_case_run_id: o.test_case_run_id, shard_index: s.shard_index}
     )
   end
 
   # A test's outcome in the run: failed if any of its attempts failed,
   # passed if one passed, skipped otherwise.
-  defp outcomes_query(%TestSelectionRun{project_id: project_id, test_run_id: test_run_id}) do
+  defp outcomes_query(project_id, test_run_id) do
     from(c in TestCaseRun,
       where: c.project_id == ^project_id and c.test_run_id == ^test_run_id and not is_nil(c.test_case_id),
       group_by: fragment("assumeNotNull(?)", c.test_case_id),
@@ -382,84 +580,107 @@ defmodule Tuist.Tests.Selections do
     )
   end
 
-  defp normalize_outcome(%{test: test, status: status, test_case_run_id: test_case_run_id}) do
+  defp normalize_test(%{test: test, status: status, test_case_run_id: test_case_run_id, shard_index: shard_index}) do
     status = if status in [nil, ""], do: nil, else: status
 
-    test
-    |> Map.from_struct()
-    |> Map.delete(:__meta__)
-    |> Map.merge(%{
+    Map.merge(test, %{
       outcome: status,
-      test_case_run_id: if(status, do: test_case_run_id)
+      test_case_run_id: if(status, do: test_case_run_id),
+      shard_index: if(test.decision == "selected", do: shard_index)
     })
   end
 
-  defp filter_flag(query, "not_run", %TestSelectionRun{test_run_id: test_run_id}) when not is_nil(test_run_id),
-    do: where(query, [t, o], t.decision == "selected" and fragment("ifNull(?, '') = ''", o.status))
+  defp filter_flag(query, "not_run"), do: where(query, [t, o], fragment("ifNull(?, '') = ''", o.status))
+  defp filter_flag(query, _flag), do: query
 
-  defp filter_flag(query, _flag, _run), do: query
+  defp filter_shard(query, shard, %ShardPlan{}) when is_integer(shard),
+    do: where(query, [t, o, s], s.shard_index == ^shard)
 
-  defp filter_shard(query, shard) when is_integer(shard),
-    do: where(query, [t], t.decision == "selected" and t.shard_index == ^shard)
+  defp filter_shard(query, _shard, _plan), do: query
 
-  defp filter_shard(query, _shard), do: query
+  defp sort_tests(query, "name", "desc", _plan),
+    do: order_by(query, [t], desc: t.module_name, desc: t.suite_name, desc: t.name)
 
-  defp sort_tests(query, "name", "desc"), do: order_by(query, [t], desc: t.module_name, desc: t.suite_name, desc: t.name)
+  defp sort_tests(query, "name", _order, _plan),
+    do: order_by(query, [t], asc: t.module_name, asc: t.suite_name, asc: t.name)
 
-  defp sort_tests(query, "name", _order), do: order_by(query, [t], asc: t.module_name, asc: t.suite_name, asc: t.name)
+  defp sort_tests(query, "duration", "asc", _plan),
+    do: order_by(query, [t], asc: t.duration, asc: t.module_name, asc: t.name)
 
-  defp sort_tests(query, "duration", "asc"),
-    do: order_by(query, [t], asc: t.estimated_duration_ms, asc: t.module_name, asc: t.name)
+  defp sort_tests(query, "duration", _order, _plan),
+    do: order_by(query, [t], desc: t.duration, asc: t.module_name, asc: t.name)
 
-  defp sort_tests(query, "duration", _order),
-    do: order_by(query, [t], desc: t.estimated_duration_ms, asc: t.module_name, asc: t.name)
-
-  defp sort_tests(query, "shard", order) do
+  defp sort_tests(query, "shard", order, %ShardPlan{}) do
     direction = if order == "desc", do: :desc, else: :asc
-    order_by(query, [t], [{:asc, t.decision}, {^direction, t.shard_index}, {:asc, t.module_name}, {:asc, t.name}])
+    order_by(query, [t, o, s], [{:asc, t.decision}, {^direction, s.shard_index}, {:asc, t.module_name}, {:asc, t.name}])
   end
 
   # Selected first: what the invocation executes is what a reader checks
   # first.
-  defp sort_tests(query, _decision, "desc"),
+  defp sort_tests(query, _decision, "desc", _plan),
     do: order_by(query, [t], desc: t.decision, asc: t.module_name, asc: t.suite_name, asc: t.name)
 
-  defp sort_tests(query, _decision, _order),
+  defp sort_tests(query, _decision, _order, _plan),
     do: order_by(query, [t], asc: t.decision, asc: t.module_name, asc: t.suite_name, asc: t.name)
 
+  @doc "The latest shard plan that distributes the impact run's selected tests, or `nil`."
+  def shard_plan(%Run{id: id, project_id: project_id}) do
+    ClickHouseRepo.one(
+      from(p in ShardPlan,
+        where: p.project_id == ^project_id and p.test_impact_run_id == ^id,
+        order_by: [desc: p.inserted_at],
+        limit: 1
+      )
+    )
+  end
+
+  defp shard_suites_query(%ShardPlan{id: id, project_id: project_id}) do
+    from(s in ShardPlanTestSuite,
+      where: s.project_id == ^project_id and s.shard_plan_id == ^id,
+      select: %{module_name: s.module_name, test_suite_name: s.test_suite_name, shard_index: s.shard_index}
+    )
+  end
+
   @doc """
-  A selection run's shards: for each, the tests planned on it and their
-  estimated duration, and, once the run reported, how many ran, failed and
-  never reported a result.
+  The shards of a plan that distributes an impact run: for each, the
+  selected tests planned on it and its estimated duration, and, when
+  `test_run_id` reported, how many ran, failed and never reported a result.
   """
-  def run_shards(%TestSelectionRun{} = run) do
-    query = where(run_tests_query(run), [t], t.decision == "selected")
+  def run_shards(_run, nil, _test_run_id), do: []
+
+  def run_shards(%Run{} = run, %ShardPlan{} = plan, test_run_id) do
+    durations =
+      from(s in ShardPlanTestSuite,
+        where: s.project_id == ^plan.project_id and s.shard_plan_id == ^plan.id,
+        group_by: s.shard_index,
+        select: {s.shard_index, sum(s.estimated_duration_ms)}
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new(fn {index, duration} -> {index, to_integer(duration)} end)
+
+    query =
+      from(t in selected_query(run),
+        join: s in subquery(shard_suites_query(plan)),
+        on: s.module_name == t.module_name and s.test_suite_name == t.suite_name
+      )
 
     rows =
-      if is_nil(run.test_run_id) do
+      if is_nil(test_run_id) do
         ClickHouseRepo.all(
-          from(t in query,
-            group_by: t.shard_index,
-            select: %{
-              shard_index: t.shard_index,
-              planned: count(),
-              estimated_duration: sum(t.estimated_duration_ms),
-              ran: 0,
-              failed: 0,
-              not_run: 0
-            }
+          from([t, s] in query,
+            group_by: s.shard_index,
+            select: %{shard_index: s.shard_index, planned: count(), ran: 0, failed: 0, not_run: 0}
           )
         )
       else
         ClickHouseRepo.all(
-          from(t in query,
-            left_join: o in subquery(outcomes_query(run)),
+          from([t, s] in query,
+            left_join: o in subquery(outcomes_query(run.project_id, test_run_id)),
             on: o.test_case_id == t.test_case_id,
-            group_by: t.shard_index,
+            group_by: s.shard_index,
             select: %{
-              shard_index: t.shard_index,
+              shard_index: s.shard_index,
               planned: count(),
-              estimated_duration: sum(t.estimated_duration_ms),
               ran: fragment("countIf(ifNull(?, '') != '')", o.status),
               failed: fragment("countIf(? = 'failure')", o.status),
               not_run: fragment("countIf(ifNull(?, '') = '')", o.status)
@@ -470,21 +691,27 @@ defmodule Tuist.Tests.Selections do
 
     rows
     |> Enum.map(fn row ->
-      Map.new(row, fn {key, value} -> {key, if(is_integer(value), do: value, else: to_integer(value))} end)
+      row
+      |> Map.new(fn {key, value} -> {key, to_integer(value)} end)
+      |> Map.put(:estimated_duration, Map.get(durations, row.shard_index, 0))
     end)
     |> Enum.sort_by(& &1.shard_index)
   end
 
-  @doc "A selection run's tests per test target: requested, selected and skipped, most selected first."
-  def run_targets(%TestSelectionRun{} = run) do
-    from(t in run_tests_query(run),
+  @doc """
+  An impact run's tests per module: requested, selected and skipped, the
+  skipped tests' estimated duration and why the selected ones run, most
+  selected first.
+  """
+  def run_targets(%Run{} = run) do
+    from(t in subquery(requested_query(run)),
       group_by: t.module_name,
       select: %{
         module_name: t.module_name,
         requested: count(),
         selected: fragment("countIf(? = 'selected')", t.decision),
         skipped: fragment("countIf(? = 'skipped')", t.decision),
-        estimated_skipped_duration: fragment("sumIf(?, ? = 'skipped')", t.estimated_duration_ms, t.decision),
+        estimated_skipped_duration: fragment("sumIf(?, ? = 'skipped')", t.duration, t.decision),
         reasons: fragment("groupUniqArrayIf(?, ? = 'selected')", t.reason, t.decision)
       }
     )
@@ -507,14 +734,20 @@ defmodule Tuist.Tests.Selections do
   baseline commit's test runs.
   """
   def baseline_covered_paths(project_id, baseline_sha, %{module_name: module, suite_name: suite, name: name})
-      when baseline_sha != "" do
+      when baseline_sha not in [nil, ""] do
     scope_id = Enum.join([module, suite, name], "\u001F")
 
     ClickHouseRepo.all(
       from(f in CoverageFile,
         where: f.project_id == ^project_id and f.scope_kind == "test" and f.scope_id == ^scope_id,
         where:
-          f.git_commit_sha == ^baseline_sha or f.test_run_id in subquery(baseline_test_runs(project_id, baseline_sha)),
+          f.git_commit_sha == ^baseline_sha or
+            f.test_run_id in subquery(
+              from(r in CoverageRun,
+                where: r.project_id == ^project_id and r.git_commit_sha == ^baseline_sha,
+                select: r.test_run_id
+              )
+            ),
         distinct: true,
         select: f.path,
         order_by: f.path
@@ -524,15 +757,11 @@ defmodule Tuist.Tests.Selections do
 
   def baseline_covered_paths(_project_id, _baseline_sha, _test), do: []
 
-  defp baseline_test_runs(project_id, sha) do
-    from(r in CoverageRun, where: r.project_id == ^project_id and r.git_commit_sha == ^sha, select: r.test_run_id)
-  end
-
   @doc """
   A page of the project's default-branch commits that measured coverage,
   newest first, with what makes each one usable as a baseline: whether its
   coverage is complete, the schemes it measured fully and partly, how many
-  tests recorded per-test evidence, and how many selection runs used it.
+  tests recorded per-test evidence, and how many impact runs used it.
   """
   def baselines(project, opts \\ []) do
     page = max(Keyword.get(opts, :page, 1), 1)
@@ -600,7 +829,7 @@ defmodule Tuist.Tests.Selections do
   defp baseline_usage(_project_id, []), do: %{}
 
   defp baseline_usage(project_id, shas) do
-    from(r in runs(),
+    from(r in Run,
       where: r.project_id == ^project_id and r.baseline_sha in ^shas,
       group_by: r.baseline_sha,
       select: {r.baseline_sha, count()}
@@ -610,7 +839,7 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc "Whether any test run of the commit reported coverage."
-  def coverage?(_project_id, ""), do: false
+  def coverage?(_project_id, sha) when sha in [nil, ""], do: false
 
   def coverage?(project_id, sha) do
     from(r in CoverageRun,
@@ -636,14 +865,6 @@ defmodule Tuist.Tests.Selections do
     )
   end
 
-  defp filter_path(query, _field, search) when search in [nil, ""], do: query
-
-  defp filter_path(query, field, search),
-    do: where(query, [x], fragment("positionCaseInsensitive(?, ?) > 0", field(x, ^field), ^String.trim(search)))
-
-  defp filter_field(query, _field, value) when value in [nil, "", "any"], do: query
-  defp filter_field(query, field, value), do: where(query, [x], field(x, ^field) == ^value)
-
   defp paginate(query, opts) do
     page = max(Keyword.get(opts, :page, 1), 1)
     page_size = Keyword.get(opts, :page_size, 20)
@@ -663,6 +884,15 @@ defmodule Tuist.Tests.Selections do
       |> ClickHouseRepo.all()
 
     {rows, %{current_page: page, total_pages: max(ceil_div(total_count, page_size), 1), total_count: total_count}}
+  end
+
+  defp paginate_list(rows, opts) do
+    page = max(Keyword.get(opts, :page, 1), 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+    total_count = length(rows)
+
+    {Enum.slice(rows, (page - 1) * page_size, page_size),
+     %{current_page: page, total_pages: max(ceil_div(total_count, page_size), 1), total_count: total_count}}
   end
 
   defp ceil_div(count, size), do: div(count + size - 1, size)

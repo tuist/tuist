@@ -1,27 +1,28 @@
 # Test selection seed data for the `tuist/tuist` project.
 #
-# Selects, for every test run the coverage seeds left on a branch other than
-# `main`, what that invocation would have run, from the data those seeds left
-# behind, so the Test Selection pages agree with the Code Coverage and test
-# run pages:
+# Records, for every test run the coverage seeds left on a branch other than
+# `main`, the impact run that invocation would have made, from the data
+# those seeds left behind, so the Test Selection pages agree with the Code
+# Coverage and test run pages:
 #
 #   - a run's baseline is the newest `main` commit measured before it whose
 #     coverage completed, that measured the run's scheme fully and that
 #     recorded per-test evidence; now and then a commit's first run used the
 #     one before, as if the newest baseline's coverage had not completed yet,
-#     so the commit has two impacts;
-#   - the impact of a commit against its baseline is the difference between
+#     so the commit has two diffs;
+#   - the diff of a commit against its baseline is the difference between
 #     the two commits' file listings (`git_commit_files`), plus a few
 #     non-code files (a strings file, a doc, a test file, now and then
-#     `Package.resolved`), and the tests whose baseline evidence executed a
-#     changed file (`impacted`), whose target changed (`target_changed`: a
-#     resource in it, or a tracked file for every target) or that failed at
-#     the baseline (`failed_at_baseline`);
-#   - each test run is one selection run: it requests the tests it ran plus
-#     the baseline's tests of the same targets (so tests removed since show
-#     up as planned but not run), selects what the impact reaches and what
-#     has no evidence, and skips the rest; a few fall back to running
-#     everything; some are sharded, packed by duration.
+#     `Package.resolved`);
+#   - each test run gets one impact run, which the test run points to
+#     (`test_runs.test_impact_run_id`): the rules select a test whose test
+#     file changed (`test_file_changed`), that failed at the baseline
+#     (`failed_last_run`), that has no evidence (`no_evidence`), whose
+#     evidence executed a changed file (`impacted`) or whose module owns a
+#     changed resource (`owned_without_evidence`), and skip the rest of the
+#     baseline's tests in the requested modules; a changed tracked file and a
+#     few others fall back; some runs are sharded, packed by duration, with a
+#     shard plan that points to the impact run.
 #
 # Starts from a clean slate on every run. Runnable on its own after the main
 # seed: `mix run priv/repo/test_selection_seeds.exs`.
@@ -31,11 +32,11 @@ import Ecto.Query
 alias Tuist.ClickHouseRepo
 alias Tuist.IngestRepo
 alias Tuist.Projects
-alias Tuist.Tests.TestImpact
-alias Tuist.Tests.TestImpactChangedFile
-alias Tuist.Tests.TestImpactTest
-alias Tuist.Tests.TestSelectionRun
-alias Tuist.Tests.TestSelectionTest
+alias Tuist.Shards.ShardPlan
+alias Tuist.Shards.ShardPlanTestSuite
+alias Tuist.TestImpactAnalysis.Run
+alias Tuist.TestImpactAnalysis.RunTest
+alias Tuist.TestImpactAnalysis.Storage
 
 defmodule TestSelectionSeed do
   @moduledoc false
@@ -44,15 +45,10 @@ defmodule TestSelectionSeed do
 
   def query(sql, params), do: IngestRepo.query!(sql, params).rows
 
-  def kind(path) do
-    cond do
-      path in ["Package.resolved", "Project.swift", "Tuist.swift"] or String.ends_with?(path, ".xcconfig") -> "tracked"
-      String.starts_with?(path, "docs/") or String.ends_with?(path, ".md") -> "ignored"
-      String.ends_with?(path, [".strings", ".xcassets", ".json", ".storyboard", ".xib"]) -> "resource"
-      String.starts_with?(path, "Tests/") -> "test"
-      true -> "source"
-    end
-  end
+  def tracked?(path),
+    do: path in ["Package.resolved", "Project.swift", "Tuist.swift"] or String.ends_with?(path, ".xcconfig")
+
+  def resource?(path), do: String.ends_with?(path, [".strings", ".xcassets", ".json", ".storyboard", ".xib"])
 
   # The test target a resource belongs to, by the feature directory it sits
   # in: `Sources/Features/Search/Resources/…` is `SearchTests`'s.
@@ -101,27 +97,39 @@ defmodule TestSelectionSeed do
     Enum.uniq(paths ++ ["Tests/#{module}/#{suite}.swift"] ++ shared)
   end
 
-  # Greedy longest-first packing: each test goes to the shard with the least
-  # estimated time so far.
-  def pack(tests, 1), do: Enum.map(tests, &Map.put(&1, :shard_index, 0))
-
-  def pack(tests, shard_count) do
+  # Greedy longest-first packing of suites: each goes to the shard with the
+  # least estimated time so far.
+  def pack(suites, shard_count) do
     {packed, _loads} =
-      tests
-      |> Enum.sort_by(&{-&1.estimated_duration_ms, &1.module_name, &1.name})
-      |> Enum.map_reduce(List.duplicate(0, shard_count), fn test, loads ->
+      suites
+      |> Enum.sort_by(fn {key, duration} -> {-duration, key} end)
+      |> Enum.map_reduce(List.duplicate(0, shard_count), fn {key, duration}, loads ->
         {load, index} = loads |> Enum.with_index() |> Enum.min()
-        {Map.put(test, :shard_index, index), List.replace_at(loads, index, load + test.estimated_duration_ms)}
+        {{key, duration, index}, List.replace_at(loads, index, load + duration)}
       end)
 
     packed
+  end
+
+  @rules ~w(tracked_files test_file_changed failed_last_run no_evidence impacted owned_without_evidence unaffected)
+
+  # Per rule, in order, how many tests it selected and skipped, and its
+  # verdict.
+  def trace(selected, skipped_count) do
+    counts = Enum.frequencies_by(selected, & &1.reason)
+
+    Enum.map(@rules, fn
+      "tracked_files" -> %{rule: "tracked_files", selected: 0, skipped: 0, verdict: "continue"}
+      "unaffected" -> %{rule: "unaffected", selected: 0, skipped: skipped_count, verdict: "done"}
+      rule -> %{rule: rule, selected: Map.get(counts, rule, 0), skipped: 0, verdict: "continue"}
+    end)
   end
 end
 
 {:ok, project} = Projects.get_project_by_slug("tuist/tuist")
 now = NaiveDateTime.utc_now()
 
-for table <- ~w(test_impacts test_impact_changed_files test_impact_tests test_selection_runs test_selection_tests) do
+for table <- ~w(test_impact_diffs test_impact_runs test_impact_run_tests) do
   IngestRepo.query!("ALTER TABLE #{table} DELETE WHERE project_id = {project_id:Int64} SETTINGS mutations_sync = 2", %{
     "project_id" => project.id
   })
@@ -220,9 +228,10 @@ baselines =
   |> Enum.reject(&(&1.evidence == []))
   |> Enum.map(&Map.put(&1, :failed, failed_at.(&1.sha)))
 
-# The impact of `head` against `baseline`: the changed paths and the tests
-# they reach.
-impact_for = fn head, baseline, computed_at ->
+# The diff of `head` against `baseline` and, when no tracked file changed,
+# what each rule selects among the baseline's tests with evidence: a map of
+# test case id to `{reason, matched_path}`.
+impact_for = fn head, baseline ->
   before = listings[baseline.sha] || %{}
   after_ = listings[head.sha] || %{}
 
@@ -240,78 +249,44 @@ impact_for = fn head, baseline, computed_at ->
 
   changes = Enum.uniq_by(listed_changes ++ TestSelectionSeed.extras(head.sha, baseline.evidence), &elem(&1, 0))
   changed = MapSet.new(changes, &elem(&1, 0))
-  kinds = Map.new(changes, fn {path, _status} -> {path, TestSelectionSeed.kind(path)} end)
-  tracked = Enum.find_value(changes, fn {path, _status} -> if kinds[path] == "tracked", do: path end)
+  tracked = Enum.find_value(changes, fn {path, _status} -> if TestSelectionSeed.tracked?(path), do: path end)
 
   resources =
-    for {path, "resource"} <- kinds, into: %{}, do: {TestSelectionSeed.resource_module(path), path}
+    for {path, _status} <- changes, TestSelectionSeed.resource?(path), into: %{} do
+      {TestSelectionSeed.resource_module(path), path}
+    end
 
-  tests =
-    Enum.flat_map(baseline.evidence, fn test ->
-      covered = TestSelectionSeed.covered_paths(test.module, test.suite, test.paths)
-      matched = Enum.find(covered, &MapSet.member?(changed, &1))
-
-      reason =
-        cond do
-          matched -> {"impacted", matched}
-          tracked -> {"target_changed", tracked}
-          Map.has_key?(resources, test.module) -> {"target_changed", resources[test.module]}
-          MapSet.member?(baseline.failed, test.test_case_id) -> {"failed_at_baseline", ""}
-          TestSelectionSeed.h({baseline.sha, test.test_case_id}, 70) == 0 -> {"failed_at_baseline", ""}
-          true -> nil
-        end
-
-      case reason do
-        nil ->
-          []
-
-        {reason, matched_path} ->
-          [
-            %{
-              project_id: project.id,
-              head_sha: head.sha,
-              baseline_sha: baseline.sha,
-              test_case_id: test.test_case_id,
-              module_name: test.module,
-              suite_name: test.suite,
-              name: test.name,
-              reason: reason,
-              matched_path: matched_path,
-              inserted_at: computed_at
-            }
-          ]
-      end
-    end)
-
-  reached = Enum.frequencies_by(tests, & &1.matched_path)
-
-  files =
+  changed_files =
     Enum.map(changes, fn {path, status} ->
       %{
-        project_id: project.id,
-        head_sha: head.sha,
-        baseline_sha: baseline.sha,
         path: path,
         status: status,
-        kind: Map.fetch!(kinds, path),
-        impacted_tests_count: Map.get(reached, path, 0),
-        inserted_at: computed_at
+        blob: Map.get(after_, path, ""),
+        affected_modules:
+          if(TestSelectionSeed.resource?(path), do: List.wrap(TestSelectionSeed.resource_module(path)), else: [])
       }
     end)
 
-  %{
-    impact: %{
-      project_id: project.id,
-      head_sha: head.sha,
-      baseline_sha: baseline.sha,
-      git_branch: head.branch,
-      changed_files_count: length(files),
-      impacted_tests_count: length(tests),
-      inserted_at: computed_at
-    },
-    files: files,
-    tests: Map.new(tests, &{&1.test_case_id, &1})
-  }
+  decisions =
+    Map.new(baseline.evidence, fn test ->
+      covered = TestSelectionSeed.covered_paths(test.module, test.suite, test.paths)
+      test_file = "Tests/#{test.module}/#{test.suite}.swift"
+      matched = Enum.find(covered, &(MapSet.member?(changed, &1) and &1 != test_file))
+
+      decision =
+        cond do
+          MapSet.member?(changed, test_file) -> {"test_file_changed", test_file}
+          MapSet.member?(baseline.failed, test.test_case_id) -> {"failed_last_run", ""}
+          TestSelectionSeed.h({baseline.sha, test.test_case_id}, 70) == 0 -> {"failed_last_run", ""}
+          matched -> {"impacted", matched}
+          Map.has_key?(resources, test.module) -> {"owned_without_evidence", resources[test.module]}
+          true -> nil
+        end
+
+      {test.test_case_id, decision}
+    end)
+
+  %{changed_files: changed_files, tracked: tracked, decisions: decisions}
 end
 
 test_runs_of = fn sha ->
@@ -348,7 +323,24 @@ destinations = [
   "My Mac · macOS 26.1"
 ]
 
-fallbacks = %{0 => "baseline_too_far", 1 => "deepen_budget_exhausted", 2 => "timeout", 3 => "platform_mismatch"}
+fallbacks = %{0 => "baseline_too_old", 1 => "history_unavailable", 2 => "no_baseline_evidence"}
+
+# The baseline run's tests of a scheme: what a run that selects against it
+# could skip.
+baseline_tests = fn sha, scheme ->
+  """
+  SELECT toString(assumeNotNull(c.test_case_id)), any(c.module_name)
+  FROM test_case_runs AS c
+  WHERE c.project_id = {project_id:Int64} AND c.test_case_id IS NOT NULL
+    AND c.test_run_id IN (
+      SELECT test_run_id FROM coverage_runs
+      WHERE project_id = {project_id:Int64} AND git_commit_sha = {sha:String} AND scheme = {scheme:String}
+    )
+  GROUP BY assumeNotNull(c.test_case_id)
+  """
+  |> TestSelectionSeed.query(%{"project_id" => project.id, "sha" => sha, "scheme" => scheme})
+  |> Enum.map(fn [id, module] -> %{test_case_id: id, module: module} end)
+end
 
 seeded =
   Enum.flat_map(branch_commits, fn commit ->
@@ -363,11 +355,14 @@ seeded =
       candidates = Enum.reject(earlier, &(test_run.scheme in &1.partial))
       older = if length(candidates) > 1, do: Enum.at(candidates, -2)
       baseline = if use_older? and index == 0 and older, do: older, else: List.last(candidates)
+      impact = if baseline, do: impact_for.(commit, baseline)
 
-      fallback =
-        if is_nil(baseline),
-          do: "no_baseline",
-          else: Map.get(fallbacks, TestSelectionSeed.h({test_run.id, :fallback}, 30), "")
+      {reason, matched_path} =
+        cond do
+          is_nil(baseline) -> {"no_baseline", ""}
+          impact.tracked -> {"tracked_file_changed", impact.tracked}
+          true -> {Map.get(fallbacks, TestSelectionSeed.h({test_run.id, :fallback}, 30), ""), ""}
+        end
 
       if ran == [] do
         []
@@ -375,136 +370,203 @@ seeded =
         targets = ran |> Enum.map(& &1.module) |> Enum.uniq() |> Enum.sort()
         target_set = MapSet.new(targets)
         ran_ids = MapSet.new(ran, & &1.test_case_id)
-
-        # The baseline's tests of the same targets that this run didn't
-        # run: requested by the plan, but gone from the scheme since.
-        missing =
-          if baseline do
-            baseline.evidence
-            |> Enum.filter(&(MapSet.member?(target_set, &1.module) and not MapSet.member?(ran_ids, &1.test_case_id)))
-            |> Enum.map(&%{test_case_id: &1.test_case_id, module: &1.module, suite: &1.suite, name: &1.name, status: nil})
-          else
-            []
-          end
+        evidence_ids = if baseline, do: MapSet.new(baseline.evidence, & &1.test_case_id), else: MapSet.new()
 
         # Now and then, tests Tuist knows in the requested targets that the
         # run never reported: renamed or removed since, or lost with a shard.
         known =
           if TestSelectionSeed.h({test_run.id, :gone}, 4) == 0 do
-            seen = MapSet.union(ran_ids, MapSet.new(missing, & &1.test_case_id))
-
             targets
             |> Enum.flat_map(&Map.get(known_by_module, &1, []))
-            |> Enum.reject(&MapSet.member?(seen, &1.test_case_id))
+            |> Enum.reject(&MapSet.member?(ran_ids, &1.test_case_id))
             |> Enum.sort_by(& &1.test_case_id)
             |> Enum.take(1 + TestSelectionSeed.h(test_run.id, 3))
           else
             []
           end
 
-        requested = ran ++ missing ++ known
         selected_at = NaiveDateTime.add(test_run.ran_at, -(60 + TestSelectionSeed.h(test_run.id, 300)), :second)
-        impact = if baseline && fallback == "", do: impact_for.(commit, baseline, selected_at)
-        evidence_ids = if baseline, do: MapSet.new(baseline.evidence, & &1.test_case_id), else: MapSet.new()
         run_id = UUIDv7.generate()
 
-        tests =
-          Enum.map(requested, fn test ->
-            {decision, reason, matched} =
-              cond do
-                fallback != "" -> {"selected", "run_all", ""}
-                hit = impact.tests[test.test_case_id] -> {"selected", hit.reason, hit.matched_path}
-                not MapSet.member?(evidence_ids, test.test_case_id) -> {"selected", "no_evidence", ""}
-                true -> {"skipped", "unaffected", ""}
+        selected =
+          if reason == "" do
+            Enum.flat_map(ran ++ known, fn test ->
+              decision =
+                cond do
+                  not MapSet.member?(evidence_ids, test.test_case_id) -> {"no_evidence", ""}
+                  hit = impact.decisions[test.test_case_id] -> hit
+                  true -> nil
+                end
+
+              case decision do
+                nil ->
+                  []
+
+                {rule, matched} ->
+                  [
+                    %{
+                      test_impact_run_id: run_id,
+                      project_id: project.id,
+                      test_case_id: test.test_case_id,
+                      module_name: test.module,
+                      suite_name: test.suite,
+                      name: test.name,
+                      reason: rule,
+                      matched_path: matched,
+                      inserted_at: selected_at
+                    }
+                  ]
               end
+            end)
+          else
+            []
+          end
 
-            %{
-              project_id: project.id,
-              selection_run_id: run_id,
-              test_case_id: test.test_case_id,
-              module_name: test.module,
-              suite_name: test.suite,
-              name: test.name,
-              decision: decision,
-              shard_index: 0,
-              reason: reason,
-              matched_path: matched,
-              estimated_duration_ms: Map.get(durations, test.test_case_id) || 40 + TestSelectionSeed.h(test, 900),
-              inserted_at: now,
-              status: test.status
-            }
-          end)
+        selected_ids = MapSet.new(selected, & &1.test_case_id)
 
-        shard_count =
-          if TestSelectionSeed.h({test_run.id, :shards}, 3) == 0, do: 2 + TestSelectionSeed.h(test_run.id, 3), else: 1
+        skipped_count =
+          if reason == "" do
+            baseline.sha
+            |> baseline_tests.(test_run.scheme)
+            |> Enum.count(&(MapSet.member?(target_set, &1.module) and not MapSet.member?(selected_ids, &1.test_case_id)))
+          else
+            0
+          end
 
-        {selected, skipped} = Enum.split_with(tests, &(&1.decision == "selected"))
-        tests = TestSelectionSeed.pack(selected, shard_count) ++ skipped
-
-        ci_run_id =
-          if test_run.ci_run_id in [nil, ""],
-            do: "#{18_000_000_000 + TestSelectionSeed.h(test_run.id, 900_000_000)}",
-            else: test_run.ci_run_id
-
-        job = "test (#{test_run.scheme})"
+        rule_trace =
+          cond do
+            reason == "tracked_file_changed" -> [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
+            reason == "" -> TestSelectionSeed.trace(selected, skipped_count)
+            true -> []
+          end
 
         run = %{
           id: run_id,
           project_id: project.id,
-          idempotency_key: "github:#{ci_run_id}:#{job}",
-          git_commit_sha: commit.sha,
+          head_sha: commit.sha,
+          commit_sha: commit.sha,
+          baseline_sha: if(baseline && reason in ["", "tracked_file_changed", "no_baseline_evidence"], do: baseline.sha),
           git_branch: commit.branch,
-          baseline_sha: if(fallback in ["", "platform_mismatch"] and not is_nil(baseline), do: baseline.sha, else: ""),
-          scheme: test_run.scheme,
-          test_plan: if(TestSelectionSeed.h({test_run.id, :plan}, 4) == 0, do: "#{test_run.scheme}.xctestplan", else: ""),
-          destination: Enum.at(destinations, TestSelectionSeed.h({commit.branch, test_run.scheme}, length(destinations))),
-          requested_targets: targets,
-          shard_count: shard_count,
-          shard_plan_id: UUIDv7.generate(),
-          test_run_id: test_run.id,
-          ci_provider: "github",
-          ci_run_id: ci_run_id,
-          ci_job_id: job,
-          requested_count: length(tests),
+          dirty: false,
+          strategy: "coverage",
+          build_system: "xcode",
+          platform: "ios",
+          build_context: %{
+            "scheme" => test_run.scheme,
+            "test_plan" =>
+              if(TestSelectionSeed.h({test_run.id, :plan}, 4) == 0, do: "#{test_run.scheme}.xctestplan", else: ""),
+            "destination" =>
+              Enum.at(destinations, TestSelectionSeed.h({commit.branch, test_run.scheme}, length(destinations)))
+          },
+          requested_modules: targets,
+          outcome: if(reason == "", do: "selected", else: "fallback"),
+          reason: reason,
+          matched_path: matched_path,
+          rules_version: "1",
+          rule_trace: rule_trace,
+          requested_count: if(reason == "", do: length(selected) + skipped_count, else: 0),
           selected_count: length(selected),
-          skipped_count: length(skipped),
-          skipped_duration: skipped |> Enum.map(& &1.estimated_duration_ms) |> Enum.sum(),
-          fallback_reason: fallback,
-          inserted_at: selected_at,
-          updated_at: NaiveDateTime.add(test_run.ran_at, max(div(test_run.duration, 1000), 1), :second)
+          skipped_count: skipped_count,
+          inserted_at: selected_at
         }
 
-        [{run, Enum.map(tests, &Map.delete(&1, :status)), impact}]
+        shard_count =
+          if reason == "" and TestSelectionSeed.h({test_run.id, :shards}, 3) == 0,
+            do: 2 + TestSelectionSeed.h(test_run.id, 3),
+            else: 1
+
+        diff =
+          if baseline && reason in ["", "tracked_file_changed"],
+            do: %{commit_sha: commit.sha, baseline_sha: baseline.sha, changed_files: impact.changed_files}
+
+        [%{run: run, selected: selected, test_run_id: test_run.id, shard_count: shard_count, diff: diff}]
       end
     end)
   end)
 
-impacts =
-  seeded
-  |> Enum.map(&elem(&1, 2))
-  |> Enum.reject(&is_nil/1)
-  |> Enum.uniq_by(&{&1.impact.head_sha, &1.impact.baseline_sha})
-
-IngestRepo.insert_all(TestImpact, Enum.map(impacts, & &1.impact))
-
-impacts
-|> Enum.flat_map(& &1.files)
-|> Enum.chunk_every(2_000)
-|> Enum.each(&IngestRepo.insert_all(TestImpactChangedFile, &1))
-
-impacts
-|> Enum.flat_map(&Map.values(&1.tests))
-|> Enum.chunk_every(2_000)
-|> Enum.each(&IngestRepo.insert_all(TestImpactTest, &1))
-
-IngestRepo.insert_all(TestSelectionRun, Enum.map(seeded, &elem(&1, 0)))
+seeded
+|> Enum.map(& &1.diff)
+|> Enum.reject(&is_nil/1)
+|> Enum.uniq_by(&{&1.commit_sha, &1.baseline_sha})
+|> Enum.each(&Storage.put_diff(Map.put(&1, :project_id, project.id)))
 
 seeded
-|> Enum.flat_map(&elem(&1, 1))
+|> Enum.map(fn %{run: run} ->
+  %{
+    run
+    | build_context: Map.reject(run.build_context, fn {_key, value} -> value == "" end),
+      rule_trace: Enum.map(run.rule_trace, &{&1.rule, &1.selected, &1.skipped, &1.verdict})
+  }
+end)
 |> Enum.chunk_every(2_000)
-|> Enum.each(&IngestRepo.insert_all(TestSelectionTest, &1))
+|> Enum.each(&IngestRepo.insert_all(Run, &1))
 
-tests_count = seeded |> Enum.map(&length(elem(&1, 1))) |> Enum.sum()
+seeded
+|> Enum.flat_map(& &1.selected)
+|> Enum.chunk_every(2_000)
+|> Enum.each(&IngestRepo.insert_all(RunTest, &1))
 
-IO.puts("  - test selection: #{length(seeded)} selection runs, #{length(impacts)} impacts, #{tests_count} tests")
+# Shard plans that distribute the sharded runs' selected tests by suite.
+{plans, suites} =
+  seeded
+  |> Enum.filter(&(&1.shard_count > 1 and &1.selected != []))
+  |> Enum.map(fn %{run: run, selected: selected, shard_count: shard_count} ->
+    plan_id = UUIDv7.generate()
+
+    suites =
+      selected
+      |> Enum.group_by(&{&1.module_name, &1.suite_name})
+      |> Enum.map(fn {key, tests} ->
+        {key, tests |> Enum.map(&(Map.get(durations, &1.test_case_id) || 40)) |> Enum.sum()}
+      end)
+      |> TestSelectionSeed.pack(shard_count)
+      |> Enum.map(fn {{module, suite}, duration, index} ->
+        %{
+          shard_plan_id: plan_id,
+          project_id: project.id,
+          shard_index: index,
+          module_name: module,
+          test_suite_name: suite,
+          estimated_duration_ms: duration,
+          inserted_at: run.inserted_at
+        }
+      end)
+
+    plan = %{
+      id: plan_id,
+      reference: "seed-#{run.id}",
+      project_id: project.id,
+      shard_count: shard_count,
+      granularity: "suite",
+      inserted_at: run.inserted_at,
+      test_impact_run_id: run.id
+    }
+
+    {plan, suites}
+  end)
+  |> Enum.unzip()
+
+if plans != [] do
+  IngestRepo.insert_all(ShardPlan, plans)
+  suites |> List.flatten() |> Enum.chunk_every(2_000) |> Enum.each(&IngestRepo.insert_all(ShardPlanTestSuite, &1))
+end
+
+# Point each test run to its impact run.
+IngestRepo.query!(
+  """
+  ALTER TABLE test_runs
+  UPDATE test_impact_run_id = toUUIDOrNull(transform(toString(id), {test_run_ids:Array(String)}, {run_ids:Array(String)}, ''))
+  WHERE project_id = {project_id:Int64}
+  SETTINGS mutations_sync = 2
+  """,
+  %{
+    "project_id" => project.id,
+    "test_run_ids" => Enum.map(seeded, & &1.test_run_id),
+    "run_ids" => Enum.map(seeded, & &1.run.id)
+  }
+)
+
+tests_count = seeded |> Enum.map(&length(&1.selected)) |> Enum.sum()
+
+IO.puts("  - test selection: #{length(seeded)} impact runs, #{tests_count} selected tests, #{length(plans)} shard plans")
 IO.puts("    /tuist/tuist/tests/test-selection")

@@ -1,10 +1,11 @@
 defmodule TuistWeb.TestSelection.TestCaseRunTab do
   @moduledoc """
-  One test's part in the coverage selection of the test run it ran in, in
-  the test case run's Selective Testing tab: why the selection kept it (the
-  reason and the changed path that matched), the shard it was planned on, and the repository files the baseline's per-test evidence
-  says it executed, the changed ones first, each with how it changed since
-  the baseline. Its query parameters are prefixed with `selection-`.
+  One test's part in the impact run of the test run it ran in, in the test
+  case run's Selective Testing tab: why the selection kept it (the rule that
+  selected it and the changed path that matched), the shard it was planned
+  on, and the repository files the baseline's per-test evidence says it
+  executed, the changed ones first, each with how it changed since the
+  baseline. Its query parameters are prefixed with `selection-`.
   """
   use TuistWeb, :html
   use Noora
@@ -12,31 +13,27 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
   import TuistWeb.Coverage.Components, only: [coverage_empty: 1, short_sha: 1, parent_dir: 1]
   import TuistWeb.TestSelection.Components
 
-  alias Tuist.FeatureFlags
-  alias Tuist.Projects.Project
   alias Tuist.Tests.Selections
-  alias Tuist.Tests.TestImpact
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
   @page_size 20
 
   @doc """
-  The selection run the test case run's test run came from and the test's
-  row in it, or `nil` when there is none.
+  The impact run the test case run's test run points to and the test's row
+  in it, or `nil` when there is none.
   """
-  def load(project, account, %{test_run_id: test_run_id, test_case_id: test_case_id})
+  def load(project, %{test_run_id: test_run_id, test_case_id: test_case_id})
       when not is_nil(test_run_id) and not is_nil(test_case_id) do
-    with true <- Project.xcode_project?(project) and FeatureFlags.xcode_coverage_enabled?(account),
-         %{} = run <- Selections.run_for_test_run(project.id, test_run_id),
-         {:ok, test} <- Selections.get_run_test(run, test_case_id) do
+    with {:ok, run} <- Selections.run_for_test_run(project.id, test_run_id),
+         {:ok, test} <- Selections.get_run_test(run, test_run_id, test_case_id) do
       %{run: run, test: test}
     else
       _ -> nil
     end
   end
 
-  def load(_project, _account, _test_case_run), do: nil
+  def load(_project, _test_case_run), do: nil
 
   @doc """
   Loads the files the test executed in the baseline, once, and the page of
@@ -75,29 +72,17 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
         do: covered,
         else: [test.matched_path | covered]
 
-    changed =
-      if run.baseline_sha == "",
-        do: %{},
-        else:
-          Selections.impact_changed_files_by_path(
-            %TestImpact{project_id: run.project_id, head_sha: run.git_commit_sha, baseline_sha: run.baseline_sha},
-            covered
-          )
+    changed = run |> Selections.get_diff() |> Selections.changed_files_by_path(covered)
 
     covered
     |> Enum.map(fn path ->
       case Map.get(changed, path) do
-        nil -> %{path: path, changed: false, status: nil, kind: unchanged_kind(path)}
-        file -> %{path: path, changed: true, status: file.status, kind: file.kind}
+        nil -> %{path: path, changed: false, status: nil}
+        file -> %{path: path, changed: true, status: file.status}
       end
     end)
     |> Enum.sort_by(&{not &1.changed, &1.path})
   end
-
-  # An unchanged file has no changed-file row to read its kind from; evidence
-  # only holds files a test executed, so it is test code or source.
-  defp unchanged_kind("Tests/" <> _rest), do: "test"
-  defp unchanged_kind(_path), do: "source"
 
   @doc "The query that searches the executed files for `search`."
   def search_query(uri, search), do: uri.query |> Query.put("selection-search", search) |> Query.drop("selection-page")
@@ -149,28 +134,28 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
               <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
               <dd>
                 <.link_button
-                  :if={@run.baseline_sha != ""}
+                  :if={@run.baseline_sha not in [nil, ""]}
                   navigate={"/#{@account.name}/#{@project.name}/tests/coverage/commits/#{@run.baseline_sha}"}
                   label={short_sha(@run.baseline_sha)}
                   variant="secondary"
                   size="large"
                   underline
                 />
-                <span :if={@run.baseline_sha == ""}>{dgettext("dashboard_tests", "None")}</span>
+                <span :if={@run.baseline_sha in [nil, ""]}>{dgettext("dashboard_tests", "None")}</span>
               </dd>
             </div>
             <div>
               <dt>{dgettext("dashboard_tests", "Matched path")}</dt>
               <dd>{if @test.matched_path != "", do: @test.matched_path, else: "–"}</dd>
             </div>
-            <div :if={@test.decision == "selected" and @run.shard_count > 1}>
+            <div :if={not is_nil(@test.shard_index)}>
               <dt>{dgettext("dashboard_tests", "Shard")}</dt>
               <dd>{format_number(@test.shard_index)}</dd>
             </div>
             <div>
               <dt>{dgettext("dashboard_tests", "Est. duration")}</dt>
               <dd>
-                {DateFormatter.format_duration_from_milliseconds(@test.estimated_duration_ms)}
+                {DateFormatter.format_duration_from_milliseconds(@test.duration)}
               </dd>
             </div>
             <div>
@@ -228,13 +213,6 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
                   :if={!file.changed}
                   status="disabled"
                   label={dgettext("dashboard_tests", "Unchanged")}
-                />
-              </:col>
-              <:col :let={file} label={dgettext("dashboard_tests", "Kind")}>
-                <.badge_cell
-                  label={file_kind_label(file.kind)}
-                  color={file_kind_color(file.kind)}
-                  style="light-fill"
                 />
               </:col>
             </.table>
