@@ -38,7 +38,7 @@ defmodule TuistWeb.CoverageDetailLive do
   @reload_delay to_timeout(second: 15)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    if !FeatureFlags.xcode_coverage_enabled?(account) do
+    if !FeatureFlags.coverage_enabled?(account, project) do
       raise NotFoundError, dgettext("dashboard_tests", "Code coverage is not enabled for this account.")
     end
 

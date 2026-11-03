@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 struct AtlasSharedItemsView: View {
@@ -123,3 +124,4 @@ private struct SharedItemsPresentation: ViewModifier {
             .sheet(isPresented: $model.presented) { AtlasSharedItemsView(model: model) }
     }
 }
+#endif

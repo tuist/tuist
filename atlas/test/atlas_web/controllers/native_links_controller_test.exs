@@ -113,7 +113,7 @@ defmodule AtlasWeb.NativeLinksControllerTest do
             {"time-off", "/people/time-off"},
             {"people", "/people"},
             {"profile", "/settings"},
-            {"orbit", "/"}
+            {"orbit", "/orbit"}
           ] do
         html = conn |> get("/open/#{screen}") |> html_response(200)
         assert html =~ ~s(href="dev.tuist.atlas://navigate/#{screen}?server=)
@@ -124,7 +124,7 @@ defmodule AtlasWeb.NativeLinksControllerTest do
     test "opens an Orbit thread without looking up or exposing its content", %{conn: conn} do
       html = conn |> get("/open/orbit/#{@id}?token=secret&server=https://evil.example") |> html_response(200)
       assert html =~ ~s(href="dev.tuist.atlas://navigate/orbit/#{@id}?server=https%3A%2F%2Fatlas.example.org")
-      assert html =~ ~s(href="/")
+      assert html =~ ~s(href="/orbit/#{@id}")
       refute html =~ "secret"
       refute html =~ "evil.example"
     end

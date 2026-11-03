@@ -194,10 +194,21 @@ kuraController:
       enabled: false
       storeName: onepassword
       item: ""
-  # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
-  # changes the pod template and rolls these instances. No RBAC grant needed.
-  # Requires a Kura runtime image with built-in connectivity telemetry.
+  # Fixed, locally expiring timing observations in the existing Kura logs.
+  # Activation only patches live Pod annotations; it never rolls runtimes.
   connectivityDiagnostics:
+    # First deploy this controller with preparation off and establish it as the
+    # rollback floor. Enable separately; projection adoption then waits for an
+    # ordinary runtime image change (or a new StatefulSet). Keep false by default.
+    prepare: false
+    # Absolute RFC3339 deadline, at most 24 hours ahead. Missing/invalid/expired
+    # deadlines disable sampling without affecting controller availability.
+    expiresAt: ""
+    # Keep identifying selections out of tracked values. The existing Secret
+    # must contain an instances key with comma-separated exact instance names.
+    # Provision it in the controller namespace before setting this reference.
+    # Mutually exclusive with the inline list; the chart never creates it.
+    existingSecret: ""
     instances: []
   # Enable managed gateway readiness reads and its Cilium backend policy.
   privateGateway:
@@ -379,6 +390,67 @@ egressTreeAgent:
       memory: 32Mi
     limits:
       memory: 128Mi
+
+kuraVolumesCSI:
+  # Pools served by the independent rack-nodes release; excluded from the
+  # waited main release. Enroll only after preparing and checking the hosts.
+  rackPools: []
+  # Opt in only after the region's nodes advertise tuist.dev/kura-disk.
+  lvmRegions: []
+  # Regions whose instances may use kura-thin-encrypted-nvme. Listing a region
+  # changes nothing on its own: only accounts on :kura_thin_volumes move there.
+  # Opt in only after at least one of its nodes is labelled
+  # tuist.dev/kura-thin-ready=true.
+  thinRegions: []
+  # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
+  # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
+  # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
+  # own: accounts move under :kura_encrypted_volumes, their entire region moves
+  # to LVM through lvmRegions after its nodes are prepared, or an account on
+  # :kura_thin_volumes moves to thin volumes in thinRegions.
+  enabled: false
+  # Upgrades use an independently qualified immutable digest. The tag fallback
+  # preserves existing installations; ordinary server deploys do not upgrade CSI.
+  image:
+    repository: ghcr.io/tuist/kura-volumes-csi
+    digest: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Where the node plugin fetches volume keys. Defaults to server.appUrl.
+  keyServiceUrl: ""
+  # Base64 X25519 public key of the server's TUIST_KURA_VOLUME_TRANSPORT_KEYS
+  # entry that authenticates key-service responses. Without it the plugin
+  # still unstages and deletes volumes but cannot create or stage them.
+  keyServicePublicKey: ""
+  # The LVM volume group a node provisions for Kura volumes. A node that has
+  # it gets new volumes as logical volumes; one without it keeps backing files
+  # under /data/kura-volumes, whose double journal flush makes small synced
+  # writes about twice as slow. Empty disables LVM everywhere.
+  volumeGroup: kura-volumes
+  # Explicit opt-in only on prepared nodes. This does not create/convert pools.
+  # Use a separately scoped plugin deployment while migrating mixed fleets.
+  thin:
+    pool: ""
+    dataReserveBytes: 1073741824
+    metadataReserveBytes: 67108864
+    maxVolumes: 128
+  nodeDriverRegistrar:
+    image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
+  provisioner:
+    image: registry.k8s.io/sig-storage/csi-provisioner:v5.3.0
+  resources:
+    driver:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        memory: 512Mi
+    sidecar:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
 
 kuraRuntime:
   image:
@@ -629,6 +701,12 @@ server:
     cacheGrant:
       item: ""
       field: password
+    # JSON map of immutable target IDs to runner-local S3 configuration, from a
+    # 1Password item or the shard-storage chart's in-namespace Secret.
+    shardStorage:
+      item: ""
+      field: password
+      secret: ""
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:
@@ -773,6 +851,35 @@ server:
     cacheTokenKey:
       enabled: false
       signing: false
+    # Root keys that wrap per-tenant Kura volume keys
+    # (TUIST_KURA_VOLUME_ROOT_KEYS, 1Password item KURA_VOLUME_ROOT_KEYS, field
+    # `value`). Off until the item exists in the environment's vault: a missing
+    # field fails the whole sync.
+    kuraVolumeRootKeys:
+      enabled: false
+    # Static keys authenticating sealed volume-key responses
+    # (TUIST_KURA_VOLUME_TRANSPORT_KEYS, 1Password item KURA_VOLUME_TRANSPORT_KEYS,
+    # field `value`: comma-separated base64 32-byte X25519 private keys, the
+    # pinned one included). Off until the item exists in the environment's vault.
+    kuraVolumeTransportKeys:
+      enabled: false
+    # OpenBao and legacy roots coexist only during a verified rewrap migration.
+    # Disable root-key sync AFTER all live shares use OpenBao and restart every
+    # consumer of server-config. Retain old roots offline for backup recovery.
+    kuraVolumeOpenBao:
+      enabled: false
+      # Keep OpenBao decrypt access while rewrapping back to legacy roots.
+      # Disable only after all web replicas use this mode and inventory is clear.
+      wrapNewShares: true
+      # HTTPS origin only. Keep stable: stored share IDs pin origin/mount/key.
+      address: ""
+      keyName: "kura-volume-root"
+      transitMount: "transit"
+      authMount: "kubernetes"
+      role: ""
+      decryptKeyNames: []
+      # Optional ConfigMap containing ca.crt for a private OpenBao CA.
+      caConfigMap: ""
     externalSecrets:
       refreshInterval: "1h"
       storeRef:
@@ -897,6 +1004,11 @@ server:
   # through an exec command without placing credentials in command arguments.
   seedAccountCredentials:
     secretName: ""
+  # Lets the MCP `report_feedback` tool publish agent feedback to Atlas with a
+  # projected ServiceAccount token instead of a shared secret. Atlas must pin
+  # this cluster's JWKS and allowlist the server's namespace:ServiceAccount.
+  atlasSupportIngest:
+    enabled: false
   networkPolicy:
     enabled: false
     # Applies a default-deny policy to every pod in the release. The
@@ -1897,6 +2009,12 @@ rackFleet:
     # stacked image but not boot it. An Xcode without a stacked digest, or with
     # an `imageTag` override, keeps its standalone image.
     stackedImages: false
+    # How many runner images each host keeps. Every host stages the catalog
+    # pools' images up to it, warm floors first and then by the pools'
+    # `status.lastDemandAt`, and reaps the lowest-ranked beyond it. Empty
+    # leaves hosts staging only the releases of the images they hold and
+    # dropping an unused one after a day.
+    goldenBudget: ~
     # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
     # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
     # guestCapacity); the allocator caps the pools' joint sum.
@@ -1907,9 +2025,11 @@ rackFleet:
     # rollout:
     #   maxConcurrentPercent: 5
     # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
-    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
-    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
-    # from `guestShapes` below.
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`, and
+    # `shapes.<vcpus>vcpu-<gb>gb.autoscaling`, which replaces `shapes` below
+    # for that Xcode's pool of the shape. The image, runner labels and pod
+    # sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart from
+    # `guestShapes` below.
     xcodeOverrides: {}
     # A bigger guest on this fleet for a catalog shape, keyed
     # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
@@ -2556,8 +2676,9 @@ macosFleet:
 sandboxes:
   enabled: false
   namespace: tuist-sandboxes
-  # Both tags are `sha-<git-sha>` tags pushed by sandboxd-image.yml and
-  # sandbox-image.yml (workflow_dispatch). Empty is a render-time failure.
+  # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
+  # server deploys publish and select both; environment values pin only the
+  # versions a first install starts from. Empty tags are a render-time failure.
   image:
     repository: ghcr.io/tuist/sandboxd
     tag: ""
@@ -2606,6 +2727,12 @@ sandboxes:
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200
+  # Hours an Amp Orb stays paused on its node before the server archives its
+  # kernel, rootfs and workspace (not its memory image) to the account's
+  # object storage and deletes the node copy, releasing its disk reservation.
+  # The next spawn restores it on any node and cold boots it. 0 keeps paused
+  # Orbs on their nodes. See infra/amp-orbs/README.md.
+  archiveAfterHours: 0
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
   prebuildShapes: "2x4096"
@@ -2634,6 +2761,11 @@ sandboxes:
       - "192.168.0.0/16"
     # Let guests reach in-cluster Kura cache pods on :4000.
     kuraEgress: true
+    # Let the daemon reach the in-rack archive store (the shard-storage
+    # release in the kura namespace) on :3900 to upload and restore Amp Orb
+    # archives. The daemon drops the guests' traffic to that port
+    # (DAEMON_ONLY_TCP_PORT), so only the daemon uses this rule.
+    archiveStoreEgress: false
 
 runnersFleet:
   customCacheVolumes:
@@ -2849,8 +2981,9 @@ runnersFleet:
       memoryGb: 14
       default: true
     # A non-default entry may carry its own `autoscaling` block, which
-    # is the only place a shape's scaling is configured (`xcodeOverrides`
-    # tunes the default shape's pools). Without one the pool renders
+    # scales every Xcode's pool of the shape. An Xcode's
+    # `xcodeOverrides.<xcode>.shapes.<vcpus>vcpu-<gb>gb.autoscaling`
+    # replaces it for that Xcode's pool. Without either the pool renders
     # static at replicas 0.
     #
     # - vcpus: 12
@@ -4156,3 +4289,13 @@ kuraActivation:
     production: https://tuist.dev
     canary: https://canary.tuist.dev
     staging: https://staging.tuist.dev
+
+# Account integrations provision isolated provider workloads in this namespace.
+# No shared provider token or human Tuist login is required.
+ampOrbProvider:
+  enabled: false
+  namespace: tuist-amp-orbs
+  url: ""
+  image:
+    repository: ghcr.io/tuist/tuist-sandbox-template
+  nodeSelector: {}

@@ -30,6 +30,7 @@ defmodule AtlasWeb.ConnectionsLiveTest do
     assert has_element?(view, "#account-connections-link [data-selected]")
     assert has_element?(view, "#connection-account-github", "octocat")
     assert has_element?(view, "#connection-connect-google[href='/connections/google/authorize']")
+    assert has_element?(view, "#connection-gmail-consent[href='/connections/google/authorize?gmail=read']")
     refute has_element?(view, "#connection-disconnect-slack")
     refute render(view) =~ "private-access"
     refute render(view) =~ "private-refresh"
@@ -51,6 +52,8 @@ defmodule AtlasWeb.ConnectionsLiveTest do
       assert has_element?(view, "#connection-#{provider}")
       refute has_element?(view, "#connection-connect-#{provider}")
     end
+
+    refute has_element?(view, "#connection-gmail-consent")
   end
 
   defp insert_connection!(user, provider) do

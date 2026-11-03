@@ -44,6 +44,90 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     end
   end
 
+  describe "Amp Orb dispatch" do
+    test "marks only admission refusals as retryable", %{conn: conn, account: account} do
+      for {reason, status, hint} <- [
+            {:no_capacity, 503, ["admission"]},
+            {:sandbox_concurrency_limit, 429, ["admission"]},
+            {:sandbox_account_busy, 409, ["admission"]},
+            {:locked, 409, ["admission"]},
+            {:orb_bootstrap_failed, 502, []},
+            {:node_disconnected, 503, []}
+          ] do
+        expect(Tuist.Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, reason} end)
+
+        result =
+          post(conn, ~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{
+            operation: "spawn",
+            orb_token: "orb-fixture"
+          })
+
+        assert response(result, status)
+        assert get_resp_header(result, "x-tuist-orb-retry") == hint
+      end
+    end
+
+    test "requires a spawn token and validates the operation", %{conn: conn, account: account} do
+      for params <- [
+            %{operation: "spawn"},
+            %{operation: "unknown"},
+            %{operation: "spawn", orb_token: ""},
+            %{operation: "spawn", orb_token: "token", amp_url: "http://amp.example.com"}
+          ] do
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", params)
+        |> json_response(:bad_request)
+      end
+    end
+
+    test "pause and delete of missing Orbs succeed without credentials", %{conn: conn, account: account} do
+      for operation <- ["pause", "delete"] do
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{operation: operation})
+        |> response(:no_content)
+      end
+    end
+
+    test "spawns through the account API and never returns the token", %{conn: conn, account: account} do
+      stub(Capacity, :admit_turn, fn _sandbox, fun -> fun.() end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        assert env["ORB_TOKEN"] == "orb-secret"
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert "" ==
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{
+                 operation: "spawn",
+                 orb_token: "orb-secret"
+               })
+               |> response(:no_content)
+
+      assert %{account_id: account_id, amp_orb_id: "amp-thread"} = Repo.get_by!(Sandbox, amp_orb_id: "amp-thread")
+      assert account_id == account.id
+    end
+
+    test "requires the account feature flag", %{conn: conn, account: account} do
+      stub(Environment, :env, fn -> :prod end)
+      stub(FunWithFlags, :enabled?, fn :sandboxes, [for: _account] -> false end)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{operation: "pause"})
+      |> json_response(:not_found)
+    end
+
+    test "cannot dispatch into another account", %{conn: conn} do
+      other = AccountsFixtures.account_fixture()
+
+      conn
+      |> post(~p"/api/accounts/#{other.name}/sandboxes/amp-orbs/amp-thread", %{operation: "pause"})
+      |> json_response(:forbidden)
+    end
+  end
+
   describe "agent environments" do
     test "creates, lists and deletes an agent environment without ever returning the key", %{
       conn: conn,

@@ -52,20 +52,27 @@ struct CacheProxyCommandService {
     func run(url: String?, accountHandle: String?) async throws {
         let serverURL = try resolveServerURL(url: url)
 
-        // When launched without credentials (e.g. logged out), exit cleanly so
-        // launchd does not respawn the proxy every few seconds.
-        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
+        let networkTrusted = try await ServerCacheAccessMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        )
+        // Exit cleanly when neither credentials nor the instance policy permit
+        // startup, so launchd does not repeatedly respawn a signed-out proxy.
+        if !networkTrusted,
+           try await serverAuthenticationController.authenticationToken(serverURL: serverURL) == nil
+        {
             Logger.current.debug(
                 "Not authenticated against \(serverURL.absoluteString). The cache proxy will exit without starting."
             )
             return
         }
 
+        let endpoint = try await remoteEndpoint(serverURL: serverURL, accountHandle: accountHandle)
+        if networkTrusted, let endpoint { try ServerReportPublishingMode.validateDestination(endpoint) }
+
         guard let proxyPath = try await resourceLocator.casProxy() else {
             throw CacheProxyCommandServiceError.proxyBinaryMissing
         }
         let tuistPath = try await resourceLocator.cliPath()
-        let endpoint = try await remoteEndpoint(serverURL: serverURL, accountHandle: accountHandle)
 
         // Hand the proxy its config via the environment. The proxy fetches and
         // refreshes project-scoped bearers through `tuist cache config --json`

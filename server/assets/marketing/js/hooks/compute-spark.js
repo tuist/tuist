@@ -79,12 +79,14 @@ export const ComputeSpark = {
     this.IDLE_MS = 1200;
 
     this.resize = () => {
-      const rect = this.canvas.getBoundingClientRect();
+      // Layout size, not getBoundingClientRect: on tablets the scene is
+      // scaled with a CSS transform (see home.css), and the canvas draws in
+      // unscaled scene px.
       // Full-scene canvas cleared every frame at 60fps; DPR 2 instead of 3
       // more than halves the pixels touched per frame on phones.
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      this.w = Math.max(1, Math.round(rect.width));
-      this.h = Math.max(1, Math.round(rect.height));
+      this.w = Math.max(1, this.canvas.clientWidth);
+      this.h = Math.max(1, this.canvas.clientHeight);
       this.canvas.width = this.w * dpr;
       this.canvas.height = this.h * dpr;
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

@@ -29,6 +29,8 @@ defmodule Atlas.Orbit.InferenceRoleTest do
       providers: %{profile.upstream_provider => %{base_url: "https://provider.example/v1", api_key: "system-secret"}},
       request: fn options ->
         send(test_pid, {:system_attempted, options[:json]["model"]})
+        refute JSON.encode!(options[:json]) =~ "opaque-personal-state"
+        refute Enum.any?(options[:json]["messages"], &Map.has_key?(&1, "reasoning_details"))
         {:ok, %Req.Response{status: 200, body: completion(%{"role" => "assistant", "content" => "Fallback reply"})}}
       end
     )
@@ -39,7 +41,19 @@ defmodule Atlas.Orbit.InferenceRoleTest do
       Plug.Test.conn(
         :post,
         "/chat/completions",
-        JSON.encode!(%{"messages" => [%{"role" => "user", "content" => "Hi"}]})
+        JSON.encode!(%{
+          "messages" => [
+            %{"role" => "user", "content" => "Hi"},
+            %{
+              "role" => "assistant",
+              "content" => "Previous answer",
+              "reasoning_details" => [
+                %{"format" => "atlas-codex-v1", "item" => %{"encrypted_content" => "opaque-personal-state"}}
+              ]
+            },
+            %{"role" => "user", "content" => "Continue"}
+          ]
+        })
       )
       |> PersonalTransport.call(user_id: actor.id)
 

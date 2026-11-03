@@ -26,6 +26,7 @@ defmodule Atlas.Orbit.ModelFence do
   import Ecto.Query
   import Plug.Conn
 
+  alias Atlas.Environments.Commands
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Run
   alias Atlas.Orbit.Thread
@@ -44,12 +45,15 @@ defmodule Atlas.Orbit.ModelFence do
       send(worker, {:thread_model_process, self()})
     end
 
-    run_id = Keyword.fetch!(opts, :run_id)
-    attempt = Keyword.fetch!(opts, :attempt)
+    fence =
+      case Keyword.fetch(opts, :classification) do
+        {:ok, {thread_id, user_id}} -> {:classification, thread_id, user_id}
+        :error -> {Keyword.fetch!(opts, :run_id), Keyword.fetch!(opts, :attempt)}
+      end
 
-    if owns_run?(run_id, attempt) do
+    if authorized_fence?(fence) do
       conn
-      |> put_private(:orbit_model_fence, {run_id, attempt})
+      |> put_private(:orbit_model_fence, fence)
       |> dispatch(Keyword.fetch!(opts, :inner))
     else
       conn
@@ -59,8 +63,19 @@ defmodule Atlas.Orbit.ModelFence do
   end
 
   @doc "Rechecks the outer request's fence before a personal-provider fallback dispatch."
-  def authorized?(%{private: %{orbit_model_fence: {run_id, attempt}}}), do: owns_run?(run_id, attempt)
+  def authorized?(%{private: %{orbit_model_fence: fence}}), do: authorized_fence?(fence)
   def authorized?(_conn), do: true
+
+  defp authorized_fence?({:classification, thread_id, user_id}) do
+    with %Thread{domain: nil} = thread <- Repo.get(Thread, thread_id),
+         %User{} = user <- Repo.get(User, user_id) do
+      Access.can_read?(thread, user)
+    else
+      _ -> false
+    end
+  end
+
+  defp authorized_fence?({run_id, attempt}), do: owns_run?(run_id, attempt)
 
   defp owns_run?(run_id, attempt) do
     run =
@@ -74,7 +89,7 @@ defmodule Atlas.Orbit.ModelFence do
     with %Run{acting_user_id: user_id, thread_id: thread_id} when is_binary(user_id) <- run,
          %Thread{status: "active"} = thread <- Repo.get(Thread, thread_id),
          %User{} = user <- Repo.get(User, user_id) do
-      Access.can_read?(thread, user)
+      Access.can_read?(thread, user) and Commands.continuation_allowed?(thread, run.trigger_seq)
     else
       _ -> false
     end
@@ -92,10 +107,19 @@ defmodule Atlas.Orbit.ModelFence do
   system fallback). Options without one raise instead of producing an unfenced run.
   """
   def wrap(client_opts, %Run{id: run_id, resume_count: attempt}, worker) do
+    wrap_plug(client_opts, run_id: run_id, attempt: attempt, worker: worker)
+  end
+
+  @doc "Applies the same per-dispatch access and provider-fallback fence to the tool-free classifier."
+  def wrap_classification(client_opts, thread_id, user_id, worker) do
+    wrap_plug(client_opts, classification: {thread_id, user_id}, worker: worker)
+  end
+
+  defp wrap_plug(client_opts, fence_opts) do
     Keyword.update!(client_opts, :llm_request_options, fn request_options ->
       Keyword.update!(request_options, :req_http_options, fn http_options ->
         Keyword.update!(http_options, :plug, fn inner ->
-          {__MODULE__, run_id: run_id, attempt: attempt, worker: worker, inner: inner}
+          {__MODULE__, Keyword.put(fence_opts, :inner, inner)}
         end)
       end)
     end)

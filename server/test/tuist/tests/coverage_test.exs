@@ -432,7 +432,7 @@ defmodule Tuist.Tests.CoverageTest do
 
   describe "the xcode_coverage feature flag" do
     test "drops the coverage of an account that does not have it", %{project: project, account: account} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
 
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
 

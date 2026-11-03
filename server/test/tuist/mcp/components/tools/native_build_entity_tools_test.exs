@@ -11,7 +11,15 @@ defmodule Tuist.MCP.Components.Tools.NativeBuildEntityToolsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.BuildEntityResources
 
-  @kinds [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules, :bazel_actions]
+  @kinds [
+    :gradle_tasks,
+    :xcode_modules,
+    :once_actions,
+    :mix_files,
+    :mix_modules,
+    :bazel_actions,
+    :cargo_crates
+  ]
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])

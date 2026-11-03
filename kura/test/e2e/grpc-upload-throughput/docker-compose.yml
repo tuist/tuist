@@ -20,6 +20,8 @@ services:
     build:
       context: ../../..
       dockerfile: Dockerfile
+      additional_contexts:
+        certificate-trust: ../../../../infra/certificate-trust
     environment:
       # Minimal standalone config: the co-hosted HTTP + h2c gRPC listener on
       # 4000 (every path uploads REAPI through it). No peers, no auth extension.

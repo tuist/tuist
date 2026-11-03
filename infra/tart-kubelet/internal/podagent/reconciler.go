@@ -438,6 +438,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.publishRunnerHeartbeat(ctx, pod); err != nil {
 		logger.Error(err, "publish runner heartbeat; will retry")
 	}
+	r.stopWedgedGuest(ctx, pod)
+	r.logBootTiming(ctx, pod)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
@@ -1563,6 +1565,7 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			}
 			vmBootDurationSeconds.WithLabelValues(pool).Observe(time.Since(entry.StartTS.Time).Seconds())
 			entry.BootObserved = true
+			entry.IPAt = time.Now()
 		}
 		// For Pods that opt into scraping we report the host IP as
 		// the Pod IP so existing pod-IP-based discovery (Alloy's
@@ -1665,6 +1668,9 @@ const (
 	// clean job — only that the VM process ended without incident.
 	runnerExitReasonUnreported = "TartRunExited"
 	runnerExitReasonTartFailed = "TartRunFailed"
+	// No guest exit report, but the guest reported a wedged logd and the
+	// host stopped the VM (stopWedgedGuest).
+	runnerExitReasonLogdWedged = "LogdWedged"
 )
 
 // terminatedContainerStatuses synthesizes the per-container statuses for
@@ -1726,6 +1732,9 @@ func (r *Reconciler) runnerTermination(entry *Entry, runErr error) (int32, strin
 		}
 		return code, runnerExitReasonError
 	}
+	if readLogdWedged(entry.StatusDir) {
+		return 1, runnerExitReasonLogdWedged
+	}
 	if runErr != nil {
 		var exitErr *exec.ExitError
 		if errors.As(runErr, &exitErr) && exitErr.ExitCode() > 0 {
@@ -1762,6 +1771,31 @@ func runnerFinishedAt(entry *Entry) metav1.Time {
 		return metav1.NewTime(at)
 	}
 	return metav1.NewTime(time.Now())
+}
+
+// stopWedgedGuest stops the VM of a Pod whose guest reported a wedged logd that
+// killing did not bring back. The guest cannot recover or halt itself then, so
+// without this a job hangs until its own timeout and the VM holds its host
+// after that. The stop runs in the
+// background, off the single reconcile worker; the reconcile that sees `tart
+// run` exit publishes the runner terminated with runnerExitReasonLogdWedged.
+func (r *Reconciler) stopWedgedGuest(ctx context.Context, pod *corev1.Pod) {
+	entry := r.Store.Get(pod.Namespace, pod.Name)
+	if entry == nil || entry.LogdWedgedStopped || !readLogdWedged(entry.StatusDir) {
+		return
+	}
+	entry.LogdWedgedStopped = true
+	logger := log.FromContext(ctx)
+	logger.Info("guest reported a wedged logd; stopping the VM", "vm", entry.VMName)
+	if r.Recorder != nil {
+		r.Recorder.Event(pod, corev1.EventTypeWarning, runnerExitReasonLogdWedged,
+			"The guest's logd stopped draining logs, which blocks the job; stopping the VM")
+	}
+	go func(vm string) {
+		if err := r.Tart.Stop(context.WithoutCancel(ctx), vm, time.Second); err != nil {
+			logger.Error(err, "stop VM with a wedged logd", "vm", vm)
+		}
+	}(entry.VMName)
 }
 
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
@@ -1978,7 +2012,10 @@ type Entry struct {
 	// transition), not per reconcile — observing on every
 	// podStatus would skew the distribution toward `0` for
 	// long-lived VMs that get reconciled hundreds of times.
-	BootObserved      bool
+	BootObserved bool
+	// IPAt is when this host first saw the VM's IP; zero for a boot it did not witness.
+	IPAt              time.Time
+	BootTimingLogged  bool
 	MetricsForwarder  *Forwarder
 	VNCForwarder      *TCPForwarder
 	VNCRelayTokenHash string
@@ -1992,6 +2029,9 @@ type Entry struct {
 
 	// StatusDir is the host path of the guest-writable status share; empty for non-runner Pods.
 	StatusDir string
+
+	// LogdWedgedStopped is set once stopWedgedGuest has started stopping this VM.
+	LogdWedgedStopped bool
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

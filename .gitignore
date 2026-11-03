@@ -119,7 +119,10 @@ Tuist/Dependencies/graph.json
 
 .claude/*
 !.claude/settings.json
-.agents/
+.agents/*
+!.agents/setup
+!.agents/resume
+.amp/portals/
 mise.local.toml
 *.p12
 ./minio

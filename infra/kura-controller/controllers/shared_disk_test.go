@@ -68,3 +68,25 @@ func TestSharedDiskDefaultAndInvalidFloorRetainFullReservation(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedDiskNeverAppliesToCeilingBackedVolumes(t *testing.T) {
+	for _, spec := range []kurav1alpha1.KuraInstanceSpec{
+		{StorageSize: "64Gi", StorageFloor: "8Gi", StorageClassName: thinLocalStorageClass},
+		{StorageSize: "64Gi", StorageFloor: "8Gi", DiskResource: string(kuraDiskResource)},
+	} {
+		instance := &kurav1alpha1.KuraInstance{Spec: spec}
+		if sharedDiskEnabled(instance) {
+			t.Fatalf("floor enabled sharing on a ceiling-backed volume: %+v", spec)
+		}
+		if q := storageQuantity(instance); q.String() != "64Gi" {
+			t.Fatalf("claim shrank to %s", q.String())
+		}
+		reserved := defaultResources(instance, false).Requests[kuraDiskResource]
+		if reserved.Cmp(diskReservation(&kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{StorageSize: "64Gi", StorageClassName: spec.StorageClassName, DiskResource: spec.DiskResource}})) != 0 {
+			t.Fatalf("reservation changed: %s", reserved.String())
+		}
+		if nodeSelector(instance)["tuist.dev/kura-shared-disk"] != "" {
+			t.Fatal("selected shared-disk nodes")
+		}
+	}
+}

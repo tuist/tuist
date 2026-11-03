@@ -1,28 +1,23 @@
 ---
 {
-  "title": "Continuous Integration (CI)",
-  "titleTemplate": ":title · Automate · Guides · Tuist",
-  "description": "Learn how to use Tuist in your CI workflows."
+  "title": "持續整合 (CI)",
+  "titleTemplate": ":title · 自動化 · 指南 · Tuist",
+  "description": "學習如何在你的 CI 工作流程中使用 Tuist。"
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# 持續整合 (CI) {#continuous-integration-ci}
 
-To run Tuist commands in your [continuous
-integration](https://en.wikipedia.org/wiki/Continuous_integration) workflows,
-you'll need to install it in your CI environment.
+要喺你嘅 [持續整合](https://en.wikipedia.org/wiki/Continuous_integration) 工作流程入面執行 Tuist 指令，你需要喺 CI 環境安裝佢。 
 
-Authentication is optional but required if you want to use server-side features
-like <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>.
+認證係可選嘅，但如果你想使用伺服器端功能（例如 <.localized_link href="/guides/features/cache">快取</.localized_link>），就必須進行認證。 
 
-The following sections provide examples of how to do this on different CI
-platforms.
+以下章節提供咗喺唔同 CI 平台上點樣做嘅例子。
 
-## Examples {#examples}
+## 例子 {#examples}
 
 ### GitHub Actions {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC authentication</LocalizedLink> for secure, secretless authentication:
+喺 [GitHub Actions](https://docs.github.com/en/actions) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 認證</.localized_link> 來進行安全、無需密鑰嘅認證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -117,27 +112,18 @@ jobs:
 :::
 
 > [!NOTE]
-> **Oidc Setup**
+> **Oidc 設定**
 >
-> Before using OIDC authentication, you need to
-> <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
-> write` is required for OIDC to work. Alternatively, you can use a
-> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` secret.
+> 喺使用 OIDC 認證之前，你需要將你嘅 GitHub 儲存庫 <.localized_link href="/guides/integrations/gitforge/github">連接</.localized_link> 到你嘅 Tuist 專案。`permissions: id-token: write` 係 OIDC 運作所必需嘅。或者，你可以使用帶有 `TUIST_TOKEN` 密鑰嘅 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 > [!TIP]
-> We recommend using `mise use --pin` in your Tuist projects to pin the version of
-> Tuist across environments. The command will create a `.tool-versions` file
-> containing the version of Tuist.
+> 我哋建議喺你嘅 Tuist 專案中使用 `mise use --pin` 來固定跨環境嘅 Tuist 版本。呢個指令會建立一個包含 Tuist 版本嘅 `.tool-versions` 檔案。
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode
-projects as the source of truth, you'll need to add a
-[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-script to install Tuist and run the commands you need, for example `tuist
-generate`:
+喺 [Xcode Cloud](https://developer.apple.com/xcode-cloud/) 中（佢以 Xcode 專案為事實來源），你需要添加一個 [克隆後](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) 腳本來安裝 Tuist 並執行你需要嘅指令，例如 `tuist generate`：
 
 ::: code-group
 
@@ -164,16 +150,14 @@ tuist generate
 :::
 
 > [!NOTE]
-> **Authentication**
+> **認證**
 >
-> Use a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
-> Xcode Cloud workflow settings.
+> 透過喺你嘅 Xcode Cloud 工作流程設定中設置 `TUIST_TOKEN` 環境變數，來使用 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 ### CircleCI {#circleci}
 
-On [CircleCI](https://circleci.com) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC authentication</LocalizedLink> for secure, secretless authentication:
+喺 [CircleCI](https://circleci.com) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 認證</.localized_link> 來進行安全、無需密鑰嘅認證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -225,19 +209,14 @@ jobs:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **認證**
 >
-> Before using OIDC authentication, you need to
-> <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
-> your connected GitHub repository, which Tuist uses to authorize access to your
-> projects. Alternatively, you can use a
-> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+> 喺使用 OIDC 認證之前，你需要將你嘅 GitHub 儲存庫 <.localized_link href="/guides/integrations/gitforge/github">連接</.localized_link> 到你嘅 Tuist 專案。CircleCI OIDC 令牌包含你已連接嘅 GitHub 儲存庫，Tuist 用佢來授權訪問你嘅專案。或者，你可以使用帶有 `TUIST_TOKEN` 環境變數嘅 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 ### Bitrise {#bitrise}
 
-On [Bitrise](https://bitrise.io) you can use
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC authentication</LocalizedLink> for secure, secretless authentication:
+喺 [Bitrise](https://bitrise.io) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 認證</.localized_link> 來進行安全、無需密鑰嘅認證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -291,19 +270,14 @@ workflows:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **認證**
 >
-> Before using OIDC authentication, you need to
-> <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
-> your connected GitHub repository, which Tuist uses to authorize access to your
-> projects. Alternatively, you can use a
-> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+> 喺使用 OIDC 認證之前，你需要將你嘅 GitHub 儲存庫 <.localized_link href="/guides/integrations/gitforge/github">連接</.localized_link> 到你嘅 Tuist 專案。Bitrise OIDC 令牌包含你已連接嘅 GitHub 儲存庫，Tuist 用佢來授權訪問你嘅專案。或者，你可以使用帶有 `TUIST_TOKEN` 環境變數嘅 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 ### Codemagic {#codemagic}
 
-In [Codemagic](https://codemagic.io), you can add an additional step to your
-workflow to install Tuist:
+喺 [Codemagic](https://codemagic.io) 中，你可以喺工作流程中添加額外步驟來安裝 Tuist：
 
 ::: code-group
 ```yaml [Mise]
@@ -343,9 +317,94 @@ workflows:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **認證**
 >
-> Create a
-> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as a secret environment variable named
-> `TUIST_TOKEN`.
+> 建立一個 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>，並將佢添加為名為 `TUIST_TOKEN` 嘅秘密環境變數。
 
+### Appcircle {#appcircle}
+
+喺 [Appcircle](https://appcircle.io) 中，你可以使用內置嘅 [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) 同 [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) 工作流程步驟，或者喺 **Git Clone** 步驟之後添加一個 **自定義腳本** 步驟來自行安裝 Tuist：
+
+::: code-group
+```bash [Mise]
+cd $AC_REPOSITORY_DIR
+curl https://mise.jdx.dev/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+mise install
+mise exec -- tuist setup cache
+```
+```bash [Homebrew]
+cd $AC_REPOSITORY_DIR
+brew install --formula tuist@x.y.z
+tuist setup cache
+```
+<!-- -->
+:::
+
+> [!NOTE]
+> **工作流程步驟**
+>
+> Tuist Install 步驟會使用 Homebrew 安裝 Tuist 並執行 `tuist generate`。設置 **Tuist Version** 輸入以固定版本，然後添加 Tuist Commands 步驟來執行例如 `tuist test` 或 `tuist build` 等指令。
+
+> [!NOTE]
+> **認證**
+>
+> 建立一個 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>，將佢作為名為 `TUIST_TOKEN` 嘅變數添加到 [環境變數組](https://docs.appcircle.io/build/build-environment-variables)，並喺你嘅建構配置中選擇該組。使用鎖頭圖標將變數標記為秘密。
+
+## 運行報告 {#run-report}
+
+當 Tuist 上傳一次運行時，儀表板網址會打印到日誌中。要喺唔解析日誌嘅情況下獲取佢哋——例如喺工作失敗時將測試報告連結發布到 Slack，或者將運行數據餵給你自己的工具——請將 `--run-report-path`（或設置 `TUIST_RUN_REPORT_PATH`）傳遞給 `tuist test`、`tuist xcodebuild test` 或 `tuist xcodebuild build`。一旦運行上傳完成，Tuist 會將 JSON 報告寫入該路徑：
+
+```json
+{
+  "runId": "0193f8c1-...",
+  "status": "success",
+  "runURL": "https://tuist.dev/acme/app/runs/0193f8c1-...",
+  "testRunURL": "https://tuist.dev/acme/app/tests/test-runs/...",
+  "buildRunURL": "https://tuist.dev/acme/app/builds/build-runs/...",
+  "testRuns": [
+    {
+      "scheme": "App",
+      "succeeded": true,
+      "totalTests": 42,
+      "skippedTests": 0,
+      "ranTests": 42,
+      "failedTestNames": [],
+      "ranTestModules": 3,
+      "skippedTestModules": 5
+    }
+  ],
+  "buildRuns": [
+    { "scheme": "App", "succeeded": true, "durationInSeconds": 12.3 }
+  ]
+}
+```
+
+| 欄位 | 類型 | 描述 |
+| - | - | - |
+| `runId` | 字串 | 運行嘅唯一識別碼。 |
+| `status` | 字串 | `"success"` 或 `"failure"`。 |
+| `runURL` | 字串 | 該運行嘅儀表板網址。必定存在。 |
+| `testRunURL` | 字串? | 測試運行嘅儀表板網址，喺指令執行測試時出現。 |
+| `buildRunURL` | 字串? | 建構運行嘅儀表板網址，喺指令執行建構時出現。 |
+| `testRuns` | 陣列 | 每個 Scheme 嘅測試結果：`scheme`、`succeeded`、`totalTests`、`skippedTests`、`ranTests`、`failedTestNames`、`ranTestModules` 同 `skippedTestModules`。測試計數係測試案例數量，而 `skippedTests` 計數結果套件報告為已跳過嘅案例。`skippedTestModules` 計數被 <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> 跳過嘅測試模組數量，如果無應用選擇性測試或該運行係測試分片，則會省略此欄位。 |
+| `buildRuns` | 陣列 | 每個 Scheme 嘅建構結果：`scheme`、`succeeded`、`durationInSeconds`。 |
+
+`testRunURL` 同 `buildRunURL` 係獨立嘅：同時執行建構同測試嘅指令會寫入兩者，但日誌做唔到呢點——日誌每次運行只打印一個網址。
+
+> [!NOTE]
+> **報告寫入時機**
+>
+> 報告只會為上傳到伺服器嘅運行寫入，這需要認證並會喺 CI 上自動發生。路徑會喺每次運行開始時清除，所以如果一次運行無產生報告，就唔會留下任何內容，而唔係留下之前運行嘅過時報告。
+
+喺 GitLab CI 上，常見用法係透過 [`dotenv` 報告](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv) 將網址暴露給後續工作：
+
+```yaml
+test:
+  script:
+    - tuist test --run-report-path tuist-run.json
+    - echo "TUIST_TEST_RUN_URL=$(jq -r '.testRunURL // empty' tuist-run.json)" >> run.env
+  artifacts:
+    reports:
+      dotenv: run.env
+```

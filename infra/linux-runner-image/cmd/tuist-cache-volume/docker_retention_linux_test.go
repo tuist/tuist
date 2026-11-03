@@ -94,13 +94,7 @@ func TestDockerTrimFailureWithholdsTeardown(t *testing.T) {
 	if _, err := d.handle(dockerMessage{Docker: "switch", Source: source}); err != nil {
 		t.Fatal(err)
 	}
-	run := d.run
-	d.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		if name == "fstrim" {
-			return nil, errors.New("discard unsupported")
-		}
-		return run(ctx, name, args...)
-	}
+	d.trim = func(string) error { return errors.New("discard unsupported") }
 	if _, err := d.handle(dockerMessage{Docker: "teardown"}); err == nil {
 		t.Fatal("trim failure ignored")
 	}

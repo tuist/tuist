@@ -395,6 +395,22 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert Shards.download_build(nil, "/nowhere") == {:error, :no_build}
   end
 
+  test "names the store a build downloads from, without its signature" do
+    expect(TuistEx.Analytics.Report, :debug, fn message ->
+      assert message ==
+               "Downloading the shard build from http://shard-storage.kura.svc.cluster.local:3900"
+
+      :ok
+    end)
+
+    expect(TuistEx.HTTP, :download, fn _url, _archive -> {:error, {:http, 404}} end)
+
+    assert Shards.download_build(
+             "http://shard-storage.kura.svc.cluster.local:3900/shards/1/2/bundle.zip?X-Amz-Signature=secret",
+             "/nowhere"
+           ) == {:error, :no_build}
+  end
+
   test "writes the shard matrix where GitHub Actions reads job outputs", %{directory: directory} do
     output = Path.join(directory, "github_output")
     File.write!(output, "previous=1\n")

@@ -50,14 +50,21 @@ impl Default for RefreshState {
 /// A bearer plus the expiry parsed from its JWT `exp` claim, if any. Opaque
 /// (non-JWT) project tokens carry no expiry and are never proactively refreshed.
 struct CachedToken {
-    value: String,
+    // None is an explicitly successful network-trusted cache configuration,
+    // not a failed credential lookup.
+    value: Option<String>,
     expiry: Option<SystemTime>,
+    unsigned_endpoint: Option<String>,
 }
 
 impl CachedToken {
     fn new(value: String) -> Self {
         let expiry = jwt_expiry(&value);
-        Self { value, expiry }
+        Self {
+            value: Some(value),
+            expiry,
+            unsigned_endpoint: None,
+        }
     }
 }
 
@@ -70,7 +77,8 @@ pub struct TokenFetch {
 
 impl TokenFetch {
     pub fn executable(&self) -> String {
-        self.launch_target.as_deref()
+        self.launch_target
+            .as_deref()
             .and_then(crate::proxy_upgrade::selected_executable)
             .map(|path| path.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.tuist_bin.clone())
@@ -86,11 +94,44 @@ impl TokenProvider {
         self.fetch.as_ref()
     }
 
+    pub fn account_handle(&self) -> Option<&str> {
+        self.fetch
+            .as_ref()?
+            .full_handle
+            .as_deref()?
+            .split_once('/')
+            .map(|(account, _)| account)
+    }
+
+    /// Anonymous permission belongs to the endpoint the CLI validated, not to
+    /// a still-live Remote from before an endpoint or credential transition.
+    pub fn current_for_endpoint(&self, endpoint: &str) -> Result<Option<String>, String> {
+        self.current();
+        match self.cached.lock().unwrap().as_ref() {
+            Some(cached) => {
+                if cached.value.is_none()
+                    && !cached
+                        .unsigned_endpoint
+                        .as_deref()
+                        .is_some_and(|allowed| crate::endpoint::same_endpoint(allowed, endpoint))
+                {
+                    return Err(
+                        "network-trusted cache endpoint changed; awaiting endpoint resolution"
+                            .into(),
+                    );
+                }
+                Ok(cached.value.clone())
+            }
+            None => Ok(self.fetch.as_ref().map(|_| String::new())),
+        }
+    }
+
     /// Builds a provider from the environment: `TUIST_CAS_TOKEN` seeds the
     /// cache; `TUIST_CAS_TUIST_BIN` (+ optional `TUIST_CAS_SERVER_URL`) enables
     /// shell-out refresh via the CLI.
     pub fn from_env() -> Arc<Self> {
-        let cached = env_nonempty("TUIST_CAS_TOKEN").map(CachedToken::new);
+        let cached = std::env::var_os("TUIST_CAS_TOKEN")
+            .map(|value| CachedToken::new(value.into_string().unwrap_or_default()));
         let fetch = env_nonempty("TUIST_CAS_TUIST_BIN").map(|tuist_bin| TokenFetch {
             tuist_bin,
             launch_target: env_nonempty("TUIST_CAS_PROXY_LAUNCH_TARGET").map(Into::into),
@@ -124,16 +165,24 @@ impl TokenProvider {
 
     /// The current bearer, fetching one lazily if the cache is empty. Concurrent
     /// cold callers coalesce onto a single `tuist` invocation.
-    pub fn current(&self) -> Option<String> {
+    fn current(&self) -> Option<String> {
         if let Some(cached) = self.cached.lock().unwrap().as_ref() {
-            return Some(cached.value.clone());
+            if cached.value.is_some()
+                || cached
+                    .expiry
+                    .is_some_and(|expiry| SystemTime::now() < expiry)
+            {
+                return cached.value.clone();
+            }
         }
-        self.refresh(None);
-        self.cached
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|cached| cached.value.clone())
+        self.refresh(Some(Duration::ZERO));
+        match self.cached.lock().unwrap().as_ref() {
+            Some(cached) => cached.value.clone(),
+            // A failed CLI lookup must send an invalid credential rather than
+            // silently select network trust. Direct, credential-free integrations
+            // have no CLI fetch and retain their existing absent-header behavior.
+            None => self.fetch.as_ref().map(|_| String::new()),
+        }
     }
 
     /// Refreshes the bearer only when the cached JWT is within `lead` of its
@@ -181,9 +230,13 @@ impl TokenProvider {
             return;
         }
         if let Some(token) = run_token_command(fetch, &executable) {
-            *self.cached.lock().unwrap() = Some(CachedToken::new(token));
+            *self.cached.lock().unwrap() = Some(token);
             *state = RefreshState::default();
         } else {
+            let mut cached = self.cached.lock().unwrap();
+            if cached.as_ref().is_some_and(|token| token.value.is_none()) {
+                *cached = None;
+            }
             state.retry_at = Some(Instant::now() + state.retry_delay);
             state.retry_delay = (state.retry_delay * 2).min(MAX_RETRY_DELAY);
         }
@@ -231,7 +284,7 @@ fn extract_exp(payload: &[u8]) -> Option<u64> {
     None
 }
 
-fn run_token_command(fetch: &TokenFetch, executable: &str) -> Option<String> {
+fn run_token_command(fetch: &TokenFetch, executable: &str) -> Option<CachedToken> {
     let mut command = Command::new(executable);
     if let Some(full_handle) = &fetch.full_handle {
         command
@@ -258,18 +311,23 @@ fn run_token_command(fetch: &TokenFetch, executable: &str) -> Option<String> {
             .into_iter::<serde_json::Value>()
             .next()?
             .ok()?;
-        return value
-            .get("token")?
-            .as_str()
-            .filter(|token| !token.is_empty())
-            .map(str::to_owned);
+        let token = value.get("token")?.as_str()?;
+        return Some(if token.is_empty() {
+            CachedToken {
+                value: None,
+                expiry: Some(SystemTime::now() + Duration::from_secs(60)),
+                unsigned_endpoint: Some(value.get("url")?.as_str()?.to_owned()),
+            }
+        } else {
+            CachedToken::new(token.to_owned())
+        });
     }
     stdout
         .lines()
         .rev()
         .map(str::trim)
         .find(|line| !line.is_empty())
-        .map(str::to_string)
+        .map(|token| CachedToken::new(token.to_owned()))
 }
 
 #[cfg(test)]
@@ -332,27 +390,254 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
         let new = FakeCli::new();
         let target = old.0.join("target.json");
         let write_target = |executable: &std::path::Path, version: &str| {
-            std::fs::write(&target, serde_json::json!({
-                "executable": executable, "tuistVersion": version
-            }).to_string()).unwrap();
+            std::fs::write(
+                &target,
+                serde_json::json!({
+                    "executable": executable, "tuistVersion": version
+                })
+                .to_string(),
+            )
+            .unwrap();
         };
         write_target(&old.0.join("tuist"), "4.213.0");
         let mut root = old.provider();
-        Arc::get_mut(&mut root).unwrap().fetch.as_mut().unwrap().launch_target = Some(target.clone());
+        Arc::get_mut(&mut root)
+            .unwrap()
+            .fetch
+            .as_mut()
+            .unwrap()
+            .launch_target = Some(target.clone());
         let provider = root.for_instance("acme/one");
         std::fs::remove_file(old.0.join("tuist")).unwrap();
-        assert_eq!(provider.current(), None);
+        assert_eq!(provider.current().as_deref(), Some(""));
         assert!(provider.refreshing.lock().unwrap().retry_at.is_some());
         write_target(&new.0.join("tuist"), "4.214.0");
         assert_eq!(provider.current().as_deref(), Some("acme/one"));
-        assert_eq!(provider.cli_fetch().unwrap().executable(), new.0.join("tuist").to_str().unwrap());
-        assert_eq!(std::fs::read_to_string(new.0.join("calls")).unwrap(), "acme/one\n");
+        assert_eq!(
+            provider.cli_fetch().unwrap().executable(),
+            new.0.join("tuist").to_str().unwrap()
+        );
+        assert_eq!(
+            std::fs::read_to_string(new.0.join("calls")).unwrap(),
+            "acme/one\n"
+        );
     }
 
     impl Drop for FakeCli {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn reapi_preserves_credentials_accounts_and_endpoint_bound_network_trust() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2 as reapi;
+        use reapi::action_cache_server::{ActionCache, ActionCacheServer};
+        use tonic::{Request, Response, Status};
+
+        #[derive(Default)]
+        struct Observed {
+            calls: usize,
+            account: Option<String>,
+            authorization: Option<String>,
+            instance: String,
+        }
+        struct NetworkCache(Arc<Mutex<Observed>>);
+        #[tonic::async_trait]
+        impl ActionCache for NetworkCache {
+            async fn get_action_result(
+                &self,
+                request: Request<reapi::GetActionResultRequest>,
+            ) -> Result<Response<reapi::ActionResult>, Status> {
+                let mut observed = self.0.lock().unwrap();
+                observed.calls += 1;
+                observed.account = request
+                    .metadata()
+                    .get("x-tuist-account-handle")
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_owned);
+                observed.authorization = request
+                    .metadata()
+                    .get("authorization")
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_owned);
+                observed.instance = request.get_ref().instance_name.clone();
+                if observed
+                    .account
+                    .as_deref()
+                    .is_some_and(|account| account != "acme")
+                {
+                    return Err(Status::permission_denied("wrong account"));
+                }
+                if request
+                    .metadata()
+                    .get("authorization")
+                    .is_some_and(|value| value.to_str().ok() != Some("Bearer accepted"))
+                {
+                    return Err(Status::unauthenticated("supplied credential rejected"));
+                }
+                Ok(Response::new(reapi::ActionResult::default()))
+            }
+
+            async fn update_action_result(
+                &self,
+                _: Request<reapi::UpdateActionResultRequest>,
+            ) -> Result<Response<reapi::ActionResult>, Status> {
+                Err(Status::unimplemented("unused"))
+            }
+        }
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .unwrap();
+        let listener = runtime
+            .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let observed = Arc::new(Mutex::new(Observed::default()));
+        let service = NetworkCache(observed.clone());
+        let server = runtime.spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(ActionCacheServer::new(service))
+                .serve_with_incoming_shutdown(
+                    tonic::transport::server::TcpIncoming::from(listener),
+                    async {
+                        let _ = stopped.await;
+                    },
+                )
+                .await
+                .unwrap();
+        });
+        for token in [
+            None,
+            Some("accepted"),
+            Some("rejected"),
+            Some(""),
+            Some("rejected\n"),
+            Some("rejected\r"),
+            Some("réjected"),
+        ] {
+            let tokens = Arc::new(TokenProvider {
+                cached: Mutex::new(token.map(|value| CachedToken::new(value.to_owned()))),
+                refreshing: Mutex::new(RefreshState::default()),
+                fetch: None,
+            });
+            let remote = crate::reapi::Remote::new(
+                crate::reapi::RemoteConfig {
+                    grpc_url: format!("http://{addr}"),
+                    instance: "acme/ios".into(),
+                },
+                tokens,
+            );
+            let result = remote.get_action(b"cache-key");
+            if token.is_none() || token == Some("accepted") {
+                assert!(result.is_ok(), "{token:?}: {:?}", result.err());
+            } else {
+                assert!(
+                    matches!(result, Err(error) if error.contains("supplied credential rejected")),
+                    "{token:?}"
+                );
+            }
+        }
+
+        let cli = FakeCli::new();
+        let configure = |token: &str, endpoint: &str| {
+            std::fs::write(
+                cli.0.join("tuist"),
+                format!(
+                    "#!/bin/sh\nprintf '%s\\n' '{}'\n",
+                    serde_json::json!({"token": token, "url": endpoint})
+                ),
+            )
+            .unwrap();
+        };
+        let old_endpoint = format!("http://{addr}");
+        let new_endpoint = format!("http://{addr}/new");
+        let provider = cli.provider().for_instance("acme/ios");
+        configure("accepted", &old_endpoint);
+        let old = crate::reapi::Remote::new(
+            crate::reapi::RemoteConfig {
+                grpc_url: old_endpoint,
+                instance: "ios".into(),
+            },
+            provider.clone(),
+        );
+        assert!(old.get_action(b"signed").is_ok());
+        {
+            let observed = observed.lock().unwrap();
+            assert_eq!(observed.account.as_deref(), Some("acme"));
+            assert_eq!(observed.authorization.as_deref(), Some("Bearer accepted"));
+            assert_eq!(observed.instance, "ios");
+        }
+
+        configure("", &new_endpoint);
+        provider.cached.lock().unwrap().as_mut().unwrap().expiry = Some(UNIX_EPOCH);
+        provider.refresh_if_expiring(Duration::ZERO);
+        let calls = observed.lock().unwrap().calls;
+        assert!(old
+            .get_action(b"must-not-leak")
+            .err()
+            .expect("the old destination must be rejected")
+            .contains("endpoint changed"));
+        assert_eq!(
+            observed.lock().unwrap().calls,
+            calls,
+            "no request reaches the old endpoint"
+        );
+        let new = crate::reapi::Remote::new(
+            crate::reapi::RemoteConfig {
+                grpc_url: format!("{new_endpoint}/"),
+                instance: "ios".into(),
+            },
+            provider,
+        );
+        assert!(new.get_action(b"unsigned").is_ok());
+        {
+            let observed = observed.lock().unwrap();
+            assert_eq!(observed.account.as_deref(), Some("acme"));
+            assert_eq!(observed.authorization, None);
+            assert_eq!(observed.instance, "ios");
+        }
+        let wrong_account = crate::reapi::Remote::new(
+            crate::reapi::RemoteConfig {
+                grpc_url: new_endpoint,
+                instance: "ios".into(),
+            },
+            cli.provider().for_instance("globex/ios"),
+        );
+        assert!(wrong_account
+            .get_action(b"must-not-alias")
+            .err()
+            .expect("another account must not alias the node account")
+            .contains("wrong account"));
+        stop.send(()).unwrap();
+        runtime.block_on(server).unwrap();
+    }
+
+    #[test]
+    fn only_successful_network_trusted_configuration_may_omit_credentials() {
+        let cli = FakeCli::new();
+        let script = cli.0.join("tuist");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nprintf '{\"token\":\"\",\"url\":\"https://private-cache.example\"}\\n'\n",
+        )
+        .unwrap();
+        let provider = cli.provider().for_instance("acme/one");
+        assert_eq!(provider.current(), None);
+        std::fs::write(&script, "#!/bin/sh\nexit 1\n").unwrap();
+        provider.cached.lock().unwrap().as_mut().unwrap().expiry = Some(UNIX_EPOCH);
+        assert_eq!(provider.current().as_deref(), Some(""));
+        assert_eq!(provider.current().as_deref(), Some(""));
+        let direct = TokenProvider {
+            cached: Mutex::new(Some(CachedToken::new(String::new()))),
+            refreshing: Mutex::new(RefreshState::default()),
+            fetch: None,
+        };
+        assert_eq!(direct.current().as_deref(), Some(""));
     }
 
     #[test]
@@ -386,7 +671,10 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
         *one.cached.lock().unwrap() = Some(CachedToken::new(make_jwt(r#"{"exp":1}"#)));
         one.refresh_if_expiring(Duration::from_secs(20));
         assert_eq!(one.current().as_deref(), Some("acme/one"));
-        assert_eq!(machine.for_instance("acme/forbidden").current(), None);
+        assert_eq!(
+            machine.for_instance("acme/forbidden").current().as_deref(),
+            Some("")
+        );
         assert_eq!(machine.current().as_deref(), Some("machine-bearer"));
     }
 
@@ -423,10 +711,10 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
             })
             .collect();
         for thread in threads {
-            assert_eq!(thread.join().unwrap(), None);
+            assert_eq!(thread.join().unwrap().as_deref(), Some(""));
         }
         for _ in 0..3 {
-            assert_eq!(provider.current(), None);
+            assert_eq!(provider.current().as_deref(), Some(""));
             provider.refresh_if_expiring(Duration::from_secs(20));
         }
         assert_eq!(
@@ -440,7 +728,7 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
         for attempt in 1..7 {
             provider.refreshing.lock().unwrap().retry_at =
                 Some(Instant::now() - Duration::from_secs(1));
-            assert_eq!(provider.current(), None);
+            assert_eq!(provider.current().as_deref(), Some(""));
             let state = provider.refreshing.lock().unwrap();
             let expected = (INITIAL_RETRY_DELAY * (1 << attempt)).min(MAX_RETRY_DELAY);
             let remaining = state.retry_at.unwrap().duration_since(Instant::now());
@@ -461,7 +749,7 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
         let machine = cli.provider();
         let failed = machine.for_instance("acme/forbidden");
         let healthy = machine.for_instance("acme/one");
-        assert_eq!(failed.current(), None);
+        assert_eq!(failed.current().as_deref(), Some(""));
         assert_eq!(healthy.current().as_deref(), Some("acme/one"));
         let script = std::fs::read_to_string(cli.0.join("tuist")).unwrap();
         std::fs::write(
@@ -469,7 +757,7 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
             script.replace("acme/one|acme/two)", "acme/one|acme/two|acme/forbidden)"),
         )
         .unwrap();
-        assert_eq!(failed.current(), None);
+        assert_eq!(failed.current().as_deref(), Some(""));
         failed.refreshing.lock().unwrap().retry_at = Some(Instant::now() - Duration::from_secs(1));
         assert_eq!(failed.current().as_deref(), Some("acme/forbidden"));
         let state = failed.refreshing.lock().unwrap();

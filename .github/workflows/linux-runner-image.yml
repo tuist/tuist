@@ -9,7 +9,7 @@ name: Linux Runner Image
 #     branch can be validated against a real cluster before merging.
 #
 # The semver / `:latest` / chart-digest-rewrite flow lives in
-# server-production-deployment.yml's `release-linux-runner-image` job — pushed on main.
+# linux-runner-image-release.yml — pushed on main.
 # This workflow deliberately doesn't touch `:latest` or any semver
 # tag; only the release job does.
 #
@@ -22,7 +22,11 @@ on:
   pull_request:
     paths:
       - infra/linux-runner-image/**
+      - infra/runner-image/bitrise-hooks/**
       - .github/actions/setup-docker-builder/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/java-store.sh
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/linux-runner-image.yml
       - .github/workflows/server-production-deployment.yml
       - .github/scripts/linux-runner-image-*
@@ -95,7 +99,7 @@ jobs:
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
             --entrypoint sh \
             "$dind_image" \
-            -c 'apk add --no-cache e2fsprogs coreutils util-linux >/dev/null && /cache-volume.test -test.v -test.run "TestDockerBuildCacheAcrossJobs|TestDockerTrimReclaimsDeletedBlocks" -test.timeout=14m' \
+            -c 'apk add --no-cache e2fsprogs coreutils >/dev/null && /cache-volume.test -test.v -test.run "TestDockerBuildCacheAcrossJobs|TestDockerTrimReclaimsDeletedBlocks" -test.timeout=14m' \
             2>&1 | tee "$RUNNER_TEMP/docker-build-cache.log"
       - uses: actions/upload-artifact@v4
         if: always()
@@ -132,6 +136,9 @@ jobs:
 
       - name: Test job-start hook
         run: bash infra/linux-runner-image/run-job_test.sh
+
+      - name: Test Bitrise build start hook
+        run: bash infra/linux-runner-image/bitrise-build-start_test.sh
 
       # Runs on the image's own base rather than the CI runner, because
       # the assertions are about how Ubuntu's awk (mawk) formats byte
@@ -187,6 +194,7 @@ jobs:
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
           # Linux runners run on Hetzner Robot bare-metal x86 boxes
           # at v1. arm64 is a future option (Ampere-based SKUs) and
           # can land as an additive `platforms:` entry.

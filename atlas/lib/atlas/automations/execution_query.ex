@@ -5,7 +5,7 @@ defmodule Atlas.Automations.ExecutionQuery do
   alias Atlas.Automations.Workflow
 
   @statuses ~w(queued running waiting_approval succeeded failed rejected cancelled)
-  @triggers ~w(manual schedule webhook)
+  @triggers ~w(manual schedule webhook signal)
   @fields %{"created" => :inserted_at, "status" => :status, "trigger" => :trigger}
 
   def statuses, do: @statuses

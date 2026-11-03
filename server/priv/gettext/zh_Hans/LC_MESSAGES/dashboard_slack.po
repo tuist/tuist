@@ -55,4 +55,4 @@ msgstr "授权请求已过期。请重新开始 Slack 连接流程。"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack 返回了一个意外的 Webhook URL。请重试。"
+msgstr "Slack 返回了意外的 Webhook URL。请重试。"

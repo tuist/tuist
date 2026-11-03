@@ -157,7 +157,9 @@ final class AtlasNavigation: ObservableObject {
     }
 
     func block(_ id: UUID, active: Bool, tab: String? = nil) {
-        if active { blockers[id] = tab ?? selection } else { blockers.removeValue(forKey: id) }
+        let value = active ? (tab ?? selection) : nil
+        guard blockers[id] != value else { return }
+        blockers[id] = value
     }
 
     func reset() {
@@ -224,5 +226,16 @@ extension View {
     // A protected view dismissed while its tab is hidden must first set active to false.
     func protectsAtlasNavigation(_ active: Bool = true) -> some View {
         modifier(AtlasNavigationProtection(active: active))
+    }
+}
+
+extension AtlasAuthentication {
+    func destination(_ url: URL) -> URL {
+        guard let server, var destination = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let origin = URLComponents(url: server, resolvingAgainstBaseURL: false) else { return url }
+        destination.scheme = origin.scheme
+        destination.host = origin.host
+        destination.port = origin.port
+        return destination.url ?? url
     }
 }

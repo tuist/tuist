@@ -74,3 +74,22 @@ repository-wide SDK pins, management replacement guards, OTP and Kura integratio
 checks belong with those integrations as they land. They are not replaced by
 skips or passing placeholders here. Product/runtime/artifact qualification and
 owner-approved release/rollout remain separate gates.
+
+The infrastructure SDK integration requires Go 1.26.10 in the root workspace
+and every independently built infrastructure module, including the nested
+GitLab executor and macOS host payloads. It retains `godebug default=go1.25`
+(`go1.23` for kube-impersonator) to avoid changing unrelated runtime defaults.
+The workflow runs the explicit-root probe under both retained defaults and
+checks these module directives. Grafana's separate workspace has its own owner.
+Go 1.26.10 also filters returned Darwin platform chains in `crypto/x509`, but
+Linux tests and Darwin cross-compilation do not qualify nil-root native trust.
+Existing artifacts must be rebuilt; no image or host rollout follows from a
+module directive alone.
+
+First-party Docker compiler stages select Go 1.26.10 alongside these module
+floors; otherwise `GOTOOLCHAIN=local` in older builder images refuses to build.
+Alpine builders use the available `1.26.10-alpine3.23` tag independently of the
+unchanged runtime Alpine version. The CAPI provider pins only its first-party
+compiler stages here, leaving its third-party payload stages unchanged. These
+compiler selections do not filter OS stores or add build contexts; those image
+trust boundaries and their rollout qualification remain separate changes.

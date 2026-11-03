@@ -164,6 +164,7 @@ func (a *agent) serveDockerMerge(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(none)
 		return
 	}
+	a.awaitDockerPublications(ctx, slot)
 	if a.dockerMerges != nil {
 		select {
 		case a.dockerMerges <- struct{}{}:
@@ -194,6 +195,55 @@ func (a *agent) serveDockerMerge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"merge": true, "source": slot.Scope + "/" + cachevolumes.DockerMergeImageName, "generation": head.BaseGeneration})
+}
+
+// dockerPublicationWait bounds waiting for another job's data root of the same
+// lineage to publish, leaving the rest of the merge budget to clone or download
+// the head it saves.
+const dockerPublicationWait = 2 * time.Minute
+
+var dockerPublicationPoll = time.Second
+
+// awaitDockerPublications waits while another job of the slot's lineage on this
+// host has finished with a changed data root that is not yet published. The
+// head only moves once that upload completes; reading it earlier offers no
+// merge and this job's data root is then withheld as superseded.
+func (a *agent) awaitDockerPublications(ctx context.Context, slot cachevolumes.Slot) {
+	if !a.dockerPublicationPending(slot) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, dockerPublicationWait)
+	defer cancel()
+	done := a.observe.For(slot).Start("docker_merge_wait", "none")
+	for {
+		select {
+		case <-ctx.Done():
+			done(ctx.Err())
+			return
+		case <-time.After(dockerPublicationPoll):
+		}
+		if !a.dockerPublicationPending(slot) {
+			done(nil)
+			return
+		}
+	}
+}
+
+func (a *agent) dockerPublicationPending(slot cachevolumes.Slot) bool {
+	slots, err := a.store.Snapshot()
+	if err != nil {
+		return false
+	}
+	for _, other := range slots {
+		if other.PodUID == slot.PodUID || other.Scope != slot.Scope || other.Kind != cachevolumes.KindDocker || other.State != "active" || !other.CanPublish {
+			continue
+		}
+		report, err := cachevolumes.ReadDockerReport(filepath.Join(a.root, "pods", other.PodUID, other.Scope))
+		if err == nil && report.Clean && report.Changed {
+			return true
+		}
+	}
+	return false
 }
 
 // dockerSlot is the pod's Docker data root while its job may still publish it.

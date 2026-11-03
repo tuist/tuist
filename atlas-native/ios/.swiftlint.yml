@@ -3,6 +3,7 @@ included:
   - Tests
   - LiveActivity
   - Share
+  - ../macos/Sources
 
 disabled_rules:
   - identifier_name

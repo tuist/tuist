@@ -10,9 +10,16 @@ defmodule Atlas.Automations.Interface do
   alias Atlas.Automations.ListQuery
   alias Atlas.Automations.Native
   alias Atlas.Automations.Resources
+  alias Atlas.Signals.Interface
 
   @object %{"type" => "object"}
   @string %{"type" => "string"}
+
+  @signal_operations ~w(create_signal_source list_signal_sources set_signal_source_enabled ingest_signal get_signal list_signals signal_candidates decide_signal)a
+
+  def signal_operation?(operation), do: operation in @signal_operations
+
+  def schema(operation) when operation in @signal_operations, do: Interface.schema(operation)
 
   def schema(:catalog), do: object(%{}, [])
 
@@ -196,6 +203,9 @@ defmodule Atlas.Automations.Interface do
     end
   end
 
+  defp dispatch(operation, actor, args, opts) when operation in @signal_operations,
+    do: Interface.dispatch(operation, actor, args, opts)
+
   defp dispatch(:catalog, actor, _, _opts) do
     with :ok <- Automations.authorize(actor, :read) do
       {:ok,
@@ -319,6 +329,9 @@ defmodule Atlas.Automations.Interface do
     |> Map.drop([
       :__meta__,
       :token_hash,
+      :signing_secret,
+      :poll_config,
+      :poll_state,
       :created_by,
       :published_by,
       :initiated_by,

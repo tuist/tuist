@@ -9,6 +9,7 @@ defmodule TuistWeb.CoverageLiveTest do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.CoverageFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
 
   defp file(path, counts), do: CoverageFixtures.file(path, counts, targets: ["Calculator"])
@@ -243,7 +244,29 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "[data-part='empty-analytics']")
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
 
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
+
+      assert_raise NotFoundError, fn ->
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+      end
+    end
+  end
+
+  describe "early access" do
+    test "shows a Mix project's page without the coverage flag and hides an Xcode project's", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      mix_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :mix)
+      stub(Tuist.Environment, :env, fn -> :prod end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :xcode_coverage, _opts -> false
+        flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
+      end)
+
+      assert {:ok, _lv, _html} = live(conn, ~p"/#{organization.account.name}/#{mix_project.name}/tests/coverage")
 
       assert_raise NotFoundError, fn ->
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")

@@ -3,9 +3,12 @@
 Source for the standalone `tuist/install` composite action. See
 `../../workflows/install-action.yml` for tests, packaging, and automatic main-branch releases.
 
-- Select automatically: `tuist-cache-volume` on PATH or /__e uses volumes; otherwise
-  compose `actions/cache@v4`. No backend input. Never archive mounted paths or
-  convert volume failures into a second cache attempt. Do not implement mounts.
+- `cache: auto` selects automatically: `tuist-cache-volume` on PATH or /__e uses
+  volumes; otherwise compose `actions/cache@v4`. `cache: external` is the only
+  other mode: the runner persists `.build`, so skip both backends and use symlinks.
+  Keep it provider-neutral; no provider-specific backends or detection. Never
+  archive mounted paths or convert volume failures into a second cache attempt.
+  Do not implement mounts.
 - Keep package discovery aligned with TuistRootDirectoryLocator and
   ManifestFilesLocator. Prefer Tuist/Package.swift, retain package-relative .build,
   and explicitly pass scratch/cache paths. Reject SWIFTPM_BUILD_DIR overrides.
@@ -13,7 +16,8 @@ Source for the standalone `tuist/install` composite action. See
 - `size` passes straight to `tuist/cache-volume`; the client validates it. Never
   forward it to the GitHub archive backend, which has no capacity.
 - Default keys are stable names: job plus the relative package path when it is not
-  the checkout root. Never include toolchain versions, manifest or lockfile
+  the checkout root. They go through `tuist/cache-volume`, so they must satisfy its
+  key contract, including the reserved `tuist-` prefix. Never include toolchain versions, manifest or lockfile
   contents, checkout location or volatile CI metadata. Archive keys append platform/architecture and lockfile hash, with a
   compatible restore prefix; keep archive paths relative and escape glob syntax.
 - Always force pinned installation, including hits and forks. Publication is a

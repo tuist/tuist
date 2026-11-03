@@ -25,6 +25,16 @@ enum Command {
         session: Session,
         directory: String,
     },
+    ReadCache {
+        session: Session,
+        directory: String,
+        request: crate::cache::Read,
+        local: bool,
+    },
+    InvalidateCache {
+        session: Session,
+        directory: String,
+    },
     Native {
         session: Session,
         request: crate::api::Request,
@@ -39,6 +49,10 @@ enum Command {
     Presence {
         #[serde(flatten)]
         action: crate::presence::Action,
+    },
+    Environment {
+        #[serde(flatten)]
+        action: crate::environments::Action,
     },
     OrbitSession {
         #[serde(flatten)]
@@ -107,12 +121,22 @@ pub fn execute(input: &str) -> String {
             Command::ForgetCache { session, directory } => {
                 return crate::orbit_session::forget_cache(&session, &directory);
             }
+            Command::ReadCache { session, directory, request, local } => {
+                return crate::cache::read(session, &directory, request, local);
+            }
+            Command::InvalidateCache { session, directory } => {
+                if let Some(cache) = crate::cache::Cache::open(&directory, &session) { cache.invalidate(false); }
+                return Ok(json!({}));
+            }
             Command::Native { session, request } => return crate::api::execute(session, request),
             Command::Themes { server } => return crate::themes::fetch(&server),
             Command::ValidateThemes { catalog } => return crate::themes::validate(catalog),
             Command::DefaultThemes => return Ok(crate::themes::defaults()),
             Command::Presence { action } => {
                 return crate::presence::execute(action);
+            }
+            Command::Environment { action } => {
+                return crate::environments::execute(action);
             }
             Command::OrbitSession { action } => {
                 return crate::orbit_session::execute(action);

@@ -5,6 +5,8 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorker do
   workspace on the node's disk, and its reservation against the node's
   disk budget, indefinitely otherwise; a session that comes back after
   its sandbox is gone gets a fresh one with the repository staged again.
+  Amp Orbs are excluded: Amp owns their lifecycle and they retain their
+  disks until an explicit delete (or deletion of the owning account).
   """
   use Oban.Worker, queue: :default, max_attempts: 1
 

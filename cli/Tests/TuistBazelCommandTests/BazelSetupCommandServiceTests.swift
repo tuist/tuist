@@ -138,8 +138,10 @@ struct BazelSetupCommandServiceTests {
         given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
         try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
         try await AlertController.$current.withValue(AlertController()) {
-            try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
-                try await subject.run(directory: directory.pathString)
+            try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in false }) {
+                try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+                    try await subject.run(directory: directory.pathString)
+                }
             }
             let success = try #require(AlertController.current.success().last)
             let takeaways = success.takeaways.map { $0.plain() }
@@ -164,11 +166,38 @@ struct BazelSetupCommandServiceTests {
         let (subject, authentication, _, _) = makeSubject(serverURL: try #require(URL(string: "https://tuist.example")))
         given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
         try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
-        await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
-            await #expect(throws: BazelSetupCommandServiceError.notAuthenticated) {
+        await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in false }) {
+            await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+                await #expect(throws: BazelSetupCommandServiceError.notAuthenticated) {
+                    try await subject.run(directory: directory.pathString)
+                }
+            }
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory, arguments: [false, true])
+    func network_cache_setup_keeps_reporting_independent(reports: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, authentication, _, _) = makeSubject(
+            cacheURL: try #require(URL(string: "https://cache.example")),
+            serverURL: try #require(URL(string: "https://tuist.example")),
+            cacheTokenError: .unknownError(401)
+        )
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in true }) {
+            try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in reports }) {
                 try await subject.run(directory: directory.pathString)
             }
         }
+        let contents = try await fileSystem.readTextFile(at: directory.appending(component: ".bazelrc.tuist"))
+        #expect(contents.contains("--remote_cache=grpcs://cache.example"))
+        #expect(contents.contains("--remote_instance_name=my-project"))
+        #expect(contents.contains("--bes_backend=") == reports)
+        #expect(contents.contains("--bes_header=x-tuist-network-trusted-publishing=true") == reports)
+        #expect(!contents.contains("--credential_helper="))
+        #expect(!contents.contains("--experimental_remote_downloader="))
+        #expect(!contents.contains("--experimental_build_event_upload_strategy="))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)

@@ -27,6 +27,7 @@ func fakeDaemon(t *testing.T, mounts ...bool) (*daemon, string, *[]string) {
 	var calls []string
 	d := &daemon{args: []string{"sleep", "60"}, root: root, ephemeral: "/ephemeral.img", state: "ephemeral", dataRoot: t.TempDir(), mergeRoot: filepath.Join(t.TempDir(), "merge")}
 	d.usedBytes = func(string) (int64, error) { return 0, nil }
+	d.trim = func(string) error { return nil }
 	d.run = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
 		if name == "mount" && len(args) == 4 && args[3] == d.dataRoot && strings.HasSuffix(args[2], dockerImageName) {

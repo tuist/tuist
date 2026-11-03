@@ -1,5 +1,8 @@
 services:
   grafana:
+    build:
+      args:
+        GO_VERSION: '1.26.10'
     extends:
       file: .config/docker-compose-base.yaml
       service: grafana

@@ -3,7 +3,7 @@
 `Atlas.Push` separates product intent from platform delivery. Product code calls
 `notify_user(user_id, "activity", {screen, record_id})` with a fixed kind from
 `@kinds` (`activity`, 24-hour lifetime; `self_test`, 10 minutes;
-`orbit_completed` and `orbit_mentioned`, one hour) and a destination
+`orbit_completed`, `orbit_mentioned` and `orbit_signal`, one hour) and a destination
 accepted by `AtlasWeb.NativeLinks.for_open/1`. It never supplies text, tokens, or
 devices. Activity and self-test alerts remain generic. Orbit completion is an
 explicit content-preview exception described below. Adding a kind means adding it
@@ -77,6 +77,14 @@ self-test kind to the caller's own registrations under a per-user rate limit.
   `orbit/mentions_test.exs`, `push_test.exs` and `push/workers/deliver_test.exs`.
 
 ## Registrations
+
+Signal decisions transactionally enqueue `orbit_signal` for the source owner and
+newly selected recipients, with the exact signal UUID and Orbit destination.
+Replays enqueue nothing. Each delivery requires an opened signal pointing to the
+same active shared thread, current membership/history/source scopes, the source
+reader ceiling and owner/routing attribution. Alerts are generic: "Atlas" /
+"An Orbit investigation needs your attention". No source evidence, title or
+routing metadata reaches APNs/FCM; jobs carry IDs only.
 
 - `push_installations` is keyed by the client-generated `installation_id` (lowercase
   UUID). `id` is the server registration ID returned to clients and carried in

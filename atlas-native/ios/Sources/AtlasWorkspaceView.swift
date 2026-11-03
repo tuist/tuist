@@ -13,11 +13,17 @@ struct AtlasWorkspaceView<Profile: View>: View {
 
     var body: some View {
         Group {
+            #if os(macOS)
+            AtlasDesktopWorkspace(holidayRequest: holidayRequest, businessRequest: businessRequest,
+                                  orbitRequest: orbitRequest, orbitLocalRequest: orbitLocalRequest,
+                                  presence: presence, navigation: navigation, automation: automation, settings: settings)
+            #else
             if #available(iOS 18, *) {
                 tabs.tabViewStyle(.sidebarAdaptable)
             } else {
                 tabs
             }
+            #endif
         }
         .environment(\.atlasPresence, presence)
         .environment(\.atlasNavigation, navigation)
@@ -26,6 +32,7 @@ struct AtlasWorkspaceView<Profile: View>: View {
         .onDisappear { presence?.setActive(false) }
     }
 
+    #if os(iOS)
     private var tabs: some View {
         TabView(selection: $navigation.selection) {
             AtlasOrbitView(recordID: navigation.destinations["orbit"]?.recordID, revision: navigation.revisions["orbit"],
@@ -46,9 +53,10 @@ struct AtlasWorkspaceView<Profile: View>: View {
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }.tag("profile")
         }
     }
+    #endif
 }
 
-private struct AtlasBrowseStack: View {
+struct AtlasBrowseStack: View {
     let holidayRequest: ([String: Any]) async throws -> Data
     let businessRequest: ([String: Any]) async throws -> Data
     @State private var path: [String]
@@ -135,9 +143,14 @@ private struct AtlasBrowsePage: View {
         .modifier(AtlasThemedContent())
         .defaultScrollAnchor(.top)
         .navigationTitle(group?.title ?? "Browse")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+        #endif
         .searchable(text: $query, prompt: "Find a feature")
-        .autocorrectionDisabled().textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        #if os(iOS)
+        .textInputAutocapitalization(.never)
+        #endif
         .onAppear { presence?.show() }
     }
 

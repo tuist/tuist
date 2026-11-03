@@ -50,8 +50,15 @@ type KuraInstanceSpec struct {
 	StorageSize       string `json:"storageSize,omitempty"`
 	// StorageFloor opts into node-managed shared disk. StorageSize remains
 	// the ceiling; the floor sizes the initial PVC and scheduler request.
-	// Requires a compatible runtime and the node disk allocator.
-	StorageFloor string            `json:"storageFloor,omitempty"`
+	// Requires a compatible runtime and the node disk allocator. Ignored for
+	// tuist.dev/kura-disk volumes, which reserve their full ceiling.
+	StorageFloor string `json:"storageFloor,omitempty"`
+	// DiskResource is what each replica requests for its claim so the scheduler
+	// bin-packs it against node disk. Empty reserves ephemeral-storage, for
+	// volumes on the node's /data; "tuist.dev/kura-disk" reserves the room the
+	// kura-volumes driver advertises for a node's volume group.
+	// +kubebuilder:validation:Enum="";tuist.dev/kura-disk
+	DiskResource string            `json:"diskResource,omitempty"`
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// Tolerations let the runtime pod schedule onto tainted nodes. Preview
 	// environments use this to colocate Kura on the generic preview pool

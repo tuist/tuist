@@ -18,11 +18,12 @@
 
         init?(_ appBuild: Components.Schemas.AppBuild) {
             id = appBuild.id
-            guard let url = URL(string: appBuild.url)
+            guard let url = URL(string: appBuild.url),
+                  let type = AppBuildType(appBuild._type)
             else { return nil }
             self.url = url
             supportedPlatforms = appBuild.supported_platforms.compactMap(DestinationType.init)
-            type = AppBuildType(appBuild._type)
+            self.type = type
         }
 
         #if DEBUG
@@ -43,16 +44,20 @@
     }
 
     public enum AppBuildType: Sendable, Equatable, Codable {
-        case appBundle, ipa, apk
+        case appBundle, ipa, apk, executable
 
-        init(_ appBuildType: Components.Schemas.AppBuild._typePayload) {
+        init?(_ appBuildType: String) {
             switch appBuildType {
-            case .app_bundle:
+            case "app_bundle":
                 self = .appBundle
-            case .ipa:
+            case "ipa":
                 self = .ipa
-            case .apk:
+            case "apk":
                 self = .apk
+            case "executable":
+                self = .executable
+            default:
+                return nil
             }
         }
     }

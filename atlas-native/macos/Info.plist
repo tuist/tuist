@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>dev.tuist.atlas</string>
+    <key>CFBundleExecutable</key>
+    <string>Atlas</string>
+    <key>CFBundleName</key>
+    <string>Atlas</string>
+    <key>CFBundleDisplayName</key>
+    <string>Atlas</string>
+    <key>CFBundleIconFile</key>
+    <string>Atlas.icns</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array><string>MacOSX</string></array>
+    <key>DTPlatformName</key>
+    <string>macosx</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.business</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleURLName</key>
+            <string>dev.tuist.atlas.oauth</string>
+            <key>CFBundleURLSchemes</key>
+            <array><string>dev.tuist.atlas</string></array>
+        </dict>
+    </array>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Use the microphone to transcribe a voice message on this device. Audio is not sent to Atlas.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Transcribe voice messages on this device so you can review and edit the text before sending.</string>
+    <key>SUPublicEDKey</key>
+    <string>XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=</string>
+    <key>SUFeedURL</key>
+    <string>https://github.com/tuist/tuist/releases/download/atlas-appcast/atlas-appcast.xml</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+</dict>
+</plist>

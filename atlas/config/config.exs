@@ -41,6 +41,7 @@ alias Atlas.Orbit.Workers.CleanupAttachments
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
+alias Atlas.Signals.Workers.SchedulePolls
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
@@ -94,7 +95,7 @@ config :atlas, Oban,
   repo: Atlas.Repo,
   notifier: Oban.Notifiers.Postgres,
   peer: Oban.Peers.Database,
-  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4, automation: 2, push: 10, moodboard: 2],
+  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4, automation: 2, push: 10, moodboard: 2, environments: 4],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
@@ -138,6 +139,7 @@ config :atlas, Oban,
        # schedule in every environment.
        {"* * * * *", ErrorsSummaryWorker},
        {"* * * * *", ScheduleRuns},
+       {"* * * * *", SchedulePolls},
        # Weekly digest of inbound emails the classifier silenced so
        # the team stays aware of what was filtered.
        {"0 9 * * 1", SupportInboxWeeklyDigest}
@@ -282,10 +284,16 @@ config :phoenix, :filter_parameters, [
   "verifier",
   "nonce",
   "input",
+  "body",
   "payload",
   "outputs",
   "source",
-  "webhook_url"
+  "webhook_url",
+  "arguments",
+  "command",
+  "output",
+  "path",
+  "projects"
 ]
 
 # Use Jason for JSON parsing in Phoenix

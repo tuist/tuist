@@ -3,7 +3,8 @@ description: |
   Free disk on a vm-image-builder host before an image bake.
   Always drops every locally-cloned VM (working copies are
   throwaway across runs), then LRU-prunes the OCI base-image
-  cache only when free disk falls below `free-floor-gb`.
+  cache only when free disk falls below `free-floor-gb`, after
+  evicting the images `keep` does not name.
 
   The cached OCI bases (`<registry>/macos-tahoe-xcode:<dashes>`
   and friends, ~80 GB each on the 512 GB M2-L) survive across
@@ -26,6 +27,15 @@ inputs:
       clone.
     required: false
     default: "300"
+  keep:
+    description: |
+      Newline-separated cached OCI images to keep, most important
+      first: the base this bake clones, then the bases of the bakes
+      that follow it on this host. Below `free-floor-gb`, every other
+      cached image goes first, then these from the end of the list,
+      never the first, before the cache is pruned as without it.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -34,6 +44,7 @@ runs:
       shell: bash
       env:
         FREE_FLOOR_GB: ${{ inputs.free-floor-gb }}
+        KEEP: ${{ inputs.keep }}
       run: |
         set -uo pipefail
         tart list || true
@@ -47,6 +58,30 @@ runs:
         done
         FREE_GB=$(df -g / | awk 'NR==2 { print $4 }')
         echo "free disk after local VM cleanup: ${FREE_GB}G (floor: ${FREE_FLOOR_GB}G)"
+        if [ "$FREE_GB" -lt "$FREE_FLOOR_GB" ] && [ -n "$KEEP" ]; then
+          kept() {
+            printf '%s\n' ${keep[@]+"${keep[@]}"} | grep -qxF "$1"
+          }
+          keep=()
+          while IFS= read -r image; do
+            if [ -n "$image" ] && ! kept "$image"; then
+              keep+=("$image")
+            fi
+          done <<< "$KEEP"
+          echo "below floor; evicting cached images no upcoming bake clones"
+          tart list --source oci --quiet | while IFS= read -r image; do
+            kept "$image" || tart delete "$image" || true
+          done
+          FREE_GB=$(df -g / | awk 'NR==2 { print $4 }')
+          for ((i = ${#keep[@]} - 1; i > 0 && FREE_GB < FREE_FLOOR_GB; i--)); do
+            if tart list --source oci --quiet | grep -qxF "${keep[$i]}"; then
+              echo "below floor; evicting ${keep[$i]}"
+              tart delete "${keep[$i]}" || true
+              FREE_GB=$(df -g / | awk 'NR==2 { print $4 }')
+            fi
+          done
+          echo "free disk after evicting cached images: ${FREE_GB}G"
+        fi
         if [ "$FREE_GB" -lt "$FREE_FLOOR_GB" ]; then
           echo "below floor; pruning OCI caches older than 1 day"
           tart prune --entries caches --older-than 1

@@ -47,3 +47,13 @@ func TestInventoryBatchesPopulatedNodeAndChecksOwnership(t *testing.T) {
 		t.Fatal("accepted a replaced claim")
 	}
 }
+
+func TestInventoryRefusesCeilingBackedCSIVolumes(t *testing.T) {
+	uid := types.UID("thin")
+	pod := corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "thin", Namespace: "kura", UID: uid, Annotations: map[string]string{"kura.tuist.dev/disk-floor-bytes": "8589934592", "kura.tuist.dev/disk-ceiling-bytes": "68719476736"}}, Spec: corev1.PodSpec{NodeName: "node-a", Volumes: []corev1.Volume{{Name: "data", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "thin"}}}}}}
+	claim := corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: "thin", Namespace: "kura", UID: uid}, Spec: corev1.PersistentVolumeClaimSpec{VolumeName: "pvc-thin"}}
+	pv := corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: "pvc-thin"}, Spec: corev1.PersistentVolumeSpec{ClaimRef: &corev1.ObjectReference{Name: "thin", Namespace: "kura", UID: uid}, PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{Driver: "kura-volumes.tuist.dev", VolumeHandle: "pvc-thin", VolumeAttributes: map[string]string{"layout": "thin-luks-xfs-v1", "capacity_mode": "ceiling-backed-v1"}}}}}
+	if volumes, err := inventoryVolumes([]corev1.Pod{pod}, []corev1.PersistentVolumeClaim{claim}, []corev1.PersistentVolume{pv}, "kura"); err == nil {
+		t.Fatalf("treated a ceiling-backed CSI volume as shared: %v", volumes)
+	}
+}

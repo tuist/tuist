@@ -38,9 +38,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 
 - Do not edit generated `CHANGELOG.md` files.
 - Edit English source content only. Never edit translation `.po` files; the
-  `tuistit` bot owns them. Gettext `.pot` templates may be updated.
-- For `translate.exs` and translation workflows, follow the translation rules in
-  `server/AGENTS.md` and run `elixir translate_test.exs` from the repository root.
+  Glossia GitHub App owns them. Gettext `.pot` templates may be updated.
 - Keep Swift project prefix mapping enabled. Resolve test fixtures and snapshots
   through `TuistTestSupport` and the runtime checkout (`TUIST_CONFIG_SRCROOT`), not
   compiler-remapped `#file` or `#filePath` paths.

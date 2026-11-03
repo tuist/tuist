@@ -82,6 +82,7 @@ type daemon struct {
 	ledger    dockerLedger
 	run       func(context.Context, string, ...string) ([]byte, error)
 	usedBytes func(string) (int64, error)
+	trim      func(string) error // test seam; production uses syncfs + FITRIM
 	// pipe runs the docker command from with its output as the docker command to's input.
 	pipe func(ctx context.Context, from, to []string) error
 }
@@ -339,7 +340,7 @@ func (d *daemon) merge(ctx context.Context, source string, report *dockerTeardow
 	if err != nil {
 		return "", err
 	}
-	plan := planDockerMerge(branch, head)
+	plan := planDockerMerge(d.base.Images, branch, head)
 	branchState, err := d.snapshot(ctx, "")
 	if err != nil {
 		return "", err
@@ -350,10 +351,10 @@ func (d *daemon) merge(ctx context.Context, source string, report *dockerTeardow
 	}
 	if branchState.BuildCache != d.base.BuildCache {
 		// The daemon's BuildKit database is indivisible. Keep this job's new
-		// build work and import any images it lacks from the newer head.
+		// build work and import the images the newer head added.
 		plan.Into, plan.Move = "branch", nil
 		for _, image := range head {
-			if !containsString(branchState.Images, image.ID) {
+			if !containsString(branchState.Images, image.ID) && !containsString(d.base.Images, image.ID) {
 				plan.Move = append(plan.Move, image.ID)
 			}
 		}

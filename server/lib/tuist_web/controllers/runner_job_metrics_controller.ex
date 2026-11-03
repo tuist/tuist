@@ -27,7 +27,12 @@ defmodule TuistWeb.RunnerJobMetricsController do
   runner's samples on a job executing elsewhere, and would drop the
   real samples of a Pod running a job it didn't claim (which may hold
   no live claim at all). Samples for a Pod with no proven execution —
-  warm, idle, or not yet assigned — are a no-op.
+  warm, idle, or not yet assigned — are not recorded and get a 202, so
+  the sampler keeps them and sends them again with its next batch. The
+  binding arrives with the `in_progress` webhook, which GitHub can
+  deliver minutes after the job's first step; a sampler that dropped
+  the 202'd samples would lose the job's start (its free disk before
+  checkout and cache restores).
 
   ## Contract
 
@@ -75,8 +80,9 @@ defmodule TuistWeb.RunnerJobMetricsController do
 
   Responses:
 
-    * 204 — samples recorded (or an empty batch / a Pod with no live
-      claim, both treated as a no-op).
+    * 204 — samples recorded (or an empty batch).
+    * 202 — not recorded: no job is proven to run on the Pod yet. The
+      sampler resends them until it gets a 204.
     * 400 — malformed body (samples not a list / sample missing a
       numeric `timestamp`).
     * 401 — missing or invalid SA bearer token / wrong principal.
@@ -91,19 +97,17 @@ defmodule TuistWeb.RunnerJobMetricsController do
           send_resp(conn, :no_content, "")
 
         :error ->
-          # No proven binding yet (or none coming). Samples taken before
-          # `in_progress` is delivered and drained through Oban are dropped
-          # rather than charted on a guess, so a job's startup ramp can be
-          # missing under webhook latency. Counted so the loss is visible
-          # rather than silent — the samplers are fail-open and never
-          # resend, so this is unrecoverable data.
+          # No proven binding yet (or none coming). The samples are not
+          # charted on a guess; the 202 tells the sampler to keep them
+          # and resend them once `in_progress` binds the Pod to its job.
+          # Samplers built before the 202 drop them, so count them.
           :telemetry.execute(
             Telemetry.event_name_recovery(),
             %{count: length(samples)},
             %{kind: "metrics_dropped_awaiting_attribution"}
           )
 
-          send_resp(conn, :no_content, "")
+          send_resp(conn, :accepted, "")
       end
     else
       {:error, :missing_bearer} ->

@@ -9,6 +9,52 @@ defmodule TuistWeb.Internal.KuraMeshController do
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
 
+  # Policy is bound to an authenticated node's account, not public discovery.
+  # Authorization uses current/retained handles, unlike immutable storage enrollment.
+  def cache_policy(conn, %{"tenant_id" => tenant_id}) when is_binary(tenant_id) and tenant_id != "" do
+    with [_header] <- get_req_header(conn, "authorization"),
+         {:ok, client_id, client_secret} <- basic_credentials(conn),
+         {:ok, account} <- authorize_cache_policy(client_id, client_secret, tenant_id),
+         true <- tenant_id in Identity.handles(account) do
+      conn = TuistWeb.OnPremisePlug.call(conn, :api_license_validation)
+
+      if conn.halted do
+        conn
+      else
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> json(%{
+          tenant_id: tenant_id,
+          network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?()
+        })
+      end
+    else
+      _ -> conn |> put_status(:unauthorized) |> json(%{message: "Invalid cache policy credentials or tenant."})
+    end
+  end
+
+  def cache_policy(conn, _params) do
+    conn |> put_status(:unauthorized) |> json(%{message: "Invalid cache policy credentials or tenant."})
+  end
+
+  defp authorize_cache_policy(client_id, client_secret, tenant_id) do
+    if dedicated_kura_client?(client_id) do
+      with {:ok, _client} <-
+             Client.authorize(
+               id: client_id,
+               source: %{type: "basic", value: client_secret},
+               grant_type: "kura_registration"
+             ),
+           account when not is_nil(account) <- Identity.account_for_handle(tenant_id) do
+        {:ok, account}
+      else
+        _ -> {:error, :unauthorized}
+      end
+    else
+      authorize_self_hosted(client_id, client_secret)
+    end
+  end
+
   # Node enrollment: a self-hosted node presents its tenant-scoped credential
   # (HTTP Basic) and a CSR, and gets back its signed certificate, the account
   # CA, the tenant id, and the peer list. This is the onboarding primitive that

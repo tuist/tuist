@@ -14,6 +14,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.LiveHooks.PublicPageChallenge
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.AtlasRateLimitPlug
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
@@ -82,7 +83,8 @@ defmodule TuistWeb.Router do
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://glossia.ai https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
+      frame_src:
+        "'self' https://atlas.tuist.dev https://*.tuist.dev https://www.youtube-nocookie.com https://newassets.hcaptcha.com#{turnstile_source}",
       connect_src: "'self' https://glossia.ai https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
@@ -298,10 +300,16 @@ defmodule TuistWeb.Router do
     plug :put_request_kind, "atlas_internal_api"
     plug :accepts, ["json"]
     plug TuistWeb.WarningsHeaderPlug
-    plug TuistWeb.Plugs.AtlasRateLimitPlug
+    plug AtlasRateLimitPlug
     plug TuistWeb.Plugs.InternalAtlasAuthPlug
     plug SentryContextPlug
     plug ObservabilityContextPlug
+  end
+
+  pipeline :environment_provider_api do
+    plug :put_request_kind, "environment_provider_api"
+    plug :accepts, ["json"]
+    plug AtlasRateLimitPlug
   end
 
   pipeline :api_catalog do
@@ -339,6 +347,15 @@ defmodule TuistWeb.Router do
     plug :accepts, ["json"]
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.Plugs.ReportPublishingAuthPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
+  pipeline :cache_endpoint_api do
+    plug :put_request_kind, "api"
+    plug :accepts, ["json"]
+    plug TuistWeb.WarningsHeaderPlug
+    plug TuistWeb.Plugs.CacheEndpointAuthPlug
     plug SentryContextPlug
     plug ObservabilityContextPlug
   end
@@ -421,6 +438,14 @@ defmodule TuistWeb.Router do
 
     # Steps for the build timeline embedded in the Bazel announcement post.
     get "/blog/bazel/timeline.json", BazelShowcaseController, :timeline, metadata: %{type: :marketing, robots_txt: false}
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    # Build traces for agents. The token is the authorization: the MCP server
+    # signs it for one build after authorizing the caller.
+    get "/build-traces/:token", BuildController, :signed_trace, metadata: %{robots_txt: false}
   end
 
   scope "/" do
@@ -739,6 +764,11 @@ defmodule TuistWeb.Router do
     post "/projects/:account_handle/:project_handle/bazel/publishing", BazelPublishingController, :create
   end
 
+  scope "/api", TuistWeb.API, assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
+    pipe_through [:open_api, :cache_endpoint_api, :on_premise_api]
+    get "/cache/endpoint", CacheController, :endpoint
+  end
+
   scope path: "/api",
         alias: TuistWeb.API,
         assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
@@ -788,6 +818,7 @@ defmodule TuistWeb.Router do
       # The literal agent-environments and agent-sessions routes must
       # precede `/:sandbox_id`.
       scope "/sandboxes" do
+        post "/amp-orbs/:orb_id", SandboxesController, :dispatch_amp_orb
         post "/agent-environments", SandboxesController, :create_agent_environment
         get "/agent-environments", SandboxesController, :index_agent_environments
         patch "/agent-environments/:agent_environment_id", SandboxesController, :update_agent_environment
@@ -989,6 +1020,9 @@ defmodule TuistWeb.Router do
         end
 
         scope "/cargo" do
+          get "/crates", CargoCratesController, :index
+          get "/crates/:crate_id", CargoCratesController, :show
+          get "/crates/:crate_id/compilations", CargoCratesController, :history
           post "/builds", CargoController, :create_build
           get "/builds", CargoController, :list_builds
           get "/builds/:build_id", CargoController, :get_build
@@ -1027,6 +1061,14 @@ defmodule TuistWeb.Router do
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
         end
 
+        scope "/artifacts" do
+          get "/", ArtifactsController, :capabilities
+          get "/publications/:key", ArtifactsController, :show
+          post "/publications/:key", ArtifactsController, :commit
+          post "/publications/:key/content/:digest", ArtifactsController, :upload
+          get "/publications/:key/content/:digest", ArtifactsController, :download
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
@@ -1058,7 +1100,6 @@ defmodule TuistWeb.Router do
 
     scope "/cache" do
       get "/access", CacheController, :access
-      get "/endpoint", CacheController, :endpoint
       get "/endpoints", CacheController, :endpoints
       post "/token", CacheController, :token
       get "/", CacheController, :download
@@ -1131,6 +1172,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/docker-seen", RunnerCacheVolumesController, :docker_seen
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
+    get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
     get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
@@ -1139,13 +1181,24 @@ defmodule TuistWeb.Router do
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/bitrise/started", RunnerBitriseReportsController, :started
     post "/runners/jobs/cache/download", RunnerJobCacheController, :download
     post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
     post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
     post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
     post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
+    post "/amp-orbs/:orb_id", AmpOrbsController, :dispatch
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
     post "/sandboxes/allocation", SandboxAllocationsController, :update
+  end
+
+  scope "/api/environment-providers/atlas/:account_handle/:environment_id", TuistWeb do
+    pipe_through :environment_provider_api
+
+    put "/", AtlasEnvironmentsController, :start, log: false
+    post "/exec", AtlasEnvironmentsController, :exec, log: false
+    post "/pause", AtlasEnvironmentsController, :pause, log: false
+    delete "/", AtlasEnvironmentsController, :delete, log: false
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -1170,10 +1223,12 @@ defmodule TuistWeb.Router do
 
     post "/kura/activate", KuraActivationController, :create
     post "/kura/usage", KuraUsageController, :create
+    get "/kura/cache-policy", KuraMeshController, :cache_policy
     post "/kura/mesh/enroll", KuraMeshController, :enroll
     post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
     get "/kura/mesh/peers", KuraMeshController, :peers
     post "/kura/mesh/registrations", KuraMeshController, :register
+    post "/kura/volume-keys", KuraVolumeKeysController, :create
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -1216,7 +1271,14 @@ defmodule TuistWeb.Router do
   scope "/ops" do
     pipe_through [:browser_app, :ops]
 
-    oban_dashboard("/oban", csp_nonce_assign_key: :csp_nonce)
+    oban_dashboard("/oban",
+      csp_nonce_assign_key: :csp_nonce,
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.Authentication, :revalidate_browser_session_on_info}
+      ]
+    )
 
     forward "/flags", FunWithFlags.UI.Router, namespace: "ops/flags"
 
@@ -1276,6 +1338,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
 
     live_session :redirect_if_user_is_authenticated,
+      session: {TuistWeb.UserForgotPasswordLive, :password_reset_session, []},
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
@@ -1287,10 +1350,21 @@ defmodule TuistWeb.Router do
     end
 
     post "/users/log_in", UserSessionController, :create
+    post "/users/log_in/passkey/options", UserPasskeyController, :authentication_options
+    post "/users/log_in/passkey", UserPasskeyController, :authenticate
   end
 
   scope "/", TuistWeb do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
+
+    get "/users/settings/mfa", UserMFAController, :show
+    post "/users/settings/mfa/enroll", UserMFAController, :enroll
+    post "/users/settings/mfa/confirm", UserMFAController, :confirm
+    post "/users/settings/mfa/cancel", UserMFAController, :cancel
+    post "/users/settings/mfa/disable", UserMFAController, :disable
+    post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
+    post "/users/settings/passkeys", UserPasskeyController, :create
+    post "/users/settings/passkeys/:id/delete", UserPasskeyController, :delete
 
     live_session :require_authenticated_user,
       session: {TuistWeb.RemoteIp, :live_session, []},
@@ -1307,6 +1381,9 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app]
 
+    get "/users/mfa", UserMFAController, :challenge
+    post "/users/mfa", UserMFAController, :verify
+    post "/users/mfa/passkey/options", UserMFAController, :passkey_options
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,
@@ -1455,6 +1532,7 @@ defmodule TuistWeb.Router do
       :require_authenticated_user_for_previews,
       :mark_public_preview_page,
       PublicPageChallengePlug,
+      :require_member_sso_authentication,
       :analytics,
       :embeddable
     ]
@@ -1464,6 +1542,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.Authentication, :require_member_sso_authentication},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
       live "/", PreviewLive, metadata: @public_project_route_metadata
@@ -1501,6 +1580,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1543,6 +1623,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1585,6 +1666,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do
@@ -1634,6 +1716,8 @@ defmodule TuistWeb.Router do
       live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
+      live "/builds/cargo/crates/:crate_id", BuildEntityLive, :cargo_crates, metadata: @public_project_route_metadata
       live "/builds/bazel/actions", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/bazel/actions/:action_id", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
@@ -1664,12 +1748,15 @@ defmodule TuistWeb.Router do
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
       get "/builds/build-runs/:build_run_id/timeline.json", BuildController, :timeline
       get "/builds/invocations/:invocation_id/timeline.json", BuildController, :timeline
+      get "/builds/build-runs/:build_run_id/trace.json", BuildController, :trace
+      get "/builds/invocations/:invocation_id/trace.json", BuildController, :trace
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
           :download
 
       live "/settings", ProjectSettingsLive
+      live "/settings/integrations", ProjectIntegrationsLive
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/automations/:automation_id", ProjectAutomationLive
       live "/settings/bundles", ProjectBundleSettingsLive

@@ -25,6 +25,13 @@ trap 'exit 143' TERM
 mkdir "$work/before" "$work/after"
 git archive "$base" infra/linux-runner-image | tar -x -C "$work/before"
 git archive HEAD infra/linux-runner-image | tar -x -C "$work/after"
+for arm in before after; do
+  revision=HEAD
+  [[ "$arm" != before ]] || revision="$base"
+  if git cat-file -e "$revision:infra/certificate-trust" 2>/dev/null; then
+    git archive "$revision" infra/certificate-trust | tar -x -C "$work/$arm"
+  fi
+done
 jq -n --arg base "$(git rev-parse "$base")" --arg head "$(git rev-parse HEAD)" \
   --arg experiment "$experiment" '{base:$base,head:$head,experiment:$experiment,
     platform:"linux/amd64",pullSamplesPerArm:3,
@@ -39,6 +46,9 @@ build() {
   local arm="$1" phase="$2" context ref start finish digest manifest_digest
   local cache_args=()
   context="$work/$arm/infra/linux-runner-image"
+  if [[ -d "$work/$arm/infra/certificate-trust" ]]; then
+    cache_args+=(--build-context "certificate-trust=$work/$arm/infra/certificate-trust")
+  fi
   ref="$repository:bench-$experiment-$arm-$phase"
   if [[ "$phase" == update ]]; then
     printf '\n# Layer-reuse regression probe.\n' >> "$context/dispatch-poll.sh"

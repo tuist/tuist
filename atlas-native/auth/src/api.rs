@@ -264,18 +264,7 @@ fn watch(session: &Session, id: &str, after_sequence: u64) -> Result<Value> {
     let config = tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(1_048_576))
         .max_frame_size(Some(1_048_576));
-    let (mut socket, _) = tungstenite::client_tls_with_config(request, stream, Some(config), None)
-        .map_err(|failure| match failure {
-            tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response))
-                if matches!(response.status().as_u16(), 401 | 403) =>
-            {
-                error(
-                    "unauthorized",
-                    "Access to this execution is no longer available.",
-                )
-            }
-            _ => network(),
-        })?;
+    let mut socket = connect_tls(request, stream, config, crate::transport::tls_config()?)?;
     let topic = format!("execution:{id}");
     socket
         .send(Message::Text(
@@ -338,6 +327,37 @@ fn watch(session: &Session, id: &str, after_sequence: u64) -> Result<Value> {
     };
     let _ = socket.close(None);
     result
+}
+
+pub(super) fn connect_tls(
+    request: tungstenite::handshake::client::Request,
+    stream: TcpStream,
+    config: tungstenite::protocol::WebSocketConfig,
+    tls: rustls::ClientConfig,
+) -> Result<tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<TcpStream>>> {
+    let tls = tungstenite::Connector::Rustls(std::sync::Arc::new(tls));
+    tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls))
+        .map(|(socket, _)| socket)
+        .map_err(|failure| match failure {
+            tungstenite::HandshakeError::Failure(ref failure)
+                if matches!(failure, tungstenite::Error::Tls(_))
+                    || crate::certificate_trust::tls_failure(failure) =>
+            {
+                error(
+                    "secure_connection_failed",
+                    "Could not establish a secure connection to Atlas.",
+                )
+            }
+            tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response))
+                if matches!(response.status().as_u16(), 401 | 403) =>
+            {
+                error(
+                    "unauthorized",
+                    "Access to this execution is no longer available.",
+                )
+            }
+            _ => network(),
+        })
 }
 
 #[cfg(test)]

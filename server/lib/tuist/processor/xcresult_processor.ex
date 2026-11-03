@@ -211,26 +211,28 @@ defmodule Tuist.Processor.XCResultProcessor do
   defp normalize_parse_error({:ok, _} = result, _xcresult_path), do: result
 
   defp normalize_parse_error({:error, reason}, xcresult_path) do
-    message = parse_error_message(reason)
+    {code, message} = parse_error(reason)
     Logger.error("xcresult parse failed at #{xcresult_path}: #{message}")
-    {:error, stable_parse_error(message, xcresult_path)}
+    {:error, stable_parse_error(code, message, xcresult_path)}
   end
 
-  defp parse_error_message(reason) when is_binary(reason) do
+  defp parse_error(reason) when is_binary(reason) do
     case JSON.decode(reason) do
-      {:ok, %{"error" => message}} when is_binary(message) -> message
-      _ -> reason
+      {:ok, %{"error" => message} = error} when is_binary(message) -> {Map.get(error, "code"), message}
+      _ -> {nil, reason}
     end
   end
 
-  defp parse_error_message(reason), do: inspect(reason)
+  defp parse_error(reason), do: {nil, inspect(reason)}
 
-  # A dedicated atom rather than a sanitized string: the timeout is the one
-  # failure mode with its own alert, and an atom is what a queue-consumer
-  # rule and a `grep` can both key on unambiguously. The elapsed seconds it
-  # replaces are a compile-time constant in the NIF, not information.
-  defp stable_parse_error(message, xcresult_path) do
-    if String.starts_with?(message, "xcresult parsing timed out") do
+  # Replaying the same archive cannot supply an object missing from the bundle.
+  defp stable_parse_error("missing_object", _message, _xcresult_path), do: :bundle_invalid
+
+  defp stable_parse_error("parse_timeout", _message, _xcresult_path), do: :parse_timeout
+
+  defp stable_parse_error(code, message, xcresult_path) do
+    # Older native libraries report timeouts without a code during rolling upgrades.
+    if is_nil(code) && String.starts_with?(message, "xcresult parsing timed out") do
       :parse_timeout
     else
       {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
@@ -350,15 +352,39 @@ defmodule Tuist.Processor.XCResultProcessor do
   end
 
   defp replace_test_case_attachments(test_case, uploaded_map) do
-    Map.update(test_case, "attachments", [], fn attachments ->
+    attachments = Map.get(test_case, "attachments", [])
+
+    uploaded_attachments =
       Enum.flat_map(attachments, fn att ->
         case Map.fetch(uploaded_map, att["attachment_id"]) do
           {:ok, uploaded} -> [uploaded]
           :error -> []
         end
       end)
-    end)
+
+    test_case
+    |> Map.put("attachments", uploaded_attachments)
+    |> link_crash_report(attachments, uploaded_map)
   end
+
+  # The parser names the `.ips` a crash report was read from by its path on
+  # disk, while a stored crash report references its attachment by id, so the
+  # report is kept only when that attachment was uploaded.
+  defp link_crash_report(
+         %{"crash_report" => %{"file_path" => file_path} = crash_report} = test_case,
+         attachments,
+         uploaded_map
+       ) do
+    with %{"attachment_id" => attachment_id} <- Enum.find(attachments, &(&1["file_path"] == file_path)),
+         true <- Map.has_key?(uploaded_map, attachment_id) do
+      crash_report = crash_report |> Map.delete("file_path") |> Map.put("attachment_id", attachment_id)
+      Map.put(test_case, "crash_report", crash_report)
+    else
+      _ -> Map.delete(test_case, "crash_report")
+    end
+  end
+
+  defp link_crash_report(test_case, _attachments, _uploaded_map), do: Map.delete(test_case, "crash_report")
 
   defp identify_attachments(parsed_data, opts) do
     scope = %{

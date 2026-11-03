@@ -130,6 +130,68 @@ struct CachedModuleDebuggingMetadataTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func admitsSourcesWithoutLinkedCodeWithNothingToRelocate() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let producer = try await target(at: root.appending(component: "producer"))
+        let consumer = try await target(at: root.appending(component: "consumer"))
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: producer)
+        let debugSources: Set<String> = ["/^spm/checkouts/Dependency/Dependency.swift"]
+        #expect(throws: (any Error).self) { try metadata.recording(debugSources: debugSources) }
+        let recorded = try metadata.recording(debugSources: debugSources, linkedDebugSymbols: true)
+        #expect(recorded.debugPaths.isEmpty)
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(recorded, at: artifact)
+        try await FileSystem().remove(producer.project.sourceRootPath)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: consumer) == [])
+        var target = consumer.target
+        target.sources.append(SourceFile(path: consumer.project.sourceRootPath.appending(component: "Unrecorded.swift")))
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(
+            at: artifact, for: GraphTarget(path: consumer.path, target: target, project: consumer.project)
+        ) == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func linkedSymbolsStillRejectUnmappedSpellingsOfDeclaredSources() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: target(at: root))
+        #expect(throws: (any Error).self) {
+            try metadata.recording(debugSources: ["/^unrelated/Feature/Feature.swift"], linkedDebugSymbols: true)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func attributesSymlinkedHeaderSpellingsToTheRealFile() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        func withHeaders(at root: AbsolutePath) async throws -> GraphTarget {
+            let base = try await target(at: root)
+            let header = root.appending(components: "Sources", "pb.h")
+            try await FileSystem().makeDirectory(at: header.parentDirectory)
+            try await FileSystem().writeText("int pb(void);\n", at: header)
+            let link = root.appending(components: "Headers", "nanopb", "pb.h")
+            try await FileSystem().makeDirectory(at: link.parentDirectory)
+            try FileManager.default.createSymbolicLink(atPath: link.pathString, withDestinationPath: "../../Sources/pb.h")
+            var target = base.target
+            target.headers = Headers(public: [link], private: [], project: [header])
+            var project = base.project
+            project.targets[target.name] = target
+            return GraphTarget(path: root, target: target, project: project)
+        }
+        let producer = try await withHeaders(at: root.appending(component: "producer"))
+        let consumer = try await withHeaders(at: root.appending(component: "consumer"))
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: producer)
+        let header = try #require(metadata.sourcePaths["Sources/pb.h"])
+        let linked = producer.project.sourceRootPath.appending(components: "Headers", "nanopb", "pb.h").pathString
+        let recorded = try await metadata.recording(debugSources: [header, linked], fileSystem: FileSystem())
+        #expect(recorded.debugPaths == ["Sources/pb.h": [header, linked]])
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(recorded, at: artifact)
+        try await FileSystem().remove(producer.project.sourceRootPath)
+        let mappings = try #require(await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: consumer))
+        #expect(Set(mappings.map(\.original.pathString)) == [header, linked])
+        #expect(Set(mappings.map(\.current)) == [consumer.project.sourceRootPath.appending(components: "Sources", "pb.h")])
+    }
+
+    @Test(.inTemporaryDirectory)
     func rejectsUnsupportedOrOversizedMetadataBeforeUsingItsMappings() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let target = try await target(at: root.appending(component: "checkout"))

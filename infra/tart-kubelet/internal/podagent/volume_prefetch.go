@@ -43,7 +43,8 @@ const (
 // know where the server is.
 var errPrefetchUnavailable = errors.New("cache master prefetch endpoint unknown")
 
-// PrefetchMaster is one HEAD the server wants this host to hold; only Kind "custom" is fetched.
+// PrefetchMaster is one HEAD the server wants this host to hold, of Kind "custom" or "checkout".
+// A checkout HEAD also carries what the host restores its master with.
 type PrefetchMaster struct {
 	Kind          string `json:"kind"`
 	ID            string `json:"id"`
@@ -54,6 +55,15 @@ type PrefetchMaster struct {
 	ContentDigest string `json:"content_digest"`
 	VolumeBytes   int64  `json:"volume_bytes"`
 	HeadSizeBytes int64  `json:"head_size_bytes"`
+	// Reason is why the server lists a custom HEAD: "prewarm" (an idle volume
+	// several workflow runs used this week) or "recent" (used in the last day).
+	Reason string `json:"reason"`
+
+	CheckoutGeneration int64  `json:"checkout_generation"`
+	CloneURL           string `json:"clone_url"`
+	DefaultBranch      string `json:"default_branch"`
+	UID                int    `json:"uid"`
+	VolumeKey          string `json:"volume_key"`
 }
 
 // PrefetchSource lists the masters the server wants this host to hold, most
@@ -208,11 +218,15 @@ const (
 	prefetchRefreshInterval = 10 * time.Minute
 )
 
-// PrefetchPoller hands the custom-volume HEADs the server lists for this host's fleet to the custom-volume agent.
+// PrefetchPoller hands the HEADs the server lists for this host's fleet to the
+// custom-volume agent, and the checkout HEADs to the checkout populator.
 type PrefetchPoller struct {
 	Source PrefetchSource
 	Custom interface {
-		PrefetchMaster(cachevolumes.Identity) bool
+		PrefetchMaster(cachevolumes.Identity, string) bool
+	}
+	Checkouts interface {
+		PrefetchCheckout(cachevolumes.CheckoutTask) bool
 	}
 
 	pollInterval    time.Duration
@@ -289,13 +303,21 @@ func (p *PrefetchPoller) refresh(ctx context.Context) {
 		return
 	}
 	for _, master := range masters {
-		if master.Kind != "custom" {
-			continue
+		switch master.Kind {
+		case "custom":
+			p.Custom.PrefetchMaster(cachevolumes.Identity{
+				ID: master.ID, Account: master.AccountID, Scope: master.Scope, BaseGeneration: int64(master.Generation),
+				ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest, VolumeBytes: master.VolumeBytes, HeadSizeBytes: master.HeadSizeBytes,
+			}, master.Reason)
+		case cachevolumes.KindCheckout:
+			if p.Checkouts != nil {
+				p.Checkouts.PrefetchCheckout(cachevolumes.CheckoutTask{
+					Scope: master.Scope, Generation: master.CheckoutGeneration, CloneURL: master.CloneURL, DefaultBranch: master.DefaultBranch,
+					Use: master.ID, BaseGeneration: int64(master.Generation), ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest,
+					UID: master.UID, VolumeKey: master.VolumeKey, Spare: true,
+				})
+			}
 		}
-		p.Custom.PrefetchMaster(cachevolumes.Identity{
-			ID: master.ID, Account: master.AccountID, Scope: master.Scope, BaseGeneration: int64(master.Generation),
-			ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest, VolumeBytes: master.VolumeBytes, HeadSizeBytes: master.HeadSizeBytes,
-		})
 	}
 }
 

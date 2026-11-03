@@ -3,6 +3,7 @@ defmodule Tuist.AccountsTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
@@ -18,6 +19,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication
   alias Tuist.Base64
@@ -1589,7 +1591,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _resent_invitation} =
         Accounts.resend_invitation(
           invitation,
-          %{url: fn token -> "/auth/invitations/#{token}" end},
+          %{url: fn token -> "/auth/invitations/#{token}" end, inviter: user},
           token: "new-token"
         )
 
@@ -1632,6 +1634,19 @@ defmodule Tuist.AccountsTest do
       assert invitation.invitee_email == "test@tuist.io"
       assert invitation.inviter_type == "User"
       assert invitation.organization_id == organization.id
+    end
+
+    test "rejects a duplicate invitation before charging the email quota" do
+      stub(Environment, :mail_configured?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      opts = %{inviter: user, to: organization, url: fn token -> token end}
+      email = "duplicate-#{user.id}@tuist.io"
+
+      {:ok, _} = Accounts.invite_user_to_organization(email, opts)
+
+      assert {:error, changeset} = Accounts.invite_user_to_organization(email, opts)
+      assert {"has already been taken", _} = changeset.errors[:invitee_email]
     end
 
     test "defaults the invited role to user and records an explicit viewer role" do
@@ -1721,7 +1736,7 @@ defmodule Tuist.AccountsTest do
       {:ok, got} =
         Accounts.resend_invitation(
           invitation,
-          %{url: fn token -> "/auth/invitations/#{token}" end},
+          %{url: fn token -> "/auth/invitations/#{token}" end, inviter: user},
           token: "new-token"
         )
 
@@ -2300,7 +2315,7 @@ defmodule Tuist.AccountsTest do
         :ok
       end)
 
-      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 3, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -2313,6 +2328,7 @@ defmodule Tuist.AccountsTest do
       assert account_id == account.id
       assert_receive {:purged, "runner-volume-masters/" <> _}
       assert_receive {:purged, "runner-gitlab-cache/" <> _}
+      assert_receive {:purged, "sandbox-archives/" <> _}
     end
   end
 
@@ -2716,6 +2732,58 @@ defmodule Tuist.AccountsTest do
       {1, nil} = Repo.update_all(UserToken, set: [inserted_at: ~N[2020-01-01 00:00:00]])
       refute Accounts.get_user_by_session_token(token)
     end
+
+    @tag :browser_session
+    test "expires at fifteen minutes idle without activity from validity checks", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -899)])
+      assert Accounts.get_user_by_session_token(token)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "activity cannot extend the eight-hour absolute deadline", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [inserted_at: now |> DateTime.add(-28_799) |> DateTime.to_naive(), last_active_at: now]
+      )
+
+      assert Accounts.get_user_session(token, touch: true)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "user activity extends only the idle deadline and only for that session", %{token: token, user: user} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      other_token = Accounts.generate_user_session_token(user)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 840) end)
+      assert Accounts.get_user_session(token, touch: true)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1680) end)
+      assert Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_by_session_token(other_token)
+    end
+
+    @tag :browser_session
+    test "legacy tokens are not renewed from migration or first-use time", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [
+          inserted_at: now |> DateTime.add(-900) |> DateTime.to_naive(),
+          last_active_at: nil,
+          auth_provider: nil,
+          auth_provider_organization_id: nil
+        ]
+      )
+
+      refute Accounts.get_user_session(token, touch: true)
+    end
   end
 
   describe "delete_user_session_token/1" do
@@ -2841,6 +2909,62 @@ defmodule Tuist.AccountsTest do
       %{user: user_fixture()}
     end
 
+    test "a delivery failure does not suppress an immediate retry", %{user: user} do
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, :delivery_failed} =
+                   Accounts.deliver_user_reset_password_instructions(%{
+                     user: user,
+                     reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+                   })
+        end)
+
+      assert log =~ "Password reset email delivery failed"
+      refute log =~ "mail provider unavailable"
+      refute log =~ user.email
+
+      refute Repo.exists?(from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"))
+
+      stub(Bamboo.TestAdapter, :deliver, fn email, config ->
+        Mimic.call_original(Bamboo.TestAdapter, :deliver, [email, config])
+      end)
+
+      token =
+        extract_user_token(fn reset_password_url ->
+          Accounts.deliver_user_reset_password_instructions(%{
+            user: user,
+            reset_password_url: reset_password_url
+          })
+        end)
+
+      assert Accounts.get_user_by_reset_password_token(token).id == user.id
+      assert_receive {:delivered_email, email}
+      assert email.to == [nil: user.email]
+    end
+
+    test "a delivery failure preserves a replacement token if its own token was already removed", %{user: user} do
+      {replacement_token, replacement_user_token} = UserToken.build_email_token(user, "reset_password")
+
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        # A reset on another replica can remove the in-flight delivery's token.
+        Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+        Repo.insert!(replacement_user_token)
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      assert {:error, :delivery_failed} =
+               Accounts.deliver_user_reset_password_instructions(%{
+                 user: user,
+                 reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+               })
+
+      assert Accounts.get_user_by_reset_password_token(replacement_token).id == user.id
+    end
+
     test "sends token through notification", %{user: user} do
       token =
         extract_user_token(fn reset_password_url ->
@@ -2921,28 +3045,34 @@ defmodule Tuist.AccountsTest do
 
   describe "reset_user_password/2" do
     setup do
-      %{user: user_fixture()}
+      user = user_fixture()
+      {token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+      %{user: user, token: token}
     end
 
-    test "updates the password", %{user: user} do
+    test "updates the password", %{user: user, token: token} do
+      assert {:error, %Ecto.Changeset{}} = Accounts.reset_user_password(token, %{"password" => "short"})
+
       {:ok, %{user: updated_user}} =
-        Accounts.reset_user_password(user, %{"password" => "new valid password"})
+        Accounts.reset_user_password(token, %{"password" => "new valid password"})
 
       assert updated_user.id == user.id
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
+      assert {:error, :invalid_token} = Accounts.reset_user_password(token, %{"password" => "another valid password"})
     end
 
-    test "deletes all tokens for the given user", %{user: user} do
+    test "deletes all tokens for the given user", %{user: user, token: token} do
       _ = Accounts.generate_user_session_token(user)
-      {:ok, _} = Accounts.reset_user_password(user, %{"password" => "new valid password"})
+      {:ok, _} = Accounts.reset_user_password(token, %{"password" => "new valid password"})
       refute Repo.get_by(UserToken, user_id: user.id)
     end
 
-    test "returns revoked session live socket ids", %{user: user} do
+    test "returns revoked session live socket ids", %{user: user, token: token} do
       session_token = Accounts.generate_user_session_token(user)
 
       assert {:ok, %{revoked_session_live_socket_ids: [live_socket_id]}} =
-               Accounts.reset_user_password(user, %{"password" => "new valid password"})
+               Accounts.reset_user_password(token, %{"password" => "new valid password"})
 
       assert live_socket_id == UserToken.live_socket_id(session_token)
     end
@@ -4233,6 +4363,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
     end
 
     test "deletes an organization account successfully" do
@@ -4247,15 +4378,35 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+      assert_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
     end
 
-    test "purges the account's runner cache-volume masters and GitLab caches from object storage" do
+    test "refuses to delete either account type if artifact cleanup cannot be durably enqueued" do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      accounts = [Accounts.get_account_from_user(user), Accounts.get_account_from_organization(organization)]
+
+      expect(Oban, :insert, 2, fn multi, :delete_account_artifacts, _changeset ->
+        Ecto.Multi.run(multi, :delete_account_artifacts, fn _repo, _changes -> {:error, :queue_unavailable} end)
+      end)
+
+      for account <- accounts do
+        assert_raise MatchError, fn -> Accounts.delete_account!(account) end
+        assert {:ok, _account} = Accounts.get_account_by_id(account.id)
+        refute_enqueued(worker: DeleteAccountArtifactsWorker, args: %{account_id: account.id})
+      end
+
+      assert Accounts.get_user_by_id(user.id)
+      assert {:ok, _organization} = Accounts.get_organization_by_id(organization.id)
+    end
+
+    test "purges the account's runner cache-volume masters, GitLab caches and sandbox archives from object storage" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       test_pid = self()
 
-      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 3, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -4268,6 +4419,8 @@ defmodule Tuist.AccountsTest do
       assert rest == "#{account.id}/"
       assert_receive {:purged, gitlab_cache_prefix}
       assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"
+      assert_receive {:purged, sandbox_archives_prefix}
+      assert sandbox_archives_prefix == "sandbox-archives/#{account.id}/"
     end
 
     test "a failed cache-master purge does not skip the GitLab cache purge" do

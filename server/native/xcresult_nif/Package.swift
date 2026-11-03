@@ -46,5 +46,12 @@ let package = Package(
             ],
             resources: [.copy("../Fixtures")]
         ),
+        .testTarget(
+            name: "XCResultNIFTests",
+            dependencies: [
+                "XCResultNIF",
+                "XCResultParser",
+            ]
+        ),
     ]
 )

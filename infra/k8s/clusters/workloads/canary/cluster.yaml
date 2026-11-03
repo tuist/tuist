@@ -97,11 +97,10 @@ spec:
               node.cluster.x-k8s.io/pool: clickhouse
         - class: hcloud-worker
           name: md-0
-          # Two workers could fit the steady-state workloads but left no
-          # room for the 512Mi ClickHouse schema-clone hook, timing out the
-          # deploy. Keep capacity for hooks and rolling-update surge pods
-          # alongside the two CNPG instances.
-          replicas: 3
+          # Holds the three CNPG instances (4Gi requests each) plus capacity
+          # for deploy hooks, such as the 512Mi ClickHouse schema-clone hook,
+          # and rolling-update surge pods.
+          replicas: 4
           failureDomain: fsn1
           rollout:
             strategy:

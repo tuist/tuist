@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Start background preparation and check readiness once, like the macOS gate.
+# Prepare Linux images. Normally check once and hold unprepared pools. Canary
+# qualification sets LINUX_IMAGE_STAGING_WAIT_SECONDS to wait and fail closed.
 # Usage: linux-runner-image-prepare.sh <rendered-json-array> <release> <namespace>
 # stdout is a Helm values object holding unprepared pools on their current image;
-# diagnostics go to stderr. The caller warns and uses no holds on API errors.
+# diagnostics go to stderr. The caller fails closed for canary, and otherwise
+# warns and uses no holds on API errors.
 set -euo pipefail
 render="${1:?rendered JSON array required}"
 release="${2:?Helm release required}"
@@ -12,6 +14,9 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 now="${NOW:-$(date -u +%s)}"
 timeout="${LINUX_IMAGE_STAGING_TIMEOUT_SECONDS:-3600}"
+wait_seconds="${LINUX_IMAGE_STAGING_WAIT_SECONDS:-0}"
+[[ "$wait_seconds" =~ ^[0-9]+$ ]] || { echo 'Invalid Linux image staging wait.' >&2; exit 1; }
+deadline=$((SECONDS + wait_seconds))
 hash() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi
 }
@@ -19,11 +24,11 @@ owner="$(printf '%s/%s' "$release_namespace" "$release" | hash)"
 owner="${owner:0:20}"
 selector="tuist.dev/linux-image-staging-owner=$owner"
 kubectl --request-timeout=30s get runnerpools.tuist.dev --all-namespaces -o json > "$work/current.json"
-jq -c --slurpfile current "$work/current.json" '[.[]
+jq -c --argjson wait "$wait_seconds" --slurpfile current "$work/current.json" '[.[]
   | select(.kind == "RunnerPool" and .spec.os == "linux")
   | . as $desired
   | ($current[0].items | map(select(.metadata.namespace == $desired.metadata.namespace and .metadata.name == $desired.metadata.name)) | first) as $old
-  | select($old != null and $old.spec.image != .spec.image)
+  | select($wait > 0 or ($old != null and $old.spec.image != .spec.image))
   | {namespace: .metadata.namespace, fleet: .spec.fleetSelector, image: .spec.image,
      # Managed Kata shares containerd overlayfs with native pods. Avoid its
      # 2560 MiB VM overhead; retain unknown handlers and their snapshotters.
@@ -40,8 +45,9 @@ while IFS= read -r group; do
   fleet="$(jq -er '.fleet | select(length > 0)' <<< "$target")"
   image="$(jq -er '.image | select(test("@sha256:[a-f0-9]{64}$"))' <<< "$target")"
   kubectl --request-timeout=30s get nodes -l "kubernetes.io/os=linux,kubernetes.io/arch=amd64,node.cluster.x-k8s.io/pool=$fleet" -o json > "$work/nodes.json"
-  # Like macOS, no Ready/schedulable serving hosts means there is no hold.
-  if ! jq -e 'any(.items[]; .metadata.deletionTimestamp == null and .spec.unschedulable != true and any(.status.conditions[]?; .type == "Ready" and .status == "True"))' "$work/nodes.json" >/dev/null; then
+  # Background staging has no hold without serving hosts. Qualification must
+  # observe at least one serving host; an empty fleet is not readiness proof.
+  if (( wait_seconds == 0 )) && ! jq -e 'any(.items[]; .metadata.deletionTimestamp == null and .spec.unschedulable != true and any(.status.conditions[]?; .type == "Ready" and .status == "True"))' "$work/nodes.json" >/dev/null; then
     echo "Linux $fleet: no Ready, schedulable hosts; moving to $image." >&2
     continue
   fi
@@ -57,13 +63,29 @@ while IFS= read -r group; do
   kubectl --request-timeout=30s -n "$namespace" get daemonset "$name" -o json > "$work/live.json"
   uid="$(jq -er .metadata.uid "$work/live.json")"
   announced_at="$(jq -r '.metadata.creationTimestamp | fromdateiso8601' "$work/live.json")"
-  if (( now - announced_at >= timeout )); then
+  if (( wait_seconds == 0 && now - announced_at >= timeout )); then
     echo "Linux $fleet: staged for at least ${timeout}s; moving without waiting for hosts." >&2
     continue
   fi
-  kubectl --request-timeout=30s -n "$namespace" get pods -l "tuist.dev/linux-image-prepull=$name" -o json > "$work/pods.json"
-  if jq -e --arg uid "$uid" --slurpfile manifest "$work/daemonset.json" --slurpfile pods "$work/pods.json" \
-    -f "$script_dir/linux-runner-image-ready.jq" "$work/nodes.json" >/dev/null; then
+  ready=false
+  while :; do
+    kubectl --request-timeout=30s -n "$namespace" get pods -l "tuist.dev/linux-image-prepull=$name" -o json > "$work/pods.json"
+    if jq -e --arg uid "$uid" --slurpfile manifest "$work/daemonset.json" --slurpfile pods "$work/pods.json" \
+      -f "$script_dir/linux-runner-image-ready.jq" "$work/nodes.json" >/dev/null; then
+      ready=true
+      break
+    fi
+    (( wait_seconds > 0 )) || break
+    if (( SECONDS >= deadline )); then
+      echo "::error::Linux $fleet: candidate $image was not ready within ${wait_seconds}s; refusing to qualify an old image." >&2
+      exit 1
+    fi
+    echo "Linux $fleet: waiting for candidate $image on every Ready, schedulable host." >&2
+    remaining=$((deadline - SECONDS))
+    sleep "$((remaining < 5 ? remaining : 5))"
+    kubectl --request-timeout=30s get nodes -l "kubernetes.io/os=linux,kubernetes.io/arch=amd64,node.cluster.x-k8s.io/pool=$fleet" -o json > "$work/nodes.json"
+  done
+  if "$ready"; then
     echo "Linux $fleet: every Ready, schedulable host holds $image; moving." >&2
     continue
   fi

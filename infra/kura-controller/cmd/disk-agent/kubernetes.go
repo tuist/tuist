@@ -98,6 +98,9 @@ func inventoryVolumes(pods []corev1.Pod, claims []corev1.PersistentVolumeClaim, 
 			if !ok || pv.Spec.ClaimRef == nil || pv.Spec.ClaimRef.UID != claim.UID || pv.Spec.ClaimRef.Namespace != namespace || pv.Spec.ClaimRef.Name != claim.Name {
 				return nil, fmt.Errorf("PV ownership mismatch for %s", pod.Name)
 			}
+			if pv.Spec.CSI != nil {
+				return nil, fmt.Errorf("shared disk cannot manage CSI volume %s (capacity_mode %q) for %s", pv.Name, pv.Spec.CSI.VolumeAttributes["capacity_mode"], pod.Name)
+			}
 			path := ""
 			if pv.Spec.HostPath != nil {
 				path = pv.Spec.HostPath.Path

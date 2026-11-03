@@ -217,6 +217,7 @@ pub fn spawn_tasks(state: &crate::state::SharedState) {
     // redirects and proxies, independently of the peer mTLS routing policy.
     let client =
         crate::control_plane_http::analytics_client_builder(analytics_config.request_timeout_ms)
+            .expect("analytics TLS configuration should build")
             .build()
             .expect("analytics HTTP client should build");
 

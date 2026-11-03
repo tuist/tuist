@@ -1,3 +1,4 @@
+#if os(iOS)
 import Foundation
 import SwiftUI
 
@@ -136,3 +137,4 @@ private struct Captured: Decodable {
     let resourceId: String
     enum CodingKeys: String, CodingKey { case saved; case resourceId = "resource_id" }
 }
+#endif

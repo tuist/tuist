@@ -11,6 +11,7 @@ defmodule TuistWeb.API.GradleController do
   alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.ReportActor
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.GradleReportPublishingPlug
   alias TuistWeb.Plugs.ReportActorPlug
 
@@ -304,6 +305,7 @@ defmodule TuistWeb.API.GradleController do
       status: body.status,
       gradle_version: body[:gradle_version],
       java_version: body[:java_version],
+      tuist_version: Headers.get_build_integration_version(conn, :gradle),
       is_ci: body[:is_ci] || false,
       git_branch: body[:git_branch],
       git_commit_sha: body[:git_commit_sha],
@@ -431,6 +433,11 @@ defmodule TuistWeb.API.GradleController do
                    actor: ReportActor,
                    duration_ms: %Schema{type: :integer},
                    status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
+                   tuist_version: %Schema{
+                     type: :string,
+                     nullable: true,
+                     description: "The reporting Tuist Gradle plugin version."
+                   },
                    gradle_version: %Schema{type: :string, nullable: true},
                    java_version: %Schema{type: :string, nullable: true},
                    is_ci: %Schema{type: :boolean},
@@ -513,6 +520,7 @@ defmodule TuistWeb.API.GradleController do
             actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
             gradle_version: build.gradle_version,
             java_version: build.java_version,
             is_ci: build.is_ci,
@@ -579,6 +587,11 @@ defmodule TuistWeb.API.GradleController do
              actor: ReportActor,
              duration_ms: %Schema{type: :integer},
              status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
+             tuist_version: %Schema{
+               type: :string,
+               nullable: true,
+               description: "The reporting Tuist Gradle plugin version."
+             },
              gradle_version: %Schema{type: :string, nullable: true},
              java_version: %Schema{type: :string, nullable: true},
              is_ci: %Schema{type: :boolean},
@@ -665,6 +678,7 @@ defmodule TuistWeb.API.GradleController do
             actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
             gradle_version: build.gradle_version,
             java_version: build.java_version,
             is_ci: build.is_ci,

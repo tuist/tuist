@@ -11,6 +11,7 @@ This package is a stateless HTTP/gRPC streaming proxy for the wildcard DNS fallb
 - Only pre-forwarding 429/503 responses carry `X-Tuist-Cache-Activation: pending`. Strip that header from upstream responses and omit it after proxy failures; it permits safe retries of otherwise non-idempotent uploads.
 
 - Activation waits and proxy streams have separate bounded admission pools. Release the activation slot before streaming. Resolve each request afresh; a host-only routing cache loses origin selection and can retain drained targets.
+- The only remembered verdicts are control-plane 401/403 refusals, keyed by a digest of control plane, host and Authorization, for one minute in a bounded table. They answer a repeated refused credential locally. Never cache targets, 202s or other statuses.
 
 - Hosted custom-account conflicts direct clients to `TUIST_CACHE_ENDPOINT`: known hosted URLs bypass discovery. Self-hosted servers discover their main endpoint separately.
 

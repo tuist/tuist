@@ -21,7 +21,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
   plug :put_resp_header_cache_control
-  plug :put_resp_header_server
 
   @newsletter_verification_salt "newsletter_subscription"
   @newsletter_verification_max_age 2 * 24 * 60 * 60
@@ -997,6 +996,11 @@ defmodule TuistWeb.Marketing.MarketingController do
          "marketing",
          "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
        )},
+      {dgettext("marketing", "How are Tuist Runners billed?"),
+       dgettext(
+         "marketing",
+         "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes a month and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
+       )},
       {dgettext("marketing", "Is usage on Tuist Runners billed differently?"),
        dgettext(
          "marketing",
@@ -1180,10 +1184,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     else
       put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
     end
-  end
-
-  defp put_resp_header_server(conn, _opts) do
-    put_resp_header(conn, "server", "Bandit")
   end
 
   defp post_sitemap_entries do

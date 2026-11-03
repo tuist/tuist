@@ -70,7 +70,8 @@ defmodule TuistWeb.API.Schemas.Preview do
       },
       supported_platforms: %Schema{
         type: :array,
-        items: TuistWeb.API.Schemas.PreviewSupportedPlatform
+        items: %Schema{type: :string},
+        description: "Supported platforms. Clients must ignore unknown platforms."
       },
       inserted_at: %Schema{
         type: :string,

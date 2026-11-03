@@ -5,6 +5,9 @@ defmodule AtlasWeb.AutomationController do
 
   @errors %{
     forbidden: {403, "forbidden"},
+    signals_disabled: {503, "signals_disabled"},
+    source_disabled: {409, "source_disabled"},
+    missing_access: {403, "forbidden"},
     not_found: {404, "not_found"},
     workflow_in_use: {409, "workflow_in_use"},
     workflow_changed: {409, "workflow_changed"},

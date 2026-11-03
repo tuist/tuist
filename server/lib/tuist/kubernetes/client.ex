@@ -144,6 +144,10 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, @sandbox_node_audience, opts)
   end
 
+  def create_amp_provider_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, "tuist-amp-orbs", opts)
+  end
+
   # Audience of the token a macOS runner host mints for its own per-machine
   # ServiceAccount to list the cache masters it should prefetch. Distinct from
   # the dispatch audience, which every guest holds a token for: the list carries
@@ -193,7 +197,7 @@ defmodule Tuist.Kubernetes.Client do
         end
 
       {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
-        parse_sa_principal(user)
+        if audience == "tuist-amp-orbs", do: {:error, :unauthenticated}, else: parse_sa_principal(user)
 
       {:ok, %{"status" => %{"authenticated" => false}}} ->
         {:error, :unauthenticated}
@@ -206,6 +210,47 @@ defmodule Tuist.Kubernetes.Client do
 
       {:error, _} = err ->
         err
+    end
+  end
+
+  @doc """
+  TokenReview for a token that must claim `audience`, returning the
+  authenticated user's `username`, `uid`, and `extra` (for a pod-bound
+  ServiceAccount token, `extra` carries the node it was issued on under
+  `authentication.kubernetes.io/node-name`). Unlike `create_token_review/2`,
+  this does not narrow the principal to a ServiceAccount; the caller compares
+  the username itself.
+
+  Returns `{:error, :unauthenticated}` when the token is rejected or does not
+  claim `audience`.
+  """
+  def create_bound_token_review(token, audience, opts \\ []) when is_binary(token) and is_binary(audience) do
+    body =
+      JSON.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token, "audiences" => [audience]}
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
+           body: body,
+           headers: [{"content-type", "application/json"}],
+           timeout: opts[:timeout]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => %{"username" => username} = user} = status}}
+      when is_binary(username) ->
+        if audience in (status["audiences"] || [audience]) do
+          {:ok, %{username: username, uid: user["uid"], extra: Map.get(user, "extra") || %{}}}
+        else
+          {:error, :unauthenticated}
+        end
+
+      {:ok, %{"status" => _status}} ->
+        {:error, :unauthenticated}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -343,6 +388,15 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  GETs a PersistentVolume by name. The Kura volume key endpoint reads a
+  volume's CSI driver, node affinity, and claim to decide whether the calling
+  node may open it. The server SA needs `persistentvolumes: [get]`.
+  """
+  def get_persistent_volume(name, opts \\ []) when is_binary(name) do
+    get("/api/v1/persistentvolumes/#{name}", opts)
+  end
+
+  @doc """
   LISTs PersistentVolumes, which are cluster-scoped. Kura capacity reads them to
   find node-local volumes no pod requests any more, such as a quarantined
   replica's retained volume, whose bytes still sit on a cache node's disk. The
@@ -475,6 +529,22 @@ defmodule Tuist.Kubernetes.Client do
          "metadata" => %{"namespace" => namespace, "name" => name}
        }) do
     {:ok, "/api/v1/namespaces/#{namespace}/secrets/#{name}"}
+  end
+
+  defp manifest_path(%{
+         "apiVersion" => "v1",
+         "kind" => "ServiceAccount",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}"}
+  end
+
+  defp manifest_path(%{
+         "apiVersion" => "apps/v1",
+         "kind" => "Deployment",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/apis/apps/v1/namespaces/#{namespace}/deployments/#{name}"}
   end
 
   defp manifest_path(%{"kind" => kind}), do: {:error, "unsupported Kubernetes manifest kind #{kind}"}

@@ -14,6 +14,34 @@ sharing unused capacity above floors addresses the underlying reservation gap.
 Disk differs from bandwidth: stored bytes persist, so a lower target cannot fund
 another replica until its blocks and enforceable allowance have been released.
 
+## Scope: plaintext local-path volumes only
+
+Sharing applies to one plaintext XFS `/data` filesystem with local-path PVs.
+Encrypted Kura volumes from `kura-volumes-csi` use `capacity_mode:
+ceiling-backed-v1`: every volume's full virtual ceiling plus overhead stays
+reserved on `tuist.dev/kura-disk`, and lowering its grant or trimming releases
+no commitment ([interface](../kura-volumes-csi/thin/interface.md)). Sharing
+therefore never applies to them:
+
+- `Regions.shared_disk?/1` is false in LVM regions (`diskResource:
+  tuist.dev/kura-disk`) and thin-capable regions, so the server never renders a
+  floor or charges one there.
+- The controller ignores `storageFloor` for any instance whose disk resource is
+  `tuist.dev/kura-disk`, including the thin class, and keeps the full
+  `diskReservation`.
+- The disk agent refuses CSI PVs and stops renewing authorization rather than
+  running `xfs_quota` against a filesystem CSI owns.
+
+Sharing encrypted storage needs a different physical bound: a project quota
+does not limit a thin device's mapped allocation. The candidate is a fully
+backed base volume plus separately backed, removable encrypted units, still an
+experiment ([prototype](../kura-volumes-csi/thin/borrowed/README.md),
+[compatibility analysis](../kura-volumes-csi/thin/sharing-compatibility.md)).
+The floor/demand/ceiling policy in `internal/diskallocator` is reusable there;
+the inventory, enforcement, sizing conversion and asynchronous reclamation are
+not. Enrolled monolithic encrypted volumes reach any such mode through a staged
+migration, not through this agent.
+
 ## Policy and accounting
 
 | Quantity | Meaning | Can the sum exceed usable physical capacity? |

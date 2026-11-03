@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/sandbox-image
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.70.1
@@ -26,3 +26,5 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 )
+
+godebug default=go1.25

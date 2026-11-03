@@ -36,6 +36,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /" do
+    test "marketing responses do not advertise server software", %{conn: conn} do
+      for method <- [:get, :head], path <- ["/", "/about", "/customers/delivery-hero"] do
+        response = dispatch(conn, @endpoint, method, path)
+
+        assert response.status == if(path == "/customers/delivery-hero", do: 302, else: 200)
+        assert get_resp_header(response, "server") == []
+        assert get_resp_header(response, "x-powered-by") == []
+      end
+    end
+
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
       conn = get(conn, "/")
 
@@ -475,6 +485,28 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "+ $2 per additional million"
       assert html =~ "What counts as cache egress and requests?"
       refute html =~ "+ $0.5 per additional unit"
+    end
+
+    test "shows Tuist Runners pricing", %{conn: conn} do
+      html = conn |> get("/pricing") |> html_response(200)
+
+      assert html =~ "Tuist Runners pricing"
+      assert html =~ "8 vCPU · 24 GB"
+      assert html =~ "16 vCPU · 48 GB"
+      assert html =~ "See every machine and rate"
+      assert html =~ "+ from $0.06/min on macOS and $0.001/min on Linux"
+      refute html =~ "$0.075"
+      assert html =~ "16 vCPU · 64 GB"
+      assert html =~ "$0.0192"
+      assert html =~ "100 GB of cache volumes free"
+      refute html =~ "Prepay and save 20%"
+      assert html =~ "Yearly and volume discounts"
+      assert html =~ "How are Tuist Runners billed?"
+      refute html =~ "How Tuist Runners compare"
+
+      for provider <- ["Namespace", "Blacksmith", "WarpBuild", "Depot", "Bitrise", ">GitHub<"] do
+        refute html =~ provider
+      end
     end
   end
 

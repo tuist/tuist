@@ -13,6 +13,7 @@ defmodule Tuist.VCS do
   alias Tuist.Builds
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
+  alias Tuist.Cargo
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
@@ -36,7 +37,13 @@ defmodule Tuist.VCS do
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
-  @test_body_build_systems [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"mix", "Mix"}]
+  @test_body_build_systems [
+    {"xcode", "Xcode"},
+    {"gradle", "Gradle"},
+    {"bazel", "Bazel"},
+    {"mix", "Mix"},
+    {"cargo", "Cargo"}
+  ]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
@@ -596,7 +603,8 @@ defmodule Tuist.VCS do
         bundle_url: bundle_url,
         build_url: build_url
       }) do
-    with true <- is_binary(git_commit_sha) and git_commit_sha != "",
+    with true <- project.vcs_comments_enabled,
+         true <- is_binary(git_commit_sha) and git_commit_sha != "",
          true <- is_binary(git_ref) and git_ref != "",
          {:ok, repository_full_handle} <-
            get_repository_full_handle_from_url(git_remote_url_origin),
@@ -939,11 +947,19 @@ defmodule Tuist.VCS do
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url})#{run_command(preview, preview_url)} | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
         """
       end)}
       """
     end
+  end
+
+  # Command-line previews have no install page or QR code; `tuist run` is how
+  # people and agents try them.
+  defp run_command(preview, preview_url) do
+    if Enum.any?(preview.app_builds, &(&1.type == :executable)),
+      do: "<br/>`tuist run #{preview_url}`",
+      else: ""
   end
 
   defp get_qr_code_image(%{
@@ -1064,7 +1080,7 @@ defmodule Tuist.VCS do
 
     links =
       Enum.map_join(test_runs, "<br/>", fn test_run ->
-        name = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        name = test_run_name(test_run)
         "[#{name}](#{test_run_url.(%{project: project, test_run: test_run})})"
       end)
 
@@ -1072,6 +1088,10 @@ defmodule Tuist.VCS do
       "|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
       "| #{links} | #{rollup_status_text(test_runs, counts)} | #{counts.passed} | #{counts.failed} | #{counts.skipped} | #{commit_link(latest.git_commit_sha, git_remote_url_origin)} |\n"
   end
+
+  defp test_run_name(%{build_system: "cargo", scheme: scheme}), do: Cargo.test_run_label(scheme)
+  defp test_run_name(%{scheme: scheme}) when scheme in [nil, ""], do: "Unknown"
+  defp test_run_name(%{scheme: scheme}), do: scheme
 
   defp rollup_status_text(test_runs, counts) do
     statuses = Enum.map(test_runs, & &1.status)
@@ -1129,7 +1149,7 @@ defmodule Tuist.VCS do
       runs_summary =
         Enum.map_join(flaky_tests_by_run, "", fn {test_run, flaky_tests} ->
           flaky_count = length(flaky_tests)
-          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+          scheme = test_run_name(test_run)
 
           flaky_runs_url =
             Environment.app_url(
@@ -1218,7 +1238,7 @@ defmodule Tuist.VCS do
 
       runs_summary =
         Enum.map_join(failed_runs_with_counts, "", fn {test_run, _runs, failed_count} ->
-          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+          scheme = test_run_name(test_run)
 
           failures_url =
             Environment.app_url(
@@ -1368,22 +1388,7 @@ defmodule Tuist.VCS do
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.filter(&(&1.root_project_name != ""))
-    |> Enum.reduce(%{}, fn build, acc ->
-      name = build.root_project_name
-
-      current_build = Map.get(acc, name)
-
-      if current_build == nil or
-           NaiveDateTime.after?(
-             build.inserted_at,
-             current_build.inserted_at
-           ) do
-        Map.put(acc, name, build)
-      else
-        acc
-      end
-    end)
-    |> Map.values()
+    |> Enum.uniq_by(fn build -> {build.root_project_name, Enum.sort(build.requested_tasks)} end)
   end
 
   defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
@@ -1490,11 +1495,14 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
 
-        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
+        tasks =
+          build.requested_tasks |> Enum.join(" ") |> String.replace("|", "&#124;") |> String.replace(~r/[\r\n]+/, " ")
+
+        "| [#{build.root_project_name}](#{url}) | #{tasks} | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
-    "| Project | Status | Duration | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|\n" <>
+    "| Project | Requested tasks | Status | Duration | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|\n" <>
       rows
   end
 
@@ -1948,7 +1956,7 @@ defmodule Tuist.VCS do
     api_url = if is_binary(api_url), do: String.trim(api_url), else: api_url
     payload = {account_id, normalize_client_url(client_url), normalize_github_app_owner(github_app_owner)}
     payload = if api_url in [nil, ""], do: payload, else: Tuple.insert_at(payload, 3, api_url)
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "github_state", payload)
   end
 
   @doc """
@@ -1962,7 +1970,7 @@ defmodule Tuist.VCS do
     token_max_age_seconds = 7_776_000
 
     case Phoenix.Token.verify(
-           TuistWeb.Endpoint,
+           Tuist.Web.endpoint(),
            "github_state",
            token,
            max_age: token_max_age_seconds

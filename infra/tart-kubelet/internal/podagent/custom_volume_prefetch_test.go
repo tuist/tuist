@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -372,5 +373,56 @@ func TestCustomPrefetchContinuesADownloadItsBudgetCutShort(t *testing.T) {
 	defer p.mu.Unlock()
 	if len(p.failed) != 0 {
 		t.Fatal("treated a download that made progress as failed")
+	}
+}
+
+// The prefetched-bytes metric tells what the server's listing moved apart from
+// what jobs and refreshes did, and counts only installed masters.
+func TestCustomPrefetchCountsInstalledBytesByReason(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	release := make(chan struct{})
+	p := newCustomPrefetcher(ctx, func(_ context.Context, slot cachevolumes.Slot, _ bool) error {
+		<-release
+		if slot.Scope[0] == 'f' {
+			return errors.New("download failed")
+		}
+		return nil
+	}, nil)
+	defer func() {
+		cancel()
+		p.wait.Wait()
+	}()
+	c := &CustomVolumes{}
+	c.prefetch.Store(p)
+	sized := func(scope string, bytes int64) cachevolumes.Identity {
+		identity := warmCustomIdentity(scope, 1)
+		identity.HeadSizeBytes = bytes
+		return identity
+	}
+	reasons := []string{prefetchJob, prefetchRefresh, prefetchPrewarm, prefetchRecent}
+	before := map[string]float64{}
+	for _, reason := range reasons {
+		before[reason] = testutil.ToFloat64(customCachePrefetchedBytes.WithLabelValues(reason))
+	}
+
+	if !c.PrefetchMaster(sized("a", 100), "prewarm") || !c.PrefetchMaster(sized("b", 20), "") || !c.PrefetchMaster(sized("c", 3), "other") {
+		t.Fatal("listed masters not queued")
+	}
+	c.PrefetchMaster(sized("f", 1000), "prewarm")
+	done := []<-chan struct{}{
+		p.start(sized("d", 4000), true), p.start(sized("e", 50000), false),
+		p.queue(sized("a", 100), false, ""), p.queue(sized("b", 20), false, ""),
+		p.queue(sized("c", 3), false, ""), p.queue(sized("f", 1000), false, ""),
+	}
+	close(release)
+	for _, d := range done {
+		waitClosed(t, d, "prefetch never finished")
+	}
+
+	want := map[string]float64{prefetchJob: 4000, prefetchRefresh: 50000, prefetchPrewarm: 100, prefetchRecent: 23}
+	for _, reason := range reasons {
+		if got := testutil.ToFloat64(customCachePrefetchedBytes.WithLabelValues(reason)) - before[reason]; got != want[reason] {
+			t.Errorf("%s bytes = %v, want %v", reason, got, want[reason])
+		}
 	}
 }

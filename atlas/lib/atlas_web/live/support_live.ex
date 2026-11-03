@@ -836,6 +836,37 @@ defmodule AtlasWeb.SupportLive do
                 {gettext("Unmatched contact")}
               </span>
             </div>
+            <%= if origin = Support.agent_feedback_origin(@thread) do %>
+              <div id="support-feedback-channel" data-part="detail-row">
+                <span data-part="detail-label">{gettext("Channel")}</span>
+                <span data-part="detail-value">
+                  {if origin.source,
+                    do: gettext("Agent feedback via %{source}", source: origin.source),
+                    else: gettext("Agent feedback")}
+                </span>
+              </div>
+              <div :if={origin.reporter_handle} id="support-reporter" data-part="detail-row">
+                <span data-part="detail-label">{gettext("Reporter")}</span>
+                <span data-part="detail-value">{origin.reporter_handle}</span>
+              </div>
+              <div :if={origin.account_handle} id="support-reported-from" data-part="detail-row">
+                <span data-part="detail-label">{gettext("Reported from")}</span>
+                <span data-part="detail-value">
+                  {Enum.join(
+                    Enum.reject([origin.account_handle, origin.project_handle], &is_nil/1),
+                    "/"
+                  )}
+                </span>
+              </div>
+              <div
+                :if={origin.organization_handles != []}
+                id="support-organizations"
+                data-part="detail-row"
+              >
+                <span data-part="detail-label">{gettext("Organizations")}</span>
+                <span data-part="detail-value">{Enum.join(origin.organization_handles, ", ")}</span>
+              </div>
+            <% end %>
             <.form id="support-assignment-form" for={@owner_form} data-part="owner-field">
               <.label label={gettext("Assignee")} />
               <.select

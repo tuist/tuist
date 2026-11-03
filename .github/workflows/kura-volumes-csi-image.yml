@@ -1,0 +1,522 @@
+name: Kura Volumes CSI Image
+
+# PR validation + image build for kura-volumes-csi, the node plugin behind
+# the kura-volumes.tuist.dev StorageClass that gives every Kura data PVC its
+# own LUKS2 container on the node's /data partition (infra/kura-volumes-csi/).
+#
+# A manual dispatch publishes :sha-<git-sha>. Deployment requires its verified
+# digest explicitly; server/controller deployments preserve the installed driver.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/kura-volumes-csi/**
+      - infra/helm/rack-nodes/**
+      - infra/helm/tuist/templates/kura-volumes-csi.yaml
+      - .github/workflows/kura-volumes-csi-image.yml
+      - .github/scripts/kura-csi-image*.sh
+  workflow_dispatch:
+    inputs:
+      qualification_only:
+        description: Run unit and disposable Linux stack qualification without publishing an image
+        type: boolean
+        default: false
+      latency_only:
+        description: Isolate thin small-write latency in a disposable VM; no publication or deployment
+        type: boolean
+        default: false
+      metadata_only:
+        description: Qualify 128 encrypted XFS devices in a disposable VM; no images or deployment
+        type: boolean
+        default: false
+      fixture_images_only:
+        description: Build downloadable server and CSI test images only; never publish or deploy
+        type: boolean
+        default: false
+      borrowed_skip_bench:
+        description: With borrowed_only, rerun lifecycle and scale safety without repeating unchanged benchmarks
+        type: boolean
+        default: false
+      borrowed_only:
+        description: Run only the disposable borrowed-volume prototype; publish no images
+        type: boolean
+        default: false
+      fscrypt_only:
+        description: Run only the disposable fscrypt experiment, without publishing images
+        type: boolean
+        default: false
+      fscrypt_profile:
+        description: Profile one cache run per layout instead of the repeated benchmark and fio suite
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/kura-volumes-csi
+
+jobs:
+  test:
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.19.0
+      - name: Test
+        working-directory: infra/kura-volumes-csi
+        run: go test ./...
+      - name: Vet
+        working-directory: infra/kura-volumes-csi
+        run: go vet ./...
+      - name: Test independent CSI deployment selection
+        run: bash .github/scripts/kura-csi-image.test.sh
+
+  thin-stack:
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
+    # Device-mapper fault tests need their own disposable VM, never a shared
+    # staging host or a container with access to a runner host's block devices.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk-kib: [64, 512]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Install disposable stack prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lvm2 cryptsetup xfsprogs thin-provisioning-tools ruby fio
+          sudo modprobe dm_thin_pool
+          test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 30000000000
+      - name: Qualify the actual CSI driver
+        shell: bash
+        working-directory: infra/kura-volumes-csi
+        run: |
+          go test -c -o /tmp/kura-thin-driver.test ./internal/driver
+          sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB=${{ matrix.chunk-kib }} /tmp/kura-thin-driver.test -test.run '^TestThinRealStack$' -test.v -test.timeout 15m | tee /tmp/kura-thin-driver.log
+      - name: Qualify reclamation and the quota counterexample
+        run: |
+          # The unprivileged runner owns the report artifact.
+          # shellcheck disable=SC2024
+          sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB=${{ matrix.chunk-kib }} ruby infra/kura-volumes-csi/thin/stack_test.rb > /tmp/kura-thin-stack.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thin-stack-${{ matrix.chunk-kib }}
+          path: |
+            /tmp/kura-thin-driver.log
+            /tmp/kura-thin-stack.json
+
+  borrowed-build:
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: kura
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust bazel tuist"
+          working_directory: kura
+      - name: Install build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config ruby
+      - name: Configure optional build cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Apply experiment-only runtime patch
+        run: |
+          KURA_BORROWED_BUILD=1 ruby ../infra/kura-volumes-csi/thin/borrowed/patch_runtime.rb .
+          rustup toolchain install 1.94.1 --profile minimal --component rustfmt
+          cargo fmt
+          git diff -- src > /tmp/kura-borrowed-runtime.patch
+          cp src/borrowed_prototype.rs /tmp/kura-borrowed-runtime.rs
+      - name: Validate and build the experimental runtime
+        run: |
+          mise run --skip-tools clippy -- --jobs=2
+          mise run --skip-tools compile --binary-only -- -c opt --jobs=2
+          cp bazel-bin/kura /tmp/kura-borrowed-runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: borrowed-runtime
+          path: |
+            /tmp/kura-borrowed-runtime
+            /tmp/kura-borrowed-runtime.patch
+            /tmp/kura-borrowed-runtime.rs
+
+  borrowed-stack:
+    needs: borrowed-build
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: borrowed-runtime
+          path: /tmp/borrowed-runtime
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build private runtime image and test binaries
+        run: |
+          mkdir -p kura/bin/amd64
+          cp /tmp/borrowed-runtime/kura-borrowed-runtime kura/bin/amd64/kura
+          chmod +x kura/bin/amd64/kura
+          docker build -f kura/Dockerfile.release --build-arg TARGETARCH=amd64 -t kura:borrowed-prototype kura
+          cd infra/kura-volumes-csi
+          go test -tags kuraborrowed -c -o /tmp/kura-borrowed-driver.test ./internal/driver
+          go build -o /tmp/kura-borrowed-cache-bench ./cmd/cache-bench
+      - name: Check out the pinned sharing policy
+        uses: actions/checkout@v4
+        with:
+          ref: 34956ca681a3dc0dc257ee5b4d0d65814bd5f23d
+          path: sharing-reference
+          sparse-checkout: infra/kura-controller
+          persist-credentials: false
+      - name: Build unchanged sharing target calculation
+        run: |
+          cp infra/kura-volumes-csi/thin/borrowed/allocator_test.go.fixture sharing-reference/infra/kura-controller/internal/diskallocator/borrowed_probe_test.go
+          cd sharing-reference/infra/kura-controller
+          GOWORK=off go test -c -o /tmp/kura-borrowed-allocator.test ./internal/diskallocator
+      - name: Install private VM stack prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby lvm2 cryptsetup xfsprogs thin-provisioning-tools
+          sudo modprobe dm_thin_pool
+          test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 25000000000
+      - name: Exercise real CSI and Kura with transferable encrypted units
+        shell: bash
+        run: |
+          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_SKIP_BENCH=${{ inputs.borrowed_skip_bench }} KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/child_stack.rb" KURA_BORROWED_BENCH=/tmp/kura-borrowed-cache-bench KURA_BORROWED_POLICY=/tmp/kura-borrowed-allocator.test KURA_BORROWED_SOURCE="$GITHUB_SHA" /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 60m | tee /tmp/kura-borrowed-driver.log
+          ruby -rjson -e 'r=JSON.parse(File.read("/tmp/kura-borrowed-results.json")); abort "prototype failed" if r["failure"] || r.fetch("assertions").size < 20 || r.fetch("assertions").any? { |a| !a.fetch("passed") }; abort "incomplete benchmark" unless r.fetch("benchmarks").size == ("${{ inputs.borrowed_skip_bench }}" == "true" ? 0 : 10); abort "cleanup incomplete" unless r["containers_cleaned"] && File.read("/tmp/kura-borrowed-driver.log").include?("BORROWED_CLEANUP_COMPLETE=true")'
+      - name: Preserve diagnostics
+        if: failure()
+        run: sudo dmesg | tail -100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: borrowed-stack
+          path: |
+            /tmp/kura-borrowed-results.json
+            /tmp/kura-borrowed-driver.log
+
+  fscrypt-experiment:
+    if: inputs.qualification_only != true && inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
+    # Independent storage-primitive experiment; no deployed driver change.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build bounded cache benchmark
+        working-directory: infra/kura-volumes-csi
+        run: go build -o /tmp/kura-fscrypt-cache-bench ./cmd/cache-bench
+      - name: Check out the pinned sharing policy for compatibility qualification
+        uses: actions/checkout@v4
+        with:
+          ref: 34956ca681a3dc0dc257ee5b4d0d65814bd5f23d
+          path: sharing-reference
+          sparse-checkout: infra/kura-controller
+          persist-credentials: false
+      - name: Build the adapter proof against unchanged sharing policy
+        run: |
+          cp infra/kura-volumes-csi/fscrypt/allocator_test.go.fixture sharing-reference/infra/kura-controller/internal/diskallocator/fscrypt_probe_test.go
+          cd sharing-reference/infra/kura-controller
+          GOWORK=off go test -c -o /tmp/kura-fscrypt-allocator.test ./internal/diskallocator
+      - name: Install disposable VM prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby build-essential e2fsprogs quota xfsprogs lvm2 cryptsetup thin-provisioning-tools fio
+          if ! sudo modprobe quota_v2; then
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe quota_v2
+          fi
+          sudo modprobe dm_thin_pool
+          git clone https://github.com/google/fscryptctl /tmp/fscryptctl
+          git -C /tmp/fscryptctl checkout --detach 361a040c0f50c2440d51347b5eb48482ae1a41b7
+          make -C /tmp/fscryptctl fscryptctl
+          sudo install /tmp/fscryptctl/fscryptctl /usr/local/bin/fscryptctl
+      - name: Qualify encrypted shared filesystem and compare layouts
+        env:
+          FSCRYPT_PROFILE: ${{ inputs.fscrypt_profile }}
+        run: |
+          profile_tool=""
+          if [ "$FSCRYPT_PROFILE" = "true" ]; then
+            sudo apt-get install -y linux-tools-generic
+            for candidate in /usr/lib/linux-tools/*/perf; do
+              if [ -x "$candidate" ]; then
+                profile_tool="$candidate"
+                break
+              fi
+            done
+            test -x "$profile_tool"
+            sudo sysctl -w kernel.perf_event_paranoid=1 kernel.kptr_restrict=0
+          fi
+          # The unprivileged runner intentionally owns the report artifact.
+          # shellcheck disable=SC2024
+          sudo env KURA_FSCRYPT_PERF="$profile_tool" KURA_FSCRYPT_DISPOSABLE_VM=1 KURA_FSCRYPT_CACHE_BENCH=/tmp/kura-fscrypt-cache-bench KURA_FSCRYPT_ALLOCATOR_TEST=/tmp/kura-fscrypt-allocator.test ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
+      - name: Preserve disposable VM kernel diagnostics
+        if: failure()
+        run: sudo dmesg | tail -100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fscrypt-experiment
+          path: /tmp/kura-fscrypt-stack.json
+
+  build-pr:
+    needs: test
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/kura-volumes-csi/Dockerfile
+          platforms: linux/amd64
+          push: false
+
+  # Publication is never run in a pull-request job.
+  build:
+    needs: [test, thin-stack]
+    # The VM qualification is dispatch-only; a PR still builds its image.
+    # A failed or cancelled qualification must never publish a candidate.
+    if: github.event_name == 'workflow_dispatch' && inputs.qualification_only != true && inputs.latency_only != true && always() && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
+    permissions:
+      contents: read
+      packages: write
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          echo "version=sha-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:sha-${GIT_SHA}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/kura-volumes-csi/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: VERSION=${{ steps.tags.outputs.version }}
+          cache-from: type=gha,scope=kura-volumes-csi
+          cache-to: type=gha,mode=max,scope=kura-volumes-csi
+
+  borrowed-server-artifact:
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    permissions:
+      contents: read
+      packages: read
+    runs-on: tuist-linux-large
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          target: runner
+          push: false
+          tags: kura-borrowed-server:fixture-${{ github.sha }}
+          outputs: type=docker,dest=/tmp/kura-borrowed-server.tar
+          secrets: github_token=${{ secrets.GITHUB_TOKEN }}
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:server
+          build-args: |
+            TUIST_HOSTED=1
+            TUIST_VERSION=borrowed-fixture-${{ github.sha }}
+            MIX_ENV=prod
+      - uses: actions/upload-artifact@v4
+        with:
+          name: borrowed-server-image
+          path: /tmp/kura-borrowed-server.tar
+          compression-level: 0
+          retention-days: 3
+  borrowed-csi-artifact:
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    permissions:
+      contents: read
+      packages: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/kura-volumes-csi/Dockerfile
+          push: false
+          tags: kura-borrowed-csi:fixture-${{ github.sha }}
+          outputs: type=docker,dest=/tmp/kura-borrowed-csi.tar
+          build-args: |
+            GO_VERSION=1.26.10
+            VERSION=borrowed-fixture-${{ github.sha }}
+            GO_TAGS=kuraborrowed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: borrowed-csi-image
+          path: /tmp/kura-borrowed-csi.tar
+          compression-level: 0
+          retention-days: 3
+
+  metadata-scale:
+    if: inputs.latency_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.metadata_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build real driver qualification
+        working-directory: infra/kura-volumes-csi
+        run: go test -tags kuraborrowed -c -o /tmp/kura-borrowed-driver.test ./internal/driver
+      - name: Install disposable VM prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby lvm2 cryptsetup xfsprogs thin-provisioning-tools
+          sudo modprobe dm_thin_pool
+          test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 25000000000
+      - name: Qualify configured metadata device count and cold activation
+        shell: bash
+        run: |
+          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_METADATA_SCALE=128 KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/metadata_stack.rb" KURA_BORROWED_BENCH=/bin/false KURA_BORROWED_SOURCE="$GITHUB_SHA" /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 60m | tee /tmp/kura-borrowed-driver.log
+          ruby -rjson -e 'r=JSON.parse(File.read("/tmp/kura-borrowed-results.json")); abort "scale failed" if r["failure"] || r.fetch("assertions").any? { |a| !a.fetch("passed") }; abort "wrong scale" unless r.dig("observations", "metadata_scale", "devices") == 128; abort "cleanup incomplete" unless r["containers_cleaned"] && File.read("/tmp/kura-borrowed-driver.log").include?("BORROWED_CLEANUP_COMPLETE=true")'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metadata-scale
+          path: |
+            /tmp/kura-borrowed-results.json
+            /tmp/kura-borrowed-driver.log
+
+  latency-isolation:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.latency_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build bounded latency client
+        working-directory: infra/kura-volumes-csi
+        run: go build -o /tmp/kura-latency-bench ./cmd/cache-bench
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare disposable VM only
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby lvm2 cryptsetup xfsprogs thin-provisioning-tools fio
+          sudo modprobe dm_thin_pool
+          docker pull ghcr.io/tuist/kura@sha256:2c7e3ddc67bd196452663078c9f95bf8dd17a654d8bb0d9c0c388bc8c072ab43
+      - name: Isolate quotas, crypto submission, filesystem format and thin mapping
+        run: sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_LATENCY_BENCH=/tmp/kura-latency-bench ruby infra/kura-volumes-csi/thin/borrowed/latency_stack.rb
+      - name: Qualify CSI formatting and lifecycle on both pool geometries
+        working-directory: infra/kura-volumes-csi
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -c -o /tmp/kura-latency-driver.test ./internal/driver
+          for chunk in 64 512; do
+            sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB="$chunk" /tmp/kura-latency-driver.test -test.run '^TestThinRealStack$' -test.v -test.timeout 15m | tee "/tmp/kura-latency-driver-$chunk.log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: latency-isolation
+          path: |
+            /tmp/kura-latency-results.json
+            /tmp/kura-latency-driver-*.log

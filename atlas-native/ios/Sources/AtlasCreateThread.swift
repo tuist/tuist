@@ -23,7 +23,13 @@ struct AtlasCreateThread: View {
                 }
                 if let error = model.errorMessage { Text(error).foregroundStyle(.red) }
             }
-            .navigationTitle("New shared thread").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("New shared thread")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #else
+            .formStyle(.grouped)
+            .frame(width: 540, height: 520)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(model.creating) }
                 ToolbarItem(placement: .confirmationAction) {

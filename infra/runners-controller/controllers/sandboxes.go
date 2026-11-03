@@ -231,7 +231,7 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	now time.Time,
 	logger logr.Logger,
 ) (bool, error) {
-	if r.SandboxesNamespace == "" || pool.Spec.OS != "linux" || ciQueued(fleet) {
+	if r.SandboxesNamespace == "" || pool.Spec.OS != "linux" || fleet == nil {
 		return false, nil
 	}
 

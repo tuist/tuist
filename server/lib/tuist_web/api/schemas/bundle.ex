@@ -55,6 +55,16 @@ defmodule TuistWeb.API.Schemas.Bundle do
         description:
           "Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`."
       },
+      custom_metadata: %Schema{
+        type: :object,
+        properties: %{
+          tags: %Schema{
+            type: :array,
+            items: %Schema{type: :string},
+            description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+          }
+        }
+      },
       inserted_at: %Schema{
         type: :string,
         format: "date-time",

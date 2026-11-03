@@ -107,6 +107,7 @@ type Instance struct {
 	calls  []Call
 	state  string
 	killed atomic.Bool
+	cpu    atomic.Int64
 	done   chan struct{}
 	once   sync.Once
 	// FailSnapshotCreate makes PUT /snapshot/create answer 400.
@@ -248,6 +249,11 @@ func (i *Instance) VsockPath() string             { return filepath.Join(i.sockD
 func (i *Instance) PID() int                      { return 4242 }
 func (i *Instance) Done() <-chan struct{}         { return i.done }
 func (i *Instance) Killed() bool                  { return i.killed.Load() }
+
+// CPUTime reports what SetCPUTime last set.
+func (i *Instance) CPUTime() (time.Duration, bool) { return time.Duration(i.cpu.Load()), true }
+
+func (i *Instance) SetCPUTime(d time.Duration) { i.cpu.Store(int64(d)) }
 
 func (i *Instance) GuestPath(inJail string) string {
 	if i.jailed {
