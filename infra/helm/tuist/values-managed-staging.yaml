@@ -296,12 +296,6 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1UXNkKLlKoN51eczld0hbV1t"
-        # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
-        # then 0.01 cents each, which is $0.10 per GB-month. Measured by
-        # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
-        # Meter has to exist before this key does; the empty id reports without
-        # charging, like Linux above.
-        runner_cache_volume_megabyte_months: ""
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by

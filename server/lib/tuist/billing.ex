@@ -17,7 +17,6 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.UsagePricing
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
-  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
@@ -120,8 +119,7 @@ defmodule Tuist.Billing do
   job without recalculating usage when that job retries.
 
   Reports the cache egress, cache request, and passing test case meters
-  that exist in Stripe, plus the language model, runner compute, and
-  cache volume storage meters.
+  that exist in Stripe, plus the language model and runner meters.
   """
   def customer_meter_values(
         %Account{customer_id: customer_id, id: account_id} = account,
@@ -159,24 +157,9 @@ defmodule Tuist.Billing do
       end)
       |> Enum.filter(&runner_meter_provisioned?(&1.event_name))
 
-    # Cache volume storage is a runner Price, so a runner trial leaves it
-    # off the subscription like the compute Prices, and it turns on the
-    # same way once its key is in `stripe.prices.runners`.
-    storage_values =
-      if runner_meter_provisioned?(CacheVolumeBilling.meter_event_name()) do
-        [
-          %{
-            event_name: CacheVolumeBilling.meter_event_name(),
-            value: CacheVolumeBilling.meter_value(account_id, period_start, period_end)
-          }
-        ]
-      else
-        []
-      end
-
     # Drop zero-value meters uniformly so an idle customer fans out no
     # Stripe reporting jobs at all, rather than one no-op POST per meter.
-    Enum.reject(usage_values ++ language_model_values ++ runner_values ++ storage_values, &(&1.value == 0))
+    Enum.reject(usage_values ++ language_model_values ++ runner_values, &(&1.value == 0))
   end
 
   # A platform reports as soon as its Meter exists in Stripe, which the
@@ -782,11 +765,19 @@ defmodule Tuist.Billing do
   end
 
   defp apply_runner_item_changes(subscription_id, stripe_subscription, account) do
+    meters = runner_price_meters()
+
+    present = Enum.filter(stripe_subscription.items.data, &Map.has_key?(meters, subscription_item_price_id(&1)))
+
     changes =
       if Trials.on_trial?(account) do
-        Enum.map(present_runner_items(stripe_subscription), &%{id: &1.id, deleted: true})
+        Enum.map(present, &%{id: &1.id, deleted: true})
       else
-        missing_runner_items(stripe_subscription)
+        present_meters = MapSet.new(present, &Map.fetch!(meters, subscription_item_price_id(&1)))
+
+        (Tuist.Environment.stripe_prices() || %{})
+        |> configured_runner_prices()
+        |> Enum.reject(&MapSet.member?(present_meters, Map.get(meters, &1.price)))
       end
 
     case changes do
@@ -801,75 +792,6 @@ defmodule Tuist.Billing do
         # all, which is precisely the usage the trial covered.
         Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
     end
-  end
-
-  defp present_runner_items(stripe_subscription) do
-    meters = runner_price_meters()
-    Enum.filter(stripe_subscription.items.data, &Map.has_key?(meters, subscription_item_price_id(&1)))
-  end
-
-  # The configured runner Prices whose meter no item on the subscription
-  # bills yet, current or retired.
-  defp missing_runner_items(stripe_subscription) do
-    meters = runner_price_meters()
-
-    present_meters =
-      MapSet.new(present_runner_items(stripe_subscription), &Map.fetch!(meters, subscription_item_price_id(&1)))
-
-    (Tuist.Environment.stripe_prices() || %{})
-    |> configured_runner_prices()
-    |> Enum.reject(&MapSet.member?(present_meters, Map.get(meters, &1.price)))
-  end
-
-  @doc """
-  Adds every configured runner Price a live subscription is missing, for
-  accounts off a runner trial. New subscriptions and trials that end pick
-  up every runner Price on their own, so this is for a Price configured
-  after subscriptions already carry the others, such as cache volume
-  storage. Items are added with `proration_behavior: "none"`, so nothing
-  stored before the item existed is billed.
-
-  Defaults to a dry run. Pass `dry_run: false` to update the subscriptions:
-
-      Tuist.Billing.add_missing_runner_subscription_items()
-      Tuist.Billing.add_missing_runner_subscription_items(dry_run: false)
-
-  Returns one entry per subscription missing an item, with the Prices it
-  adds and its `result`.
-  """
-  def add_missing_runner_subscription_items(opts \\ []) do
-    dry_run = Keyword.get(opts, :dry_run, true)
-
-    from(s in Subscription,
-      where: s.status in ^@live_subscription_statuses,
-      order_by: [asc: s.inserted_at],
-      preload: :account
-    )
-    |> Repo.all()
-    |> Enum.reject(&Trials.on_trial?(&1.account))
-    |> Enum.flat_map(&add_missing_runner_items(&1, dry_run))
-  end
-
-  defp add_missing_runner_items(%Subscription{subscription_id: subscription_id} = subscription, dry_run) do
-    entry = %{subscription_id: subscription_id, account_id: subscription.account_id}
-
-    with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
-         [_ | _] = items <- missing_runner_items(stripe_subscription) do
-      [
-        Map.merge(entry, %{prices: Enum.map(items, & &1.price), result: add_runner_items(subscription_id, items, dry_run)})
-      ]
-    else
-      [] -> []
-      {:error, error} -> [Map.merge(entry, %{prices: [], result: {:error, error}})]
-    end
-  end
-
-  defp add_runner_items(_subscription_id, _items, true), do: :dry_run
-
-  defp add_runner_items(subscription_id, items, false) do
-    subscription_id
-    |> Stripe.Subscription.update(%{items: items, proration_behavior: "none"})
-    |> cleanup_result()
   end
 
   @doc """
