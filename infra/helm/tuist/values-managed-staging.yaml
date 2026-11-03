@@ -965,6 +965,9 @@ runnersFleetLinux:
       sizeGB: 200
     dockerCache:
       enabled: true
+    actionsCache:
+      enabled: true
+      maxGB: 40
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux

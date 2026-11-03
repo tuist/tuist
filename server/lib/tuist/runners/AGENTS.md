@@ -48,3 +48,23 @@ Linux profiles and legacy labels keep one shared runner pool. Every account uses
 the existing regional Kura Service directly; vRack enrollment changes transport
 at the host level. Keep profile sizing, fleet accounting and macOS site selection
 independent. Old internal cohort labels remain hidden during rolling upgrades.
+
+## GitHub Actions cache
+
+`ActionsCache` is the index of the GitHub Actions cache Linux hosts serve
+(see `infra/runner-cache/AGENTS.md`); only the storage agent calls it.
+
+- Scope comes from `Identity.github_run/1` for the Pod's executed job, cached
+  per workflow run attempt. A same-repository pull request saves under
+  `refs/pull/<n>/merge` and reads its base branch; other runs of the repository
+  save under `refs/heads/<head_branch>`; a run from a fork saves under
+  `fork/<head repository ID>/<branch>`. Every job also reads the default branch.
+  Never take a ref from the job.
+- Matching follows GitHub per ref in read order: exact key, key prefix, then
+  each restore key as a prefix, newest first. Escape LIKE wildcards.
+- A save of an existing key and version in the job's ref is refused (409),
+  except a reservation abandoned for an hour. Reservations are idempotent by
+  the agent's entry ID; commits by ID, node and size.
+- `sweep/1` (hourly) deletes abandoned reservations, entries unused for seven
+  days and a repository's least recently used entries beyond 50 GB. A stored
+  entry's row goes only after its object was deleted.

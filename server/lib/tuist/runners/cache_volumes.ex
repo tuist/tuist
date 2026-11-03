@@ -305,6 +305,17 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # The GitHub job a live runner Pod on node executes, for its Actions cache.
+  def running_github_job(pod, node) when is_binary(pod) and is_binary(node) do
+    case executing_job(pod, node) do
+      {:ok, %WorkflowJob{provider: "github"} = job, _platform} -> {:ok, job}
+      {:error, :pending} -> {:error, :pending}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  def running_github_job(_pod, _node), do: {:error, :unavailable}
+
   # Without a binding, ask GitHub directly rather than wait for an
   # `in_progress` delivery that can lag the job's start by minutes.
   defp await_execution(%RunnerSession{executed_workflow_job_id: nil} = session) do

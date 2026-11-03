@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.ActionsCache
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.VolumePrefetch
   alias TuistWeb.RunnerCacheVolumesController, as: Controller
@@ -288,6 +289,38 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
 
       expect(CacheVolumes, :mark_docker_seen, fn _ -> {:error, :unavailable} end)
       assert Controller.docker_seen(conn(), %{}).status == 403
+    end
+  end
+
+  describe "actions cache" do
+    setup do
+      namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+      name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+      stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+      :ok
+    end
+
+    test "answers a lookup, a pending job, a taken key and an unknown reservation" do
+      expect(ActionsCache, :lookup, fn _ -> {:ok, nil} end)
+      assert %{status: 200, resp_body: ~s({"entry":null})} = Controller.actions_cache_lookup(conn(), %{})
+
+      expect(ActionsCache, :lookup, fn _ -> {:error, :pending} end)
+      assert Controller.actions_cache_lookup(conn(), %{}).status == 425
+
+      expect(ActionsCache, :reserve, fn _ -> {:error, :conflict} end)
+      assert Controller.actions_cache_reserve(conn(), %{}).status == 409
+
+      expect(ActionsCache, :commit, fn _ -> {:error, :not_found} end)
+      assert Controller.actions_cache_commit(conn(), %{}).status == 404
+    end
+
+    test "refuses workflow credentials" do
+      stub(K8sClient, :create_controller_token_review, fn "agent-token" ->
+        {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+      end)
+
+      reject(&ActionsCache.lookup/1)
+      assert Controller.actions_cache_lookup(conn(), %{}).status == 403
     end
   end
 end

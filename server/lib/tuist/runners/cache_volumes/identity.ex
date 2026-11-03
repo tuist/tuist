@@ -9,19 +9,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   alias Tuist.VCS
 
   def resolve(%{provider: "github"} = job) do
-    with {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
-         {:ok, run} <-
-           GitHubClient.get_workflow_run(%{
-             repository_full_handle: job.repository,
-             installation: installation,
-             run_id: job.workflow_run_id
-           }),
-         {:ok, repository} <- GitHubClient.get_repository(installation, job.repository),
-         true <- repository["id"] == get_in(run, ["repository", "id"]) do
-      github_identity(job, Map.put(run, "repository", repository))
-    else
-      _ -> {:error, :unavailable}
-    end
+    with {:ok, run} <- github_run(job), do: github_identity(job, run)
   end
 
   def resolve(%{provider: "buildkite", account_id: account_id} = job) do
@@ -60,6 +48,23 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   end
 
   def resolve(_), do: {:error, :unavailable}
+
+  # The job's workflow run as GitHub's API reports it, with its full repository.
+  def github_run(job) do
+    with {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
+         {:ok, run} <-
+           GitHubClient.get_workflow_run(%{
+             repository_full_handle: job.repository,
+             installation: installation,
+             run_id: job.workflow_run_id
+           }),
+         {:ok, repository} <- GitHubClient.get_repository(installation, job.repository),
+         true <- repository["id"] == get_in(run, ["repository", "id"]) do
+      {:ok, Map.put(run, "repository", repository)}
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
 
   def storage_scope(identity) do
     Map.merge(
