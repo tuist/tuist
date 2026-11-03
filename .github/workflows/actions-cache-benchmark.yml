@@ -27,7 +27,8 @@ jobs:
       - name: Cache backend
         uses: actions/github-script@v7
         with:
-          script: core.info(`results service: ${new URL(process.env.ACTIONS_RESULTS_URL).origin}`)
+          script: |
+            core.info(`results service: ${new URL(process.env.ACTIONS_RESULTS_URL).origin}`)
       - name: Generate cache content
         run: |
           mkdir -p bench-cache
@@ -68,7 +69,8 @@ jobs:
       - name: Cache backend
         uses: actions/github-script@v7
         with:
-          script: core.info(`results service: ${new URL(process.env.ACTIONS_RESULTS_URL).origin}`)
+          script: |
+            core.info(`results service: ${new URL(process.env.ACTIONS_RESULTS_URL).origin}`)
       - name: Restore cache
         uses: actions/cache/restore@v4
         with:
