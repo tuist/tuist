@@ -1764,6 +1764,35 @@ defmodule Tuist.Accounts do
   def sso_enforced_for_email?(_email), do: false
 
   @doc """
+  Returns what the browser `session` (a `UserToken`, or `nil` when there is
+  none) needs before it can issue credentials that act for `user` in every
+  organization they belong to, such as OAuth authorizations and CLI device
+  codes:
+
+    * `:ok` when the session satisfies every SSO-enforcing organization.
+    * `{:sign_in_with, organization}` when the session has to sign in through
+      that organization's provider first.
+    * `{:error, :conflicting_requirements}` when several organizations
+      enforce single sign-on, which no single session can satisfy.
+  """
+  def sso_requirement(%User{} = user, session) do
+    enforcing =
+      user
+      |> get_user_organization_accounts()
+      |> Enum.map(& &1.organization)
+      |> Enum.filter(&(&1.sso_enforced and not is_nil(&1.sso_provider)))
+
+    # A session proves a single organization's sign-in (see
+    # `UserToken.satisfies_sso?/2`; no two organizations share a provider
+    # tenant), so it can satisfy at most one enforcing organization.
+    case enforcing do
+      [] -> :ok
+      [organization] -> if UserToken.satisfies_sso?(session, organization), do: :ok, else: {:sign_in_with, organization}
+      _ -> {:error, :conflicting_requirements}
+    end
+  end
+
+  @doc """
   Returns true when at least one organization on this instance has an Okta or
   generic OAuth2 SSO provider configured. Drives whether the login page surfaces
   the SSO entry point: the generic login form has no email yet, so it can't

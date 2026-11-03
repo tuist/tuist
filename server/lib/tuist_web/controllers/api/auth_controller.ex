@@ -225,6 +225,7 @@ defmodule TuistWeb.API.AuthController do
         AuthenticationTokens
       },
       unauthorized: {"Invalid email or password.", "application/json", Error},
+      forbidden: {"The user's organization requires single sign-on.", "application/json", Error},
       too_many_requests: {"You've exceeded the rate limit.", "application/json", Error}
     }
   )
@@ -257,6 +258,7 @@ defmodule TuistWeb.API.AuthController do
         AuthenticationTokens
       },
       unauthorized: {"Invalid Apple identity token or authorization code.", "application/json", Error},
+      forbidden: {"The user's organization requires single sign-on.", "application/json", Error},
       bad_request: {"Invalid request parameters.", "application/json", Error}
     }
   )
@@ -303,33 +305,43 @@ defmodule TuistWeb.API.AuthController do
   defp issue_user_tokens(conn, user) do
     # Direct credential endpoints cannot silently skip an enrolled factor.
     # CLI/device login completes the browser challenge before authorization.
-    if Accounts.UserMFA.enabled?(user) do
-      conn
-      |> put_status(:unauthorized)
-      |> json(%{message: "Two-factor authentication is enabled. Use browser sign-in."})
-    else
-      {:ok, access_token, _opts} =
-        Authentication.encode_and_sign(
-          user,
-          %{email: user.email, preferred_username: user.account.name},
-          token_type: :access,
-          ttl: @access_token_ttl
-        )
+    # Tokens also act for the user in every account, so members of an
+    # organization that enforces single sign-on have to sign in through its
+    # provider in the browser.
+    cond do
+      Accounts.UserMFA.enabled?(user) ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Two-factor authentication is enabled. Use browser sign-in."})
 
-      {:ok, refresh_token, _opts} =
-        Authentication.encode_and_sign(
-          user,
-          %{email: user.email, preferred_username: user.account.name},
-          token_type: :refresh,
-          ttl: @refresh_token_ttl
-        )
+      Accounts.sso_requirement(user, nil) != :ok ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "Your organization requires single sign-on. Sign in through your identity provider instead."})
 
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        access_token: access_token,
-        refresh_token: refresh_token
-      })
+      true ->
+        {:ok, access_token, _opts} =
+          Authentication.encode_and_sign(
+            user,
+            %{email: user.email, preferred_username: user.account.name},
+            token_type: :access,
+            ttl: @access_token_ttl
+          )
+
+        {:ok, refresh_token, _opts} =
+          Authentication.encode_and_sign(
+            user,
+            %{email: user.email, preferred_username: user.account.name},
+            token_type: :refresh,
+            ttl: @refresh_token_ttl
+          )
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          access_token: access_token,
+          refresh_token: refresh_token
+        })
     end
   end
 

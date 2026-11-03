@@ -7,6 +7,7 @@ defmodule TuistWeb.API.AuthControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Authentication.RefreshReplays
+  alias Tuist.OAuth.Apple
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.RateLimit.Auth
@@ -466,6 +467,19 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
     end
 
+    test "refuses members of an organization that enforces single sign-on", %{conn: conn} do
+      password = UUIDv7.generate()
+      user = AccountsFixtures.user_fixture(password: password)
+      enforce_sso_for(user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: password})
+
+      assert %{"message" => "Your organization requires single sign-on." <> _} = json_response(conn, :forbidden)
+    end
+
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
       password = UUIDv7.generate()
@@ -613,6 +627,19 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
     end
 
+    test "refuses members of an organization that enforces single sign-on", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      enforce_sso_for(user)
+      stub(Apple, :verify_apple_identity_token_and_create_user, fn _token, _code -> {:ok, user} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/apple", %{identity_token: "identity-token", authorization_code: "authorization-code"})
+
+      assert json_response(conn, :forbidden)
+    end
+
     test "returns access and refresh tokens when Apple authentication succeeds", %{conn: conn} do
       # Given
       identity_token = "identity-token"
@@ -620,7 +647,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       email = "my-apple@example.com"
       user = AccountsFixtures.user_fixture(email: email)
 
-      expect(Tuist.OAuth.Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
+      expect(Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
         {:ok, user}
       end)
 
@@ -663,5 +690,15 @@ defmodule TuistWeb.API.AuthControllerTest do
     |> put_req_header("content-type", "application/json")
     |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
     |> json_response(:ok)
+  end
+
+  defp enforce_sso_for(user) do
+    organization = AccountsFixtures.organization_fixture()
+    :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+    # Enabling enforcement through `Accounts` also requires a verified login
+    # email domain, which is not what these tests are about.
+    organization
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Repo.update!()
   end
 end

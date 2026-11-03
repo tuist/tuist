@@ -83,6 +83,26 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refute third_access_token in [access_token, refreshed_access_token]
   end
 
+  test "requires the sign-in the user's SSO-enforcing organization requires", %{conn: conn, user: user} do
+    client_id = register_client(conn)
+    organization = AccountsFixtures.organization_fixture()
+    :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
+
+    organization
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Repo.update!()
+
+    password_conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
+
+    assert redirected_to(password_conn) == "/users/auth/google"
+    assert "/oauth2/authorize?" <> _ = get_session(password_conn, :oauth_return_to)
+
+    google_token =
+      Tuist.Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+
+    assert build_conn() |> init_test_session(%{}) |> put_session(:user_token, google_token) |> authorize(client_id)
+  end
+
   test "rejects a code revoked in the database after an earlier lookup", %{conn: conn} do
     client_id = register_client(conn)
     code = authorize(conn, client_id)
@@ -345,18 +365,21 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   end
 
   defp authorize(conn, client_id) do
-    conn =
-      get(conn, ~p"/oauth2/authorize", %{
-        "response_type" => "code",
-        "client_id" => client_id,
-        "redirect_uri" => @redirect_uri,
-        "scope" => "mcp",
-        "state" => "claude-state"
-      })
+    conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
 
     %{"code" => code} =
       conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
 
     code
+  end
+
+  defp authorize_params(client_id) do
+    %{
+      "response_type" => "code",
+      "client_id" => client_id,
+      "redirect_uri" => @redirect_uri,
+      "scope" => "mcp",
+      "state" => "claude-state"
+    }
   end
 end

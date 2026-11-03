@@ -53,6 +53,13 @@ Google configurations default to automatic enrollment. New Okta and custom-provi
 
 The **Enforce single sign-on** setting is independent of enrollment. Access to the organization's protected browser pages requires a session authenticated through its current provider and issuer (or verified Google Workspace). A historical linked identity or authentication through a different organization's provider is insufficient. Ordinary sign-in to Tuist and access to other accounts remain available; enforcement does not grant organization membership. Anonymous public dashboards and time-limited operator support grants retain their separate access rules. App preview pages apply enforcement to organization members only, so preview links shared outside the organization keep working for previews visitors could already open.
 
+Enforcement applies wherever a member's session reaches the organization:
+
+- **Dashboard**: the organization's pages require a session signed in with the organization's provider.
+- **Tuist CLI, the Tuist app, MCP clients, and the API reference**: signing them in creates a credential that acts for the member in every organization, so it requires a session signed in through the organization that enforces single sign-on. Tuist sends a member who signed in another way to the provider first, and refuses sign-in with an email and password or with Apple. Credentials issued earlier are not revoked.
+
+A member of several organizations that enforce single sign-on can't sign in to the CLI, the app, or MCP clients, because one session signs in through one organization.
+
 ### Choose the role enrolled members get {#choose-the-enrollment-role}
 
 Members who join automatically get the <.localized_link href="/guides/server/accounts-and-projects#roles">role</.localized_link> set under **Role for enrolled members**, which is `user` unless an administrator changes it. Setting it to `viewer` opens sign-in to everyone in the directory without giving everyone the ability to change things.

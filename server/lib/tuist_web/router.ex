@@ -331,6 +331,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
+  # Pages that issue credentials acting for the user everywhere, which must not
+  # become a way around an organization's SSO enforcement.
+  pipeline :require_sso_for_credentials do
+    plug :require_sso_authentication_for_credentials
+  end
+
   pipeline :authenticated_api do
     plug :put_request_kind, "api"
     plug :accepts, ["json", "application/octet-stream"]
@@ -1232,9 +1238,14 @@ defmodule TuistWeb.Router do
   end
 
   scope "/oauth2", TuistWeb.Oauth do
-    pipe_through [:browser_app, :fetch_current_user]
+    pipe_through [:browser_app, :fetch_current_user, :require_sso_for_credentials]
 
     get "/authorize", AuthorizeController, :authorize
+  end
+
+  scope "/oauth2", TuistWeb.Oauth do
+    pipe_through [:browser_app, :fetch_current_user]
+
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
     get "/apple", AuthorizeController, :authorize_with_apple
@@ -1437,6 +1448,10 @@ defmodule TuistWeb.Router do
     get "/sso/link", SSOLinkController, :show
     post "/sso/link", SSOLinkController, :create
     delete "/sso/link", SSOLinkController, :delete
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app, :require_authenticated_user, :require_sso_for_credentials]
 
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
