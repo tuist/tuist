@@ -451,6 +451,9 @@ pub enum RefreshTrigger {
     ActionCache,
     /// A `FindMissingBlobs` that reported the blob present.
     FindMissing,
+    /// A named handover destination compacting a sealed segment so it can
+    /// reclaim the space the source no longer retains.
+    Handover,
 }
 
 impl RefreshTrigger {
@@ -460,6 +463,7 @@ impl RefreshTrigger {
             Self::Sibling => "sibling",
             Self::ActionCache => "action_cache",
             Self::FindMissing => "find_missing",
+            Self::Handover => "handover",
         }
     }
 
@@ -472,7 +476,16 @@ impl RefreshTrigger {
     /// Whether siblings are told about this refresh. A refresh that mirrors a
     /// sibling's is never echoed back.
     fn hints_siblings(self) -> bool {
-        self != Self::Sibling
+        !matches!(self, Self::Sibling | Self::Handover)
+    }
+
+    /// Whether this refresh may copy out of `generation`. Lifetime extension
+    /// only rescues Old data; compaction empties any sealed segment.
+    fn copies_from(self, generation: Option<SegmentGeneration>) -> bool {
+        match self {
+            Self::Handover => generation.is_some(),
+            _ => generation == Some(SegmentGeneration::Old),
+        }
     }
 }
 
@@ -3122,7 +3135,7 @@ impl Store {
         let Some(segment_id) = manifest.segment_id.as_deref() else {
             return Ok(Some(manifest));
         };
-        if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
+        if !trigger.copies_from(self.segment_generation(segment_id)?) {
             return Ok(Some(manifest));
         }
 
@@ -3134,7 +3147,7 @@ impl Store {
         let Some(current_segment_id) = current.segment_id.as_deref() else {
             return Ok(Some(current));
         };
-        if self.segment_generation(current_segment_id)? != Some(SegmentGeneration::Old) {
+        if !trigger.copies_from(self.segment_generation(current_segment_id)?) {
             return Ok(Some(current));
         }
         if !self.storage_exists(&current).await? {
@@ -4528,6 +4541,58 @@ impl Store {
     // retained source record from this sealed segment. Rotation still uses its
     // normal FIFO policy and unchanged capacity; this removes destination-only
     // segments first instead of repairing the shared corpus that FIFO evicts.
+    /// Copies every artifact of sealed `segment_id` that `keep` selects into
+    /// the active segment, without hinting siblings, so a named handover can
+    /// reclaim the rest. Returns the bytes copied and the selected artifacts
+    /// still in the segment; reclaim it only when none are left.
+    pub(crate) async fn compact_handover_segment(
+        &self,
+        segment_id: &str,
+        keep: impl Fn(&str) -> bool,
+    ) -> Result<(u64, u64), String> {
+        if self.is_active_segment(segment_id) || self.segment_generation(segment_id)?.is_none() {
+            return Ok((0, u64::MAX));
+        }
+        let prefix = segment_artifact_index_prefix(segment_id);
+        let (mut copied, mut left) = (0u64, 0u64);
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let page = self
+                .eviction_index_page(ROCKSDB_CF_SEGMENT_ARTIFACTS, &prefix, cursor.as_deref())
+                .await
+                .map_err(|error| error.to_string())?;
+            let Some(last) = page.last().cloned() else {
+                break;
+            };
+            cursor = Some(last);
+            for index_key in page {
+                let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
+                    .map_err(|error| format!("invalid segment index key: {error}"))?;
+                if !keep(artifact_id) {
+                    continue;
+                }
+                let Some(manifest) = self.manifest(artifact_id)? else {
+                    continue;
+                };
+                if manifest.segment_id.as_deref() != Some(segment_id) {
+                    continue;
+                }
+                let size = manifest.size;
+                match self
+                    .maybe_refresh_manifest(manifest, RefreshTrigger::Handover)
+                    .await?
+                {
+                    Some(current) if current.segment_id.as_deref() == Some(segment_id) => {
+                        left += 1;
+                    }
+                    Some(_) => copied = copied.saturating_add(size),
+                    None => {}
+                }
+            }
+        }
+        Ok((copied, left))
+    }
+
     pub(crate) async fn reclaim_handover_segment(&self, segment_id: &str) -> Result<(), String> {
         let mut recovery = self.disk_pressure_reclamation.lock().await;
         self.finish_segment_retirement(&mut recovery, true).await?;
@@ -19990,6 +20055,60 @@ mod tests {
             "the republished entry survived its blob: an earlier chunk's dedup \
              skipped it, leaving it pointing at a blob this eviction removed"
         );
+    }
+
+    #[tokio::test]
+    async fn handover_compaction_copies_kept_artifacts_out_before_the_segment_is_reclaimed() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.sync_feed_activate().await.unwrap();
+        let mut manifests = Vec::new();
+        for key in ["retained", "destination-only"] {
+            manifests.push(
+                store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        key,
+                        "application/octet-stream",
+                        key.as_bytes(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+        let segment = manifests[0].segment_id.clone().unwrap();
+        assert_eq!(manifests[1].segment_id.as_deref(), Some(segment.as_str()));
+        assert_eq!(
+            store
+                .compact_handover_segment(&segment, |_| true)
+                .await
+                .unwrap(),
+            (0, u64::MAX),
+            "the active segment is never compacted"
+        );
+        store.age_every_segment_for_test();
+        let retained = manifests[0].artifact_id.clone();
+        let feed_head = store.sync_feed().head();
+
+        let (copied, left) = store
+            .compact_handover_segment(&segment, |id| id == retained)
+            .await
+            .unwrap();
+
+        assert_eq!((copied, left), (manifests[0].size, 0));
+        let moved = store.manifest(&retained).unwrap().unwrap();
+        assert_ne!(moved.segment_id.as_deref(), Some(segment.as_str()));
+        assert!(
+            store.pending_promotion_for_test(&retained).is_none()
+                && store.sync_feed().head() == feed_head,
+            "compaction neither queues a promotion nor hints the source"
+        );
+        store.reclaim_handover_segment(&segment).await.unwrap();
+        assert_eq!(
+            store.read_artifact_bytes(&moved).await.unwrap(),
+            b"retained".to_vec()
+        );
+        assert!(store.manifest(&manifests[1].artifact_id).unwrap().is_none());
     }
 
     #[tokio::test]

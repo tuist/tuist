@@ -555,6 +555,7 @@ async fn reconcile_retained_corpus(
     tuning.source = missing.map_or(PassSource::RetainedIndex, PassSource::RetainedEntries);
     tuning.feed_rows = false;
     tuning.bandwidth_shaped = preparation_epoch.is_some();
+    tuning.compact_retained = preparation_epoch.is_some();
     let cancel = CancellationToken::new();
     let pass = run_backfill_pass_with_tuning(
         state,
@@ -3616,7 +3617,7 @@ mod tests {
         assert_eq!(pair.source_requests("/_internal/sync/forward"), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn overlapping_descriptor_batches_still_verify_every_record_in_order() {
         let pair = ContentPair::new().await;
         let batches = DESCRIPTOR_BATCHES_IN_FLIGHT + 1;
