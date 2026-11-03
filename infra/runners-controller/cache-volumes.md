@@ -195,7 +195,9 @@ superseded, cleared, or idle for seven days. A superseded replica used in the
 last 24 hours is first refreshed to the new HEAD in the background (see below).
 Physical free-space watermarks drive admission and LRU eviction because reflinks
 share blocks; summed logical sizes cannot measure host disk consumption.
-Defaults are eight allocations per pod, 100 active branches per host, 20 GB
+An attach needs the free-space reserve plus what its copy is expected to
+allocate beyond the default capacity: its expected size less the blocks its
+local master already allocates. Defaults are eight allocations per pod, 100 active branches per host, 20 GB
 logical volume capacity, and a 40 GB free-space reserve.
 
 A cold machine can restore accepted images from the existing object storage.

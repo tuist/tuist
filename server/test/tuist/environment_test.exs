@@ -1,7 +1,28 @@
 defmodule Tuist.EnvironmentTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Environment
+
+  describe "kura_thin_region_ids/0" do
+    test "reads the trimmed region IDs enrolled in thin Kura volumes" do
+      stub(System, :get_env, fn
+        "TUIST_KURA_THIN_REGIONS", _default -> " eu-west, ,us-east ,"
+        name, default -> Mimic.call_original(System, :get_env, [name, default])
+      end)
+
+      assert Environment.kura_thin_region_ids() == ["eu-west", "us-east"]
+    end
+
+    test "enrolls no region when unset" do
+      stub(System, :get_env, fn
+        "TUIST_KURA_THIN_REGIONS", default -> default
+        name, default -> Mimic.call_original(System, :get_env, [name, default])
+      end)
+
+      assert Environment.kura_thin_region_ids() == []
+    end
+  end
 
   describe "network_trusted_cache_access_enabled?/2" do
     test "only an explicit boolean on a self-hosted instance enables cache access" do
@@ -39,6 +60,58 @@ defmodule Tuist.EnvironmentTest do
     test "leaves out entries it cannot read rather than guessing" do
       assert Environment.parse_runners_site_pools("") == %{}
       assert Environment.parse_runners_site_pools("pool=ber1:windows,pool-y=ber1,=ber1:macos,pool-z=:macos") == %{}
+    end
+  end
+
+  describe "kura_volume_root_keys/1" do
+    test "reads root keys in order, the first being the active one" do
+      key_a = :crypto.strong_rand_bytes(32)
+      key_b = :crypto.strong_rand_bytes(32)
+
+      assert Environment.parse_kura_volume_root_keys("b:#{Base.encode64(key_b)}, a:#{Base.encode64(key_a)}") ==
+               [{"b", key_b}, {"a", key_a}]
+    end
+
+    test "is empty when any entry is malformed, rather than activating the wrong key" do
+      key = Base.encode64(:crypto.strong_rand_bytes(32))
+
+      assert Environment.parse_kura_volume_root_keys("bad:#{Base.encode64("short")},a:#{key}") == []
+      assert Environment.parse_kura_volume_root_keys("a:#{key},a:#{key}") == []
+      assert Environment.parse_kura_volume_root_keys(":#{key}") == []
+      assert Environment.parse_kura_volume_root_keys("a") == []
+    end
+
+    test "derives a stable development key from the secret key base when unset" do
+      secrets = %{"secret_key" => %{"base" => "development-base"}}
+
+      assert [{"dev", key}] = Environment.kura_volume_root_keys(secrets)
+      assert byte_size(key) == 32
+      assert Environment.kura_volume_root_keys(secrets) == [{"dev", key}]
+    end
+  end
+
+  describe "kura_volume_transport_keys/1" do
+    test "reads private keys in order with their X25519 public keys" do
+      {public_a, private_a} = :crypto.generate_key(:ecdh, :x25519)
+      {public_b, private_b} = :crypto.generate_key(:ecdh, :x25519)
+
+      assert Environment.parse_kura_volume_transport_keys("#{Base.encode64(private_b)}, #{Base.encode64(private_a)}") ==
+               [{public_b, private_b}, {public_a, private_a}]
+    end
+
+    test "is empty when any entry is malformed" do
+      key = Base.encode64(:crypto.strong_rand_bytes(32))
+
+      assert Environment.parse_kura_volume_transport_keys("#{Base.encode64("short")},#{key}") == []
+      assert Environment.parse_kura_volume_transport_keys("not base64") == []
+    end
+
+    test "derives a stable development key from the secret key base when unset" do
+      secrets = %{"secret_key" => %{"base" => "development-base"}}
+
+      assert [{public, private}] = Environment.kura_volume_transport_keys(secrets)
+      assert {^public, ^private} = :crypto.generate_key(:ecdh, :x25519, private)
+      assert Environment.kura_volume_transport_keys(secrets) == [{public, private}]
     end
   end
 

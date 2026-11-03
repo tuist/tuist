@@ -585,6 +585,21 @@ defmodule Tuist.Runners.RunnerSessions do
   # partial timestamps are left NULL and bill nothing rather than
   # falling back to the Pod's wall clock.
   defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id, job_window) do
+    # A GitHub OIDC token the job minted named its job first. A later report of
+    # another job means one of them is wrong; the claims stop applying either
+    # way, because they name a job the session no longer runs.
+    case session.execution_identity do
+      %{"workflow_job_id" => token_job_id} when token_job_id != executed_workflow_job_id ->
+        Logger.warning("runners: execution token disagrees with the recorded execution",
+          runner_name: session.runner_name,
+          workflow_job_id: token_job_id,
+          recorded_workflow_job_id: executed_workflow_job_id
+        )
+
+      _ ->
+        :ok
+    end
+
     attrs =
       Map.merge(
         %{

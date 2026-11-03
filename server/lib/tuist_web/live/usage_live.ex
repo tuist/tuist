@@ -181,14 +181,14 @@ defmodule TuistWeb.UsageLive do
 
     by_repository
     |> Enum.group_by(& &1.repository)
-    |> Enum.sort_by(fn {_repository, rows} -> -Enum.sum(Enum.map(rows, & &1.total_ms)) end)
+    |> Enum.sort_by(fn {_repository, rows} -> -(rows |> Enum.map(&row_dollars/1) |> Enum.sum()) end)
     |> Enum.with_index()
     |> Enum.map(fn {{repository, rows}, index} ->
-      per_day = Map.new(rows, &{&1.date, &1.total_ms})
+      per_day = dollars_per_day(rows)
 
       %{
         color: "var:noora-chart-#{Enum.at(@repository_colors, rem(index, length(@repository_colors)))}",
-        data: Enum.map(dates, fn date -> [date, dollars(Map.get(per_day, date, 0))] end),
+        data: Enum.map(dates, fn date -> [date, per_day |> Map.get(date, 0.0) |> Float.round(2)] end),
         name: repository_label(repository),
         type: "bar",
         stack: "spend"
@@ -203,12 +203,12 @@ defmodule TuistWeb.UsageLive do
   defp projected_series([], _dates), do: []
 
   defp projected_series(projected_days, dates) do
-    per_day = Map.new(projected_days, &{&1.date, &1.total_ms})
+    per_day = dollars_per_day(projected_days)
 
     [
       %{
         color: "var:noora-chart-lines",
-        data: Enum.map(dates, fn date -> [date, dollars(Map.get(per_day, date, 0))] end),
+        data: Enum.map(dates, fn date -> [date, per_day |> Map.get(date, 0.0) |> Float.round(2)] end),
         name: dgettext("dashboard_usage", "Projected"),
         type: "bar",
         stack: "spend"
@@ -221,10 +221,14 @@ defmodule TuistWeb.UsageLive do
   def repository_label(repository), do: repository
 
   # The chart has no currency formatter for its data, only its labels,
-  # so values arrive already in dollars.
-  defp dollars(total_ms) do
-    total_ms |> Prepaid.on_demand_cost_for_milliseconds() |> Map.get(:amount) |> Kernel./(100) |> Float.round(2)
+  # so values arrive already in dollars. Each row is valued at its own
+  # platform's rate before a day's rows are summed, and rounded only
+  # once summed.
+  defp dollars_per_day(rows) do
+    Enum.reduce(rows, %{}, fn row, acc -> Map.update(acc, row.date, row_dollars(row), &(&1 + row_dollars(row))) end)
   end
+
+  defp row_dollars(%{platform: platform, total_ms: total_ms}), do: Prepaid.on_demand_dollars(platform, total_ms)
 
   @doc """
   How much of this period's runner charge the account's prepaid credit

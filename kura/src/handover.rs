@@ -70,7 +70,7 @@ pub struct HandoverFailure {
 /// A destination rejection. Terminal ones answer 422 so the frozen source
 /// reports them instead of retrying until the Quiescing deadline.
 #[derive(Debug)]
-struct Rejection {
+pub(crate) struct Rejection {
     reason: String,
     terminal: bool,
 }
@@ -129,7 +129,7 @@ pub struct Receipt {
     pub digest: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Record {
     kind: String,
     id: String,
@@ -176,7 +176,7 @@ fn bounded_detail(detail: &str) -> String {
     detail.chars().take(1024).collect()
 }
 
-async fn record(
+pub(crate) async fn record(
     state: &SharedState,
     kind: BackfillRecordKind,
     id: &str,
@@ -555,6 +555,7 @@ async fn reconcile_retained_corpus(
     tuning.source = missing.map_or(PassSource::RetainedIndex, PassSource::RetainedEntries);
     tuning.feed_rows = false;
     tuning.bandwidth_shaped = preparation_epoch.is_some();
+    tuning.compact_retained = preparation_epoch.is_some();
     let cancel = CancellationToken::new();
     let pass = run_backfill_pass_with_tuning(
         state,
@@ -686,7 +687,7 @@ fn require_room_for_barrier(state: &SharedState, walk: &ContentWalk) -> Result<(
 
 // Called only under the destination's hold: a missing or different record
 // cannot be repaired any more, so those rejections are terminal.
-async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Rejection> {
+pub(crate) async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Rejection> {
     let kind =
         BackfillRecordKind::from_wire_name(&expected.kind).ok_or("unknown retained record kind")?;
     let actual = match record(state, kind, &expected.id, expected.version).await? {
@@ -3616,7 +3617,7 @@ mod tests {
         assert_eq!(pair.source_requests("/_internal/sync/forward"), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn overlapping_descriptor_batches_still_verify_every_record_in_order() {
         let pair = ContentPair::new().await;
         let batches = DESCRIPTOR_BATCHES_IN_FLIGHT + 1;
@@ -3708,12 +3709,9 @@ mod tests {
         assert!(walk.missing_bytes >= 96 * 1024, "{}", walk.missing_bytes);
         require_room_for_barrier(&pair.target.state, &walk).unwrap();
 
-        walk.missing_bytes = pair
-            .target
-            .state
-            .store
-            .handover_admissible_bytes(walk.frontier_ms.unwrap())
-            + 1;
+        // Admissible bytes track the host's free disk, which concurrent tests
+        // change between readings.
+        walk.missing_bytes = u64::MAX;
         let error = require_room_for_barrier(&pair.target.state, &walk).unwrap_err();
         assert!(error.contains("cannot hold the retained corpus"), "{error}");
     }
