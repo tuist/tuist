@@ -48,6 +48,10 @@ defmodule Tuist do
       Ops.Database,
       Ops.FeatureFlags,
       Observability,
+      RateLimit,
+      RateLimit.InMemory,
+      RateLimit.PersistentFixedWindow,
+      RateLimit.PersistentTokenBucket,
       BrowserTelemetry.Receipts,
       # App
       # -----
@@ -355,6 +359,11 @@ defmodule Tuist do
       Runners.GitLab.LogParser,
       Runners.JobReportToken,
       Runners.JobReports,
+      Runners.Bitrise,
+      Runners.Bitrise.Build,
+      Runners.Bitrise.Connection,
+      Runners.Bitrise.Pool,
+      Runners.Bitrise.ReportToken,
       Runners.Buildkite,
       Runners.Buildkite.Installation,
       Runners.Buildkite.LogParser,

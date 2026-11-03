@@ -1,8 +1,8 @@
 ---
 {
   "title": "Docker",
-  "titleTemplate": ":title · Runners · 功能 · 指南 · Tuist",
-  "description": "在 Tuist Runners 上使用 Docker：构建和运行容器、容器作业、服务容器以及私有注册表。"
+  "titleTemplate": ":title · Runners · Features · Guides · Tuist",
+  "description": "在 Tuist Runners 上使用 Docker：构建和运行容器、容器作业、服务容器以及私有镜像仓库。"
 }
 ---
 # Docker {#docker}
@@ -44,7 +44,7 @@ jobs:
 
 ## 服务容器 {#service-containers}
 
-`services` 的工作方式与在 GitHub 托管的运行器上相同。可以通过 `localhost` 及其映射端口访问服务：
+`services` 的工作方式与 GitHub 托管的运行器相同。可以通过映射的端口在 `localhost` 上访问服务：
 
 ```yaml
 jobs:
@@ -79,9 +79,9 @@ jobs:
 
 ## 镜像拉取 {#image-pulls}
 
-Docker Hub 的拉取请求通过 Tuist 运营的透传缓存提供服务，因此作业不会消耗 Docker Hub 的匿名速率限制。来自其他注册表的镜像则直接拉取。
+Docker Hub 拉取请求通过 Tuist 运营的透传缓存提供服务，因此作业不会消耗 Docker Hub 的匿名速率限制。来自其他注册表的镜像则直接拉取。
 
-每个作业启动时镜像存储均为空，因此工作流使用的镜像会在每个作业中单独拉取，而不会在作业间复用。如果作业需要拉取大型自定义镜像，请尽量保持镜像小巧，或者在工作流中使用带缓存的 Buildx 构建器来构建它：
+每个作业启动时镜像存储均为空，因此工作流使用的镜像会在每个作业中单独拉取，而不会在作业间复用。如果作业需要拉取大型自定义镜像，请尽量保持镜像小巧，或者在工作流中使用带缓存的 Buildx 构建器进行构建：
 
 ```yaml
       - uses: docker/setup-buildx-action@v3
@@ -94,4 +94,4 @@ Docker Hub 的拉取请求通过 Tuist 运营的透传缓存提供服务，因�
           cache-to: type=gha,mode=max
 ```
 
-对于原生作业或容器作业中的持久化依赖目录，请参阅 <.localized_link href="/guides/features/runners/cache-volumes">缓存卷指南</.localized_link>。
+对于原生作业或容器作业中的持久化依赖目录，请参阅<.localized_link href="/guides/features/runners/cache-volumes">缓存卷指南</.localized_link>。

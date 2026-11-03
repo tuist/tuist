@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a0488ffee545d1632d70bf5e79e43d45a910534582c895d8589faa36b8906b06",
+  "hash": "bdbaa5951db6971e0998b8c541bdeb96fc03b32fb163526153015ddc68f1eb79",
   "hash_tree": {
     "root": {
       "children": [
@@ -19,6 +19,9 @@
                 "## Size thresholds {#size-thresholds}": {
                   "content_hash": "d61b6d34f8200c0b07553fe574e531b836f622476797ceb223d251cdf51e5f03"
                 },
+                "## Tags {#tags}": {
+                  "content_hash": "d9d7d09d262191988a5e5c3b2506674b6d209c1c78cb03e63cbadc33b4f6b4b2"
+                },
                 "## Understanding bundle sizes {#understanding-sizes}": {
                   "content_hash": "d08cda593a24643227223df2e936d18614c272a00a2c606a6ea00ffe5141d335"
                 },
@@ -32,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "94fbfc6c0d9ef1a3eefcfb9c3b58892ce210b26c005f38e7099bec716be00544",
+          "hash": "9ea149bd3ffcc25c3b4318f3d255cd3ab8e0281a71f06c38e0c6afef25683e84",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
           "metadata": {
-            "content_hash": "f1a1d82e9517d2d08518fcf4ab9dfe2288dc4908bce07a83f47c61e40310ddcb"
+            "content_hash": "64c8ad199178ee66e79a77967ad2ce5f13437c8664953eea1f166b8750b8b48c"
           }
         },
         {
@@ -207,19 +210,25 @@
                         "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
                         "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
                         "translation_hash": "1c84c8fd7892baf8d2db0da4729e3804f9867a3bf1dd1a114a5005c615e0b198"
+                      },
+                      "entry:c71ca69e915f3716d54a75da8332aaa33d9d0400b6680891f1452e11b8997c33": {
+                        "case_sensitive": false,
+                        "definition_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+                        "term_hash": "f4dcff63e51377e31f5a1f5369b2731c0477a29a4a8bd11bed8600b2acb0b319",
+                        "translation_hash": "1fbe76bbcf64fd5a7f1684276457d6cb778bb445a8fb765305c7b012a6946a84"
                       }
                     }
                   },
-                  "hash": "812b374bf863ce5876900055bf1a77faf3ace91a4f0a06c685bc76702a74074a",
+                  "hash": "99805f29f18b6db3b275817fb2b8be00da251cd7f1fb046a2581f30720c21e5b",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4ca2a458fa2241cea0c532f2fe929e011d30ab76b0ada963d21d23c3c38b3e90"
+                    "content_hash": "e9a1ef87b78f5fe616f5f86228cbcc4851d07f903c05c1128d9874244e704e39"
                   }
                 }
               ],
               "details": {},
-              "hash": "e45654774f6a58a90192bef1f9d2ecbf62362f3d4400eac0d738f52570c5d1c5",
+              "hash": "bce040f9835acd600e4795fc90ab5e927b6725010c1cacf69f74797db2dead89",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -229,21 +238,21 @@
             }
           ],
           "details": {},
-          "hash": "b9cfd662c42f5f481b3d154a224966951d3e8d9cdc7480fd720ffad24c4a345e",
+          "hash": "e64fe9feeaa13ba6165bd06c0310a75d29a873ad002ff9ae7989eda90180a443",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a0488ffee545d1632d70bf5e79e43d45a910534582c895d8589faa36b8906b06",
+      "hash": "bdbaa5951db6971e0998b8c541bdeb96fc03b32fb163526153015ddc68f1eb79",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "6d3d59db778e446f2dafa09904a498bcfd4c712f48300c810d71aa26cb66005b",
+  "output_hash": "f3bf6d05cc67a7edaf8f97b76b31aadd840c0a4391ec7c064a3db69a05946d24",
   "output_path": "server/priv/docs/es/guides/features/bundle-insights/_shared.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,9 +260,10 @@
     "compiler_version": 3,
     "glossary": {
       "applied": [
+        "repo:build-insights",
         "repo:features"
       ],
-      "content_hash": "4ca2a458fa2241cea0c532f2fe929e011d30ab76b0ada963d21d23c3c38b3e90",
+      "content_hash": "e9a1ef87b78f5fe616f5f86228cbcc4851d07f903c05c1128d9874244e704e39",
       "shadowed": [],
       "version": null
     },
@@ -263,8 +273,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "fcd9fc91d24711de14b6fc01ac0714760da9256e",
+  "source_commit_sha": "0eb6465e250e577ad7b156e30b771084e339cd06",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
-  "translated_at": "2026-10-30T14:08:59.729919Z",
-  "translation_session_id": "01a18d22-b04d-7570-990d-070f52539940"
+  "translated_at": "2026-11-02T13:59:32.314966Z",
+  "translation_session_id": "01a19c83-3303-7bb2-a460-4ce548b7295c"
 }

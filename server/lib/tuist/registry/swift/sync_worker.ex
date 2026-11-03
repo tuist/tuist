@@ -20,7 +20,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   require Logger
 
-  @github_opts [finch: Tuist.Finch, retry: false]
+  @github_opts [finch: Tuist.Finch, retry: false, anonymous_fallback: true]
 
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900

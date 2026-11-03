@@ -76,9 +76,9 @@ What decides whether a row matches:
   only), so MDM is not a route.
 - **Client.** TCC charges an AppleEvent to the responsible process, not to
   `osascript`. For GitHub jobs that is
-  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite and
-  GitLab agents are started directly by `dispatch-poll.sh`, so theirs is
-  expected to be its `/bin/bash`. The microphone row is a bundle-ID client
+  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite,
+  GitLab and Bitrise agents are started directly by `dispatch-poll.sh`, so
+  theirs is expected to be its `/bin/bash`. The microphone row is a bundle-ID client
   (`client_type` 0). `log stream --predicate 'subsystem == "com.apple.TCC"'`
   names the charged process (`Prompting for access to indirect object
   Finder by …`, `AttributionChain: responsible=…`).

@@ -7,15 +7,15 @@
 ---
 # ネットワーク {#network}
 
-このページでは、Tuist をインフラストラクチャと統合する際に必要となる可能性のあるネットワーク関連の設定について説明します。
+このページでは、Tuist をインフラストラクチャに統合する際に必要となる可能性のあるネットワーク関連の設定について説明します。
 
 ## 送信元 IP アドレス {#outbound-ip-addresses}
 
-インフラストラクチャで IP アドレスによる受信トラフィックの制限を行っている場合、Tuist が使用する IP 範囲を許可リストに追加する必要があります。これは、Tuist がファイアウォールや VPN の背後にあるサービス（セルフホスト型の Git プロバイダーやアーティファクトストレージなど）と通信する必要がある場合や、GitHub Organization で [IP 許可リスト](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) を使用している場合に一般的です。
+インフラストラクチャで IP アドレスによる受信トラフィックの制限を行っている場合、Tuist が使用する IP 範囲を許可リストに追加する必要があります。これは、Tuist がファイアウォールや VPN の背後にあるサービス（セルフホスト型の Git プロバイダーやアーティファクトストレージなど）と通信する必要がある場合や、GitHub 組織で [IP 許可リスト](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) を使用している場合に一般的です。
 
-Tuist の統合に使用するサーバーアドレスと、ワークフローが利用する各プラットフォームのランナーアドレスを許可リストに追加してください。
+Tuist の統合向けサーバーアドレスと、ワークフローで使用される各プラットフォームの実行環境アドレスを許可リストに追加してください。
 
-### サーバーの IP アドレス {#server-ip-addresses}
+### サーバー IP アドレス {#server-ip-addresses}
 
 Tuist のサービスおよび統合からの接続用に、以下の両方のアドレスを許可リストに追加してください：
 
@@ -28,11 +28,11 @@ Tuist は HTTPS 経由でのみインフラストラクチャに接続するた�
 
 ### Tuist Runners {#tuist-runners}
 
-<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> で実行されるジョブは、以下の送信元アドレスを使用します。ジョブが IP アドレスでトラフィックを制限するインフラストラクチャ（例えば、IP 許可リストを設定した GitHub Organization からリポジトリをチェックアウトする場合など）にアクセスする必要がある場合は、ワークフローが実行されるすべてのプラットフォームに対応するアドレスまたは範囲を許可リストに追加してください。
+<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> で実行されるジョブは、以下の送信元アドレスを使用します。ジョブが IP アドレスでトラフィックを制限するインフラストラクチャ（例えば、IP 許可リストを設定した GitHub 組織からリポジトリをチェックアウトする場合など）にアクセスする必要がある場合は、ワークフローが実行されるすべてのプラットフォームに対応するアドレスまたは範囲を許可リストに追加してください。
 
 #### macOS {#tuist-runners-macos}
 
-macOS ランナーのジョブ用に、以下の範囲を許可リストに追加してください：
+macOS 実行環境ジョブ用に、以下の範囲を許可リストに追加してください：
 
 | IP バージョン | CIDR 表記 |
 |---|---|
@@ -41,7 +41,7 @@ macOS ランナーのジョブ用に、以下の範囲を許可リストに追�
 
 #### Linux {#tuist-runners-linux}
 
-Linux ランナーのジョブ用に、以下の範囲全体を許可リストに追加してください：
+Linux 実行環境ジョブ用に、以下の範囲全体を許可リストに追加してください：
 
 | IP バージョン | CIDR 表記 |
 |---|---|

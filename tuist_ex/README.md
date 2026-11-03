@@ -195,7 +195,7 @@ and environment-variable names with `env: ["NAME"]` in `cache`. Source contents,
 locked dependency identities and runtime/optional/app flags, upstream sources,
 BEAMs and application resources, resolved application metadata, effective application
 configuration (explicit configured keys, with application defaults covered by
-dependency sources), dependency and VM-wide compiler options, dependency-specific
+dependency sources; the project's own application configuration is left out), dependency and VM-wide compiler options, dependency-specific
 `env:` and `system_env:`, Mix environment/target,
 and the Elixir build, full OTP version (when available), ERTS version, compiler bytecode,
 OS family, architecture, word size and byte order enter the key. The kernel version
@@ -287,7 +287,9 @@ Do not provide cache-write credentials to untrusted branches or dependencies.
 The local fallback is stored under the user's Tuist cache directory; `path:` selects a
 different location. Checkout paths are keyed by default. `portable: true` enables
 reuse across checkouts: the checkout path is left out of the key, also where
-configured values embed it (for example paths built from `__DIR__`). Cached BEAMs
+configured values embed it (for example paths built from `__DIR__`). `ERL_LIBS`,
+`MIX_PATH` and `MIX_ARCHIVES` enter the key by the contents of the directories they
+list, and rebar3 by its file name and bytes, so per-user tool installs match. Cached BEAMs
 still retain producer paths, including
 compile-time `__DIR__`, `__ENV__.file`, and `File.cwd!()` values. Only enable it
 for dependencies whose behavior does not rely on those paths. Resource links

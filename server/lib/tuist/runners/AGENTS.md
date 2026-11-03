@@ -2,7 +2,8 @@
 
 Leaf node for `Tuist.Runners` dispatch and claims. Cache volumes have their
 own node: [`cache_volumes/AGENTS.md`](cache_volumes/AGENTS.md). GitLab
-acquisition: [`gitlab/AGENTS.md`](gitlab/AGENTS.md).
+acquisition: [`gitlab/AGENTS.md`](gitlab/AGENTS.md). Bitrise pools:
+[`bitrise/AGENTS.md`](bitrise/AGENTS.md).
 
 ## Rack sites
 

@@ -740,7 +740,7 @@ pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
 /// binary simply never point-reads these prefixed keys. The prefix cannot
 /// collide with an inline artifact row (those are keyed by a 64-char hex
 /// `artifact_id`, which never contains `/`).
-const ACTION_CACHE_BLOB_REF_PREFIX: &str = "blob_ref/";
+pub const ACTION_CACHE_BLOB_REF_PREFIX: &str = "blob_ref/";
 
 /// Row key in the action-cache blob-refs reverse index: one `{blob}\0{entry}`
 /// pair per (referenced blob, referencing entry). Individual pair rows (empty
@@ -760,7 +760,7 @@ pub fn action_cache_blob_ref_prefix(blob_artifact_id: &str) -> String {
 /// Reverse index from a physical CAS chunk to the chunked-blob recipes that
 /// reference it. It shares the existing key-value column family so a binary
 /// predating chunked blobs can still open the database during rollback.
-const CHUNK_RECIPE_REF_PREFIX: &str = "chunk_ref/";
+pub const CHUNK_RECIPE_REF_PREFIX: &str = "chunk_ref/";
 
 pub fn chunk_recipe_ref_key(chunk_artifact_id: &str, recipe_artifact_id: &str) -> String {
     format!("{CHUNK_RECIPE_REF_PREFIX}{chunk_artifact_id}\0{recipe_artifact_id}")

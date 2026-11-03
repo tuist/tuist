@@ -207,7 +207,7 @@ defmodule Tuist.Cargo do
   defp build_query(project_id), do: from(b in Build, where: b.project_id == ^project_id and b.command != "nextest")
 
   defp cohort_query(project_id, opts) do
-    Enum.reduce([:command, :rust_version, :is_ci], build_query(project_id), fn key, query ->
+    Enum.reduce([:command, :rust_version, :is_ci, :status], build_query(project_id), fn key, query ->
       case Keyword.get(opts, key) do
         nil -> query
         value -> where(query, [b], field(b, ^key) == ^value)
