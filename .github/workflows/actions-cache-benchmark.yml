@@ -1,0 +1,94 @@
+name: Actions Cache Benchmark
+
+# Temporary: compares GitHub's hosted cache with the runner hosts' Actions
+# cache on staging Linux runners. Each round saves fresh entries in both arms,
+# then restores them in a second job. Never merged.
+
+on:
+  push:
+    branches: [benchmark/actions-cache]
+
+jobs:
+  save:
+    name: save (${{ matrix.arm }} ${{ matrix.round }})
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        arm: [github, mirror]
+        round: [1, 2, 3, 4, 5]
+    runs-on: tuist-staging-linux
+    timeout-minutes: 30
+    env:
+      TUIST_ACTIONS_CACHE: ${{ matrix.arm == 'github' && 'false' || 'true' }}
+      KEY: bench-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arm }}-${{ matrix.round }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache backend
+        uses: actions/github-script@v7
+        with:
+          script: core.info(`results service: ${new URL(process.env.ACTIONS_RESULTS_URL).origin}`)
+      - name: Generate cache content
+        run: |
+          mkdir -p bench-cache
+          head -c 536870912 /dev/urandom > bench-cache/random.bin
+          head -c 402653184 /dev/urandom | base64 > bench-cache/text.b64
+          du -sh bench-cache
+      - name: Save cache
+        uses: actions/cache/save@v4
+        with:
+          path: bench-cache
+          key: ${{ env.KEY }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and export layer cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .github/benchmarks/actions-cache
+          build-args: SEED=${{ env.KEY }}
+          push: false
+          outputs: type=tar,dest=/tmp/image.tar
+          cache-to: type=gha,mode=max,scope=${{ env.KEY }}
+
+  restore:
+    name: restore (${{ matrix.arm }} ${{ matrix.round }})
+    needs: save
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        arm: [github, mirror]
+        round: [1, 2, 3, 4, 5]
+    runs-on: tuist-staging-linux
+    timeout-minutes: 30
+    env:
+      TUIST_ACTIONS_CACHE: ${{ matrix.arm == 'github' && 'false' || 'true' }}
+      KEY: bench-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arm }}-${{ matrix.round }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache backend
+        uses: actions/github-script@v7
+        with:
+          script: core.info(`results service: ${new URL(process.env.ACTIONS_RESULTS_URL).origin}`)
+      - name: Restore cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bench-cache
+          key: ${{ env.KEY }}
+          fail-on-cache-miss: true
+      - name: Check restored content
+        run: du -sh bench-cache
+      - uses: docker/setup-buildx-action@v3
+      - name: Build from layer cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .github/benchmarks/actions-cache
+          build-args: SEED=${{ env.KEY }}
+          push: false
+          outputs: type=tar,dest=/tmp/image.tar
+          cache-from: type=gha,scope=${{ env.KEY }}
+      - name: Upload a small artifact through the results service
+        uses: actions/upload-artifact@v4
+        with:
+          name: marker-${{ matrix.arm }}-${{ matrix.round }}
+          path: .github/benchmarks/actions-cache/Dockerfile
+          retention-days: 1
