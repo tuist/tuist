@@ -58,7 +58,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.TargetSources
-  alias Tuist.Tests.Coverage.TestSources
+  alias Tuist.Tests.Coverage.TestEvidence
   alias Tuist.Tests.Coverage.Xcode
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.Test
@@ -902,7 +902,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # Each skipped test not carried with its target, from the latest run whose
-  # version of it (`Tuist.Tests.Coverage.TestSources`) the commit's blobs
+  # version of it (`Tuist.Tests.Coverage.TestEvidence`) the commit's blobs
   # reproduce: that run executed exactly these files, so what it recorded
   # holds here, on whatever branch it ran. Then the test passed there, the
   # tracked files are the same, and its evidence has lines for every file
@@ -913,7 +913,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp test_units(tests, context, tracked_now) do
     evidence =
-      TestSources.lookup(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id), fn paths ->
+      TestEvidence.lookup(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id), fn paths ->
         missing = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
         Map.merge(blobs_now(context.repository_id, context.sha, missing), context.blobs)
       end)

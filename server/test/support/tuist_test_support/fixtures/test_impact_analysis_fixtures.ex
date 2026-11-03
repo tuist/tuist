@@ -6,6 +6,7 @@ defmodule TuistTestSupport.Fixtures.TestImpactAnalysisFixtures do
   """
 
   alias Tuist.TestImpactAnalysis.Input
+  alias Tuist.Tests.Coverage.TestEvidence
   alias Tuist.Tests.Coverage.TestSources
 
   @doc "A test in scope, identified as `Module/Suite/name`."
@@ -46,8 +47,9 @@ defmodule TuistTestSupport.Fixtures.TestImpactAnalysisFixtures do
 
   @doc """
   An input whose tests are given by identifier, with `versions` keyed by
-  identifier too. `baseline_blobs` defaults to the blobs the baseline's
-  versions executed.
+  identifier too, resolved through `Tuist.Tests.Coverage.TestEvidence`
+  against the checkout's blobs: `baseline_blobs`, by default the blobs the
+  baseline's versions executed, overlaid with the changed files.
   """
   def input(attrs) do
     attrs = Map.new(attrs)
@@ -58,13 +60,13 @@ defmodule TuistTestSupport.Fixtures.TestImpactAnalysisFixtures do
         Map.new(for {_id, test_versions} <- versions, %{sha: "baseline"} = v <- test_versions, pair <- v.blobs, do: pair)
       end)
 
+    versions = Map.new(versions, fn {id, test_versions} -> {id, Enum.map(test_versions, &Map.delete(&1, :blobs))} end)
+    blobs = Input.checkout_blobs(baseline_blobs, Map.get(attrs, :changed_files, []))
+
     attrs
+    |> Map.drop([:versions, :baseline_blobs])
     |> Map.update(:tests, [], fn tests -> Enum.map(tests, &test_case/1) end)
-    |> Map.put(
-      :versions,
-      Map.new(versions, fn {id, test_versions} -> {id, Enum.map(test_versions, &Map.delete(&1, :blobs))} end)
-    )
-    |> Map.put(:baseline_blobs, baseline_blobs)
+    |> Map.put(:evidence, TestEvidence.resolve(versions, blobs))
     |> Input.new()
   end
 end
