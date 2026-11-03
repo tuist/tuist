@@ -92,7 +92,7 @@
 - Build/test ingestion retries and immutable facts: [idempotent_requests/AGENTS.md](idempotent_requests/AGENTS.md), [shards/AGENTS.md](shards/AGENTS.md).
 - Native build ingestion: [bazel/AGENTS.md](bazel/AGENTS.md), [cargo/AGENTS.md](cargo/AGENTS.md), [gradle/AGENTS.md](gradle/AGENTS.md), [mix/AGENTS.md](mix/AGENTS.md), [once_events/AGENTS.md](once_events/AGENTS.md).
 - Cache services: [kura/AGENTS.md](kura/AGENTS.md), [reapi_cache/AGENTS.md](reapi_cache/AGENTS.md), [registry/AGENTS.md](registry/AGENTS.md).
-- Shared rate-limiter outage counters live in `Tuist.PromEx.RateLimit`; the web policy uses `Environment.rate_limit_fallback_replicas/0` for a mockable replica allowance without mutating global test configuration.
+- Rate-limit backends and shared-store failure policy: [rate_limit/AGENTS.md](rate_limit/AGENTS.md). Outage counters live in `Tuist.PromEx.RateLimit`; `Tuist.RateLimit` uses `Environment.rate_limit_fallback_replicas/0` for a mockable replica allowance without mutating global test configuration.
 - Sandboxes: [sandboxes/AGENTS.md](sandboxes/AGENTS.md).
 
 ## Related Context

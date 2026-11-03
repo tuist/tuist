@@ -7,21 +7,21 @@
 ---
 # Telemetría {#telemetry}
 
-Tuist ofrece tres señales de observabilidad complementarias: **métricas** (Prometheus), **trazas** (OpenTelemetry) y **registros** (compatibles con Loki). Las tres son opcionales y pueden activarse de forma independiente.
+Tuist ofrece tres señales de observabilidad complementarias: **métricas** (Prometheus), **trazas** (OpenTelemetry) y **registros** (compatibles con Loki). Las tres son opcionales y pueden habilitarse de forma independiente.
 
 ## Trazado distribuido (OpenTelemetry) {#opentelemetry}
 
-Tuist admite [OpenTelemetry](https://opentelemetry.io/) para el trazado distribuido. Cuando está activado, el servidor emite trazas para las solicitudes HTTP (Phoenix y Bandit), las consultas a la base de datos (Ecto), las llamadas HTTP salientes (Finch) y el procesamiento de mensajes de Broadway. Estas trazas te permiten comprender la latencia de las solicitudes, identificar consultas lentas y seguir las solicitudes entre servicios.
+Tuist admite [OpenTelemetry](https://opentelemetry.io/) para el trazado distribuido. Cuando está activado, el servidor emite trazas para solicitudes HTTP (Phoenix y Bandit), consultas a la base de datos (Ecto), llamadas HTTP salientes (Finch) y el procesamiento de mensajes de Broadway. Estas trazas te permiten comprender la latencia de las solicitudes, identificar consultas lentas y seguir las solicitudes entre servicios.
 
 ### Configuración {#opentelemetry-configuration}
 
-Define la siguiente variable de entorno para habilitar la exportación de trazas:
+Establece la siguiente variable de entorno para habilitar la exportación de trazas:
 
-| Variable de entorno | Descripción | Obligatorio | Predeterminado | Ejemplo |
+| Variable de entorno | Descripción | Requerida | Predeterminado | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | El extremo gRPC de un recopilador de OpenTelemetry (por ejemplo, Grafana Alloy, Jaeger o cualquier recopilador compatible con OTLP) | No | | `http://localhost:4317` |
 
-Cuando esta variable no está definida, el trazado está desactivado y no añade sobrecarga.
+Cuando esta variable no está configurada, el trazado está desactivado y no añade sobrecarga.
 
 ### Bibliotecas instrumentadas {#opentelemetry-instrumented-libraries}
 
@@ -33,7 +33,7 @@ Las siguientes bibliotecas se instrumentan automáticamente cuando el trazado es
 - **Finch**: spans de solicitudes HTTP salientes del cliente
 - **Broadway**: spans de la canalización de procesamiento de mensajes
 
-### Ejemplo de configuración con Grafana Alloy {#opentelemetry-alloy-example}
+### Configuración de ejemplo con Grafana Alloy {#opentelemetry-alloy-example}
 
 Si usas [Grafana Alloy](https://grafana.com/docs/alloy/latest/) como tu recopilador, configúralo para recibir trazas OTLP y reenviarlas a tu backend de trazado (por ejemplo, Grafana Cloud Tempo):
 
@@ -48,21 +48,21 @@ otelcol.receiver.otlp "default" {
 }
 ```
 
-Luego define `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` para que apunte a la instancia de Alloy, por ejemplo `http://alloy:4317`.
+Luego establece `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` para que apunte a la instancia de Alloy, por ejemplo `http://alloy:4317`.
 
 ## Reenvío de registros (Loki) {#log-forwarding}
 
-Tuist puede reenviar los registros de la aplicación a un extremo compatible con [Loki](https://grafana.com/oss/loki/). Esto te permite centralizar los registros junto con tus métricas y trazas para tener una visión completa de la observabilidad. Los registros se envían mediante la API HTTP push de Loki (`/loki/api/v1/push`) e incluyen etiquetas para `app`, `env` y `level`.
+Tuist puede reenviar los registros de la aplicación a un extremo compatible con [Loki](https://grafana.com/oss/loki/). Esto te permite centralizar los registros junto con tus métricas y trazas para obtener una visión completa de la observabilidad. Los registros se envían mediante la API HTTP push de Loki (`/loki/api/v1/push`) e incluyen etiquetas para `app`, `env` y `level`.
 
 ### Configuración {#log-forwarding-configuration}
 
-| Variable de entorno | Descripción | Obligatorio | Predeterminado | Ejemplo |
+| Variable de entorno | Descripción | Requerida | Predeterminado | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_LOKI_URL` | La URL base de un extremo de API push compatible con Loki | No | | `http://localhost:3100` |
 
-Cuando esta variable no está definida, el reenvío de registros está desactivado.
+Cuando esta variable no está configurada, el reenvío de registros está desactivado.
 
-### Ejemplo de configuración con Grafana Alloy {#log-forwarding-alloy-example}
+### Configuración de ejemplo con Grafana Alloy {#log-forwarding-alloy-example}
 
 Grafana Alloy puede actuar como un relé local de registros usando su componente [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/):
 
@@ -87,7 +87,7 @@ loki.write "your_backend" {
 }
 ```
 
-Luego define `TUIST_LOKI_URL=http://alloy:3100`.
+Luego establece `TUIST_LOKI_URL=http://alloy:3100`.
 
 También puedes apuntar `TUIST_LOKI_URL` directamente a una instancia de Loki si expone la API push.
 
@@ -97,16 +97,16 @@ Puedes ingerir las métricas recopiladas por el servidor de Tuist usando [Promet
 
 ## Monitorización de usuarios reales {#real-user-monitoring}
 
-Tuist puede informar sobre el rendimiento del navegador desde el sitio de marketing, la documentación y el panel usando el SDK web de [Grafana Faro](https://grafana.com/oss/faro/), que viene integrado en el JavaScript servido. Captura Core Web Vitals (incluido Largest Contentful Paint), errores no capturados y vistas de página, y los envía a un [receptor de Faro](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/) que ejecutes —por ejemplo, el componente `faro.receiver` en Grafana Alloy, que reenvía a Loki y Tempo.
+Tuist puede informar del rendimiento del navegador desde el sitio de marketing, la documentación y el panel usando el SDK web de [Grafana Faro](https://grafana.com/oss/faro/), que está incluido en el JavaScript servido. Captura las Core Web Vitals (incluido Largest Contentful Paint), errores no capturados y vistas de página, y los envía a un [receptor de Faro](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/) que ejecutes —por ejemplo, el componente `faro.receiver` en Grafana Alloy, que reenvía a Loki y Tempo.
 
 ### Configuración {#real-user-monitoring-configuration}
 
-| Variable de entorno | Descripción | Obligatorio | Predeterminado | Ejemplo |
+| Variable de entorno | Descripción | Requerida | Predeterminado | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_FARO_COLLECTOR_URL` | URL a la que el navegador envía las cargas de Faro | No | | `/-/faro` |
 
 > [!NOTE]
-> La monitorización de usuarios reales solo está activada cuando `TUIST_FARO_COLLECTOR_URL` está definida. Sin ella, no se recopila telemetría del navegador ni se carga ningún script de terceros.
+> La monitorización de usuarios reales solo está activada cuando `TUIST_FARO_COLLECTOR_URL` está configurada. Sin ella, no se recopila telemetría del navegador ni se carga ningún script de terceros.
 
 Una ruta del mismo origen como `/-/faro` evita solicitudes entre orígenes y mantiene inalterada la Política de Seguridad de Contenido del navegador. Apúntala a tu receptor de Faro a través de tu ingress.
 
@@ -114,18 +114,18 @@ Una ruta del mismo origen como `/-/faro` evita solicitudes entre orígenes y man
 
 - **Métricas web**: LCP, CLS, INP, FCP y TTFB, capturadas automáticamente por el navegador
 - **Vistas de página**: registradas al cargar y durante la navegación de Phoenix LiveView
-- **Vistas**: cada carga incluye la sección que la generó: `marketing`, `docs`, `dashboard` o `api-docs`
+- **Vistas**: cada carga lleva la sección que la produjo — `marketing`, `docs`, `dashboard` o `api-docs`
 - **Errores**: excepciones no capturadas y rechazos de promesas no manejados
 
 ### Consideraciones de privacidad {#real-user-monitoring-privacy}
 
 - No se adjunta identidad de usuario: las cargas no incluyen ID de usuario, correo electrónico ni cuenta
 - Las sesiones no se persisten entre visitas, por lo que no se escribe nada en el almacenamiento del navegador
-- La captura de consola está desactivada, por lo que la salida de registros de la aplicación nunca se envía desde el navegador
+- La captura de la consola está desactivada, por lo que la salida de los registros de la aplicación nunca se envía desde el navegador
 
 ## Métricas de Elixir {#elixir-metrics}
 
-Por defecto incluimos métricas del runtime de Elixir, BEAM, Elixir y algunas de las bibliotecas que usamos. Estas son algunas de las métricas que puedes esperar ver:
+Por defecto incluimos métricas del runtime de Elixir, BEAM, Elixir y algunas de las bibliotecas que usamos. A continuación se muestran algunas de las métricas que puedes esperar ver:
 
 - [Aplicación](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -149,8 +149,8 @@ El número total de ejecuciones de Tuist.
 | Etiqueta | Descripción |
 |--- | ---- |
 | `name` | El nombre del comando `tuist` que se ejecutó, como `build`, `test`, etc. |
-| `is_ci` | Un valor booleano que indica si el ejecutor era un entorno de CI o la máquina de un desarrollador. |
-| `status` | `0` en caso de `success`, `1` en caso de `failure`. |
+| `is_ci` | Un booleano que indica si el ejecutor era un CI o la máquina de un desarrollador. |
+| `status` | `1` en caso de `success`, `0` en caso de `failure`. |
 
 ### `tuist_runs_duration_milliseconds` (histograma) {#tuist_runs_duration_milliseconds-histogram}
 
@@ -161,8 +161,8 @@ La duración total de cada ejecución de tuist en milisegundos.
 | Etiqueta | Descripción |
 |--- | ---- |
 | `name` | El nombre del comando `tuist` que se ejecutó, como `build`, `test`, etc. |
-| `is_ci` | Un valor booleano que indica si el ejecutor era un entorno de CI o la máquina de un desarrollador. |
-| `status` | `0` en caso de `success`, `1` en caso de `failure`. |
+| `is_ci` | Un booleano que indica si el ejecutor era un CI o la máquina de un desarrollador. |
+| `status` | `1` en caso de `success`, `0` en caso de `failure`. |
 
 ## Métricas de caché {#cache-metrics}
 
@@ -170,7 +170,7 @@ Un conjunto de métricas relacionadas con la caché de Tuist.
 
 ### `tuist_cache_events_total` (contador) {#tuist_cache_events_total-counter}
 
-El número total de eventos de la caché binaria.
+El número total de eventos de caché binaria.
 
 #### Etiquetas {#tuist-cache-events-total-tags}
 
@@ -188,11 +188,11 @@ El número de bytes subidos a la caché binaria.
 
 ### `tuist_cache_downloads_total` (contador) {#tuist_cache_downloads_total-counter}
 
-El número de descargas de la caché binaria.
+El número de descargas desde la caché binaria.
 
 ### `tuist_cache_downloaded_bytes` (suma) {#tuist_cache_downloaded_bytes-sum}
 
-El número de bytes descargados de la caché binaria.
+El número de bytes descargados desde la caché binaria.
 
 ---
 
@@ -212,7 +212,7 @@ El número total de previsualizaciones descargadas.
 
 ## Métricas de almacenamiento {#storage-metrics}
 
-Un conjunto de métricas relacionadas con el almacenamiento de artefactos en un almacenamiento remoto (por ejemplo, s3).
+Un conjunto de métricas relacionadas con el almacenamiento de artefactos en un almacenamiento remoto (por ejemplo, S3).
 
 > [!TIP]
 > Estas métricas son útiles para comprender el rendimiento de las operaciones de almacenamiento e identificar posibles cuellos de botella.
@@ -220,7 +220,7 @@ Un conjunto de métricas relacionadas con el almacenamiento de artefactos en un 
 
 ### `tuist_storage_get_object_size_size_bytes` (histograma) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-El tamaño (en bytes) de un objeto obtenido del almacenamiento remoto.
+El tamaño (en bytes) de un objeto recuperado desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-size-size-bytes-tags}
 
@@ -231,7 +231,7 @@ El tamaño (en bytes) de un objeto obtenido del almacenamiento remoto.
 
 ### `tuist_storage_get_object_size_duration_miliseconds` (histograma) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-La duración (en milisegundos) de obtener el tamaño de un objeto desde el almacenamiento remoto.
+La duración (en milisegundos) de recuperar el tamaño de un objeto desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
@@ -242,7 +242,7 @@ La duración (en milisegundos) de obtener el tamaño de un objeto desde el almac
 
 ### `tuist_storage_get_object_size_count` (contador) {#tuist_storage_get_object_size_count-counter}
 
-El número de veces que se obtuvo el tamaño de un objeto desde el almacenamiento remoto.
+El número de veces que se recuperó el tamaño de un objeto desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-size-count-tags}
 
@@ -295,7 +295,7 @@ El número de veces que se inició una subida al almacenamiento remoto.
 
 ### `tuist_storage_get_object_as_string_duration_milliseconds` (histograma) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-La duración (en milisegundos) de obtener un objeto como cadena desde el almacenamiento remoto.
+La duración (en milisegundos) de recuperar un objeto como cadena desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
@@ -305,7 +305,7 @@ La duración (en milisegundos) de obtener un objeto como cadena desde el almacen
 
 ### `tuist_storage_get_object_as_string_count` (contador) {#tuist_storage_get_object_as_string_count-count}
 
-El número de veces que se obtuvo un objeto como cadena desde el almacenamiento remoto.
+El número de veces que se recuperó un objeto como cadena desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-as-string-count-tags}
 
@@ -314,7 +314,7 @@ El número de veces que se obtuvo un objeto como cadena desde el almacenamiento 
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 
 
-### `tuist_storage_check_object_existence_duration_milliseconds` (contador) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
+### `tuist_storage_check_object_existence_duration_milliseconds` (histograma) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
 La duración (en milisegundos) de comprobar la existencia de un objeto en el almacenamiento remoto.
 
@@ -365,7 +365,7 @@ La duración (en milisegundos) de generar una URL prefirmada de subida de parte 
 |--- | ---- |
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 | `part_number` | El número de parte del objeto que se está subiendo. |
-| `upload_id` | El ID de subida de la subida multipart. |
+| `upload_id` | El ID de subida de la subida multiparte. |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (contador) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
@@ -377,7 +377,7 @@ El número de veces que se generó una URL prefirmada de subida de parte para un
 |--- | ---- |
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 | `part_number` | El número de parte del objeto que se está subiendo. |
-| `upload_id` | El ID de subida de la subida multipart. |
+| `upload_id` | El ID de subida de la subida multiparte. |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histograma) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
@@ -388,7 +388,7 @@ La duración (en milisegundos) de completar una subida al almacenamiento remoto.
 | Etiqueta | Descripción |
 |--- | ---- |
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
-| `upload_id` | El ID de subida de la subida multipart. |
+| `upload_id` | El ID de subida de la subida multiparte. |
 
 
 ### `tuist_storage_multipart_complete_upload_count` (contador) {#tuist_storage_multipart_complete_upload_count-count}
@@ -400,7 +400,7 @@ El número total de veces que se completó una subida al almacenamiento remoto.
 | Etiqueta | Descripción |
 |--- | ---- |
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
-| `upload_id` | El ID de subida de la subida multipart. |
+| `upload_id` | El ID de subida de la subida multiparte. |
 
 ---
 
@@ -417,7 +417,7 @@ El número total de errores de actualización de token.
 | Etiqueta | Descripción |
 |--- | ---- |
 | `cli_version` | La versión de Tuist CLI que encontró el error. |
-| `reason` | El motivo del error de actualización de token, como `invalid_token_type` o `invalid_token`. |
+| `reason` | La razón del error de actualización del token, como `invalid_token_type` o `invalid_token`. |
 
 ---
 
@@ -448,7 +448,7 @@ El número total de usuarios.
 
 Un conjunto de métricas relacionadas con la conexión a la base de datos.
 
-Las métricas del pool de repositorios se muestrean internamente cada 100 ms y luego se exponen a Prometheus en `/metrics`. Las métricas `last_value` que aparecen a continuación muestran el estado más reciente del pool en el momento del sondeo. Las métricas de presión que aparecen más abajo son sumas derivadas de esas muestras de 100 ms, lo que facilita detectar ventanas cortas de saturación incluso cuando se recuperan antes del siguiente sondeo.
+Las métricas del pool de repositorios se muestrean internamente cada 100 ms y luego se exponen a Prometheus en `/metrics`. Las métricas de `last_value` que aparecen a continuación muestran el estado más reciente del pool en el momento de la recolección. Las métricas de presión que figuran más abajo son sumas derivadas de esas muestras de 100 ms, lo que facilita detectar ventanas cortas de saturación incluso cuando se recuperan antes de la siguiente recolección.
 
 ### `tuist_repo_pool_checkout_queue_length` (último_valor) {#tuist_repo_pool_checkout_queue_length-last_value}
 
@@ -485,7 +485,7 @@ El número configurado de conexiones en el pool.
 
 ### `tuist_repo_pool_checkout_queue_total_samples_sum` (suma) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
 
-El número total de sondeos del pool de repositorios realizados (se incrementa en 1 en cada sondeo). Úsalo como denominador al calcular porcentajes de ocupación o inanición: `rate(busy_samples) / rate(total_samples)` o `rate(starved_samples) / rate(total_samples)`.
+El número total de sondeos del pool de repositorios realizados (se incrementa en 1 en cada sondeo). Úsalo como denominador al calcular los porcentajes de ocupación o inanición: `rate(busy_samples) / rate(total_samples)` o `rate(starved_samples) / rate(total_samples)`.
 
 #### Etiquetas {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
 
@@ -496,7 +496,7 @@ El número total de sondeos del pool de repositorios realizados (se incrementa e
 
 ### `tuist_repo_pool_checkout_queue_observed_sum` (suma) {#tuist_repo_pool_checkout_queue_observed_sum-sum}
 
-La suma de las solicitudes de checkout en cola observadas durante los sondeos del pool de repositorios. Esto es útil para detectar ráfagas breves de contención del pool que pueden no ser visibles solo con la última muestra de longitud de cola.
+La suma de las solicitudes de checkout en cola observadas durante los sondeos del pool de repositorios. Esto es útil para detectar ráfagas cortas de contención del pool que pueden no ser visibles solo en la última muestra de longitud de cola.
 
 #### Etiquetas {#tuist_repo_pool_checkout_queue_observed_sum-tags}
 
@@ -507,7 +507,7 @@ La suma de las solicitudes de checkout en cola observadas durante los sondeos de
 
 ### `tuist_repo_pool_checkout_queue_busy_samples_sum` (suma) {#tuist_repo_pool_checkout_queue_busy_samples_sum-sum}
 
-El número de sondeos del pool de repositorios en los que al menos una solicitud de checkout a la base de datos estaba esperando en la cola.
+El número de sondeos del pool de repositorios en los que al menos una solicitud de checkout de base de datos estaba esperando en la cola.
 
 #### Etiquetas {#tuist_repo_pool_checkout_queue_busy_samples_total-tags}
 
@@ -518,7 +518,7 @@ El número de sondeos del pool de repositorios en los que al menos una solicitud
 
 ### `tuist_repo_pool_checkout_queue_starved_samples_sum` (suma) {#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
 
-El número de sondeos del pool de repositorios en los que las solicitudes de checkout estaban en cola y no había conexiones listas disponibles. Un aumento sostenido aquí suele indicar que el pool está saturado.
+El número de sondeos del pool de repositorios en los que las solicitudes de checkout estaban en cola y no había conexiones listas disponibles. Un aumento sostenido aquí suele significar que el pool está saturado.
 
 #### Etiquetas {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
 

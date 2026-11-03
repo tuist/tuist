@@ -68,7 +68,9 @@ public struct RetryMiddleware: ClientMiddleware {
                 guard retriesUnforwardedCacheRequests,
                       body == nil || body?.iterationBehavior == .multiple,
                       attempt < retryPolicy.maximumRetryCount,
-                      [429, 503].contains(response.status.code),
+                      Self.isRetryable(
+                          response, idempotent: false, remainingRetries: retryPolicy.maximumRetryCount - attempt
+                      ),
                       response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] == "pending"
                 else {
                     return (response, responseBody)
@@ -95,7 +97,9 @@ public struct RetryMiddleware: ClientMiddleware {
                 if let error = Self.authorizationThrottledError(for: response) {
                     throw error
                 }
-                guard Self.isRetryable(response, idempotent: idempotent) else {
+                guard Self.isRetryable(
+                    response, idempotent: idempotent, remainingRetries: retryPolicy.maximumRetryCount - retry
+                ) else {
                     return (response, responseBody)
                 }
                 delay = Self.retryDelay(for: response, policyDelay: delay)
@@ -124,7 +128,16 @@ public struct RetryMiddleware: ClientMiddleware {
         }
     }
 
-    private static func isRetryable(_ response: HTTPResponse, idempotent: Bool) -> Bool {
+    private static func isRetryable(_ response: HTTPResponse, idempotent: Bool, remainingRetries: Int) -> Bool {
+        // Each retry waits at most `maximumDelayMilliseconds`, so a cooldown longer than the remaining
+        // retries can wait out only collects more denials. Shorter ones keep being retried, re-reading
+        // the server's updated hint on every attempt.
+        if let seconds = retryAfterSeconds(in: response),
+           seconds > UInt64(remainingRetries) * HTTPRetryPolicy.maximumDelayMilliseconds / 1000
+        {
+            return false
+        }
+
         let statusCode = response.status.code
         if idempotent {
             return statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
@@ -167,19 +180,16 @@ public struct RetryMiddleware: ClientMiddleware {
         let throttleReasonName = HTTPField.Name("x-tuist-throttle-reason")!
         guard response.headerFields[throttleReasonName] == "authorization" else { return nil }
 
-        let retryAfterName = HTTPField.Name("Retry-After")!
-        let retryAfterSeconds = response.headerFields[retryAfterName]
-            .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-        return AuthorizationThrottledError(retryAfterSeconds: retryAfterSeconds)
+        return AuthorizationThrottledError(retryAfterSeconds: retryAfterSeconds(in: response).flatMap { Int(exactly: $0) })
+    }
+
+    /// The numeric form of `Retry-After`. HTTP dates and malformed values are ignored.
+    private static func retryAfterSeconds(in response: HTTPResponse) -> UInt64? {
+        response.headerFields[.retryAfter].flatMap { UInt64($0.trimmingCharacters(in: .whitespaces)) }
     }
 
     static func retryDelay(for response: HTTPResponse, policyDelay: UInt64) -> UInt64 {
-        let retryAfterName = HTTPField.Name("Retry-After")!
-        guard let value = response.headerFields[retryAfterName],
-              let seconds = UInt64(value.trimmingCharacters(in: .whitespaces))
-        else {
-            return policyDelay
-        }
+        guard let seconds = retryAfterSeconds(in: response) else { return policyDelay }
         let milliseconds = seconds.multipliedReportingOverflow(by: 1000)
         let boundedMilliseconds = milliseconds.overflow
             ? HTTPRetryPolicy.maximumDelayMilliseconds

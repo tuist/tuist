@@ -1,4 +1,23 @@
+{{- define "shard-storage.awsEnv" -}}
+- name: AWS_DEFAULT_REGION
+  value: garage
+- name: AWS_EC2_METADATA_DISABLED
+  value: "true"
+- name: AWS_REQUEST_CHECKSUM_CALCULATION
+  value: WHEN_REQUIRED
+- name: AWS_ACCESS_KEY_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Release.Name }}
+      key: access-key-id
+- name: AWS_SECRET_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Release.Name }}
+      key: secret-access-key
+{{- end }}
 {{- if .Values.enabled }}
+{{- $endpoint := printf "http://%s.%s.svc.cluster.local:3900" .Release.Name .Release.Namespace }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,9 +25,15 @@ metadata:
 data:
   lifecycle.json: |
     {"Rules":[{"ID":"shard-retention-backstop","Status":"Enabled","Filter":{"Prefix":""},"Expiration":{"Days":{{ .Values.lifecycle.expirationDays }}},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":{{ .Values.lifecycle.abortMultipartDays }}}}]}
+  {{- if .Values.archiveBucket }}
+  # Archives are the only copy of an archived Orb: nothing expires them.
+  archive-lifecycle.json: |
+    {"Rules":[{"ID":"abort-incomplete-uploads","Status":"Enabled","Filter":{"Prefix":""},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":{{ .Values.lifecycle.abortMultipartDays }}}}]}
+  {{- end }}
 ---
 # Reapplying the policy is idempotent and recovers automatically if the bucket
 # was recreated. It is separate from readiness: do not block server releases.
+# The same run creates the archive bucket when it is missing.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -30,12 +55,57 @@ spec:
         spec:
           automountServiceAccountToken: false
           restartPolicy: OnFailure
+          {{- if .Values.archiveBucket }}
+          initContainers:
+            - name: archive-bucket
+              image: {{ .Values.lifecycle.image | quote }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - >-
+                  aws --endpoint-url "$ENDPOINT" s3api head-bucket --bucket "$BUCKET" ||
+                  aws --endpoint-url "$ENDPOINT" s3api create-bucket --bucket "$BUCKET"
+              env:
+                - name: ENDPOINT
+                  value: {{ $endpoint | quote }}
+                - name: BUCKET
+                  value: {{ .Values.archiveBucket | quote }}
+                {{- include "shard-storage.awsEnv" . | nindent 16 }}
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 256Mi
+            - name: archive-policy
+              image: {{ .Values.lifecycle.image | quote }}
+              args:
+                - --endpoint-url
+                - {{ $endpoint }}
+                - s3api
+                - put-bucket-lifecycle-configuration
+                - --bucket
+                - {{ .Values.archiveBucket | quote }}
+                - --lifecycle-configuration
+                - file:///policy/archive-lifecycle.json
+              env:
+                {{- include "shard-storage.awsEnv" . | nindent 16 }}
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: policy
+                  mountPath: /policy
+                  readOnly: true
+          {{- end }}
           containers:
             - name: policy
               image: {{ .Values.lifecycle.image | quote }}
               args:
                 - --endpoint-url
-                - http://{{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local:3900
+                - {{ $endpoint }}
                 - s3api
                 - put-bucket-lifecycle-configuration
                 - --bucket
@@ -43,22 +113,7 @@ spec:
                 - --lifecycle-configuration
                 - file:///policy/lifecycle.json
               env:
-                - name: AWS_DEFAULT_REGION
-                  value: garage
-                - name: AWS_EC2_METADATA_DISABLED
-                  value: "true"
-                - name: AWS_REQUEST_CHECKSUM_CALCULATION
-                  value: WHEN_REQUIRED
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Release.Name }}
-                      key: access-key-id
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Release.Name }}
-                      key: secret-access-key
+                {{- include "shard-storage.awsEnv" . | nindent 16 }}
               resources:
                 requests:
                   cpu: 50m

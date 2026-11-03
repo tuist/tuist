@@ -67,14 +67,14 @@ defmodule TuistWeb.AmpOrbsControllerTest do
              "Account sandbox CPU or memory limit reached"
   end
 
-  test "marks the account's sandbox limit, which paused Orbs count toward, as a non-retryable refusal", %{
+  test "marks the account's on-node cap, which paused Orbs count toward, as a non-retryable refusal", %{
     conn: conn,
     integration: integration,
     user: user
   } do
     identity(integration)
 
-    for _ <- 1..Tuist.Sandboxes.max_live_sandboxes_per_account() do
+    for _ <- 1..Tuist.Sandboxes.max_on_node_sandboxes_per_account() do
       SandboxesFixtures.sandbox_fixture(account: user.account, state: :paused)
     end
 
@@ -96,6 +96,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     for {reason, status, hint} <- [
           {:no_capacity, 503, ["admission"]},
           {:sandbox_concurrency_limit, 429, ["admission"]},
+          {:sandbox_running_limit, 429, ["admission"]},
           {:sandbox_limit, 429, []},
           {:sandbox_account_busy, 409, ["admission"]},
           {:locked, 409, ["admission"]},

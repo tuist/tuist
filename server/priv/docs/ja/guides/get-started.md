@@ -2,22 +2,22 @@
 {
   "title": "はじめに",
   "titleTemplate": ":title · はじめに · ガイド · Tuist",
-  "description": "現在のアプリのビルド方法に合わせて、Tuist の活用方法を選びましょう。Xcode、生成された Xcode プロジェクト、Gradle、Elixir、Rust、または Bazel に対応しています。"
+  "description": "現在のアプリのビルド方法に合わせて、Tuist の利用方法を選択してください。Xcode、生成された Xcode プロジェクト、Gradle、Elixir、Rust、または Bazel が対象です。"
 }
 ---
 # はじめに {#get-started}
 
-現在のアプリのビルド方式に合ったパスを選択してください。各パスでは、インストール手順、キャッシュ・インサイト・テスト機能の有効化方法、セットアップのエンドツーエンドでの検証方法を説明します。これらは個別に導入することも、複数のプラットフォームでリリースしている場合は組み合わせて利用することもできます。
+現在のアプリのビルド方法に合ったパスを選択してください。各パスでは、インストールすべきもの、キャッシング、インサイト、テスト機能を有効にする方法、そしてセットアップをエンドツーエンドで検証する方法を順を追って説明します。これらを個別に導入することも、複数のプラットフォームでリリースしている場合は組み合わせて利用することもできます。
 
 ## Xcode プロジェクト {#existing-xcode-project}
 
-既存の Xcode プロジェクトまたはワークスペースを維持し、Tuist の機能を一つずつ追加できます。プロジェクトの生成は不要です。
+既存の Xcode プロジェクトまたはワークスペースを維持したまま、Tuist の機能を一つずつ追加できます。プロジェクトの生成は不要です。
 
 <.localized_link href="/guides/get-started/existing-xcode-project">Start with an Xcode project →</.localized_link>
 
 ## 生成された Xcode プロジェクト {#generated-xcode-project}
 
-Swift マニフェストから Tuist が Xcode プロジェクトを定義・生成します。生成されたプロジェクトは、モジュラーな Xcode プロジェクトの複雑さをグラフの簡潔で宣言的な記述に圧縮し、<.localized_link href="/guides/features/cache/module-cache">モジュールキャッシュ</.localized_link>および<.localized_link href="/guides/features/selective-testing/generated-xcode-project">選択的テスト</.localized_link>には必須です。
+Swift マニフェストから Tuist が Xcode プロジェクトを定義・生成します。生成されたプロジェクトは、モジュール化された Xcode プロジェクトの複雑さをグラフの簡潔な宣言的記述に圧縮し、<.localized_link href="/guides/features/cache/module-cache">モジュールキャッシュ</.localized_link> および <.localized_link href="/guides/features/selective-testing/generated-xcode-project">選択的テスト</.localized_link> に不可欠な要件となります。
 
 <.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated project →</.localized_link>
 
@@ -45,4 +45,4 @@ Bazel ワークスペースを Tuist の Remote Execution API キャッシュと
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
-いずれの場合も、まず <.localized_link href="/guides/install-tuist">Tuist コマンドラインインターフェースをインストール</.localized_link>してください。Elixir プロジェクトは例外で、Hex パッケージだけで十分です。
+いずれの場合も、まず <.localized_link href="/guides/install-tuist">Tuist コマンドラインインターフェースをインストール</.localized_link> してください。Elixir プロジェクトは例外で、Hex パッケージだけで十分です。

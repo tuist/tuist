@@ -220,6 +220,29 @@ func TestEnsurePodNATFencesGuestsOffTheDaemon(t *testing.T) {
 	}
 }
 
+func TestEnsurePodNATKeepsGuestsOffTheDaemonOnlyPort(t *testing.T) {
+	f := &fakeRunner{}
+	m := &Manager{Run: f.run, Log: slog.Default(), DaemonOnlyTCPPort: 3900}
+	if err := m.EnsurePodNAT(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(f.calls, "\n")
+	drop := strings.Index(joined, "iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -p tcp --dport 3900 -j DROP")
+	accept := strings.Index(joined, "-A FORWARD -s 172.31.0.0/16 -j ACCEPT")
+	if drop < 0 || accept < 0 || drop > accept {
+		t.Fatalf("the daemon-only port drop must be installed before the forwarding accept:\n%s", joined)
+	}
+
+	f = &fakeRunner{}
+	m = &Manager{Run: f.run, Log: slog.Default()}
+	if err := m.EnsurePodNAT(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if joined := strings.Join(f.calls, "\n"); strings.Contains(joined, "--dport") {
+		t.Fatalf("no port is dropped without one configured:\n%s", joined)
+	}
+}
+
 func TestParseNamespaceList(t *testing.T) {
 	got := ParseNamespaceList("sbx-abc123 (id: 0)\ncni-1234\nsbx-tmpl-deadbeef (id: 2)\n\n")
 	if len(got) != 2 || got[0] != "sbx-abc123" || got[1] != "sbx-tmpl-deadbeef" {

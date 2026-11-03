@@ -156,8 +156,8 @@ defmodule Tuist.Runners.PrepaidTest do
 
       assert balance.available == Money.new(37_500, :USD)
       assert balance.granted == Money.new(75_000, :USD)
-      # $750 of credit buys 10,000 minutes at the $0.075 standard rate.
-      assert balance.granted_minutes == 10_000
+      # $750 of credit buys 12,500 minutes at the $0.06 standard rate.
+      assert balance.granted_minutes == 12_500
     end
 
     test "counts a pool by what it has left toward the period, and a monthly grant in full" do
@@ -194,8 +194,8 @@ defmodule Tuist.Runners.PrepaidTest do
 
       balance = Prepaid.balance(%Account{customer_id: customer_id})
 
-      assert balance.granted_minutes == 210_000
-      assert balance.period_minutes == 50_000
+      assert balance.granted_minutes == 262_500
+      assert balance.period_minutes == 62_500
       assert Enum.find(balance.grants, &(&1.id == "credgr_pool")).kind == "pool"
     end
   end
@@ -342,6 +342,28 @@ defmodule Tuist.Runners.PrepaidTest do
 
       assert {:ok, _grant} =
                Prepaid.grant_pool(pool_account(), pool_attrs(%{starts_on: ~D[2026-11-07], expires_on: ~D[2027-11-06]}))
+    end
+
+    test "also pays for a retired Price a subscription has not been moved off yet" do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "runners" => %{
+            "runner_macos_compute_unit_milliseconds" => @macos_price,
+            "runner_linux_compute_unit_milliseconds" => @linux_price
+          },
+          "retired_runners" => %{
+            "runner_macos_compute_unit_milliseconds" => ["price_runner_macos_retired"],
+            "runner_linux_compute_unit_milliseconds" => ["price_runner_linux_retired"]
+          }
+        }
+      end)
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.price_ids == [@macos_price, "price_runner_macos_retired"]
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs())
     end
 
     test "keeps the grant owed when no runner price exists yet" do

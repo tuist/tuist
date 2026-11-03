@@ -440,6 +440,14 @@ defmodule TuistWeb.Router do
     get "/blog/bazel/timeline.json", BazelShowcaseController, :timeline, metadata: %{type: :marketing, robots_txt: false}
   end
 
+  scope "/", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    # Build traces for agents. The token is the authorization: the MCP server
+    # signs it for one build after authorizing the caller.
+    get "/build-traces/:token", BuildController, :signed_trace, metadata: %{robots_txt: false}
+  end
+
   scope "/" do
     pipe_through [
       :open_api,
@@ -1173,6 +1181,7 @@ defmodule TuistWeb.Router do
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/bitrise/started", RunnerBitriseReportsController, :started
     post "/runners/jobs/cache/download", RunnerJobCacheController, :download
     post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
     post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
@@ -1321,6 +1330,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
 
     live_session :redirect_if_user_is_authenticated,
+      session: {TuistWeb.UserForgotPasswordLive, :password_reset_session, []},
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
@@ -1711,6 +1721,8 @@ defmodule TuistWeb.Router do
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
       get "/builds/build-runs/:build_run_id/timeline.json", BuildController, :timeline
       get "/builds/invocations/:invocation_id/timeline.json", BuildController, :timeline
+      get "/builds/build-runs/:build_run_id/trace.json", BuildController, :trace
+      get "/builds/invocations/:invocation_id/trace.json", BuildController, :trace
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
