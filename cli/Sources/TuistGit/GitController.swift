@@ -100,8 +100,8 @@ public protocol GitControlling {
     /// working tree, so each id describes the contents a build would compile.
     func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String]
 
-    /// The checked-out commit, with its parents when it's the merge commit a CI provider made for a
-    /// pull request, which exists only in the checkout.
+    /// The checked-out commit with its parents, and whether it's the merge commit a CI provider made
+    /// for a pull request, which exists only in the checkout.
     func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit
 
     /// The files that differ between `baselineSHA` and the working tree: what the checked-out commit

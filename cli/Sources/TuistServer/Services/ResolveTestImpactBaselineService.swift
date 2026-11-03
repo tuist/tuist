@@ -9,8 +9,8 @@ public protocol ResolveTestImpactBaselineServicing {
     /// throws: a failed or timed-out request comes back as `.failed`, and the run falls back.
     /// - Parameters:
     ///   - commitSHA: The checked-out commit.
-    ///   - parentSHAs: The checked-out commit's parents when it's a pull request's merge commit,
-    ///     which the server's history doesn't have.
+    ///   - parentSHAs: The checked-out commit's parents, for a commit the server's history doesn't
+    ///     have yet, such as a new commit or a pull request's merge commit.
     func resolveTestImpactBaseline(
         fullHandle: String,
         serverURL: URL,
