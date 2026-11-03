@@ -48,8 +48,11 @@
           id="widget-runner-minutes"
           title={dgettext("dashboard_usage", "Runner minutes")}
           description={
-            dgettext("dashboard_usage", "%{count} free macOS minutes each month",
-              count: CldrHelpers.format_number(@runner_breakdown.free_minutes)
+            dgettext(
+              "dashboard_usage",
+              "%{macos} free macOS and %{linux} free Linux minutes each month",
+              macos: CldrHelpers.format_number(@runner_breakdown.free_minutes.macos),
+              linux: CldrHelpers.format_number(@runner_breakdown.free_minutes.linux)
             )
           }
           value={CldrHelpers.format_number(@runner_breakdown.minutes)}

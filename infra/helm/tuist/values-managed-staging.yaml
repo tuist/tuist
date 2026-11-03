@@ -168,10 +168,13 @@ server:
       value: https://registry-staging.tuist.dev/swift
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
-    # Must equal the first tier of the runner Price above (2 minutes).
-    # Production leaves this unset and takes the 100 minute default.
+    # Must equal the first tier of each runner Price below (2 macOS and
+    # 50 Linux minutes). Production leaves these unset and takes the 100
+    # and 2,500 minute defaults.
     - name: TUIST_RUNNER_FREE_MONTHLY_MINUTES
       value: "2"
+    - name: TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      value: "50"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
@@ -281,11 +284,14 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # The Linux Price is per unit with no free tier: each compute-unit
-      # millisecond on the 2 vCPU / 8 GB baseline costs 0.000004 cents,
-      # which is $0.0024 per baseline machine-minute and $0.001 on the
-      # 1 vCPU / 2 GB machine. It must stay in step with `@on_demand_rates`
-      # in `Tuist.Runners.Prepaid`, which the usage page costs it with.
+      # The Linux Price is graduated the same way: the first 3000000
+      # compute-unit milliseconds (50 minutes on the 2 vCPU / 8 GB baseline,
+      # worth the same as the two macOS minutes) are free, and beyond that
+      # each millisecond costs 0.000004 cents, which is $0.0024 per baseline
+      # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
+      # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      # below, and the rate with `@on_demand_rates` in
+      # `Tuist.Runners.Prepaid`.
       #
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
@@ -295,7 +301,7 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: "price_1UXi5bLlKoN51eczWNwDAMb7"
+        runner_linux_compute_unit_milliseconds: "price_1UXkvHLlKoN51eczI4KykboL"
         runner_macos_compute_unit_milliseconds: "price_1UXNkKLlKoN51eczld0hbV1t"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
