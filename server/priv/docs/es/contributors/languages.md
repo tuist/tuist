@@ -7,7 +7,7 @@
 ---
 # Idiomas {#translate}
 
-Los idiomas pueden ser barreras para la comprensión. Queremos asegurarnos de que Tuist sea accesible para el mayor número posible de personas. Si hablas un idioma que Tuist aún no admite, puedes ayudar a Tuist a hablar ese idioma mejorando el contenido original en inglés y el contexto de localización que impulsa nuestra cadena de traducción.
+Los idiomas pueden ser barreras para la comprensión. Queremos asegurarnos de que Tuist sea accesible para tantas personas como sea posible. Si hablas un idioma que Tuist aún no admite, puedes ayudar a Tuist a hablar ese idioma mejorando el contenido original en inglés y el contexto de localización que [Glossia](https://glossia.ai) utiliza para traducirlo.
 
 Dado que el soporte de idiomas es un esfuerzo continuo, añadimos idiomas a medida que encontramos colaboradores dispuestos a ayudarnos a mantenerlos. Los siguientes idiomas están actualmente admitidos:
 
@@ -29,14 +29,14 @@ Dado que el soporte de idiomas es un esfuerzo continuo, añadimos idiomas a medi
 
 ## Cómo ayudar {#how-to-translate}
 
-El soporte de idiomas de Tuist se gestiona desde el repositorio. Los colaboradores actualizan el contenido original en inglés y el contexto de traducción, y nuestra cadena de traducción genera automáticamente los archivos localizados.
+El soporte de idiomas de Tuist se gestiona desde el repositorio. Los colaboradores actualizan el contenido original en inglés y el contexto de traducción, y [Glossia](https://glossia.ai) genera los archivos localizados automáticamente.
 
 El flujo de trabajo es:
 
 1. Actualiza el contenido original en inglés.
 2. Actualiza el contexto relevante de `L10N.md` si los traductores necesitan más orientación.
 3. Abre una pull request con esos cambios en el origen.
-4. Una vez que los cambios se integran en `main`, el flujo de trabajo de traducción regenera los archivos `.po` de destino y abre una pull request de seguimiento con las actualizaciones traducidas.
+4. Una vez que los cambios se integren en `main`, Glossia traduce lo que ha cambiado y mantiene abierta una pull request de traducción con los archivos localizados actualizados.
 
 > [!WARNING]
 > **No modifiques el contenido localizado generado**
@@ -46,7 +46,7 @@ El flujo de trabajo es:
 
 ## Estructura de L10N.md {#l10n-md-structure}
 
-Los archivos `L10N.md` definen el contexto que se envía al modelo de traducción. La forma más sencilla de entenderlos es como instrucciones de idioma con alcance específico que pueden ubicarse en distintos niveles de directorio.
+Los archivos `L10N.md` definen el contexto que Glossia utiliza al traducir. La forma más sencilla de entenderlos es como instrucciones de idioma con ámbito específico que pueden ubicarse en diferentes niveles de directorio.
 
 Por ejemplo:
 
@@ -65,7 +65,7 @@ Por ejemplo:
 
 ## Contexto de directorio {#directory-context}
 
-El script de traducción recorre desde la raíz del repositorio hasta el directorio que se está traduciendo y combina todos los archivos `L10N.md` que encuentra en esa ruta.
+Glossia recorre desde la raíz del repositorio hasta el directorio que se está traduciendo y combina todos los archivos `L10N.md` que encuentra en esa ruta.
 
 En el ejemplo anterior:
 
