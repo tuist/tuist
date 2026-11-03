@@ -48,7 +48,8 @@ defmodule Tuist.Tests.Selections do
   def fallback?(%{outcome: outcome}), do: outcome == "fallback"
 
   @doc """
-  The project's impact runs over a period: totals, their trend against the
+  The project's impact runs over a period, counting only those a test run
+  reported: totals, their trend against the
   period before, and per-bucket series (hours for a period of two days or
   less, days otherwise) of runs, selected and skipped tests, and skip rate.
   The end is carried to the close of its second, as the date picker's
@@ -63,6 +64,7 @@ defmodule Tuist.Tests.Selections do
       from(r in Run,
         where: r.project_id == ^project_id,
         where: r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
+        where: r.id in subquery(reported_ids(project_id)),
         group_by: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
         select: %{
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
@@ -110,6 +112,7 @@ defmodule Tuist.Tests.Selections do
         from(r in Run,
           where: r.project_id == ^project_id,
           where: r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
+          where: r.id in subquery(reported_ids(project_id)),
           select: %{
             runs: count(),
             fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
@@ -167,16 +170,16 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc """
-  A page of the project's impact runs, newest first, each with the id of
-  the latest test run that reported it (`test_run_id`, `nil` before one
-  did). Options: `:search` (a commit SHA prefix, or part of a branch,
+  A page of the project's impact runs that a test run reported, newest
+  first, each with the id of the latest test run that reported it
+  (`test_run_id`). Options: `:search` (a commit SHA prefix, or part of a branch,
   scheme or test plan name), `:fallback` (`true` for the runs that fell
   back), `:page` and `:page_size`. Returns
   `{rows, %{current_page, total_pages, total_count}}`.
   """
   def list_runs(project_id, opts \\ []) do
     {runs, meta} =
-      from(r in Run, where: r.project_id == ^project_id)
+      from(r in Run, where: r.project_id == ^project_id and r.id in subquery(reported_ids(project_id)))
       |> filter_run_search(Keyword.get(opts, :search))
       |> filter_fallback(Keyword.get(opts, :fallback))
       |> order_by([r], desc: r.inserted_at, desc: r.id)
@@ -197,6 +200,15 @@ defmodule Tuist.Tests.Selections do
     )
     |> ClickHouseRepo.all()
     |> Map.new()
+  end
+
+  # An impact run whose client gave up waiting is still written, but no test
+  # run points to it.
+  defp reported_ids(project_id) do
+    from(t in Test,
+      where: t.project_id == ^project_id and not is_nil(t.test_impact_run_id),
+      select: t.test_impact_run_id
+    )
   end
 
   defp filter_run_search(query, search) when search in [nil, ""], do: query
@@ -761,7 +773,8 @@ defmodule Tuist.Tests.Selections do
   A page of the project's default-branch commits that measured coverage,
   newest first, with what makes each one usable as a baseline: whether its
   coverage is complete, the schemes it measured fully and partly, how many
-  tests recorded per-test evidence, and how many impact runs used it.
+  tests recorded per-test evidence, and how many reported impact runs used
+  it.
   """
   def baselines(project, opts \\ []) do
     page = max(Keyword.get(opts, :page, 1), 1)
@@ -831,6 +844,7 @@ defmodule Tuist.Tests.Selections do
   defp baseline_usage(project_id, shas) do
     from(r in Run,
       where: r.project_id == ^project_id and r.baseline_sha in ^shas,
+      where: r.id in subquery(reported_ids(project_id)),
       group_by: r.baseline_sha,
       select: {r.baseline_sha, count()}
     )
