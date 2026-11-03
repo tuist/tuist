@@ -135,7 +135,7 @@ The decision is made once per invocation, before the build: in the plan job for 
 4. **Runs.** `POST …/tests/selective-testing/coverage/runs`, synchronous, with a 2 s timeout: the build context, the modules left to decide, and either the baseline (plus the diff when step 2 asked for it) or the reason there's none. The server records an impact run and returns its `id`, the `outcome` (`selected` or `fallback`), the `reason` and `matched_path` of a fallback, the counts, and on `selected` the skip list. A timeout or an error means a fallback on the client, with a warning and no impact run.
 5. **Act on the outcome** (see [The outcome on the client](#the-outcome-on-the-client)).
 6. **Plan shards** (sharded runs only), after the build as today: `POST …/tests/shards` with `test_impact_run_id` when the outcome was `selected`. The server plans the suites that have selected tests, at suite granularity. Without the ID it plans as today.
-7. **Read a shard** (sharded runs only), by reference and index as today. For a plan that points to an impact run, the response also carries `test_impact_skip`, the shard's skip list.
+7. **Read a shard** (sharded runs only), by reference and index as today. For a plan that points to an impact run, the response also carries `skipped_tests`, the shard's skip list.
 8. **Run** with the skip list applied (see [Applying the selection](#applying-the-selection)).
 9. **Upload** as today, plus `test_impact_run_id` on `POST …/tests`, on fallbacks too, sharded or not. It's stored on the test run, which is how the run page finds its impact run.
 
@@ -160,12 +160,12 @@ Both endpoints are in `TuistWeb.API.SelectiveTestingCoverageController`, under `
 | Operation | Request | Response |
 | --- | --- | --- |
 | `POST …/baseline` (`resolveTestImpactBaseline`) | `build_system`, `commit_sha` (required); `parent_shas`, `platform`, the build system's block (`xcode`) | `TestImpactBaseline`: `baseline_sha` (nullable), `reason`, `diff_cached` |
-| `POST …/runs` (`createTestImpactRun`) | `build_system`, `head_sha` (required); `commit_sha` (defaults to `head_sha`, keys the diff), `parent_shas`, `baseline_sha` or `fallback_reason`, `changed_files [{path, status, blob?, affected_modules?}]` with `changed_files_count`, `dirty`, `modules`, `platform`, `git_branch`, the build system's block | `TestImpactRun`: `id`, `outcome`; `reason` and `matched_path` on a fallback; `counts {requested, selected, skipped}` and `skip [TestImpactSkippedTest]` on `selected` |
+| `POST …/runs` (`createTestImpactRun`) | `build_system`, `head_sha` (required); `commit_sha` (defaults to `head_sha`, keys the diff), `parent_shas`, `baseline_sha` or `fallback_reason`, `changed_files [{path, status, blob?, affected_modules?}]` with `changed_files_count`, `dirty`, `modules`, `platform`, `git_branch`, the build system's block | `TestImpactRun`: `id`, `outcome`; `reason` and `matched_path` on a fallback; `counts {requested, selected, skipped}` and `skipped_tests [SkippedTest]` on `selected` |
 | `POST …/tests/shards` (`createShardPlan`) | gains optional `test_impact_run_id` | unchanged |
-| `GET …/tests/shards/{reference}/{index}` (`getShard`) | unchanged | gains `test_impact_skip [TestImpactSkippedTest]` for a plan that points to an impact run |
+| `GET …/tests/shards/{reference}/{index}` (`getShard`) | unchanged | gains `skipped_tests [SkippedTest]` for a plan that points to an impact run |
 | `POST …/tests` (`createTest`) | gains optional `test_impact_run_id` | unchanged |
 
-`TestImpactSkippedTest` is `{module, suite?, name?}`, named the same way for every build system. The shard read's list is `test_impact_skip` because the read already has `skip`, the catch-all's identifiers as strings. The runs response includes `skip` on every `selected` outcome; sharded clients ignore it and read their shard's list.
+`SkippedTest` is `{module, suite?, name?}`, named the same way for every build system. Both responses call the list `skipped_tests`, since a shard read doesn't depend on which selection produced it; the shard read's existing `skip` (the catch-all's identifiers as strings) is unchanged. The runs response includes `skipped_tests` on every `selected` outcome; sharded clients ignore it and read their shard's list.
 
 - **Required stays minimal.** Only what every build system has is required. A required field can't become optional without breaking generated clients.
 - **One block per build system.** Xcode's build context goes in `xcode`, the only block the server reads today; Gradle, Mix and Cargo get their own blocks when they need fields. A field moves to the top level only once a second build system needs it.
