@@ -61,7 +61,7 @@ Tests that quarantine skips aren't part of the coverage at all, so they never ma
 
 ## Performance impact {#performance-impact}
 
-Collecting coverage makes a run longer mainly after the tests finish, while Xcode writes its coverage report and Tuist exports the coverage. On Tuist's own repository that took about 16 seconds of an 11-minute run, with no measurable change in build or test execution time. See <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#performance-impact">performance impact</.localized_link> for the details.
+Collecting coverage adds overhead, mostly after the tests finish, while Xcode writes its coverage report and Tuist exports the coverage. Building and running the tests take about as long as without it.
 
 ## Querying coverage {#querying}
 

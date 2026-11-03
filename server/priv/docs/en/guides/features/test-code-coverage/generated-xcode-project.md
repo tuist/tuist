@@ -151,13 +151,7 @@ A branch's trend only includes complete commits. A commit is incomplete when, fo
 
 ## Performance impact {#performance-impact}
 
-We measured coverage on Tuist's own repository: a `tuist test` run of 49 test bundles and about 5,000 tests, from a cold build with every cache off. These are one project's numbers, not guarantees:
-
-- **About 16 seconds per run (+2.4%)** on an 11-minute run. All of it comes after the tests finish: about 11 seconds for Xcode to write its coverage report into the result bundle, and about 5 seconds for Tuist to export the coverage.
-- **No measurable change in build or test execution time.**
-- **DerivedData grows by about 13%**, and the Debug binary-cache artifacts of the repository's targets by about 6%.
-- **Release archives and Release binary-cache artifacts don't change.**
-- **Target-level coverage** adds about 2 seconds.
+Collecting coverage adds overhead, mostly after the tests finish, while Xcode writes its coverage report and Tuist exports the coverage. Building and running the tests take about as long as without it. Instrumented builds also take more disk space, in DerivedData and in the Debug binary cache. Release builds and archives aren't affected.
 
 ## Limitations {#limitations}
 
