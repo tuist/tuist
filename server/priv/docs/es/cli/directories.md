@@ -7,9 +7,9 @@
 ---
 # Directorios {#directories}
 
-Tuist organiza sus archivos en varios directorios de tu sistema, siguiendo la [Especificación de directorios base XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html). Esto ofrece una forma limpia y estándar de gestionar los archivos de configuración, caché y estado.
+Tuist organiza sus archivos en varios directorios de tu sistema, siguiendo la [Especificación de directorio base XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html). Esto ofrece una forma limpia y estándar de gestionar los archivos de configuración, caché y estado.
 
-## Variables de entorno compatibles {#supported-environment-variables}
+## Variables de entorno admitidas {#supported-environment-variables}
 
 Tuist admite tanto las variables XDG estándar como variantes con prefijo específicas de Tuist. Las variantes específicas de Tuist (con el prefijo `TUIST_`) tienen prioridad, lo que te permite configurar Tuist por separado de otras aplicaciones.
 
@@ -19,7 +19,7 @@ Tuist admite tanto las variables XDG estándar como variantes con prefijo espec�
 - `TUIST_XDG_CONFIG_HOME` (tiene prioridad)
 - `XDG_CONFIG_HOME`
 
-**Valor predeterminado:** `~/.config/tuist`
+**Predeterminado:** `~/.config/tuist`
 
 **Se usa para:**
 - Credenciales del servidor (`credentials/{host}.json`)
@@ -41,7 +41,7 @@ tuist auth login
 - `TUIST_XDG_CACHE_HOME` (tiene prioridad)
 - `XDG_CACHE_HOME`
 
-**Valor predeterminado:** `~/.cache/tuist`
+**Predeterminado:** `~/.cache/tuist`
 
 **Se usa para:**
 - **Plugins**: Caché de plugins descargados y compilados
@@ -70,7 +70,7 @@ tuist cache
 - `TUIST_XDG_STATE_HOME` (tiene prioridad)
 - `XDG_STATE_HOME`
 
-**Valor predeterminado:** `~/.local/state/tuist`
+**Predeterminado:** `~/.local/state/tuist`
 
 **Se usa para:**
 - **Sessions**: Registros de sesión y grabaciones de red (`sessions/{uuid}/`)
@@ -139,7 +139,7 @@ jobs:
 
 ### Depuración con directorios aislados {#debugging-with-isolated-directories}
 
-Al depurar problemas, puede que quieras empezar desde cero:
+Al depurar problemas, puede que quieras partir de cero:
 
 ```bash
 # Create temporary directories for debugging

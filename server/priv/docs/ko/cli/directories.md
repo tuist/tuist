@@ -7,7 +7,7 @@
 ---
 # 디렉터리 {#directories}
 
-Tuist는 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)을 따라 시스템의 여러 디렉터리에 파일을 정리합니다. 이를 통해 구성, 캐시 및 상태 파일을 깔끔하고 표준적인 방식으로 관리할 수 있습니다.
+Tuist는 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)을 따라 시스템의 여러 디렉터리에 파일을 정리합니다. 이를 통해 구성, 캐시 및 상태 파일을 깔끔하고 표준화된 방식으로 관리할 수 있습니다.
 
 ## 지원되는 환경 변수 {#supported-environment-variables}
 
@@ -21,8 +21,8 @@ Tuist는 표준 XDG 변수와 Tuist 전용 접두사 변형을 모두 지원합�
 
 **기본값:** `~/.config/tuist`
 
-**용도:**
-- 서버 자격 증명(`credentials/{host}.json`)
+**사용 목적:**
+- 서버 자격 증명 (`credentials/{host}.json`)
 
 **예시:**
 ```bash
@@ -43,7 +43,7 @@ tuist auth login
 
 **기본값:** `~/.cache/tuist`
 
-**용도:**
+**사용 목적:**
 - **Plugins**: 다운로드 및 컴파일된 플러그인 캐시
 - **ProjectDescriptionHelpers**: 컴파일된 프로젝트 설명 헬퍼
 - **Manifests**: 캐시된 매니페스트 파일
@@ -72,9 +72,9 @@ tuist cache
 
 **기본값:** `~/.local/state/tuist`
 
-**용도:**
-- **Sessions**: 세션 로그 및 네트워크 기록(`sessions/{uuid}/`)
-- **Locks**: 인증 잠금 파일(`{handle}.sock`)
+**사용 목적:**
+- **Sessions**: 세션 로그 및 네트워크 기록 (`sessions/{uuid}/`)
+- **Locks**: 인증 잠금 파일 (`{handle}.sock`)
 
 **예시:**
 ```bash
@@ -95,16 +95,16 @@ tuist generate
 2. **표준 XDG 변수**(예: `XDG_CONFIG_HOME`)
 3. **기본 위치**(예: `~/.config/tuist`)
 
-이를 통해 다음과 같이 할 수 있습니다:
+이를 통해 다음을 수행할 수 있습니다:
 - 표준 XDG 변수를 사용하여 모든 애플리케이션을 일관되게 정리
-- Tuist에 다른 위치가 필요할 때 Tuist 전용 변수로 재정의
-- 별도 구성 없이 합리적인 기본값 사용
+- Tuist에 다른 위치가 필요하면 Tuist 전용 변수로 재정의하세요
+- 별도 구성 없이 합리적인 기본값을 사용하세요
 
 ## 일반적인 사용 사례 {#common-use-cases}
 
 ### 프로젝트별 Tuist 격리 {#isolating-tuist-per-project}
 
-프로젝트별로 Tuist의 캐시와 상태를 격리하려면:
+프로젝트별로 Tuist의 캐시와 상태를 격리할 수 있습니다:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -139,7 +139,7 @@ jobs:
 
 ### 격리된 디렉터리로 디버깅하기 {#debugging-with-isolated-directories}
 
-문제를 디버깅할 때는 깨끗한 상태에서 시작하는 것이 좋습니다:
+문제를 디버깅할 때 깨끗한 상태에서 시작하고 싶다면:
 
 ```bash
 # Create temporary directories for debugging

@@ -299,6 +299,9 @@ jobs:
       DOCKER_BUILDKIT: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The Kura preview below reads the pull request's head commit from HEAD^2.
+          fetch-depth: 2
 
       - uses: tuist/cache-volume@v1
         with:
@@ -328,6 +331,14 @@ jobs:
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
+
+      # Publishes the binary above as a preview of the tuist/kura project (from
+      # tuist.toml), so people and agents can try the pull request with
+      # `tuist run <preview-url>`. A failed upload must not hold back the E2E shards.
+      - name: Share Kura preview
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: tuist share bin/amd64 --executable kura
 
       - name: Assemble the runtime image
         run: docker build -f Dockerfile.release --build-context certificate-trust=../infra/certificate-trust --build-arg TARGETARCH=amd64 -t kura:e2e .
@@ -469,13 +480,10 @@ jobs:
       - name: Load the prebuilt Docker image
         run: zstd -dc prebuilt-images/kura-e2e-images.tar.zst | docker load
 
-      - name: Extract Kura for the network-trusted cache tests
+      - name: Configure the network-trusted cache tests
         if: matrix.shard_name == 'authorization-mtls'
         run: |
-          binary="$RUNNER_TEMP/kura-network-cache"
-          docker run --rm --entrypoint cat "$KURA_IMAGE" /usr/local/bin/kura > "$binary"
-          chmod +x "$binary"
-          echo "KURA_NETWORK_CACHE_TEST_BIN=$binary" >> "$GITHUB_ENV"
+          echo "KURA_NETWORK_CACHE_TEST_IMAGE=$KURA_IMAGE" >> "$GITHUB_ENV"
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}

@@ -191,6 +191,7 @@ private class ConfigureTuistProject(private val config: TuistGradleConfig) : Iso
         project.extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
         if (config.stressRepetition == null) {
             project.pluginManager.apply(TuistBuildInsightsPlugin::class.java)
+            project.pluginManager.apply(TuistPreviewsPlugin::class.java)
         }
         project.pluginManager.apply(TuistTestInsightsPlugin::class.java)
         if (config.stressRepetition == null) {

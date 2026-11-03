@@ -1,7 +1,7 @@
 ---
 {
   "title": "CLI",
-  "titleTemplate": ":title · Code · Contributors · Tuist",
+  "titleTemplate": ":title · 코드 · 기여자 · Tuist",
   "description": "Tuist CLI에 기여하세요."
 }
 ---
@@ -11,7 +11,7 @@
 
 ## 용도 {#what-it-is-for}
 
-CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로(테스트, 실행, 그래프, 검사)를 처리하며 인증, 캐시, 인사이트, 미리보기, 레지스트리, 선택적 테스팅과 같은 기능을 위해 Tuist 서버와의 인터페이스를 제공합니다.
+CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로우(테스트, 실행, 그래프, 검사)를 처리하며 인증, 캐시, 인사이트, 미리보기, 레지스트리, 선택적 테스팅과 같은 기능을 위해 Tuist 서버와의 인터페이스를 제공합니다.
 
 ## 기여 방법 {#how-to-contribute}
 
@@ -22,17 +22,17 @@ CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로(테
 
 ### 로컬 설정 {#set-up-locally}
 
-- 저장소 복제: `git clone git@github.com:tuist/tuist.git`
+- 리포지토리 클론: `git clone git@github.com:tuist/tuist.git`
 - Mise를 [공식 설치 스크립트](https://mise.jdx.dev/getting-started.html)(Homebrew 사용 금지)로 설치하고 `mise install` 실행
 - Tuist 의존성 설치: `tuist install`
 - 워크스페이스 생성: `tuist generate`
 
-생성된 프로젝트가 자동으로 열립니다. 나중에 다시 열어야 하면 `open Tuist.xcworkspace`을 실행하세요.
+생성된 프로젝트는 자동으로 열립니다. 나중에 다시 열어야 하는 경우 `open Tuist.xcworkspace`를 실행하세요.
 
 > [!NOTE]
 > **Xed .**
 >
-> `xed .`를 사용하여 프로젝트를 열려고 하면 Tuist가 생성한 워크스페이스 대신 패키지가 열립니다. `Tuist.xcworkspace`를 사용하세요.
+> `xed .`을 사용하여 프로젝트를 열려고 하면 Tuist가 생성한 워크스페이스가 아닌 패키지가 열립니다. `Tuist.xcworkspace`를 사용하세요.
 
 
 ### Tuist 실행 {#run-tuist}

@@ -85,6 +85,12 @@ For a verified export, select **all** `moodboard_resources` by `created_by_id` a
 
 The saved description remains until cleared or the user is deleted, and belongs in exports of that user's `users` row. Pip reloads it for the acting user's private thread only, as untrusted background, never as permission or system instructions. Shared Orbit threads never load this field. Private inference sends it to the acting person's connected ChatGPT account, then Claude, or the workspace's configured Orbit provider on fallback; encrypted active-run checkpoints can retain a prior version until the run finishes. Native editor drafts remain in memory. Database backups follow the deployment's existing retention.
 
+## Agent feedback support conversations
+
+A product's agent integration, such as an MCP server, publishes reports to `POST /api/support/agent-feedback`, authenticated with a projected Kubernetes ServiceAccount token from the product's cluster (`Atlas.WorkloadIdentity`). Each report creates a `support_threads` row with one `support_messages` row of kind `chat`. They store the reporter's email (`customer_email`, `sender_email`), the agent-written message (up to 10,000 characters), and thread metadata with `channel` set to `agent_feedback` plus the optional `source` (the product the report came through), tool name, category, reporter ID and handle, the handles of the organizations the reporter belongs to, and the account and project the report is about. The sending product is trusted to forward only accounts the reporter belongs to. The thread links to the account that owns the reported account handle in `account_handles`, otherwise to the account the email matches, otherwise to the single account the reporter's handles resolve to. The message body is agent-written and must be treated as untrusted input.
+
+These conversations are retained, replied to and resolved like other support conversations, and belong in exports for the customer email. Their `support.agent_feedback_received` audit activity keeps only the reporting email and name, the thread and message IDs and the channel. `rate_limit_buckets` keeps only hashed per-email counters for the one-hour report limit.
+
 ## Portable signals and business routing profiles
 
 `users.business_profile` is separate, explicitly shared routing metadata: an opt-in
@@ -278,9 +284,30 @@ There is no automatic expiry for threads or messages. Administrators cannot read
 
 ## Personal execution environments
 
+`users.coding_preferences` stores a personal GitHub App installation ID and optional
+lowercase `owner/repo` default. `orbit_threads.repository` stores the private
+conversation's override, initially copied from that default. Changing preferences
+does not rewrite conversations or existing runs; promotion clears this private
+metadata. Preferences remain until cleared or user deletion; conversation metadata
+follows thread retention, including archived threads. Include these fields in
+verified owner exports. Neither is a credential or a grant of execution authority.
+
+Repository discovery uses the existing personal GitHub grant against GitHub's user
+installation/repository APIs. GitHub receives ordinary authenticated API requests;
+only installation IDs/account names and repository names reach Atlas's picker.
+The live catalogue is not persisted. `coding_repositories.listed` and
+`user.coding_preferences_updated` audits retain actor/interface, user target,
+catalogue count and settings path, never repository names, raw responses or tokens.
+Settings tool arguments are omitted from MCP audits. Include these audits by actor
+or user target under existing audit/backup retention.
+
 `personal_environments` stores the owner's UUID (deletion cascades), immutable
 native OAuth client UUID, installation UUID, bounded device name, opt-in enabled /
-terminal / display booleans, and up to 100 project UUID/name pairs. Absolute local
+terminal / display booleans, and up to 100 project UUID/name pairs with an optional
+`coding` boolean advertising Git worktree support and optional canonical GitHub
+`repository` name for matching an explicitly selected checkout. The Mac reads this
+identity from local Git configuration without network access. Raw remote URLs,
+credentials embedded in remotes, and absolute local
 project paths and OS permissions stay on the device and are never registered.
 Version, current connection UUID and 20-second online expiry fence stale leases;
 there is no navigation/activity history. Disable keeps an offline row, and no
@@ -330,6 +357,20 @@ or silently retried. Owner cancellation cannot claim a disconnected process stop
 Terminal dispatch requires the owner's explicit per-Mac terminal opt-in, without
 per-command decisions. OAuth installation binding restricts claim/progress/result
 to the original Mac.
+
+Coding-capable Git projects additionally expose `read`, `bash`, `edit`, and `write`
+under the same explicit terminal opt-in. Encrypted arguments also retain the
+server-frozen thread UUID/title, read offset/limit, replacement text or file
+content, and optional bash timeout. These can contain source code and secrets;
+include them in the same authorized ledger export, never plaintext audits.
+`bash` uses the terminal lifecycle above. The native Mac creates retained Git
+worktrees in its local Application Support directory, scoped to server, owner,
+installation, project and thread. The initial branch name contains a bounded
+title slug and thread UUID. Local paths are not registered with Atlas. Worktrees
+start from local HEAD without copying uncommitted changes and survive archive,
+sign-out and server record deletion. They require a separate owner-authorized
+local filesystem export/deletion; Atlas's database export does not include them.
+No new object-storage category or automatic source-code retention expiry exists.
 
 `orbit_messages.device_input` / `device_output` retain encrypted, redacted bounded
 native tool-card renderings (same 2,000/4,000 character budgets as other cards),

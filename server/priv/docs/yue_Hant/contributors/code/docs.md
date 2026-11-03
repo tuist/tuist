@@ -1,7 +1,7 @@
 ---
 {
   "title": "文件",
-  "titleTemplate": ":title · 程式碼 · 貢獻者 · Tuist",
+  "titleTemplate": ":title · 代碼 · 貢獻者 · Tuist",
   "description": "為 Tuist 文件網站作出貢獻。"
 }
 ---
@@ -11,7 +11,7 @@
 
 ## 用途 {#what-it-is-for}
 
-文件網站承載 Tuist 的產品與貢獻者文件。它以 VitePress 建構。
+文件網站託管 Tuist 的產品及貢獻者文件。它使用 VitePress 構建。
 
 ## 如何貢獻 {#how-to-contribute}
 
@@ -23,12 +23,12 @@ mise install
 mise run dev
 ```
 
-### 可選的產生資料 {#optional-generated-data}
+### 可選的生成數據 {#optional-generated-data}
 
-我們會在文件中嵌入部分產生的資料：
+我們在文件中嵌入了一些生成的數據：
 
-- CLI 參考資料：`mise run generate-cli-docs`
+- CLI 參考數據：`mise run generate-cli-docs`
 
-這些是可選的。文件無需它們亦可渲染，因此只在你需要刷新產生內容時才執行。
+這些是可選的。文件可以在沒有它們的情況下渲染，因此只有在需要刷新生成內容時才運行它們。
 
-ProjectDescription API 參考以獨立的 DocC 網站形式託管於 [projectdescription.tuist.dev](https://projectdescription.tuist.dev)。要在本機構建，請從儲存庫根目錄執行 `mise run docs:project-description`。
+ProjectDescription API 參考作為 DocC 網站單獨託管於 [projectdescription.tuist.dev](https://projectdescription.tuist.dev)。要在本機構建它，請從儲存庫根目錄運行 `mise run docs:project-description`。

@@ -1,3 +1,6 @@
+disableMultipathTCP:
+  enabled: true
+
 ingressCertificate:
   enabled: true
   secretName: preview-tuist-dev-wildcard-tls

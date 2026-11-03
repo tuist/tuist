@@ -54,7 +54,12 @@ reflink, so rootfs clones are instant copy-on-write):
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
   firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
-  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation}
+  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, disks_synced}
+/data/sandboxes/snapshots/<snapshot_id>/
+  vmlinux             hard link to the kernel the source sandbox booted
+  rootfs.ext4         reflink clone of the source sandbox's rootfs
+  workspace.ext4      reflink clone of the source sandbox's workspace
+  disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
 ```
 
 The jail directory is the jailer's chroot, so every sandbox sees the same
@@ -107,6 +112,40 @@ resolve both cluster Services and public names through the pod's NAT.
   `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
   sandbox that is already running succeeds without doing anything, so a
   retried resume whose first answer was lost is harmless.
+- `pause {sandbox_id, sync_disks: true}` first runs `/bin/sync` in the
+  guest and records `disks_synced` in the metadata (cleared by the next
+  resume), so the disks alone hold everything written. A failed sync still
+  pauses and leaves the flag unset.
+- `save_disks {sandbox_id, snapshot_id}`: refuse unless the sandbox is
+  paused with `disks_synced`; hard link its kernel and reflink its rootfs
+  and workspace into `snapshots/.tmp-<id>`, write `disk-snapshot.json`,
+  fsync, and rename over `snapshots/<id>`. No memory is kept. Startup
+  removes `.tmp-*` leftovers. `delete_disks {snapshot_id}` removes the
+  directory and succeeds when it is absent. `hello` and `report` list the
+  snapshots under `disk_snapshots`; the disk report counts their exclusive
+  bytes as `snapshots_bytes`.
+- `create {..., from_disk_snapshot}`: link the snapshot's kernel and
+  reflink its disks into the jail instead of the template's (the template
+  name and workspace size must match the snapshot), then cold boot like a
+  `cold_boot` resume. No template shape snapshot is needed, and the guest
+  keeps its workspace. The first pause writes the sandbox's own memory
+  image.
+- `archive {sandbox_id, part_size, part_urls}`: refuse unless the sandbox is
+  paused; stream `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory
+  image) as one zstd object (`internal/archive`: magic `SBXARC1`, a JSON
+  header, file records with data blocks at their offsets, holes and zero
+  blocks left out) cut into `part_size` parts, each PUT to the next
+  presigned UploadPart URL (two parts in memory at most, three attempts per
+  part). Answers the parts' ETags, the object's `bytes` and `sha256`,
+  `stored_bytes` and `disks_synced`. The sandbox stays paused on the node;
+  the server deletes it once the upload is complete. A `resume` or `delete`
+  cancels an archive in flight instead of waiting for it. Transport errors
+  never carry the signed URL.
+- `create {..., from_archive: {url, bytes, sha256}}`: download the archive
+  (three attempts), check its size and SHA-256, extract it into a fresh
+  jail (the template name and workspace size must match), then cold boot
+  like a disk-snapshot clone. A failure discards the jail; the archive is
+  never touched.
 - `delete {sandbox_id}`: kill the VM if running, tear down the netns, remove
   the jail dir. Deleting an id the node does not hold succeeds and removes
   whatever is left on disk under it.
@@ -202,7 +241,7 @@ Node to server:
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
-               "vcpus":2,"memory_mb":4096,"worker_running":false}]}
+               "vcpus":2,"memory_mb":4096,"worker_running":false,"cpu_ms":1234}]}
 {"type":"result","id":"c1","ok":true,"data":{...}}
 {"type":"result","id":"c1","ok":false,"error":"..."}
 {"type":"stream","id":"c1","stream":"stdout","data_b64":"..."}
@@ -224,7 +263,13 @@ Server to node:
 {"type":"command","id":"c7","op":"stop_worker","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}
+{"type":"command","id":"c10","op":"archive","args":{"sandbox_id":"...","part_size":N,"part_urls":["https://..."]}}
 ```
+
+A running sandbox's `cpu_ms` is its Firecracker process's user and system
+time from `/proc/<pid>/stat` (vCPU threads included), restarting from zero
+with each new VM process; the server uses it to pause idle Amp Orbs. Paused
+sandboxes, and hosts without `/proc`, omit it.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker
@@ -309,7 +354,8 @@ acknowledged by the server's poller; the worker never polls.
 
 Runner/sandbox capacity policy and rollout gates: [fleet-sharing.md](fleet-sharing.md).
 
-Diff snapshots, userfaultfd restore from object storage, cross-node resume,
+Diff snapshots, userfaultfd restore from object storage, cross-node resume
+with memory (archived sandboxes restore on any node, but cold),
 per-account egress policy, non-root execution in the guest, Claude Code
 self-hosted runners.
 
@@ -369,6 +415,7 @@ agent so the manager runs end to end without KVM).
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
+| `DAEMON_ONLY_TCP_PORT` | `0` | TCP port the daemon reaches through the pod and the guests may not: forwarded guest traffic to it is dropped. The chart sets the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `0` blocks nothing. |
 | `LOG_LEVEL` | `info` | slog level. |
 
 ### Validation scripts
@@ -432,6 +479,11 @@ Anthropic re-queues the session on its next event) and pauses every running
 sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
 cold booting. Whatever is still running at the deadline takes the cold-boot
 path on recovery.
+
+Server deployments publish the daemon image as `sha-<commit>` of the last
+commit that changed `infra/sandboxd` (outside its Markdown) or its publisher,
+so other deploys leave the DaemonSet untouched; a server-only re-promotion
+keeps the live daemon. The values-file tags only seed a first install.
 
 Lifecycle commands (`create`, `resume`, `pause`, `delete`) run detached
 from the WebSocket that delivered them, with their own timeouts, so a

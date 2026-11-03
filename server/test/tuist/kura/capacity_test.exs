@@ -149,6 +149,18 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "reserved_gib_by_instance/1" do
+    test "includes independently managed shard storage in the region reservation" do
+      stub(KeyValueStore, :get_or_update, fn _, _, func -> func.() end)
+      stub(Client, :list_persistent_volumes, fn _ -> {:ok, []} end)
+
+      expect(Client, :list_pods, fn "kura", selector ->
+        assert selector == "tuist.dev/region=#{@region}"
+        {:ok, [instance_pod("kura-a", 16), instance_pod("shard-storage", 200)]}
+      end)
+
+      assert Capacity.reserved_gib_by_instance(@region) == %{"kura-a" => 16, "shard-storage" => 200}
+    end
+
     test "sums each instance's pods under the instance they belong to" do
       stub_region_pods([
         instance_pod("kura-a-us-east-1", 8),

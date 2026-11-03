@@ -32,6 +32,6 @@ Sources checked on **2026-10-08**: [BuildBuddy repository](https://github.com/bu
 
 ## Limitations
 
-No benchmark or broad licensing superiority is established. Remote execution has its own platform, sandbox, and trust requirements. Tuist currently provides neither Bazel test sharding nor Bazel selective testing; generated Xcode projects are required for its selective testing. Tuist Runners are optional, invite-only, and have no public pricing. Verify feature and deployment terms before adopting either service.
+No benchmark or broad licensing superiority is established. Remote execution has its own platform, sandbox, and trust requirements. Tuist currently provides neither Bazel test sharding nor Bazel selective testing; generated Xcode projects are required for its selective testing. Tuist Runners are optional and invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. Verify feature and deployment terms before adopting either service.
 
 Related: [Develocity](/marketing-markdown/compare/develocity), [slow builds](/marketing-markdown/solutions/slow-builds), and [all comparisons](/marketing-markdown/compare).

@@ -7,7 +7,7 @@
 ---
 # CLI {#cli}
 
-Tuist CLI는 Tuist와 상호작용하는 인터페이스 중 하나이며, <.localized_link href="/guides/features/projects">생성된 프로젝트</.localized_link>를 사용하는 경우 가장 일반적으로 사용됩니다. 프로젝트 생성, 바이너리 캐싱, 테스트 실행, 프리뷰 공유 등을 위한 명령어를 제공합니다.
+Tuist CLI는 Tuist와 상호작용하는 인터페이스 중 하나이며, <.localized_link href="/guides/features/projects">생성된 프로젝트</.localized_link>를 사용하는 경우 가장 일반적으로 사용됩니다. 프로젝트 생성, 바이너리 캐싱, 테스트 실행, 미리보기 공유 등을 위한 명령어를 제공합니다.
 
 ## 시작하기 {#getting-started}
 
@@ -25,4 +25,4 @@ CLI 동작은 `tuist.toml` 파일을 통해 구성할 수 있습니다. 사용 �
 
 ## 문제 해결 {#troubleshooting}
 
-문제가 발생하면 세션 로그 및 네트워크 기록을 포함한 문제 진단 도구를 제공하는 <.localized_link href="/cli/debugging">디버깅 가이드</.localized_link>를 확인하세요.
+문제가 발생하면 세션 로그 및 네트워크 기록을 포함한 문제 진단 도구는 <.localized_link href="/cli/debugging">디버깅 가이드</.localized_link>에서 확인하세요.

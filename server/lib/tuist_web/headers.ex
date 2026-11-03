@@ -10,6 +10,22 @@ defmodule TuistWeb.Headers do
   def gradle_plugin_version_header, do: @gradle_plugin_version_header
   def client_feature_flags_header, do: @client_feature_flags_header
 
+  # Reporting versions are optional, opaque metadata, not a protocol version.
+  # Keep prerelease/future formats without allowing metadata to reject a report.
+  def get_build_integration_version(conn, build_system) do
+    header =
+      case build_system do
+        system when system in [:xcode, :cargo] -> @cli_version_header
+        :gradle -> @gradle_plugin_version_header
+        :mix -> "x-tuist-ex-version"
+      end
+
+    case Plug.Conn.get_req_header(conn, header) do
+      [version] when byte_size(version) <= 256 -> if String.valid?(version), do: String.trim(version), else: ""
+      _ -> ""
+    end
+  end
+
   def get_cli_version_string(conn) do
     case {:version_string, conn |> Plug.Conn.get_req_header(cli_version_header()) |> List.first()} do
       {:version_string, version_string} when not is_nil(version_string) -> version_string

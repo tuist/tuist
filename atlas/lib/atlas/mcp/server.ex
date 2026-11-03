@@ -8,6 +8,7 @@ defmodule Atlas.MCP.Server do
 
   alias Atlas.Audit
   alias Atlas.Automations.Interfaces
+  alias Atlas.CodingRepositories
   alias Atlas.MCP.Automation
   alias Atlas.MCP.Prompts.GenerateEnterpriseContract, as: GenerateEnterpriseContractPrompt
   alias Atlas.MCP.Proxy
@@ -197,6 +198,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListAuditActivities
   alias Atlas.MCP.Tools.ListBlogPostIdeas
   alias Atlas.MCP.Tools.ListBriefs
+  alias Atlas.MCP.Tools.ListCodingRepositories
   alias Atlas.MCP.Tools.ListContractTemplates
   alias Atlas.MCP.Tools.ListCrossDomainClaims
   alias Atlas.MCP.Tools.ListDataCenters
@@ -310,6 +312,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UnsubscribeEmailAudienceSubscriber
   alias Atlas.MCP.Tools.UpdateAccount
   alias Atlas.MCP.Tools.UpdateAccountTerm
+  alias Atlas.MCP.Tools.UpdateCodingRepositorySettings
   alias Atlas.MCP.Tools.UpdateContact
   alias Atlas.MCP.Tools.UpdateEmailSubscriber
   alias Atlas.MCP.Tools.UpdateEngineeringDomain
@@ -569,6 +572,8 @@ defmodule Atlas.MCP.Server do
     GetMyBusinessProfile,
     UpdateMyBusinessProfile,
     ManageAccountConnections,
+    ListCodingRepositories,
+    UpdateCodingRepositorySettings,
     ListLLMProviderConnections,
     ConnectClaudeProvider,
     StartChatGPTProviderLogin,
@@ -1018,6 +1023,10 @@ defmodule Atlas.MCP.Server do
   defp personal_connection_tool_allowed?(conn, ManageAccountConnections),
     do: ManageAccountConnections.allowed_context?(conn)
 
+  defp personal_connection_tool_allowed?(conn, module)
+       when module in [ListCodingRepositories, UpdateCodingRepositorySettings],
+       do: CodingRepositories.allowed_context?(conn)
+
   defp personal_connection_tool_allowed?(conn, module) when module in [GetMyBusinessProfile, UpdateMyBusinessProfile],
     do: BusinessProfile.allowed_context?(conn)
 
@@ -1132,7 +1141,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

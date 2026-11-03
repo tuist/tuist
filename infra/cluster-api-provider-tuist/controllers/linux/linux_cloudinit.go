@@ -104,6 +104,7 @@ br_netfilter
 	sysctlContent = `net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
+net.mptcp.enabled                   = 0
 `
 
 	// kernelHardeningSysctlContent turns a silent kernel lockup into an

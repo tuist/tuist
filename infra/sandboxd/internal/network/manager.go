@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -42,6 +43,10 @@ type Manager struct {
 	// PodInterface is the pod's egress device (default eth0), resolved from
 	// the default route when empty.
 	PodInterface string
+	// DaemonOnlyTCPPort is a TCP port the daemon reaches through the pod's
+	// egress and the guests may not: forwarded guest traffic to it is
+	// dropped. 0 blocks nothing.
+	DaemonOnlyTCPPort int
 
 	natOnce sync.Once
 	natErr  error
@@ -124,6 +129,12 @@ func (m *Manager) ensurePodNAT(ctx context.Context) error {
 	}
 	if err := m.ensureRuleFirst(ctx, "filter", "FORWARD", "-s", SlotNetwork, "-d", SlotNetwork, "-j", "DROP"); err != nil {
 		return err
+	}
+	if m.DaemonOnlyTCPPort > 0 {
+		port := strconv.Itoa(m.DaemonOnlyTCPPort)
+		if err := m.ensureRuleFirst(ctx, "filter", "FORWARD", "-s", SlotNetwork, "-p", "tcp", "--dport", port, "-j", "DROP"); err != nil {
+			return err
+		}
 	}
 	if err := m.ensureRule(ctx, nil, "nat", "POSTROUTING", "-s", SlotNetwork, "-o", dev, "-j", "MASQUERADE"); err != nil {
 		return err

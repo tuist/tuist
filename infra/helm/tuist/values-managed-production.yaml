@@ -68,6 +68,12 @@ registry:
 server:
   replicaCount: 2
 
+  # MCP agent feedback reaches Atlas with a projected ServiceAccount token
+  # (audience atlas-support-ingest) that Atlas verifies against this cluster's
+  # pinned JWKS. Atlas allowlists tuist:tuist-server in its managed values.
+  atlasSupportIngest:
+    enabled: true
+
   # Cloudflare Turnstile signup gate. Real site + secret key are synced from
   # the TURNSTILE 1Password item via external-secrets (secretsFrom: eso, the
   # default). Do NOT flip useTestKeys on here — Cloudflare's public test key
@@ -111,6 +117,8 @@ server:
   externalSecrets:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
+    shardStorage:
+      secret: shard-storage-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
@@ -120,7 +128,7 @@ server:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
       # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
-      # millisecond costs 0.000125 cents, which is $0.075 per baseline
+      # millisecond costs 0.0001 cents, which is $0.06 per baseline
       # machine-minute.
       #
       # The 100 included minutes must stay in step with the free
@@ -148,10 +156,13 @@ server:
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
       # delete it, taking the cycle's accrued usage with it. Pause billing
-      # by removing the item, not by emptying this map.
+      # by removing the item, not by emptying this map. A replaced Price
+      # keeps being recognised the same way: its id moves under its meter in
+      # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
+      # and the renewal schedules have moved every item off it.
       runners:
         runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+        runner_macos_compute_unit_milliseconds: "price_1UXO5iLWue9IBlPSX793RSDB"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in the live Stripe account by
@@ -160,11 +171,6 @@ server:
         cache_egress_megabytes: "price_1UUlF7LWue9IBlPSzrgLAku5"
         cache_requests: "price_1UITBXLWue9IBlPSXlwD8vxP"
         passing_test_cases: "price_1UITBYLWue9IBlPSSp51pqjS"
-      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
-      # macOS baseline machine-minute, carried as a subscription item whose
-      # quantity is the minutes. Never blank it once an account carries the
-      # item: a plan change would stop recognising it and delete it.
-      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -445,6 +451,13 @@ kuraController:
   # Off the processor pool, which has no memory to spare beside the processor.
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
+  # Incident-only Alloy timeout investigation; selections stay in private config.
+  # Collect for one hour from the first selected pod's port-4318 sample.
+  # No automatic expiry: remove this block through a follow-up PR and normal
+  # rollout, then verify profiles are absent and new samples have stopped.
+  # Provision the private Secret's instances key before deploying this reference.
+  connectivityDiagnostics:
+    existingSecret: kura-connectivity-diagnostics
   # Instance activation remains explicit; keep renewal enabled after activation.
   servingAuthority:
     enabled: true
@@ -1206,6 +1219,31 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
+  # Dedicated Garage host for Linux shard archives: ns3027117.ip-91-134-8.eu
+  # (ADVANCE-4, EPYC 4585PX, 64 GB, 4x1.92 TB NVMe RAID10, ~3.4 TiB XFS /data,
+  # 25 Gbit/s vRack). Not a Kura region: the shard-storage chart's production
+  # overlay selects this pool and leaves `tuist.dev/region` unset.
+  shard-storage:
+    enabled: true
+    # The box must carry the adoption marker before this deploys, or the
+    # MachineDeployment sits at 0/1 and wedges `helm --wait`.
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: shard-storage
+    machine:
+      # Disjoint from the Kura region and Linux runner adoption prefixes.
+      adoptDisplayNamePrefix: tuist-shards-ovh-production
+      offer: "ADVANCE-4 | AMD EPYC 4585PX"
+      datacenter: gra
+      os: ubuntu_24.04
+      # The Linux runners' vRack, so they reach Garage privately.
+      vRackID: pn-2024093
+      # The default cache taint enables quota-backed /data and its exporter.
+      # This host does not run Kata or join the Linux runner pool.
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # OVH RISE-L bare metal in Gravelines: Ryzen 9 9950X, 16c/32t, 128 GB,
   # 2x960 GB NVMe soft RAID. Two shape properties worth knowing:
   #
@@ -1242,6 +1280,9 @@ ovhFleets:
     endpoint: ovh-us
     # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
+    # Jobs reach the gra shard store privately once the provider attests the
+    # node's vRack routes (tuist.dev/private-network).
+    shardStorageSite: gra
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-production
       # Backfill existing OnDelete hosts during drained network enrollment.
@@ -2036,13 +2077,13 @@ runnersFleet:
   # the largest working set ever measured.
   #
   # Priced at 2x the baseline, which is exactly what that multiplier
-  # already produces: $0.15 per machine-minute on demand and $0.12
-  # prepaid, against $0.075 / $0.06 for the 6 vCPU shape. No Stripe
-  # work is needed for it. Usage is reported gross into the single
-  # macOS meter weighted by `Catalog.billing_multiplier/3`, and prepaid
-  # is a money-denominated credit grant rather than a minutes ledger,
-  # so a new shape prices itself and the 1.25x funding ratio is
-  # untouched (see `Tuist.Runners.Prepaid`).
+  # already produces: $0.12 per machine-minute on demand, against $0.06
+  # for the 6 vCPU shape. No Stripe work is needed for it. Usage is
+  # reported gross into the single macOS meter weighted by
+  # `Catalog.billing_multiplier/3`, and prepaid is a money-denominated
+  # credit grant rather than a minutes ledger, so a new shape prices
+  # itself and prepaid pool terms are untouched (see
+  # `Tuist.Runners.Prepaid`).
   #
   # Cost tracks it: a 12 vCPU guest takes the whole M4-XL, EUR 0.49/h
   # against EUR 0.245 for a 6 vCPU slot on the same host. Revenue and
@@ -2114,11 +2155,6 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
-    "27.2-beta":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 16
     "27.2":
       autoscaling:
         enabled: true
@@ -2244,7 +2280,7 @@ sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
   image:
-    tag: "sha-3b10e1eddbaf"
+    tag: "sha-1949e6dfc6f9"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
@@ -2256,6 +2292,9 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 32
   diskGiB: 100
+  networkPolicy:
+    # Amp Orb archives go to the in-rack shard-storage release.
+    archiveStoreEgress: true
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:

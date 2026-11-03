@@ -2,16 +2,16 @@
 {
   "title": "CLI",
   "titleTemplate": ":title · Código · Colaboradores · Tuist",
-  "description": "Contribuye al CLI de Tuist."
+  "description": "Contribuye a la CLI de Tuist."
 }
 ---
 # CLI {#cli}
 
-Fuente: [github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist) y [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
+Origen: [github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist) y [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
 ## Para qué sirve {#what-it-is-for}
 
-La CLI es el corazón de Tuist. Gestiona la generación de proyectos, los flujos de automatización (test, run, graph e inspect) y proporciona la interfaz con el servidor de Tuist para funcionalidades como autenticación, caché, insights, previews, registry y tests selectivos.
+La CLI es el núcleo de Tuist. Gestiona la generación de proyectos, flujos de automatización (test, run, graph e inspect) y proporciona la interfaz con el servidor de Tuist para funcionalidades como autenticación, caché, insights, previews, registry y tests selectivos.
 
 ## Cómo contribuir {#how-to-contribute}
 
@@ -39,7 +39,7 @@ El proyecto generado se abre automáticamente. Si necesitas volver a abrirlo má
 
 #### Desde Xcode {#from-xcode}
 
-Edita el esquema `tuist` y establece argumentos como `generate --no-open`. Configura el directorio de trabajo en la raíz del proyecto (o usa `--path`).
+Edita el esquema `tuist` y configura argumentos como `generate --no-open`. Establece el directorio de trabajo en la raíz del proyecto (o usa `--path`).
 
 > [!WARNING]
 > **Compilación de ProjectDescription**
@@ -47,7 +47,7 @@ Edita el esquema `tuist` y establece argumentos como `generate --no-open`. Confi
 > La CLI depende de que `ProjectDescription` esté compilado. Si falla al ejecutarse, compila primero el esquema `Tuist-Workspace`.
 
 
-#### Desde el terminal {#from-the-terminal}
+#### Desde la terminal {#from-the-terminal}
 
 Primero genera el workspace:
 

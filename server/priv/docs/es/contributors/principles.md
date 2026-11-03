@@ -1,172 +1,68 @@
 ---
 {
-  "title": "Principles",
-  "titleTemplate": ":title · Contributors · Tuist",
-  "description": "This document describes the principles that guide the development of Tuist."
+  "title": "Principios",
+  "titleTemplate": ":title · Colaboradores · Tuist",
+  "description": "Este documento describe los principios que guían el desarrollo de Tuist."
 }
 ---
 # Principios {#principles}
 
-En esta página se describen los principios que constituyen los pilares del
-diseño y el desarrollo de Tuist. Evolucionan con el proyecto y pretenden
-garantizar un crecimiento sostenible que esté bien alineado con los cimientos
-del proyecto.
+Esta página describe los principios que son pilares del diseño y desarrollo de Tuist. Evolucionan con el proyecto y tienen como objetivo garantizar un crecimiento sostenible bien alineado con los fundamentos del proyecto.
 
-## Convenciones por defecto {#default-to-conventions}
+## Priorizar las convenciones {#default-to-conventions}
 
-Una de las razones por las que Tuist existe es porque Xcode es débil en
-convenciones y eso lleva a proyectos complejos que son difíciles de escalar y
-mantener. Por esa razón, Tuist adopta un enfoque diferente por defecto a las
-convenciones simples y bien diseñados. **Los desarrolladores pueden optar por
-las convenciones, pero eso es una decisión consciente que no se siente
-natural.**
+Una de las razones por las que existe Tuist es que Xcode carece de convenciones sólidas, lo que da lugar a proyectos complejos difíciles de escalar y mantener. Por eso, Tuist adopta un enfoque diferente al priorizar convenciones simples y bien diseñadas. **Los desarrolladores pueden optar por no seguir las convenciones, pero es una decisión consciente que no resulta natural.**
 
-Por ejemplo, existe una convención para definir dependencias entre objetivos
-utilizando la interfaz pública proporcionada. Al hacer esto, Tuist se asegura de
-que los proyectos se generan con las configuraciones correctas para que la
-vinculación funcione. Los desarrolladores tienen la opción de definir las
-dependencias a través de la configuración de compilación, pero lo estarían
-haciendo implícitamente y por lo tanto rompiendo características de Tuist como
-`tuist graph` o `tuist cache` que dependen de que se sigan algunas convenciones.
+Por ejemplo, existe una convención para definir dependencias entre targets utilizando la interfaz pública proporcionada. Al hacerlo, Tuist garantiza que los proyectos se generen con las configuraciones correctas para que el enlace funcione. Los desarrolladores tienen la opción de definir las dependencias mediante ajustes de compilación, pero lo harían de forma implícita y, por tanto, romperían funcionalidades de Tuist como `tuist graph` o `tuist cache` que dependen de que se sigan ciertas convenciones.
 
-La razón por la que recurrimos a las convenciones es que cuantas más decisiones
-podamos tomar en nombre de los desarrolladores, más centrados estarán en crear
-características para sus aplicaciones. Cuando nos quedamos sin convenciones,
-como ocurre en muchos proyectos, tenemos que tomar decisiones que terminarán por
-no ser coherentes con otras decisiones y, como consecuencia, habrá una
-complejidad accidental que será difícil de gestionar.
+La razón por la que priorizamos las convenciones es que cuantas más decisiones podamos tomar en nombre de los desarrolladores, más podrán centrarse en crear funcionalidades para sus aplicaciones. Cuando no hay convenciones, como ocurre en muchos proyectos, tenemos que tomar decisiones que acaban siendo inconsistentes con otras y, como consecuencia, surge una complejidad accidental difícil de gestionar.
 
-## Los manifiestos son la fuente de la verdad {#manifests-are-the-source-of-truth}
+## Los manifiestos son la fuente de verdad {#manifests-are-the-source-of-truth}
 
-Tener muchas capas de configuraciones y contratos entre ellas da como resultado
-una configuración del proyecto difícil de razonar y mantener. Piensa por un
-segundo en un proyecto medio. La definición del proyecto vive en los directorios
-`.xcodeproj`, la CLI en scripts (por ejemplo `Fastfiles`), y la lógica CI en
-pipelines. Son tres capas con contratos entre ellas que tenemos que mantener.
-*¿Cuántas veces te has encontrado en una situación en la que has cambiado algo
-en tus proyectos, y luego una semana más tarde te diste cuenta de que los
-scripts de lanzamiento se rompieron?*
+Tener muchas capas de configuraciones y contratos entre ellas da lugar a una configuración de proyecto difícil de comprender y mantener. Piensa por un momento en un proyecto promedio. La definición del proyecto reside en los directorios `.xcodeproj`, la CLI en scripts (por ejemplo, `Fastfiles`) y la lógica de CI en pipelines. Son tres capas con contratos entre ellas que debemos mantener. *¿Con qué frecuencia te has encontrado en una situación en la que cambiaste algo en tus proyectos y, una semana después, te diste cuenta de que los scripts de lanzamiento se rompieron?*
 
-Podemos simplificar esto teniendo una única fuente de verdad, los archivos de
-manifiesto. Esos archivos proporcionan a Tuist la información que necesita para
-generar proyectos Xcode que los desarrolladores pueden utilizar para editar sus
-archivos. Además, permite disponer de comandos estándar para construir proyectos
-desde un entorno local o CI.
+Podemos simplificar esto teniendo una única fuente de verdad: los archivos de manifiesto. Estos archivos proporcionan a Tuist la información que necesita para generar proyectos de Xcode que los desarrolladores puedan usar para editar sus archivos. Además, permite disponer de comandos estándar para compilar proyectos desde un entorno local o de CI.
 
-**Tuist debe asumir la complejidad y exponer una interfaz sencilla, segura y
-agradable para describir sus proyectos de la forma más explícita posible.**
+**Tuist debe asumir la complejidad y exponer una interfaz simple, segura y agradable para describir los proyectos de la manera más explícita posible.**
 
-## Explicitar lo implícito {#make-the-implicit-explicit}
+## Hacer explícito lo implícito {#make-the-implicit-explicit}
 
-Xcode soporta configuraciones implícitas. Un buen ejemplo de ello es inferir las
-dependencias definidas implícitamente. Mientras que la implicitud está bien para
-proyectos pequeños, donde las configuraciones son simples, a medida que los
-proyectos se hacen más grandes puede causar lentitud o comportamientos extraños.
+Xcode admite configuraciones implícitas. Un buen ejemplo es la inferencia de dependencias definidas implícitamente. Aunque lo implícito funciona bien en proyectos pequeños, donde las configuraciones son simples, a medida que los proyectos crecen puede causar lentitud o comportamientos extraños.
 
-Tuist debería proporcionar APIs explícitas para los comportamientos implícitos
-de Xcode. También debería soportar la definición de implícitos de Xcode, pero
-implementado de tal manera que anime a los desarrolladores a optar por el
-enfoque explícito. Apoyar las implícitas de Xcode y sus complejidades facilita
-la adopción de Tuist, después de lo cual los equipos pueden tomar algún tiempo
-para deshacerse de las implícitas.
+Tuist debe proporcionar APIs explícitas para los comportamientos implícitos de Xcode. También debe admitir la definición de la implicitud de Xcode, pero implementada de tal manera que anime a los desarrolladores a optar por el enfoque explícito. Admitir la implicitud y las complejidades de Xcode facilita la adopción de Tuist, tras lo cual los equipos pueden dedicar tiempo a eliminar la implicitud.
 
-La definición de dependencias es un buen ejemplo de ello. Aunque los
-desarrolladores pueden definir las dependencias a través de la configuración y
-las fases de compilación, Tuist proporciona una bonita API que fomenta su
-adopción.
+La definición de dependencias es un buen ejemplo de ello. Aunque los desarrolladores pueden definir dependencias mediante ajustes de compilación y fases, Tuist proporciona una API elegante que fomenta su adopción.
 
-**Diseñar la API para que sea explícita permite a Tuist ejecutar algunas
-comprobaciones y optimizaciones en los proyectos que de otro modo no serían
-posibles.** Además, permite funciones como `tuist graph`, que exporta una
-representación del gráfico de dependencias, o `tuist cache`, que almacena en
-caché todos los objetivos como binarios.
+**Diseñar la API para que sea explícita permite a Tuist ejecutar comprobaciones y optimizaciones en los proyectos que de otro modo no serían posibles.** Además, habilita funcionalidades como `tuist graph`, que exporta una representación del grafo de dependencias, o `tuist cache`, que almacena en caché todos los targets como binarios.
 
 > [!TIP]
-> Deberíamos tratar cada solicitud de portar funciones de Xcode como una
-> oportunidad para simplificar conceptos con API sencillas y explícitas.
+> Debemos tratar cada solicitud para portar funcionalidades desde Xcode como una oportunidad para simplificar conceptos con APIs simples y explícitas.
 
 
-## Que sea sencillo {#keep-it-simple}
+## Mantén la simplicidad {#keep-it-simple}
 
-Uno de los principales retos a la hora de escalar proyectos Xcode viene del
-hecho de que **Xcode expone mucha complejidad a los usuarios.** Debido a eso,
-los equipos tienen un alto factor de bus y sólo unas pocas personas en el equipo
-entienden el proyecto y los errores que arroja el sistema de compilación. Esa es
-una mala situación para estar porque el equipo depende de unas pocas personas.
+Uno de los principales desafíos al escalar proyectos de Xcode proviene del hecho de que **Xcode expone mucha complejidad a los usuarios.** Debido a ello, los equipos tienen un alto factor de dependencia y solo unas pocas personas entienden el proyecto y los errores que arroja el sistema de compilación. Es una mala situación porque el equipo depende de pocas personas.
 
-Xcode es una gran herramienta, pero tantos años de mejoras, nuevas plataformas y
-lenguajes de programación se reflejan en su superficie, que lucha por seguir
-siendo sencilla.
+Xcode es una gran herramienta, pero tantos años de mejoras, nuevas plataformas y lenguajes de programación se reflejan en su superficie, que ha luchado por mantenerse simple.
 
-Tuist debería aprovechar la oportunidad de mantener las cosas sencillas porque
-trabajar en cosas sencillas es divertido y nos motiva. Nadie quiere perder el
-tiempo tratando de depurar un error que se produce al final del proceso de
-compilación, o entender por qué no son capaces de ejecutar la aplicación en sus
-dispositivos. Xcode delega las tareas a su sistema de compilación subyacente y
-en algunos casos hace un trabajo muy pobre traduciendo los errores en elementos
-procesables. ¿Alguna vez has recibido un error en *"framework X not found"* y no
-has sabido qué hacer? Imagina que tuviéramos una lista de las posibles causas
-del error.
+Tuist debe aprovechar la oportunidad para mantener las cosas simples, porque trabajar en cosas simples es divertido y nos motiva. Nadie quiere pasar tiempo intentando depurar un error que ocurre al final del proceso de compilación o entendiendo por qué no pueden ejecutar la aplicación en sus dispositivos. Xcode delega las tareas en su sistema de compilación subyacente y, en algunos casos, hace un muy mal trabajo traduciendo los errores en acciones concretas. ¿Alguna vez has recibido un error *“framework X not found”* y no sabías qué hacer? Imagina si obtuviéramos una lista de posibles causas raíz del error.
 
-## Partir de la experiencia del promotor {#start-from-the-developers-experience}
+## Partir de la experiencia del desarrollador {#start-from-the-developers-experience}
 
-Parte de la razón por la que hay una falta de innovación en torno a Xcode, o
-dicho de otro modo, no tanta como en otros entornos de programación, es porque
-**solemos empezar a analizar los problemas a partir de soluciones ya
-existentes.** Como consecuencia, la mayoría de las soluciones que encontramos
-hoy en día giran en torno a las mismas ideas y flujos de trabajo. Aunque es
-bueno incluir soluciones existentes en las ecuaciones, no debemos dejar que
-limiten nuestra creatividad.
+Parte de la razón por la que hay falta de innovación alrededor de Xcode, o dicho de otra manera, no tanta como en otros entornos de programación, es porque **a menudo empezamos analizando problemas desde soluciones existentes.** Como consecuencia, la mayoría de las soluciones que encontramos hoy giran en torno a las mismas ideas y flujos de trabajo. Aunque es bueno incluir soluciones existentes en las ecuaciones, no debemos dejar que restrinjan nuestra creatividad.
 
-Nos gusta pensar como dice [Tom Preston](https://tom.preston-werner.com/) en
-[este podcast](https://tom.preston-werner.com/): *"La mayoría de las cosas se
-pueden conseguir, cualquier cosa que tengas en la cabeza probablemente puedas
-llevarla a cabo con código siempre que sea posible dentro de las limitaciones
-del universo".* Si **imaginamos cómo nos gustaría que fuera la experiencia del
-desarrollador**, sólo es cuestión de tiempo conseguirlo: empezar a analizar los
-problemas desde la experiencia del desarrollador nos da un punto de vista único
-que nos llevará a soluciones que a los usuarios les encantará utilizar.
+Nos gusta pensar, como dice [Tom Preston](https://tom.preston-werner.com/) en [este podcast](https://tom.preston-werner.com/): *“La mayoría de las cosas se pueden lograr; lo que tengas en la cabeza probablemente puedas hacerlo con código, siempre que sea posible dentro de las limitaciones del universo”.* Si **imaginamos cómo nos gustaría que fuera la experiencia del desarrollador**, es solo cuestión de tiempo lograrlo: empezar a analizar los problemas desde la experiencia del desarrollador nos da un punto de vista único que nos llevará a soluciones que a los usuarios les encantará usar.
 
-Podríamos sentirnos tentados de seguir lo que hace todo el mundo, aunque eso
-signifique aguantar los inconvenientes de los que todo el mundo sigue
-quejándose. No lo hagamos. ¿Cómo me imagino archivando mi aplicación? ¿Cómo me
-gustaría que fuera la firma de código? ¿Qué procesos puedo ayudar a agilizar con
-Tuist? Por ejemplo, añadir soporte para [Fastlane](https://fastlane.tools/) es
-una solución a un problema que tenemos que entender primero. Podemos llegar a la
-raíz del problema haciendo preguntas del tipo "¿por qué? Una vez que acotamos de
-dónde viene la motivación, podemos pensar en cómo Tuist puede ayudarles mejor.
-Quizá la solución sea integrarse en Fastlane, pero es importante que no
-despreciemos otras soluciones igualmente válidas que podemos poner sobre la mesa
-antes de hacer concesiones.
+Podemos sentirnos tentados a seguir lo que hace todo el mundo, incluso si eso significa aceptar las incomodidades de las que todos siguen quejándose. No hagamos eso. ¿Cómo imagino archivar mi aplicación? ¿Cómo me gustaría que fuera la firma de código? ¿Qué procesos puedo ayudar a simplificar con Tuist? Por ejemplo, añadir soporte para [Fastlane](https://fastlane.tools/) es una solución a un problema que primero debemos entender. Podemos llegar a la raíz del problema haciendo preguntas de “por qué”. Una vez que acotamos de dónde viene la motivación, podemos pensar en cómo Tuist puede ayudar mejor. Quizá la solución sea integrarse con Fastlane, pero es importante no descartar otras soluciones igualmente válidas que podamos poner sobre la mesa antes de tomar decisiones.
 
-## Los errores pueden ocurrir y ocurrirán {#errors-can-and-will-happen}
+## Los errores pueden y ocurrirán {#errors-can-and-will-happen}
 
-Nosotros, los desarrolladores, tenemos la tentación inherente de ignorar que
-pueden producirse errores. Como resultado, diseñamos y probamos el software
-teniendo en cuenta únicamente el escenario ideal.
+Nosotros, los desarrolladores, tenemos la tentación inherente de ignorar que pueden ocurrir errores. Como resultado, diseñamos y probamos software considerando solo el escenario ideal.
 
-Swift, su sistema de tipos y un código bien diseñado pueden ayudar a prevenir
-algunos errores, pero no todos, porque algunos están fuera de nuestro control.
-No podemos asumir que el usuario siempre tendrá conexión a Internet, o que los
-comandos del sistema volverán con éxito. Los entornos en los que se ejecuta
-Tuist no son cajas de arena que controlemos, y por eso tenemos que hacer un
-esfuerzo para entender cómo pueden cambiar y afectar a Tuist.
+Swift, su sistema de tipos y un código bien estructurado pueden ayudar a prevenir algunos errores, pero no todos, porque algunos están fuera de nuestro control. No podemos asumir que el usuario siempre tendrá conexión a internet o que los comandos del sistema se ejecutarán correctamente. Los entornos en los que se ejecuta Tuist no son entornos aislados que controlemos, por lo que debemos esforzarnos por comprender cómo pueden cambiar y afectar a Tuist.
 
-Los errores mal gestionados dan lugar a una mala experiencia de usuario, y los
-usuarios pueden perder la confianza en el proyecto. Queremos que los usuarios
-disfruten de cada pieza de Tuist, incluso de la forma en que les presentamos los
-errores.
+Los errores mal gestionados generan una mala experiencia de usuario y los usuarios pueden perder la confianza en el proyecto. Queremos que los usuarios disfruten de cada aspecto de Tuist, incluso de cómo les presentamos los errores.
 
-Deberíamos ponernos en la piel de los usuarios e imaginar qué esperaríamos que
-nos dijera el error. Si el lenguaje de programación es el canal de comunicación
-por el que se propagan los errores, y los usuarios son el destino de los
-errores, éstos deberían estar escritos en el mismo idioma que hablan los
-destinatarios (los usuarios). Deben incluir información suficiente para saber
-qué ha pasado y ocultar la información que no sea relevante. Además, deben ser
-procesables, indicando a los usuarios los pasos que pueden dar para recuperarse
-de ellos.
+Debemos ponernos en el lugar de los usuarios e imaginar qué esperaríamos que nos dijera el error. Si el lenguaje de programación es el canal de comunicación por el que se propagan los errores y los usuarios son el destino de esos errores, deben redactarse en el mismo idioma que habla el destinatario (los usuarios). Deben incluir suficiente información para saber qué ocurrió y ocultar la información que no es relevante. Además, deben ser accionables, indicando a los usuarios qué pasos pueden seguir para recuperarse de ellos.
 
-Y por último, pero no menos importante, nuestros casos de prueba deben
-contemplar escenarios de fallo. No solo garantizan que estamos gestionando los
-errores como se supone que debemos, sino que evitan que futuros desarrolladores
-rompan esa lógica.
+Y, por último pero no menos importante, nuestros casos de prueba deben contemplar escenarios de fallo. No solo garantizan que estamos gestionando los errores como debemos, sino que también evitan que futuros desarrolladores rompan esa lógica.

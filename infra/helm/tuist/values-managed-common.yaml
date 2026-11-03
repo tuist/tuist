@@ -601,7 +601,6 @@ runnersFleet:
       # once a versioned runner-image release includes the 27.2 profile.
       imageTag: macos-27-2-069e7465
   xcodeVersions:
-    - xcodeVersion: "27.2-beta"
     # The customer selector is 27.2; its base is explicitly 27.2-rc.
     - xcodeVersion: "27.2"
     - xcodeVersion: "27.1"

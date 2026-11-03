@@ -3,6 +3,59 @@ import Testing
 
 @MainActor
 struct AtlasEnvironmentTests {
+    @Test func repositoryDraftsSurviveFailedSavesAndRefreshWithoutStaleInstallationChoices() async throws {
+        var actions: [[String: Any]] = []
+        var failSave = true
+        let saved: [String: Any] = ["installation_id": "42", "default_repository": "acme/mobile"]
+        let model = AtlasCodingRepositories { action in
+            actions.append(action)
+            if action["action"] as? String == "update_repositories" {
+                if failSave { throw CocoaError(.fileWriteUnknown) }
+                return try JSONSerialization.data(withJSONObject: ["installation_id": action["installation_id"]!,
+                                                                   "default_repository": action["default_repository"]!])
+            }
+            return try JSONSerialization.data(withJSONObject: ["settings": saved,
+                "installations": [["id": "42", "name": "Acme"], ["id": "73", "name": "Example"]],
+                "repositories": [["full_name": action["installation_id"] as? String == "73" ? "example/api" : "acme/mobile"]]])
+        }
+        await model.load()
+        #expect(model.draft.defaultRepository == "acme/mobile" && !model.dirty)
+        await model.chooseInstallation("73")
+        #expect(model.draft.defaultRepository == nil)
+        #expect(model.catalog?.repositories.map(\.fullName) == ["example/api"])
+        model.chooseRepository("example/api")
+        await model.save()
+        #expect(model.dirty && model.draft.defaultRepository == "example/api" && model.message != nil)
+        await model.load()
+        #expect(actions.last?["installation_id"] as? String == "73")
+        #expect(model.draft.defaultRepository == "example/api")
+        failSave = false
+        await model.save()
+        #expect(!model.dirty && model.draft.installationId == "73")
+        await model.chooseInstallation(nil)
+        await model.save()
+        #expect(actions.last?["installation_id"] is NSNull)
+        #expect(actions.last?["default_repository"] is NSNull)
+        #expect(!model.dirty && model.draft.defaultRepository == nil)
+    }
+
+    @Test func departedRepositoryReadCannotRestoreChoicesAndDuplicateSaveIsIgnored() async throws {
+        var completion: CheckedContinuation<Data, Never>?
+        var actions = 0
+        let model = AtlasCodingRepositories { _ in
+            actions += 1
+            return await withCheckedContinuation { completion = $0 }
+        }
+        let reading = Task { await model.load() }
+        while completion == nil { await Task.yield() }
+        await model.load()
+        #expect(actions == 1)
+        model.stop()
+        completion?.resume(returning: Data("{\"settings\":{},\"installations\":[],\"repositories\":[]}".utf8))
+        await reading.value
+        #expect(model.catalog == nil && !model.busy)
+    }
+
     @Test func queuedJobsNeedNoDecisionAndCancellationIsBoundToTheJobAndDeparture() async throws {
         var stopping = false
         var posted: [String: Any]?

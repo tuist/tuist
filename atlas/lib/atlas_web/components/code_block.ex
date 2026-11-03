@@ -8,7 +8,7 @@ defmodule AtlasWeb.CodeBlock do
   @max_highlight_bytes 262_144
 
   attr :source, :string, required: true
-  attr :language, :string, default: "json", values: ~w(json javascript)
+  attr :language, :string, default: "json", values: ~w(json javascript bash text)
   attr :rest, :global
 
   def code_block(assigns) do

@@ -37,6 +37,6 @@ Sources checked on **2026-10-08**: [Namespace Cache Volumes](https://namespace.s
 
 ## Limitations
 
-No performance benchmark or price comparison is established here. A volume cache and a remote build-artifact cache cannot be compared by hit rate alone. Input compatibility, trust policy, locality, and workload determine reuse. Toolchain support varies. Tuist Runners are invite-only with no public pricing; source visibility does not imply every component has the same license or self-hosting terms. Recheck vendor capabilities before buying.
+No performance benchmark or price comparison is established here. A volume cache and a remote build-artifact cache cannot be compared by hit rate alone. Input compatibility, trust policy, locality, and workload determine reuse. Toolchain support varies. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. Source visibility does not imply every component has the same license or self-hosting terms. Recheck vendor capabilities before buying.
 
 Related: [comparison overview](/marketing-markdown/compare), [Tuist and Bitrise](/marketing-markdown/compare/bitrise), and [rising CI costs](/marketing-markdown/solutions/ci-costs).

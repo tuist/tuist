@@ -1,6 +1,10 @@
 {{- if .Values.kuraController.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
 {{- $namespace := .Values.kuraController.namespace }}
+{{- $connectivityDiagnostics := .Values.kuraController.connectivityDiagnostics }}
+{{- if and $connectivityDiagnostics.instances $connectivityDiagnostics.existingSecret }}
+{{- fail "kuraController.connectivityDiagnostics.instances and existingSecret are mutually exclusive" }}
+{{- end }}
 {{- $kuraSharedSecretName := "kura-shared-secrets" }}
 {{- $kuraIntrospection := .Values.kuraController.sharedSecrets.kuraIntrospection }}
 {{- $kuraSharedSecretsExternalSecret := .Values.kuraController.sharedSecrets.externalSecret }}
@@ -385,8 +389,12 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
-            {{- with .Values.kuraController.connectivityDiagnostics.instances }}
-            - {{ printf "--connectivity-diagnostics-instances=%s" (join "," .) | quote }}
+            - --connectivity-diagnostics-prepare={{ $connectivityDiagnostics.prepare | default false }}
+            - {{ printf "--connectivity-diagnostics-expires-at=%s" ($connectivityDiagnostics.expiresAt | default "") | quote }}
+            {{- if $connectivityDiagnostics.existingSecret }}
+            - "--connectivity-diagnostics-instances=$(KURA_CONNECTIVITY_DIAGNOSTICS_INSTANCES)"
+            {{- else if $connectivityDiagnostics.instances }}
+            - {{ printf "--connectivity-diagnostics-instances=%s" (join "," $connectivityDiagnostics.instances) | quote }}
             {{- end }}
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
@@ -407,12 +415,23 @@ spec:
             - --stable-dns-owner={{ required "kuraController.stableDNS.ownerId is required" .Values.kuraController.stableDNS.ownerId }}
             - --stable-dns-drain={{ .Values.kuraController.stableDNS.drain }}
             {{- end }}
-          {{- if .Values.kuraController.stableDNS.enabled }}
+          {{- if or .Values.kuraController.stableDNS.enabled $connectivityDiagnostics.existingSecret }}
           env:
+            {{- if .Values.kuraController.stableDNS.enabled }}
             - name: AWS_REGION
               value: us-east-1
             - name: AWS_EC2_METADATA_DISABLED
               value: "true"
+            {{- end }}
+            {{- if $connectivityDiagnostics.existingSecret }}
+            - name: KURA_CONNECTIVITY_DIAGNOSTICS_INSTANCES
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $connectivityDiagnostics.existingSecret | quote }}
+                  key: instances
+            {{- end }}
+          {{- end }}
+          {{- if .Values.kuraController.stableDNS.enabled }}
           envFrom:
             - secretRef:
                 name: {{ .Values.kuraController.stableDNS.secretName }}

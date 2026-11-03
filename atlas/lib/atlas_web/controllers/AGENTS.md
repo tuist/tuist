@@ -79,9 +79,24 @@ Coverage lives in `test/atlas_web/controllers/native_orbit_controller_test.exs` 
 
 ## Personal execution environments
 
+Personal repository preferences use bearer-only, `no-store` `GET
+/api/me/coding-repositories?installation_id=<numeric-id>` and `PUT
+/api/me/coding-repositories/settings` with exactly `{installation_id: string|null,
+default_repository: "owner/repo"|null}`. GET returns `{settings, installations:
+[{id, name}], repositories: [{full_name}]}`; omitted source uses the saved one.
+The person's GitHub grant limits results to App/user access intersection. No local
+paths, tokens or raw GitHub responses are returned. Clearing both needs no grant.
+422 rejects malformed settings; 409 reports unavailable GitHub connection/source/
+repository/catalogue. MCP's `list_coding_repositories` and
+`update_coding_repository_settings` share these rules and deny shared Slack identities.
+The web picker lives at `/settings/coding` and in private Orbit conversations;
+native clients expose personal defaults in Profile → Coding and conversation
+overrides in Tool environment. Repository choices filter matching local checkouts;
+changing a repository clears the selected environment without cloning or enabling one.
+
 All endpoints are bearer-only and `no-store`; browser sessions are not accepted.
 `GET /api/me/environments` returns `{owner_id: UUID, providers: [{id, name}], environments: [{id,
-name, enabled, online, terminal, display, provider, provider_state, projects: [{id, name}]}]}` for the caller.
+name, enabled, online, terminal, display, provider, provider_state, projects: [{id, name, coding?, repository?}]}]}` for the caller.
 There is no server environment row: null/absent selection means server execution.
 The Orbit list's additive `assistant.environments: true` advertises support.
 Hosted selection accepts exactly `{provider: configured_id}` at the existing
@@ -95,9 +110,14 @@ terminal activity retain their ordinary authorization. See
 All following `/api/me/environments/:id` operations additionally require the
 existing native OAuth callback-shape gate (`native_client_required`, 403).
 Owner/client binding is immutable; no body field can override either.
+This is the first Mac executor's enrollment/delivery adapter. The underlying
+environment and command contexts do not depend on macOS or Phoenix sockets;
+future remote providers need explicit authenticated enrollment adapters, not a
+weakened native gate. Executors own repository discovery and workspace roots.
 
 - `PUT` accepts exactly `{name: string, enabled: boolean, terminal: boolean,
-  display: boolean, projects: [{id: UUID, name: string}]}`. At most 32 registrations
+  display: boolean, projects: [{id: UUID, name: string, coding?: boolean, repository?: "owner/repo"}]}`. Repository
+  identity requires `coding: true` and is normalized lowercase. At most 32 registrations
   per owner and 100 distinct projects per registration; names are nonblank, at
   most 100 Unicode characters / 400 UTF-8 bytes, without path separators or NUL.
   Missing/unknown keys, nested values and wrong booleans are rejected. Success
@@ -111,9 +131,14 @@ Owner/client binding is immutable; no body field can override either.
   execution_timeout_seconds: integer, digest: string}]}`.
   Timeout is 1,800 for terminal, 60 for files. Only unclaimed, unexpired, currently authorized
   calls are returned. `arguments.project_id` is the run's frozen project UUID.
+  Coding projects expose `read`/`bash`/`edit`/`write` only with terminal consent;
+  these additionally carry server-frozen `thread_id` and `title`. The Mac chooses
+  the retained isolated worktree locally, never from a wire root path. `bash`
+  shares terminal tickets/progress/cancellation, including its fixed policy timeout;
+  optional `arguments.timeout` can shorten local execution, never extend it.
   Digest is an opaque 64-character lowercase SHA-256 value, copied back exactly;
   it binds command ID, environment ID/version, project, arguments and policy timeout.
-  Terminal is delivered only while the owner's per-Mac terminal permission is enabled.
+  Terminal is delivered only while the owner's per-environment terminal permission is enabled.
 - `POST /commands/:command_id/claim` accepts exactly `{digest: string}`.
   A successful atomic claim returns 200 `{command: {id, tool, arguments,
   execution_timeout_seconds, digest, claim_token: UUID}}`.
@@ -135,7 +160,7 @@ Owner/client binding is immutable; no body field can override either.
 
 Terminal reserves immediately with a queued durable model ticket, without per-command prompts.
 Dispatch expires ten minutes from first reservation. Claim starts a fixed
-1,800-second execution deadline and separate five-minute result-delivery grace;
+1,800-second native or 600-second hosted execution deadline and separate five-minute result-delivery grace;
 it can outlive a succeeded model run but never cancellation/archive/revocation.
 File calls retain synchronous bounded 60-second waits and known-result recovery.
 
@@ -144,7 +169,7 @@ private history and returns `{commands: [...]}`, terminal-only. All active items
 come first, then recent settled items, at most 32 total; no pagination. Entries
 have exactly `id`, `message_id`, `environment_id`, `environment_name`, `project_id`,
 `project_name`, `digest`, `command`, `status`, `output`, `success`, `cancel_requested`,
-`progress_sequence`, `execution_timeout_seconds` (1,800). UUIDs are lowercase;
+`progress_sequence`, `execution_timeout_seconds` (1,800 native, 600 hosted). UUIDs are lowercase;
 name labels are at most 120 characters. No claim tokens or local project roots.
 Statuses are `queued`, `claimed`, `settled`,
 `cancelled`, `expired`, `unknown`. `success` is boolean only for settled, otherwise
@@ -155,7 +180,7 @@ exact command text while trimming tails/older settled entries if necessary.
 The same owner on any native OAuth installation may `POST
 /:thread_id/environment-commands/:command_id/cancel` with exactly `{digest}`.
 It returns exactly 200 `{received: true}`. There is no command decision endpoint;
-execution requires the explicit per-Mac terminal opt-in.
+execution requires the explicit per-environment terminal opt-in.
 Queued cancellation becomes cancelled immediately. Claimed cancellation
 only persists `cancel_requested`: disconnected execution is not presumed stopped.
 Only the device's actual result confirms its outcome; cancellation prevents
@@ -165,11 +190,16 @@ Confirmed completion atomically records encrypted evidence/a generic addressed
 notice and uses existing Orbit follow-up/Oban recovery, behind any active run.
 
 `PATCH /api/native/orbit/threads/:id/environment` accepts exactly
-`{environment_id: UUID|null, project_id: UUID|null}` and returns 200 `{thread}`.
+`{environment_id: UUID|null, project_id: UUID|null}` with optional third
+`repository: "owner/repo"|null` and returns 200 `{thread}`. Omitting repository
+clears it for old-client compatibility. A supplied identity is freshly authorized
+through the saved personal installation and must match the chosen project if
+an environment is selected (`environment_repository_mismatch`, 409). Repository-only
+selection uses null environment/project, never implicit cloning or machine selection.
 Only a currently readable private owner, active thread and no active run may
 change it. A project requires an environment and must be in its current enabled
 owned registration. Thread projection adds nullable `environment_id`,
-`environment_name`, `project_id`; older clients may ignore them. Selection alone
+`environment_name`, `project_id`, `repository`; older clients may ignore them. Selection alone
 does not block promotion; once a device command is reserved, sharing is blocked
 permanently by `personal_environment_history` (409).
 
@@ -253,7 +283,7 @@ The lifetime, delivery and retention fences are documented in
 
 `AtlasWeb.NativeLinksController` serves the app association files and the `/open` landing from the `:native_links` pipeline (secure headers only; no Accept negotiation, session, CSRF, or user lookup). Association files return 404 until `AtlasWeb.NativeLinks.Config` lists verified identities, and set public caching. The Android statement delegates `handle_all_urls` to the fixed `dev.tuist.atlas` package. `/open` validates `screen` and the optional UUID against `AtlasWeb.NativeLinks` and returns 404 otherwise, including encoded slashes and extra segments.
 
-Orbit uses screen `orbit`, with an optional lowercase thread UUID. `/open/orbit` and `/open/orbit/<uuid>` are claimed native links and reveal no thread content. There is no Orbit web UI or `/orbit/<uuid>` record route in this checkout: browser escape goes to the authenticated dashboard `/`, and ordinary dashboard URLs are not mapped to Orbit. Completion push delivery separately reauthorizes the exact source reply before deriving preview content; the public link landing never does so.
+Orbit uses screen `orbit`, with an optional lowercase thread UUID. `/open/orbit` and `/open/orbit/<uuid>` are claimed native links and reveal no thread content. Continue in browser goes to the matching authenticated `/orbit[/<uuid>]` LiveView, which authorizes history independently. Direct Orbit web pages remain outside app-link claims. Older native clients may still fall back to `/`. Completion push delivery separately reauthorizes the exact source reply before deriving preview content; the public link landing never does so.
 
 Coverage lives in `test/atlas_web/native_links_test.exs` (allowlist, claimed paths, configuration parsing), `test/atlas_web/controllers/native_links_controller_test.exs` (association files, landing, host-header independence, demo denial), and `test/atlas_web/components/account_menu_test.exs` (header action across LiveView navigation and live patches within one LiveView). Tests stub `AtlasWeb.NativeLinks.Config` with Mimic rather than changing the application environment.
 

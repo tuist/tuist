@@ -39,6 +39,7 @@ defmodule TuistWeb.MixBuildLiveTest do
         status: "success",
         elixir_version: "1.19.1",
         otp_version: "28",
+        tuist_version: "0.1.0-canary.2",
         mix_env: "dev",
         dependency_cache: [
           Map.merge(cache_event("jason", "local_hit", 500), %{read_bytes: 4_000, read_duration_us: 5_000}),
@@ -99,13 +100,14 @@ defmodule TuistWeb.MixBuildLiveTest do
   test "Elixir and OTP versions belong to the build environment, not invocation details", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path)
 
-    for label <- ["Elixir version", "OTP version"] do
+    for label <- ["tuist_ex version", "Elixir version", "OTP version"] do
       assert has_element?(view, "#build-environment-content[hidden]", label)
       refute has_element?(view, "[data-part=build-details]", label)
     end
 
     assert has_element?(view, "#build-environment-content", "1.19.1")
     assert has_element?(view, "#build-environment-content", "28")
+    assert has_element?(view, "#build-environment-content", "0.1.0-canary.2")
     assert has_element?(view, "[data-part=build-details]", "Mix environment")
     assert has_element?(view, "[data-part=build-details]", "mix compile")
     refute has_element?(view, "[data-part=build-details] #build-environment")

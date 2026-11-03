@@ -12,7 +12,7 @@ msgid ""
 msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5);\n"
 
 #: lib/tuist_web/live/docs_live.ex:143
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1092
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "الصفحة غير موجودة"
@@ -23,9 +23,9 @@ msgstr "الصفحة غير موجودة"
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "الإصدار غير موجود"
+msgstr "البِنية غير موجودة"
 
 #: lib/tuist_web/controllers/build_controller.ex:67
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "ليس لديك صلاحية للوصول إلى هذا الإصدار"
+msgstr "غير مصرّح لك بالوصول إلى هذه البِنية"

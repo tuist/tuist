@@ -12,7 +12,7 @@ msgid ""
 msgstr "Language: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n>1);\n"
 
 #: lib/tuist_web/live/docs_live.ex:143
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1092
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "Sayfa bulunamadı"

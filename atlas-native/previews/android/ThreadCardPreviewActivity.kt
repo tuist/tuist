@@ -227,19 +227,10 @@ class ThreadCardPreviewActivity : Activity() {
                 }
             }
         presence.setActive(true)
+        val environments = AtlasEnvironmentFixtures()
         val screen =
             AtlasOrbitScreen(this, "Orbit", model, presence, {}, environmentRequest = { action, done ->
-                if (action.optString("action") == "list") {
-                    done(
-                        Result.success(
-                            JSONObject()
-                                .put("providers", JSONArray("""[{"id":"tuist","name":"Tuist"}]"""))
-                                .put("environments", JSONArray()),
-                        ),
-                    )
-                } else {
-                    done(Result.success(JSONObject()))
-                }
+                done(runCatching { environments.execute(action) })
             })
         screen.view.fitsSystemWindows = true
         setContentView(screen.view)

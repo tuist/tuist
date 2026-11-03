@@ -19,7 +19,7 @@ msgstr "დაჯგუფება:"
 #: lib/tuist_web/components/chart_type_toggle.ex:53
 #, elixir-autogen, elixir-format
 msgid "Line"
-msgstr "ხაზი"
+msgstr "ხაზოვანი"
 
 #: lib/tuist_web/components/chart_type_toggle.ex:59
 #, elixir-autogen, elixir-format

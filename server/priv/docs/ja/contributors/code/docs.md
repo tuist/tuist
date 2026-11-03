@@ -2,7 +2,7 @@
 {
   "title": "ドキュメント",
   "titleTemplate": ":title · コード · コントリビューター · Tuist",
-  "description": "Tuist のドキュメントサイトに貢献する。"
+  "description": "Tuist のドキュメントサイトへの貢献方法。"
 }
 ---
 # ドキュメント {#docs}
@@ -25,10 +25,10 @@ mise run dev
 
 ### オプションの生成データ {#optional-generated-data}
 
-ドキュメントには一部の生成データを埋め込んでいます:
+ドキュメントには一部の生成データが埋め込まれています。
 
 - CLIリファレンスデータ: `mise run generate-cli-docs`
 
-これらはオプションです。ドキュメントは这些数据なしでも表示されるため、生成コンテンツを更新する必要がある場合にのみ実行してください。
+これらはオプションです。ドキュメントはこれらのデータなしでも表示されるため、生成コンテンツを更新する必要がある場合のみ実行してください。
 
-ProjectDescription APIリファレンスは、[projectdescription.tuist.dev](https://projectdescription.tuist.dev) のDocCサイトとして別途公開されています。ローカルでビルドするには、リポジトリのルートから `mise run docs:project-description` を実行してください。
+ProjectDescription APIリファレンスは、[projectdescription.tuist.dev](https://projectdescription.tuist.dev) でDocCサイトとして別途公開されています。ローカルでビルドするには、リポジトリのルートから `mise run docs:project-description` を実行してください。

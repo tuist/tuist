@@ -18,12 +18,16 @@ struct AtlasEnvironmentPicker: View {
     @State private var selection: AtlasEnvironmentSelection.Thread?
     @State private var busy = false
     @State private var message: String?
+    @State private var showingRepositories = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         control
         .task(id: threadId) { await load() }
+        .sheet(isPresented: $showingRepositories) {
+            AtlasThreadRepositoryPicker(threadId: threadId, selected: selection?.repository, request: request) { await load() }
+        }
         .task(id: scenePhase == .active && transitioning) {
             while !Task.isCancelled && scenePhase == .active && transitioning {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -35,6 +39,14 @@ struct AtlasEnvironmentPicker: View {
 
     private var transitioning: Bool {
         overview?.environments.contains(where: { ["starting", "stopping"].contains($0.providerState ?? "") }) == true
+    }
+
+    private func projects(_ environment: AtlasPersonalEnvironment) -> [AtlasEnvironmentProject] {
+        environment.projects.filter { selection?.repository == nil || $0.repository == selection?.repository }
+    }
+
+    private var matchingEnvironments: [AtlasPersonalEnvironment] {
+        overview?.environments.filter { $0.enabled && $0.native && !projects($0).isEmpty } ?? []
     }
 
     #if os(macOS)
@@ -53,6 +65,10 @@ struct AtlasEnvironmentPicker: View {
 
     private var control: some View {
         Menu {
+            Button("Repository: \(selection?.repository ?? "None")…") { showingRepositories = true }
+                .disabled(busy || selection == nil)
+                .accessibilityIdentifier("thread-repository")
+            Divider()
             Picker("Tool environment", selection: Binding(get: { selectedChoice }, set: { value in
                 Task {
                     switch value {
@@ -63,7 +79,7 @@ struct AtlasEnvironmentPicker: View {
                 }
             })) {
                 Text("Atlas server").tag(Choice.server)
-                if let providers = overview?.providers, !providers.isEmpty {
+                if selection?.repository == nil, let providers = overview?.providers, !providers.isEmpty {
                     Section("Hosted environments") {
                         ForEach(providers) { provider in
                             let state = overview?.environments.first(where: {
@@ -74,9 +90,9 @@ struct AtlasEnvironmentPicker: View {
                         }
                     }
                 }
-                ForEach(overview?.environments.filter { $0.enabled && $0.native } ?? []) { environment in
+                ForEach(matchingEnvironments) { environment in
                     Section(environment.name + (environment.online ? "" : " · Offline")) {
-                        ForEach(environment.projects) { project in
+                        ForEach(projects(environment)) { project in
                             Text(project.name).tag(Choice.project(environment.id, project.id))
                         }
                     }
@@ -84,6 +100,7 @@ struct AtlasEnvironmentPicker: View {
             }
             .pickerStyle(.inline)
             .disabled(busy || selection == nil)
+            if overview != nil && matchingEnvironments.isEmpty { Text("No checkout available").disabled(true) }
             if busy { Text("Updating environments…") }
             if message != nil {
                 Divider()
@@ -99,11 +116,18 @@ struct AtlasEnvironmentPicker: View {
     private var control: some View {
         Form {
             Section {
+                Button { showingRepositories = true } label: {
+                    LabeledContent("Repository", value: selection?.repository ?? "None").frame(minHeight: 44)
+                }.disabled(busy || selection == nil).accessibilityIdentifier("thread-repository")
+            } footer: {
+                Text("Switching repositories clears the checkout selection.")
+            }
+            Section {
                 choice("Atlas server", environment: nil, project: nil)
             } footer: {
                 Text("Pip always runs on Atlas. Choose where its file and terminal tools run.")
             }
-            if let providers = overview?.providers, !providers.isEmpty {
+            if selection?.repository == nil, let providers = overview?.providers, !providers.isEmpty {
                 Section {
                     ForEach(providers) { provider in
                         Button {
@@ -128,24 +152,24 @@ struct AtlasEnvironmentPicker: View {
                          "Files may expire after inactivity; repository credentials are not shared.")
                 }
             }
-            ForEach(overview?.environments.filter { $0.enabled && $0.native } ?? []) { environment in
+            ForEach(matchingEnvironments) { environment in
                 Section {
-                    ForEach(environment.projects) { project in
+                    ForEach(projects(environment)) { project in
                         choice(project.name, environment: environment.id, project: project.id)
-                    }
-                    if environment.projects.isEmpty {
-                        Text("No projects shared from this Mac.").foregroundStyle(.secondary)
                     }
                 } header: {
                     Text(environment.name + (environment.online ? "" : " · Offline"))
-                } footer: {
-                    Text("Files stay on this Mac. Running commands stay there until stopped.")
                 }
             }
-            if overview?.environments.contains(where: { $0.enabled && $0.native }) == false {
+            if overview != nil && matchingEnvironments.isEmpty {
                 Section {
-                    Text("To use files and terminal tools on your Mac, enable This Mac in Atlas for macOS Settings.")
-                        .foregroundStyle(.secondary)
+                    LabeledContent("Checkout", value: "Not available")
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("checkout-unavailable")
+                } footer: {
+                    Text(selection?.repository == nil
+                         ? "Enable This Mac and add a project in Atlas for macOS."
+                         : "Add this repository in This Mac settings on your Mac.")
                 }
             }
             if let message {
@@ -203,7 +227,7 @@ struct AtlasEnvironmentPicker: View {
         do {
             let data = try await request([
                 "action": "select", "thread_id": threadId, "environment_id": environment as Any? ?? NSNull(),
-                "project_id": project as Any? ?? NSNull()
+                "project_id": project as Any? ?? NSNull(), "repository": selection?.repository as Any? ?? NSNull()
             ])
             let selected = try AtlasEnvironmentCoding.decode(AtlasEnvironmentSelection.self, from: data)
             try Task.checkCancellation()
