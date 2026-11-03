@@ -1350,6 +1350,8 @@ defmodule TuistWeb.Router do
     end
 
     post "/users/log_in", UserSessionController, :create
+    post "/users/log_in/passkey/options", UserPasskeyController, :authentication_options
+    post "/users/log_in/passkey", UserPasskeyController, :authenticate
   end
 
   scope "/", TuistWeb do
@@ -1360,6 +1362,9 @@ defmodule TuistWeb.Router do
     post "/users/settings/mfa/confirm", UserMFAController, :confirm
     post "/users/settings/mfa/cancel", UserMFAController, :cancel
     post "/users/settings/mfa/disable", UserMFAController, :disable
+    post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
+    post "/users/settings/passkeys", UserPasskeyController, :create
+    post "/users/settings/passkeys/:id/delete", UserPasskeyController, :delete
 
     live_session :require_authenticated_user,
       session: {TuistWeb.RemoteIp, :live_session, []},
@@ -1378,6 +1383,7 @@ defmodule TuistWeb.Router do
 
     get "/users/mfa", UserMFAController, :challenge
     post "/users/mfa", UserMFAController, :verify
+    post "/users/mfa/passkey/options", UserMFAController, :passkey_options
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,
