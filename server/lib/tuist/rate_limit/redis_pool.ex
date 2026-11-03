@@ -1,4 +1,4 @@
-defmodule TuistWeb.RateLimit.RedisPool do
+defmodule Tuist.RateLimit.RedisPool do
   @moduledoc false
 
   def child_spec(name, opts) do

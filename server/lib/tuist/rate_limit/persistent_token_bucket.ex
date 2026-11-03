@@ -1,11 +1,12 @@
-defmodule TuistWeb.RateLimit.PersistentTokenBucket do
+defmodule Tuist.RateLimit.PersistentTokenBucket do
   @moduledoc false
 
   @behaviour Hammer
 
   alias Hammer.Redis.TokenBucket
-  alias TuistWeb.RateLimit.RedisPool
+  alias Tuist.RateLimit.RedisPool
 
+  # Preserve the shared namespace across rolling upgrades.
   @prefix "TuistWeb.RateLimit.PersistentTokenBucket"
   @timeout 500
 
@@ -13,7 +14,15 @@ defmodule TuistWeb.RateLimit.PersistentTokenBucket do
   def start_link(opts), do: RedisPool.start_link(__MODULE__, opts)
 
   def hit(key, refill_rate, capacity, cost \\ 1) do
-    TokenBucket.hit(RedisPool.connection(__MODULE__), @prefix, key, refill_rate, capacity, cost, @timeout)
+    TokenBucket.hit(
+      RedisPool.connection(__MODULE__),
+      @prefix,
+      key,
+      refill_rate,
+      capacity,
+      cost,
+      @timeout
+    )
   end
 
   def get(key, _scale) do
