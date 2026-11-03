@@ -3657,10 +3657,40 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// sibling to read from.
 	for _, volume := range undersized {
 		if serving[volume.ordinal] && othersSettled(volume.ordinal, false) {
+			if waiting, reason := r.siblingsCatchingUp(ctx, instance, pods.Items, volume.ordinal); waiting {
+				log.FromContext(ctx).Info("waiting for a rebuilt Kura replica to catch up before rebuilding its sibling", "reason", reason)
+				return true, nil
+			}
 			return true, r.rebuildDataVolume(ctx, instance, volume, desired, true)
 		}
 	}
 	return true, nil
+}
+
+// siblingsCatchingUp reports whether any replica other than ordinal has yet to
+// finish its initial catch-up, and why.
+//
+// Ready is not enough to take its sibling down. A rebuilt pod turns Ready once
+// its ring is a fifth full, minutes before its pull from the sibling settles,
+// and rebuilding the sibling then leaves both serving that fifth (a us-east and
+// a us-central instance, 2026-11-02, both stuck at 23% of the grown ring). An
+// unreadable status is not evidence of a finished catch-up either.
+func (r *KuraInstanceReconciler) siblingsCatchingUp(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, ordinal int32) (bool, string) {
+	statusClient := r.runtimeStatusClient(instance)
+	for i := range pods {
+		pod := &pods[i]
+		if other, ok := podOrdinal(pod.Name, instance.Name); !ok || int32(other) == ordinal {
+			continue
+		}
+		status, err := statusClient.Status(ctx, *pod)
+		if err != nil {
+			return true, fmt.Sprintf("pod %s rollout status unreadable: %v", pod.Name, err)
+		}
+		if status.BackfillInitialCycle != backfillCycleComplete {
+			return true, fmt.Sprintf("pod %s has not finished catching up (backfill_initial_cycle=%q)", pod.Name, status.BackfillInitialCycle)
+		}
+	}
+	return false, ""
 }
 
 type undersizedDataVolume struct {

@@ -2104,6 +2104,15 @@ func TestReconcileDataStorageResize(t *testing.T) {
 			Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}}},
 		}
 	}
+	// backfill reports each pod's initial catch-up on /status/rollout, in
+	// ordinal order.
+	backfill := func(cycles ...string) fakeRuntimeStatusClient {
+		statuses := map[string]runtimeStatus{}
+		for ordinal, cycle := range cycles {
+			statuses[fmt.Sprintf("%s-%d", instanceName, ordinal)] = runtimeStatus{Ready: true, State: "serving", BackfillInitialCycle: cycle}
+		}
+		return fakeRuntimeStatusClient{statuses: statuses}
+	}
 	exists := func(t *testing.T, c client.Client, obj client.Object) bool {
 		t.Helper()
 		err := c.Get(context.Background(), types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, obj)
@@ -2152,7 +2161,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
 		).Build()
-		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
 
 		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
 		if err != nil {
@@ -2222,11 +2231,11 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		}
 	})
 
-	t.Run("rebuilds the serving replica once the rebuilt one serves", func(t *testing.T) {
+	t.Run("rebuilds the serving replica once the rebuilt one has caught up", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
 		).Build()
-		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
 
 		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
 		if err != nil {
@@ -2240,6 +2249,36 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		}
 		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
 			t.Fatal("the rebuilt ordinal 1 must be left serving")
+		}
+	})
+
+	// A rebuilt replica turns Ready at a ring-fullness threshold, a fifth of its
+	// new ring by default, long before its pull from the sibling settles.
+	// Rebuilding the sibling then discards the only warm copy, and both replicas
+	// serve from that fifth.
+	t.Run("keeps the last warm replica while the rebuilt one catches up", func(t *testing.T) {
+		for name, statuses := range map[string]fakeRuntimeStatusClient{
+			"pending":    backfill(backfillCycleComplete, "pending"),
+			"degraded":   backfill(backfillCycleComplete, backfillCycleDegraded),
+			"unreadable": {err: fmt.Errorf("status endpoint unreachable")},
+		} {
+			t.Run(name, func(t *testing.T) {
+				c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+					instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+				).Build()
+				r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: statuses}
+
+				inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !inProgress {
+					t.Fatal("expected the resize to keep requeuing while it waits")
+				}
+				if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
+					t.Fatal("ordinal 0 must keep serving until the rebuilt ordinal 1 has caught up")
+				}
+			})
 		}
 	})
 
@@ -4449,7 +4488,7 @@ func TestKuraInstanceReconcileMovesThePeerPinThroughADataVolumeResize(t *testing
 			}},
 		},
 	}
-	serving := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}
+	serving := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: backfillCycleComplete}
 
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
