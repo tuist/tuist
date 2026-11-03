@@ -123,7 +123,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -186,7 +187,7 @@ struct UploadResultBundleServiceTests {
             ciRunId: .any, ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
             shardPlanId: .value(nil), shardIndex: .value(nil), onlyTestIdentifiers: .any,
             skipTestIdentifiers: .any, stressNewTests: .value(nil),
-            gitHistory: .value(nil), coverage: .value(nil), coverageEnabled: .value(nil)
+            gitHistory: .value(nil), coverage: .value(nil), coverageEnabled: .value(nil), testImpactRunId: .any
         ).called(1)
     }
 
@@ -257,7 +258,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -396,7 +398,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -474,7 +477,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -555,7 +559,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -622,7 +627,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -713,7 +719,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -858,7 +865,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -959,7 +967,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1023,7 +1032,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .value(coverage),
-                coverageEnabled: .value(true)
+                coverageEnabled: .value(true),
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1105,7 +1115,8 @@ struct UploadResultBundleServiceTests {
                 ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                 stressNewTests: .any, gitHistory: .any, coverage: .any,
-                coverageEnabled: .value(false)
+                coverageEnabled: .value(false),
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1139,7 +1150,8 @@ struct UploadResultBundleServiceTests {
                 ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                 stressNewTests: .any, gitHistory: .any, coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1422,7 +1434,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .value(coverage),
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1491,7 +1504,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }

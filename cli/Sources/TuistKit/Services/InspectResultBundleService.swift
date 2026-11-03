@@ -243,7 +243,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             coverage: coverage,
             // A run collected coverage when its bundle has some Tuist uploads. Without a bundle
             // it can't be told.
-            coverageEnabled: networkPublishing ? nil : resultBundlePath.map { _ in manifest != nil }
+            coverageEnabled: networkPublishing ? nil : resultBundlePath.map { _ in manifest != nil },
+            testImpactRunId: await RunMetadataStorage.current.testImpactRunId
         )
         if !networkPublishing {
             await gitHistoryService.upload(
@@ -512,7 +513,8 @@ extension UploadResultBundleService {
             stressNewTests: stressNewTests,
             gitHistory: gitHistory?.payload,
             coverage: coverage,
-            coverageEnabled: manifest != nil
+            coverageEnabled: manifest != nil,
+            testImpactRunId: await RunMetadataStorage.current.testImpactRunId
         )
         await gitHistoryService.upload(
             gitHistory,
