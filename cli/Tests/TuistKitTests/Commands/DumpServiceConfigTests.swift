@@ -135,7 +135,7 @@ struct DumpServiceConfigTests {
           },
           "testInsights": {
             "coverage": {
-              "upload": true
+              "upload": false
             }
           },
           "url": "https://tuist.dev",
