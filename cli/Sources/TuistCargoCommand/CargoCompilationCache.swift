@@ -1,12 +1,5 @@
-import FileSystem
 import Foundation
-import Path
 import TuistREAPI
-#if os(Linux)
-    import TuistCoreCache
-#else
-    import TuistCore
-#endif
 
 protocol CargoCacheAction {
     var cacheVersion: String { get }
@@ -55,20 +48,17 @@ struct CargoCompilationCache {
         FileHandle.standardError.write(stderr)
     }
 
-    private let fileSystem: any FileSysteming
     private let command: Data
     private let action: Data
     private let actionDigest: REAPI.Digest
 
     init(
-        invocation: any CargoCacheAction, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement,
-        fileSystem: any FileSysteming = FileSystem()
+        invocation: any CargoCacheAction, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement
     ) throws {
         self.invocation = invocation
         self.root = root
         self.remote = remote
         self.measurement = measurement
-        self.fileSystem = fileSystem
         command = try REAPI.Command.with {
             $0.arguments = [invocation.cacheVersion, invocation.key.hash, String(invocation.key.sizeBytes)]
         }.serializedData()
@@ -122,10 +112,13 @@ struct CargoCompilationCache {
         }
     }
 
-    func store(stdout: Data, stderr: Data) async throws {
+    /// Publishes the compilation's outputs. `keyedAfterCompiling` says the key was computed from inputs read once the
+    /// compiler had finished, so only the check after copying the outputs is needed; a key taken before it ran is
+    /// checked first, since a source may have changed while it compiled.
+    func store(stdout: Data, stderr: Data, keyedAfterCompiling: Bool = false) async throws {
         try Task.checkCancellation()
         try await invocation.validateDependencies(restoring: false)
-        guard try invocation.fingerprint() == invocation.key else { return }
+        guard try keyedAfterCompiling || invocation.fingerprint() == invocation.key else { return }
         try? invocation.certifyCheckedOutputs()
         guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else { return }
         // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them.
@@ -152,8 +145,8 @@ struct CargoCompilationCache {
                 content = relocated.appendingPathComponent(name)
                 try stored.write(to: content)
             }
-            let (digest, blob) = try publish(content)
-            blobs[digest] = blob
+            let digest = try blobStore.publish(content)
+            blobs[digest] = blobStore.path(digest)
             result.outputFiles.append(.with {
                 $0.path = name; $0.digest = digest; $0.isExecutable = name == invocation.executableOutput
             })
@@ -172,7 +165,7 @@ struct CargoCompilationCache {
         do {
             for data in [command, action, Data()] {
                 let digest = REAPI.digest(data)
-                let file = blobPath(digest)
+                let file = blobStore.path(digest)
                 try write(data, to: file)
                 blobs[digest] = file
             }
@@ -275,7 +268,12 @@ struct CargoCompilationCache {
             guard file.isExecutable == (file.path == invocation.executableOutput), file.digest.sizeBytes <= 100_000_000,
                   file.digest.sizeBytes <= budget else { return false }
             budget -= file.digest.sizeBytes
-            if await !containsBlob(file.digest) { missing[file.digest] = staging.appendingPathComponent(file.digest.hash) }
+            // Not hashed here: materialization hashes the copy it restores, so each hit reads a blob once.
+            if blobStore.contains(file.digest) {
+                blobStore.markUsed(file.digest)
+            } else {
+                missing[file.digest] = staging.appendingPathComponent(file.digest.hash)
+            }
         }
         if !missing.isEmpty {
             guard downloadMissing, let remote else { return false }
@@ -291,7 +289,7 @@ struct CargoCompilationCache {
             let elapsed = Date().timeIntervalSince(started)
             var complete = true
             for (digest, file) in missing {
-                let verified = download.available.contains(digest) && (try? publish(file, expecting: digest)) != nil
+                let verified = download.available.contains(digest) && (try? blobStore.publish(file, expecting: digest)) != nil
                 measurement.transfer(digest, operation: "download", status: verified ? "downloaded" : "failed", duration: elapsed)
                 if !verified { complete = false }
             }
@@ -313,7 +311,7 @@ struct CargoCompilationCache {
                 guard properties.isRegularFile == true, properties.isSymbolicLink != true else { return false }
             }
             let temporary = staging.appendingPathComponent(file.path)
-            try FileManager.default.copyItem(at: blobPath(file.digest), to: temporary)
+            try FileManager.default.copyItem(at: blobStore.path(file.digest), to: temporary)
             let properties = try temporary.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
                   try REAPI.digest(file: temporary) == file.digest else { return false }
@@ -339,35 +337,7 @@ struct CargoCompilationCache {
         return true
     }
 
-    private func blobPath(_ digest: REAPI.Digest) -> URL { root.appendingPathComponent("blobs/" + digest.hash) }
-
-    private func containsBlob(_ digest: REAPI.Digest) async -> Bool {
-        let file = blobPath(digest)
-        guard let path = try? AbsolutePath(validating: file.path),
-              let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
-              properties.isRegularFile == true, properties.isSymbolicLink != true,
-              // Not hashed here: materialization hashes the copy it restores, so each hit reads a blob once.
-              properties.fileSize == Int(exactly: digest.sizeBytes) else { return false }
-        await fileSystem.markCacheEntryUsed(at: path)
-        return true
-    }
-
-    /// Copies `file` into the store (a clone on APFS) and hashes the copy once, so the digest describes exactly the
-    /// stored bytes.
-    @discardableResult
-    private func publish(_ file: URL, expecting expected: REAPI.Digest? = nil) throws -> (REAPI.Digest, URL) {
-        let blobs = root.appendingPathComponent("blobs")
-        try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
-        let temporary = blobs.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        try FileManager.default.copyItem(at: file, to: temporary)
-        let digest = try REAPI.digest(file: temporary)
-        if let expected, digest != expected { throw REAPICacheError.corruptBlob }
-        let destination = blobPath(digest)
-        if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
-        try FileManager.default.moveItem(at: temporary, to: destination)
-        return (digest, destination)
-    }
+    private var blobStore: CargoBlobStore { CargoBlobStore(root: root) }
 
     private func write(_ data: Data, to file: URL) throws {
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)

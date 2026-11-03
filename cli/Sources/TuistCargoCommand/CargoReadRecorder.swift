@@ -262,26 +262,37 @@ enum CargoReadRecorder {
     }
     INTERPOSE(my_execve, execve)
 
+    /* `POSIX_SPAWN_SETEXEC` replaces this process like `execve`, so a successful one does not return either. */
+    static int replaces_process(const posix_spawnattr_t *attributes) {
+        short flags = 0;
+        return attributes != NULL && posix_spawnattr_getflags(attributes, &flags) == 0 && (flags & POSIX_SPAWN_SETEXEC);
+    }
+
     /* Spawns are logged once they succeed, and the real call runs with the guard held: `posix_spawnp` searches
-       PATH through `posix_spawn`, whose attempts are not separate spawns. */
+       PATH through `posix_spawn`, whose attempts are not separate spawns. One that replaces the process is logged
+       before, and withdrawn when it fails. */
     static int my_posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *actions,
                               const posix_spawnattr_t *attributes, char *const arguments[], char *const environment[]) {
-        int logged = ready && depth == 0;
+        int logged = ready && depth == 0, replaces = logged && replaces_process(attributes);
+        if (replaces) spawned(path, environment);
         depth++;
         int result = posix_spawn(pid, path, actions, attributes, arguments, environment);
         depth--;
-        if (logged && result == 0) spawned(path, environment);
+        if (replaces && result != 0) { depth++; emit('Y', path); depth--; }
+        if (logged && !replaces && result == 0) spawned(path, environment);
         return result;
     }
     INTERPOSE(my_posix_spawn, posix_spawn)
 
     static int my_posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *actions,
                                const posix_spawnattr_t *attributes, char *const arguments[], char *const environment[]) {
-        int logged = ready && depth == 0;
+        int logged = ready && depth == 0, replaces = logged && replaces_process(attributes);
+        if (replaces) spawned(file, environment);
         depth++;
         int result = posix_spawnp(pid, file, actions, attributes, arguments, environment);
         depth--;
-        if (logged && result == 0) spawned(file, environment);
+        if (replaces && result != 0) { depth++; emit('Y', file); depth--; }
+        if (logged && !replaces && result == 0) spawned(file, environment);
         return result;
     }
     INTERPOSE(my_posix_spawnp, posix_spawnp)

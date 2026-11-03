@@ -137,7 +137,12 @@ extension CargoClangInvocation {
                 esac
               done
             fi
-            exec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __native /usr/bin/cc "$@"
+            # A served session's hook client asks the outer command instead of starting Tuist for every compilation.
+            TUIST_CARGO_CC_HOOK=${TUIST_CARGO_NATIVE-}
+            if [ -z "$TUIST_CARGO_CC_HOOK" ]; then
+              TUIST_CARGO_CC_HOOK=\(CargoInvocation.shellQuote(try CargoProcess.ownExecutable()))
+            fi
+            exec "$TUIST_CARGO_CC_HOOK" cargo __native /usr/bin/cc "$@"
 
             """
             if (try? String(contentsOf: wrapper, encoding: .utf8)) != script

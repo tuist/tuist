@@ -76,7 +76,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
                 return nil
             #endif
         case "bin":
-            // Linking reads every rlib of the dependency closure through `-L dependency=`, which the read set records.
+            // Linking reads every rlib of the dependency closure through `-L dependency=`, which the read set keys.
             // A build script's binary is stored before `CargoBuildScript` replaces it with a shim, and a hit installs one.
             #if os(macOS)
                 guard emitted == ["dep-info", "link"] else { return nil }
@@ -115,6 +115,25 @@ struct CargoRecordedInvocation: CargoCacheAction {
         let linksWithSystemLinker = kind == "proc-macro" || kind == "bin"
         if linksWithSystemLinker {
             inputs += try await CargoToolchainIdentity.linker(environment: environment, directory: directory, process: process)
+            // The linker runs unrecorded and searches these directories for the native libraries build scripts built
+            // or found, so what it can find there is keyed by content.
+            for value in CargoCacheInputs.values("-L", in: arguments) {
+                let parts = value.split(separator: "=", maxSplits: 1)
+                let (searchKind, path) = parts.count == 2 ? (String(parts[0]), String(parts[1])) : ("all", value)
+                guard ["native", "all"].contains(searchKind) else { continue }
+                let searched = URL(fileURLWithPath: path, relativeTo: base).standardizedFileURL
+                guard !searched.path.hasPrefix(identity.sysroot.path + "/") else { continue }
+                let libraries = ((try? FileManager.default.contentsOfDirectory(atPath: searched.path)) ?? [])
+                    .filter(Self.isNativeLibrary).sorted()
+                // A shared prefix such as Homebrew's holds hundreds; hashing all of them would cost more than linking.
+                guard libraries.count <= 64 else { return nil }
+                for name in libraries {
+                    let file = searched.appendingPathComponent(name)
+                    guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                    let digest = try inputHasher.digest(file, shared: true)
+                    inputs += [file.path, digest.hash, String(digest.sizeBytes)]
+                }
+            }
         }
         inputs += relocation.remapArguments
         let declared = REAPI.digest(try JSONEncoder().encode(inputs.map(relocation.relative)))
@@ -124,6 +143,12 @@ struct CargoRecordedInvocation: CargoCacheAction {
             key: declared, declared: declared, reads: nil, relocation: relocation, inputHasher: inputHasher,
             recorder: recorder, toolchain: identity.sysroot, externs: externs, linksWithSystemLinker: linksWithSystemLinker
         )
+    }
+
+    /// A file the system linker may take from a search directory: `-l` resolves to `lib<name>` with one of these
+    /// extensions.
+    static func isNativeLibrary(_ name: String) -> Bool {
+        name.hasPrefix("lib") && ["a", "dylib", "tbd", "so"].contains(URL(fileURLWithPath: name).pathExtension)
     }
 
     var index: CargoReadIndex? {
@@ -171,6 +196,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
         guard var reads = CargoReadSet.parse(
             log: log, relocation: relocation, excludedRoots: excluded,
             targetDirectory: environment["TUIST_CARGO_TARGET_DIR"].map { URL(fileURLWithPath: $0).standardizedFileURL.path },
+            keepsLinkedLibraries: linksWithSystemLinker,
             allowedWrites: [output.path] + temporary,
             allowedSpawn: { [linksWithSystemLinker] path in
                 guard linksWithSystemLinker else { return false }

@@ -68,10 +68,12 @@ Header symlinks must support warm reuse and invalidate when retargeted. C23 digi
 
 ```sh
 TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
-  python3 cli/Tests/Fixtures/CargoCache/units_e2e.py
+  bash cli/Tests/Fixtures/CargoCache/units_e2e.sh
 ```
 
-Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; a checkout whose `Cargo.lock` differs (an added path dependency) still restores it; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib is never linked. Every build's program must print `42`.
+Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; the next build restores the absent profile from the snapshot that restoration left, and a snapshot whose files were rewritten, or that holds a file its record does not list, is discarded; a checkout whose `Cargo.lock` differs (an added path dependency) still restores it; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib, with no snapshot to fall back on, is not restored and Cargo compiles it again. Every build's program must print `42`.
+
+`units_e2e.sh`, `recorded_e2e.sh` and `sources_e2e.sh` share `common.sh`, which isolates the cache and clears inherited Tuist, GitHub and loader settings. Write new fixtures in shell, not Python.
 
 ## Recorded compilations and build-script runs
 
@@ -79,16 +81,16 @@ On arm64 macOS:
 
 ```sh
 TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
-  python3 cli/Tests/Fixtures/CargoCache/recorded_e2e.py
+  bash cli/Tests/Fixtures/CargoCache/recorded_e2e.sh
 ```
 
-Offline and local-only, through the public command with `TUIST_DEBUG=1`, whose per-task cache lines the script reads. The workspace lives under `$TMPDIR` on purpose: macOS names it through both `/var` and `/private/var`, and it sits inside the recorder's writable temporary area, which must not hide its sources. A proc macro reads an undeclared file and environment variable, so only the read recorder can cache the library that uses it. Its build script stamps `OUT_DIR` with the current time: warm builds must keep the cold stamp (restored run) and an input change must produce a new one (rerun). Changing the macro's file or variable must miss and change the value; unchanged builds must hit, including the application's recorded link, whose restored executable every later scenario runs. A moved checkout must read its own files. Expected values are computed in the script. The script generates a lockfile first, because recording shares the dependency-unit cache's lockfile-keyed scope.
+Offline and local-only, through the public command with `TUIST_DEBUG=1`, whose per-task cache lines the script reads. The workspace lives under `$TMPDIR` on purpose: macOS names it through both `/var` and `/private/var`, and it sits inside the recorder's writable temporary area, which must not hide its sources. A proc macro reads an undeclared file and environment variable, so only the read recorder can cache the library that uses it. Its build script stamps `OUT_DIR` with the current time: warm builds must keep the cold stamp (restored run) and an input change must produce a new one (rerun). Changing the macro's file or variable must miss and change the value; unchanged builds must hit, including the application's recorded link, whose restored executable every later scenario runs. A moved checkout must read its own files. A second workspace links native code the recorder cannot see: a binary links an archive its build script leaves in a `-L native=` directory, and another links one bundled into a `-sys` crate two levels down, behind a library whose outputs the archive does not change. Changing the archive must relink both. Expected values are computed in the script, and the build script's compilation must hit on warm builds too. The script generates a lockfile first, because recording shares the dependency-unit cache's lockfile-keyed scope.
 
 ## Remembered source lists
 
 ```sh
 TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
-  python3 cli/Tests/Fixtures/CargoCache/sources_e2e.py
+  bash cli/Tests/Fixtures/CargoCache/sources_e2e.sh
 ```
 
 Offline and local-only, through the public command with `TUIST_DEBUG=1`. A path library is keyed by the sources an earlier compilation read, without a discovery run of rustc. Adding a submodule misses and is cached by that same build; editing it misses; adding `a/mod.rs` beside `a.rs` must fail compilation rather than restore the earlier result. A second library declares `#[link]` in a submodule, so it is deferred and strict admission refuses it only after rustc ran; on arm64 macOS that same cold build must record its reads and the warm build must hit. Program output is checked against values computed in the script.

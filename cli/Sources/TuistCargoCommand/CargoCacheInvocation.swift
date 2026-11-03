@@ -523,8 +523,7 @@ extension CargoCacheInvocation {
         guard let code = code(data), !matches(sourceTokens, code) else { throw CacheError.unsupported }
     }
 
-    /// Compiled once: `String.range(of:options: .regularExpression)` compiles the same ICU expression on every call,
-    /// which cost more than a second of a cold build's admission work. The engine and patterns are unchanged.
+    /// Compiled once: `String.range(of:options: .regularExpression)` compiles the same ICU expression on every call.
     private static let sourceTokens = try! NSRegularExpression(
         pattern: "\\b(asm|global_asm|naked_asm|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\blink\\s*\\(|\\$\\s*\\{\\s*concat\\b"
     )

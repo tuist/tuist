@@ -46,7 +46,8 @@ struct CargoRelocation: Equatable {
     /// A lexically standardized path that spells macOS's `/private` links like `standardizedFileURL` does for
     /// existing paths, but also for paths that no longer exist, such as a compiler's deleted scratch files.
     static func canonical(_ path: String) -> String {
-        let standardized = URL(fileURLWithPath: path).standardized.path
+        // Not a directory hint, so Foundation does not stat the path to guess one; `.path` is the same either way.
+        let standardized = URL(fileURLWithPath: path, isDirectory: false).standardized.path
         for link in ["/var", "/tmp", "/etc"]
             where standardized == "/private" + link || standardized.hasPrefix("/private" + link + "/")
         {

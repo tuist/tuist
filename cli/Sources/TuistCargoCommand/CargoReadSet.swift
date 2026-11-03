@@ -21,7 +21,7 @@ struct CargoReadSet: Codable, Equatable {
     /// an event the recorder could not represent, or too many inputs.
     static func parse(
         log: URL, relocation: CargoRelocation, excludedRoots: [String], targetDirectory: String?,
-        allowedWrites: [String], allowedSpawn: (String) -> Bool = { _ in false },
+        keepsLinkedLibraries: Bool = false, allowedWrites: [String], allowedSpawn: (String) -> Bool = { _ in false },
         keyedEnvironment: (String) -> Bool
     ) -> CargoReadSet? {
         guard let text = try? String(contentsOf: log, encoding: .utf8) else { return nil }
@@ -41,7 +41,8 @@ struct CargoReadSet: Codable, Equatable {
             let pid = String(fields[0])
             let value = String(fields[2])
             switch kind {
-            case "P": processes += 1
+            // An allowed program that loaded the recorder must not stand in for a child that did not.
+            case "P": if !allowedSpawn(value) { processes += 1 }
             case "X": if !allowedSpawn(value) { spawns += 1 }
             case "Y": if !allowedSpawn(value) { spawns -= 1 }
             case "x": passedThrough[pid, default: 0] += 1
@@ -79,11 +80,14 @@ struct CargoReadSet: Codable, Equatable {
             if path == "/" || relocation.roots.contains(where: { $0.path.hasPrefix(path + "/") }) { continue }
             if let targetDirectory, within(path, [targetDirectory]) {
                 // Dependency rlibs and rmetas are named by the compiler's externs, keyed by content, and are written
-                // concurrently by other compilers. Proc-macro libraries found through search paths are read whole
-                // and keyed here; generated sources elsewhere in the target directory are inputs like any other file.
+                // concurrently by other compilers. A link instead reads every rlib of the closure whole, finished
+                // before it starts, and copies native code bundled in them that their metadata does not reflect, so
+                // those are keyed. Proc-macro libraries found through search paths are read whole and keyed too;
+                // generated sources elsewhere in the target directory are inputs like any other file.
                 let components = path.dropFirst(targetDirectory.count + 1).split(separator: "/")
                 let pathExtension = URL(fileURLWithPath: path).pathExtension
-                if kind != "R" || components.contains(".fingerprint") || components.contains("incremental")
+                let linked = keepsLinkedLibraries && kind == "R" && pathExtension == "rlib"
+                if !linked, kind != "R" || components.contains(".fingerprint") || components.contains("incremental")
                     || ["rlib", "rmeta", "d"].contains(pathExtension)
                     || (components.contains("deps") && !["dylib", "so"].contains(pathExtension)) { continue }
             }
@@ -163,7 +167,7 @@ struct CargoReadSet: Codable, Equatable {
             let names = try FileManager.default.contentsOfDirectory(atPath: path).sorted()
             return "listing:" + REAPI.digest(Data(names.joined(separator: "\n").utf8)).hash
         case S_IFREG:
-            let digest = try hasher.digest(URL(fileURLWithPath: path).resolvingSymlinksInPath(), shared: true)
+            let digest = try hasher.digest(URL(fileURLWithPath: path, isDirectory: false).resolvingSymlinksInPath(), shared: true)
             return "file:\(digest.hash):\(digest.sizeBytes)"
         default:
             return "special:\(value.st_mode & S_IFMT)"

@@ -51,7 +51,8 @@ struct CargoCacheSetup {
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: cache.path)
             var environment = context.environment.filter {
                 !$0.key.hasPrefix("TUIST_CARGO_CACHE_") && ![
-                    "TUIST_CARGO_RECORDER", "TUIST_CARGO_SCRIPT", "TUIST_CARGO_TARGET_DIR", "TUIST_CARGO_WORKSPACE_ROOT",
+                    "TUIST_CARGO_RECORDER", "TUIST_CARGO_SCRIPT", "TUIST_CARGO_NATIVE", "TUIST_CARGO_TARGET_DIR",
+                    "TUIST_CARGO_WORKSPACE_ROOT",
                 ].contains($0.key)
             }
             environment["TUIST_CARGO_CACHE_DIR"] = cache.path

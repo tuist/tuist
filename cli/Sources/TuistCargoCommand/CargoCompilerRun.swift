@@ -105,14 +105,14 @@ final class CargoCompilerRun: CargoHookRun {
             if refreshed.key != invocation?.key, let rekeyed = try? CargoCompilationCache(
                 invocation: refreshed, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
             ) { cache = rekeyed }
-            try? await cache.store(stdout: stdout, stderr: stderr)
+            try? await cache.store(stdout: stdout, stderr: stderr, keyedAfterCompiling: refreshed.key != invocation?.key)
         } else if let recorded, let log, let measurement, let finished = recorded.recorded(log: log, started: started),
                   let reads = finished.reads, let index = finished.index
         {
             await index.put(reads, remote: remote, environment: hookEnvironment)
             try? await CargoCompilationCache(
                 invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
-            ).store(stdout: stdout, stderr: stderr)
+            ).store(stdout: stdout, stderr: stderr, keyedAfterCompiling: true)
         }
     }
 }

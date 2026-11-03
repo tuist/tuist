@@ -81,7 +81,7 @@ struct CargoUnitCache {
 
     static func prepare(
         executable: String, arguments: [String], environment: [String: String], directory: AbsolutePath,
-        process: CargoProcess
+        toolchain: CargoToolchainIdentity?, process: CargoProcess
     ) async -> CargoUnitCache? {
         let invocation = CargoInvocation(arguments)
         guard let cache = environment["TUIST_CARGO_CACHE_DIR"],
@@ -106,12 +106,6 @@ struct CargoUnitCache {
         async let metadataOutput = try? process.capture(
             executable, arguments: metadataArguments, environment: environment, directory: directory
         )
-        async let rustcOutput = try? process.capture(
-            environment["RUSTC"] ?? "rustc", arguments: ["-vV"], environment: environment, directory: directory
-        )
-        async let sysrootOutput = try? process.capture(
-            environment["RUSTC"] ?? "rustc", arguments: ["--print", "sysroot"], environment: environment, directory: directory
-        )
         guard let metadata = await metadataOutput,
               let json = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
               let target = json["target_directory"] as? String, let workspace = json["workspace_root"] as? String,
@@ -119,8 +113,7 @@ struct CargoUnitCache {
                   contentsOf: URL(fileURLWithPath: workspace).appendingPathComponent("Cargo.lock"),
                   encoding: .utf8
               ),
-              let rustc = await rustcOutput,
-              let sysroot = await sysrootOutput?.trimmingCharacters(in: .whitespacesAndNewlines)
+              let rustc = toolchain?.version, let sysroot = toolchain?.sysrootPath
         else { return nil }
         let profileName = profileDirectory(options: options, kind: kind)
         let flags = environment.filter { key, _ in
@@ -279,7 +272,7 @@ extension CargoUnitCache {
         let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: staging) }
         for unit in missing {
-            for file in unit.files where !hasBlob(file.digest) {
+            for file in unit.files where !blobStore.contains(file.digest) {
                 needed[file.digest] = staging.appendingPathComponent(file.hash)
             }
         }
@@ -292,7 +285,7 @@ extension CargoUnitCache {
                 try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
                 let downloaded = try await remote.downloadBlobs(needed)
                 for (digest, file) in needed where downloaded.available.contains(digest) {
-                    _ = try? publish(file, expecting: digest)
+                    _ = try? blobStore.publish(file, expecting: digest)
                 }
             } catch {
                 debug("unit download failed: \(REAPI.describe(error))")
@@ -303,7 +296,11 @@ extension CargoUnitCache {
             // and dep-info inputs against `invoked.timestamp`, and only a strictly newer file is stale.
             // Whole seconds, so file systems with coarse timestamps still compare equal when publication checks them.
             let restoredAt = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
-            let candidates = missing.filter { $0.files.allSatisfy { hasBlob($0.digest) } }
+            // A Cargo that held the lock meanwhile may have built some of these units; its outputs stay.
+            let absent = missing.filter {
+                !FileManager.default.fileExists(atPath: profile.appendingPathComponent(".fingerprint/" + $0.name).path)
+            }
+            let candidates = absent.filter { $0.files.allSatisfy { blobStore.contains($0.digest) } }
             let results = Self.concurrentMap(candidates) { materialize($0, at: restoredAt) }
             let restored = zip(candidates, results).filter(\.1).map(\.0)
             debug("restored \(restored.count) of \(manifest.units.count) dependency units")
@@ -367,7 +364,7 @@ extension CargoUnitCache {
                 needed = result.outputFiles.map(\.digest)
                 guard needed.allSatisfy({ !unitOutputs.contains($0) }) else { continue }
             }
-            for digest in needed where !hasBlob(digest) && outputs[digest] == nil {
+            for digest in needed where !blobStore.contains(digest) && outputs[digest] == nil {
                 budget -= digest.sizeBytes
                 outputs[digest] = staging.appendingPathComponent("output-" + digest.hash)
             }
@@ -376,11 +373,11 @@ extension CargoUnitCache {
         }
         if !outputs.isEmpty, !Task.isCancelled, let downloaded = try? await remote.downloadBlobs(outputs) {
             for (digest, file) in outputs where downloaded.available.contains(digest) {
-                _ = try? publish(file, expecting: digest)
+                _ = try? blobStore.publish(file, expecting: digest)
             }
         }
         var placed = 0
-        for entry in ready where entry.outputs.allSatisfy(hasBlob) {
+        for entry in ready where entry.outputs.allSatisfy(blobStore.contains) {
             let destination = root.appendingPathComponent(entry.file.path)
             if !FileManager.default.fileExists(atPath: destination.path), (try? write(entry.data, to: destination)) != nil {
                 placed += 1
@@ -389,9 +386,8 @@ extension CargoUnitCache {
         debug("prefetched \(placed) of \(wanted.count) cache entries")
     }
 
-    /// Runs `body` over `items` on all cores, keeping their order.
-    /// Runs `body` on four threads: the work is file system calls into a few shared directories, and APFS serializes
-    /// those, so more threads spend several times the kernel time for little or no gain in wall time.
+    /// Runs `body` over `items` on four threads, keeping their order: the work is file system calls into a few shared
+    /// directories, and APFS serializes those, so more threads spend several times the kernel time for little gain.
     static func concurrentMap<T, R>(_ items: [T], _ body: (T) -> R) -> [R] {
         var results = [R?](repeating: nil, count: items.count)
         let lock = NSLock()
@@ -419,15 +415,15 @@ extension CargoUnitCache {
               let output = result.outputFiles.first, output.path == "units.json",
               output.digest.sizeBytes <= 64_000_000
         else { return nil }
-        if !hasBlob(output.digest), let remote {
+        if !blobStore.contains(output.digest), let remote {
             let file = root.appendingPathComponent("staging/" + UUID().uuidString)
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: file) }
             if (try? await remote.downloadBlobs([output.digest: file]))?.available.contains(output.digest) == true {
-                _ = try? publish(file, expecting: output.digest)
+                _ = try? blobStore.publish(file, expecting: output.digest)
             }
         }
-        guard hasBlob(output.digest), let data = try? Data(contentsOf: blobPath(output.digest)),
+        guard blobStore.contains(output.digest), let data = try? Data(contentsOf: blobStore.path(output.digest)),
               REAPI.digest(data) == output.digest,
               let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
         else { return nil }
@@ -453,13 +449,16 @@ extension CargoUnitCache {
             }
             var marked = Set<REAPI.Digest>()
             for file in ordered {
-                let blob = blobPath(file.digest)
+                let blob = blobStore.path(file.digest)
                 // The blob is verified, not its clone: a clone shares the blob's content. Its digest is recorded with
                 // the blob's identity, so an unchanged blob is not hashed again; any write to it changes that identity.
                 guard try verifier.digest(blob, shared: true) == file.digest else { throw REAPICacheError.corruptBlob }
                 // Renewing the use mark changes the blob's ctime, part of that identity: the bytes just verified are
                 // recorded again under the new one, so the next build does not hash the blob again.
-                if marked.insert(file.digest).inserted, markUsed(file.digest) { verifier.remember(blob, digest: file.digest) }
+                if marked.insert(file.digest).inserted, blobStore.markUsed(file.digest) { verifier.remember(
+                    blob,
+                    digest: file.digest
+                ) }
                 let destination = profile.appendingPathComponent(file.path).path
                 if !Self.clone(blob.path, to: destination) {
                     let temporary = (destination as NSString).deletingLastPathComponent + "/.tuist-" + UUID().uuidString
@@ -533,6 +532,7 @@ extension CargoUnitCache {
             guard let data = try? Data(contentsOf: recordFile),
                   let record = try? JSONDecoder().decode(SnapshotRecord.self, from: data) else { return nil }
             guard Set(record.files.keys) == Set(units.flatMap { $0.files.map(\.path) }),
+                  Self.holdsOnly(units, directory),
                   record.files.allSatisfy({ path, fields in
                       (try? CargoInputHasher.identity(directory.appendingPathComponent(path)))?.fields == fields
                   })
@@ -555,12 +555,12 @@ extension CargoUnitCache {
             }
             // Use marks are renewed hourly, like a blob's; the snapshot's blobs stay recent with it, since restoring
             // from them again needs them once the snapshot is gone.
-            if Self.markUsed(directory.path) {
-                Self.markUsed(recordFile.path)
+            if CargoBlobStore.markUsed(directory.path) {
+                CargoBlobStore.markUsed(recordFile.path)
                 let verifier = CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified"))
-                for digest in Set(units.flatMap { $0.files.map(\.digest) }) where markUsed(digest) {
-                    if (try? verifier.digest(blobPath(digest), shared: true)) == digest {
-                        verifier.remember(blobPath(digest), digest: digest)
+                for digest in Set(units.flatMap { $0.files.map(\.digest) }) where blobStore.markUsed(digest) {
+                    if (try? verifier.digest(blobStore.path(digest), shared: true)) == digest {
+                        verifier.remember(blobStore.path(digest), digest: digest)
                     }
                 }
             }
@@ -578,6 +578,11 @@ extension CargoUnitCache {
             let temporary = snapshots.appendingPathComponent(".tmp-" + UUID().uuidString)
             guard clonefile(profile.path, temporary.path, UInt32(CLONE_NOFOLLOW)) == 0 else { return }
             unlink(temporary.appendingPathComponent(".cargo-lock").path)
+            guard Self.holdsOnly(units, temporary) else {
+                debug("not saving a dependency unit snapshot: the profile holds files restoration did not write")
+                try? FileManager.default.removeItem(at: temporary)
+                return
+            }
             let expected = Set(units.flatMap { $0.files.map(\.path) })
             var files: [String: [String]] = [:]
             for path in expected {
@@ -608,6 +613,34 @@ extension CargoUnitCache {
                 discardSnapshot(stale.deletingPathExtension().lastPathComponent)
             }
         #endif
+    }
+
+    /// Whether `directory` holds nothing but the files of `units` and the directories they create. A snapshot's
+    /// recorded identities vouch for those files only; anything else, such as the outputs of a Cargo that built in
+    /// the profile meanwhile, would be restored unverified.
+    private static func holdsOnly(_ units: [Unit], _ directory: URL) -> Bool {
+        let files = Set(units.flatMap { $0.files.map(\.path) })
+        var directories: Set<String> = []
+        for path in units.flatMap(\.directories) + files.map({ ($0 as NSString).deletingLastPathComponent }) {
+            var current = path
+            while !current.isEmpty, directories.insert(current).inserted {
+                current = (current as NSString).deletingLastPathComponent
+            }
+        }
+        guard let entries = FileManager.default.enumerator(atPath: directory.path) else { return false }
+        var seen = 0
+        while let path = entries.nextObject() as? String {
+            switch entries.fileAttributes?[.type] as? FileAttributeType {
+            case .typeRegular?:
+                guard files.contains(path) else { return false }
+                seen += 1
+            case .typeDirectory?:
+                guard directories.contains(path) else { return false }
+            default:
+                return false
+            }
+        }
+        return seen == files.count
     }
 
     private func discardSnapshot(_ id: String) {
@@ -659,7 +692,10 @@ extension CargoUnitCache {
         let rustcInfo = (try? Data(contentsOf: targetDirectory.appendingPathComponent(".rustc_info.json")))
             .flatMap { $0.count <= 1_000_000 ? String(data: $0, encoding: .utf8) : nil }
         let manifest = Manifest(units: Array(units), files: files.isEmpty ? nil : Array(files), rustcInfo: rustcInfo)
-        guard let data = try? JSONEncoder().encode(manifest), data.count <= 64_000_000 else { return }
+        // Sorted keys, so an unchanged build encodes the same manifest and publishes nothing new.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(manifest), data.count <= 64_000_000 else { return }
         let digest = REAPI.digest(data)
         var result = REAPI.ActionResult()
         result.outputFiles = [.with { $0.path = "units.json"; $0.digest = digest }]
@@ -671,16 +707,16 @@ extension CargoUnitCache {
             try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
             let file = staging.appendingPathComponent("units.json")
             try data.write(to: file)
-            _ = try publish(file, expecting: digest)
+            _ = try blobStore.publish(file, expecting: digest)
             try write(result.serializedData(), to: index)
         } catch { return }
         guard previous?.outputFiles.first?.digest != digest, let remote else { return }
         if let marker = CargoCacheSetup.readOnlyMarker(environment: environment),
            FileManager.default.fileExists(atPath: marker.path) { return }
-        var blobs: [REAPI.Digest: URL] = [digest: blobPath(digest)]
+        var blobs: [REAPI.Digest: URL] = [digest: blobStore.path(digest)]
         for unit in units {
             for file in unit.files {
-                blobs[file.digest] = blobPath(file.digest)
+                blobs[file.digest] = blobStore.path(file.digest)
             }
         }
         // Entries this build used, and the outputs they name, so another machine can prefetch them.
@@ -689,8 +725,8 @@ extension CargoUnitCache {
             blobs[file.digest] = index
             guard !file.path.hasPrefix("reads/"), let data = try? Data(contentsOf: index),
                   let result = try? REAPI.ActionResult(serializedBytes: data) else { continue }
-            for output in result.outputFiles where hasBlob(output.digest) {
-                blobs[output.digest] = blobPath(output.digest)
+            for output in result.outputFiles where blobStore.contains(output.digest) {
+                blobs[output.digest] = blobStore.path(output.digest)
             }
         }
         do {
@@ -741,7 +777,7 @@ extension CargoUnitCache {
             guard !reusedNames.contains(name),
                   let created = (try? fingerprints.appendingPathComponent(name).resourceValues(forKeys: [.creationDateKey]))?
                   .creationDate, created >= sessionStarted.addingTimeInterval(-1) else { return false }
-            return classified[name] ?? (packages[package(name)] == true && isPortableRun(name))
+            return classified[name] ?? (packages[package(name)] == true && runBinding(name) != nil)
         }
         let collected = Self.concurrentMap(Array(created)) { collect($0, deps: deps) }.compactMap { $0 }
         var budget: Int64 = 8_000_000_000
@@ -787,30 +823,37 @@ extension CargoUnitCache {
         return sawDependency
     }
 
-    /// A build-script run is portable when Cargo can relocate its output: its recorded `OUT_DIR` prefix is rewritten
-    /// by Cargo, but other paths into this checkout or Cargo home, and absolute `rerun-if-changed` paths whose
-    /// timestamps a restored unit would outdate, are not.
-    private func isPortableRun(_ name: String) -> Bool {
+    /// The roots a build-script run's unit is bound to, or `nil` when it cannot be restored. Cargo rewrites the
+    /// recorded `OUT_DIR` prefix itself; other paths into this checkout, the target directory or Cargo home (a `-sys`
+    /// crate's `include` directory in its registry source, another crate's `OUT_DIR`, an absolute `rerun-if-changed`
+    /// file) hold only where that root has the same path, so the unit is bound to it, like a unit whose compiled
+    /// outputs name one. Absolute `rerun-if-changed` paths outside every root are not restored: a restored unit's newer
+    /// timestamps would hide another machine's file.
+    private func runBinding(_ name: String) -> Set<String>? {
         let directory = profile.appendingPathComponent("build/" + name)
         guard let output = try? String(contentsOf: directory.appendingPathComponent("output"), encoding: .utf8),
               let outDirectory = try? String(contentsOf: directory.appendingPathComponent("root-output"), encoding: .utf8)
-        else { return false }
+        else { return nil }
         let remaining = output.replacingOccurrences(of: outDirectory.trimmingCharacters(in: .newlines), with: "")
-        guard ![workspaceRoot.path, cargoHome.path, targetDirectory.path].contains(where: remaining.contains)
-        else { return false }
+        var bound = Set(relocation.boundRoots(in: Data(remaining.utf8)).map(\.path))
         let fingerprint = profile.appendingPathComponent(".fingerprint/" + name)
         let records = ((try? FileManager.default.contentsOfDirectory(atPath: fingerprint.path)) ?? [])
             .filter { $0.hasSuffix(".json") }
-        guard !records.isEmpty else { return false }
-        return records.allSatisfy { record in
+        guard !records.isEmpty else { return nil }
+        for record in records {
             guard let data = try? Data(contentsOf: fingerprint.appendingPathComponent(record)),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let local = json["local"] as? [[String: Any]] else { return false }
-            return local.allSatisfy { entry in
-                guard let rerun = entry["RerunIfChanged"] as? [String: Any] else { return true }
-                return (rerun["paths"] as? [String])?.allSatisfy { !$0.hasPrefix("/") } == true
+                  let local = json["local"] as? [[String: Any]] else { return nil }
+            for entry in local {
+                guard let rerun = entry["RerunIfChanged"] as? [String: Any] else { continue }
+                guard let paths = rerun["paths"] as? [String] else { return nil }
+                for path in paths where path.hasPrefix("/") {
+                    guard let root = relocation.roots.first(where: { path.hasPrefix($0.path + "/") }) else { return nil }
+                    bound.insert(root.path)
+                }
             }
         }
+        return bound
     }
 
     private func collect(_ name: String, deps: [String]) -> Unit? {
@@ -842,7 +885,7 @@ extension CargoUnitCache {
             guard let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
                   properties.isRegularFile == true, properties.isSymbolicLink != true,
                   let size = properties.fileSize, size <= 4_000_000_000,
-                  let digest = try? publish(file)
+                  let digest = try? blobStore.publish(file)
             else { return nil }
             if !path.hasPrefix(".fingerprint/"), !path.hasSuffix(".d"),
                !(path.hasPrefix("build/") && records.contains(URL(fileURLWithPath: path).lastPathComponent))
@@ -861,6 +904,10 @@ extension CargoUnitCache {
             ))
         }
         guard files.contains(where: { $0.path.hasPrefix(".fingerprint/") }) else { return nil }
+        if paths.contains("build/\(name)/output") {
+            guard let roots = runBinding(name) else { return nil }
+            bound.formUnion(roots)
+        }
         return Unit(
             name: name, directories: directories.sorted(), files: files, bound: bound.isEmpty ? nil : bound.sorted(),
             package: registryPackage(paths.filter { $0.hasSuffix(".d") }.map { profile.appendingPathComponent($0) })
@@ -886,56 +933,7 @@ extension CargoUnitCache {
 extension CargoUnitCache {
     // MARK: - Storage
 
-    private func blobPath(_ digest: REAPI.Digest) -> URL { root.appendingPathComponent("blobs/" + digest.hash) }
-
-    private func hasBlob(_ digest: REAPI.Digest) -> Bool {
-        (try? blobPath(digest).resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 } == Int(exactly: digest.sizeBytes)
-    }
-
-    /// Blobs carry the time they were last stored or restored, never their source's: build scripts copy
-    /// files out of crate archives with years-old timestamps, which the cache's age-based pruning would evict.
-    /// Copies `file` into the store (a clone on APFS) and hashes the copy once: the digest describes exactly the bytes
-    /// stored, even if the source changes meanwhile.
-    @discardableResult
-    private func publish(_ file: URL, expecting expected: REAPI.Digest? = nil) throws -> REAPI.Digest {
-        let blobs = root.appendingPathComponent("blobs")
-        try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
-        let temporary = blobs.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        try FileManager.default.copyItem(at: file, to: temporary)
-        let digest = try REAPI.digest(file: temporary)
-        if let expected, digest != expected { throw REAPICacheError.corruptBlob }
-        if hasBlob(digest) {
-            markUsed(digest)
-            return digest
-        }
-        try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: temporary.path)
-        let destination = blobPath(digest)
-        if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
-        try FileManager.default.moveItem(at: temporary, to: destination)
-        // The blob was just hashed: restoration verifies it through this record instead of hashing it again.
-        CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified")).remember(destination, digest: digest)
-        return digest
-    }
-
-    /// Keeps a blob recent for pruning. Only marks older than an hour are renewed, so an unchanged blob keeps the
-    /// identity its verified digest is recorded with.
-    /// Returns whether the mark was renewed. `stat`, not Foundation's attributes, which also read extended attributes.
-    @discardableResult
-    private func markUsed(_ digest: REAPI.Digest) -> Bool { Self.markUsed(blobPath(digest).path) }
-
-    @discardableResult
-    private static func markUsed(_ path: String) -> Bool {
-        var info = stat()
-        guard stat(path, &info) == 0 else { return false }
-        #if os(Linux)
-            let modified = info.st_mtim.tv_sec
-        #else
-            let modified = info.st_mtimespec.tv_sec
-        #endif
-        guard Date().timeIntervalSince1970 - Double(modified) > 3600 else { return false }
-        return utimes(path, nil) == 0
-    }
+    private var blobStore: CargoBlobStore { CargoBlobStore(root: root) }
 
     private func write(_ data: Data, to file: URL) throws {
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)

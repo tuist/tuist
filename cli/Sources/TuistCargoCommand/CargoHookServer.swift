@@ -2,6 +2,7 @@ import Crypto
 import Foundation
 import Path
 import TuistProcess
+import TuistREAPI
 #if canImport(Darwin)
     import Darwin
 #elseif canImport(Glibc)
@@ -22,16 +23,19 @@ import TuistProcess
 /// exit status for publication. A client that cannot reach the server runs `tuist cargo __compiler` instead.
 ///
 /// Build-script shims start the same client as `cargo __script <script> <arguments>`, which sends an `S` request for
-/// the script's arguments, so a cached run replays without the Swift runtime too.
+/// the script's arguments, so a cached run replays without the Swift runtime too. The `cc` shim starts it as
+/// `cargo __native <cc> <arguments>`, an `N` request decided like `tuist cargo __native` would.
 ///
-/// Frames are a tag byte and a little-endian 32-bit length. Client to server: `Q` compiler or `S` build-script request
-/// (working directory, then counted NUL-terminated arguments and environment), `o`/`e` compiler output, `x` exit status. Server
-/// to client: `O`/`E`
-/// output to write, `R` command to run (counted arguments and environment), `X` exit status to exit with, `F` fall back.
+/// Frames are a tag byte and a little-endian 32-bit length. Client to server: `Q` compiler, `S` build-script or `N`
+/// native compiler request (working directory, then counted NUL-terminated arguments and environment), `o`/`e`
+/// compiler output, `x` exit status. Server to client: `O`/`E` output to write, `R` command to run (counted arguments
+/// and environment), `X` exit status to exit with, `F` fall back.
 final class CargoHookServer: @unchecked Sendable {
-    static let version = "tuist-cargo-hook-v2"
+    static let version = "tuist-cargo-hook-v3"
     static let socketVariable = "TUIST_CARGO_HOOK_SOCKET"
     static let fallbackVariable = "TUIST_CARGO_HOOK_FALLBACK"
+    /// The client the `cc` shim starts in a served session.
+    static let nativeVariable = "TUIST_CARGO_NATIVE"
 
     let socketPath: String
     private let directory: String
@@ -40,6 +44,8 @@ final class CargoHookServer: @unchecked Sendable {
     private let stopped = NSLock()
     private var isStopped = false
     private var acceptor: Thread?
+    /// The session's REAPI connection, shared by every hook served.
+    private let remote: Task<(any REAPICacheStoring)?, Never>?
 
     /// Builds the client once per cache directory. `nil` when unsupported or unavailable.
     static func client(cacheDirectory: URL) -> URL? {
@@ -76,12 +82,13 @@ final class CargoHookServer: @unchecked Sendable {
     }
 
     /// Listens on a socket in a new private directory (short enough for `sun_path`, unlike the session directory).
-    init?(runner: CommandRunning) {
+    init?(runner: CommandRunning, remote: Task<(any REAPICacheStoring)?, Never>?) {
         var template = Array("/tmp/tuist-cargo-XXXXXX".utf8CString)
         guard let created = mkdtemp(&template) else { return nil }
         directory = String(cString: created)
         socketPath = directory + "/hook"
         self.runner = runner
+        self.remote = remote
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
         let bytes = Array(socketPath.utf8)
@@ -150,15 +157,15 @@ final class CargoHookServer: @unchecked Sendable {
 
     private func serve(_ connection: Int32) {
         defer { close(connection) }
-        guard let (tag, payload) = Self.read(connection), [UInt8(ascii: "Q"), UInt8(ascii: "S")].contains(tag),
+        guard let (tag, payload) = Self.read(connection), [UInt8(ascii: "Q"), UInt8(ascii: "S"), UInt8(ascii: "N")].contains(tag),
               let request = Self.request(payload) else { return }
         let run: (any CargoHookRun)?
         if tag == UInt8(ascii: "S") {
             // A build-script run: the shim passes the real script, then the script's own arguments.
-            switch Self.wait({ [runner] in
+            switch Self.wait({ [runner, remote] in
                 await CargoBuildScript.decide(
                     real: request.arguments[0], arguments: Array(request.arguments.dropFirst()),
-                    environment: request.environment, directory: request.directory, runner: runner
+                    environment: request.environment, directory: request.directory, runner: runner, sessionRemote: remote
                 )
             }) {
             case let .replayed(stdout, stderr):
@@ -168,9 +175,12 @@ final class CargoHookServer: @unchecked Sendable {
             case let .run(script): run = script
             }
         } else {
-            let observer = CargoCompilerObserver(runner: runner)
+            let observer = CargoCompilerObserver(runner: runner, sessionRemote: remote)
             switch Self.wait({
-                try? await observer.decide(request.arguments, environment: request.environment, directory: request.directory)
+                try? await observer.decide(
+                    request.arguments, environment: request.environment, directory: request.directory,
+                    native: tag == UInt8(ascii: "N")
+                )
             }) {
             case nil: run = nil
             case let .replayed(stdout, stderr)?:
@@ -304,22 +314,27 @@ final class CargoHookServer: @unchecked Sendable {
     extern char **environ;
     static int sock = -1;
 
-    /* `cargo __script <script> <arguments>`, as build-script shims start it, rather than `<rustc> <arguments>`. */
-    static int script = 0;
+    /* The compiler's exit status once it ran, which a lost server connection must not replace. */
+    static int32_t compiled = -1;
+
+    /* `cargo __script <script> <arguments>`, as build-script shims start it, or `cargo __native <cc> <arguments>`, as
+       the `cc` shim does, rather than `<rustc> <arguments>`. */
+    enum { COMPILER, SCRIPT, NATIVE };
+    static int mode = COMPILER;
 
     /* The Swift hook, or the compiler or script itself when there is none. */
     static void fallback(int argc, char **argv) {
         if (sock >= 0) close(sock);
         const char *tuist = getenv("TUIST_CARGO_HOOK_FALLBACK");
         if (!tuist || !*tuist) {
-            if (script) execv(argv[3], argv + 3); else execvp(argv[1], argv + 1);
+            if (mode != COMPILER) execv(argv[3], argv + 3); else execvp(argv[1], argv + 1);
             _exit(127);
         }
         char **arguments = calloc((size_t)argc + 3, sizeof(char *));
         if (!arguments) _exit(127);
         int count = 0;
         arguments[count++] = (char *)tuist;
-        if (!script) { arguments[count++] = "cargo"; arguments[count++] = "__compiler"; }
+        if (mode == COMPILER) { arguments[count++] = "cargo"; arguments[count++] = "__compiler"; }
         for (int i = 1; i < argc; i++) arguments[count++] = argv[i];
         execv(tuist, arguments);
         _exit(127);
@@ -459,14 +474,18 @@ final class CargoHookServer: @unchecked Sendable {
             while (waitpid(pid, &raw, 0) < 0 && errno == EINTR) {}
             status = WIFEXITED(raw) ? WEXITSTATUS(raw) : 128 + WTERMSIG(raw);
         }
+        compiled = status;
         if (sock < 0 || send_frame('x', &status, 4) != 0) _exit(status);
         return 0;
     }
 
     int main(int argc, char **argv) {
         if (argc < 2) return 2;
-        script = argc >= 4 && strcmp(argv[1], "cargo") == 0 && strcmp(argv[2], "__script") == 0;
-        int first = script ? 3 : 1;
+        if (argc >= 4 && strcmp(argv[1], "cargo") == 0) {
+            if (strcmp(argv[2], "__script") == 0) mode = SCRIPT;
+            else if (strcmp(argv[2], "__native") == 0) mode = NATIVE;
+        }
+        int first = mode == COMPILER ? 1 : 3;
         /* Cargo passes loader variables such as DYLD_FALLBACK_LIBRARY_PATH. The shell wrapper this replaces never
            forwarded them (SIP removes them when /bin/sh starts), and caching bypasses compilations that carry them. */
         for (int found = 1; found;) {
@@ -505,21 +524,22 @@ final class CargoHookServer: @unchecked Sendable {
         for (char **entry = environ; *entry; entry++) variables++;
         append_count(&request, variables);
         for (char **entry = environ; *entry; entry++) append_field(&request, *entry);
-        if (send_frame(script ? 'S' : 'Q', request.data, (uint32_t)request.length) != 0) fallback(argc, argv);
+        char kind = mode == SCRIPT ? 'S' : mode == NATIVE ? 'N' : 'Q';
+        if (send_frame(kind, request.data, (uint32_t)request.length) != 0) fallback(argc, argv);
         int started = 0;
         char tag, *payload = NULL;
         uint32_t length = 0;
         for (;;) {
             if (read_frame(&tag, &payload, &length) != 0) {
-                /* The server went away: before rustc ran, run the Swift hook; after, nothing is left to do. */
-                if (!started) fallback(argc, argv);
-                return 1;
+                /* The server went away: before rustc ran, run the Swift hook; after, report how rustc exited. */
+                if (!started || compiled < 0) fallback(argc, argv);
+                return compiled;
             }
             switch (tag) {
             case 'O': write_all(1, payload, length); break;
             case 'E': write_all(2, payload, length); break;
             case 'X': { int32_t code = 1; if (length == 4) memcpy(&code, payload, 4); return code; }
-            case 'R': started = 1; if (run(payload, length) != 0) return 1; break;
+            case 'R': started = 1; if (run(payload, length) != 0) fallback(argc, argv); break;
             default: fallback(argc, argv);
             }
         }

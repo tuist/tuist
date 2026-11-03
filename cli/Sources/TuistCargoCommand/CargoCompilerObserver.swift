@@ -6,6 +6,22 @@ import TuistServer
 
 struct CargoCompilerObserver {
     let runner: CommandRunning
+    /// The session's REAPI connection, when the outer command serves this hook; otherwise the hook connects itself.
+    var sessionRemote: Task<(any REAPICacheStoring)?, Never>?
+
+    init(runner: CommandRunning, sessionRemote: Task<(any REAPICacheStoring)?, Never>? = nil) {
+        self.runner = runner
+        self.sessionRemote = sessionRemote
+    }
+
+    /// The remote cache for one hook, `nil` once the session's circuit is open.
+    static func connect(
+        _ environment: [String: String], session: Task<(any REAPICacheStoring)?, Never>?
+    ) async -> (any REAPICacheStoring)? {
+        guard let session else { return try? await remote(environment) }
+        if let marker = remoteFailureMarker(environment), FileManager.default.fileExists(atPath: marker.path) { return nil }
+        return await session.value
+    }
 
     /// What a hook does next: replay a hit's compiler messages, or run the compiler and publish what it produced.
     enum Decision {
@@ -60,7 +76,7 @@ struct CargoCompilerObserver {
         }
         if let rust = invocation as? CargoCacheInvocation, rust.isDeferred {
             // Another machine may have compiled this crate: its remembered sources key a lookup without rustc.
-            remote = try? await Self.remote(environment)
+            remote = await Self.connect(environment, session: sessionRemote)
             remoteResolved = true
             if let listed = await rust.sourceIndex?.get(remote: remote), let keyed = try? rust.keyed(sources: listed) {
                 invocation = keyed
@@ -78,7 +94,7 @@ struct CargoCompilerObserver {
         if let candidate = recorded, let index = candidate.index {
             var reads = await index.get(remote: nil)
             if reads == nil {
-                if !remoteResolved { remote = try? await Self.remote(environment) }
+                if !remoteResolved { remote = await Self.connect(environment, session: sessionRemote) }
                 remoteResolved = true
                 reads = await index.get(remote: remote)
             }
@@ -105,7 +121,7 @@ struct CargoCompilerObserver {
             return .replayed(stdout: replayed.stdout, stderr: replayed.stderr)
         }
         if cache != nil || recorded != nil, !remoteResolved {
-            remote = try? await Self.remote(environment)
+            remote = await Self.connect(environment, session: sessionRemote)
         }
         cache?.remote = remote
         if !deferred, let cache, try await cache.restoreRemotely() {

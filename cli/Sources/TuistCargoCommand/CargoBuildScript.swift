@@ -4,8 +4,9 @@ import TuistProcess
 import TuistREAPI
 
 /// Build-script runs, kept as blaze keeps them: Cargo starts build scripts itself, so after a build script compiles,
-/// its executable is replaced by a shim that hands the run to `tuist cargo __script` while a session provides one,
-/// and runs the real script otherwise. The run is recorded; its outputs (`OUT_DIR`, the directives it printed) are
+/// its executable is replaced by a shim that hands the run to `$TUIST_CARGO_SCRIPT` (the hook client in a served
+/// session, `tuist cargo __script` otherwise) while a session provides one, and runs the real script otherwise. The run is
+/// recorded; its outputs (`OUT_DIR`, the directives it printed) are
 /// stored under a declared key (what the script was built from, its arguments and Cargo's variables, relocated) and the
 /// current contents of what it read.
 enum CargoBuildScript {
@@ -152,7 +153,7 @@ enum CargoBuildScript {
     /// runs it (this process, or the hook client of a served session) feeds the run its output, then calls `finish`.
     static func decide(
         real: String, arguments: [String], environment inherited: [String: String], directory: AbsolutePath,
-        runner: CommandRunning
+        runner: CommandRunning, sessionRemote: Task<(any REAPICacheStoring)?, Never>? = nil
     ) async -> Decision {
         var environment = inherited
         // The session's compiler wrapper starts unrecorded shells; probes that honor `RUSTC_WRAPPER` reach the same
@@ -169,7 +170,7 @@ enum CargoBuildScript {
             process: CargoProcess(runner: runner)
         )
         else { return .run(Run(command: [executable] + arguments, environment: environment, context: nil, log: nil)) }
-        let remote = try? await CargoCompilerObserver.remote(environment)
+        let remote = await CargoCompilerObserver.connect(environment, session: sessionRemote)
         if let reads = await context.index.get(remote: remote),
            let key = try? context.key(reads),
            let (stdout, stderr) = await context.restore(key: key, remote: remote)
@@ -317,11 +318,7 @@ enum CargoBuildScript {
             return (command, action, REAPI.digest(action))
         }
 
-        private func blobPath(_ digest: REAPI.Digest) -> URL { root.appendingPathComponent("blobs/" + digest.hash) }
-
-        private func hasBlob(_ digest: REAPI.Digest) -> Bool {
-            (try? REAPI.digest(file: blobPath(digest))) == digest
-        }
+        private var blobStore: CargoBlobStore { CargoBlobStore(root: root) }
 
         /// Restores the run's `OUT_DIR` and returns the output it printed.
         func restore(key: REAPI.Digest, remote: (any REAPICacheStoring)?) async -> (Data, Data)? {
@@ -335,7 +332,8 @@ enum CargoBuildScript {
             defer { try? FileManager.default.removeItem(at: staging) }
             try? FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
             guard await fetch([manifest.digest], into: staging, remote: remote),
-                  let outputs = try? JSONDecoder().decode(Outputs.self, from: Data(contentsOf: blobPath(manifest.digest))),
+                  let data = try? Data(contentsOf: blobStore.path(manifest.digest)), REAPI.digest(data) == manifest.digest,
+                  let outputs = try? JSONDecoder().decode(Outputs.self, from: data),
                   outputs.files.allSatisfy({ isSafe($0.path) }), outputs.directories.allSatisfy(isSafe),
                   await fetch(
                       [outputs.stdout.digest, outputs.stderr.digest] + outputs.files.map(\.digest),
@@ -378,20 +376,21 @@ enum CargoBuildScript {
         }
 
         private func read(_ file: Outputs.File) -> Data? {
-            guard let data = try? Data(contentsOf: blobPath(file.digest)), REAPI.digest(data) == file.digest else { return nil }
+            guard let data = try? Data(contentsOf: blobStore.path(file.digest)),
+                  REAPI.digest(data) == file.digest else { return nil }
             return file.relocated ? relocation.absolute(data) : data
         }
 
         private func fetch(_ digests: [REAPI.Digest], into staging: URL, remote: (any REAPICacheStoring)?) async -> Bool {
             var missing: [REAPI.Digest: URL] = [:]
-            for digest in digests where !hasBlob(digest) {
+            for digest in digests where !blobStore.contains(digest) {
                 missing[digest] = staging.appendingPathComponent(digest.hash)
             }
             guard !missing.isEmpty else { return true }
             guard let remote, let download = try? await remote.downloadBlobs(missing) else { return false }
             for (digest, file) in missing {
-                guard download.available.contains(digest), (try? REAPI.digest(file: file)) == digest,
-                      (try? publish(file, digest: digest)) != nil else { return false }
+                guard download.available.contains(digest), (try? blobStore.publish(file, expecting: digest)) != nil
+                else { return false }
             }
             return true
         }
@@ -438,7 +437,7 @@ enum CargoBuildScript {
                     let digest = REAPI.digest(stored)
                     let file = staging.appendingPathComponent(UUID().uuidString)
                     try stored.write(to: file)
-                    blobs[digest] = try publish(file, digest: digest)
+                    blobs[digest] = blobStore.path(try blobStore.publish(file, expecting: digest))
                     return Outputs.File(
                         path: path, hash: digest.hash, size: digest.sizeBytes, executable: executable, relocated: containsRoot
                     )
@@ -471,7 +470,7 @@ enum CargoBuildScript {
                 let manifestFile = staging.appendingPathComponent("outputs.json")
                 try manifest.write(to: manifestFile)
                 let manifestDigest = REAPI.digest(manifest)
-                blobs[manifestDigest] = try publish(manifestFile, digest: manifestDigest)
+                blobs[manifestDigest] = blobStore.path(try blobStore.publish(manifestFile, expecting: manifestDigest))
                 var result = REAPI.ActionResult()
                 result.outputFiles = [.with { $0.path = "outputs.json"; $0.digest = manifestDigest }]
                 try write(result.serializedData(), to: root.appendingPathComponent("script-actions/" + actionDigest.hash))
@@ -482,7 +481,7 @@ enum CargoBuildScript {
                    FileManager.default.fileExists(atPath: marker.path) { return }
                 for data in [command, Data(), action] {
                     // In the store rather than staging: a deferred publication reads them after this hook exits.
-                    let file = blobPath(REAPI.digest(data))
+                    let file = blobStore.path(REAPI.digest(data))
                     try write(data, to: file)
                     blobs[REAPI.digest(data)] = file
                 }
@@ -493,22 +492,6 @@ enum CargoBuildScript {
                 guard upload.available.isSuperset(of: Set(blobs.keys)) else { return }
                 try await remote.storeActionResult(result, for: actionDigest)
             } catch { debug("build-script run was not stored: \(error)") }
-        }
-
-        private func publish(_ file: URL, digest: REAPI.Digest) throws -> URL {
-            let destination = blobPath(digest)
-            if hasBlob(digest) { return destination }
-            try FileManager.default.createDirectory(
-                at: destination.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            let temporary = destination.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
-            defer { try? FileManager.default.removeItem(at: temporary) }
-            try FileManager.default.copyItem(at: file, to: temporary)
-            guard try REAPI.digest(file: temporary) == digest else { throw REAPICacheError.corruptBlob }
-            if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
-            try FileManager.default.moveItem(at: temporary, to: destination)
-            return destination
         }
 
         private func write(_ data: Data, to file: URL) throws {

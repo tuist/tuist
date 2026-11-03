@@ -77,7 +77,7 @@ final class CargoInputHasher {
         let before = try identify(file)
         if before.precise, let (identity, digest) = entries[file], identity == before { return digest }
         let memo = shared && before.precise ? sharedDirectory?
-            .appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash) : nil
+            .appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash, isDirectory: false) : nil
         if let memo, let entry = Self.processRecords.file(memo), entry.identity == before {
             let digest = REAPI.Digest.with { $0.hash = entry.hash; $0.sizeBytes = entry.size }
             entries[file] = (before, digest)
@@ -118,7 +118,7 @@ final class CargoInputHasher {
         guard let sharedDirectory, let identity = try? identify(file), identity.precise,
               let data = try? JSONEncoder().encode(Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes))
         else { return }
-        let memo = sharedDirectory.appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash)
+        let memo = sharedDirectory.appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash, isDirectory: false)
         try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
         try? data.write(to: memo, options: .atomic)
         Self.processRecords.setFile(memo, Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes))
@@ -169,7 +169,7 @@ final class CargoInputHasher {
     private func load(_ records: [String: Entry], prefix: String) {
         for (path, record) in records where path.hasPrefix(prefix) {
             let digest = REAPI.Digest.with { $0.hash = record.hash; $0.sizeBytes = record.size }
-            let file = URL(fileURLWithPath: path)
+            let file = URL(fileURLWithPath: path, isDirectory: false)
             if (try? REAPI.validate(digest)) != nil, entries[file] == nil {
                 entries[file] = (record.identity, digest)
             }
