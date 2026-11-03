@@ -142,3 +142,14 @@ GITHUB_WORKSPACE=/home/runner/work/repo/repo TUIST_DOCKER_CACHE=1 CHECKOUT_EXIT=
 grep -qx -- "--docker" "${CHECKOUT_CALLS}"
 grep -qx -- "--checkout /home/runner/work/repo/repo" "${CHECKOUT_CALLS}"
 echo "ok: the job-start hook asks for the Docker cache beside the checkout"
+
+# The hook hands the host the job's OIDC token before any attach, only when the
+# runner offers one, and a failing client never fails the job.
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo env -u ACTIONS_ID_TOKEN_REQUEST_URL bash -eu "${JOB_STARTED_HOOK}"
+! grep -qx -- "--prove-execution" "${CHECKOUT_CALLS}"
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo ACTIONS_ID_TOKEN_REQUEST_URL=https://token.example CHECKOUT_EXIT=1 bash -eu "${JOB_STARTED_HOOK}"
+test "$(head -n 1 "${CHECKOUT_CALLS}")" = "--prove-execution"
+grep -qx -- "--checkout /home/runner/work/repo/repo" "${CHECKOUT_CALLS}"
+echo "ok: the job-start hook presents the job's OIDC token before attaching"

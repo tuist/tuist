@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.ExecutionTokens
   alias Tuist.Runners.VolumePrefetch
   alias TuistWeb.RunnerCacheVolumesController, as: Controller
 
@@ -242,6 +243,39 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
 
     reject(&VolumePrefetch.for_node/2)
     assert Controller.masters(conn(), %{"node_name" => "linux-01"}).status == 403
+  end
+
+  describe "execution tokens" do
+    test "only the storage agent can present a job's token" do
+      expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+        {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+      end)
+
+      reject(&ExecutionTokens.prove/1)
+      assert Controller.execution(conn(), %{"token" => "jwt"}).status == 403
+    end
+
+    test "answers 200 when the token binds or is logged, and 403 when it is rejected" do
+      namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+      name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+      stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+
+      expect(ExecutionTokens, :prove, fn %{"token" => "jwt"} -> :ok end)
+      assert Controller.execution(conn(), %{"token" => "jwt"}).status == 200
+
+      expect(ExecutionTokens, :prove, fn _ -> {:error, :unverified} end)
+      assert Controller.execution(conn(), %{"token" => "jwt"}).status == 403
+    end
+
+    test "is routed under the internal cache volume endpoints" do
+      assert %{plug: Controller, plug_opts: :execution} =
+               Phoenix.Router.route_info(
+                 TuistWeb.Router,
+                 "POST",
+                 "/api/internal/runners/cache-volumes/execution",
+                 "localhost"
+               )
+    end
   end
 
   describe "Docker data roots" do

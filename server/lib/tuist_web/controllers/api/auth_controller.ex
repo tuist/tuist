@@ -296,28 +296,40 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{message: "Invalid email or password."})
 
       {:ok, user} ->
-        {:ok, access_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{email: user.email, preferred_username: user.account.name},
-            token_type: :access,
-            ttl: @access_token_ttl
-          )
+        issue_user_tokens(conn, user)
+    end
+  end
 
-        {:ok, refresh_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{email: user.email, preferred_username: user.account.name},
-            token_type: :refresh,
-            ttl: @refresh_token_ttl
-          )
+  defp issue_user_tokens(conn, user) do
+    # Direct credential endpoints cannot silently skip an enrolled factor.
+    # CLI/device login completes the browser challenge before authorization.
+    if Accounts.UserMFA.enabled?(user) do
+      conn
+      |> put_status(:unauthorized)
+      |> json(%{message: "Two-factor authentication is enabled. Use browser sign-in."})
+    else
+      {:ok, access_token, _opts} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email, preferred_username: user.account.name},
+          token_type: :access,
+          ttl: @access_token_ttl
+        )
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          access_token: access_token,
-          refresh_token: refresh_token
-        })
+      {:ok, refresh_token, _opts} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email, preferred_username: user.account.name},
+          token_type: :refresh,
+          ttl: @refresh_token_ttl
+        )
+
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        access_token: access_token,
+        refresh_token: refresh_token
+      })
     end
   end
 
@@ -325,26 +337,10 @@ defmodule TuistWeb.API.AuthController do
         %{body_params: %{identity_token: identity_token, authorization_code: authorization_code}} = conn,
         _params
       ) do
-    with {:ok, user} <-
-           Apple.verify_apple_identity_token_and_create_user(identity_token, authorization_code),
-         {:ok, access_token, _} <-
-           Authentication.encode_and_sign(
-             user,
-             %{email: user.email, preferred_username: user.account.name},
-             token_type: :access,
-             ttl: @access_token_ttl
-           ),
-         {:ok, refresh_token, _} <-
-           Authentication.encode_and_sign(
-             user,
-             %{email: user.email, preferred_username: user.account.name},
-             token_type: :refresh,
-             ttl: @refresh_token_ttl
-           ) do
-      conn
-      |> put_status(:ok)
-      |> json(%{access_token: access_token, refresh_token: refresh_token})
-    else
+    case Apple.verify_apple_identity_token_and_create_user(identity_token, authorization_code) do
+      {:ok, user} ->
+        issue_user_tokens(conn, user)
+
       {:error, reason} ->
         conn
         |> put_status(:unauthorized)

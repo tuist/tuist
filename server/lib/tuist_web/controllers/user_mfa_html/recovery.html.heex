@@ -1,0 +1,25 @@
+<.link_frame
+  title={dgettext("dashboard_auth", "Save your recovery codes")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "These codes are shown only once. Each code replaces your authenticator code for one sign-in."
+    )
+  }
+>
+  <ul id="mfa-recovery-codes">
+    <li :for={code <- @codes}><code>{code}</code></li>
+  </ul>
+  <p>
+    {dgettext(
+      "dashboard_auth",
+      "Store these codes securely. Losing both your authenticator and recovery codes can lock you out of your account."
+    )}
+  </p>
+  <.button
+    variant="primary"
+    size="large"
+    href={~p"/users/settings/mfa"}
+    label={dgettext("dashboard_auth", "I saved my recovery codes")}
+  />
+</.link_frame>
