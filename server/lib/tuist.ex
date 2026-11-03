@@ -48,6 +48,10 @@ defmodule Tuist do
       Ops.Database,
       Ops.FeatureFlags,
       Observability,
+      RateLimit,
+      RateLimit.InMemory,
+      RateLimit.PersistentFixedWindow,
+      RateLimit.PersistentTokenBucket,
       BrowserTelemetry.Receipts,
       # App
       # -----

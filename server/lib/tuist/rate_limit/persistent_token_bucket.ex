@@ -1,11 +1,12 @@
-defmodule TuistWeb.RateLimit.PersistentTokenBucket do
+defmodule Tuist.RateLimit.PersistentTokenBucket do
   @moduledoc false
 
   @behaviour Hammer
 
   alias Hammer.Redis.TokenBucket
-  alias TuistWeb.RateLimit.RedisPool
+  alias Tuist.RateLimit.RedisPool
 
+  # Preserve the shared namespace across rolling upgrades.
   @prefix "TuistWeb.RateLimit.PersistentTokenBucket"
   @timeout 500
 

@@ -1,11 +1,12 @@
-defmodule TuistWeb.RateLimit.PersistentFixedWindow do
+defmodule Tuist.RateLimit.PersistentFixedWindow do
   @moduledoc false
 
   @behaviour Hammer
 
   alias Hammer.Redis.FixWindow
-  alias TuistWeb.RateLimit.RedisPool
+  alias Tuist.RateLimit.RedisPool
 
+  # Preserve the shared namespace across rolling upgrades.
   @prefix "TuistWeb.RateLimit.PersistentFixedWindow"
   @timeout 500
 
