@@ -9,6 +9,7 @@ defmodule Tuist.Accounts.UserNotifier do
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.Mailer
+  alias Tuist.Runners.Allowance
   alias Tuist.Utilities.ByteFormatter
 
   # Delivers the email using the application mailer.
@@ -652,7 +653,14 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   defp air_usage_label(:runner_minutes, usage, limit),
-    do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
+    do:
+      dgettext(
+        "dashboard_account",
+        "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})",
+        usage: usage,
+        limit: limit,
+        linux: Allowance.free_monthly_minutes(:linux)
+      )
 
   defp air_usage_label(:cache_egress_megabytes, usage, limit) do
     dgettext("dashboard_account", "%{usage} of %{limit} of cache egress used",

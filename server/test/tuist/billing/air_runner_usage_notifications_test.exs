@@ -18,7 +18,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
 
     for {minutes, expected} <- [{0, nil}, {7, nil}, {8, 80}, {9, 80}, {10, 100}, {12, 100}] do
       user = AccountsFixtures.user_fixture()
-      stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> minutes * 60_000 end)
+      stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: minutes * 60_000}] end)
       assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
       notification = Repo.get_by(AirUsageNotification, account_id: user.account.id, metric: :runner_minutes)
       assert (notification && notification.threshold) == expected
@@ -30,14 +30,14 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     user = AccountsFixtures.user_fixture()
     Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 800_000})
     now = DateTime.utc_now()
-    stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 80 * 60_000 end)
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 80 * 60_000}] end)
 
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert Repo.aggregate(AirUsageNotification, :count) == 2
 
     Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 1_000_000})
-    stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 100 * 60_000 end)
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 100 * 60_000}] end)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
 
@@ -57,7 +57,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     Accounts.add_user_to_organization(admin, organization, role: :admin)
     Accounts.add_user_to_organization(AccountsFixtures.user_fixture(), organization, role: :user)
     Accounts.add_user_to_organization(AccountsFixtures.user_fixture(), organization, role: :viewer)
-    stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 80 * 60_000 end)
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 80 * 60_000}] end)
 
     assert {:ok, _} = AirUsageNotifications.enqueue(organization.account.id, DateTime.utc_now())
     assert Enum.sort(Enum.map(Repo.all(AirUsageNotification), & &1.user_id)) == Enum.sort([owner.id, admin.id])
@@ -67,7 +67,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     user = AccountsFixtures.user_fixture()
     Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 800_000})
     user.account |> change(runner_trial_started_at: DateTime.truncate(DateTime.utc_now(), :second)) |> Repo.update!()
-    reject(RunnerBilling, :compute_milliseconds, 3)
+    reject(RunnerBilling, :compute_units_by_platform, 3)
 
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
     assert [%{metric: :cache_requests}] = Repo.all(AirUsageNotification)
@@ -81,7 +81,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     |> change(runner_trial_started_at: DateTime.add(now, -1, :day), runner_trial_ended_at: now)
     |> Repo.update!()
 
-    stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 80 * 60_000 end)
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 80 * 60_000}] end)
 
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert [%{metric: :runner_minutes}] = Repo.all(AirUsageNotification)
@@ -90,7 +90,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
   test "paid accounts are excluded before querying runner usage" do
     user = AccountsFixtures.user_fixture()
     BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
-    reject(RunnerBilling, :compute_milliseconds, 3)
+    reject(RunnerBilling, :compute_units_by_platform, 3)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
     assert Repo.all(AirUsageNotification) == []
   end
@@ -98,7 +98,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
   test "cache resets do not reset runner notifications, but a new month does" do
     user = AccountsFixtures.user_fixture()
     now = DateTime.utc_now()
-    stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 80 * 60_000 end)
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 80 * 60_000}] end)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     notification = Repo.get_by!(AirUsageNotification, account_id: user.account.id)
 
@@ -117,8 +117,8 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     ended_at = DateTime.add(started_at, 40, :minute)
 
     # Fix the query window so this test also works during the first minutes of a month.
-    stub(RunnerBilling, :compute_milliseconds, fn account_id, _period_start, _period_end ->
-      Mimic.call_original(RunnerBilling, :compute_milliseconds, [account_id, started_at, ended_at])
+    stub(RunnerBilling, :compute_units_by_platform, fn account_id, _period_start, _period_end ->
+      Mimic.call_original(RunnerBilling, :compute_units_by_platform, [account_id, started_at, ended_at])
     end)
 
     Repo.insert!(%RunnerSession{
@@ -138,9 +138,22 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     assert [%{metric: :runner_minutes, usage: 80, limit: 100, threshold: 80}] = Repo.all(AirUsageNotification)
   end
 
+  test "counts Linux minutes at their share of the macOS allowance" do
+    # 2,000 Linux baseline minutes are 80% of the 2,500 free ones, the
+    # same share of the allowance as 80 macOS minutes.
+    user = AccountsFixtures.user_fixture()
+
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ ->
+      [%{platform: :linux, total_units: 2_000 * 60_000}]
+    end)
+
+    assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
+    assert [%{metric: :runner_minutes, usage: 80, limit: 100, threshold: 80}] = Repo.all(AirUsageNotification)
+  end
+
   test "delivers a runner warning once and suppresses it if a trial starts before delivery" do
     user = AccountsFixtures.user_fixture()
-    stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 80 * 60_000 end)
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 80 * 60_000}] end)
     {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
     notification = Repo.get_by!(AirUsageNotification, account_id: user.account.id)
 
@@ -155,7 +168,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     assert Repo.reload!(notification).delivered_at
     assert :ok = perform_job(AirUsageNotificationWorker, %{notification_id: notification.id})
 
-    stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 100 * 60_000 end)
+    stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 100 * 60_000}] end)
     {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
     reached = Repo.get_by!(AirUsageNotification, account_id: user.account.id, threshold: 100)
     user.account |> change(runner_trial_started_at: DateTime.truncate(DateTime.utc_now(), :second)) |> Repo.update!()

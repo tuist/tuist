@@ -41,8 +41,14 @@ defmodule Tuist.Billing.AirUsageNotifications do
   def usage(account, :runner_minutes) do
     now = DateTime.utc_now()
     period_start = period_start(account, now, :runner_minutes)
-    minutes = account.id |> RunnerBilling.compute_milliseconds(period_start, now) |> div(60_000)
-    {minutes, Allowance.free_monthly_minutes()}
+
+    minutes =
+      account.id
+      |> RunnerBilling.compute_units_by_platform(period_start, now)
+      |> Map.new(&{&1.platform, &1.total_units})
+      |> Allowance.allowance_minutes()
+
+    {minutes, Allowance.free_monthly_minutes(:macos)}
   end
 
   def usage(account, :cache_egress_megabytes),
