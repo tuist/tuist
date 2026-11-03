@@ -43,7 +43,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
           selected: %Schema{type: :integer, description: "The tests that will run."}
         }
       },
-      skip: %Schema{
+      skipped_tests: %Schema{
         type: :array,
         items: SkippedTest,
         description:

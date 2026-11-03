@@ -27,17 +27,17 @@ Los tests inestables son tests que producen resultados diferentes (éxito o fall
 />
   <.home_card
     title="Bazel"
-    details="Detecta, silencia y omite casos de prueba inestables de Bazel mediante tuist bazel test."
+    details="Detecta, silencia y omite casos de test inestables de Bazel mediante tuist bazel test."
     link="/guides/features/test-insights/flaky-tests/bazel"
 />
   <.home_card
     title="Elixir"
-    details="Detecta y gestiona tests inestables en proyectos de Elixir con reintentos de ejecución."
+    details="Detecta y gestiona tests inestables en proyectos de Elixir con reintentos de test."
     link="/guides/features/test-insights/flaky-tests/elixir"
 />
   <.home_card
     title="Rust"
-    details="Detecta e investiga tests inestables de Cargo utilizando los resultados de las ejecuciones de CI."
+    details="Detecta e investiga tests inestables de Cargo usando los resultados de las ejecuciones de CI."
     link="/guides/features/test-insights/flaky-tests/rust"
 />
 </.home_cards>

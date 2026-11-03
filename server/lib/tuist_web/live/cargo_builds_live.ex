@@ -3,6 +3,7 @@ defmodule TuistWeb.CargoBuildsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.BuildStatusFilter, only: [build_status_dropdown: 1]
   import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.ScatterChart
@@ -14,6 +15,7 @@ defmodule TuistWeb.CargoBuildsLive do
   alias Tuist.Cargo
   alias Tuist.ReportActor
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Components.BuildStatusFilter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -32,7 +34,13 @@ defmodule TuistWeb.CargoBuildsLive do
     selection = %{selection | period: bounded_period(selection.period)}
     {start_datetime, end_datetime} = selection.period
     environment = choice(params["analytics-environment"], ["any", "ci", "local"], "any")
-    opts = [start_datetime: start_datetime, end_datetime: end_datetime] ++ environment_opts(environment)
+    build_status = BuildStatusFilter.status(params)
+
+    opts =
+      BuildStatusFilter.put_status(
+        [start_datetime: start_datetime, end_datetime: end_datetime] ++ environment_opts(environment),
+        build_status
+      )
 
     opts =
       Enum.reduce([:rust_version], opts, fn key, opts ->
@@ -57,6 +65,7 @@ defmodule TuistWeb.CargoBuildsLive do
         analytics_preset: selection.preset,
         analytics_trend_label: analytics_trend_label(selection.preset),
         analytics_environment: environment,
+        analytics_build_status: build_status,
         analytics_selected_widget:
           choice(
             params["analytics-selected-widget"],

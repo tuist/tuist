@@ -178,7 +178,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
           "id" => UUIDv7.generate(),
           "outcome" => "selected",
           "counts" => %{"requested" => 10, "skipped" => 7, "selected" => 3},
-          "skip" => [
+          "skipped_tests" => [
             %{"module" => "AppTests", "suite" => "LoginTests", "name" => "testLogout"},
             %{"module" => "CoreTests"}
           ]
