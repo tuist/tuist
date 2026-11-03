@@ -1,0 +1,2532 @@
+{
+  "schema_version": 1,
+  "design": "Coverage-based test selection, design v37 (29 Oct 2026)",
+  "scheme": "Shop",
+  "platform": "ios",
+  "default_branch": "main",
+  "hash_stage": "Each scenario's hash.skipped lists the test targets whose hash equals one its passing runs stored: selective testing skips them before the selection call, so run and skip only list the tests of the targets left, and a scenario with no target left has outcome no_selection_call. Measured on the generated variant with `tuist hash selective-testing` (Tuist 4.216.0-canary.27), which passes no destination and so leaves out UI test targets; AppUITests' hash is App's measured hash plus its own sources, the inputs a destination-bound hash combines. The xcodeproj variant is expected to match except where a scenario overrides it.",
+  "evidence": "Measured: baseline_evidence is what TestCoverageAttribution 0.3.0 and Xcode's per-process profiles recorded on a full run of the Shop scheme (Xcode 27.0, iOS simulator, parallel testing on), reduced like the CLI reduces them: a record's counters to its functions' files, an app process to the test or suite that launched it, and a target's processes minus its test and suite scopes. Both variants record the same evidence.",
+  "assumptions": [
+    "Target-level evidence is what a module's test processes executed outside every test- and suite-scoped record: a hosted app's launch, and the bodies of Swift Testing tests, which record no test scope. coverage_files' target rows hold the whole process today, so the rules must subtract the test and suite scopes; otherwise every XCTest test in a module whose target evidence includes a changed file is selected, and skips such as MoneyTests in source_change become selections.",
+    "Target-level evidence counts as baseline evidence for owned_without_evidence, so a file that only Swift Testing tests executed is evidenced (swift_testing_only_source).",
+    "A UI test's evidence includes every app process it launched (testDiscountAfterRelaunch relaunches). An app launched outside a test, in a class setUp, is the suite's evidence and selects every test of the suite (SharedAppUITests).",
+    "matched_path is set for test_file_changed (the changed test file) and impacted (the first changed path in path order that the newest version or the module's target evidence includes), and absent for other reasons.",
+    "A test file is any source of a test target the baseline recorded, helpers and base classes included: changing one selects every suite with a test that executed it (test_helper_change, ui_test_base_class_change).",
+    "The server's inventory is the baseline's tests, so it decides tests the checkout deleted. Their rows carry exists_at_checkout: false; the client has nothing to run for them (deleted_test_file).",
+    "The fallbacks that make the checkout a baseline (no_baseline, baseline_too_old, diff_too_large, excluded_branch) run every test without pruning by hash; hash.skipped is null for them.",
+    "A full run with failing tests is still a baseline (failed_at_baseline).",
+    "The baseline and the evidence window come from the walk back from the checkout: a measured commit the checkout doesn't contain, such as a newer commit on main, is neither (stale_base). baseline names the expected baseline ref, null for fallbacks without one.",
+    "Baselines are per scheme; a scenario's scheme, and a run's, default to the top-level one. Evidence comes from the instrumented images, which Xcode builds for every target whatever the scheme's coverage targets, not from the result bundle's coverage report, which those targets narrow (coverage_targets_subset).",
+    "affected_modules lists the test modules that depend, directly or not, on the file's owning target, including the owner when it's a test target. A UI test target depends on its target application. Project-level files such as xcconfigs have no affected_modules; a deleted file, which no target owns anymore, has none.",
+    "A run after the baseline lists in edits the files scenarios.sh changes at its ref.",
+    "Each scenario is evaluated against its own fresh project and cache, with only its runs recorded before the checkout."
+  ],
+  "test_targets": {
+    "CoreTests": {
+      "framework": "xctest",
+      "tests": [
+        "MoneyTests/testFormatsDollars",
+        "MoneyTests/testAddsAmounts",
+        "DiscountTests/testTenPercentOff",
+        "DiscountTests/testZeroPercentKeepsPrice",
+        "RoundingTests/testRoundsDownToWholeCents"
+      ]
+    },
+    "CatalogTests": {
+      "framework": "mixed",
+      "tests": [
+        "CatalogLoadingTests/testBundledProductCount",
+        "CatalogLoadingTests/testLookupBySKU",
+        "CatalogFixtureTests/testFixtureParses",
+        "SearchTests/matchesName()",
+        "SearchTests/matchingIgnoresCase()"
+      ]
+    },
+    "AppTests": {
+      "framework": "swift_testing",
+      "host": "App",
+      "tests": [
+        "CartTests/totalSumsItems()",
+        "CartTests/discountAppliesToTotal()"
+      ]
+    },
+    "CheckoutTests": {
+      "framework": "xctest",
+      "host": "App",
+      "tests": [
+        "ReceiptTests/testListsItems",
+        "ReceiptTests/testAppliesDiscount"
+      ]
+    },
+    "AppUITests": {
+      "framework": "xcuitest",
+      "target_application": "App",
+      "tests": [
+        "ShopUITests/testShowsCatalog",
+        "ShopUITests/testApplyingDiscountUpdatesTotal",
+        "RelaunchUITests/testDiscountAfterRelaunch",
+        "SharedAppUITests/testShowsTotal",
+        "SharedAppUITests/testShowsReceipt"
+      ]
+    }
+  },
+  "baseline_evidence": {
+    "tests": {
+      "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": [
+        "App/Sources/Cart.swift",
+        "App/Sources/Receipt.swift",
+        "App/Sources/ShopApp.swift",
+        "AppUITests/RelaunchUITests.swift",
+        "AppUITests/ShopUITestCase.swift",
+        "Catalog/Sources/Catalog.swift",
+        "Core/Sources/Discount.swift",
+        "Core/Sources/Money.swift"
+      ],
+      "AppUITests/SharedAppUITests/testShowsReceipt": [
+        "AppUITests/SharedAppUITests.swift"
+      ],
+      "AppUITests/SharedAppUITests/testShowsTotal": [
+        "AppUITests/SharedAppUITests.swift"
+      ],
+      "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": [
+        "App/Sources/Cart.swift",
+        "App/Sources/ShopApp.swift",
+        "AppUITests/ShopUITestCase.swift",
+        "AppUITests/ShopUITests.swift",
+        "Catalog/Sources/Catalog.swift",
+        "Core/Sources/Discount.swift",
+        "Core/Sources/Money.swift"
+      ],
+      "AppUITests/ShopUITests/testShowsCatalog": [
+        "App/Sources/Cart.swift",
+        "App/Sources/ShopApp.swift",
+        "AppUITests/ShopUITestCase.swift",
+        "AppUITests/ShopUITests.swift",
+        "Catalog/Sources/Catalog.swift",
+        "Core/Sources/Money.swift"
+      ],
+      "CatalogTests/CatalogFixtureTests/testFixtureParses": [
+        "Catalog/Sources/Catalog.swift",
+        "CatalogTests/CatalogFixtureTests.swift"
+      ],
+      "CatalogTests/CatalogLoadingTests/testBundledProductCount": [
+        "CatalogTests/CatalogLoadingTests.swift"
+      ],
+      "CatalogTests/CatalogLoadingTests/testLookupBySKU": [
+        "Catalog/Sources/Catalog.swift",
+        "CatalogTests/CatalogLoadingTests.swift"
+      ],
+      "CheckoutTests/ReceiptTests/testAppliesDiscount": [
+        "App/Sources/Receipt.swift",
+        "Catalog/Sources/Catalog.swift",
+        "CheckoutTests/ReceiptTests.swift",
+        "Core/Sources/Discount.swift",
+        "Core/Sources/Money.swift"
+      ],
+      "CheckoutTests/ReceiptTests/testListsItems": [
+        "App/Sources/Receipt.swift",
+        "Catalog/Sources/Catalog.swift",
+        "CheckoutTests/ReceiptTests.swift",
+        "Core/Sources/Money.swift"
+      ],
+      "CoreTests/DiscountTests/testTenPercentOff": [
+        "Core/Sources/Discount.swift",
+        "Core/Sources/Money.swift",
+        "CoreTests/DiscountTests.swift"
+      ],
+      "CoreTests/DiscountTests/testZeroPercentKeepsPrice": [
+        "Core/Sources/Discount.swift",
+        "Core/Sources/Money.swift",
+        "CoreTests/DiscountTests.swift",
+        "CoreTests/Support/Prices.swift"
+      ],
+      "CoreTests/MoneyTests/testAddsAmounts": [
+        "Core/Sources/Money.swift",
+        "CoreTests/MoneyTests.swift"
+      ],
+      "CoreTests/MoneyTests/testFormatsDollars": [
+        "Core/Sources/Money.swift",
+        "CoreTests/MoneyTests.swift"
+      ],
+      "CoreTests/RoundingTests/testRoundsDownToWholeCents": [
+        "Core/Sources/Discount.swift",
+        "Core/Sources/Money.swift",
+        "CoreTests/RoundingTests.swift",
+        "CoreTests/Support/Prices.swift"
+      ]
+    },
+    "suites": {
+      "AppUITests/SharedAppUITests": [
+        "App/Sources/Cart.swift",
+        "App/Sources/Receipt.swift",
+        "App/Sources/ShopApp.swift",
+        "AppUITests/SharedAppUITests.swift",
+        "Catalog/Sources/Catalog.swift",
+        "Core/Sources/Money.swift"
+      ],
+      "CatalogTests/CatalogLoadingTests": [
+        "Catalog/Sources/Catalog.swift",
+        "CatalogTests/CatalogLoadingTests.swift"
+      ]
+    },
+    "targets": {
+      "CoreTests": [],
+      "CatalogTests": [
+        "Catalog/Sources/Search.swift",
+        "CatalogTests/SearchTests.swift"
+      ],
+      "AppTests": [
+        "App/Sources/Cart.swift",
+        "App/Sources/ShopApp.swift",
+        "AppTests/CartTests.swift",
+        "Catalog/Sources/Catalog.swift",
+        "Core/Sources/Discount.swift",
+        "Core/Sources/Money.swift"
+      ],
+      "CheckoutTests": [
+        "App/Sources/Cart.swift",
+        "App/Sources/ShopApp.swift"
+      ],
+      "AppUITests": []
+    },
+    "test_files": [
+      "AppTests/CartTests.swift",
+      "AppUITests/RelaunchUITests.swift",
+      "AppUITests/SharedAppUITests.swift",
+      "AppUITests/ShopUITestCase.swift",
+      "AppUITests/ShopUITests.swift",
+      "CatalogTests/CatalogFixtureTests.swift",
+      "CatalogTests/CatalogLoadingTests.swift",
+      "CatalogTests/SearchTests.swift",
+      "CheckoutTests/ReceiptTests.swift",
+      "CoreTests/DiscountTests.swift",
+      "CoreTests/MoneyTests.swift",
+      "CoreTests/RoundingTests.swift",
+      "CoreTests/Support/Prices.swift"
+    ]
+  },
+  "scenarios": [
+    {
+      "name": "source_change",
+      "case": "A source change in one file",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/source-change",
+        "branch": "feature/source-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "Only the tests whose evidence includes Discount.swift run, plus the Swift Testing tests of AppTests, whose hash changed. testDiscountAfterRelaunch applies the discount in the second of its two app processes; testApplyingDiscountUpdatesTotal launches its app in the base class's setUp."
+    },
+    {
+      "name": "shared_file",
+      "case": "A shared file",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/shared-file",
+        "branch": "feature/shared-file"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Money.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/MoneyTests/testFormatsDollars": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "CoreTests/MoneyTests/testAddsAmounts": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Money.swift"
+        }
+      },
+      "skip": {},
+      "notes": "SharedAppUITests' tests are selected through their suite: the app their class setUp launched executed Money.swift."
+    },
+    {
+      "name": "resource_change",
+      "case": "A resource",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/resource-change",
+        "branch": "feature/resource-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Catalog/Resources/products.json",
+          "status": "M",
+          "affected_modules": [
+            "CatalogTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CoreTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CatalogTests/CatalogLoadingTests/testBundledProductCount": {
+          "reason": "owned_without_evidence"
+        },
+        "CatalogTests/CatalogLoadingTests/testLookupBySKU": {
+          "reason": "owned_without_evidence"
+        },
+        "CatalogTests/CatalogFixtureTests/testFixtureParses": {
+          "reason": "owned_without_evidence"
+        },
+        "CatalogTests/SearchTests/matchesName()": {
+          "reason": "no_evidence"
+        },
+        "CatalogTests/SearchTests/matchingIgnoresCase()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "owned_without_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "owned_without_evidence"
+        }
+      },
+      "skip": {},
+      "notes": "No evidence includes a resource, so every test in the modules that depend on Catalog runs."
+    },
+    {
+      "name": "asset_catalog_change",
+      "case": "An asset catalog",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/asset-catalog-change",
+        "branch": "feature/asset-catalog-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "App/Resources/Assets.xcassets/Brand.colorset/Contents.json",
+          "status": "M",
+          "affected_modules": [
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CoreTests",
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "owned_without_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "owned_without_evidence"
+        }
+      },
+      "skip": {}
+    },
+    {
+      "name": "test_file_change",
+      "case": "A test file",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/test-file-change",
+        "branch": "feature/test-file-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "CoreTests/DiscountTests.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests",
+          "AppUITests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/DiscountTests.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/DiscountTests.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": "unaffected"
+      },
+      "notes": "Only CoreTests' hash changed, so it is the only target that reaches coverage."
+    },
+    {
+      "name": "new_test",
+      "case": "A new test",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/new-test",
+        "branch": "feature/new-test"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "CoreTests/DiscountTests.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests",
+          "AppUITests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/DiscountTests.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/DiscountTests.swift"
+        },
+        "CoreTests/DiscountTests/testFiftyPercentOff": {
+          "reason": "no_evidence",
+          "known_to_server": false
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": "unaffected"
+      },
+      "notes": "testFiftyPercentOff isn't in the baseline, so the server never sees it and it isn't on the skip list: it runs. Its row says no_evidence because that is the rule that covers new tests."
+    },
+    {
+      "name": "failed_at_baseline",
+      "case": "A test that failed at the baseline",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main",
+          "env": {
+            "TEST_RUNNER_TESTBED_FAILING_TESTS": "MoneyTests/testAddsAmounts"
+          },
+          "expect": "testAddsAmounts fails; every other test passes"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/failed-at-baseline",
+        "branch": "feature/failed-at-baseline"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "docs/notes.md",
+          "status": "M",
+          "affected_modules": []
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests",
+          "AppUITests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/MoneyTests/testAddsAmounts": {
+          "reason": "failed_last_run"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/DiscountTests/testTenPercentOff": "unaffected",
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": "unaffected",
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": "unaffected"
+      },
+      "notes": "The checkout changes no hashed input, but CoreTests failed at the baseline, so its hash was never stored and it reaches coverage. The only CoreTests test that runs is the one that failed."
+    },
+    {
+      "name": "carried_evidence",
+      "case": "A selected run whose evidence a later commit carries",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        },
+        {
+          "ref": "run/carried-evidence/1",
+          "branch": "feature/carried-evidence",
+          "edits": [
+            "Core/Sources/Money.swift"
+          ],
+          "expect": "selected: every CoreTests, CheckoutTests and AppUITests test runs (impacted by Money.swift) and uploads evidence"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/carried-evidence",
+        "branch": "feature/carried-evidence"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        },
+        {
+          "path": "Core/Sources/Money.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "Money.swift differs from the baseline, but the run at run/carried-evidence/1 executed the tests without Discount.swift in their evidence with today's Money.swift, and the checkout reproduces those versions. Without them, every test would be impacted by Money.swift. CoreTests' hash at the checkout differs from the one stored at run/carried-evidence/1, so it reaches coverage; CatalogTests matches the baseline's."
+    },
+    {
+      "name": "window_at_cap",
+      "case": "The evidence window at the 20-commit cap",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        },
+        {
+          "ref": "run/evidence-window/01",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/02",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/03",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/04",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/05",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/06",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/07",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/08",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/09",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/10",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/11",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/12",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/13",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/14",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/15",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/16",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/17",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/18",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/19",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/20",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/window-at-cap",
+        "branch": "feature/evidence-window"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "20 measured commits sit between the checkout and the baseline: the window is full but valid."
+    },
+    {
+      "name": "window_over_cap",
+      "case": "A window over the 20-commit cap",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        },
+        {
+          "ref": "run/evidence-window/01",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/02",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/03",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/04",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/05",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/06",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/07",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/08",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/09",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/10",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/11",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/12",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/13",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/14",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/15",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/16",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/17",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/18",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/19",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/20",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        },
+        {
+          "ref": "run/evidence-window/21",
+          "branch": "feature/evidence-window",
+          "edits": [
+            "Core/Sources/Discount.swift"
+          ]
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/window-over-cap",
+        "branch": "feature/evidence-window"
+      },
+      "baseline": null,
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": null
+      },
+      "outcome": "fallback",
+      "reason": "baseline_too_old",
+      "run_targets": [
+        "CoreTests",
+        "CatalogTests",
+        "AppTests",
+        "CheckoutTests",
+        "AppUITests"
+      ],
+      "notes": "21 measured commits sit between the checkout and the baseline. Every test runs with evidence and the checkout becomes the next baseline."
+    },
+    {
+      "name": "window_unmeasured",
+      "case": "Unmeasured commits don't count toward the cap",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/window-unmeasured",
+        "branch": "feature/evidence-window"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "Same checkout as window_over_cap, but none of the 21 commits in between has a run, so the walk passes them and finds the baseline."
+    },
+    {
+      "name": "default_branch",
+      "case": "A default-branch run",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/default-branch",
+        "branch": "main"
+      },
+      "baseline": null,
+      "changed_files": [
+        {
+          "path": "Catalog/Sources/Catalog.swift",
+          "status": "M",
+          "affected_modules": [
+            "CatalogTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        },
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": null
+      },
+      "outcome": "fallback",
+      "reason": "excluded_branch",
+      "run_targets": [
+        "CoreTests",
+        "CatalogTests",
+        "AppTests",
+        "CheckoutTests",
+        "AppUITests"
+      ],
+      "notes": "The default branch neither prunes by hash nor selects: every test runs and uploads evidence, so the commit becomes a baseline."
+    },
+    {
+      "name": "diff_too_large",
+      "case": "A diff over 5,000 files",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/diff-too-large",
+        "branch": "feature/diff-too-large"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        },
+        {
+          "path": "bulk/0001.txt … bulk/5001.txt",
+          "status": "A",
+          "affected_modules": [],
+          "count": 5001
+        }
+      ],
+      "hash": {
+        "skipped": null
+      },
+      "outcome": "fallback",
+      "reason": "diff_too_large",
+      "changed_files_count": 5002,
+      "run_targets": [
+        "CoreTests",
+        "CatalogTests",
+        "AppTests",
+        "CheckoutTests",
+        "AppUITests"
+      ],
+      "notes": "The CLI sends the first 5,000 files in path order and changed_files_count 5,002. Discount.swift is there so a hash changes and the run reaches the server at all."
+    },
+    {
+      "name": "tracked_file",
+      "case": "A tracked file",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/tracked-file",
+        "branch": "feature/tracked-file"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Configs/Base.xcconfig",
+          "status": "M"
+        }
+      ],
+      "hash": {
+        "skipped": []
+      },
+      "outcome": "fallback",
+      "reason": "tracked_file_changed",
+      "matched_path": "Configs/Base.xcconfig",
+      "run_targets": [
+        "CoreTests",
+        "CatalogTests",
+        "AppTests",
+        "CheckoutTests",
+        "AppUITests"
+      ],
+      "notes": "The fallback is default selective testing: the targets whose hash changed run whole. The xcconfig is in every target's hash."
+    },
+    {
+      "name": "declaration_only_change",
+      "case": "A declaration-only change",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/declaration-only-change",
+        "branch": "feature/declaration-only-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Models.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/MoneyTests/testFormatsDollars": {
+          "reason": "owned_without_evidence"
+        },
+        "CoreTests/MoneyTests/testAddsAmounts": {
+          "reason": "owned_without_evidence"
+        },
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "owned_without_evidence"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "owned_without_evidence"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "owned_without_evidence"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "owned_without_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "owned_without_evidence"
+        }
+      },
+      "skip": {},
+      "notes": "Models.swift holds only a typealias and a protocol, so no evidence includes it."
+    },
+    {
+      "name": "unowned_file",
+      "case": "An unowned file",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/unowned-file",
+        "branch": "feature/unowned-file"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "README.md",
+          "status": "M",
+          "affected_modules": []
+        },
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "README.md selects nothing; the selection is source_change's. Discount.swift is there so a hash changes and the run reaches the server."
+    },
+    {
+      "name": "unowned_file_only",
+      "case": "An unowned file, alone",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/unowned-file-only",
+        "branch": "feature/unowned-file-only"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "README.md",
+          "status": "M",
+          "affected_modules": []
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CoreTests",
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests",
+          "AppUITests"
+        ]
+      },
+      "outcome": "no_selection_call",
+      "notes": "Every target's hash matched, so hash pruning skips them all and the CLI makes no selection call."
+    },
+    {
+      "name": "unowned_test_fixture",
+      "case": "A JSON fixture outside the declared resources",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/unowned-test-fixture",
+        "branch": "feature/unowned-test-fixture"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "CatalogTests/Fixtures/catalog-fixture.json",
+          "status": "M",
+          "affected_modules": []
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CoreTests",
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests",
+          "AppUITests"
+        ]
+      },
+      "outcome": "no_selection_call",
+      "notes": "Accepted gap: testFixtureParses reads the file at runtime, but no target owns it, so no hash changes and the CLI makes no selection call. Default selective testing skips it the same way."
+    },
+    {
+      "name": "dirty_checkout",
+      "case": "A dirty checkout",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/dirty-checkout",
+        "branch": "feature/dirty-checkout"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Catalog/Sources/Featured.swift",
+          "status": "A",
+          "affected_modules": [
+            "CatalogTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        },
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        },
+        {
+          "path": "docs/notes.md",
+          "status": "M",
+          "affected_modules": []
+        }
+      ],
+      "hash": {
+        "skipped": []
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CatalogTests/CatalogLoadingTests/testBundledProductCount": {
+          "reason": "owned_without_evidence"
+        },
+        "CatalogTests/CatalogLoadingTests/testLookupBySKU": {
+          "reason": "owned_without_evidence"
+        },
+        "CatalogTests/CatalogFixtureTests/testFixtureParses": {
+          "reason": "owned_without_evidence"
+        },
+        "CatalogTests/SearchTests/matchesName()": {
+          "reason": "no_evidence"
+        },
+        "CatalogTests/SearchTests/matchingIgnoresCase()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "owned_without_evidence"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected"
+      },
+      "notes": "`scenarios.sh checkout` leaves Discount.swift modified and Featured.swift untracked. The request sets dirty: true, so the diff isn't stored.",
+      "variants": {
+        "xcodeproj": {
+          "changed_files": [
+            {
+              "path": "Catalog/Sources/Featured.swift",
+              "status": "A",
+              "affected_modules": []
+            },
+            {
+              "path": "Core/Sources/Discount.swift",
+              "status": "M",
+              "affected_modules": [
+                "CoreTests",
+                "AppTests",
+                "CheckoutTests",
+                "AppUITests"
+              ]
+            },
+            {
+              "path": "docs/notes.md",
+              "status": "M",
+              "affected_modules": []
+            }
+          ],
+          "hash": {
+            "skipped": [
+              "CatalogTests"
+            ]
+          },
+          "run": {
+            "CoreTests/DiscountTests/testTenPercentOff": {
+              "reason": "impacted",
+              "matched_path": "Core/Sources/Discount.swift"
+            },
+            "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+              "reason": "impacted",
+              "matched_path": "Core/Sources/Discount.swift"
+            },
+            "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+              "reason": "impacted",
+              "matched_path": "Core/Sources/Discount.swift"
+            },
+            "AppTests/CartTests/totalSumsItems()": {
+              "reason": "no_evidence"
+            },
+            "AppTests/CartTests/discountAppliesToTotal()": {
+              "reason": "no_evidence"
+            },
+            "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+              "reason": "impacted",
+              "matched_path": "Core/Sources/Discount.swift"
+            },
+            "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+              "reason": "impacted",
+              "matched_path": "Core/Sources/Discount.swift"
+            },
+            "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+              "reason": "impacted",
+              "matched_path": "Core/Sources/Discount.swift"
+            }
+          },
+          "skip": {
+            "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+            "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+            "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+            "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+            "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+            "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+          },
+          "notes": "The project file doesn't reference the untracked Featured.swift, so no target owns or compiles it."
+        }
+      }
+    },
+    {
+      "name": "local_merge",
+      "case": "A local merge commit (the checked-out commit's diff)",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/local-merge",
+        "branch": null,
+        "merge_parents": [
+          "main/catalog-change",
+          "head/local-merge"
+        ]
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Catalog/Sources/Catalog.swift",
+          "status": "M",
+          "affected_modules": [
+            "CatalogTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        },
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": []
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CatalogTests/CatalogLoadingTests/testBundledProductCount": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "CatalogTests/CatalogLoadingTests/testLookupBySKU": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "CatalogTests/CatalogFixtureTests/testFixtureParses": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "CatalogTests/SearchTests/matchesName()": {
+          "reason": "no_evidence"
+        },
+        "CatalogTests/SearchTests/matchingIgnoresCase()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Catalog.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected"
+      },
+      "notes": "The checkout is a merge of head/local-merge (Discount.swift) into main/catalog-change (Catalog.swift), detached, like GitHub's pull_request checkout. The baseline is found from both parents and the diff runs against the merge commit, so Catalog.swift, which only main changed, selects CatalogTests, CheckoutTests and every UI test. A diff against the head would skip them. testBundledProductCount is selected through its suite's class setUp."
+    },
+    {
+      "name": "swift_testing_only_source",
+      "case": "A file only Swift Testing tests execute",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/swift-testing-only-source",
+        "branch": "feature/swift-testing-only-source"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Catalog/Sources/Search.swift",
+          "status": "M",
+          "affected_modules": [
+            "CatalogTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CoreTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CatalogTests/CatalogLoadingTests/testBundledProductCount": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Search.swift"
+        },
+        "CatalogTests/CatalogLoadingTests/testLookupBySKU": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Search.swift"
+        },
+        "CatalogTests/CatalogFixtureTests/testFixtureParses": {
+          "reason": "impacted",
+          "matched_path": "Catalog/Sources/Search.swift"
+        },
+        "CatalogTests/SearchTests/matchesName()": {
+          "reason": "no_evidence"
+        },
+        "CatalogTests/SearchTests/matchingIgnoresCase()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        }
+      },
+      "skip": {
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": "unaffected",
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "Search.swift ran only inside SearchTests, which records no test-scoped evidence, so it's in CatalogTests' target-level evidence and selects the whole module. See the target-level assumption."
+    },
+    {
+      "name": "no_baseline",
+      "case": "No full run in reach",
+      "runs": [],
+      "checkout": {
+        "ref": "checkout/source-change",
+        "branch": "feature/source-change"
+      },
+      "baseline": null,
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": null
+      },
+      "outcome": "fallback",
+      "reason": "no_baseline",
+      "run_targets": [
+        "CoreTests",
+        "CatalogTests",
+        "AppTests",
+        "CheckoutTests",
+        "AppUITests"
+      ],
+      "notes": "Same checkout as source_change with nothing recorded. Every test runs with evidence and the checkout becomes a baseline."
+    },
+    {
+      "name": "stale_base",
+      "case": "A branch whose base moved on",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        },
+        {
+          "ref": "main/catalog-change",
+          "branch": "main",
+          "edits": [
+            "Catalog/Sources/Catalog.swift"
+          ],
+          "expect": "excluded_branch: every test runs and uploads evidence, so the commit is a baseline"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/source-change",
+        "branch": "feature/source-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "main moved on to main/catalog-change, which has a full run, after feature/source-change branched off. The checkout doesn't contain it, so the baseline is the merge base, the diff is Discount.swift alone, and the versions recorded at main/catalog-change are outside the window. Taking main's newest run would put its Catalog.swift in the diff and its versions in the window, and select every test that executed Catalog.swift."
+    },
+    {
+      "name": "coverage_targets_subset",
+      "case": "A scheme that measures only some targets",
+      "scheme": "ShopAppCoverage",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main",
+          "scheme": "ShopAppCoverage"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/source-change",
+        "branch": "feature/source-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected",
+        "CheckoutTests/ReceiptTests/testListsItems": "unaffected",
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "ShopAppCoverage gathers coverage for App and Catalog only. Xcode still instruments every target and only narrows the result bundle's report, so TestCoverageAttribution records the same evidence as under Shop and the decisions are source_change's. Evidence read from the report instead would lack Core and the test bundles: every CoreTests test would have no evidence and Discount.swift would select every test that depends on Core."
+    },
+    {
+      "name": "receipt_change",
+      "case": "A file that UI tests reach through relaunched and shared app processes",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/receipt-change",
+        "branch": "feature/receipt-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "App/Sources/Receipt.swift",
+          "status": "M",
+          "affected_modules": [
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CoreTests",
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "impacted",
+          "matched_path": "App/Sources/Receipt.swift"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "App/Sources/Receipt.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "App/Sources/Receipt.swift"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "impacted",
+          "matched_path": "App/Sources/Receipt.swift"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "impacted",
+          "matched_path": "App/Sources/Receipt.swift"
+        }
+      },
+      "skip": {
+        "AppUITests/ShopUITests/testShowsCatalog": "unaffected",
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": "unaffected"
+      },
+      "notes": "testDiscountAfterRelaunch showed the receipt in the first of its two app processes. SharedAppUITests' app was launched in its class setUp, outside any test, so what it executed is the suite's evidence: both tests are selected, including testShowsTotal, which never showed the receipt. ReceiptTests are hosted XCTest tests with per-test evidence."
+    },
+    {
+      "name": "test_helper_change",
+      "case": "A helper in a test target",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/test-helper-change",
+        "branch": "feature/test-helper-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "CoreTests/Support/Prices.swift",
+          "status": "M",
+          "affected_modules": [
+            "CoreTests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests",
+          "AppUITests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/Support/Prices.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/Support/Prices.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/Support/Prices.swift"
+        }
+      },
+      "skip": {
+        "CoreTests/MoneyTests/testFormatsDollars": "unaffected",
+        "CoreTests/MoneyTests/testAddsAmounts": "unaffected"
+      },
+      "notes": "Prices.swift is test code with no tests of its own. Every suite with a test that executed it runs: DiscountTests (through testZeroPercentKeepsPrice) and RoundingTests. MoneyTests never calls it."
+    },
+    {
+      "name": "ui_test_base_class_change",
+      "case": "A UI test base class",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/ui-test-base-class-change",
+        "branch": "feature/ui-test-base-class-change"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "AppUITests/ShopUITestCase.swift",
+          "status": "M",
+          "affected_modules": [
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CoreTests",
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "test_file_changed",
+          "matched_path": "AppUITests/ShopUITestCase.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "test_file_changed",
+          "matched_path": "AppUITests/ShopUITestCase.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "test_file_changed",
+          "matched_path": "AppUITests/ShopUITestCase.swift"
+        }
+      },
+      "skip": {
+        "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
+        "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
+      },
+      "notes": "ShopUITests and RelaunchUITests subclass ShopUITestCase, whose setUp and tearDown run inside each test. SharedAppUITests doesn't."
+    },
+    {
+      "name": "deleted_test_file",
+      "case": "A deleted test file",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/deleted-test-file",
+        "branch": "feature/deleted-test-file"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "CoreTests/MoneyTests.swift",
+          "status": "D",
+          "affected_modules": []
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests",
+          "AppTests",
+          "CheckoutTests",
+          "AppUITests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/MoneyTests/testFormatsDollars": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/MoneyTests.swift",
+          "exists_at_checkout": false
+        },
+        "CoreTests/MoneyTests/testAddsAmounts": {
+          "reason": "test_file_changed",
+          "matched_path": "CoreTests/MoneyTests.swift",
+          "exists_at_checkout": false
+        }
+      },
+      "skip": {
+        "CoreTests/DiscountTests/testTenPercentOff": "unaffected",
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": "unaffected",
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": "unaffected"
+      },
+      "notes": "MoneyTests is gone, but the server's inventory comes from the baseline, so it still decides the two tests: their file changed. The client has nothing to run for them. Nothing else executed MoneyTests.swift.",
+      "variants": {
+        "xcodeproj": {
+          "changed_files": [
+            {
+              "path": "CoreTests/MoneyTests.swift",
+              "status": "D",
+              "affected_modules": []
+            },
+            {
+              "path": "Shop.xcodeproj/project.pbxproj",
+              "status": "M"
+            }
+          ],
+          "hash": {
+            "skipped": [
+              "CatalogTests",
+              "AppTests",
+              "CheckoutTests",
+              "AppUITests"
+            ]
+          },
+          "outcome": "fallback",
+          "reason": "tracked_file_changed",
+          "matched_path": "Shop.xcodeproj/project.pbxproj",
+          "run": null,
+          "skip": null,
+          "run_targets": [
+            "CoreTests"
+          ],
+          "notes": "A plain Xcode project lists every file in project.pbxproj, a tracked file, so removing or renaming one falls back to default selective testing. The hash stage isn't measured on this variant."
+        }
+      }
+    },
+    {
+      "name": "renamed_source",
+      "case": "A renamed source file",
+      "runs": [
+        {
+          "ref": "baseline",
+          "branch": "main"
+        }
+      ],
+      "checkout": {
+        "ref": "checkout/renamed-source",
+        "branch": "feature/renamed-source"
+      },
+      "baseline": "baseline",
+      "changed_files": [
+        {
+          "path": "Core/Sources/Discount.swift",
+          "status": "D",
+          "affected_modules": []
+        },
+        {
+          "path": "Core/Sources/PercentDiscount.swift",
+          "status": "A",
+          "affected_modules": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ]
+        }
+      ],
+      "hash": {
+        "skipped": [
+          "CatalogTests"
+        ]
+      },
+      "outcome": "selected",
+      "run": {
+        "CoreTests/DiscountTests/testTenPercentOff": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/DiscountTests/testZeroPercentKeepsPrice": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CoreTests/RoundingTests/testRoundsDownToWholeCents": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "CheckoutTests/ReceiptTests/testAppliesDiscount": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/ShopUITests/testApplyingDiscountUpdatesTotal": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppUITests/RelaunchUITests/testDiscountAfterRelaunch": {
+          "reason": "impacted",
+          "matched_path": "Core/Sources/Discount.swift"
+        },
+        "AppTests/CartTests/totalSumsItems()": {
+          "reason": "no_evidence"
+        },
+        "AppTests/CartTests/discountAppliesToTotal()": {
+          "reason": "no_evidence"
+        },
+        "CoreTests/MoneyTests/testFormatsDollars": {
+          "reason": "owned_without_evidence"
+        },
+        "CoreTests/MoneyTests/testAddsAmounts": {
+          "reason": "owned_without_evidence"
+        },
+        "CheckoutTests/ReceiptTests/testListsItems": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/ShopUITests/testShowsCatalog": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsTotal": {
+          "reason": "owned_without_evidence"
+        },
+        "AppUITests/SharedAppUITests/testShowsReceipt": {
+          "reason": "owned_without_evidence"
+        }
+      },
+      "skip": {},
+      "notes": "The CLI diffs with --no-renames: Discount.swift is deleted and PercentDiscount.swift added. The deleted path selects the tests that executed it; the added one has no evidence, so it selects every test in the modules that depend on Core.",
+      "variants": {
+        "xcodeproj": {
+          "changed_files": [
+            {
+              "path": "Core/Sources/Discount.swift",
+              "status": "D",
+              "affected_modules": []
+            },
+            {
+              "path": "Core/Sources/PercentDiscount.swift",
+              "status": "A",
+              "affected_modules": [
+                "CoreTests",
+                "AppTests",
+                "CheckoutTests",
+                "AppUITests"
+              ]
+            },
+            {
+              "path": "Shop.xcodeproj/project.pbxproj",
+              "status": "M"
+            }
+          ],
+          "hash": {
+            "skipped": [
+              "CatalogTests"
+            ]
+          },
+          "outcome": "fallback",
+          "reason": "tracked_file_changed",
+          "matched_path": "Shop.xcodeproj/project.pbxproj",
+          "run": null,
+          "skip": null,
+          "run_targets": [
+            "CoreTests",
+            "AppTests",
+            "CheckoutTests",
+            "AppUITests"
+          ],
+          "notes": "A plain Xcode project lists every file in project.pbxproj, a tracked file, so removing or renaming one falls back to default selective testing. The hash stage isn't measured on this variant."
+        }
+      }
+    }
+  ]
+}
