@@ -3205,6 +3205,12 @@ runnersFleetLinux:
     dockerCache:
       enabled: false
       pools: []
+    # Serves the GitHub Actions cache (actions/cache, setup actions, buildx
+    # type=gha) from each node, with entries copied to the account's storage.
+    # Jobs use GitHub's cache whenever the node does not answer.
+    actionsCache:
+      enabled: false
+      maxGB: 100 # Entries a node keeps at most; they give way to volume masters.
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and

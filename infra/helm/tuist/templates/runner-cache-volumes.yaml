@@ -172,6 +172,10 @@ spec:
             {{- if $sandboxNamespace }}
             - --sandboxes-namespace={{ $sandboxNamespace }}
             {{- end }}
+            {{- if .Values.runnersFleetLinux.cacheVolumes.actionsCache.enabled }}
+            - --actions-cache
+            - --actions-cache-gb={{ .Values.runnersFleetLinux.cacheVolumes.actionsCache.maxGB }}
+            {{- end }}
           env:
             - name: NODE_NAME
               valueFrom:
