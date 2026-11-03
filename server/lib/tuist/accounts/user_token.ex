@@ -13,7 +13,7 @@ defmodule Tuist.Accounts.UserToken do
 
   # It is very important to keep the reset password token expiry short,
   # since someone with access to the email may take over the account.
-  @reset_password_validity_in_days 1
+  @reset_password_validity_in_minutes 15
   @confirm_validity_in_days 7
   @change_email_validity_in_days 7
   @session_validity_in_days 60
@@ -125,12 +125,12 @@ defmodule Tuist.Accounts.UserToken do
     case Base.url_decode64(token, padding: false) do
       {:ok, decoded_token} ->
         hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
-        days = days_for_context(context)
+        minutes = minutes_for_context(context)
 
         query =
           from token in by_token_and_context_query(hashed_token, context),
             join: user in assoc(token, :user),
-            where: token.inserted_at > ago(^days, "day") and token.sent_to == user.email,
+            where: token.inserted_at > ago(^minutes, "minute") and token.sent_to == user.email,
             select: user
 
         {:ok, query}
@@ -140,8 +140,8 @@ defmodule Tuist.Accounts.UserToken do
     end
   end
 
-  defp days_for_context("confirm"), do: @confirm_validity_in_days
-  defp days_for_context("reset_password"), do: @reset_password_validity_in_days
+  defp minutes_for_context("confirm"), do: @confirm_validity_in_days * 24 * 60
+  defp minutes_for_context("reset_password"), do: @reset_password_validity_in_minutes
 
   @doc """
   Checks if the token is valid and returns its underlying lookup query.

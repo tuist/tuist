@@ -138,7 +138,15 @@ Promotion refuses to run unless the branch HEAD is exactly the commit the latest
 
 Once a line is stable, ship patches with the CLI-only **Backport Release** workflow (`cli-backport.yml`): cherry-pick the fix onto `releases/X.Y.x` through a PR, then run the workflow with that branch to cut `X.Y.(Z+1)`. Backports never move the "Latest" pointer or the Homebrew formula. Two lines are maintained at a time: the current line takes regressions and security fixes, the previous line takes critical and security fixes only. Other bug fixes are not backported and ship with the next minor.
 
-For the server and Kura, backports today are cut by running the promote workflow against the older release branch. Follow-up work will add dedicated backport workflows mirroring the CLI's.
+For the server and Kura, use **Server Backport Release** (`server-backport.yml`) or **Kura Backport Release** (`kura-backport.yml`). Promotion publishes an RC's `X.Y.0` only; it cannot patch an already-stable line.
+
+1. Start from the latest published stable component tag on the selected `X.Y` line and open a surgical fix PR into its existing `releases/server-X.Y.x` or `releases/kura-X.Y.x` branch. A newer minor or major release does not prevent patching a maintained line. Keep unrelated main changes out.
+2. Review and merge the source PR. Fetch the remote release branch and qualify its **final merged tip**, including the component's supported platforms and TLS positive/negative controls. A passing pre-merge head is not qualification of a different squash or merge commit.
+3. With separate publication approval, dispatch the matching backport workflow **from main**, setting `source_sha` to that exact qualified merged tip and `base_tag` to the current stable tag, such as `server@X.Y.Z` or `kura@X.Y.Z`. The workflow derives `X.Y.(Z+1)`; operators do not choose a minor bump or promote canary contents.
+
+Planning refreshes the exact remote branch and base tag, requires the selected source to equal the branch tip, rejects an unchanged source or changes outside the component, its trust-policy inputs and validation, and pins the resolved base commit. Main-sourced controls repeat those checks immediately before versioned image and GitHub publication. If the source branch, stable base or available version changes, stop and requalify rather than substituting a new source.
+
+Backports use the existing multi-platform publishers without moving GitHub's "Latest" pointer or GHCR `:latest`. Publishing is separate from hosted deployment: these workflows do not promote a hosted server or Kura fleet, bypass canary acceptance, or qualify an installed runtime. Build helpers and Dockerfiles still come from the selected stable source. The controls are publication gates, not credential-free build jobs; builds can upload untagged image digests before the final gate. Image and GitHub publication are not atomic: if the later gate fails after an image tag was published, inspect the partial release and retain its original source and artifacts. Never replace an existing release or use different bytes under its tag.
 
 ## Writing good commit messages
 
@@ -175,7 +183,7 @@ The CLI, the server, and Kura each have their own set of channel workflows, foll
 - `<component>-promote.yml` - promotes the pending RC to stable every Monday at 06:00 UTC, or manually promotes a soaked RC
 - `<component>-build-publish.yml` - the shared build and publish pipeline the three above call
 
-The CLI additionally has `cli-backport.yml` for cutting patches on a stable line. All of a component's workflows serialize through one `<component>-publish` concurrency group so version resolution and tagging never race. Kura is the exception: its canary uses `kura-canary-publish` and its RC and promote use `kura-stable-publish`, so a long RC or promote build never holds up the deploy cascade. The tag namespaces are disjoint, so the two groups cannot collide.
+The CLI, server and Kura additionally have `<component>-backport.yml` for cutting patches on a stable line. All of a component's workflows serialize through one `<component>-publish` concurrency group so version resolution and tagging never race. Kura is the exception: its canary uses `kura-canary-publish` and its RC, promote and backport use `kura-stable-publish`, so a long stable build never holds up the deploy cascade. The tag namespaces are disjoint, so the two groups cannot collide.
 
 The Helm chart and the infrastructure images (CAPI operator, runners controller, xcresult processor image, linux runner image, and so on) still release through `.github/workflows/server-production-deployment.yml`. It runs on pushes to `main` and cascades canary → acceptance tests → production for the hosted deploy, and publishes those infra components as they change. The app, cache, Gradle plugin, skills, Noora, and the standalone infra controllers each have a dedicated `*-release.yml` workflow. All of them share change detection: `mise/tasks/release/components.json` declares each component's tag prefix and include paths, and git cliff turns the matching commits into release notes.
 

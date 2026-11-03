@@ -1,18 +1,5 @@
 import SwiftUI
 
-struct AtlasOrbitSearch: ViewModifier {
-    @Binding var text: String
-    let enabled: Bool
-
-    func body(content: Content) -> some View {
-        if enabled {
-            content.searchable(text: $text, prompt: "Search titles and summaries")
-        } else {
-            content
-        }
-    }
-}
-
 #if os(iOS)
 struct AtlasMobileConversationRow: View {
     let thread: AtlasThread

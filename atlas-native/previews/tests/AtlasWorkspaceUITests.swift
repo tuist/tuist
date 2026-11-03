@@ -1,6 +1,29 @@
 import XCTest
 
 final class AtlasWorkspaceUITests: XCTestCase {
+    @MainActor func testFirstProfileLoadKeepsItsSectionsInPlace() throws {
+        for appearance in [[], ["--dark", "--large-text"]] {
+            let app = launch(arguments: ["--delayed-profile"] + appearance)
+            defer { app.terminate() }
+            app.tabBars.buttons["Profile"].tap()
+            let edit = app.buttons["profile-edit-description"]
+            XCTAssertTrue(edit.waitForExistence(timeout: 2), "Reserve the About you section during the first read")
+            XCTAssertFalse(edit.isEnabled)
+            let frame = edit.frame
+            attach(app, "ios-profile-loading-\(appearance.isEmpty ? "light" : "dark-large")-preview")
+            let loaded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: edit)
+            XCTAssertEqual(XCTWaiter.wait(for: [loaded], timeout: 12), .completed)
+            XCTAssertEqual(edit.frame, frame)
+            XCTAssertTrue(app.staticTexts["Taylor Morgan"].exists)
+            attach(app, "ios-profile-loaded-\(appearance.isEmpty ? "light" : "dark-large")-preview")
+            app.tabBars.buttons["Orbit"].tap()
+            app.tabBars.buttons["Profile"].tap()
+            XCTAssertEqual(edit.frame, frame)
+            XCTAssertTrue(edit.isEnabled)
+            app.terminate()
+        }
+    }
+
     @MainActor func testProfileDescriptionSaveAndFailureDraftRetention() throws {
         for failing in [false, true] {
             let app = launch(arguments: failing ? ["--fail-business-save"] : [])

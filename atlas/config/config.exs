@@ -95,7 +95,7 @@ config :atlas, Oban,
   repo: Atlas.Repo,
   notifier: Oban.Notifiers.Postgres,
   peer: Oban.Peers.Database,
-  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4, automation: 2, push: 10, moodboard: 2],
+  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4, automation: 2, push: 10, moodboard: 2, environments: 4],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
@@ -284,6 +284,7 @@ config :phoenix, :filter_parameters, [
   "verifier",
   "nonce",
   "input",
+  "body",
   "payload",
   "outputs",
   "source",

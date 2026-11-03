@@ -468,8 +468,14 @@ pub(super) fn request_using<T: DeserializeOwned>(
     action: Action,
 ) -> Result<T> {
     let server = validate_registration(&session.registration)?;
-    if session.expires_at <= now() || session.access_token.is_empty() {
+    if session.access_token.is_empty() {
         return Err(error("sign_in_required", "Sign in to Atlas again."));
+    }
+    if session.expires_at <= now() {
+        return Err(error(
+            "session_expired",
+            "Reconnect to refresh this conversation.",
+        ));
     }
     let mut url = server
         .join("api/native/orbit/threads")

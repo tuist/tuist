@@ -810,7 +810,7 @@ import XcodeGraph
             // target-specific output path, so the operations are independent. We run them with
             // bounded concurrency to cut the wall-clock time of this phase on projects with many
             // cacheable targets, while keeping the input order so artifact storage stays deterministic.
-            return try await cacheableTargets.concurrentCompactMap(
+            let built: [CacheGraphTargetBuiltArtifact] = try await cacheableTargets.concurrentCompactMap(
                 maxConcurrentTasks: Self.maxConcurrentXCFrameworkCreations
             ) { cacheableTarget in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
@@ -909,6 +909,14 @@ import XcodeGraph
                     metadata: .init()
                 )
             }
+            let skipped = Set(cacheableTargets.map(\.0.target.name)).subtracting(built.map(\.graphTarget.target.name))
+            if !skipped.isEmpty {
+                let names = skipped.sorted().joined(separator: ", ")
+                AlertController.current.warning(.alert(
+                    "\(skipped.count) of \(cacheableTargets.count) built targets were not stored and keep building from source: \(names)"
+                ))
+            }
+            return built
         }
 
         func writeDebuggingMetadata(
@@ -955,6 +963,7 @@ import XcodeGraph
                     var inputs = try await fileSystem.glob(
                         directory: slice, include: ["dSYMs/*.dSYM/Contents/Resources/DWARF/*"]
                     ).collect()
+                    let linkedDebugSymbols = !inputs.isEmpty
                     if inputs.isEmpty {
                         let product = slice.appending(library.path)
                         inputs =
@@ -975,7 +984,8 @@ import XcodeGraph
                         metadata.recording(
                             debugSources: Set(output.split(whereSeparator: \.isNewline).map(String.init)
                                 .filter { $0.hasPrefix("/") }),
-                            prefixMappings: prefixMappings, fileSystem: fileSystem
+                            prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+                            fileSystem: fileSystem
                         ), at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
                     )
                 }

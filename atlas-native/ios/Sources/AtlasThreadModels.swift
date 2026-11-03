@@ -185,6 +185,7 @@ extension AtlasOrbit {
     struct Snapshot: Decodable {
         let sequence: UInt64
         let cached: Bool?
+        let historyCached: Bool?
         let assistant: AtlasOrbitAssistant?
         let threads: [AtlasThread]
         let selected: AtlasThread?

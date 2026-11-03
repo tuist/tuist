@@ -14,45 +14,45 @@ msgstr "Language: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:198
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
-msgstr "Cuenta no encontrada. Por favor, inténtalo de nuevo."
+msgstr "Cuenta no encontrada. Inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
-msgstr "Autorización de Slack no válida. Por favor, inténtalo de nuevo."
+msgstr "Autorización de Slack no válida. Inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:81
 #, elixir-autogen, elixir-format
 msgid "Invalid authorization request. Please try again."
-msgstr "Solicitud de autorización no válida. Por favor, inténtalo de nuevo."
+msgstr "Solicitud de autorización no válida. Inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:128
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:167
 #, elixir-autogen, elixir-format
 msgid "Slack authorization failed: %{reason}"
-msgstr "La autorización de Slack falló: %{reason}"
+msgstr "Error en la autorización de Slack: %{reason}"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:132
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
-msgstr "Error al guardar la selección del canal. Por favor, inténtalo de nuevo."
+msgstr "Error al guardar la selección del canal. Inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:194
 #, elixir-autogen, elixir-format
 msgid "Project not found. Please try again."
-msgstr "Proyecto no encontrado. Por favor, inténtalo de nuevo."
+msgstr "Proyecto no encontrado. Inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:124
 #, elixir-autogen, elixir-format
 msgid "Alert rule not found. Please try again."
-msgstr "Regla de alerta no encontrada. Por favor, inténtalo de nuevo."
+msgstr "Regla de alerta no encontrada. Inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "La solicitud de autorización ha expirado. Por favor, inicia el proceso de conexión con Slack nuevamente."
+msgstr "La solicitud de autorización ha caducado. Inicia de nuevo el proceso de conexión con Slack."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack devolvió una URL de webhook inesperada. Por favor, inténtalo de nuevo."
+msgstr "Slack ha devuelto una URL de webhook inesperada. Inténtalo de nuevo."

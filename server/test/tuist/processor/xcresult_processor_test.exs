@@ -422,6 +422,94 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       refute Map.has_key?(attachment, "file_path")
     end
 
+    test "links a crash report to the id of the uploaded .ips it was parsed from" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+      stub(Tuist.Storage, :upload_file, fn _path, _key, :system, _opts -> {:ok, :uploaded} end)
+
+      screenshot_path = Path.join(fixture_dir, "screenshot.png")
+      ips_path = Path.join(fixture_dir, "crash.ips")
+      File.write!(screenshot_path, "png")
+      File.write!(ips_path, "ips")
+
+      expect(XCResultNIF, :parse, fn _path, _root ->
+        {:ok,
+         %{
+           "test_modules" => [
+             %{
+               "name" => "Module",
+               "test_cases" => [
+                 %{
+                   "name" => "test_crash",
+                   "attachments" => [
+                     %{"file_path" => screenshot_path, "file_name" => "screenshot.png"},
+                     %{"file_path" => ips_path, "file_name" => "crash.ips"}
+                   ],
+                   "crash_report" => %{
+                     "exception_type" => "EXC_CRASH",
+                     "signal" => "SIGABRT",
+                     "file_path" => ips_path,
+                     "triggered_thread_frames" => "0  libsystem_kernel.dylib  __pthread_kill + 8"
+                   }
+                 }
+               ]
+             }
+           ]
+         }}
+      end)
+
+      opts = [test_run_id: "run-123", account_handle: "org", project_handle: "project"]
+      assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+
+      [module] = result["test_modules"]
+      [test_case] = module["test_cases"]
+      ips_attachment = Enum.find(test_case["attachments"], &(&1["file_name"] == "crash.ips"))
+
+      assert test_case["crash_report"] == %{
+               "exception_type" => "EXC_CRASH",
+               "signal" => "SIGABRT",
+               "triggered_thread_frames" => "0  libsystem_kernel.dylib  __pthread_kill + 8",
+               "attachment_id" => ips_attachment["attachment_id"]
+             }
+    end
+
+    test "drops a crash report whose .ips could not be uploaded" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+      stub(Tuist.Storage, :upload_file, fn _path, _key, :system, _opts -> {:error, :unavailable} end)
+
+      ips_path = Path.join(fixture_dir, "crash.ips")
+      File.write!(ips_path, "ips")
+
+      expect(XCResultNIF, :parse, fn _path, _root ->
+        {:ok,
+         %{
+           "test_modules" => [
+             %{
+               "name" => "Module",
+               "test_cases" => [
+                 %{
+                   "name" => "test_crash",
+                   "attachments" => [%{"file_path" => ips_path, "file_name" => "crash.ips"}],
+                   "crash_report" => %{"exception_type" => "EXC_CRASH", "file_path" => ips_path}
+                 }
+               ]
+             }
+           ]
+         }}
+      end)
+
+      opts = [test_run_id: "run-123", account_handle: "org", project_handle: "project"]
+
+      capture_log(fn ->
+        assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+        [module] = result["test_modules"]
+        [test_case] = module["test_cases"]
+        assert test_case["attachments"] == []
+        refute Map.has_key?(test_case, "crash_report")
+      end)
+    end
+
     test "native module order cannot change attachment identities or reorder legacy payloads" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)

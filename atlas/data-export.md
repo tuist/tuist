@@ -2,6 +2,33 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Native device-only read projections
+
+iOS/macOS retain bounded, disposable copies of authorized Orbit inbox/history,
+Tasks/Accounts/Finance lists and details, caller Profile, Time off, provider and
+connection metadata, and payload-free Automation metadata. The app-private,
+backup-excluded `Atlas/ReadCache/reads.sqlite3` stores these projections for up to
+seven days (32 entries, 1 MiB per entry), keyed by canonical origin and a random
+credential-lifetime namespace plus resource/query. This is file-protected storage,
+not application-level encrypted SQLite. Android currently retains only its inbox.
+
+The copies include existing record IDs/display fields, personal profile description,
+holiday dates/status, provider account names and scopes, and up to 25 non-tool
+messages from the latest history page with author/mention and attachment metadata.
+Tool evidence/components, file bytes, OAuth/provider credentials, pending grants,
+drafts, Automation schemas/reviewed revisions/approval payloads or digests/inputs/results,
+and live presence are excluded. Saved data cannot authorize writes, invitations,
+attachment downloads, inference or approval decisions. Protected refresh revalidates
+access; transient failures retain display data. Access rejection and logout delete
+projections, and mutation/logout generation fences reject late cache writes. An
+offline device cannot discover remote revocation until reconnect or expiry.
+
+These derivatives are never uploaded and cannot be retrieved through a server export.
+Export their original user, business, booking, connection, Orbit and Automation records
+using the source-table procedures below and in [the shared export inventory](../server/data-export.md#atlas-native-local-read-cache).
+Uninstall/app-data removal deletes the local database; retiring a credential namespace
+prevents its reuse. No new server table, S3 path or independent export collection is added.
+
 ## Personal GitHub, Slack and Google connections
 
 `user_connections` stores one personal OAuth grant per Atlas `user_id` and provider (`github`, `slack`, `google`). It references `users.id` with cascade deletion. Fields include provider user ID, display/account name, optional Slack workspace ID, granted scopes, token expiry, needs-authorization flag, and creation/update timestamps. Access and refresh tokens use Atlas's Cloak encrypted binary type and are redacted from struct inspection. These grants are separate from Google sign-in, workspace integrations and personal AI accounts. No real grants or tokens are seeded.
@@ -57,6 +84,12 @@ For a verified export, select **all** `moodboard_resources` by `created_by_id` a
 `users.description` stores optional self-authored information about the person's role, personality and communication preferences, up to 4,000 Unicode codepoints / 16,000 UTF-8 bytes. Only the authenticated person can update it through native Profile or the caller-only `update_my_profile` MCP tool; `get_my_profile` reads the same person's profile. Profile-update tool arguments are omitted from audit metadata.
 
 The saved description remains until cleared or the user is deleted, and belongs in exports of that user's `users` row. Pip reloads it for the acting user's private thread only, as untrusted background, never as permission or system instructions. Shared Orbit threads never load this field. Private inference sends it to the acting person's connected ChatGPT account, then Claude, or the workspace's configured Orbit provider on fallback; encrypted active-run checkpoints can retain a prior version until the run finishes. Native editor drafts remain in memory. Database backups follow the deployment's existing retention.
+
+## Agent feedback support conversations
+
+A product's agent integration, such as an MCP server, publishes reports to `POST /api/support/agent-feedback`, authenticated with a projected Kubernetes ServiceAccount token from the product's cluster (`Atlas.WorkloadIdentity`). Each report creates a `support_threads` row with one `support_messages` row of kind `chat`. They store the reporter's email (`customer_email`, `sender_email`), the agent-written message (up to 10,000 characters), and thread metadata with `channel` set to `agent_feedback` plus the optional `source` (the product the report came through), tool name, category, reporter ID and handle, the handles of the organizations the reporter belongs to, and the account and project the report is about. The sending product is trusted to forward only accounts the reporter belongs to. The thread links to the account that owns the reported account handle in `account_handles`, otherwise to the account the email matches, otherwise to the single account the reporter's handles resolve to. The message body is agent-written and must be treated as untrusted input.
+
+These conversations are retained, replied to and resolved like other support conversations, and belong in exports for the customer email. Their `support.agent_feedback_received` audit activity keeps only the reporting email and name, the thread and message IDs and the channel. `rate_limit_buckets` keeps only hashed per-email counters for the one-hour report limit.
 
 ## Portable signals and business routing profiles
 
@@ -191,7 +224,7 @@ For a verified data request, select connection rows by the requesting user's `us
 
 `users.time_off_location_id` references the employee's public-holiday calendar, currently defaulted to Berlin. It is a calendar assignment, not a verified physical address. `time_off_locations` stores shared calendar names, country/subdivision codes, imported years, and timestamps. `time_off_holidays` stores calendar references, holiday names/dates, manual/provider provenance, and timestamps.
 
-`time_off_bookings` belongs to a user and snapshots their calendar. It stores inclusive first/last dates, pending/approved/rejected/cancelled status, cancellation time, reviewer identity/time, and creation/update timestamps. There are no medical reasons, free-text leave reasons, allowances, or external employee identifiers. Native apps use the same authenticated owner-scoped records; there is no additional mobile database or calendar synchronization. Native request drafts and loaded history are held in memory for the signed-in session, not written to device preferences.
+`time_off_bookings` belongs to a user and snapshots their calendar. It stores inclusive first/last dates, pending/approved/rejected/cancelled status, cancellation time, reviewer identity/time, and creation/update timestamps. There are no medical reasons, free-text leave reasons, allowances, or external employee identifiers. Native apps use the same authenticated owner-scoped records without calendar synchronization. Request drafts remain in memory; iOS/macOS additionally retain the read-only projection described above, not write authority.
 
 Requests remain in history after cancellation or rejection and have no automatic expiry. Deleting a user cascades their bookings; shared calendars/public holidays remain. Reviewers deleted later are cleared from the reference. Domain audit events retain actor, interface, dashboard path, target, and relevant transition metadata, including previous dates and reviewer metadata on edits. Audits follow Atlas's existing retention policy and can outlive the booking.
 
@@ -221,7 +254,7 @@ Thread run audit rows in `agent_sessions` store only an `orbit_run:<id>` label, 
 
 `orbit_threads.model` stores the owner's optional model preference: null means Automatic, `workspace` selects the configured Orbit profile, and `chatgpt:<model-id>` selects that exact model using the acting person's account. `orbit_runs.model` freezes that preference at admission, including resumed and child work. Explicit selection never falls back to a different provider. These identifiers contain no credentials; they follow the thread/run retention and deletion rules and belong in their legal exports. Changes record `thread.model_changed` with actor, interface, thread target and the new model identifier. The live account model catalog is fetched on request, projected to identifiers/names/provider, and not stored in the database; upstream instructions, account claims and provider bodies never enter native responses or audits. Native catalog/selection state remains session-local; the durable preference stays on the thread.
 
-Condukt's before/after pruning events no longer write transient `activity` rows or announce compaction without removed content. Actual pruning retains a generic system notice under ordinary message retention; no additional transcript or provider payload is stored.
+Fresh text-only root Orbit runs automatically summarize older model context through the same acting-person/provider and authorization fence. Summarization sends bounded chunks of the already-authorized transcript to that provider without tools. Condukt preserves the active request and its tool results and adopts summaries only between model requests. Image-bearing runs and restored snapshots retain the previous tool-result pruning behavior because Condukt 1.14 cannot safely account for image tokens or restore the original protected request boundary. Adopted summaries may replace older protocol messages in the existing encrypted active-run checkpoint; they are cleared on terminal completion and excluded from legal exports with that transient cache. Fresh runs rebuild context from durable messages, which are never rewritten or removed by compaction. Generic context-ready system notices follow ordinary message retention. Compact start/stop audit events retain no transcript or summary text, including attempts cancelled before a stop event; background work does not set a blocking `activity` phase. No new storage category, access permission or history retention rule is introduced.
 
 Owner-only archive/restore changes the existing `orbit_threads.status` (`active`/`archived`) and records `thread.status_changed` with the new status, not message/file content. Archive is not deletion or a retention cutoff: messages, memberships and attached files remain protected and exportable as before. Active runs are cancelled/finalized, clearing encrypted checkpoints and tool-result caches under their existing terminal-run policy; delayed workers cannot revive them after restore. Restore does not start inference. Native lists default to active and offer an archived filter, but legal exports must include both statuses. No new customer-data columns or storage categories are introduced.
 
@@ -251,13 +284,52 @@ There is no automatic expiry for threads or messages. Administrators cannot read
 
 ## Personal execution environments
 
+`users.coding_preferences` stores a personal GitHub App installation ID and optional
+lowercase `owner/repo` default. `orbit_threads.repository` stores the private
+conversation's override, initially copied from that default. Changing preferences
+does not rewrite conversations or existing runs; promotion clears this private
+metadata. Preferences remain until cleared or user deletion; conversation metadata
+follows thread retention, including archived threads. Include these fields in
+verified owner exports. Neither is a credential or a grant of execution authority.
+
+Repository discovery uses the existing personal GitHub grant against GitHub's user
+installation/repository APIs. GitHub receives ordinary authenticated API requests;
+only installation IDs/account names and repository names reach Atlas's picker.
+The live catalogue is not persisted. `coding_repositories.listed` and
+`user.coding_preferences_updated` audits retain actor/interface, user target,
+catalogue count and settings path, never repository names, raw responses or tokens.
+Settings tool arguments are omitted from MCP audits. Include these audits by actor
+or user target under existing audit/backup retention.
+
 `personal_environments` stores the owner's UUID (deletion cascades), immutable
 native OAuth client UUID, installation UUID, bounded device name, opt-in enabled /
-terminal / display booleans, and up to 100 project UUID/name pairs. Absolute local
+terminal / display booleans, and up to 100 project UUID/name pairs with an optional
+`coding` boolean advertising Git worktree support and optional canonical GitHub
+`repository` name for matching an explicitly selected checkout. The Mac reads this
+identity from local Git configuration without network access. Raw remote URLs,
+credentials embedded in remotes, and absolute local
 project paths and OS permissions stay on the device and are never registered.
 Version, current connection UUID and 20-second online expiry fence stale leases;
 there is no navigation/activity history. Disable keeps an offline row, and no
 automatic expiry is currently applied. Include disabled rows in legal exports.
+
+Hosted registrations additionally store `provider` (native by default), observed
+`provider_state`, and `managed_thread_id` linking the private conversation. Their
+OAuth client UUID is an inaccessible synthetic binding, never a native grant.
+Selection opts into terminal access; hosted terminal deadlines are 600 seconds
+instead of the native 1,800. The encrypted ledger/evidence and existing history
+retention apply unchanged. Provider workers store only environment/command UUIDs
+in Oban. Include provider metadata and the managed-thread relationship in the
+owner export. No age-based deletion of registrations is introduced.
+
+The selected Tuist provider receives the owner/environment UUIDs as signed
+five-minute OIDC claims, the Tuist account handle, generation and authorized tool
+arguments (including commands/relative paths). It receives no Atlas/model/repository
+credentials. Its VM disks contain cloned repositories, edits and build outputs;
+these require a separate authorized Tuist export and may expire 14 days after
+pause/error. Atlas retains only the bounded encrypted command results. Signing
+keys and temporary bearer JWTs are authentication material, excluded from exports.
+See `docs/environment-providers.md` for the provider boundary.
 
 `orbit_threads` additionally stores selected `environment_id`, its name snapshot,
 `project_id`, and the permanent `personal_environment_dispatched` privacy marker.
@@ -285,6 +357,20 @@ or silently retried. Owner cancellation cannot claim a disconnected process stop
 Terminal dispatch requires the owner's explicit per-Mac terminal opt-in, without
 per-command decisions. OAuth installation binding restricts claim/progress/result
 to the original Mac.
+
+Coding-capable Git projects additionally expose `read`, `bash`, `edit`, and `write`
+under the same explicit terminal opt-in. Encrypted arguments also retain the
+server-frozen thread UUID/title, read offset/limit, replacement text or file
+content, and optional bash timeout. These can contain source code and secrets;
+include them in the same authorized ledger export, never plaintext audits.
+`bash` uses the terminal lifecycle above. The native Mac creates retained Git
+worktrees in its local Application Support directory, scoped to server, owner,
+installation, project and thread. The initial branch name contains a bounded
+title slug and thread UUID. Local paths are not registered with Atlas. Worktrees
+start from local HEAD without copying uncommitted changes and survive archive,
+sign-out and server record deletion. They require a separate owner-authorized
+local filesystem export/deletion; Atlas's database export does not include them.
+No new object-storage category or automatic source-code retention expiry exists.
 
 `orbit_messages.device_input` / `device_output` retain encrypted, redacted bounded
 native tool-card renderings (same 2,000/4,000 character budgets as other cards),

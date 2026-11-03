@@ -376,6 +376,15 @@
           display: none;
         }
 
+        /* Unlike other neutral buttons, the burger has no hover or press
+           fill, and no native tap highlight either. */
+        -webkit-tap-highlight-color: transparent;
+
+        &:not(:disabled):hover,
+        &:not(:disabled):active {
+          background: unset;
+        }
+
         /* Hamburger <-> X: each bar spins about its own centre while
            sliding 4 units to the icon's middle. Same 0.2s ease as the
            desktop chevrons. Lengths on SVG elements are user units. */
@@ -453,7 +462,7 @@
        Accordion list items. */
     & [data-part="dropdown"] > [data-part="item"] {
       color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
       text-decoration: none;
     }
 
@@ -471,7 +480,7 @@
       align-items: stretch;
 
       /* A real button (keyboard-operable before the hook mounts), reset
-         to the row it always was; the chevron carries the hover state. */
+         to the row it always was. */
       & > [data-part="action"] {
         display: flex;
         flex-direction: row;
@@ -487,20 +496,22 @@
         color: inherit;
         font: inherit;
         text-align: left;
+        -webkit-tap-highlight-color: transparent;
 
         & > [data-part="title"] {
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
         }
 
-        /* Chevron dressed as a neutral button, like the burger icon.
-           Points right when collapsed, rotates down when open. */
+        /* Chevron inset like the burger icon so their right edges line
+           up; no vertical padding, so the row stays the title's line
+           height and the 24px row gap is exact. Points right when
+           collapsed, rotates down when open. */
         & > [data-part="chevron"] {
           display: inline-flex;
           justify-content: center;
           align-items: center;
-          border-radius: var(--noora-radius-3);
-          padding: var(--noora-spacing-3);
+          padding: 0 var(--noora-spacing-3);
           color: var(--noora-button-neutral-label);
 
           & svg {
@@ -511,10 +522,6 @@
           }
         }
 
-        &:hover > [data-part="chevron"] {
-          background: var(--noora-button-neutral-background-hover);
-        }
-
         &[data-open="true"] > [data-part="chevron"] svg {
           transform: rotate(0deg);
         }
@@ -523,28 +530,32 @@
       & > [data-part="dropdown"] {
         display: flex;
         flex-direction: column;
-        gap: var(--noora-spacing-5);
+        gap: var(--noora-spacing-6);
 
         /* Title-to-first-item spacing lives INSIDE the height-animated
            box (child margin, not container padding): container padding
            pops in before the height transition starts and makes the
            sections below jump. */
         & > [data-part="item"]:first-child {
-          margin-top: var(--noora-spacing-5);
+          margin-top: var(--noora-spacing-8);
         }
       }
     }
 
-    /* Theme row: static placeholder until dark mode ships. */
+    /* Theme row: held to the title's line height (1lh) so the taller
+       switcher overflows evenly instead of widening the row gap. */
     & > [data-part="theme"] {
       display: flex;
       flex-direction: row;
       justify-content: space-between;
       align-items: center;
+      height: 1lh;
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
 
+      /* An <h3>, so it needs the font restated over heading defaults. */
       & > [data-part="title"] {
         color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+        font: inherit;
       }
     }
 
@@ -1382,4 +1393,10 @@
       transition: none;
     }
   }
+}
+
+/* The Atlas support chat sits at the maximum z-index, so the open mobile
+   menu can't cover it; hide it until the menu closes. */
+body:has(#marketing-navbar[data-mobile-menu-open="true"]) > atlas-support-chat {
+  display: none;
 }

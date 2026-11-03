@@ -2,6 +2,7 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.Environments.Tuist
 alias Atlas.LLMs.ChatGPT
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
@@ -21,6 +22,27 @@ signals_enabled =
 
 config :atlas, :automation_trace_url_template, System.get_env("ATLAS_AUTOMATION_TRACE_URL_TEMPLATE")
 config :atlas, :signals_enabled, signals_enabled
+
+# All replicas use the same dedicated signing key. Never reuse OAuth/session keys.
+if key = System.get_env("ATLAS_ENVIRONMENT_OIDC_PRIVATE_KEY") do
+  config :atlas, :environment_identity, private_key: key
+end
+
+if account = System.get_env("ATLAS_TUIST_ENVIRONMENT_ACCOUNT") do
+  url = System.get_env("ATLAS_TUIST_ENVIRONMENT_URL", "https://tuist.dev")
+  uri = URI.parse(url)
+
+  if !(uri.scheme == "https" and is_binary(uri.host) and uri.userinfo == nil and uri.query == nil and
+         uri.fragment == nil and uri.path in [nil, "", "/"]),
+     do: raise("ATLAS_TUIST_ENVIRONMENT_URL must be an HTTPS origin")
+
+  if !Regex.match?(~r/^[a-z0-9][a-z0-9-]{0,99}$/, account),
+    do: raise("ATLAS_TUIST_ENVIRONMENT_ACCOUNT must be an account handle")
+
+  config :atlas, :environment_providers, %{
+    "tuist" => %{module: Tuist, name: "Tuist", url: String.trim_trailing(url, "/"), account_handle: account}
+  }
+end
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
 # release tarball), so guard the require to keep prod boots clean.
@@ -205,6 +227,18 @@ config :atlas, :support_chat, parent_origins: support_chat_parent_origins
 
 if gtm_ingest_token = System.get_env("ATLAS_GTM_INGEST_TOKEN") do
   config :atlas, :gtm_ingest, token: gtm_ingest_token
+end
+
+# Products report agent feedback with a projected Kubernetes ServiceAccount
+# token (audience `atlas-support-ingest`) from their own cluster, verified
+# offline against that cluster's pinned public JWKS (Atlas.WorkloadIdentity).
+# The subject is the one `namespace:service-account` allowed to report.
+if support_ingest_jwks = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_JWKS") do
+  config :atlas, :support_ingest,
+    issuer: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_ISSUER"),
+    audience: "atlas-support-ingest",
+    jwks: support_ingest_jwks,
+    subject: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT")
 end
 
 # Mailgun is the company's email provider: tuist.dev is already verified there
@@ -690,6 +724,10 @@ llm_config = Application.get_env(:atlas, :llm, [])
 # Personal ChatGPT connections use an explicitly configured device OAuth client.
 # Client provisioning and temporary managed overrides belong to deployment configuration.
 config :atlas, ChatGPT, client_id: present_env.(["ATLAS_CHATGPT_CLIENT_ID"])
+
+# Relay aliases have no catalog metadata. Override their conservative 128k
+# compaction budget when the operator knows the effective provider window.
+config :atlas, :orbit_context_window, optional_positive_integer_env.("ATLAS_ORBIT_CONTEXT_WINDOW")
 
 cond do
   llm_mode == "local" ->

@@ -409,8 +409,21 @@ host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This warms hosts after an observed miss and does not replicate every volume to
-every host. Dispatch separately prefers handing a polling host a queued job whose
+This warms hosts after an observed miss. Separately, every 10 minutes the agent
+asks the server which HEADs its node should hold (`GET
+/api/internal/runners/cache-volumes/masters?node_name=<node>`, with the same
+agent token): first volumes at least two workflow runs used this week and left
+idle for four hours, so an account's first jobs of the day start warm, then
+volumes used in the last day, for the repositories the server places on this
+node (a few nodes per repository; dispatch leaves its young jobs to them). The
+agent restores the ones it lacks one at a time, separately from the job
+prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
+only into free space above the reserve, never evicting, and as a speculative
+master that pressure eviction takes first until a job clones it.
+`tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
+heads' used bytes it installed (`job`, `prewarm`, `recent`). Checkout HEADs in the list (`kind: "checkout"`)
+go to the checkout populator as a `Spare` restore: free space only, never
+evicting, never replacing a job's request; they are not counted there. Dispatch separately prefers handing a polling host a queued job whose
 predicted custom volumes the host's Node labels advertise (see
 `Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
 the built-in volume. Both that preference and the macOS Pod placement preference
@@ -513,7 +526,11 @@ The agent:
   local clone of the head assigned at allocation), it offers that HEAD's clone as
   `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
   at a time), so the guest merges the job's images with it before publishing;
-  otherwise it answers no merge. While another job of the lineage on this host
+  otherwise it answers no merge. The guest merges three ways against the data
+  root the job mounted: each side's additions and changes are kept, an image or
+  builder one side removed is not brought back from the other, and a builder one
+  side removed is also removed from the merged root unless the other side changed
+  it. Merging does not copy a builder both sides hold in the same state. While another job of the lineage on this host
   has finished with a changed, clean data root that is not yet published, it
   first waits up to two minutes for that publication, since HEAD moves only once
   the upload completes. Jobs on other hosts, or ones still tearing down, can

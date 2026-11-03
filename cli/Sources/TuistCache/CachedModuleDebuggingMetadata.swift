@@ -97,13 +97,22 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     }
 
     /// Uses paths actually present in DWARF. Multiple verified spellings of one file are not ambiguous.
-    public func recording(debugSources: Set<String>, prefixMappings: [[String: String]] = []) throws -> Self {
-        try recording(debugSources: debugSources, prefixMappings: prefixMappings, resolvedDebugSources: [:])
+    /// `linkedDebugSymbols` marks `debugSources` as read from a linked dSYM, which drops compile units without code.
+    public func recording(
+        debugSources: Set<String>,
+        prefixMappings: [[String: String]] = [],
+        linkedDebugSymbols: Bool = false
+    ) throws -> Self {
+        try recording(
+            debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+            resolvedDebugSources: [:], symlinkedSources: []
+        )
     }
 
     public func recording(
         debugSources: Set<String>,
         prefixMappings: [[String: String]] = [],
+        linkedDebugSymbols: Bool = false,
         fileSystem: FileSysteming
     ) async throws -> Self {
         try Task.checkCancellation()
@@ -116,18 +125,30 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
             guard declaredPaths.contains(canonical) else { continue }
             resolvedDebugSources[canonical, default: []].insert(source)
         }
+        var symlinkedSources: Set<String> = []
+        for spellings in Self.spellingsOfSharedFiles(sourcePaths) {
+            for relative in spellings {
+                try Task.checkCancellation()
+                let path = sourceRoot.appending(try RelativePath(validating: relative))
+                if try await fileSystem.exists(path), try await fileSystem.resolveSymbolicLink(path) != path {
+                    symlinkedSources.insert(relative)
+                }
+            }
+        }
         return try recording(
-            debugSources: debugSources, prefixMappings: prefixMappings, resolvedDebugSources: resolvedDebugSources
+            debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+            resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
         )
     }
 
     private func recording(
         debugSources: Set<String>,
         prefixMappings: [[String: String]],
-        resolvedDebugSources: [String: Set<String>]
+        linkedDebugSymbols: Bool,
+        resolvedDebugSources: [String: Set<String>],
+        symlinkedSources: Set<String>
     ) throws -> Self {
-        var paths: [String: Set<String>] = [:]
-        var owners: [String: String] = [:]
+        var candidatesBySource: [String: Set<String>] = [:]
         for relative in sources.keys.sorted() {
             let original = sourceRoot.appending(try RelativePath(validating: relative)).pathString
             var candidates: Set<String> = [original]
@@ -146,6 +167,18 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                     }
                 }
             }
+            candidatesBySource[relative] = candidates
+        }
+        // Spellings of one file relocate to the same bytes; the one that is not a symlink owns them.
+        for spellings in Self.spellingsOfSharedFiles(sourcePaths) {
+            let owner = spellings.first { !symlinkedSources.contains($0) } ?? spellings[0]
+            for spelling in spellings where spelling != owner {
+                candidatesBySource[owner, default: []].formUnion(candidatesBySource.removeValue(forKey: spelling) ?? [])
+            }
+        }
+        var paths: [String: Set<String>] = [:]
+        var owners: [String: String] = [:]
+        for (relative, candidates) in candidatesBySource.sorted(by: { $0.key < $1.key }) {
             let matches = candidates.intersection(debugSources)
             for match in matches {
                 guard owners[match] == nil else { throw DebuggingMetadataError.ambiguousSource(match) }
@@ -153,7 +186,12 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
             }
             if !matches.isEmpty { paths[relative] = matches }
         }
-        guard sources.isEmpty || !paths.isEmpty else { throw DebuggingMetadataError.missingSources }
+        if !sources.isEmpty, paths.isEmpty {
+            let names = Set((Array(sources.keys) + Array(sourcePaths.values)).map(Self.lowercasedFileName))
+            guard linkedDebugSymbols, !debugSources.contains(where: { names.contains(Self.lowercasedFileName($0)) }) else {
+                throw DebuggingMetadataError.missingSources
+            }
+        }
         let metadata = Self(
             version: version, moduleName: moduleName, sourceRoot: sourceRoot,
             sources: sources, sourcePaths: sourcePaths, debugPaths: paths
@@ -163,6 +201,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     }
 
     /// Missing, incompatible or ambiguous metadata retains sources. Only observed declared files need content reads.
+    /// Metadata that observed none of the declared sources returns no mappings: nothing is relocated.
     public static func sourceMappings(
         at artifact: AbsolutePath,
         for target: GraphTarget,
@@ -192,7 +231,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                   Set(original.debugPaths.keys).isSubset(of: Set(original.sources.keys)),
                   Set(original.debugPaths.keys).isSubset(of: Set(declared.keys)),
                   original.debugPaths.values.allSatisfy({ !$0.isEmpty }),
-                  !original.debugPaths.isEmpty || (original.sources.isEmpty && declared.isEmpty)
+                  !original.debugPaths.isEmpty || Set(original.sources.keys) == Set(declared.keys)
             else { return nil }
             slices.append(original)
         }
@@ -215,6 +254,16 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         return destinations.map { DebuggerSourceMapping(original: $0.key, current: $0.value) }
             .sorted { $0.original.pathString < $1.original.pathString }
+    }
+
+    /// Declared relative paths that canonicalize to one file, sorted, for each such file.
+    private static func spellingsOfSharedFiles(_ sourcePaths: [String: String]) -> [[String]] {
+        Dictionary(grouping: sourcePaths, by: \.value).values
+            .filter { $0.count > 1 }.map { $0.map(\.key).sorted() }.sorted { $0[0] < $1[0] }
+    }
+
+    private static func lowercasedFileName(_ path: String) -> String {
+        (path.split(separator: "/").last.map(String.init) ?? path).lowercased()
     }
 
     private static func canonicalSourcePath(_ path: AbsolutePath, fileSystem: FileSysteming) async throws -> String {

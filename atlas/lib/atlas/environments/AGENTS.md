@@ -1,17 +1,49 @@
 # Personal execution environments
 
-`Atlas.Environments` registers opt-in owner-private native installations. Models,
-provider credentials, sessions, checkpoints and all orchestration remain on the
-server. The device receives only the three explicit tool calls. File tools are
-contained in the selected project. Terminal starts there but runs as the macOS
-user without a folder sandbox and can access outside it. The owner explicitly
-opts into terminal access per Mac; commands run without per-command approval
-(at most 8,000 UTF-8 bytes).
+`Atlas.Environments` registers opt-in owner-private native installations and
+deployment-configured hosted providers. The hosted contract, Tuist OIDC setup,
+generation fencing and retention are in [environment providers](../../../docs/environment-providers.md).
+Hosted commands use the same ledger and privacy boundaries; terminal execution is
+limited to 600 seconds, with no native credentials installed. Models,
+model-provider credentials, sessions, checkpoints and orchestration remain on the
+server. Executors receive only explicit environment tool calls and own repository
+discovery, per-thread workspace preparation, OS/shell selection and execution.
+File tools are contained in the selected project; terminal isolation belongs to
+the executor, not the server ledger. The first executor is Atlas for macOS:
+terminal starts in the project as the macOS user without a folder sandbox and
+can access outside it. Explicit terminal consent is per environment; commands run
+without per-command approval (at most 8,000 UTF-8 bytes).
 Never expose these through MCP discovery, workflows, shared threads or research
 children. This is a deliberate exception to MCP parity and Orbit's otherwise
 read-only server tools. `display` is configuration only, not screen authority.
 
+Keep the context and command ledger independent of desktop lifecycle or provider
+SDKs. Future SSH, VM or container executors need their own authenticated enrollment
+and delivery adapter; they must not bypass the current native OAuth gate or reuse
+another installation's credentials. HTTP polling, claim, progress and result are
+sufficient for delivery; sockets only reduce latency. Provisioning, credentials,
+filesystem roots and sandbox policy belong to the adapter, not model arguments.
+Selection freezes on the run; an offline or unknown executor never fails over to
+another provider. Hosted selection uses exactly `{provider: configured_id}` and
+queues lifecycle work; switching away or archiving queues a pause. Native IDs
+cannot select hosted rows, which use an inaccessible synthetic OAuth binding.
+
 Registration accepts names and opaque project UUIDs, never local absolute paths.
+Git projects may advertise `coding: true` and an optional canonical GitHub
+`repository` (`owner/repo`), never a raw remote URL. Personal `/settings/coding`
+preferences choose a GitHub installation/default through the existing personal
+grant, limited to the intersection of App and user access. Conversation repository
+overrides clear executor selection; explicit checkout selection must match the
+advertised identity. Defaults copy only to new private threads, not creation
+replays or existing runs. Repository metadata never grants execution consent,
+clones code or picks/fails over to a machine. Older two-field native selection
+and provider-only selection clear repository metadata and retain their original behavior.
+With terminal consent these offer
+Pi-style `read`, `bash`, `edit`, and `write`; older projects retain the three legacy
+tools. Coding arguments include server-frozen thread UUID/title, never a root
+path. The Mac prepares a per-thread worktree from local HEAD, retaining it across
+archive/sign-out. `bash` shares the durable terminal lifecycle below. Unknown or
+pending `edit`/`write`/terminal outcomes fence further mutations on the thread.
 Owner and native OAuth client are immutable. Disabled is the default. Updating
 permissions/projects or disabling advances a version and clears the short online
 lease. Renewals must retain their joined version; only fresh joins/HTTP polls can
@@ -22,11 +54,12 @@ an authoritative transport fallback, never an independently supervised server lo
 Lock thread, run, environment, then command. File tools retain their bounded
 synchronous 60-second wait and known-result recovery. Terminal reservation returns
 a durable queued ticket immediately, without changing Orbit's run/turn
-ceilings. The per-Mac terminal opt-in authorizes dispatch;
+ceilings. The per-environment terminal opt-in authorizes dispatch;
 claim accepts only the digest. Digest binds the command
 ID, environment ID/version, frozen project, arguments and execution timeout.
-Dispatch expires ten minutes after first reservation. Claim starts a fixed
-1,800-second execution deadline plus a separate five-minute result-delivery grace.
+Terminal dispatch expires ten minutes after first reservation. Claim starts a fixed
+1,800-second native or 600-second hosted execution deadline plus a separate
+five-minute result-delivery grace.
 Progress is encrypted, monotonic and bounded to 48 KiB, never a lease extension.
 Claimed commands never become dispatchable again. One active or unknown terminal
 job per thread is enforced under the thread lock, across runs and selections.
@@ -34,7 +67,7 @@ Only a successful originating run may detach its job; checkpointed attempts keep
 the same command. Cancellation/archive, history revocation and configuration
 changes fence new results. Missing claimed results become explicitly unknown,
 never presumed stopped or automatically rerun. Owner cancellation of a claimed
-job only sets `cancel_requested`; the device must acknowledge its actual outcome.
+job only sets `cancel_requested`; the executor must acknowledge its actual outcome.
 Identical accepted result retries remain idempotent after the originating run ends.
 
 Confirmed terminal completion atomically updates encrypted card evidence, appends
@@ -46,7 +79,7 @@ follow-up creation; archive retires pending completion notices permanently.
 No new model runtime or plaintext output in system messages/jobs/audits exists. Automatic continuations
 recheck their original source at follow-up, start, model dispatch and final reply;
 cancellation and unknown never trigger inference. Fresh human runs still
-freeze the thread's current selection, including server-only or another Mac.
+freeze the thread's current selection, including server-only or another environment.
 Activity is a terminal-only owner projection: all active jobs first, at most 32
 rows, 48 KiB UTF-8 tails and 256 KiB aggregate output, additionally bounded below
 the native 1 MiB JSON reader even with control-character escaping. Exact commands

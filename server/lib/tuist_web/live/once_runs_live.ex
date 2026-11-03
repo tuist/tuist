@@ -9,6 +9,7 @@ defmodule TuistWeb.OnceRunsLive do
   use Noora
 
   import TuistWeb.BazelAnalyticsHelpers
+  import TuistWeb.Components.BuildStatusFilter, only: [build_status_dropdown: 1]
   import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.ScatterChart
@@ -21,6 +22,7 @@ defmodule TuistWeb.OnceRunsLive do
   alias Tuist.OnceEvents.Analytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Components.BuildHealth
+  alias TuistWeb.Components.BuildStatusFilter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
@@ -92,6 +94,7 @@ defmodule TuistWeb.OnceRunsLive do
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
     insights_dimension = insights_dimension(params["configuration-insights-type"])
     analytics_environment = analytics_environment(params["analytics-environment"])
+    analytics_build_status = analytics_build_status(socket.assigns.once_resource_kind, params)
     search = String.trim(params["search"] || "")
 
     filters =
@@ -100,7 +103,7 @@ defmodule TuistWeb.OnceRunsLive do
         Filter.Operations.convert_filters_to_flop(active_filters)
 
     commands = [socket.assigns.once_kind_filter]
-    analytics_opts = analytics_opts(analytics_period, commands, analytics_environment)
+    analytics_opts = analytics_opts(analytics_period, commands, analytics_environment, analytics_build_status)
 
     # The dedicated listing pages carry no date picker, the way Xcode's own
     # Build Runs page does not, so scoping their table to a period would put
@@ -147,7 +150,8 @@ defmodule TuistWeb.OnceRunsLive do
         scatter_group_by(params["build-duration-scatter-group-by"]),
         analytics_period,
         commands,
-        analytics_environment
+        analytics_environment,
+        analytics_build_status
       )
       |> maybe_assign_async(
         [:invocation_summary, :invocation_analytics],
@@ -161,7 +165,8 @@ defmodule TuistWeb.OnceRunsLive do
                  project.id,
                  analytics_period,
                  commands,
-                 analytics_environment
+                 analytics_environment,
+                 analytics_build_status
                ),
              invocation_analytics: Analytics.invocation_analytics(project.id, analytics_opts)
            }}
@@ -170,6 +175,7 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign(:search, search)
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
+      |> assign(:analytics_build_status, analytics_build_status)
       |> assign(:configuration_insights_dimension, insights_dimension)
       |> maybe_assign_async(
         :configuration_insights_analytics,
@@ -283,7 +289,8 @@ defmodule TuistWeb.OnceRunsLive do
        socket.assigns.duration_scatter_group_by,
        socket.assigns.analytics_period,
        [socket.assigns.once_kind_filter],
-       socket.assigns.analytics_environment
+       socket.assigns.analytics_environment,
+       socket.assigns.analytics_build_status
      )}
   end
 
@@ -369,6 +376,12 @@ defmodule TuistWeb.OnceRunsLive do
             <:right_icon :if={@analytics_environment == environment}><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.build_status_dropdown
+          :if={@once_resource_kind != :tests}
+          id="once-analytics-status-dropdown"
+          status={@analytics_build_status}
+          uri={@uri}
+        />
         <.date_picker
           id="once-invocations-date-range-picker"
           name="analytics-date-range"
@@ -1058,13 +1071,13 @@ defmodule TuistWeb.OnceRunsLive do
     }
   end
 
-  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment) do
-    summary = Analytics.summary(project_id, analytics_opts(period, commands, environment))
+  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment, status) do
+    summary = Analytics.summary(project_id, analytics_opts(period, commands, environment, status))
 
     previous_summary =
       Analytics.summary(
         project_id,
-        analytics_opts(previous_period(start_datetime, end_datetime), commands, environment)
+        analytics_opts(previous_period(start_datetime, end_datetime), commands, environment, status)
       )
 
     Map.merge(summary, %{
@@ -1304,12 +1317,18 @@ defmodule TuistWeb.OnceRunsLive do
   defp sort_field("duration"), do: :duration_ms
   defp sort_field(_), do: :finished_at
 
-  defp analytics_opts(period, commands, environment) do
+  defp analytics_opts(period, commands, environment, status) do
     period
     |> period_opts()
     |> Keyword.put(:commands, commands)
     |> put_environment(environment)
+    |> BuildStatusFilter.put_status(status)
   end
+
+  # Test runs keep their own pass/fail semantics, so only build pages filter
+  # their analytics by build status.
+  defp analytics_build_status(:tests, _params), do: "any"
+  defp analytics_build_status(_resource_kind, params), do: BuildStatusFilter.status(params)
 
   # `:is_ci` is the opt `Tuist.OnceEvents.Analytics` filters on, and the same
   # one `Tuist.Builds` takes for Xcode, so the dropdown means the same thing
@@ -1358,7 +1377,7 @@ defmodule TuistWeb.OnceRunsLive do
   defp scatter_group_by("version"), do: "version"
   defp scatter_group_by(_host), do: "host"
 
-  defp assign_duration_scatter(socket, "scatter", group_by, period, commands, environment) do
+  defp assign_duration_scatter(socket, "scatter", group_by, period, commands, environment, status) do
     project_id = socket.assigns.selected_project.id
 
     # Without the environment the scatter brings back runs the line chart
@@ -1369,13 +1388,14 @@ defmodule TuistWeb.OnceRunsLive do
       |> Keyword.put(:commands, commands)
       |> Keyword.put(:group_by, String.to_existing_atom(group_by))
       |> put_environment(environment)
+      |> BuildStatusFilter.put_status(status)
 
     assign_async(socket, :duration_chart, fn ->
       {:ok, %{duration_chart: {:scatter, Analytics.duration_scatter_data(project_id, opts)}}}
     end)
   end
 
-  defp assign_duration_scatter(socket, _line, _group_by, _period, _commands, _environment) do
+  defp assign_duration_scatter(socket, _line, _group_by, _period, _commands, _environment, _status) do
     assign(socket, :duration_chart, AsyncResult.ok(:line))
   end
 end

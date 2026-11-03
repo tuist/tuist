@@ -38,6 +38,7 @@ defmodule Atlas.Agents.Sessions.TelemetryHandler do
     [:condukt, :operation, :exception],
     [:condukt, :secrets, :resolve],
     [:condukt, :secrets, :access],
+    [:condukt, :compact, :start],
     [:condukt, :compact, :stop]
   ]
 

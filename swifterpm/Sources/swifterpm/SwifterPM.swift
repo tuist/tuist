@@ -231,14 +231,16 @@ public struct SwifterPM: Sendable {
             disableSandbox: request.disableSandbox,
             quiet: request.quiet
         )
-        try await WorkspaceRestorer.writeWorkspaceState(
-            packageDir: package,
-            scratchDir: scratch,
-            mirrors: mirrors,
-            resolved: resolved,
-            disableSandbox: request.disableSandbox,
-            sourceCacheDirectory: cache.root
-        )
+        try await PhaseTiming.measure("writing workspace state") {
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package,
+                scratchDir: scratch,
+                mirrors: mirrors,
+                resolved: resolved,
+                disableSandbox: request.disableSandbox,
+                sourceCacheDirectory: cache.root
+            )
+        }
     }
 
     private func runResolution(
@@ -290,7 +292,7 @@ public struct SwifterPM: Sendable {
                registryConfig: registryConfig
            )
         {
-            let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+            var resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,
                 cacheDir: cacheRoot,
@@ -303,6 +305,12 @@ public struct SwifterPM: Sendable {
                 forceResolvedVersions: request.forceResolvedVersions,
                 forwardOutput: !request.quiet
             )
+            if request.writeResolvedFile, !request.forceResolvedVersions {
+                // SwiftPM omits originHash below tools version 5.10 and skips the write when the
+                // pins are unchanged, so stamp ours as the restoration path does.
+                resolved.originHash = try await ResolvedFile.packageOriginHash(packageDir: package)
+                try await ResolvedFile.write(packageDir: package, resolved: resolved, mirrors: mirrors)
+            }
             let cache = try await Cache(root: cacheRoot)
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
@@ -336,22 +344,24 @@ public struct SwifterPM: Sendable {
 
         let cache = try await Cache(root: cacheRoot)
 
-        let resolved = try await PackageResolver.resolveOrLoad(
-            packageDir: package,
-            scratchDir: scratch,
-            cache: cache,
-            registryConfig: registryConfig,
-            mirrors: mirrors,
-            registryConfigurationPath: request.registryConfigurationPath,
-            defaultRegistryURL: request.defaultRegistryURL,
-            disableSandbox: request.disableSandbox,
-            scmToRegistryTransformation: request.scmToRegistryTransformation,
-            preferResolvedFile: preferResolvedFile,
-            readOnly: request.forceResolvedVersions,
-            skipUpdate: request.skipUpdate,
-            writeResolvedFile: request.writeResolvedFile,
-            progress: request.quiet ? nil : ResolutionProgressReporter()
-        )
+        let resolved = try await PhaseTiming.measure("loading pins") {
+            try await PackageResolver.resolveOrLoad(
+                packageDir: package,
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
+                mirrors: mirrors,
+                registryConfigurationPath: request.registryConfigurationPath,
+                defaultRegistryURL: request.defaultRegistryURL,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation,
+                preferResolvedFile: preferResolvedFile,
+                readOnly: request.forceResolvedVersions,
+                skipUpdate: request.skipUpdate,
+                writeResolvedFile: request.writeResolvedFile,
+                progress: request.quiet ? nil : ResolutionProgressReporter()
+            )
+        }
 
         if !request.quiet {
             ResolvedFile.print(resolved)
@@ -377,14 +387,16 @@ public struct SwifterPM: Sendable {
                 disableSandbox: request.disableSandbox,
                 quiet: request.quiet
             )
-            try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package,
-                scratchDir: scratch,
-                mirrors: mirrors,
-                resolved: resolved,
-                disableSandbox: request.disableSandbox,
-                sourceCacheDirectory: cache.root
-            )
+            try await PhaseTiming.measure("writing workspace state") {
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    mirrors: mirrors,
+                    resolved: resolved,
+                    disableSandbox: request.disableSandbox,
+                    sourceCacheDirectory: cache.root
+                )
+            }
         }
 
         // With the pins restored, confirm they still satisfy the manifest the
@@ -416,15 +428,17 @@ public struct SwifterPM: Sendable {
         quiet: Bool
     ) async throws {
         guard !disablePackageInfoCache else { return }
-        try await PackageInfoCacheWriter.write(
-            packageDir: packageDir,
-            scratchDir: scratchDir,
-            resolved: resolved,
-            mirrors: mirrors,
-            cacheDir: cacheDir,
-            disableSandbox: disableSandbox,
-            quiet: quiet
-        )
+        try await PhaseTiming.measure("writing the package info cache") {
+            try await PackageInfoCacheWriter.write(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                resolved: resolved,
+                mirrors: mirrors,
+                cacheDir: cacheDir,
+                disableSandbox: disableSandbox,
+                quiet: quiet
+            )
+        }
     }
 }
 

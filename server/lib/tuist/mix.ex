@@ -301,6 +301,7 @@ defmodule Tuist.Mix do
   @build_string_fields [
     :elixir_version,
     :otp_version,
+    :tuist_version,
     :mix_env,
     :git_branch,
     :git_commit_sha,

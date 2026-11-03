@@ -21,6 +21,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         "www-authenticate",
         "x-amz-security-token",
         "x-amz-credential",
+        "x-tuist-runner-grant",
     ]
 
     private nonisolated let finishedState = Mutex(false)

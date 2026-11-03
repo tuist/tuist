@@ -81,9 +81,10 @@ jobs:
           STACKED: ${{ inputs.stacked }}
         run: |
           set -euo pipefail
-          BASE_TAG="${XCODE//./-}"
+          BASE_XCODE="$(jq -r --arg xcode "$XCODE" '.[$xcode] // $xcode' base-xcode-versions.json)"
+          BASE_TAG="${BASE_XCODE//./-}"
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-          PROFILE="macos-${BASE_TAG}"
+          PROFILE="macos-${XCODE//./-}"
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
           echo "Profile:    ${PROFILE}"
@@ -101,10 +102,11 @@ jobs:
             ${RUNNER_VERSION_OVERRIDE:+-var runner_version=$RUNNER_VERSION_OVERRIDE} \
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
+          echo "base=${BASE_IMAGE}" >> "$GITHUB_OUTPUT"
 
       - name: Restore nvram.bin if missing
         env:
-          XCODE: ${{ inputs.xcode_version }}
+          BASE_IMAGE: ${{ steps.build.outputs.base }}
         # packer-plugin-tart v1.20.0 builds leave the VM bundle
         # without `nvram.bin`, so the very next `tart push` uploads
         # config + disk successfully then fails with
@@ -118,8 +120,6 @@ jobs:
           echo "pre-push bundle contents:"
           ls -la "$BUNDLE"
           if [ ! -f "$BUNDLE/nvram.bin" ]; then
-            BASE_TAG="${XCODE//./-}"
-            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
             echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
             tart delete nvram-restore 2>/dev/null || true
             tart clone "$BASE_IMAGE" nvram-restore

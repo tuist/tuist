@@ -5,6 +5,7 @@ defmodule Atlas.Support.Notifier do
 
   alias Atlas.Audit
   alias Atlas.Slack.API
+  alias Atlas.Support
   alias Atlas.Support.Config
   alias Atlas.Support.Message
   alias Atlas.Support.Thread
@@ -14,7 +15,7 @@ defmodule Atlas.Support.Notifier do
 
   @app_key :company
   @event_type "atlas_support_event"
-  @events ~w(inbound_received chat_received reply_delivered note_added status_changed assigned)
+  @events ~w(inbound_received chat_received agent_feedback_received reply_delivered note_added status_changed assigned)
 
   def notify(%Thread{} = thread, event, opts \\ []) when event in @events do
     with {:ok, channel_id} <- channel_id(thread, event, opts) do
@@ -197,6 +198,7 @@ defmodule Atlas.Support.Notifier do
 
   defp event_title("inbound_received"), do: "New support email"
   defp event_title("chat_received"), do: "New support chat"
+  defp event_title("agent_feedback_received"), do: "New agent feedback"
   defp event_title("reply_delivered"), do: "Support reply sent"
   defp event_title("note_added"), do: "Private support note added"
   defp event_title("status_changed"), do: "Support conversation updated"
@@ -310,6 +312,33 @@ defmodule Atlas.Support.Notifier do
   defp event_detail_block(_thread, "chat_received", opts) do
     inbound_message_block(opts)
   end
+
+  defp event_detail_block(thread, "agent_feedback_received", opts) do
+    case agent_feedback_reporter(Support.agent_feedback_origin(thread)) do
+      nil ->
+        inbound_message_block(opts)
+
+      reporter ->
+        message = inbound_message_block(opts)
+        text = "*Reported from*\n#{escape(reporter)}"
+        text = if message, do: text <> "\n\n" <> message["text"]["text"], else: text
+        %{"type" => "section", "text" => %{"type" => "mrkdwn", "text" => text}}
+    end
+  end
+
+  # "acme/ios · maya · Example MCP": where the report is about, who sent it and
+  # which product it came through, leaving out whatever the sender did not say.
+  defp agent_feedback_reporter(%{} = origin) do
+    location =
+      origin.account_handle && Enum.join(Enum.reject([origin.account_handle, origin.project_handle], &is_nil/1), "/")
+
+    case Enum.reject([location, origin.reporter_handle, origin.source], &is_nil/1) do
+      [] -> nil
+      parts -> Enum.join(parts, " · ")
+    end
+  end
+
+  defp agent_feedback_reporter(_origin), do: nil
 
   defp inbound_message_block(opts) do
     case Keyword.get(opts, :message) do

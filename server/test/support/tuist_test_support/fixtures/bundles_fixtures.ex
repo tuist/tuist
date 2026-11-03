@@ -83,6 +83,7 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
         git_branch: Keyword.get(opts, :git_branch, "main"),
         git_commit_sha: Keyword.get(opts, :git_commit_sha),
         git_ref: Keyword.get(opts, :git_ref),
+        custom_tags: Keyword.get(opts, :custom_tags, []),
         type: Keyword.get(opts, :type, :app),
         project_id: project.id,
         uploaded_by_account_id: uploaded_by_account.id,

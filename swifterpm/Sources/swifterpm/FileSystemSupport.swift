@@ -239,51 +239,60 @@ extension FileSystem {
         try await copy(source.absolutePath, to: destination.absolutePath)
     }
 
-    /// Materialise `source` at `destination`, removing any existing item first. By default,
-    /// continuous integration runners copy cached directories; other environments symlink so the
-    /// cached payload stays shared.
-    func replaceWithCachedDirectory(source: URL, destination: URL) async throws {
+    /// Materialise `source` at `destination`, removing any existing item first, through `trash`
+    /// when given. By default, continuous integration runners copy cached directories; other
+    /// environments symlink so the cached payload stays shared.
+    func replaceWithCachedDirectory(source: URL, destination: URL, trash: ScratchTrash? = nil) async throws {
         if Environment.cachedDirectoryMaterializationMode().shouldCopyCachedDirectories {
-            try await replaceWithCopiedDirectory(source: source, destination: destination)
+            try await replaceWithCopiedDirectory(source: source, destination: destination, trash: trash)
             return
         }
-        try await replaceWithSymlink(source: source, destination: destination)
+        try await replaceWithSymlink(source: source, destination: destination, trash: trash)
     }
 
     /// Registry downloads keep a real workspace-local package root in symlink mode. Xcode treats
     /// symlinked registry roots differently during dependency scanning, but symlinked contents keep
     /// the root stable while avoiding a full copy.
-    func replaceWithRegistryDownloadDirectory(source: URL, destination: URL) async throws {
+    func replaceWithRegistryDownloadDirectory(
+        source: URL, destination: URL, trash: ScratchTrash? = nil
+    ) async throws {
         if Environment.cachedDirectoryMaterializationMode().shouldCopyCachedDirectories {
-            try await replaceWithCopiedDirectory(source: source, destination: destination)
+            try await replaceWithCopiedDirectory(source: source, destination: destination, trash: trash)
             return
         }
-        try await replaceWithDirectoryOfSymlinks(source: source, destination: destination)
+        try await replaceWithDirectoryOfSymlinks(source: source, destination: destination, trash: trash)
     }
 
-    private func replaceWithCopiedDirectory(source: URL, destination: URL) async throws {
-        let destinationPath = try destination.absolutePath
-        if existsIncludingSymlinks(destination) {
-            try await remove(destinationPath)
+    private func removeExistingItem(at destination: URL, trash: ScratchTrash?) async throws {
+        guard existsIncludingSymlinks(destination) else { return }
+        if let trash {
+            try await trash.discard(destination)
+        } else {
+            try await remove(destination.absolutePath)
         }
+    }
+
+    private func replaceWithCopiedDirectory(source: URL, destination: URL, trash: ScratchTrash?) async throws {
+        let destinationPath = try destination.absolutePath
+        try await removeExistingItem(at: destination, trash: trash)
         try await makeDirectory(
             at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
         )
         try await copy(source.absolutePath, to: destinationPath)
     }
 
-    private func replaceWithSymlink(source: URL, destination: URL) async throws {
+    private func replaceWithSymlink(source: URL, destination: URL, trash: ScratchTrash?) async throws {
         let destinationPath = try destination.absolutePath
-        if existsIncludingSymlinks(destination) {
-            try await remove(destinationPath)
-        }
+        try await removeExistingItem(at: destination, trash: trash)
         try await makeDirectory(
             at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
         )
         try await createSymbolicLink(from: destinationPath, to: source.absolutePath)
     }
 
-    private func replaceWithDirectoryOfSymlinks(source: URL, destination: URL) async throws {
+    private func replaceWithDirectoryOfSymlinks(
+        source: URL, destination: URL, trash: ScratchTrash?
+    ) async throws {
         let destinationPath = try destination.absolutePath
         let parent = destination.deletingLastPathComponent()
         try await makeDirectory(
@@ -298,9 +307,7 @@ extension FileSystem {
                     to: sourceEntry.absolutePath
                 )
             }
-            if existsIncludingSymlinks(destination) {
-                try await remove(destinationPath)
-            }
+            try await removeExistingItem(at: destination, trash: trash)
             try await move(from: temp.absolutePath, to: destinationPath, options: [])
         } catch {
             try? await remove(temp.absolutePath)
@@ -308,7 +315,7 @@ extension FileSystem {
         }
     }
 
-    func replaceWithSymlinkedDirectory(source: URL, destination: URL) async throws {
-        try await replaceWithCachedDirectory(source: source, destination: destination)
+    func replaceWithSymlinkedDirectory(source: URL, destination: URL, trash: ScratchTrash? = nil) async throws {
+        try await replaceWithCachedDirectory(source: source, destination: destination, trash: trash)
     }
 }

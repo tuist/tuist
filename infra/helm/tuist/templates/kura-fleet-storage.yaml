@@ -295,13 +295,6 @@ rules:
   - apiGroups: [""]
     resources: [nodes, persistentvolumeclaims, configmaps, pods, pods/log]
     verbs: [get, list, watch]
-  # The provisioner creates a short-lived helper Pod on the target node to
-  # set up/tear down the hostPath directory backing each PV; without
-  # create/delete on pods every provision fails with a 403 and PVCs hang
-  # Pending (the helper Pod can't be launched).
-  - apiGroups: [""]
-    resources: [pods]
-    verbs: [create, delete]
   - apiGroups: [""]
     resources: [persistentvolumes]
     verbs: [get, list, watch, create, patch, update, delete]
@@ -319,6 +312,36 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
+  name: local-path-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: local-path-provisioner-service-account
+    namespace: local-path-storage
+---
+# The provisioner creates a short-lived helper Pod on the target node to set
+# up/tear down the hostPath directory backing each PV; without create/delete on
+# pods every provision fails with a 403 and PVCs hang Pending. Helper Pods run
+# in the provisioner's own namespace (POD_NAMESPACE), so the grant is scoped to
+# it, as upstream does, instead of letting the provisioner create Pods (with any
+# ServiceAccount) in every namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: local-path-provisioner-role
+  namespace: local-path-storage
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, patch, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: local-path-provisioner-bind
+  namespace: local-path-storage
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
   name: local-path-provisioner-role
 subjects:
   - kind: ServiceAccount

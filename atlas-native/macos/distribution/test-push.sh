@@ -43,7 +43,7 @@ cat > "$work/profile.plist" <<PLIST
 <key>ExpirationDate</key><date>$(date -u -v+1d +%Y-%m-%dT%H:%M:%SZ)</date>
 <key>DeveloperCertificates</key><array><data>$(base64 < "$work/good.der")</data></array>
 <key>Entitlements</key><dict>
-<key>com.apple.application-identifier</key><string>LEGACY1234.dev.tuist.atlas.macos</string>
+<key>com.apple.application-identifier</key><string>LEGACY1234.dev.tuist.atlas</string>
 <key>com.apple.developer.team-identifier</key><string>U6LC622NKF</string>
 <key>com.apple.developer.aps-environment</key><string>production</string>
 <key>com.apple.security.get-task-allow</key><false/>
@@ -54,7 +54,7 @@ if [[ $# = 2 ]]; then exit 0; fi
 
 write_macos_push_entitlements "$work/profile.plist" "$work/entitlements.plist" "$scripts/entitlements.plist"
 buddy=/usr/libexec/PlistBuddy
-[[ $("$buddy" -c 'Print :com.apple.application-identifier' "$work/entitlements.plist") = LEGACY1234.dev.tuist.atlas.macos ]]
+[[ $("$buddy" -c 'Print :com.apple.application-identifier' "$work/entitlements.plist") = LEGACY1234.dev.tuist.atlas ]]
 [[ $("$buddy" -c 'Print :com.apple.developer.aps-environment' "$work/entitlements.plist") = production ]]
 [[ $("$buddy" -c 'Print :com.apple.security.device.audio-input' "$work/entitlements.plist") = true ]]
 [[ $(/usr/bin/xmllint --xpath 'count(/plist/dict/key)' "$work/entitlements.plist") = 4 ]]
@@ -64,7 +64,7 @@ for mutation in \
     'Set :ProvisionsAllDevices false' \
     'Add :ProvisionedDevices array' \
     'Set :TeamIdentifier:0 XXXXXXXXXX' \
-    'Set :Entitlements:com.apple.application-identifier LEGACY1234.dev.tuist.atlas' \
+    'Set :Entitlements:com.apple.application-identifier LEGACY1234.dev.tuist.atlas.macos' \
     'Set :Entitlements:com.apple.developer.team-identifier XXXXXXXXXX' \
     'Set :Entitlements:com.apple.developer.aps-environment development' \
     'Delete :Entitlements:com.apple.developer.aps-environment' \

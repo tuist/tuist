@@ -235,6 +235,7 @@ defmodule AtlasWeb.NativeOrbitController do
       environment_id: thread.environment_id,
       environment_name: thread.environment_name,
       project_id: thread.project_id,
+      repository: thread.repository,
       participants:
         Enum.map(thread.participants, fn participant ->
           %{id: participant.user_id, name: Orbit.display_name(participant.user)}

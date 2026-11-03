@@ -516,3 +516,53 @@ func TestPrefetchOnlyInstallsMasterAndNextJobReusesIt(t *testing.T) {
 		t.Fatal("redownloaded existing master")
 	}
 }
+
+// A speculative prefetch only uses free space above the reserve, never evicts a
+// resident master, and marks a lineage no job used here as speculative until a
+// job clones it.
+func TestLocalSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
+	b, remote := newLocal(t)
+	remote.source = filepath.Join(t.TempDir(), "published")
+	if err := os.WriteFile(remote.source, []byte("saved contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	resident := Slot{Identity: identity(first)}
+	resident.Scope = strings.Repeat("d", 64)
+	resident.BaseGeneration = 1
+	resident.ImageDigest = strings.Repeat("c", 40)
+	resident.ContentDigest = strings.Repeat("b", 64)
+	master := b.master(resident)
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, []byte("resident"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	wanted := Slot{Identity: identity(first), PodName: "job", PodUID: "pod"}
+	wanted.BaseGeneration = 1
+	wanted.ImageDigest = strings.Repeat("c", 40)
+	wanted.ContentDigest = strings.Repeat("b", 64)
+	wanted.HeadSizeBytes = 1_000
+	free := uint64(2_000)
+	b.FreeBytes = func(string) (uint64, error) { return free, nil }
+
+	if err := b.PrefetchSpare(context.Background(), wanted); !errors.Is(err, ErrCapacity) {
+		t.Fatal("speculative prefetch without room for the restore above the reserve", err)
+	}
+	if !b.HasMaster(resident.Identity) || remote.downloads != 0 {
+		t.Fatal("speculative prefetch evicted a resident master or downloaded")
+	}
+	free = 2_010
+	if err := b.PrefetchSpare(context.Background(), wanted); err != nil {
+		t.Fatal(err)
+	}
+	if !b.HasMaster(wanted.Identity) || !b.HasMaster(resident.Identity) || !speculative(b.master(wanted)) {
+		t.Fatal("speculative prefetch did not install a speculative master beside the resident one")
+	}
+	if err := b.Attach(context.Background(), wanted, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if speculative(b.master(wanted)) || remote.downloads != 1 {
+		t.Fatal("a job's clone left the master speculative or downloaded again", remote.downloads)
+	}
+}

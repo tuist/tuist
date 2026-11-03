@@ -368,6 +368,9 @@
       url={
         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
       }
+      trace_url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/trace.json"
+      }
     />
   </section>
   <%= if @selected_tab == "overview" do %>
@@ -453,6 +456,7 @@
     <TuistWeb.Components.BuildMetadata.environment_metadata
       values={@run.custom_values || %{}}
       fields={[
+        {dgettext("dashboard_builds", "tuist_ex version"), @run.tuist_version},
         {dgettext("dashboard_builds", "Elixir version"), @run.elixir_version},
         {dgettext("dashboard_builds", "OTP version"), @run.otp_version}
       ]}

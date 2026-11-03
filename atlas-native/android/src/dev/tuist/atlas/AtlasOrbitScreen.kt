@@ -49,6 +49,7 @@ class AtlasOrbitScreen(
     private val navigationChanged: () -> Unit,
     private val appearance: AtlasAppearance? = null,
     private val pickAttachment: (() -> Unit)? = null,
+    private val environmentRequest: ((JSONObject, (Result<JSONObject>) -> Unit) -> Unit)? = null,
 ) {
     val toolbar = Toolbar(activity)
     private val liveStatus =
@@ -216,6 +217,7 @@ class AtlasOrbitScreen(
         closed = true
         searchTask?.let(search::removeCallbacks)
         promptDialog?.dismiss()
+        environmentDialog?.dismiss()
         messageViews.clear()
         AtlasOrbitAttachments.clear()
         hideKeyboard()
@@ -249,6 +251,7 @@ class AtlasOrbitScreen(
     private fun render() {
         if (closed) return
         if (promptThread != protectedThreadId()) promptDialog?.dismiss()
+        if (environmentThread != protectedThreadId()) environmentDialog?.dismiss()
         updatePromptIndex()
         if (model.createDraft != null || model.selecting || model.selectionId != null || !listMenuReady) {
             listMenuReady = false
@@ -462,6 +465,183 @@ class AtlasOrbitScreen(
             .show()
     }
 
+    private var environmentDialog: AlertDialog? = null
+    private var environmentThread: String? = null
+    private var repositoryDialog: AlertDialog? = null
+
+    private fun showEnvironments(id: String) {
+        val request = environmentRequest ?: return
+        environmentDialog?.dismiss()
+        environmentThread = id
+        val rows =
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(8), dp(20), dp(8))
+            }
+        val dialog =
+            AlertDialog
+                .Builder(activity)
+                .setTitle("Tool environment")
+                .setView(ScrollView(activity).apply { addView(rows) })
+                .setNegativeButton("Close", null)
+                .create()
+        environmentDialog = dialog
+
+        fun current() = !closed && protectedThreadId() == id && environmentDialog === dialog && dialog.isShowing
+
+        fun message(value: String) {
+            rows.addView(
+                TextView(activity).apply {
+                    text = value
+                    textSize = 16f
+                },
+            )
+        }
+
+        fun select(action: JSONObject) {
+            if (!current()) return
+            rows.removeAllViews()
+            message("Updating environment…")
+            request(action.put("thread_id", id)) { result ->
+                if (!current()) return@request
+                rows.removeAllViews()
+                result.fold({
+                    showEnvironments(id)
+                }, { message("Couldn’t update the environment. Reopen to refresh before trying again.") })
+            }
+        }
+
+        fun option(
+            label: String,
+            action: JSONObject,
+        ) {
+            rows.addView(
+                Button(activity).apply {
+                    text = label
+                    isAllCaps = false
+                    minHeight = dp(48)
+                    setOnClickListener { select(action) }
+                },
+            )
+        }
+        dialog.setOnDismissListener { repositoryDialog?.dismiss() }
+        dialog.show()
+        message("Loading environments…")
+        request(JSONObject().put("action", "selection").put("thread_id", id)) selection@{ selectedResult ->
+            if (!current()) return@selection
+            val selected = selectedResult.getOrNull()?.optJSONObject("thread")
+            if (selected == null || selected.optString("id") != id) {
+                rows.removeAllViews()
+                message("Couldn’t load the current selection. Close and reopen to retry.")
+                return@selection
+            }
+            val repository = selected.nullableString("repository")
+            request(JSONObject().put("action", "list")) { result ->
+                if (!current()) return@request
+                rows.removeAllViews()
+                result.fold({ overview ->
+                    message(
+                        "Pip stays on Atlas. File and terminal tools run in the selected environment. Selecting Server only stops its hosted environment.",
+                    )
+                    rows.addView(
+                        Button(activity).apply {
+                            text = "Repository: ${repository ?: "None"}"
+                            isAllCaps = false
+                            minHeight = dp(48)
+                            setOnClickListener {
+                                isEnabled = false
+                                request(JSONObject().put("action", "repositories")) repositories@{ response ->
+                                    if (!current()) return@repositories
+                                    isEnabled = true
+                                    val repos = response.getOrNull()?.optJSONArray("repositories")
+                                    val names = (0 until (repos?.length() ?: 0)).map { repos!!.getJSONObject(it).getString("full_name") }
+                                    response.exceptionOrNull()?.let {
+                                        message(it.message ?: "Couldn’t load repositories. Configure GitHub in Profile → Coding.")
+                                    }
+                                    repositoryDialog =
+                                        AtlasCodingChoices.show(
+                                            activity,
+                                            "Repository",
+                                            listOf("No repository" to null) + names.map { it to it },
+                                            repository,
+                                        ) { name ->
+                                            if (current() && name != repository) {
+                                                select(
+                                                    JSONObject()
+                                                        .put("action", "select")
+                                                        .put("environment_id", JSONObject.NULL)
+                                                        .put("project_id", JSONObject.NULL)
+                                                        .put("repository", name ?: JSONObject.NULL),
+                                                )
+                                            }
+                                        }
+                                }
+                            }
+                        },
+                        LinearLayout.LayoutParams(-1, -2),
+                    )
+                    message("Changing repositories clears the tool environment. Configure defaults in Profile → Coding.")
+                    option(
+                        "Server only",
+                        JSONObject()
+                            .put("action", "select")
+                            .put("environment_id", JSONObject.NULL)
+                            .put("project_id", JSONObject.NULL)
+                            .put("repository", repository ?: JSONObject.NULL),
+                    )
+                    val providers = overview.optJSONArray("providers")
+                    for (index in 0 until (if (repository == null) providers?.length() ?: 0 else 0)) {
+                        val provider = providers!!.getJSONObject(index)
+                        option(
+                            "Start ${provider.getString("name")}",
+                            JSONObject()
+                                .put("action", "start_provider")
+                                .put("provider", provider.getString("id")),
+                        )
+                    }
+                    val environments = overview.getJSONArray("environments")
+                    for (index in 0 until environments.length()) {
+                        val environment = environments.getJSONObject(index)
+                        if (environment.optString("provider", "native") != "native") {
+                            message("${environment.getString("name")}: ${environment.optString("provider_state", "unavailable")}")
+                        } else if (environment.optBoolean("enabled")) {
+                            val projects = environment.getJSONArray("projects")
+                            var matches = 0
+                            for (projectIndex in 0 until projects.length()) {
+                                val project = projects.getJSONObject(projectIndex)
+                                if (repository != null && project.nullableString("repository") != repository) continue
+                                matches++
+                                option(
+                                    "${environment.getString("name")} · ${project.getString("name")}" +
+                                        (if (environment.optBoolean("online")) "" else " · Offline") +
+                                        (
+                                            if (selected.optString("environment_id") == environment.getString("id") &&
+                                                selected.optString("project_id") == project.getString("id")
+                                            ) {
+                                                " · Selected"
+                                            } else {
+                                                ""
+                                            }
+                                        ),
+                                    JSONObject()
+                                        .put("action", "select")
+                                        .put("environment_id", environment.getString("id"))
+                                        .put("project_id", project.getString("id"))
+                                        .put("repository", repository ?: JSONObject.NULL),
+                                )
+                            }
+                            if (repository != null &&
+                                matches == 0
+                            ) {
+                                message("${environment.getString("name")}: no matching checkout. Add this repository in This Mac settings.")
+                            }
+                        }
+                    }
+                }, { message("Couldn’t load environments. Close and reopen to retry.") })
+            }
+        }
+    }
+
     private fun renderThread() {
         val snapshot = model.snapshot
         val thread = snapshot.selected ?: return
@@ -471,6 +651,9 @@ class AtlasOrbitScreen(
         toolbar.subtitle =
             if (thread.isPrivate) "Private" else (listOf(assistant?.name ?: "Pip") + thread.participants.map { it.name }).joinToString(", ")
         refreshAction { model.refresh() }
+        if (thread.isPrivate && !thread.archived && environmentRequest != null) {
+            menuAction("Tool environment") { showEnvironments(id) }
+        }
         if (presence?.selfId != null && thread.ownerId == presence.selfId) {
             menuAction(if (thread.archived) "Restore conversation" else "Archive conversation") {
                 if (!thread.isPrivate && !thread.archived) {

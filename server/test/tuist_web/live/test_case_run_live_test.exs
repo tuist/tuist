@@ -66,6 +66,10 @@ defmodule TuistWeb.TestCaseRunLiveTest do
           {:mix, "", "mix test"},
           {:mix, "clickhouse-current", "mix test · clickhouse-current"},
           {:mix, "clickhouse-floor", "mix test · clickhouse-floor"},
+          {:cargo, "", "Cargo tests"},
+          {:cargo, "cargo test", "cargo test"},
+          {:cargo, "nextest", "Cargo tests"},
+          {:cargo, "cargo nextest run · ci", "Cargo tests · ci"},
           {:bazel, "", "bazel test"},
           {:gradle, "root-project", "root-project"},
           {:xcode, "AppScheme", "AppScheme"}

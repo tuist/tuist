@@ -81,6 +81,35 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "abcdef1"
   end
 
+  test "renders a running job before the outbox has replayed it to ClickHouse", %{conn: conn, account: account} do
+    fleet_name = Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_051,
+        account_id: account.id,
+        fleet_name: fleet_name,
+        repository: "tuist/cli",
+        workflow_run_id: 310_510,
+        workflow_name: "CLI",
+        run_attempt: 2,
+        job_name: "Unit Tests",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued(fleet_name, [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_051, "tuist-runner-x", claimed_at)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310510/jobs/31051")
+
+    assert html =~ "CLI · Unit Tests"
+    assert html =~ "tuist-runner-x"
+    assert html =~ "Running"
+  end
+
   test "renders timeline durations once a job has run", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
@@ -792,6 +821,42 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "https://github.com/acme/mobile"
     refute html =~ "steps-card"
     refute html =~ "job-secret"
+  end
+
+  test "Bitrise jobs link to their build and point to Bitrise for logs", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.Bitrise.Build{
+        account_id: account.id,
+        build_slug: "3da87d70-71cd-48c0-8780-157e8c1c5801",
+        app_slug: "5782983d-2bc1-4627-a9b7-af2f2f390ed3",
+        stack_identifier: "agent-pool-a0c641c0",
+        build_number: 2
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "bitrise",
+        fleet_name: "linux-amd64",
+        repository: "Hello-World",
+        workflow_run_id: 2,
+        workflow_name: "primary",
+        job_name: "primary",
+        head_branch: "master"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/2/jobs/#{mapping.workflow_job_id}")
+    build_url = "https://app.bitrise.io/build/3da87d70-71cd-48c0-8780-157e8c1c5801"
+
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Bitrise")
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Open the build on Bitrise")
+    assert html =~ "Logs for Bitrise builds stay on Bitrise."
+    refute html =~ "https://github.com/Hello-World"
+    refute html =~ "steps-card"
   end
 
   describe "Buildkite jobs" do

@@ -50,6 +50,8 @@ const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
 const KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: &str = "KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS";
 const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS";
+const KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS: &str = "KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS";
+const MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS: u64 = 60_000;
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
@@ -205,6 +207,12 @@ pub struct Config {
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
+    /// Opt-in relaxed durability. When set, writes are acknowledged once they
+    /// reach the page cache and a background task fsyncs segments and the WAL
+    /// on this interval, so a kernel crash or power loss can lose up to one
+    /// interval of acknowledged writes. A process crash loses nothing. `None`
+    /// keeps the default: every acknowledged write is fsynced first.
+    pub relaxed_durability_sync_interval_ms: Option<u64>,
     pub segment_handle_cache_size: usize,
     pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
@@ -957,6 +965,24 @@ impl Config {
         if drain_completion_timeout_ms == 0 {
             invalid.push(format!(
                 "{KURA_DRAIN_COMPLETION_TIMEOUT_MS} must be greater than 0"
+            ));
+        }
+        let relaxed_durability_sync_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS} must be a valid u64")
+                })
+            },
+        )
+        .filter(|interval| *interval > 0);
+        if relaxed_durability_sync_interval_ms
+            .is_some_and(|interval| interval > MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS)
+        {
+            invalid.push(format!(
+                "{KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS} must be at most {MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS}"
             ));
         }
         let segment_handle_cache_size = optional_parsed_value(
@@ -2005,6 +2031,7 @@ impl Config {
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
+            relaxed_durability_sync_interval_ms,
             segment_handle_cache_size,
             memory_limit_bytes,
             memory_soft_limit_bytes,
@@ -3345,6 +3372,30 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+    }
+
+    #[test]
+    fn relaxed_durability_is_opt_in_and_bounded() {
+        let parse = |value: &str| {
+            config_from(&[(KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS, value)])
+                .map(|config| config.relaxed_durability_sync_interval_ms)
+        };
+        assert_eq!(
+            config_from(&[])
+                .unwrap()
+                .relaxed_durability_sync_interval_ms,
+            None
+        );
+        assert_eq!(parse("0"), Ok(None));
+        assert_eq!(parse("1000"), Ok(Some(1000)));
+        assert_eq!(parse("60000"), Ok(Some(60_000)));
+        for invalid in ["60001", "-1", "soon"] {
+            assert!(
+                parse(invalid)
+                    .expect_err("expected an invalid interval to fail")
+                    .contains(KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS)
+            );
+        }
     }
 
     #[test]

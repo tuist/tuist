@@ -829,6 +829,7 @@ async fn https_connect_protects_both_pkis_and_keeps_credentials_on_their_leg() {
                     .unwrap()
                     .basic_auth("fixture-user", "fixture-password"),
             )
+            .resolve("localhost", address)
             .timeout(std::time::Duration::from_secs(3))
             .build()
             .unwrap();
@@ -893,6 +894,7 @@ async fn actual_http2_negotiates_with_both_tls_versions() {
         let client = reqwest::Client::builder()
             .tls_backend_preconfigured(config(fixture.roots(true), None, Vec::new()).unwrap())
             .no_proxy()
+            .resolve("localhost", address)
             .timeout(std::time::Duration::from_secs(3))
             .build()
             .unwrap();

@@ -50,8 +50,8 @@ validate_macos_push_profile() (
     application=$(macos_profile_value "$profile" 'Entitlements.com\.apple\.application-identifier' string)
     team=$(macos_profile_value "$profile" 'Entitlements.com\.apple\.developer\.team-identifier' string)
     environment=$(macos_profile_value "$profile" 'Entitlements.com\.apple\.developer\.aps-environment' string)
-    [[ "$application" = "$prefix.dev.tuist.atlas.macos" && "$team" = U6LC622NKF && "$environment" = production ]] || {
-        echo 'Profile must authorize dev.tuist.atlas.macos and production macOS APNs for Tuist' >&2; return 1;
+    [[ "$application" = "$prefix.dev.tuist.atlas" && "$team" = U6LC622NKF && "$environment" = production ]] || {
+        echo 'Profile must authorize dev.tuist.atlas and production macOS APNs for Tuist' >&2; return 1;
     }
     for key in 'com\.apple\.security\.get-task-allow' get-task-allow; do
         if plutil -type "Entitlements.$key" "$profile" >/dev/null 2>&1; then
@@ -98,7 +98,7 @@ write_macos_push_entitlements() (
 verify_macos_push_signature() (
     set -euo pipefail
     local app=$1 identity=$2 requested=$3 work=$4 actual key value team
-    codesign --display --extract-certificates "$work/signed-" "$app"
+    codesign --display --extract-certificates="$work/signed-" "$app"
     actual=$(shasum -a 1 "$work/signed-0" | awk '{print toupper($1)}')
     [[ "$actual" = "$identity" ]] || { echo 'Actual signing certificate differs from the authorized profile identity' >&2; return 1; }
     team=$(codesign --display --verbose=4 "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')

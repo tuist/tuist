@@ -13,6 +13,7 @@ defmodule TuistEx.Analytics.Shards do
   # building for testing once and testing without building.
 
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Report
   alias TuistEx.Analytics.TempDir
   alias TuistEx.HTTP, as: RawHTTP
 
@@ -270,19 +271,15 @@ defmodule TuistEx.Analytics.Shards do
   defp upload_parts(archive, reference, upload_id, options) do
     archive
     |> File.stream!(@part_bytes)
-    |> Stream.with_index(1)
-    |> Enum.reduce_while({:ok, []}, fn {chunk, part_number}, {:ok, parts} ->
+    |> TuistEx.Analytics.ShardUpload.upload(fn chunk, part_number ->
       with {:ok, %{"data" => %{"url" => url}}} <-
              HTTP.project_request(
                :post,
                "/tests/shards/upload/generate-url",
                %{reference: reference, upload_id: upload_id, part_number: part_number},
                options
-             ),
-           {:ok, etag} <- RawHTTP.put_binary(url, chunk) do
-        {:cont, {:ok, parts ++ [%{part_number: part_number, etag: etag}]}}
-      else
-        error -> {:halt, error}
+             ) do
+        RawHTTP.put_binary(url, chunk)
       end
     end)
   end
@@ -292,6 +289,9 @@ defmodule TuistEx.Analytics.Shards do
   means the plan has none, which is fine: the shard compiles as usual.
   """
   def download_build(url, build_path) when is_binary(url) do
+    %URI{scheme: scheme, host: host, port: port} = URI.parse(url)
+    Report.debug("Downloading the shard build from #{scheme}://#{host}:#{port}")
+
     TempDir.with_dir("tuist-ex-build", fn dir ->
       archive = Path.join(dir, "build.tar.gz")
 

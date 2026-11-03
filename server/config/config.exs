@@ -212,6 +212,10 @@ config :logger, :console,
     # Tuist.Runners.Buildkite structured fields
     :queue,
     :job_uuid,
+    # Tuist.Runners.Bitrise structured fields
+    :stack,
+    :profile,
+    :build_slug,
     :errors,
     :requested,
     :target,
@@ -297,6 +301,13 @@ config :logger, :console,
     :restore_ms,
     :snapshot_ms,
     :mem_bytes,
+    :disks_synced,
+    :from_archive,
+    :archive_key,
+    :archive_bytes,
+    :stored_bytes,
+    :disk_snapshot_id,
+    :last_used_at,
     :freed_bytes,
     :memory_bytes,
     :paused_at,
@@ -340,7 +351,8 @@ config :phoenix, :filter_parameters, [
   "secret",
   "token",
   "credential",
-  "installation_receipt"
+  "installation_receipt",
+  "arguments"
 ]
 
 # Use Jason for JSON parsing in Phoenix
@@ -584,6 +596,8 @@ config :tuist, :urls,
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
   feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
   shop: "https://shop.tuist.dev"
+
+config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 
 config :tuist_common, finch_name: Tuist.Finch
 

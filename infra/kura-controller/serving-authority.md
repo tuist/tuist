@@ -141,6 +141,17 @@ same-version content mismatch fails preparation without pausing the primary. Old
 retain the direct-quiescence path. Upgrade all controller replicas and the clean
 standby before requesting this flow; the source may remain on the earlier runtime.
 
+The source's first descriptor page names the oldest version it retains. From
+then on the destination counts every capacity or pressure eviction of a segment
+whose newest record is not older than that; reclaiming destination-only
+segments is not counted. Preparation fails, with the primary still serving, if
+such an eviction happened during the walk or if the records the walk found
+missing take more bytes than the destination can write without one (free ring
+slots, the active segment's remainder within disk headroom, and older evictees).
+This is the normal outcome for two full rings of equal size: the destination
+would have to evict retained data to take in what it lacks. The preparation
+error in the destination's `/status` carries the counts.
+
 The source then rejects new mutations, drains admitted work, and freezes metadata
 publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head, then reconcile the source's complete retained index
@@ -157,7 +168,14 @@ entries cascaded away by blob eviction after an earlier presence check. A pass
 without eviction acquires the hold atomically with its eviction-generation check.
 All Quiescing repair passes share its original 300-second deadline. Equal-sized fragmented
 replicas are not guaranteed to converge; the final full-corpus check still
-refuses promotion when required data remains missing.
+refuses promotion when required data remains missing. When the destination knows
+the source's oldest retained version, a counted eviction or a record refused for
+capacity during the frozen repair ends the attempt instead of walking again, and
+so does a missing or different record found under its hold. It answers that
+begin and every later one for the intent with 422; the source reports it as
+`barrier_failure` and the controller restores Serving with "Named standby cannot
+complete the retained barrier; retained old primary" instead of waiting for the
+deadline. Every other rejection is retried until the deadline.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification
@@ -180,7 +198,7 @@ Only that acknowledgment allows the next epoch. A restarted destination cannot
 reuse an old receipt: receipt ownership and the retained-corpus hold are specific
 to the live runtime incarnation. An authoritative abort or completed transfer
 releases the holds. Quiescing has a 300-second deadline; a healthy source is
-restored on verification timeout. A source lost during Quiescing requires
+restored on verification timeout or as soon as it reports a barrier failure. A source lost during Quiescing requires
 external fencing. Large corpora may exceed the deadline because this initial
 implementation verifies every retained byte; do not increase it casually.
 

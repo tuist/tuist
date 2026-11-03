@@ -115,6 +115,8 @@
     "rotate_project_error_dsn": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "start_chatgpt_provider_login": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "update_my_profile": "Personal self-description requires an explicit caller request, not automated workflow inference or mutation of personal preferences.",
+    "list_coding_repositories": "Personal GitHub grants and repository selection are not transactional workflow capabilities.",
+    "update_coding_repository_settings": "Personal repository defaults require an explicit caller decision, not automated workflow changes to personal preferences.",
     "get_domain_error_dsn": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "claim_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_signals": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",

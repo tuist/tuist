@@ -149,10 +149,11 @@ guest IP: the Pod stays NotReady until the release answers and can reach
 Postgres, ClickHouse and its Oban queue. A VM that boots and then dies at
 `tailscale-up.sh` then reads `0/1 Running`, the rolling update stops on it,
 and the deploy's "xcresult processor rollout" step fails and annotates the
-run. That step does not fail the deploy, and the processor is not in the
-tuist release's `helm upgrade --atomic --wait`, so a NotReady processor
-never holds or rolls back a server deploy. The probe shares the
-host-to-guest path with the metrics forwarder on 9091, so a Mac mini that
+run. On canary that failure blocks acceptance and production promotion;
+staging reports it without failing the deploy, and production does not wait.
+The processor is not in the tuist release's `helm upgrade --atomic --wait`,
+so its readiness never rolls back the already-deployed server release. The
+probe shares the host-to-guest path with the metrics forwarder on 9091, so a Mac mini that
 cannot reach its guest at `192.168.64.x` also shows up as
 `up{job="tuist-macos-pod-metrics"} == 0` for that Pod; check that metric
 before reading a NotReady processor as a dependency outage.

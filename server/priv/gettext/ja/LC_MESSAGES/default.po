@@ -19,7 +19,7 @@ msgstr "グループ化:"
 #: lib/tuist_web/components/chart_type_toggle.ex:53
 #, elixir-autogen, elixir-format
 msgid "Line"
-msgstr "ライン"
+msgstr "線グラフ"
 
 #: lib/tuist_web/components/chart_type_toggle.ex:59
 #, elixir-autogen, elixir-format

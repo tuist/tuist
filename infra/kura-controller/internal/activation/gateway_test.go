@@ -3,6 +3,7 @@ package activation
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -373,16 +374,81 @@ func TestProxyStreamsDoNotHoldActivationSlots(t *testing.T) {
 }
 
 func TestCredentialAndConfigurationFailuresAreNotRetryableGRPC(t *testing.T) {
-	for status, code := range map[int]string{401: "16", 403: "7", 409: "9"} {
+	for status, code := range map[int]string{401: "16", 402: "7", 403: "7", 409: "9"} {
 		r := request("acme.cache.tuist.dev")
 		r.Header.Set("Content-Type", "application/grpc")
 		w := httptest.NewRecorder()
 		unforwardedFailure(w, r, status)
-		if w.Header().Get("Grpc-Status") != code || w.Header().Get("X-Tuist-Cache-Activation") != "" {
+		if w.Header().Get("Grpc-Status") != code || w.Header().Get("X-Tuist-Cache-Activation") != "" || w.Header().Get("Retry-After") != "" {
 			t.Fatalf("status %d: %v", status, w.Header())
+		}
+		wantReason := ""
+		if status == http.StatusPaymentRequired {
+			wantReason = "payment_required"
+		}
+		if w.Header().Get("Tuist-Refusal-Reason") != wantReason {
+			t.Fatalf("status %d: wrong billing classification: %v", status, w.Header())
 		}
 		if status == 409 && !strings.Contains(w.Header().Get("Grpc-Message"), "TUIST_CACHE_ENDPOINT") {
 			t.Fatal("missing configuration guidance")
+		}
+	}
+}
+
+func TestBillingRefusalOverHTTP2(t *testing.T) {
+	control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Tuist-Cache-Activation-Billing") != "1" {
+			t.Error("gateway must advertise billing response support")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusPaymentRequired)
+	}))
+	defer control.Close()
+	g := New(Servers{"production": control.URL}, 1)
+	g.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
+		t.Error("billing refusal must not forward an artifact request")
+		return nil, io.ErrUnexpectedEOF
+	})
+	gateway := httptest.NewUnstartedServer(g)
+	gateway.EnableHTTP2 = true
+	gateway.StartTLS()
+	defer gateway.Close()
+
+	for _, grpc := range []bool{false, true} {
+		r, err := http.NewRequest(http.MethodPost, gateway.URL+"/api/cache/cas/blob", strings.NewReader("artifact"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Host = "acme.cache.tuist.dev"
+		r.Header.Set("Authorization", "Bearer test-token")
+		if grpc {
+			r.URL.Path = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
+			r.Header.Set("Content-Type", "application/grpc+proto")
+		}
+		response, err := gateway.Client().Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.ProtoMajor != 2 || response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("Retry-After") != "" || response.Header.Get("X-Tuist-Cache-Activation") != "" {
+			t.Fatalf("unsafe billing refusal: %s %v", response.Proto, response.Header)
+		}
+		if grpc {
+			if response.StatusCode != 200 || response.Header.Get("Grpc-Status") != "7" || response.Header.Get("Tuist-Refusal-Reason") != "payment_required" || response.Header.Get("Grpc-Message") == "" || len(body) != 0 {
+				t.Fatalf("incompatible gRPC refusal: %d %v body=%q", response.StatusCode, response.Header, body)
+			}
+		} else {
+			var refusal struct {
+				Message string `json:"message"`
+			}
+			if response.StatusCode != http.StatusPaymentRequired || response.Header.Get("Content-Type") != "application/json" || json.Unmarshal(body, &refusal) != nil || !strings.Contains(refusal.Message, "billing") {
+				t.Fatalf("incompatible HTTP refusal: %d %v body=%q", response.StatusCode, response.Header, body)
+			}
 		}
 	}
 }

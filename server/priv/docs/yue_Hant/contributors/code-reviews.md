@@ -1,66 +1,36 @@
 ---
 {
-  "title": "Code reviews",
-  "titleTemplate": ":title · Contributors · Tuist",
-  "description": "Learn how to contribute to Tuist by reviewing code"
+  "title": "程式碼審查",
+  "titleTemplate": ":title · 貢獻者 · Tuist",
+  "description": "了解如何透過審查程式碼為 Tuist 作出貢獻"
 }
 ---
 # Code reviews {#code-reviews}
 
-Reviewing pull requests is a common type of contribution. Despite continuous
-integration (CI) ensuring the code does what’s supposed to do, it’s not enough.
-There are contribution traits that can’t be automated: design, code structure &
-architecture, tests quality, or typos. The following sections represent
-different aspects of the code review process.
+審查 pull request 係一種常見嘅貢獻方式。雖然持續整合（CI）可以確保代碼按預期運作，但並唔足夠。有些貢獻特質無法自動化：設計、代碼結構與架構、測試質量，或者錯別字。以下各節代表代碼審查流程嘅不同方面。
 
-## Readability {#readability}
+## 可讀性 {#readability}
 
-Does the code express its intention clearly? **If you need to spend a bunch of
-time figuring out what the code does, the code implementation needs to be
-improved.** Suggest splitting the code into smaller abstractions that are easier
-to understand. Alternative, and as a last resource, they can add a comment
-explaining the reasoning behind it. Ask yourself if you’d be able to understand
-the code in a near future, without any surrounding context like the pull request
-description.
+代碼有冇清晰表達其意圖？**如果你需要花大量時間先至搞明白代碼做乜，就表示代碼實現需要改進。** 建議將代碼拆分為更易理解嘅小型抽象。作為最後手段，亦可以添加註釋解釋背後嘅原因。問下自己，如果冇 pull request 描述等周圍上下文，你喺不久將來仲能否理解呢段代碼。
 
-## Small pull requests {#small-pull-requests}
+## 小型 pull request {#small-pull-requests}
 
-Large pull requests are hard to review and it’s easier to miss out details. If a
-pull request becomes too large and unmanageable, suggest the author to break it
-down.
+大型 pull request 難以審查，亦容易遺漏細節。如果一個 pull request 變得太大而難以管理，建議作者將其拆分。
 
 > [!NOTE]
-> **Exceptions**
+> **例外情況**
 >
-> There are few scenarios where splitting up the pull request is not possible,
-> like when the changes are tightly coupled and can’t be split. In those cases,
-> the author should provide a clear explanation of the changes and the reasoning
-> behind them.
+> 有少數情況下無法拆分 pull request，例如當變更緊密耦合而無法分開時。在這些情況下，作者應該提供清晰嘅變更說明及其背後原因。
 
 
-## Consistency {#consistency}
+## 一致性 {#consistency}
 
-It’s important that the changes are consistent with the rest of the project.
-Inconsistencies complicate maintenance, and therefore we should avoid them. If
-there’s an approach to output messages to the user, or report errors, we should
-stick to that. If the author disagrees with the project’s standards, suggest
-them to open an issue where we can discuss them further.
+確保變更與項目其餘部分保持一致非常重要。不一致會令維護變得複雜，因此我哋應該避免。如果有向用戶輸出訊息或報告錯誤嘅既定方法，我哋應該遵循。如果作者不同意項目標準，建議佢開立 issue 以便進一步討論。
 
-## Tests {#tests}
+## 測試 {#tests}
 
-Tests allow changing code with confidence. The code on pull requests should be
-tested, and all tests should pass. A good test is a test that consistently
-produces the same result and that it’s easy to understand and maintain.
-Reviewers spend most of the review time in the implementation code, but tests
-are equally important because they are code too.
+測試令我哋可以有信心地更改代碼。Pull request 中嘅代碼應該經過測試，並且所有測試都應該通過。好嘅測試係指能夠一致產生相同結果，並且易於理解和維護嘅測試。審查者大部分時間都花喺實現代碼上，但測試同樣重要，因為佢哋亦係代碼。
 
-## Breaking changes {#breaking-changes}
+## 破壞性變更 {#breaking-changes}
 
-Breaking changes are a bad user experience for users of Tuist. Contributions
-should avoid introducing breaking changes unless it’s strictly necessary. There
-are many language features that we can leverage to evolve the interface of Tuist
-without resorting to a breaking change. Whether a change is breaking or not
-might not be obvious. A method to verify whether the change is breaking is
-running Tuist against the fixture projects in the fixtures directory. It
-requires putting ourselves in the user’s shoes and imagine how the changes would
-impact them.
+破壞性變更為 Tuist 用戶帶來糟糕嘅體驗。除非絕對必要，否則貢獻應該避免引入破壞性變更。我哋可以利用許多語言特性來演進 Tuist 嘅介面，而無需進行破壞性變更。一項變更是否具有破壞性可能並不明顯。驗證變更是否具有破壞性嘅一種方法係針對 fixtures 目錄中嘅 fixture 項目運行 Tuist。這需要我哋換位思考，想像這些變更會如何影響用戶。

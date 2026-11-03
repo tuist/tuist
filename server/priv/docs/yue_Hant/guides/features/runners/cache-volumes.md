@@ -1,26 +1,26 @@
 ---
 {
-  "title": "Cache volumes",
-  "titleTemplate": ":title · Runners · Features · Guides · Tuist",
-  "description": "Keep the Xcode, module and Gradle caches and any other directory between Tuist Linux or macOS runner jobs with GitHub Actions, Buildkite, and GitLab CI."
+  "title": "快取卷",
+  "titleTemplate": ":title · Runners · 功能 · 指南 · Tuist",
+  "description": "喺 GitHub Actions、Buildkite 同 GitLab CI 嘅 Tuist Linux 或 macOS runner 工作之間，保留 Xcode、模組同 Gradle 快取以及其他目錄。"
 }
 ---
 # 快取卷 {#cache-volumes}
 
-Tuist runners 可以在工作之間保留快取，讓全新的 runner 以暖啟動開始。每個工作都會獲得最新已儲存內容的私人可寫入副本。
+Tuist runner 可以在工作之間保留快取，令新啟動的 runner 以暖狀態開始。每個工作都會獲得最新已儲存內容的私人可寫入副本。
 
-- **受管快取** 各只需一個步驟即可保留 Xcode 編譯快取、Tuist 的模組快取以及 Gradle 的快取。Tuist 知道每個快取的位置，並將其儲存在自己的儲存空間中。
-- **自訂卷** 會在你選擇的金鑰下保留任何其他目錄，例如套件管理器的下載快取。
+- **受管快取**會分別以一個步驟保留 Xcode 編譯快取、Tuist 的模組快取同 Gradle 的快取。Tuist 知道每個快取的存放位置，並將其儲存在自己的儲存空間內。
+- **自訂卷**會保留你選擇的金鑰下的任何其他目錄，例如套件管理器的下載快取。
 
-在 checkout 之後、使用快取的指令之前加入這些步驟。在非 Tuist runners 上，它們不會執行任何動作，而且快取問題永遠不會導致工作失敗：該步驟會記錄警告，工作則會以空白快取繼續執行。
+將這些步驟加在 checkout 之後、使用快取的指令之前。喺非 Tuist runner 上，它們不會做任何事；快取問題亦唔會導致工作失敗：步驟會記錄警告，工作會以空快取繼續執行。
 
 ## 受管快取 {#managed-caches}
 
-這些步驟只決定快取的存放位置。請保留你現有的快取設定：`tuist setup cache` 或啟用編譯快取的建構設定（參閱 <.localized_link href="/guides/features/cache/xcode-cache">Xcode 快取指南</.localized_link>）、模組快取的驗證，以及用於 Gradle 遠端建構快取的 <.localized_link href="/guides/features/cache/gradle-cache">Tuist Gradle 外掛程式</.localized_link>。在 GitLab CI 中，請將片段與 `!reference` 結合，因為 `extends` 會取代 `before_script`。
+呢啲步驟只決定快取的存放位置。保留你現有的快取設定：`tuist setup cache` 或啟用編譯快取的構建設定（參閱 <.localized_link href="/guides/features/cache/xcode-cache">Xcode 快取指南</.localized_link>）、模組快取的認證，以及用於 Gradle 遠端構建快取的 <.localized_link href="/guides/features/cache/gradle-cache">Tuist Gradle 插件</.localized_link>。喺 GitLab CI 中，用 `!reference` 組合片段，因為 `extends` 會取代 `before_script`。
 
 ### Xcode 快取 {#xcode-cache}
 
-在 macOS runners 上保留 Xcode 編譯快取的儲存區。
+喺 macOS runner 上保留 Xcode 編譯快取的儲存。
 
 ::: code-group
 
@@ -60,7 +60,7 @@ build:
 
 ### 模組快取 {#module-cache}
 
-在 macOS runners 上保留 Tuist 的本機快取：<.localized_link href="/guides/features/cache/module-cache">模組快取</.localized_link> 二進位檔、已編譯的清單、外掛程式和選擇性測試結果。
+喺 macOS runner 上保留 Tuist 的本機快取：<.localized_link href="/guides/features/cache/module-cache">模組快取</.localized_link>二進制檔、已編譯的清單、插件同選擇性測試結果。
 
 ::: code-group
 
@@ -116,7 +116,7 @@ test:
 
 ### Gradle 快取 {#gradle-cache}
 
-在 Linux 和 macOS runners 上保留 Gradle 使用者主目錄中的 `caches` 和 `wrapper` 目錄：依賴項、轉換後的 jar 檔、已編譯的建構腳本以及 Gradle 發行版。如果你使用其中一個，請在步驟之前設定 `GRADLE_USER_HOME`，並關閉對那些目錄的其他快取，例如 `actions/setup-java` 上的 `cache: gradle`。
+喺 Linux 同 macOS runner 上保留 Gradle 用戶主目錄中的 `caches` 同 `wrapper` 目錄：依賴項、轉換過的 jar、已編譯的構建腳本同 Gradle 分發版。如果你有用到，請喺步驟之前設定 `GRADLE_USER_HOME`，並關閉對呢啲目錄的其他快取，例如 `actions/setup-java` 上的 `cache: gradle`。
 
 ::: code-group
 
@@ -160,7 +160,7 @@ test:
 
 ## 自訂卷 {#custom-volumes}
 
-選擇一個穩定的 `key` 和 `path`，然後在安裝依賴項之前掛載卷。路徑必須為空或不存在。移除任何會寫入相同目錄的封存快取或構件還原。若要將多個目錄保留在一個卷中，請參閱 [一個卷中的多個目錄](#several-directories-in-one-volume)。
+選擇一個穩定的 `key` 同 `path`，然後喺安裝依賴項之前掛載卷。路徑必須為空或不存在。移除任何會寫入同一目錄的歸檔快取或構件還原。要喺一個卷中保留多個目錄，請參閱 [一個卷中的多個目錄](#several-directories-in-one-volume)。
 
 ::: code-group
 
@@ -207,7 +207,7 @@ test:
 
 ### 一個卷中的多個目錄 {#several-directories-in-one-volume}
 
-一個卷可以容納多個目錄。在 GitHub Actions 中，每行列出一個路徑；在 Buildkite 中，將 `path` 設為清單；在 GitLab CI 中，每個目錄傳遞一次 `--path`。空白行和周圍的空格會被忽略。
+一個卷可以容納多個目錄。喺 GitHub Actions 中，每行列出一個路徑；喺 Buildkite 中，將 `path` 設為列表；喺 GitLab CI 中，每個目錄傳遞一次 `--path`。空白行同周圍的空格會被忽略。
 
 ::: code-group
 
@@ -256,55 +256,56 @@ lint:
 <!-- -->
 :::
 
-- **共用容量。** 所有路徑共用卷的容量，並一起還原和儲存。
-- **將小型、相關的目錄分組。** 為大型或快速變更的目錄提供專屬卷。
-- **不允許巢狀。** 同一卷中的路徑不得互相包含。
-- **變更清單會以冷啟動開始。** 每個路徑都儲存在卷內的專屬目錄中，並由路徑的寫法識別。在單一路徑與多個路徑之間切換，或新增、移除或重寫路徑，會改變該佈局：變更後的第一個工作會對受影響的路徑以冷啟動開始。不再列出的路徑內容會保留在卷中，直到你清除為止。
+- **共享容量。** 所有路徑共享卷的容量，並一齊還原同儲存。
+- **將細小、相關的目錄分組。** 為大型或快速變化的目錄分配專屬卷。
+- **不允許嵌套。** 同一卷中的路徑不得互相包含。
+- **更改列表會以冷狀態開始。** 每個路徑都儲存喺卷內的專屬目錄中，由路徑的寫法識別。喺單一路徑同多個路徑之間切換，或者新增、刪除或重寫路徑，會改變該佈局：更改後的第一個工作會以冷狀態開始處理受影響的路徑。不再列出的路徑內容會保留喺卷中，直到你清除為止。
 
-### 金鑰運作方式 {#how-keys-work}
+### 金鑰如何運作 {#how-keys-work}
 
-金鑰用來命名會隨時間變更的卷；它不是像 `actions/cache` 金鑰那樣的固定快照名稱。
+金鑰命名一個隨時間變化的卷；它唔係像 `actions/cache` 金鑰嗰樣固定快照的名稱。
 
-- **每個金鑰對應一個卷。** 每個金鑰的作用範圍限定於儲存庫（在 Buildkite 上為 pipeline；在 GitLab CI 上為專案）、平台、CPU 架構和使用者。每個附加該金鑰的工作都會從最新已儲存的內容開始，而符合資格的工作會將其變更存回同一個卷。
-- **保持金鑰穩定。** 不要在金鑰中加入版本或鎖定檔雜湊。使用 `actions/cache` 時，像 `deps-${{ hashFiles('Package.resolved') }}` 這樣的金鑰會為每次變更建立新項目，而 `restore-keys` 會回退到較舊的項目。在這裡，新金鑰代表新的空白卷：每次變更後的第一個工作會以冷啟動開始，舊卷會保留直到過期。請保留金鑰，讓你的工具更新內容；套件管理器會重複使用仍然有效的部分。
-- **沒有部分相符。** 沒有還原金鑰。尚未儲存的金鑰會以空白狀態開始。
-- **刻意重新開始。** 當你希望工作以空白狀態開始時，請變更金鑰，或在儀表板中清除卷。
-- **將 `tuist-` 金鑰留給 Tuist。** 受管快取使用的金鑰以 `tuist-` 開頭，因此請為你的自訂卷選擇不同的名稱。
+- **每個金鑰對應一個卷。** 每個金鑰的作用範圍限於儲存庫（喺 Buildkite 上為流水線；喺 GitLab CI 上為項目）、平台、CPU 架構同用戶。每個掛載它的工作都從最新已儲存的內容開始，符合条件的工作會將更改儲存回同一卷。
+- **保持金鑰穩定。** 唔好將版本或鎖定文件哈希放入金鑰。使用 `actions/cache` 時，類似 `deps-${{ hashFiles('Package.resolved') }}` 的金鑰會為每次更改建立新條目，而 `restore-keys` 會回退到較舊的條目。喺度，新金鑰代表一個新的空卷：每次更改後的第一個工作會以冷狀態開始，舊卷會保留直到過期。保持金鑰不變，讓你的工具更新內容；套件管理器會重用仍然有效的部分。
+- **沒有部分匹配。** 沒有還原金鑰。尚未儲存的金鑰會以空狀態開始。
+- **以 `tuist-` 開頭的金鑰已預留**給 Tuist 自身的快取，並會喺卷掛載之前被拒絕。
+- **有意重新開始。** 當你希望工作以空狀態開始時，更改金鑰或喺儀表板中清除卷。
+- **將 `tuist-` 金鑰留給 Tuist。** 受管快取使用以 `tuist-` 開頭的金鑰，因此請為你的自訂卷選擇其他名稱。
 
-在 Linux 上，路徑會掛載為一般目錄，因此工具可以使用其慣用位置，例如 `deps`、`_build` 和 `node_modules`。請保留你正常的 `.gitignore` 規則。在 macOS 上，路徑是符號連結：請使用下載快取，例如 `~/.npm`；`node_modules` 以及會替換其快取目錄的工具不受支援。在 `.gitignore` 中忽略沒有尾隨斜線的 workspace 連結。
+喺 Linux 上，路徑會作為普通目錄掛載，因此工具可以使用其常見位置，例如 `deps`、`_build` 同 `node_modules`。保留你正常的 `.gitignore` 規則。喺 macOS 上，路徑係符號連結：使用下載快取例如 `~/.npm`；`node_modules` 同替換其快取目錄的工具不受支援。喺 `.gitignore` 中忽略沒有尾部斜槓的工作區連結。
 
-## 儲存變更 {#saving-changes}
+## 儲存更改 {#saving-changes}
 
-受管快取和自訂卷會儲存來自你自身儲存庫的成功工作變更，適用於任何分支：
+受管快取同自訂卷會儲存來自你自身儲存庫的成功工作的更改，適用於任何分支：
 
-| 提供者 | 儲存變更的工作 |
+| 提供者 | 儲存更改的工作 |
 | --- | --- |
-| GitHub Actions | 來自儲存庫本身的推送、排程、手動觸發和拉取請求工作 |
-| Buildkite | Pipeline 儲存庫的 Webhook 和排程建構，包括其拉取請求 |
-| GitLab CI | 專案的推送、排程和網頁 pipeline，以及當連線擁有 <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">API 存取權杖</.localized_link> 時，其自身合併請求的 pipeline |
+| GitHub Actions | 來自儲存庫本身的推送、排程、手動觸發同拉取請求工作 |
+| Buildkite | 流水線儲存庫的 Webhook 同排程構建，包括其拉取請求 |
+| GitLab CI | 項目的推送、排程同網頁流水線，以及當連線擁有 <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">API 存取權杖</.localized_link> 時其合併請求的流水線 |
 
-其他工作可以使用快取，但其變更會被捨棄。這些包括分支拉取請求、`pull_request_target` 工作、從 API 或儀表板啟動的 Buildkite 建構、來自分支或沒有 API 存取權杖的 GitLab 合併請求，以及標籤。不會變更卷的工作會保留已儲存的版本。你可以在 runner 設定檔中縮小哪些分支會儲存；請參閱 [選擇哪些分支儲存](#choose-which-branches-save)。
+其他工作可以使用快取，但其更改會被丟棄。這些包括分支拉取請求、`pull_request_target` 工作、從 API 或儀表板啟動的 Buildkite 構建、來自分支或沒有 API 存取權杖的 GitLab 合併請求，以及標籤。不更改卷的工作會保留已儲存的版本。你可以縮小在執行者配置檔上儲存的分支範圍；參見 [選擇哪些分支儲存](#choose-which-branches-save)。
 
-並行工作獨立運作；不同工作的變更不會合併。切勿快取憑證或不可替代的資料。
+並行工作獨立運作；不同工作的更改不會合併。切勿快取憑證或不可替代的數據。
 
 ### 選擇哪些分支儲存 {#choose-which-branches-save}
 
-你可以變更哪些分支會儲存受管快取和自訂卷。開啟 **Runners → Profiles**，編輯你的工作使用的設定檔，並展開 **Save cache from**。工作會使用它們請求的設定檔：在 GitHub Actions 的 `runs-on:` 中、在 Buildkite 上作為 queue，或在 GitLab CI 的 `tags:` 中。這些設定適用於該設定檔上工作使用的每個卷，包括稍後建立的卷。
+你可以更改哪些分支儲存受管快取同自訂卷。打開 **執行者 → 配置檔**，編輯你的工作使用的配置檔，並展開 **儲存快取來源**。工作使用它們請求的配置檔：喺 GitHub Actions 上使用 `runs-on:`，喺 Buildkite 上作為佇列，或喺 GitLab CI 上使用 `tags:`。設定適用於該配置檔上工作使用的每個卷，包括後來建立的卷。
 
-![Runner 設定檔表單，已展開 Save cache from 區段，Default branch 已開啟，並新增 develop 和 release/* 作為額外分支](/images/guides/features/runners/save-cache-from.png)
+![執行者配置檔表單，展開了「儲存快取來源」部分，開啟了預設分支，並添加了 develop 同 release/* 作為額外分支](/images/guides/features/runners/save-cache-from.png)
 
-預設情況下，儲存庫中的每個成功工作都會儲存其變更。若只從某些分支儲存，請開啟 **Limit to specific branches**：
+預設情況下，儲存庫中每個成功的工作都會儲存其更改。要僅從某些分支儲存，請開啟 **限制為特定分支**：
 
-- **Default branch** 允許每個儲存庫的預設分支上的工作進行儲存。關閉它以僅從額外分支儲存。
-- 在 **Additional branches** 下，新增最多 20 個也會儲存的分支名稱。使用 `*` 作為萬用字元：`release/*` 會匹配 `release/1.0`。
+- **預設分支** 允許每個儲存庫預設分支上的工作儲存。關閉它以僅從額外分支儲存。
+- 喺 **額外分支** 下，添加最多 20 個也會儲存的分支名稱。使用 `*` 作為萬用字元：`release/*` 匹配 `release/1.0`。
 
-[Saving changes](#saving-changes) 中列出的工作會在分支匹配時儲存其變更。在 GitHub Actions 推送和手動觸發執行中，具有匹配名稱的標籤也會匹配。
+[儲存更改](#saving-changes) 中列出的工作會喺其分支匹配時儲存更改。喺 GitHub Actions 推送同手動觸發運行中，具有匹配名稱的標籤也會匹配。
 
-其他分支上的工作仍然可以使用快取，但其變更會被捨棄。從不儲存的工作（例如分支拉取請求）即使在匹配的分支上也不會儲存。縮小這些設定或刪除設定檔會捨棄它們不再允許的待處理變更；已刪除的設定檔會回退為從每個分支儲存。
+其他分支上的工作仍然可以使用快取，但其更改會被丟棄。從不儲存的工作（例如分支拉取請求）即使喺匹配的分支上也不會儲存。縮小這些設定或刪除配置檔會丟棄它們不再允許的待處理更改；刪除的配置檔會回退到從每個分支儲存。
 
-## 容量與保留 {#capacity-and-retention}
+## 容量同保留 {#capacity-and-retention}
 
-Xcode 快取起始容量為 **30 GB**。模組快取、Gradle 快取和每個自訂卷起始容量為 **20 GB**。設定大小以賦予快取或卷不同的容量，範圍為從 `1gb` 到 `100gb` 的整數 GB：
+Xcode 快取起始容量為 **30 GB**。模組快取、Gradle 快取同每個自訂卷起始容量為 **20 GB**。設定大小以賦予快取或卷其他容量，範圍為 `1gb` 至 `100gb` 的整數 GB：
 
 ::: code-group
 
@@ -334,12 +335,12 @@ build:
 <!-- -->
 :::
 
-Gradle 快取和自訂卷接受相同的 `size` 輸入（GitLab CI 中的 `TUIST_GRADLE_CACHE_SIZE` 和 `TUIST_VOLUME_SIZE`，`tuist-cache-volume` 的 `--size`）。較大的大小會從下一個工作開始擴大卷並保留其內容。較小的大小會在下次清除卷或過期後套用。當工作請求同一快取的不同大小時，會套用最大的大小，因此請在單一位置宣告每個大小。
+Gradle 快取同自訂卷接受相同的 `size` 輸入（GitLab CI 中的 `TUIST_GRADLE_CACHE_SIZE` 同 `TUIST_VOLUME_SIZE`，`tuist-cache-volume` 的 `--size`）。較大的大小會從下一個工作開始擴大卷並保留其內容。較小的大小會喺下次清除卷或過期後應用。當工作請求同一快取的不同大小時，會應用最大的大小，因此請喺一處聲明每個大小。
 
-所有快取在 **7 天沒有工作掛載** 後過期，過期後的下一個工作會以空白卷開始。Tuist 會修剪 Xcode 和模組快取以符合其容量，而 Gradle 快取步驟會讓 Gradle 在每次建構後移除七天未使用的項目。
+所有這些都會喺 **7 天沒有工作掛載** 後過期，過期後下一個工作會以空卷開始。Tuist 會修剪 Xcode 同模組快取以適應其容量，而 Gradle 快取步驟會讓 Gradle 喺每次構建後移除七天未使用的條目。
 
-自訂卷不會修剪舊依賴項：請使用你工具的清理設定以保持其小巧。寫入已满的卷可能會導致工作失敗。當已儲存的內容達到卷容量的 **80%** 且工作耗盡空間時，下一個工作會以空白卷開始，其變更會開始新的已儲存狀態。
+自訂卷不會修剪舊依賴項：使用你的工具的清理設定以保持它們小巧。寫入滿載的卷可能會導致工作失敗。當已儲存的內容達到卷容量的 **80%** 且工作耗盡空間時，下一個工作會以空卷開始，其更改會開始一個新的儲存狀態。
 
-## 檢查和清除卷 {#inspecting-and-clearing-volumes}
+## 檢查同清除卷 {#inspecting-and-clearing-volumes}
 
-開啟 **Runners → Volumes** 以檢查已用空間、快取命中率和工作歷史記錄。帳戶管理員可以選擇 **Clear volume** 以使未來的工作以空白狀態開始。執行中的工作會保留其私人副本，但無法將其存回。Xcode 和模組快取也會顯示在那裡，但無法清除。
+打開 **執行者 → 卷** 以檢查已用空間、快取命中率同工作歷史記錄。帳戶管理員可以選擇 **清除卷** 以使未來的工作以空狀態開始。運行中的工作會保留其私有副本但無法將其儲存回去。Xcode 同模組快取也會顯示喺度，但無法清除。
