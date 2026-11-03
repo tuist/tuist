@@ -215,9 +215,14 @@ defmodule TuistWeb.AuthController do
   defp provider_auth_enabled?(_provider), do: true
 
   defp complete_oauth_callback(conn, auth, opts \\ []) do
-    auth_params = %{auth_method: auth.provider}
     sso_organization = Keyword.get(opts, :sso_organization)
     provider_organization_id = Accounts.extract_provider_organization_id(auth)
+
+    auth_params = %{
+      auth_method: auth.provider,
+      provider_organization_id: provider_organization_id,
+      sso_organization_id: get_in(sso_organization, [Access.key(:id)])
+    }
 
     case Accounts.get_oauth2_identity(auth.provider, auth.uid, provider_organization_id) do
       {:ok, oauth2_identity} ->
@@ -263,6 +268,7 @@ defmodule TuistWeb.AuthController do
                   "uid" => to_string(auth.uid),
                   "email" => auth.info.email,
                   "provider_organization_id" => provider_organization_id,
+                  "sso_organization_id" => get_in(sso_organization, [Access.key(:id)]),
                   "oauth_return_url" => oauth_return_url,
                   "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
                 }
@@ -557,6 +563,8 @@ defmodule TuistWeb.AuthController do
     |> put_session(:user_return_to, return_to)
     |> Authentication.log_in_user(user, %{
       auth_method: auth_method,
+      provider_organization_id: get_in(pending, ["provider_organization_id"]),
+      sso_organization_id: get_in(pending, ["sso_organization_id"]),
       post_invitation_return_to: if(invitation_return_to, do: prior_return_to),
       post_invitation_token: if(invitation_return_to, do: pending["invitation_token"])
     })

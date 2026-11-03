@@ -589,7 +589,7 @@ defmodule Tuist.Kura.AccountPolicies do
   def placeable_regions_with_room(%Account{} = account, plan, serving) when is_list(serving) do
     account
     |> placeable_regions()
-    |> Enum.filter(&(&1 in serving or Capacity.room_for?(&1, plan) != false))
+    |> Enum.filter(&(&1 in serving or Capacity.room_for?(&1, plan, account) != false))
   end
 
   defp permitted_regions(%Account{region: residency}) do
