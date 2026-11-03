@@ -186,6 +186,7 @@ let project = Project(
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistNotifications"),
                 .project(target: "XcodeGraph", path: "../"),
                 .external(name: "NukeUI"),
             ]
@@ -286,6 +287,8 @@ let project = Project(
             dependencies: [
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistAppStorage"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistErrorHandling"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
             ]

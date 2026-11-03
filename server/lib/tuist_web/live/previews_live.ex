@@ -12,6 +12,7 @@ defmodule TuistWeb.PreviewsLive do
 
   alias Noora.Filter
   alias Tuist.AppBuilds
+  alias Tuist.Notifications
   alias Tuist.Projects
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -38,8 +39,39 @@ defmodule TuistWeb.PreviewsLive do
        :user_agent,
        UAParser.parse(get_connect_info(socket, :user_agent))
      )
-     |> assign(:available_filters, define_filters())}
+     |> assign(:available_filters, define_filters())
+     |> assign_notification_preference()}
   end
+
+  # The signed-in user's own new-preview choice for this project; nil for
+  # visitors and for public projects outside their accounts.
+  defp assign_notification_preference(%{assigns: %{selected_project: project}} = socket) do
+    preference =
+      case Map.get(socket.assigns, :current_user) do
+        nil -> nil
+        user -> Notifications.project_preference(user, "new_preview", project)
+      end
+
+    assign(socket, :notification_preference, preference)
+  end
+
+  defp notification_option_label(nil, project),
+    do: dgettext("dashboard_previews", "Follow %{account}", account: project.account.name)
+
+  defp notification_option_label(true, _project), do: dgettext("dashboard_previews", "Always notify me")
+  defp notification_option_label(false, _project), do: dgettext("dashboard_previews", "Never notify me")
+
+  defp notification_option_description(nil, %{account_enabled: true}, _project),
+    do: dgettext("dashboard_previews", "On, as set in your notification settings")
+
+  defp notification_option_description(nil, _preference, _project),
+    do: dgettext("dashboard_previews", "Off, as set in your notification settings")
+
+  defp notification_option_description(true, _preference, _project),
+    do: dgettext("dashboard_previews", "Get a push for every new preview of this project")
+
+  defp notification_option_description(false, _preference, _project),
+    do: dgettext("dashboard_previews", "No pushes for this project")
 
   def handle_params(_params, uri, %{assigns: %{selected_project: project, available_filters: available_filters}} = socket) do
     params = uri |> Query.query_params() |> Query.clear_incompatible_cursors([:inserted_at])
@@ -63,6 +95,20 @@ defmodule TuistWeb.PreviewsLive do
         AppBuilds.latest_previews_with_distinct_bundle_ids(project)
       )
     }
+  end
+
+  def handle_event("set_preview_notifications", %{"data" => setting}, socket) do
+    override = Map.fetch!(%{"default" => nil, "on" => true, "off" => false}, setting)
+
+    _ =
+      Notifications.update_project_preference(
+        socket.assigns.current_user,
+        "new_preview",
+        socket.assigns.selected_project.id,
+        override
+      )
+
+    {:noreply, assign_notification_preference(socket)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
