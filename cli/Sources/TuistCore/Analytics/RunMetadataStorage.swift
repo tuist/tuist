@@ -105,6 +105,13 @@ public actor RunMetadataStorage {
         self.coverageOutputPath = coverageOutputPath
     }
 
+    /// The platform the run's tests ran on, from the `-destination` xcodebuild was given. It goes
+    /// with the run's coverage, since one test can execute different files on each platform.
+    public private(set) var testPlatform: Platform?
+    public func update(testPlatform: Platform?) {
+        self.testPlatform = testPlatform
+    }
+
     /// The ID of the latest build run.
     public private(set) var buildRunId: String?
     public func update(buildRunId: String?) {

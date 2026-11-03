@@ -8,6 +8,7 @@ import TuistEnvironment
 import TuistLogging
 import TuistProcess
 import TuistXCResultService
+import XcodeGraph
 import XCResultParser
 
 /// A run that collects per-test coverage evidence: where the test processes write, and the
@@ -37,6 +38,27 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
             self = .iOSSimulator
         } else {
             return nil
+        }
+    }
+}
+
+extension XcodeGraph.Platform {
+    /// The platform an xcodebuild `-destination` value runs tests on, a simulator's or a device's
+    /// alike (`platform=iOS Simulator,…` and `generic/platform=iOS` are both iOS); nil when it
+    /// names none Tuist knows.
+    public init?(xcodebuildDestination destination: String) {
+        let value = destination.split(separator: ",").lazy.compactMap { component -> String? in
+            let pair = component.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard pair.count == 2, pair[0].lowercased().hasSuffix("platform") else { return nil }
+            return pair[1].lowercased()
+        }.first
+        switch value?.replacingOccurrences(of: " simulator", with: "") {
+        case "ios": self = .iOS
+        case "macos", "os x": self = .macOS
+        case "tvos": self = .tvOS
+        case "watchos": self = .watchOS
+        case "visionos", "xros": self = .visionOS
+        default: return nil
         }
     }
 }

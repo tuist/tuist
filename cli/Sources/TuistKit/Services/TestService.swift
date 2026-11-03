@@ -1032,9 +1032,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let derivedDataPath = try passedValue(for: "-derivedDataPath", arguments: arguments).map {
             try AbsolutePath(validating: $0, relativeTo: currentWorkingDirectory)
         }
+        let destination = passedValue(for: "-destination", arguments: arguments)
+        await RunMetadataStorage.current
+            .update(testPlatform: destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)))
         let session = await testCoverageEvidenceService.prepare(
-            platform: passedValue(for: "-destination", arguments: arguments)
-                .flatMap(TestCoverageEvidencePlatform.init(destination:)),
+            platform: destination.flatMap(TestCoverageEvidencePlatform.init(destination:)),
             config: config
         )
         let runStartedAt = Date()

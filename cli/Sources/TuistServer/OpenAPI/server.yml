@@ -7537,6 +7537,11 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        platform:
+          description: The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none.
+          type: string
+          x-struct:
+          x-validate:
         storage_key:
           description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
           type: string

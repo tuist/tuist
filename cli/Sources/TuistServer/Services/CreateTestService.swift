@@ -529,6 +529,7 @@ import TuistHTTP
                     )
                 },
                 partial: coverage.partial,
+                platform: coverage.platform,
                 storage_key: coverage.storageKey,
                 tool: coverage.tool,
                 tool_version: toolVersion

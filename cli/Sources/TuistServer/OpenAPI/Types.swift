@@ -15782,6 +15782,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Coverage/partial`.
             public var partial: Swift.Bool
+            /// The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Coverage/platform`.
+            public var platform: Swift.String?
             /// The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
             ///
             /// - Remark: Generated from `#/components/schemas/Coverage/storage_key`.
@@ -15799,18 +15803,21 @@ public enum Components {
             /// - Parameters:
             ///   - files:
             ///   - partial: Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
+            ///   - platform: The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none.
             ///   - storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
             ///   - tool: The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
             ///   - tool_version: The version of the tool, or of the runtime that provides it, so only like figures are compared.
             public init(
                 files: Components.Schemas.Coverage.filesPayload? = nil,
                 partial: Swift.Bool,
+                platform: Swift.String? = nil,
                 storage_key: Swift.String? = nil,
                 tool: Swift.String,
                 tool_version: Swift.String? = nil
             ) {
                 self.files = files
                 self.partial = partial
+                self.platform = platform
                 self.storage_key = storage_key
                 self.tool = tool
                 self.tool_version = tool_version
@@ -15818,6 +15825,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case files
                 case partial
+                case platform
                 case storage_key
                 case tool
                 case tool_version
