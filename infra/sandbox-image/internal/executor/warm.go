@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -41,7 +42,15 @@ func warm(ctx context.Context) {
 }
 
 func warmAction(ctx context.Context, root string, credential *syscall.Credential, start func(*exec.Cmd) error) (*re.ExecuteResponse, error) {
-	cas := loopbackCAS{blobs: map[string][]byte{}}
+	return warmActionObserved(ctx, root, credential, start, nil)
+}
+
+// warmActionObserved reports each blob the action reads from its CAS.
+func warmActionObserved(ctx context.Context, root string, credential *syscall.Credential, start func(*exec.Cmd) error, read func(string)) (*re.ExecuteResponse, error) {
+	// One processor halves the host cores a preparing VM keeps busy, which
+	// slows actions running on the same host. The paths it warms are the same.
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	cas := loopbackCAS{blobs: map[string][]byte{}, read: read}
 	input := cas.put([]byte("warm\n"))
 	inputRoot := cas.putMessage(&re.Directory{Files: []*re.FileNode{{Name: "in", Digest: input}}})
 	command := cas.putMessage(&re.Command{
@@ -76,6 +85,7 @@ type loopbackCAS struct {
 	re.UnimplementedContentAddressableStorageServer
 	bs.UnimplementedByteStreamServer
 	blobs map[string][]byte
+	read  func(string)
 }
 
 func (c *loopbackCAS) put(b []byte) *re.Digest {
@@ -93,6 +103,9 @@ func (c *loopbackCAS) putMessage(m proto.Message) *re.Digest {
 func (c *loopbackCAS) BatchReadBlobs(_ context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
 	response := &re.BatchReadBlobsResponse{}
 	for _, d := range r.Digests {
+		if c.read != nil {
+			c.read(d.Hash)
+		}
 		item := &re.BatchReadBlobsResponse_Response{Digest: d, Status: &rpc.Status{}}
 		if b, ok := c.blobs[d.Hash]; ok {
 			item.Data = b
