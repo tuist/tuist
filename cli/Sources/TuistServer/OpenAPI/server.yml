@@ -7340,7 +7340,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
           enum:
             - 2
             - 4
@@ -8063,7 +8063,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
           enum:
             - 2
             - 4
@@ -10931,7 +10931,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
           enum:
             - 2
             - 4
@@ -16840,7 +16840,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
                   enum:
                     - 2
                     - 4
@@ -17646,7 +17646,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
                   enum:
                     - 2
                     - 4
@@ -34985,7 +34985,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
                   enum:
                     - 2
                     - 4

@@ -110,8 +110,10 @@ defmodule TuistWeb.AmpOrbsController do
          orb_token: token,
          snapshot_id: snapshot_id,
          template: "default",
+         # The dev stack (ClickHouse, four esbuild watchers, BEAM) plus a
+         # browser for UI checks does not fit in 4 GB.
          vcpus: 2,
-         memory_mb: 4096,
+         memory_mb: 8192,
          workspace_gb: 10
        }}
     else
