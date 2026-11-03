@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ec2043f4cb2a1b6f3a6f3325c2971771877fd4e6a9467d52d59e36c95548b06d",
+  "hash": "b04d622cd19d6b79fb6bf012354243d3ebc9ca6b3b37efba1b79fe19eb1cc8be",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Code Coverage {#code-coverage}": {
-                  "content_hash": "50e336511ea02f08dba3a854c152b95d209fa84ae551af339614b0c3cb524b77"
+                  "content_hash": "372cdbd005105d283d976e94f5813fa184b152b39ae20336c038354b9ddadee2"
                 },
                 "Preamble": {
                   "content_hash": "a8523182723617d01fbb621e27e1ac3ddea37185e1981cc83f1253acadfa1e74"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "1629be2cbae07e9918225cd29e58dedd17d5aab6d2fd3380f252ac6f04531621",
+          "hash": "f55b3f9008b6fe05f0af36ec4d845045fade0919d2cfc3eefd2c04b9722f4f8a",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage.md",
           "metadata": {
-            "content_hash": "4ba8da1679b40e0a7306728332bef447c436eb94e18947dd61fad213e0972a9b"
+            "content_hash": "eac879bb6054429e1afef9c01a2b45883452746efae4dac3530977670b15b31f"
           }
         },
         {
@@ -199,6 +199,12 @@
                         "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
                         "translation_hash": "1fe6ff166a50bcb70c5ba123dfcab89dbcf4ae1c383c607d0e0ee290415fef9a"
                       },
+                      "entry:4d6732f147755858d10ddfac34b5c1a5bc141561149e435b4882a14d62293f0f": {
+                        "case_sensitive": false,
+                        "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
+                        "term_hash": "4037494891a78d3446771726a340742ed3140da6174c837a00621eda15527faa",
+                        "translation_hash": "ec491469b083ae433f0f4518e4de6cbecfa32b7828d96a72afa46095685455ba"
+                      },
                       "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
                         "case_sensitive": false,
                         "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
@@ -213,16 +219,16 @@
                       }
                     }
                   },
-                  "hash": "fc38a7b850d09c5858805621844b236c57fb35ed94cb3c9c244f660066c1e84f",
+                  "hash": "9cd49f8882c6d4b5cb2875082962301b069071666b8ce92e02007a2878be457b",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "6d238980dd44ec45dcda463a8e34cec065d80fd4ee1b918d09616b60744f036f"
+                    "content_hash": "b5d9ca6b73549233b4e9dbf7179d40928ccb634277b247c6b8aa118814407c32"
                   }
                 }
               ],
               "details": {},
-              "hash": "5b74aab7739fbbe3bee8100dd6ee99682f07edc6b1dc6134a70a73449391f30c",
+              "hash": "f32ef0998dbb28d2ecc3350976e14e1088a6c248390631ee5bb23a42c351df93",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -232,21 +238,21 @@
             }
           ],
           "details": {},
-          "hash": "3c4bf37a3c869b61b20f4c7dd346c18934dce99560f880dbecea15be14ebbd41",
+          "hash": "c386b1e13e9bee05fafaf028cb092c647a900753cf694f7a6d0c852f57248e2d",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ec2043f4cb2a1b6f3a6f3325c2971771877fd4e6a9467d52d59e36c95548b06d",
+      "hash": "b04d622cd19d6b79fb6bf012354243d3ebc9ca6b3b37efba1b79fe19eb1cc8be",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ac75197a031408a17991a44b620e081d813525ca3a3c8fa76699a81e60230422",
+  "output_hash": "7e0f4526fea62197750953cc6b51a8d0268e09febbda5f35226cf833bb349290",
   "output_path": "server/priv/docs/ko/guides/features/test-code-coverage.md",
   "protection_state": "recorded",
   "provider": "",
@@ -255,10 +261,11 @@
     "glossary": {
       "applied": [
         "repo:features",
+        "repo:selective-testing",
         "repo:test-run",
         "repo:tests"
       ],
-      "content_hash": "6d238980dd44ec45dcda463a8e34cec065d80fd4ee1b918d09616b60744f036f",
+      "content_hash": "b5d9ca6b73549233b4e9dbf7179d40928ccb634277b247c6b8aa118814407c32",
       "shadowed": [],
       "version": null
     },
@@ -268,8 +275,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "7a484041d7b5ba8b1c69eabc1dfec14c4763f258",
+  "source_commit_sha": "29c7b162758c78109c190ffa135e1ab46aaeec29",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage.md",
-  "translated_at": "2026-11-02T14:32:48.194916Z",
-  "translation_session_id": "01a19cab-55ad-799c-80bc-aed3e71e4bd0"
+  "translated_at": "2026-11-03T22:01:37.523054Z",
+  "translation_session_id": "01a1a36d-1b3e-78bf-a433-f40ba82ecdbe"
 }

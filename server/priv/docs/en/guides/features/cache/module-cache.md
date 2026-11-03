@@ -266,7 +266,7 @@ Tuist rejects a caller-owned scratch directory when a foreign build target needs
 
 ### Code coverage {#code-coverage}
 
-A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. Turn coverage on for your project in `Tuist.swift`:
+A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. This section describes how the cache handles coverage; to set up coverage end to end, see <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">Code Coverage</.localized_link>. Turn coverage on for your project in `Tuist.swift`:
 
 ```swift
 import ProjectDescription
