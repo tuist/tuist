@@ -12,7 +12,6 @@ defmodule TuistWeb.Oauth.TokenController do
   alias Boruta.Oauth.TokenResponse
   alias Tuist.Accounts
   alias Tuist.Accounts.User
-  alias Tuist.Accounts.UserToken
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
 
@@ -115,15 +114,15 @@ defmodule TuistWeb.Oauth.TokenController do
   end
 
   # The tokens act for the user in every account, so they are renewed only
-  # while the SSO sign-in they carry (see `Tuist.OAuth.TokenGenerator`) still
-  # satisfies the user's SSO-enforcing organizations. Tokens issued without
-  # it, including every one issued before tokens carried it, keep refreshing
-  # unless an organization of the user enforces SSO. Anything that doesn't
-  # decode to a user is left to Boruta to accept or reject as before.
+  # while their SSO claims (see `Tuist.OAuth.TokenGenerator`), the user's
+  # linked identities, or the grace period still satisfy the user's
+  # SSO-enforcing organizations. See `Accounts.refresh_sso_claims/2`.
+  # Anything that doesn't decode to a user is left to Boruta to accept or
+  # reject as before.
   defp refresh_satisfies_sso?(refresh_token) do
     with {:ok, %{"user_id" => user_id} = claims} <- Tuist.Guardian.decode_and_verify(refresh_token),
          %User{} = user <- Accounts.get_user_by_id(user_id) do
-      Accounts.sso_requirement(user, UserToken.from_sso_claims(claims)) == :ok
+      match?({:ok, _}, Accounts.refresh_sso_claims(user, claims))
     else
       _ -> true
     end

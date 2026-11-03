@@ -9,7 +9,9 @@ defmodule Tuist.OAuth.TokenGenerator do
   A `client_id` claim lets persistent event subscriptions recheck the grant.
   An `sso` claim records the single sign-on the authorizing browser session
   proved, so refreshing the tokens can check the user's SSO-enforcing
-  organizations again.
+  organizations again, and an `sso_grace_until` claim the end of the grace
+  period tokens without that proof refresh in (see
+  `Tuist.Accounts.refresh_sso_claims/2`).
   """
 
   @behaviour Boruta.Oauth.TokenGenerator
@@ -17,6 +19,7 @@ defmodule Tuist.OAuth.TokenGenerator do
   alias Boruta.Ecto.Token
   alias Boruta.Oauth.ResourceOwner
   alias Boruta.Oauth.TokenGenerator
+  alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Cache
@@ -25,7 +28,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   @impl TokenGenerator
   def generate(token_type, %Token{sub: sub, client_id: client_id, scope: scope} = token) do
-    generate_user_token(token_type, sub, client_id, scope, sso_claims(token))
+    generate_user_token(token_type, sub, client_id, scope, token)
   end
 
   # Boruta generates an authorization code with the resource owner the
@@ -34,15 +37,30 @@ defmodule Tuist.OAuth.TokenGenerator do
   # as `previous_token`. The previous values come from Boruta's own token
   # store, which holds only tokens this module generated, so their claims are
   # read without verifying again (the access token may have expired).
-  defp sso_claims(%Token{resource_owner: %ResourceOwner{extra_claims: %{"sso" => sso}}}), do: %{"sso" => sso}
+  defp sso_claims(%Token{resource_owner: %ResourceOwner{extra_claims: %{"sso" => sso}}}, _user), do: %{"sso" => sso}
 
-  defp sso_claims(%Token{previous_token: previous}) when is_binary(previous), do: previous_sso_claims(previous)
-  defp sso_claims(%Token{previous_code: previous}) when is_binary(previous), do: previous_sso_claims(previous)
-  defp sso_claims(_token), do: %{}
+  # `TuistWeb.Oauth.TokenController` refuses refreshes that
+  # `Accounts.refresh_sso_claims/2` refuses before Boruta gets here. Should
+  # the grace period end in between, the claims carry over unchanged so the
+  # next refresh is refused rather than granted a new period.
+  defp sso_claims(%Token{previous_token: previous}, user) when is_binary(previous) do
+    claims = previous_claims(previous)
 
-  defp previous_sso_claims(previous) do
+    case Accounts.refresh_sso_claims(user, claims) do
+      {:ok, sso_claims} -> sso_claims
+      {:error, :sso_required} -> Map.take(claims, ["sso", "sso_grace_until"])
+    end
+  end
+
+  defp sso_claims(%Token{previous_code: previous}, _user) when is_binary(previous) do
+    previous |> previous_claims() |> Map.take(["sso"])
+  end
+
+  defp sso_claims(_token, _user), do: %{}
+
+  defp previous_claims(previous) do
     case Tuist.Guardian.peek(previous) do
-      %{claims: %{"sso" => sso}} -> %{"sso" => sso}
+      %{claims: claims} when is_map(claims) -> claims
       _ -> %{}
     end
   end
@@ -75,7 +93,7 @@ defmodule Tuist.OAuth.TokenGenerator do
   defp ttl_for(:access_token, client), do: client.access_token_ttl
   defp ttl_for(:refresh_token, client), do: client.refresh_token_ttl
 
-  defp generate_user_token(token_type, sub, client_id, scope, sso_claims) do
+  defp generate_user_token(token_type, sub, client_id, scope, token) do
     with {user_id, ""} <- parse_user_id(sub),
          user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
          client when not is_nil(client) <- Clients.get_client(client_id) do
@@ -100,7 +118,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
       claims =
         claims
-        |> Map.merge(sso_claims)
+        |> Map.merge(sso_claims(token, user))
         |> Map.merge(Cache.embedded_cache_claims(cache_subject, recent: 5))
 
       {:ok, jwt_token, _claims} =

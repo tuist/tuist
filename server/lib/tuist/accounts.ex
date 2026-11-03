@@ -1798,6 +1798,66 @@ defmodule Tuist.Accounts do
     end
   end
 
+  @sso_refresh_grace_seconds 4 * 7 * 24 * 60 * 60
+
+  @doc """
+  The SSO claims (see `UserToken.sso_claims/1`) of the credentials that
+  replace refreshed ones whose `claims` act for `user`, or
+  `{:error, :sso_required}` when they can't be refreshed and the user has to
+  sign in again through the browser:
+
+    * Claims that satisfy the user's SSO-enforcing organizations, or a user
+      no organization of which enforces SSO, keep their proof.
+    * Without that proof, an identity the user linked by signing in through
+      the organization's provider proves the same, so it becomes the proof.
+    * Otherwise the credentials keep refreshing for a grace period, carried
+      in an `sso_grace_until` claim (Unix seconds), that starts at the first
+      such refresh and never extends, so that enforcement reaching existing
+      credentials (this check's rollout, an organization enforcing SSO, a
+      member joining one) doesn't sign anyone out at once.
+  """
+  def refresh_sso_claims(%User{} = user, claims) do
+    case sso_requirement(user, UserToken.from_sso_claims(claims)) do
+      :ok ->
+        {:ok, Map.take(claims, ["sso"])}
+
+      {:sign_in_with, organization} ->
+        if linked_sso_identity?(user, organization) do
+          {:ok,
+           UserToken.sso_claims(%UserToken{
+             auth_provider: to_string(organization.sso_provider),
+             auth_provider_organization_id: organization.sso_organization_id,
+             auth_organization_id: organization.id
+           })}
+        else
+          sso_grace_claims(claims)
+        end
+
+      {:error, :conflicting_requirements} ->
+        {:error, :sso_required}
+    end
+  end
+
+  defp sso_grace_claims(claims) do
+    now = DateTime.to_unix(Tuist.Time.utc_now())
+
+    case claims["sso_grace_until"] do
+      grace_until when is_integer(grace_until) and grace_until > now -> {:ok, %{"sso_grace_until" => grace_until}}
+      grace_until when is_integer(grace_until) -> {:error, :sso_required}
+      _ -> {:ok, %{"sso_grace_until" => now + @sso_refresh_grace_seconds}}
+    end
+  end
+
+  defp linked_sso_identity?(%User{id: user_id}, %Organization{} = organization) do
+    Repo.exists?(
+      from(i in Oauth2Identity,
+        where:
+          i.user_id == ^user_id and i.provider == ^organization.sso_provider and
+            i.provider_organization_id == ^organization.sso_organization_id
+      )
+    )
+  end
+
   @doc """
   Returns true when at least one organization on this instance has an Okta or
   generic OAuth2 SSO provider configured. Drives whether the login page surfaces

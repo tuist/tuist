@@ -208,7 +208,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Given
       refresh_token = "refresh_token"
 
-      expect(Tuist.Authentication, :refresh, fn ^refresh_token, [ttl: {4, :weeks}] ->
+      expect(Tuist.Authentication, :refresh, fn ^refresh_token, [ttl: {4, :weeks}, sso_claims: nil] ->
         {:error, :expired_token}
       end)
 
@@ -486,11 +486,68 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert %{"refresh_token" => _} = refresh(conn, refresh_token)
     end
 
-    test "tokens issued before they carried SSO proof stop refreshing once an organization of the user enforces it",
+    test "tokens issued before they carried SSO proof take the identity the user linked through the provider",
          %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       refresh_token = refresh_token_fixture(user)
       organization = enforce_sso_for(user)
+      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+
+      %{"refresh_token" => refreshed_refresh_token} = refresh(conn, refresh_token)
+
+      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "example.com"}} = claims} =
+               Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+
+      assert claims["sso"]["organization_id"] == organization.id
+      refute Map.has_key?(claims, "sso_grace_until")
+      assert %{"refresh_token" => _} = refresh(build_conn(), refreshed_refresh_token)
+    end
+
+    test "an identity linked to another provider tenant is no proof", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      enforce_sso_for(user)
+
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "other.example.com"
+      )
+
+      %{"refresh_token" => refreshed_refresh_token} = refresh(conn, refresh_token)
+
+      assert {:ok, claims} = Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+      refute Map.has_key?(claims, "sso")
+      assert is_integer(claims["sso_grace_until"])
+    end
+
+    test "tokens without SSO proof refresh for a grace period that starts at their first refresh and never extends",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      enforce_sso_for(user)
+      now = DateTime.to_unix(DateTime.utc_now())
+
+      %{"refresh_token" => first} = refresh(conn, refresh_token)
+      assert {:ok, %{"sso_grace_until" => grace_until} = claims} = Tuist.Authentication.decode_and_verify(first)
+      refute Map.has_key?(claims, "sso")
+      assert_in_delta grace_until, now + 28 * 24 * 60 * 60, 60
+
+      %{"refresh_token" => second} = refresh(build_conn(), first)
+      assert {:ok, %{"sso_grace_until" => ^grace_until}} = Tuist.Authentication.decode_and_verify(second)
+    end
+
+    test "tokens whose grace period ended stop refreshing, and are not spent", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      enforce_sso_for(user)
+
+      {:ok, refresh_token, _claims} =
+        Tuist.Authentication.encode_and_sign(
+          user,
+          %{"sso_grace_until" => DateTime.to_unix(DateTime.utc_now()) - 1},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
 
       conn =
         conn
@@ -501,8 +558,9 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert %{"message" => "Your organization requires single sign-on. Run `tuist auth login`" <> _} =
                json_response(conn, :unauthorized)
 
-      # The refused token is not spent: it works again once enforcement is off.
-      organization |> Ecto.Changeset.change(sso_enforced: false) |> Repo.update!()
+      # The refused token is not spent: signing in through the provider
+      # links the identity that lets it refresh again.
+      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
       assert %{"refresh_token" => _} = refresh(build_conn(), refresh_token)
     end
 
@@ -528,7 +586,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert %{"refresh_token" => _} = refresh(build_conn(), refreshed_refresh_token)
     end
 
-    test "tokens whose SSO proof no longer matches the organization stop refreshing", %{conn: conn} do
+    test "tokens whose SSO proof no longer matches the organization drop it for a grace period", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       organization = enforce_sso_for(user)
       sso_session = session(user, %{auth_method: :google, provider_organization_id: "example.com"})
@@ -536,10 +594,10 @@ defmodule TuistWeb.API.AuthControllerTest do
 
       organization |> Ecto.Changeset.change(sso_organization_id: "other.example.com") |> Repo.update!()
 
-      assert build_conn()
-             |> put_req_header("content-type", "application/json")
-             |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
-             |> json_response(:unauthorized)
+      %{"refresh_token" => refreshed_refresh_token} = refresh(build_conn(), refresh_token)
+      assert {:ok, claims} = Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+      refute Map.has_key?(claims, "sso")
+      assert is_integer(claims["sso_grace_until"])
     end
   end
 
@@ -562,7 +620,7 @@ defmodule TuistWeb.API.AuthControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post("/api/auth", %{email: user.email, password: password})
 
-      assert %{"message" => "Your organization requires single sign-on." <> _} = json_response(conn, :forbidden)
+      assert %{"message" => "Your organization requires single sign-on." <> _} = json_response(conn, :unauthorized)
     end
 
     test "returns API tokens if the email and password are valid", %{conn: conn} do
@@ -722,7 +780,7 @@ defmodule TuistWeb.API.AuthControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post("/api/auth/apple", %{identity_token: "identity-token", authorization_code: "authorization-code"})
 
-      assert json_response(conn, :forbidden)
+      assert %{"message" => "Your organization requires single sign-on." <> _} = json_response(conn, :unauthorized)
     end
 
     test "returns access and refresh tokens when Apple authentication succeeds", %{conn: conn} do

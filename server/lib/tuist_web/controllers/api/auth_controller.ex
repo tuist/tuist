@@ -185,31 +185,26 @@ defmodule TuistWeb.API.AuthController do
   end
 
   defp refresh_tokens(conn, refresh_token) do
-    with :ok <- ensure_refresh_satisfies_sso(refresh_token) do
-      rotate_refresh_token(conn, refresh_token)
+    with {:ok, sso_claims} <- refresh_sso_claims(refresh_token) do
+      rotate_refresh_token(conn, refresh_token, sso_claims)
     end
   end
 
   # A refresh token acts for the user in every account, as the sign-in that
-  # issued it did, so it is renewed only while its claims still satisfy the
-  # user's SSO-enforcing organizations. Tokens issued without that claim,
-  # including every one issued before credentials carried it, keep refreshing
-  # unless an organization of the user enforces SSO. Tokens that don't decode
-  # are left to `Authentication.refresh/2` to reject as before.
-  defp ensure_refresh_satisfies_sso(refresh_token) do
+  # issued it did, so it is renewed only while its SSO claims (or the user's
+  # linked identities, or the grace period) still satisfy the user's
+  # SSO-enforcing organizations. See `Accounts.refresh_sso_claims/2`. Tokens
+  # that don't decode to a user are left to `Authentication.refresh/2` to
+  # handle as before.
+  defp refresh_sso_claims(refresh_token) do
     case Tuist.Guardian.resource_from_token(refresh_token, %{"typ" => "refresh"}) do
-      {:ok, %User{} = user, claims} ->
-        if Accounts.sso_requirement(user, UserToken.from_sso_claims(claims)) == :ok,
-          do: :ok,
-          else: {:error, :sso_required}
-
-      _ ->
-        :ok
+      {:ok, %User{} = user, claims} -> Accounts.refresh_sso_claims(user, claims)
+      _ -> {:ok, nil}
     end
   end
 
-  defp rotate_refresh_token(conn, refresh_token) do
-    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
+  defp rotate_refresh_token(conn, refresh_token, sso_claims) do
+    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl, sso_claims: sso_claims) do
       {:error, _} ->
         {:error, :invalid_refresh_token}
 
@@ -256,7 +251,6 @@ defmodule TuistWeb.API.AuthController do
         AuthenticationTokens
       },
       unauthorized: {"Invalid email or password.", "application/json", Error},
-      forbidden: {"The user's organization requires single sign-on.", "application/json", Error},
       too_many_requests: {"You've exceeded the rate limit.", "application/json", Error}
     }
   )
@@ -289,7 +283,6 @@ defmodule TuistWeb.API.AuthController do
         AuthenticationTokens
       },
       unauthorized: {"Invalid Apple identity token or authorization code.", "application/json", Error},
-      forbidden: {"The user's organization requires single sign-on.", "application/json", Error},
       bad_request: {"Invalid request parameters.", "application/json", Error}
     }
   )
@@ -345,9 +338,10 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:unauthorized)
         |> json(%{message: "Two-factor authentication is enabled. Use browser sign-in."})
 
+      # 401 like the MFA refusal above, whose message released clients show.
       Accounts.sso_requirement(user, nil) != :ok ->
         conn
-        |> put_status(:forbidden)
+        |> put_status(:unauthorized)
         |> json(%{message: "Your organization requires single sign-on. Sign in through your identity provider instead."})
 
       true ->
