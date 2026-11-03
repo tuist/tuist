@@ -929,6 +929,11 @@ defmodule TuistWeb.Router do
             post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
           end
 
+          scope "/selective-testing/coverage" do
+            post "/baseline", SelectiveTestingCoverageController, :baseline
+            post "/runs", SelectiveTestingCoverageController, :create_run
+          end
+
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
