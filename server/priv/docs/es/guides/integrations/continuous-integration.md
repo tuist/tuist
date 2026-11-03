@@ -1,7 +1,7 @@
 ---
 {
   "title": "Integración continua (CI)",
-  "titleTemplate": ":title · Automatización · Guías · Tuist",
+  "titleTemplate": ":title · Automatizar · Guías · Tuist",
   "description": "Aprende a usar Tuist en tus flujos de trabajo de CI."
 }
 ---
@@ -9,7 +9,7 @@
 
 Para ejecutar comandos de Tuist en tus flujos de trabajo de [integración continua](https://en.wikipedia.org/wiki/Continuous_integration), deberás instalarlo en tu entorno de CI. 
 
-La autenticación es opcional, pero necesaria si quieres usar funcionalidades del servidor como la <.localized_link href="/guides/features/cache">caché</.localized_link>. 
+La autenticación es opcional, pero necesaria si quieres usar funcionalidades del servidor como <.localized_link href="/guides/features/cache">caché</.localized_link>. 
 
 Las siguientes secciones ofrecen ejemplos de cómo hacerlo en distintas plataformas de CI.
 
@@ -17,7 +17,7 @@ Las siguientes secciones ofrecen ejemplos de cómo hacerlo en distintas platafor
 
 ### GitHub Actions {#github-actions}
 
-En [GitHub Actions](https://docs.github.com/en/actions) puedes usar la <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> para una autenticación segura y sin secretos:
+En [GitHub Actions](https://docs.github.com/en/actions) puedes usar <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> para una autenticación segura y sin secretos:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -114,16 +114,16 @@ jobs:
 > [!NOTE]
 > **Configuración de OIDC**
 >
-> Antes de usar la autenticación OIDC, debes <.localized_link href="/guides/integrations/gitforge/github">conectar tu repositorio de GitHub</.localized_link> a tu proyecto de Tuist. Se requiere `permissions: id-token: write` para que OIDC funcione. Como alternativa, puedes usar un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> con el secreto `TUIST_TOKEN`.
+> Antes de usar la autenticación OIDC, debes <.localized_link href="/guides/integrations/gitforge/github">conectar tu repositorio de GitHub</.localized_link> a tu proyecto de Tuist. El `permissions: id-token: write` es necesario para que OIDC funcione. Como alternativa, puedes usar un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> con el secreto `TUIST_TOKEN`.
 
 
 > [!TIP]
-> Recomendamos usar `mise use --pin` en tus proyectos de Tuist para fijar la versión de Tuist entre entornos. El comando creará un archivo `.tool-versions` con la versión de Tuist.
+> Recomendamos usar `mise use --pin` en tus proyectos de Tuist para fijar la versión de Tuist en todos los entornos. El comando creará un archivo `.tool-versions` con la versión de Tuist.
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-En [Xcode Cloud](https://developer.apple.com/xcode-cloud/), que usa los proyectos de Xcode como fuente de verdad, tendrás que añadir un script [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) para instalar Tuist y ejecutar los comandos que necesites, por ejemplo `tuist generate`:
+En [Xcode Cloud](https://developer.apple.com/xcode-cloud/), que usa proyectos de Xcode como fuente de verdad, tendrás que añadir un script [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) para instalar Tuist y ejecutar los comandos que necesites, por ejemplo `tuist generate`:
 
 ::: code-group
 
@@ -157,7 +157,7 @@ tuist generate
 
 ### CircleCI {#circleci}
 
-En [CircleCI](https://circleci.com) puedes usar la <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> para una autenticación segura y sin secretos:
+En [CircleCI](https://circleci.com) puedes usar <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> para una autenticación segura y sin secretos:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -216,7 +216,7 @@ jobs:
 
 ### Bitrise {#bitrise}
 
-En [Bitrise](https://bitrise.io) puedes usar la <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> para una autenticación segura y sin secretos:
+En [Bitrise](https://bitrise.io) puedes usar <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> para una autenticación segura y sin secretos:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -323,7 +323,7 @@ workflows:
 
 ### Appcircle {#appcircle}
 
-En [Appcircle](https://appcircle.io), puedes usar los pasos de flujo de trabajo integrados [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) y [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands), o añadir un paso de **Custom Script** después del paso **Git Clone** para instalar Tuist por tu cuenta:
+En [Appcircle](https://appcircle.io), puedes usar los pasos de flujo de trabajo integrados [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) y [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands), o añadir un paso **Custom Script** después del paso **Git Clone** para instalar Tuist tú mismo:
 
 ::: code-group
 ```bash [Mise]
@@ -344,16 +344,16 @@ tuist setup cache
 > [!NOTE]
 > **Pasos del flujo de trabajo**
 >
-> El paso Tuist Install instala Tuist con Homebrew y ejecuta `tuist generate`. Configura la entrada **Tuist Version** para fijar la versión y luego añade un paso Tuist Commands para ejecutar comandos como `tuist test` o `tuist build`.
+> El paso Tuist Install instala Tuist con Homebrew y ejecuta `tuist generate`. Configura la entrada **Tuist Version** para fijar la versión y, a continuación, añade un paso Tuist Commands para ejecutar comandos como `tuist test` o `tuist build`.
 
 > [!NOTE]
 > **Autenticación**
 >
-> Crea un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link>, añádelo como variable llamada `TUIST_TOKEN` a un [grupo de variables de entorno](https://docs.appcircle.io/build/build-environment-variables) y selecciona ese grupo en la configuración de tu compilación. Marca la variable como secreta con el icono del candado.
+> Crea un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link>, añádelo como variable llamada `TUIST_TOKEN` a un [grupo de variables de entorno](https://docs.appcircle.io/build/build-environment-variables) y selecciona ese grupo en la configuración de tu build. Marca la variable como secreta con el icono del candado.
 
 ## Informe de ejecución {#run-report}
 
-Cuando Tuist sube una ejecución, las URL del panel para esa ejecución se imprimen en los registros. Para obtenerlas sin analizar los registros —por ejemplo, para publicar el enlace al informe de pruebas en Slack cuando falla un trabajo o para alimentar una ejecución en tus propias herramientas— pasa `--run-report-path` (o establece `TUIST_RUN_REPORT_PATH`) a `tuist test`, `tuist xcodebuild test` o `tuist xcodebuild build`. Tuist escribe un informe JSON en esa ruta una vez que la ejecución se ha subido:
+Cuando Tuist sube una ejecución, las URL del panel para esa ejecución se imprimen en los registros. Para obtenerlas sin analizar los registros —por ejemplo, para publicar el enlace al informe de tests en Slack cuando falla un job, o para alimentar una ejecución en tus propias herramientas— pasa `--run-report-path` (o establece `TUIST_RUN_REPORT_PATH`) a `tuist test`, `tuist xcodebuild test` o `tuist xcodebuild build`. Tuist escribe un informe JSON en esa ruta una vez que la ejecución se ha subido:
 
 ```json
 {
@@ -382,22 +382,22 @@ Cuando Tuist sube una ejecución, las URL del panel para esa ejecución se impri
 
 | Campo | Tipo | Descripción |
 | - | - | - |
-| `runId` | cadena | El identificador único de la ejecución. |
-| `status` | cadena | `"success"` o `"failure"`. |
-| `runURL` | cadena | La URL del panel para la ejecución. Siempre presente. |
-| `testRunURL` | cadena? | La URL del panel para la ejecución de tests, presente cuando el comando ejecutó tests. |
-| `buildRunURL` | cadena? | La URL del panel para la ejecución de compilación, presente cuando el comando compiló. |
-| `testRuns` | matriz | Resultados de tests por esquema: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` y `skippedTestModules`. Los recuentos de tests son casos de test, y `skippedTests` cuenta los que el paquete de resultados informa como omitidos. `skippedTestModules` cuenta los módulos de test que los <.localized_link href="/guides/features/selective-testing">tests selectivos</.localized_link> omitieron, y se omite cuando los tests selectivos no se aplicaron o la ejecución es un fragmento de test. |
-| `buildRuns` | matriz | Resultados de compilación por esquema: `scheme`, `succeeded`, `durationInSeconds`. |
+| `runId` | string | El identificador único de la ejecución. |
+| `status` | string | `"success"` o `"failure"`. |
+| `runURL` | string | La URL del panel para la ejecución. Siempre presente. |
+| `testRunURL` | string? | La URL del panel para la ejecución de tests, presente cuando el comando ejecutó tests. |
+| `buildRunURL` | string? | La URL del panel para la ejecución de build, presente cuando el comando compiló. |
+| `testRuns` | array | Resultados de tests por esquema: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` y `skippedTestModules`. Los recuentos de tests son casos de test, y `skippedTests` cuenta los que el paquete de resultados indica como omitidos. `skippedTestModules` cuenta los módulos de test que los <.localized_link href="/guides/features/selective-testing">tests selectivos</.localized_link> omitieron, y se omite cuando los tests selectivos no se aplicaron o la ejecución es un fragmento de test. |
+| `buildRuns` | array | Resultados de build por esquema: `scheme`, `succeeded`, `durationInSeconds`. |
 
-`testRunURL` y `buildRunURL` son independientes: un comando que tanto compila como ejecuta tests escribe ambas, algo que los registros no pueden hacer —solo imprimen una URL por ejecución.
+`testRunURL` y `buildRunURL` son independientes: un comando que compila y ejecuta tests escribe ambas, algo que los registros no pueden hacer —solo imprimen una URL por ejecución.
 
 > [!NOTE]
 > **Cuándo se escribe el informe**
 >
-> El informe se escribe solo para las ejecuciones que se suben al servidor, lo cual requiere autenticación y ocurre automáticamente en CI. La ruta se limpia al inicio de cada ejecución, por lo que una ejecución que no genera ningún informe no deja nada atrás en lugar de dejar uno obsoleto de una ejecución anterior.
+> El informe se escribe solo para las ejecuciones que se suben al servidor, lo cual requiere autenticación y ocurre automáticamente en CI. La ruta se limpia al inicio de cada ejecución, de modo que una ejecución que no genera informe no deja nada atrás en lugar de dejar uno obsoleto de una ejecución anterior.
 
-En GitLab CI, un uso común es exponer una URL a trabajos posteriores mediante un informe [`dotenv`](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv):
+En GitLab CI, un uso común es exponer una URL a jobs posteriores mediante un [informe `dotenv`](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv):
 
 ```yaml
 test:
