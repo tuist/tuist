@@ -38,7 +38,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         public struct Coverage: Equatable, Hashable, Sendable {
             public let upload: Bool
 
-            public init(upload: Bool = true) {
+            public init(upload: Bool = false) {
                 self.upload = upload
             }
         }
