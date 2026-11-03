@@ -19,6 +19,10 @@ const executionTokenAudience = "tuist-runner-cache"
 // The server refuses larger tokens.
 const maxExecutionToken = 16384
 
+// executionTokenBudget bounds the whole hook: requesting the token and handing
+// it to the host. A late token only leaves binding to GitHub's report.
+const executionTokenBudget = 3 * time.Second
+
 // errNoIDToken means the workflow did not grant the job `id-token: write`.
 var errNoIDToken = errors.New("the job may not request an OIDC token")
 
@@ -28,9 +32,9 @@ var errNoIDToken = errors.New("the job may not request an OIDC token")
 // attaches. It never fails the job: without a token the server waits for
 // GitHub's report as before. An empty result means there was nothing to do.
 func proveExecution() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), executionTokenBudget)
 	defer cancel()
-	client, err := newCacheHTTPClient(5 * time.Second)
+	client, err := newCacheHTTPClient(executionTokenBudget)
 	if err != nil {
 		return "unavailable (token)"
 	}
@@ -90,7 +94,7 @@ func presentExecutionLinux(ctx context.Context, token string) error {
 	if endpoint == "" {
 		return errors.New("cache volumes disabled")
 	}
-	client, err := newCacheHTTPClient(10 * time.Second)
+	client, err := newCacheHTTPClient(executionTokenBudget)
 	if err != nil {
 		return err
 	}

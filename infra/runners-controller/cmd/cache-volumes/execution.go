@@ -26,7 +26,7 @@ func (a *agent) serveExecution(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 	if !a.runnerPod(ctx, r, input.PodName, input.PodUID) {
 		http.Error(w, "unavailable", http.StatusForbidden)

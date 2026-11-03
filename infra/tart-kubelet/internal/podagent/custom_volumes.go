@@ -604,7 +604,7 @@ const mailboxRequestLimit = 20 << 10
 // presentExecution forwards a job's GitHub OIDC token, so the server binds the
 // pod's session to that job without waiting for GitHub's report.
 func (c *CustomVolumes) presentExecution(ctx context.Context, pod *corev1.Pod, token string) map[string]any {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	var ignored struct{}
 	body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "token": token}
