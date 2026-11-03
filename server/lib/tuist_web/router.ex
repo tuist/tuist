@@ -1170,6 +1170,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/checkout", RunnerCacheVolumesController, :checkout
     post "/runners/cache-volumes/docker", RunnerCacheVolumesController, :docker
     post "/runners/cache-volumes/docker-seen", RunnerCacheVolumesController, :docker_seen
+    post "/runners/cache-volumes/execution", RunnerCacheVolumesController, :execution
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
@@ -1350,10 +1351,21 @@ defmodule TuistWeb.Router do
     end
 
     post "/users/log_in", UserSessionController, :create
+    post "/users/log_in/passkey/options", UserPasskeyController, :authentication_options
+    post "/users/log_in/passkey", UserPasskeyController, :authenticate
   end
 
   scope "/", TuistWeb do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
+
+    get "/users/settings/mfa", UserMFAController, :show
+    post "/users/settings/mfa/enroll", UserMFAController, :enroll
+    post "/users/settings/mfa/confirm", UserMFAController, :confirm
+    post "/users/settings/mfa/cancel", UserMFAController, :cancel
+    post "/users/settings/mfa/disable", UserMFAController, :disable
+    post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
+    post "/users/settings/passkeys", UserPasskeyController, :create
+    post "/users/settings/passkeys/:id/delete", UserPasskeyController, :delete
 
     live_session :require_authenticated_user,
       session: {TuistWeb.RemoteIp, :live_session, []},
@@ -1370,6 +1382,9 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app]
 
+    get "/users/mfa", UserMFAController, :challenge
+    post "/users/mfa", UserMFAController, :verify
+    post "/users/mfa/passkey/options", UserMFAController, :passkey_options
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,

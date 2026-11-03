@@ -358,6 +358,82 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     assert_receive {:coverage_deferred, %{packages: 3}, %{reason: :unauthorized}}
   end
 
+  # Organizations with an IP allow list answer the App's installation token
+  # with a 403 on every request, while the same public repository answers a
+  # personal access token. Skipping the package left its new versions missing
+  # from the registry indefinitely.
+  test "lists tags with the fallback credential when GitHub forbids the installation token" do
+    package = %{scope: "acme", name: "package", repository_full_handle: "acme/package"}
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+    expect(Metadata, :get_package, fn "acme", "package" -> {:error, :not_found} end)
+    expect(Metadata, :put_package, fn "acme", "package", _metadata -> :ok end)
+    expect(Registry, :swift_registry_github_fallback_token, fn "token" -> "pat" end)
+
+    expect(TuistCommon.GitHub, :list_tags, 2, fn
+      "acme/package", "token", _ -> {:error, {:http_error, 403}}
+      "acme/package", "pat", _ -> {:ok, ["v1.0.0"]}
+    end)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_enqueued(
+      worker: ReleaseWorker,
+      args: %{"scope" => "acme", "name" => "package", "repository_full_handle" => "acme/package", "tag" => "v1.0.0"}
+    )
+  end
+
+  test "skips a forbidden package when there is no fallback credential" do
+    packages =
+      Enum.map(1..2, fn index ->
+        %{scope: "acme", name: "package-#{index}", repository_full_handle: "acme/package-#{index}"}
+      end)
+
+    :telemetry.attach(
+      "sync-package-forbidden-test",
+      SyncWorker.package_skipped_event_name(),
+      fn _event, measurements, metadata, pid -> send(pid, {:package_skipped, measurements, metadata}) end,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach("sync-package-forbidden-test") end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, packages} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+    expect(Metadata, :get_package, 2, fn _scope, _name -> {:error, :not_found} end)
+    expect(Metadata, :put_package, fn "acme", "package-2", _metadata -> :ok end)
+    expect(Registry, :swift_registry_github_fallback_token, fn "token" -> nil end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-1", "token", _ -> {:error, {:http_error, 403}} end)
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-2", "token", _ -> {:ok, []} end)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_receive {:package_skipped, %{packages: 1}, %{reason: :tag_fetch_failed}}
+  end
+
+  test "force resyncs with the fallback credential when GitHub forbids the installation token" do
+    package = %{scope: "acme", name: "package", repository_full_handle: "acme/package"}
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+    expect(Registry, :swift_registry_github_fallback_token, fn "token" -> "pat" end)
+
+    expect(TuistCommon.GitHub, :list_tags, 2, fn
+      "acme/package", "token", _ -> {:error, {:http_error, 403}}
+      "acme/package", "pat", _ -> {:ok, ["v1.0.0"]}
+    end)
+
+    assert :ok =
+             SyncWorker.perform(%Oban.Job{
+               args: %{"force" => true, "repository_full_handle" => "acme/package", "version" => "1.0.0"}
+             })
+
+    assert_enqueued(worker: ReleaseWorker, args: %{"tag" => "v1.0.0", "force" => true})
+  end
+
   test "reports a package the pass passed over without reading its tags" do
     packages =
       Enum.map(1..2, fn index ->

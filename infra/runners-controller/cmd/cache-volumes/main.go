@@ -87,6 +87,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "POST" && r.URL.Path == "/docker-merge":
 		a.serveDockerMerge(w, r)
 		return
+	case r.Method == "POST" && r.URL.Path == "/execution":
+		a.serveExecution(w, r)
+		return
 	case r.Method != "POST" || r.URL.Path != "/acquire":
 		http.NotFound(w, r)
 		return

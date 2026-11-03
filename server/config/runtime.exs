@@ -115,21 +115,26 @@ case System.get_env("TUIST_RUNNER_LINUX_POOLS") do
     end
 end
 
-case System.get_env("TUIST_RUNNER_FREE_MONTHLY_MINUTES") do
-  nil ->
-    :ok
+for {env_var, key} <- [
+      {"TUIST_RUNNER_FREE_MONTHLY_MINUTES", :runner_free_monthly_minutes},
+      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes}
+    ] do
+  case System.get_env(env_var) do
+    nil ->
+      :ok
 
-  "" ->
-    :ok
+    "" ->
+      :ok
 
-  raw ->
-    case Integer.parse(raw) do
-      {minutes, ""} when minutes >= 0 ->
-        config :tuist, :runner_free_monthly_minutes, minutes
+    raw ->
+      case Integer.parse(raw) do
+        {minutes, ""} when minutes >= 0 ->
+          config :tuist, key, minutes
 
-      _ ->
-        raise "TUIST_RUNNER_FREE_MONTHLY_MINUTES must be a non-negative integer. Got: #{inspect(raw)}"
-    end
+        _ ->
+          raise "#{env_var} must be a non-negative integer. Got: #{inspect(raw)}"
+      end
+  end
 end
 
 case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do

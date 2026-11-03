@@ -389,7 +389,7 @@ defmodule TuistWeb.API.OrganizationsController do
       },
       runner_minutes: %{
         used: runners.minutes,
-        included: runners.free_minutes,
+        included: runners.free_minutes.macos,
         charge_cents: runners.billed.amount
       },
       estimated_charge_cents: cache_charge + tests_charge + runners.billed.amount
