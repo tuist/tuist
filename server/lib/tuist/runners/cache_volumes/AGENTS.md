@@ -21,6 +21,10 @@ these schemas persist volume identities and per-job uses.
   an account's repository goes to the same hosts, one more than the repository's
   jobs ran on at once over the week and at least two, picked by rendezvous
   hashing weighted by advertised cache capacity, and the caps apply per host.
+  A Linux host gets every placed volume uncapped: a repository whose jobs each
+  attach their own volume (one per test shard) otherwise found it only on the
+  host that saved it. macOS keeps the caps, since a rack's hosts share one WAN
+  uplink and every listed HEAD is pulled by every holder on each publication.
   Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
   schedule learned per
   weekday and UTC hour covered none of the customer first-of-day starts from

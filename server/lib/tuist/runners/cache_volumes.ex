@@ -1081,7 +1081,8 @@ defmodule Tuist.Runners.CacheVolumes do
 
   With `node:`, the lists are those of that one of `node_names`: only the
   repositories `VolumePlacement` places on it, every volume of a repository on
-  the same Nodes, and the caps apply to that Node's lists. A repository is held
+  the same Nodes, and the caps apply to that Node's lists on macOS. A Linux Node
+  lists every volume placed on it. A repository is held
   by one more Node than its jobs ran on at once over the week
   (`VolumePlacement.replicas/2`), chosen by `weights` (Node name to weight,
   equal when absent).
@@ -1123,8 +1124,15 @@ defmodule Tuist.Runners.CacheVolumes do
     {prewarm, recent} = prefetch_reasons(custom, idle_since, recent_since)
     {checkout_prewarm, checkout_recent} = prefetch_reasons(checkouts, idle_since, recent_since)
 
-    listed_heads(prewarm, "prewarm", @prewarm_limit) ++
-      listed_heads(recent, "recent", @recent_limit) ++
+    # A Linux Node holds every volume of the repositories placed on it. macOS
+    # keeps the caps: a rack's hosts share one WAN uplink.
+    {prewarm_limit, recent_limit} =
+      if platform == "linux" and Keyword.has_key?(opts, :node),
+        do: {length(prewarm), length(recent)},
+        else: {@prewarm_limit, @recent_limit}
+
+    listed_heads(prewarm, "prewarm", prewarm_limit) ++
+      listed_heads(recent, "recent", recent_limit) ++
       Enum.take(
         listed_heads(checkout_prewarm, "prewarm", @checkout_limit) ++
           listed_heads(checkout_recent, "recent", @checkout_limit),

@@ -216,10 +216,14 @@ defmodule Tuist.Runners.CacheVolumesTest do
     profile
   end
 
-  defp published_mac_volumes(job, keys) do
+  defp published_mac_volumes(job, keys), do: published_volumes(job, keys, "macos")
+
+  defp published_volumes(job, keys, platform) do
     uses =
       for key <- keys do
-        {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), Map.merge(attrs(key), %{key: key, platform: "macos"}))
+        {:ok, use} =
+          CacheVolumes.allocate_for_job(job, identity(), Map.merge(attrs(key), %{key: key, platform: platform}))
+
         use
       end
 
@@ -715,6 +719,29 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert placed_volumes(node, now) == expected
     end
+  end
+
+  test "lists a Linux Node every volume of the repositories placed on it", %{job: job} do
+    other = AccountsFixtures.account_fixture()
+    now = DateTime.utc_now()
+    keys = for index <- 1..10, do: "volume-#{index}"
+    volumes = published_volumes(job, keys, "linux")
+
+    other_volumes =
+      published_volumes(%{job | account_id: other.id, workflow_job_id: job.workflow_job_id + 1}, ~w(other), "linux")
+
+    for {volume_id, hours} <- Enum.with_index(volumes ++ other_volumes, 1), do: used_hours_ago(volume_id, now, [hours])
+
+    listed =
+      for head <- CacheVolumes.prefetch_heads("linux", ["node"], now, node: "node"),
+          do: Repo.get!(Usage, head.id).volume_id
+
+    assert Enum.sort(listed) == Enum.sort(volumes ++ other_volumes)
+    assert length(CacheVolumes.prefetch_heads("linux", ["node"], now)) == 8
+
+    mac_volumes = published_mac_volumes(%{job | workflow_job_id: job.workflow_job_id + 2}, keys)
+    for {volume_id, hours} <- Enum.with_index(mac_volumes, 1), do: used_hours_ago(volume_id, now, [hours])
+    assert length(CacheVolumes.prefetch_heads("macos", ["node"], now, node: "node")) == 8
   end
 
   test "places a repository whose jobs ran concurrently on one more Node than they ran on", %{job: job} do
