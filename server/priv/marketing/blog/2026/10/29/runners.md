@@ -105,3 +105,5 @@ And if you're already on GitHub Actions, adopting them is a one-line:
        - uses: actions/checkout@v4
        - run: tuist test
 ```
+
+Runners are billed per minute of job time, starting at $0.06 per minute for an M5 Pro Mac mini and $0.001 for the smallest Linux machine. Every plan, Air included, comes with 100 free macOS minutes a month and 100 GB of cache volumes. On top of that, cache traffic from Tuist Runners counts at half, and tests that run on them are free in Test Insights. You'll find every machine and rate on our [pricing page](/pricing#runners).
