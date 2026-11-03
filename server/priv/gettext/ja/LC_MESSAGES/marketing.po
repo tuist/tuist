@@ -2802,11 +2802,6 @@ msgstr "%{vcpus} vCPU · %{memory} GB"
 msgid "/min"
 msgstr "/分"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:329
-#, elixir-autogen, elixir-format
-msgid "100 free macOS minutes every month"
-msgstr "毎月100分のmacOS実行時間を無料で提供"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:999
 #, elixir-autogen, elixir-format
 msgid "How are Tuist Runners billed?"
@@ -2873,11 +2868,6 @@ msgstr "macOS は %{macos}/分から、Linux は %{linux}/分から"
 msgid "Commit for a year or run at higher volume and we'll lower your rate."
 msgstr "年間契約または大量の利用で、料金が割引になります。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
-#, elixir-autogen, elixir-format
-msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes a month and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
-msgstr "ジョブの開始から終了までの1分単位の課金で、分数は切り上げません。マシンの起動とクリーンアップは課金対象外です。すべてのプランで毎月100分のmacOS実行時間と100 GBのキャッシュボリュームストレージが含まれ、超過分は1 GBあたり月額$0.10です。年間契約や大量利用では割引が適用されます。年間またはボリューム価格の設定については、contact@tuist.dev までお問い合わせください。"
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Price"
@@ -2888,12 +2878,22 @@ msgstr "価格"
 msgid "Tuist Runners are invite-only while we scale capacity. Tell us about your workloads and we'll get you set up, including yearly and volume pricing."
 msgstr "容量拡張中のため、Tuist Runners は招待制です。ワークロードについてお知らせいただければ、年間契約やボリューム価格を含めてセットアップをサポートします。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:331
-#, elixir-autogen, elixir-format
-msgid "Included on every plan, Air too."
-msgstr "Air プランを含むすべてのプランに含まれます。"
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Keep dependencies and build outputs between jobs. Beyond 100 GB per account, storage is %{price} per GB-month."
 msgstr "ジョブ間で依存関係とビルド成果物を保持します。アカウントあたりの容量が100 GBを超えると、ストレージは %{price} /GB/月となります。"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:329
+#, elixir-autogen, elixir-format
+msgid "100 free macOS and 2,500 free Linux minutes every month"
+msgstr "毎月100分のmacOS無料枠と2,500分のLinux無料枠"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:331
+#, elixir-autogen, elixir-format
+msgid "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
+msgstr "すべてのプラン（Airを含む）に含まれています。Linuxの分数は2 vCPU / 8 GBのマシンで換算されるため、それより小さいマシンではより長く実行できます。"
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
+#, elixir-autogen, elixir-format
+msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
+msgstr "CIプロバイダーがジョブを開始してから完了するまでのジョブ実行時間1分あたりで、分単位への切り上げはありません。マシンの起動とクリーンアップは課金されません。すべてのプランには、毎月100分のmacOS無料枠と2 vCPU / 8 GBのLinuxマシンで換算される2,500分のLinux無料枠、および100 GBのキャッシュボリュームストレージが含まれており、超過分はGB月あたり$0.10です。年間契約や利用量が多い場合は割引が適用されます。年間またはボリューム価格の設定については、contact@tuist.devまでお問い合わせください。"

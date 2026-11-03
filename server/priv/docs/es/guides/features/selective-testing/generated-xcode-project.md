@@ -2,29 +2,31 @@
 {
   "title": "Proyecto de Xcode generado",
   "titleTemplate": ":title · Tests selectivos · Funcionalidades · Guías · Tuist",
-  "description": "Ejecuta solo los tests de Xcode y del proyecto generado afectados por tus últimos cambios con Tuist Selective Testing, para que la integración continua reciba feedback en segundos."
+  "description": "Ejecuta solo los tests de Xcode y del proyecto generado afectados por tus últimos cambios con los tests selectivos de Tuist, para que la integración continua reciba feedback en segundos."
 }
 ---
 # Proyecto de Xcode generado {#generated-xcode-project}
 
-A medida que tu proyecto crece, también lo hace la cantidad de tests. Durante mucho tiempo, ejecutar todos los tests en cada PR o push a `main` ha llevado decenas de segundos. Pero esta solución no escala cuando tu equipo tiene miles de tests.
+A medida que tu proyecto crece, también lo hace la cantidad de tests. Durante mucho tiempo, ejecutar todos los tests en cada PR o push a `main` lleva decenas de segundos. Pero esta solución no escala a los miles de tests que tu equipo podría tener.
 
-En cada ejecución de tests en la CI, lo más probable es que vuelvas a ejecutar todos los tests, independientemente de los cambios. Los <.localized_link href="/guides/features/projects/hashing">tests selectivos</.localized_link> de Tuist te ayudan a acelerar drásticamente la ejecución de los propios tests ejecutando solo aquellos que han cambiado desde la última ejecución exitosa, basándose en nuestro algoritmo de hashing.
+En cada ejecución de tests en la CI, lo más probable es que vuelvas a ejecutar todos los tests, independientemente de los cambios. Los <.localized_link href="/guides/features/projects/hashing">tests selectivos</.localized_link> de Tuist te ayudan a acelerar drásticamente la ejecución de los propios tests ejecutando únicamente aquellos que han cambiado desde la última ejecución exitosa, según nuestro algoritmo de hashing.
 
-Para ejecutar tests de forma selectiva con tu <.localized_link href="/guides/features/projects">proyecto generado</.localized_link>, usa el comando `tuist test`. Este comando <.localized_link href="/guides/features/projects/hashing">genera hashes</.localized_link> de tu proyecto de la misma manera que lo hace para la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link>, y, si tiene éxito, persiste los hashes para determinar qué ha cambiado en futuras ejecuciones. En ejecuciones posteriores, `tuist test` utiliza los hashes de forma transparente para filtrar los tests y ejecutar solo aquellos que han cambiado desde la última ejecución exitosa.
+Para ejecutar tests de forma selectiva con tu <.localized_link href="/guides/features/projects">proyecto generado</.localized_link>, utiliza el comando `tuist test`. Este comando <.localized_link href="/guides/features/projects/hashing">genera hashes</.localized_link> de tu proyecto de la misma manera que lo hace para la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link> y, si tiene éxito, persiste esos hashes para determinar qué ha cambiado en futuras ejecuciones. En ejecuciones posteriores, `tuist test` utiliza los hashes de forma transparente para filtrar los tests y ejecutar solo aquellos que han cambiado desde la última ejecución exitosa.
 
 `tuist test` se integra directamente con la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link> para utilizar tantos binarios como sea posible desde tu almacenamiento local o remoto y mejorar el tiempo de compilación al ejecutar tu suite de tests. La combinación de tests selectivos con la caché de módulos puede reducir drásticamente el tiempo necesario para ejecutar tests en tu CI.
 
-## Separa las jobs de compilación y de tests {#separate-build-and-test-jobs}
+Si tus ejecuciones de tests solo tienen como destino simuladores, pasa `--destination simulator` para que `tuist test` utilice y descargue únicamente las porciones de simulador de los binarios almacenados en caché. Consulta la <.localized_link href="/guides/features/cache/module-cache#destination-selection">selección de destino</.localized_link>. Los hashes de los tests selectivos son iguales para cualquier valor de `--destination`.
 
-Los tests selectivos admiten jobs de compilación y de tests separadas. Ejecuta `tuist test --build-only` en la job de compilación para que Tuist pueda persistir un archivo `selective-testing-graph.json` junto con los productos que genera la compilación. Ese grafo contiene los hashes que necesitan los tests selectivos, por lo que la job de tests no tiene que regenerar el proyecto ni resolver las dependencias de Swift Package para averiguar qué targets ejecutar.
+## Separar trabajos de compilación y de test {#separate-build-and-test-jobs}
+
+Los tests selectivos admiten trabajos de compilación y de test separados. Ejecuta `tuist test --build-only` en el trabajo de compilación para que Tuist pueda persistir un archivo `selective-testing-graph.json` junto con los productos que genera la compilación. Ese grafo contiene los hashes que necesitan los tests selectivos, por lo que el trabajo de test no tiene que regenerar el proyecto ni resolver las dependencias de Swift Package para averiguar qué targets ejecutar.
 
 Tuist escribe el grafo en dos lugares durante `--build-only`:
 
 - Dentro del bundle `.xctestproducts` cuando pasas `-testProductsPath`.
 - Junto a cada archivo `.xctestrun` bajo el directorio `Build/Products/` de los datos derivados.
 
-Almacena en caché cualquiera de estas salidas junto con los productos compilados y pasa la misma ruta a `--without-building` en la job de tests. Ambas formas funcionan:
+Almacena en caché cualquiera de estas salidas junto con los productos compilados y proporciona la misma ruta a `--without-building` en el trabajo de test. Ambas formas funcionan:
 
 ```sh
 # Build job — writes an .xctestproducts bundle with the graph inside it.
@@ -57,23 +59,23 @@ tuist test MyScheme \
   -xctestrun artifacts/derived-data/Build/Products/MyScheme_iphonesimulator.xctestrun
 ```
 
-Cuando Tuist no encuentra ese grafo junto a la entrada (por ejemplo, cuando la job de compilación usó simplemente `xcodebuild build-for-testing` en lugar de `tuist test --build-only`), recurre a regenerar el proyecto para poder seguir calculando los targets afectados. Ese recurso necesita que las dependencias de Swift Package estén resueltas en la job de tests, así que ejecuta primero `tuist install` o almacena en caché `Tuist/.build` entre jobs.
+Cuando Tuist no puede encontrar ese grafo junto a la entrada (por ejemplo, cuando el trabajo de compilación usó simplemente `xcodebuild build-for-testing` en lugar de `tuist test --build-only`), recurre a regenerar el proyecto para poder seguir calculando los targets afectados. Ese recurso necesita que las dependencias de Swift Package estén resueltas en el trabajo de test, así que ejecuta primero `tuist install` o almacena en caché `Tuist/.build` entre trabajos.
 
-El grafo refleja el árbol de fuentes tal como estaba en el momento de la compilación. Ejecuta la job de tests contra el mismo commit que la job de compilación; si las fuentes divergen entre ambas, los hashes quedan desactualizados y los tests selectivos pueden omitir tests que realmente fallarían con las fuentes más recientes.
+El grafo refleja el árbol de fuentes tal como estaba en el momento de la compilación. Ejecuta el trabajo de test contra el mismo commit que el trabajo de compilación; si las fuentes divergen entre ambos, los hashes quedan obsoletos y los tests selectivos pueden omitir tests que realmente fallarían con las fuentes más recientes.
 
 ### ¿Qué flag debo usar? {#which-flag-should-i-use}
 
-`.xctestrun` y `.xctestproducts` son dos formatos de salida diferentes de Xcode, y ofrecen un equilibrio entre portabilidad y comodidad en la pipeline:
+`.xctestrun` y `.xctestproducts` son dos formatos de salida de Xcode diferentes, y ofrecen un equilibrio entre portabilidad y comodidad en la pipeline:
 
-- **`-testProductsPath` (`.xctestproducts`) — recomendado para nuevas pipelines.** Es un directorio autocontenido: los binarios `.xctest` compilados y sus archivos `.xctestrun` viven dentro de él con rutas relativas a la raíz del bundle, por lo que sigue siendo válido dondequiera que termine. Además, es el formato que lleva más tiempo teniendo la vía rápida de tests selectivos, por lo que es la ruta más probada.
-- **`-xctestrun` (`.xctestrun` raw) — úsalo si ya tienes una pipeline construida alrededor de los datos derivados.** `xcodebuild build-for-testing` escribe un `.xctestrun` en la parte superior de `<derivedData>/Build/Products/` por defecto y lo apunta a los bundles de test que viven en otra parte de ese árbol. Reutilizarlo en otra job significa mantener intactas las rutas en `Build/Products/`.
+- **`-testProductsPath` (`.xctestproducts`) — recomendado para nuevas pipelines.** Es un directorio autocontenido: los binarios `.xctest` compilados y sus archivos `.xctestrun` viven dentro de él con rutas relativas a la raíz del bundle, por lo que sigue siendo válido dondequiera que termine. También es el formato que ha tenido la vía rápida de tests selectivos durante más tiempo, por lo que es la ruta más probada.
+- **`-xctestrun` (`.xctestrun` raw) — úsalo si ya tienes una pipeline construida alrededor de los datos derivados.** `xcodebuild build-for-testing` escribe un `.xctestrun` en la parte superior de `<derivedData>/Build/Products/` por defecto y lo apunta a bundles de test que viven en otra parte de ese árbol. Reutilizarlo en otro trabajo significa mantener intactas las rutas en `Build/Products/`.
 
-Si empiezas desde cero, prefiere `-testProductsPath`. Si estás integrando Tuist en una pipeline existente que ya almacena en caché los datos derivados, `-xctestrun` obtendrá ahora la misma vía rápida siempre que la job de compilación se ejecute a través de `tuist test --build-only`.
+Si estás empezando de cero, prefiere `-testProductsPath`. Si estás integrando Tuist en una pipeline existente que ya almacena en caché los datos derivados, `-xctestrun` ahora obtendrá la misma vía rápida siempre que el trabajo de compilación se ejecute a través de `tuist test --build-only`.
 
-Cualquier modo de entrada es mutuamente excluyente con `-workspace`/`-project`/`-scheme`, por lo que Tuist omite esas flags cuando los argumentos de paso incluyen `-xctestrun` o `-testProductsPath`, y reenvía los targets seleccionados a través de `-only-testing`.
+Cualquier modo de entrada es mutuamente exclusivo con `-workspace`/`-project`/`-scheme`, por lo que Tuist omite esas flags cuando los argumentos de paso incluyen `-xctestrun` o `-testProductsPath`, y reenvía los targets seleccionados a través de `-only-testing`.
 
 > [!WARNING]
-> **Granularidad a nivel de módulo frente a nivel de archivo**
+> **Granularidad a nivel de módulo frente a archivo**
 >
 > Debido a la imposibilidad de detectar las dependencias en el código entre tests y fuentes, la granularidad máxima de los tests selectivos está a nivel de target. Por lo tanto, recomendamos mantener tus targets pequeños y enfocados para maximizar los beneficios de los tests selectivos.
 
@@ -81,7 +83,7 @@ Cualquier modo de entrada es mutuamente excluyente con `-workspace`/`-project`/`
 > [!WARNING]
 > **Cobertura de tests**
 >
-> Las herramientas de cobertura de tests asumen que toda la suite de tests se ejecuta a la vez, lo que las hace incompatibles con las ejecuciones de tests selectivos; esto significa que los datos de cobertura podrían no reflejar la realidad al usar la selección de tests. Esta es una limitación conocida y no significa que estés haciendo algo mal. Animamos a los equipos a reflexionar sobre si la cobertura sigue aportando información significativa en este contexto y, si es así, ten la seguridad de que ya estamos pensando en cómo hacer que la cobertura funcione correctamente con ejecuciones selectivas en el futuro.
+> Las herramientas de cobertura de tests asumen que toda la suite de tests se ejecuta a la vez, lo que las hace incompatibles con las ejecuciones de tests selectivos; esto significa que los datos de cobertura podrían no reflejar la realidad al usar la selección de tests. Esta es una limitación conocida y no significa que estés haciendo algo mal. Animamos a los equipos a reflexionar sobre si la cobertura sigue aportando información significativa en este contexto, y si es así, ten la seguridad de que ya estamos pensando en cómo hacer que la cobertura funcione correctamente con ejecuciones selectivas en el futuro.
 
 
 ## Comentarios en pull/merge requests {#pullmerge-request-comments}
@@ -92,11 +94,11 @@ Cualquier modo de entrada es mutuamente excluyente con `-workspace`/`-project`/`
 > Para recibir comentarios automáticos en las pull/merge requests, integra tu <.localized_link href="/guides/server/accounts-and-projects">proyecto de Tuist</.localized_link> con una <.localized_link href="/guides/server/authentication">plataforma Git</.localized_link>.
 
 
-Una vez que tu proyecto de Tuist esté conectado con tu plataforma Git, como [GitHub](https://github.com), y comiences a usar `tuist test` como parte de tu flujo de trabajo de CI, Tuist publicará un comentario directamente en tus pull/merge requests, indicando qué tests se ejecutaron y cuáles se omitieron: ![Comentario de la app de GitHub con un enlace a Tuist Preview](/images/guides/features/selective-testing/github-app-comment.png)
+Una vez que tu proyecto de Tuist esté conectado con tu plataforma Git, como [GitHub](https://github.com), y comiences a usar `tuist test` como parte de tu flujo de trabajo de CI, Tuist publicará un comentario directamente en tus pull/merge requests, incluyendo qué tests se ejecutaron y cuáles se omitieron: ![Comentario de la app de GitHub con un enlace a Tuist Preview](/images/guides/features/selective-testing/github-app-comment.png)
 
 
-## Investigación de fallos de caché en el dashboard {#investigating-misses-on-the-dashboard}
+## Investigar fallos de caché en el dashboard {#investigating-misses-on-the-dashboard}
 
-Cuando un target de test previamente almacenado en caché aparece como un fallo, la pestaña **Tests selectivos** en la página de una ejecución de tests te permite profundizar en las entradas que produjeron el hash. Al expandir una fila se revelan los subhashes por componente: fuentes, dependencias, variables de entorno, configuraciones del proyecto y del target, Info.plist, entitlements, cabeceras, etc., para que puedas identificar la entrada que varió entre ejecuciones.
+Cuando un target de test previamente almacenado en caché aparece como un fallo, la pestaña **Tests selectivos** en la página de una ejecución de tests te permite profundizar en las entradas que produjeron el hash. Al expandir una fila se revelan los subhashes por componente: fuentes, dependencias, variables de entorno, configuraciones del proyecto y del target, Info.plist, entitlements, headers, etc., para que puedas identificar la entrada que divergió entre ejecuciones.
 
-Usa el botón **Copiar como JSON** en la parte superior de la tarjeta de Tests selectivos para exportar cada target de test selectivo con su hash y subhashes. Comparar el JSON entre dos ejecuciones es la forma más rápida de confirmar qué entrada cambió cuando el hash del target de test varió.
+Usa el botón **Copiar como JSON** en la parte superior de la tarjeta de Tests selectivos para exportar cada target de test selectivo con su hash y subhashes. Comparar el JSON entre dos ejecuciones es la forma más rápida de confirmar qué entrada cambió cuando el hash del target de test divergió.
