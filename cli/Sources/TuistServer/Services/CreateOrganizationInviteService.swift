@@ -18,12 +18,14 @@ enum CreateOrganizationInviteServiceError: LocalizedError {
     case forbidden(String)
     case badRequest(String)
     case unauthorized(String)
+    case tooManyRequests(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The user could not be invited due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message):
+        case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message),
+             let .tooManyRequests(message):
             return message
         }
     }
@@ -66,6 +68,11 @@ public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing
             switch badRequestResponse.body {
             case let .json(error):
                 throw CreateOrganizationInviteServiceError.badRequest(error.message)
+            }
+        case let .tooManyRequests(response):
+            switch response.body {
+            case let .json(error):
+                throw CreateOrganizationInviteServiceError.tooManyRequests(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CreateOrganizationInviteServiceError.unknownError(statusCode)
