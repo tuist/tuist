@@ -2,9 +2,12 @@ defmodule TuistWeb.API.ShardsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import OpenApiSpex.TestAssertions, only: [assert_schema: 3]
+
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.API.Spec
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
 
@@ -49,6 +52,19 @@ defmodule TuistWeb.API.ShardsControllerTest do
         assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
         assert is_list(response["shards"])
       end
+    end
+
+    test "accepts the impact run of coverage-based test selection", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{reference: "github-123-impact", modules: ["AppTests"], test_impact_run_id: UUIDv7.generate()}
+        )
+
+      assert json_response(conn, :ok)["reference"] == "github-123-impact"
     end
 
     test "creates suite-granularity shard plan when the client does not enumerate suites", %{
@@ -462,6 +478,44 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["suites"] == %{}
       assert response["skip"] == []
       assert response["download_url"] == "https://download.example.com"
+      refute Map.has_key?(response, "test_impact_skip")
+    end
+
+    test "returns the tests coverage-based test selection skipped in the shard", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      test_impact_skip = [
+        %{module: "AppTests", suite: "LoginTests", name: "testLogout"},
+        %{module: "CoreTests"}
+      ]
+
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
+        {:ok,
+         %{
+           shard_plan_id: Ecto.UUID.generate(),
+           modules: [],
+           suites: %{"AppTests" => ["LoginTests"]},
+           skip: [],
+           test_impact_skip: test_impact_skip,
+           download_url: "https://download.example.com",
+           download_urls: ["https://download.example.com"]
+         }}
+      end)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/0")
+        |> json_response(:ok)
+
+      assert response["test_impact_skip"] == [
+               %{"module" => "AppTests", "suite" => "LoginTests", "name" => "testLogout"},
+               %{"module" => "CoreTests"}
+             ]
+
+      assert_schema(response, "Shard", Spec.spec())
     end
 
     test "does not pass suite catch-all support for older CLI versions", %{conn: conn, user: user, project: project} do

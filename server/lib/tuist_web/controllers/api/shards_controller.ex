@@ -109,6 +109,12 @@ defmodule TuistWeb.API.ShardsController do
              type: :string,
              format: :uuid,
              description: "The UUID of the associated Gradle build."
+           },
+           test_impact_run_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing."
            }
          },
          required: [:reference]
@@ -331,14 +337,7 @@ defmodule TuistWeb.API.ShardsController do
 
     case result do
       {:ok, result} ->
-        json(conn, %{
-          shard_plan_id: result.shard_plan_id,
-          modules: result.modules,
-          suites: result.suites,
-          skip: result.skip,
-          download_url: result.download_url,
-          download_urls: result.download_urls
-        })
+        json(conn, shard_response(result))
 
       {:error, :not_found} ->
         conn
@@ -591,6 +590,22 @@ defmodule TuistWeb.API.ShardsController do
 
       {:error, _reason} ->
         StorageError.render(conn)
+    end
+  end
+
+  defp shard_response(result) do
+    response = %{
+      shard_plan_id: result.shard_plan_id,
+      modules: result.modules,
+      suites: result.suites,
+      skip: result.skip,
+      download_url: result.download_url,
+      download_urls: result.download_urls
+    }
+
+    case Map.get(result, :test_impact_skip) do
+      nil -> response
+      test_impact_skip -> Map.put(response, :test_impact_skip, test_impact_skip)
     end
   end
 

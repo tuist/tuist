@@ -722,6 +722,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
     func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// Resolve the baseline for coverage-based test selection.
+    ///
+    /// Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)`.
+    func resolveTestImpactBaseline(_ input: Operations.resolveTestImpactBaseline.Input) async throws -> Operations.resolveTestImpactBaseline.Output
     /// Get one recorded Gradle build step.
     ///
     /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
@@ -961,6 +968,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/runs/get(listOnceRuns)`.
     func listOnceRuns(_ input: Operations.listOnceRuns.Input) async throws -> Operations.listOnceRuns.Output
+    /// Create an impact run for coverage-based test selection.
+    ///
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
+    func createTestImpactRun(_ input: Operations.createTestImpactRun.Input) async throws -> Operations.createTestImpactRun.Output
     /// Complete the multipart upload and trigger per-shard xctestrun creation.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete`.
@@ -3164,6 +3178,23 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Resolve the baseline for coverage-based test selection.
+    ///
+    /// Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)`.
+    public func resolveTestImpactBaseline(
+        path: Operations.resolveTestImpactBaseline.Input.Path,
+        headers: Operations.resolveTestImpactBaseline.Input.Headers = .init(),
+        body: Operations.resolveTestImpactBaseline.Input.Body? = nil
+    ) async throws -> Operations.resolveTestImpactBaseline.Output {
+        try await resolveTestImpactBaseline(Operations.resolveTestImpactBaseline.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Get one recorded Gradle build step.
     ///
     /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
@@ -3753,6 +3784,23 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Create an impact run for coverage-based test selection.
+    ///
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
+    public func createTestImpactRun(
+        path: Operations.createTestImpactRun.Input.Path,
+        headers: Operations.createTestImpactRun.Input.Headers = .init(),
+        body: Operations.createTestImpactRun.Input.Body? = nil
+    ) async throws -> Operations.createTestImpactRun.Output {
+        try await createTestImpactRun(Operations.createTestImpactRun.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Complete the multipart upload and trigger per-shard xctestrun creation.
@@ -5306,6 +5354,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/duration`.
             public var duration: Swift.Int
+            /// The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/test_impact_run_id`.
+            public var test_impact_run_id: Swift.String?
             /// The version of Xcode used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_version`.
@@ -5909,6 +5961,7 @@ public enum Components {
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
             ///   - duration: Duration of the run in milliseconds.
+            ///   - test_impact_run_id: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
             ///   - xcode_version: The version of Xcode used during the run.
             ///   - build_system: The build system used by the test run.
             ///   - git_commit_sha: The commit SHA.
@@ -5958,6 +6011,7 @@ public enum Components {
                 shard_plan_id: Swift.String? = nil,
                 contract_version: Swift.String? = nil,
                 duration: Swift.Int,
+                test_impact_run_id: Swift.String? = nil,
                 xcode_version: Swift.String? = nil,
                 build_system: Components.Schemas.TestParams.build_systemPayload? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -6007,6 +6061,7 @@ public enum Components {
                 self.shard_plan_id = shard_plan_id
                 self.contract_version = contract_version
                 self.duration = duration
+                self.test_impact_run_id = test_impact_run_id
                 self.xcode_version = xcode_version
                 self.build_system = build_system
                 self.git_commit_sha = git_commit_sha
@@ -6057,6 +6112,7 @@ public enum Components {
                 case shard_plan_id
                 case contract_version
                 case duration
+                case test_impact_run_id
                 case xcode_version
                 case build_system
                 case git_commit_sha
@@ -10445,6 +10501,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/skipped_test_suites`.
             public var skipped_test_suites: [Swift.String]?
+            /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_impact_run_id`.
+            public var test_impact_run_id: Swift.String?
             /// Test suite names (for suite-level granularity).
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_suites`.
@@ -10465,6 +10525,7 @@ public enum Components {
             ///   - shard_min: Minimum number of shards.
             ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+            ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -10480,6 +10541,7 @@ public enum Components {
                 shard_min: Swift.Int? = nil,
                 shard_total: Swift.Int? = nil,
                 skipped_test_suites: [Swift.String]? = nil,
+                test_impact_run_id: Swift.String? = nil,
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
@@ -10495,6 +10557,7 @@ public enum Components {
                 self.shard_min = shard_min
                 self.shard_total = shard_total
                 self.skipped_test_suites = skipped_test_suites
+                self.test_impact_run_id = test_impact_run_id
                 self.test_suites = test_suites
             }
             public enum CodingKeys: String, CodingKey {
@@ -10511,6 +10574,7 @@ public enum Components {
                 case shard_min
                 case shard_total
                 case skipped_test_suites
+                case test_impact_run_id
                 case test_suites
             }
         }
@@ -10579,6 +10643,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
             public var suites: Components.Schemas.Shard.suitesPayload
+            /// For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/test_impact_skip`.
+            public var test_impact_skip: [Components.Schemas.TestImpactSkippedTest]?
             /// Creates a new `Shard`.
             ///
             /// - Parameters:
@@ -10588,13 +10656,15 @@ public enum Components {
             ///   - shard_plan_id: The UUID of the shard plan.
             ///   - skip: Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
+            ///   - test_impact_skip: For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
             public init(
                 download_url: Swift.String? = nil,
                 download_urls: [Swift.String],
                 modules: [Swift.String],
                 shard_plan_id: Swift.String,
                 skip: [Swift.String]? = nil,
-                suites: Components.Schemas.Shard.suitesPayload
+                suites: Components.Schemas.Shard.suitesPayload,
+                test_impact_skip: [Components.Schemas.TestImpactSkippedTest]? = nil
             ) {
                 self.download_url = download_url
                 self.download_urls = download_urls
@@ -10602,6 +10672,7 @@ public enum Components {
                 self.shard_plan_id = shard_plan_id
                 self.skip = skip
                 self.suites = suites
+                self.test_impact_skip = test_impact_skip
             }
             public enum CodingKeys: String, CodingKey {
                 case download_url
@@ -10610,6 +10681,7 @@ public enum Components {
                 case shard_plan_id
                 case skip
                 case suites
+                case test_impact_skip
             }
         }
         /// - Remark: Generated from `#/components/schemas/PreviewTracks`.
@@ -18529,6 +18601,43 @@ public enum Components {
                 case projects
             }
         }
+        /// A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest`.
+        public struct TestImpactSkippedTest: Codable, Hashable, Sendable {
+            /// The test module (target, Gradle module, Mix app, or crate).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest/module`.
+            public var module: Swift.String
+            /// The name of the test. Absent when the whole module is skipped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest/name`.
+            public var name: Swift.String?
+            /// The suite (class) of the test. Absent when the whole module is skipped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactSkippedTest/suite`.
+            public var suite: Swift.String?
+            /// Creates a new `TestImpactSkippedTest`.
+            ///
+            /// - Parameters:
+            ///   - module: The test module (target, Gradle module, Mix app, or crate).
+            ///   - name: The name of the test. Absent when the whole module is skipped.
+            ///   - suite: The suite (class) of the test. Absent when the whole module is skipped.
+            public init(
+                module: Swift.String,
+                name: Swift.String? = nil,
+                suite: Swift.String? = nil
+            ) {
+                self.module = module
+                self.name = name
+                self.suite = suite
+            }
+            public enum CodingKeys: String, CodingKey {
+                case module
+                case name
+                case suite
+            }
+        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPage`.
@@ -18744,6 +18853,43 @@ public enum Components {
                 case test_case_run_attachment_id
                 case test_case_run_id
                 case triggered_thread_frames
+            }
+        }
+        /// The nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, or the reason there's none.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestImpactBaseline`.
+        public struct TestImpactBaseline: Codable, Hashable, Sendable {
+            /// The baseline commit. Null when there's none, and `reason` says why.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/baseline_sha`.
+            public var baseline_sha: Swift.String?
+            /// Whether the diff between the checked-out commit and the baseline is already stored. When true, the client skips deepening and diffing and sends no `changed_files`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/diff_cached`.
+            public var diff_cached: Swift.Bool?
+            /// Why there's no baseline: `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/reason`.
+            public var reason: Swift.String?
+            /// Creates a new `TestImpactBaseline`.
+            ///
+            /// - Parameters:
+            ///   - baseline_sha: The baseline commit. Null when there's none, and `reason` says why.
+            ///   - diff_cached: Whether the diff between the checked-out commit and the baseline is already stored. When true, the client skips deepening and diffing and sends no `changed_files`.
+            ///   - reason: Why there's no baseline: `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
+            public init(
+                baseline_sha: Swift.String? = nil,
+                diff_cached: Swift.Bool? = nil,
+                reason: Swift.String? = nil
+            ) {
+                self.baseline_sha = baseline_sha
+                self.diff_cached = diff_cached
+                self.reason = reason
+            }
+            public enum CodingKeys: String, CodingKey {
+                case baseline_sha
+                case diff_cached
+                case reason
             }
         }
         /// - Remark: Generated from `#/components/schemas/CargoCrate`.
@@ -19091,6 +19237,94 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPage`.
         public typealias BuildsIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams`.
+        public struct ResolveTestImpactBaselineParams: Codable, Hashable, Sendable {
+            /// The build system, `xcode` first. A plain string so new build systems don't need a new client.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/build_system`.
+            public var build_system: Swift.String
+            /// The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/commit_sha`.
+            public var commit_sha: Swift.String
+            /// The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/parent_shas`.
+            public var parent_shas: [Swift.String]?
+            /// The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/platform`.
+            public var platform: Swift.String?
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode`.
+            public struct xcodePayload: Codable, Hashable, Sendable {
+                /// The destination the tests run on.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode/destination`.
+                public var destination: Swift.String?
+                /// The scheme being tested.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode/scheme`.
+                public var scheme: Swift.String?
+                /// The test plan being run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode/test_plan`.
+                public var test_plan: Swift.String?
+                /// Creates a new `xcodePayload`.
+                ///
+                /// - Parameters:
+                ///   - destination: The destination the tests run on.
+                ///   - scheme: The scheme being tested.
+                ///   - test_plan: The test plan being run.
+                public init(
+                    destination: Swift.String? = nil,
+                    scheme: Swift.String? = nil,
+                    test_plan: Swift.String? = nil
+                ) {
+                    self.destination = destination
+                    self.scheme = scheme
+                    self.test_plan = test_plan
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case destination
+                    case scheme
+                    case test_plan
+                }
+            }
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode`.
+            public var xcode: Components.Schemas.ResolveTestImpactBaselineParams.xcodePayload?
+            /// Creates a new `ResolveTestImpactBaselineParams`.
+            ///
+            /// - Parameters:
+            ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+            ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+            ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+            ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+            ///   - xcode: Xcode only: the scope the invocation tests.
+            public init(
+                build_system: Swift.String,
+                commit_sha: Swift.String,
+                parent_shas: [Swift.String]? = nil,
+                platform: Swift.String? = nil,
+                xcode: Components.Schemas.ResolveTestImpactBaselineParams.xcodePayload? = nil
+            ) {
+                self.build_system = build_system
+                self.commit_sha = commit_sha
+                self.parent_shas = parent_shas
+                self.platform = platform
+                self.xcode = xcode
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build_system
+                case commit_sha
+                case parent_shas
+                case platform
+                case xcode
+            }
+        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/OnceRunsIndexPage`.
@@ -20545,21 +20779,29 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CacheToken/token`.
             public var token: Swift.String
+            /// Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheToken/writable`.
+            public var writable: Swift.Bool?
             /// Creates a new `CacheToken`.
             ///
             /// - Parameters:
             ///   - expires_in: Seconds until the token expires.
             ///   - token: The token to send to cache nodes.
+            ///   - writable: Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
             public init(
                 expires_in: Swift.Int,
-                token: Swift.String
+                token: Swift.String,
+                writable: Swift.Bool? = nil
             ) {
                 self.expires_in = expires_in
                 self.token = token
+                self.writable = writable
             }
             public enum CodingKeys: String, CodingKey {
                 case expires_in
                 case token
+                case writable
             }
         }
         /// - Remark: Generated from `#/components/schemas/CASOutputType`.
@@ -21534,6 +21776,104 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GradleTasksIndexPageSize`.
         public typealias GradleTasksIndexPageSize = Swift.Int
+        /// The impact run: whether coverage selected tests or the invocation falls back to default selective testing.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestImpactRun`.
+        public struct TestImpactRun: Codable, Hashable, Sendable {
+            /// Test counts for the client's output. Present when the outcome is `selected`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts`.
+            public struct countsPayload: Codable, Hashable, Sendable {
+                /// The tests in scope.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts/requested`.
+                public var requested: Swift.Int?
+                /// The tests that will run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts/selected`.
+                public var selected: Swift.Int?
+                /// The tests coverage skipped.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts/skipped`.
+                public var skipped: Swift.Int?
+                /// Creates a new `countsPayload`.
+                ///
+                /// - Parameters:
+                ///   - requested: The tests in scope.
+                ///   - selected: The tests that will run.
+                ///   - skipped: The tests coverage skipped.
+                public init(
+                    requested: Swift.Int? = nil,
+                    selected: Swift.Int? = nil,
+                    skipped: Swift.Int? = nil
+                ) {
+                    self.requested = requested
+                    self.selected = selected
+                    self.skipped = skipped
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case requested
+                    case selected
+                    case skipped
+                }
+            }
+            /// Test counts for the client's output. Present when the outcome is `selected`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts`.
+            public var counts: Components.Schemas.TestImpactRun.countsPayload?
+            /// The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/id`.
+            public var id: Swift.String
+            /// The file that caused the fallback, such as the tracked file that changed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/matched_path`.
+            public var matched_path: Swift.String?
+            /// `selected` or `fallback`. On `fallback` the client runs default selective testing. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/outcome`.
+            public var outcome: Swift.String
+            /// Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, or `tracked_file_changed`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/reason`.
+            public var reason: Swift.String?
+            /// The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/skip`.
+            public var skip: [Components.Schemas.TestImpactSkippedTest]?
+            /// Creates a new `TestImpactRun`.
+            ///
+            /// - Parameters:
+            ///   - counts: Test counts for the client's output. Present when the outcome is `selected`.
+            ///   - id: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
+            ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
+            ///   - outcome: `selected` or `fallback`. On `fallback` the client runs default selective testing. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
+            ///   - reason: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, or `tracked_file_changed`.
+            ///   - skip: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
+            public init(
+                counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
+                id: Swift.String,
+                matched_path: Swift.String? = nil,
+                outcome: Swift.String,
+                reason: Swift.String? = nil,
+                skip: [Components.Schemas.TestImpactSkippedTest]? = nil
+            ) {
+                self.counts = counts
+                self.id = id
+                self.matched_path = matched_path
+                self.outcome = outcome
+                self.reason = reason
+                self.skip = skip
+            }
+            public enum CodingKeys: String, CodingKey {
+                case counts
+                case id
+                case matched_path
+                case outcome
+                case reason
+                case skip
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/TestSuiteRunStatus`.
         @frozen public enum TestSuiteRunStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
@@ -22141,6 +22481,14 @@ public enum Components {
             public var amp_orb_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/anthropic_session_id`.
             public var anthropic_session_id: Swift.String?
+            /// Size of the stored archive in bytes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/archive_bytes`.
+            public var archive_bytes: Swift.Int?
+            /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/archived_at`.
+            public var archived_at: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/Sandbox/error_message`.
             public var error_message: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/hostname`.
@@ -22165,6 +22513,7 @@ public enum Components {
                 case running = "running"
                 case resuming = "resuming"
                 case paused = "paused"
+                case archived = "archived"
                 case error = "error"
                 case deleted = "deleted"
             }
@@ -22186,6 +22535,8 @@ public enum Components {
             ///   - agent_environment_id:
             ///   - amp_orb_id:
             ///   - anthropic_session_id:
+            ///   - archive_bytes: Size of the stored archive in bytes.
+            ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
             ///   - error_message:
             ///   - hostname:
             ///   - id:
@@ -22205,6 +22556,8 @@ public enum Components {
                 agent_environment_id: Swift.Int? = nil,
                 amp_orb_id: Swift.String? = nil,
                 anthropic_session_id: Swift.String? = nil,
+                archive_bytes: Swift.Int? = nil,
+                archived_at: Foundation.Date? = nil,
                 error_message: Swift.String? = nil,
                 hostname: Swift.String? = nil,
                 id: Swift.String,
@@ -22224,6 +22577,8 @@ public enum Components {
                 self.agent_environment_id = agent_environment_id
                 self.amp_orb_id = amp_orb_id
                 self.anthropic_session_id = anthropic_session_id
+                self.archive_bytes = archive_bytes
+                self.archived_at = archived_at
                 self.error_message = error_message
                 self.hostname = hostname
                 self.id = id
@@ -22244,6 +22599,8 @@ public enum Components {
                 case agent_environment_id
                 case amp_orb_id
                 case anthropic_session_id
+                case archive_bytes
+                case archived_at
                 case error_message
                 case hostname
                 case id
@@ -24853,6 +25210,197 @@ public enum Components {
                 case supported_platforms
                 case _type = "type"
                 case url
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams`.
+        public struct CreateTestImpactRunParams: Codable, Hashable, Sendable {
+            /// The baseline the baseline request returned. When absent, `fallback_reason` says why.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/baseline_sha`.
+            public var baseline_sha: Swift.String?
+            /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/build_system`.
+            public var build_system: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload`.
+            public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/affected_modules`.
+                public var affected_modules: [Swift.String]?
+                /// The file's blob in the checkout. Required except for deleted files.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/blob`.
+                public var blob: Swift.String?
+                /// The repository-relative path.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/path`.
+                public var path: Swift.String
+                /// The change, as `git diff --raw` reports it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/status`.
+                public var status: Swift.String
+                /// Creates a new `changed_filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                ///   - blob: The file's blob in the checkout. Required except for deleted files.
+                ///   - path: The repository-relative path.
+                ///   - status: The change, as `git diff --raw` reports it.
+                public init(
+                    affected_modules: [Swift.String]? = nil,
+                    blob: Swift.String? = nil,
+                    path: Swift.String,
+                    status: Swift.String
+                ) {
+                    self.affected_modules = affected_modules
+                    self.blob = blob
+                    self.path = path
+                    self.status = status
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case affected_modules
+                    case blob
+                    case path
+                    case status
+                }
+            }
+            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files`.
+            public typealias changed_filesPayload = [Components.Schemas.CreateTestImpactRunParams.changed_filesPayloadPayload]
+            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files`.
+            public var changed_files: Components.Schemas.CreateTestImpactRunParams.changed_filesPayload?
+            /// Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files_count`.
+            public var changed_files_count: Swift.Int?
+            /// The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/commit_sha`.
+            public var commit_sha: Swift.String?
+            /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/dirty`.
+            public var dirty: Swift.Bool?
+            /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/fallback_reason`.
+            public var fallback_reason: Swift.String?
+            /// The git branch, shown on the overview.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/git_branch`.
+            public var git_branch: Swift.String?
+            /// The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/head_sha`.
+            public var head_sha: Swift.String
+            /// The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modules`.
+            public var modules: [Swift.String]?
+            /// The platform the tests run on. Absent where the build system has none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/platform`.
+            public var platform: Swift.String?
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode`.
+            public struct xcodePayload: Codable, Hashable, Sendable {
+                /// The destination the tests run on.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode/destination`.
+                public var destination: Swift.String?
+                /// The scheme being tested.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode/scheme`.
+                public var scheme: Swift.String?
+                /// The test plan being run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode/test_plan`.
+                public var test_plan: Swift.String?
+                /// Creates a new `xcodePayload`.
+                ///
+                /// - Parameters:
+                ///   - destination: The destination the tests run on.
+                ///   - scheme: The scheme being tested.
+                ///   - test_plan: The test plan being run.
+                public init(
+                    destination: Swift.String? = nil,
+                    scheme: Swift.String? = nil,
+                    test_plan: Swift.String? = nil
+                ) {
+                    self.destination = destination
+                    self.scheme = scheme
+                    self.test_plan = test_plan
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case destination
+                    case scheme
+                    case test_plan
+                }
+            }
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode`.
+            public var xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload?
+            /// Creates a new `CreateTestImpactRunParams`.
+            ///
+            /// - Parameters:
+            ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+            ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+            ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+            ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+            ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+            ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            ///   - git_branch: The git branch, shown on the overview.
+            ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+            ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+            ///   - platform: The platform the tests run on. Absent where the build system has none.
+            ///   - xcode: Xcode only: the scope the invocation tests.
+            public init(
+                baseline_sha: Swift.String? = nil,
+                build_system: Swift.String,
+                changed_files: Components.Schemas.CreateTestImpactRunParams.changed_filesPayload? = nil,
+                changed_files_count: Swift.Int? = nil,
+                commit_sha: Swift.String? = nil,
+                dirty: Swift.Bool? = nil,
+                fallback_reason: Swift.String? = nil,
+                git_branch: Swift.String? = nil,
+                head_sha: Swift.String,
+                modules: [Swift.String]? = nil,
+                platform: Swift.String? = nil,
+                xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload? = nil
+            ) {
+                self.baseline_sha = baseline_sha
+                self.build_system = build_system
+                self.changed_files = changed_files
+                self.changed_files_count = changed_files_count
+                self.commit_sha = commit_sha
+                self.dirty = dirty
+                self.fallback_reason = fallback_reason
+                self.git_branch = git_branch
+                self.head_sha = head_sha
+                self.modules = modules
+                self.platform = platform
+                self.xcode = xcode
+            }
+            public enum CodingKeys: String, CodingKey {
+                case baseline_sha
+                case build_system
+                case changed_files
+                case changed_files_count
+                case commit_sha
+                case dirty
+                case fallback_reason
+                case git_branch
+                case head_sha
+                case modules
+                case platform
+                case xcode
             }
         }
         /// - Remark: Generated from `#/components/schemas/ValidationError`.
@@ -29628,6 +30176,14 @@ public enum Operations {
                             public var amp_orb_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/anthropic_session_id`.
                             public var anthropic_session_id: Swift.String?
+                            /// Size of the stored archive in bytes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/archive_bytes`.
+                            public var archive_bytes: Swift.Int?
+                            /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/archived_at`.
+                            public var archived_at: Foundation.Date?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/error_message`.
                             public var error_message: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/hostname`.
@@ -29652,6 +30208,7 @@ public enum Operations {
                                 case running = "running"
                                 case resuming = "resuming"
                                 case paused = "paused"
+                                case archived = "archived"
                                 case error = "error"
                                 case deleted = "deleted"
                             }
@@ -29673,6 +30230,8 @@ public enum Operations {
                             ///   - agent_environment_id:
                             ///   - amp_orb_id:
                             ///   - anthropic_session_id:
+                            ///   - archive_bytes: Size of the stored archive in bytes.
+                            ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                             ///   - error_message:
                             ///   - hostname:
                             ///   - id:
@@ -29692,6 +30251,8 @@ public enum Operations {
                                 agent_environment_id: Swift.Int? = nil,
                                 amp_orb_id: Swift.String? = nil,
                                 anthropic_session_id: Swift.String? = nil,
+                                archive_bytes: Swift.Int? = nil,
+                                archived_at: Foundation.Date? = nil,
                                 error_message: Swift.String? = nil,
                                 hostname: Swift.String? = nil,
                                 id: Swift.String,
@@ -29711,6 +30272,8 @@ public enum Operations {
                                 self.agent_environment_id = agent_environment_id
                                 self.amp_orb_id = amp_orb_id
                                 self.anthropic_session_id = anthropic_session_id
+                                self.archive_bytes = archive_bytes
+                                self.archived_at = archived_at
                                 self.error_message = error_message
                                 self.hostname = hostname
                                 self.id = id
@@ -29731,6 +30294,8 @@ public enum Operations {
                                 case agent_environment_id
                                 case amp_orb_id
                                 case anthropic_session_id
+                                case archive_bytes
+                                case archived_at
                                 case error_message
                                 case hostname
                                 case id
@@ -30099,6 +30664,14 @@ public enum Operations {
                         public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
+                        /// Size of the stored archive in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/archive_bytes`.
+                        public var archive_bytes: Swift.Int?
+                        /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/archived_at`.
+                        public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/error_message`.
                         public var error_message: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/hostname`.
@@ -30123,6 +30696,7 @@ public enum Operations {
                             case running = "running"
                             case resuming = "resuming"
                             case paused = "paused"
+                            case archived = "archived"
                             case error = "error"
                             case deleted = "deleted"
                         }
@@ -30144,6 +30718,8 @@ public enum Operations {
                         ///   - agent_environment_id:
                         ///   - amp_orb_id:
                         ///   - anthropic_session_id:
+                        ///   - archive_bytes: Size of the stored archive in bytes.
+                        ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
                         ///   - hostname:
                         ///   - id:
@@ -30163,6 +30739,8 @@ public enum Operations {
                             agent_environment_id: Swift.Int? = nil,
                             amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
+                            archive_bytes: Swift.Int? = nil,
+                            archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
@@ -30182,6 +30760,8 @@ public enum Operations {
                             self.agent_environment_id = agent_environment_id
                             self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
+                            self.archive_bytes = archive_bytes
+                            self.archived_at = archived_at
                             self.error_message = error_message
                             self.hostname = hostname
                             self.id = id
@@ -30202,6 +30782,8 @@ public enum Operations {
                             case agent_environment_id
                             case amp_orb_id
                             case anthropic_session_id
+                            case archive_bytes
+                            case archived_at
                             case error_message
                             case hostname
                             case id
@@ -38725,6 +39307,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/duration`.
                     public var duration: Swift.Int
+                    /// The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_impact_run_id`.
+                    public var test_impact_run_id: Swift.String?
                     /// The version of Xcode used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_version`.
@@ -39328,6 +39914,7 @@ public enum Operations {
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
                     ///   - duration: Duration of the run in milliseconds.
+                    ///   - test_impact_run_id: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
                     ///   - xcode_version: The version of Xcode used during the run.
                     ///   - build_system: The build system used by the test run.
                     ///   - git_commit_sha: The commit SHA.
@@ -39377,6 +39964,7 @@ public enum Operations {
                         shard_plan_id: Swift.String? = nil,
                         contract_version: Swift.String? = nil,
                         duration: Swift.Int,
+                        test_impact_run_id: Swift.String? = nil,
                         xcode_version: Swift.String? = nil,
                         build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload? = nil,
                         git_commit_sha: Swift.String? = nil,
@@ -39426,6 +40014,7 @@ public enum Operations {
                         self.shard_plan_id = shard_plan_id
                         self.contract_version = contract_version
                         self.duration = duration
+                        self.test_impact_run_id = test_impact_run_id
                         self.xcode_version = xcode_version
                         self.build_system = build_system
                         self.git_commit_sha = git_commit_sha
@@ -39476,6 +40065,7 @@ public enum Operations {
                         case shard_plan_id
                         case contract_version
                         case duration
+                        case test_impact_run_id
                         case xcode_version
                         case build_system
                         case git_commit_sha
@@ -43594,6 +44184,14 @@ public enum Operations {
                         public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
+                        /// Size of the stored archive in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/archive_bytes`.
+                        public var archive_bytes: Swift.Int?
+                        /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/archived_at`.
+                        public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/hostname`.
@@ -43618,6 +44216,7 @@ public enum Operations {
                             case running = "running"
                             case resuming = "resuming"
                             case paused = "paused"
+                            case archived = "archived"
                             case error = "error"
                             case deleted = "deleted"
                         }
@@ -43639,6 +44238,8 @@ public enum Operations {
                         ///   - agent_environment_id:
                         ///   - amp_orb_id:
                         ///   - anthropic_session_id:
+                        ///   - archive_bytes: Size of the stored archive in bytes.
+                        ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
                         ///   - hostname:
                         ///   - id:
@@ -43658,6 +44259,8 @@ public enum Operations {
                             agent_environment_id: Swift.Int? = nil,
                             amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
+                            archive_bytes: Swift.Int? = nil,
+                            archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
@@ -43677,6 +44280,8 @@ public enum Operations {
                             self.agent_environment_id = agent_environment_id
                             self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
+                            self.archive_bytes = archive_bytes
+                            self.archived_at = archived_at
                             self.error_message = error_message
                             self.hostname = hostname
                             self.id = id
@@ -43697,6 +44302,8 @@ public enum Operations {
                             case agent_environment_id
                             case amp_orb_id
                             case anthropic_session_id
+                            case archive_bytes
+                            case archived_at
                             case error_message
                             case hostname
                             case id
@@ -58807,6 +59414,14 @@ public enum Operations {
                         public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
+                        /// Size of the stored archive in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/archive_bytes`.
+                        public var archive_bytes: Swift.Int?
+                        /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/archived_at`.
+                        public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/hostname`.
@@ -58831,6 +59446,7 @@ public enum Operations {
                             case running = "running"
                             case resuming = "resuming"
                             case paused = "paused"
+                            case archived = "archived"
                             case error = "error"
                             case deleted = "deleted"
                         }
@@ -58852,6 +59468,8 @@ public enum Operations {
                         ///   - agent_environment_id:
                         ///   - amp_orb_id:
                         ///   - anthropic_session_id:
+                        ///   - archive_bytes: Size of the stored archive in bytes.
+                        ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
                         ///   - hostname:
                         ///   - id:
@@ -58871,6 +59489,8 @@ public enum Operations {
                             agent_environment_id: Swift.Int? = nil,
                             amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
+                            archive_bytes: Swift.Int? = nil,
+                            archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
@@ -58890,6 +59510,8 @@ public enum Operations {
                             self.agent_environment_id = agent_environment_id
                             self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
+                            self.archive_bytes = archive_bytes
+                            self.archived_at = archived_at
                             self.error_message = error_message
                             self.hostname = hostname
                             self.id = id
@@ -58910,6 +59532,8 @@ public enum Operations {
                             case agent_environment_id
                             case amp_orb_id
                             case anthropic_session_id
+                            case archive_bytes
+                            case archived_at
                             case error_message
                             case hostname
                             case id
@@ -86401,6 +87025,529 @@ public enum Operations {
             }
         }
     }
+    /// Resolve the baseline for coverage-based test selection.
+    ///
+    /// Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)`.
+    public enum resolveTestImpactBaseline {
+        public static let id: Swift.String = "resolveTestImpactBaseline"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.resolveTestImpactBaseline.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.resolveTestImpactBaseline.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.resolveTestImpactBaseline.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.resolveTestImpactBaseline.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The build system, `xcode` first. A plain string so new build systems don't need a new client.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/build_system`.
+                    public var build_system: Swift.String
+                    /// The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/commit_sha`.
+                    public var commit_sha: Swift.String
+                    /// The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/parent_shas`.
+                    public var parent_shas: [Swift.String]?
+                    /// The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/platform`.
+                    public var platform: Swift.String?
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode`.
+                    public struct xcodePayload: Codable, Hashable, Sendable {
+                        /// The destination the tests run on.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode/destination`.
+                        public var destination: Swift.String?
+                        /// The scheme being tested.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode/scheme`.
+                        public var scheme: Swift.String?
+                        /// The test plan being run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode/test_plan`.
+                        public var test_plan: Swift.String?
+                        /// Creates a new `xcodePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - destination: The destination the tests run on.
+                        ///   - scheme: The scheme being tested.
+                        ///   - test_plan: The test plan being run.
+                        public init(
+                            destination: Swift.String? = nil,
+                            scheme: Swift.String? = nil,
+                            test_plan: Swift.String? = nil
+                        ) {
+                            self.destination = destination
+                            self.scheme = scheme
+                            self.test_plan = test_plan
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case destination
+                            case scheme
+                            case test_plan
+                        }
+                    }
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode`.
+                    public var xcode: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.xcodePayload?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+                    ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+                    ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+                    ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                    ///   - xcode: Xcode only: the scope the invocation tests.
+                    public init(
+                        build_system: Swift.String,
+                        commit_sha: Swift.String,
+                        parent_shas: [Swift.String]? = nil,
+                        platform: Swift.String? = nil,
+                        xcode: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.xcodePayload? = nil
+                    ) {
+                        self.build_system = build_system
+                        self.commit_sha = commit_sha
+                        self.parent_shas = parent_shas
+                        self.platform = platform
+                        self.xcode = xcode
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case build_system
+                        case commit_sha
+                        case parent_shas
+                        case platform
+                        case xcode
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/content/application\/json`.
+                case json(Operations.resolveTestImpactBaseline.Input.Body.jsonPayload)
+            }
+            public var body: Operations.resolveTestImpactBaseline.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.resolveTestImpactBaseline.Input.Path,
+                headers: Operations.resolveTestImpactBaseline.Input.Headers = .init(),
+                body: Operations.resolveTestImpactBaseline.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.TestImpactBaseline)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.TestImpactBaseline {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The baseline, or why there's none
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.resolveTestImpactBaseline.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.resolveTestImpactBaseline.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.resolveTestImpactBaseline.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.resolveTestImpactBaseline.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.resolveTestImpactBaseline.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.resolveTestImpactBaseline.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.resolveTestImpactBaseline.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.resolveTestImpactBaseline.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.resolveTestImpactBaseline.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.resolveTestImpactBaseline.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.resolveTestImpactBaseline.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.resolveTestImpactBaseline.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get one recorded Gradle build step.
     ///
     /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
@@ -95193,6 +96340,14 @@ public enum Operations {
                         public var amp_orb_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/anthropic_session_id`.
                         public var anthropic_session_id: Swift.String?
+                        /// Size of the stored archive in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/archive_bytes`.
+                        public var archive_bytes: Swift.Int?
+                        /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/archived_at`.
+                        public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/hostname`.
@@ -95217,6 +96372,7 @@ public enum Operations {
                             case running = "running"
                             case resuming = "resuming"
                             case paused = "paused"
+                            case archived = "archived"
                             case error = "error"
                             case deleted = "deleted"
                         }
@@ -95238,6 +96394,8 @@ public enum Operations {
                         ///   - agent_environment_id:
                         ///   - amp_orb_id:
                         ///   - anthropic_session_id:
+                        ///   - archive_bytes: Size of the stored archive in bytes.
+                        ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
                         ///   - hostname:
                         ///   - id:
@@ -95257,6 +96415,8 @@ public enum Operations {
                             agent_environment_id: Swift.Int? = nil,
                             amp_orb_id: Swift.String? = nil,
                             anthropic_session_id: Swift.String? = nil,
+                            archive_bytes: Swift.Int? = nil,
+                            archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
@@ -95276,6 +96436,8 @@ public enum Operations {
                             self.agent_environment_id = agent_environment_id
                             self.amp_orb_id = amp_orb_id
                             self.anthropic_session_id = anthropic_session_id
+                            self.archive_bytes = archive_bytes
+                            self.archived_at = archived_at
                             self.error_message = error_message
                             self.hostname = hostname
                             self.id = id
@@ -95296,6 +96458,8 @@ public enum Operations {
                             case agent_environment_id
                             case amp_orb_id
                             case anthropic_session_id
+                            case archive_bytes
+                            case archived_at
                             case error_message
                             case hostname
                             case id
@@ -99901,6 +101065,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/skipped_test_suites`.
                     public var skipped_test_suites: [Swift.String]?
+                    /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_impact_run_id`.
+                    public var test_impact_run_id: Swift.String?
                     /// Test suite names (for suite-level granularity).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_suites`.
@@ -99921,6 +101089,7 @@ public enum Operations {
                     ///   - shard_min: Minimum number of shards.
                     ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+                    ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -99936,6 +101105,7 @@ public enum Operations {
                         shard_min: Swift.Int? = nil,
                         shard_total: Swift.Int? = nil,
                         skipped_test_suites: [Swift.String]? = nil,
+                        test_impact_run_id: Swift.String? = nil,
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
@@ -99951,6 +101121,7 @@ public enum Operations {
                         self.shard_min = shard_min
                         self.shard_total = shard_total
                         self.skipped_test_suites = skipped_test_suites
+                        self.test_impact_run_id = test_impact_run_id
                         self.test_suites = test_suites
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -99967,6 +101138,7 @@ public enum Operations {
                         case shard_min
                         case shard_total
                         case skipped_test_suites
+                        case test_impact_run_id
                         case test_suites
                     }
                 }
@@ -106488,6 +107660,632 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.listOnceRuns.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create an impact run for coverage-based test selection.
+    ///
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
+    public enum createTestImpactRun {
+        public static let id: Swift.String = "createTestImpactRun"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createTestImpactRun.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestImpactRun.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestImpactRun.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createTestImpactRun.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The baseline the baseline request returned. When absent, `fallback_reason` says why.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/baseline_sha`.
+                    public var baseline_sha: Swift.String?
+                    /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/build_system`.
+                    public var build_system: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload`.
+                    public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/affected_modules`.
+                        public var affected_modules: [Swift.String]?
+                        /// The file's blob in the checkout. Required except for deleted files.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/blob`.
+                        public var blob: Swift.String?
+                        /// The repository-relative path.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/path`.
+                        public var path: Swift.String
+                        /// The change, as `git diff --raw` reports it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/status`.
+                        public var status: Swift.String
+                        /// Creates a new `changed_filesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                        ///   - blob: The file's blob in the checkout. Required except for deleted files.
+                        ///   - path: The repository-relative path.
+                        ///   - status: The change, as `git diff --raw` reports it.
+                        public init(
+                            affected_modules: [Swift.String]? = nil,
+                            blob: Swift.String? = nil,
+                            path: Swift.String,
+                            status: Swift.String
+                        ) {
+                            self.affected_modules = affected_modules
+                            self.blob = blob
+                            self.path = path
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case affected_modules
+                            case blob
+                            case path
+                            case status
+                        }
+                    }
+                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files`.
+                    public typealias changed_filesPayload = [Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayloadPayload]
+                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files`.
+                    public var changed_files: Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayload?
+                    /// Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files_count`.
+                    public var changed_files_count: Swift.Int?
+                    /// The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/commit_sha`.
+                    public var commit_sha: Swift.String?
+                    /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/dirty`.
+                    public var dirty: Swift.Bool?
+                    /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/fallback_reason`.
+                    public var fallback_reason: Swift.String?
+                    /// The git branch, shown on the overview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
+                    /// The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/head_sha`.
+                    public var head_sha: Swift.String
+                    /// The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modules`.
+                    public var modules: [Swift.String]?
+                    /// The platform the tests run on. Absent where the build system has none.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/platform`.
+                    public var platform: Swift.String?
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode`.
+                    public struct xcodePayload: Codable, Hashable, Sendable {
+                        /// The destination the tests run on.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode/destination`.
+                        public var destination: Swift.String?
+                        /// The scheme being tested.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode/scheme`.
+                        public var scheme: Swift.String?
+                        /// The test plan being run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode/test_plan`.
+                        public var test_plan: Swift.String?
+                        /// Creates a new `xcodePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - destination: The destination the tests run on.
+                        ///   - scheme: The scheme being tested.
+                        ///   - test_plan: The test plan being run.
+                        public init(
+                            destination: Swift.String? = nil,
+                            scheme: Swift.String? = nil,
+                            test_plan: Swift.String? = nil
+                        ) {
+                            self.destination = destination
+                            self.scheme = scheme
+                            self.test_plan = test_plan
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case destination
+                            case scheme
+                            case test_plan
+                        }
+                    }
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode`.
+                    public var xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+                    ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+                    ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+                    ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+                    ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                    ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    ///   - git_branch: The git branch, shown on the overview.
+                    ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+                    ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+                    ///   - platform: The platform the tests run on. Absent where the build system has none.
+                    ///   - xcode: Xcode only: the scope the invocation tests.
+                    public init(
+                        baseline_sha: Swift.String? = nil,
+                        build_system: Swift.String,
+                        changed_files: Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayload? = nil,
+                        changed_files_count: Swift.Int? = nil,
+                        commit_sha: Swift.String? = nil,
+                        dirty: Swift.Bool? = nil,
+                        fallback_reason: Swift.String? = nil,
+                        git_branch: Swift.String? = nil,
+                        head_sha: Swift.String,
+                        modules: [Swift.String]? = nil,
+                        platform: Swift.String? = nil,
+                        xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload? = nil
+                    ) {
+                        self.baseline_sha = baseline_sha
+                        self.build_system = build_system
+                        self.changed_files = changed_files
+                        self.changed_files_count = changed_files_count
+                        self.commit_sha = commit_sha
+                        self.dirty = dirty
+                        self.fallback_reason = fallback_reason
+                        self.git_branch = git_branch
+                        self.head_sha = head_sha
+                        self.modules = modules
+                        self.platform = platform
+                        self.xcode = xcode
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case baseline_sha
+                        case build_system
+                        case changed_files
+                        case changed_files_count
+                        case commit_sha
+                        case dirty
+                        case fallback_reason
+                        case git_branch
+                        case head_sha
+                        case modules
+                        case platform
+                        case xcode
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/content/application\/json`.
+                case json(Operations.createTestImpactRun.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createTestImpactRun.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createTestImpactRun.Input.Path,
+                headers: Operations.createTestImpactRun.Input.Headers = .init(),
+                body: Operations.createTestImpactRun.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.TestImpactRun)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.TestImpactRun {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The impact run
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createTestImpactRun.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createTestImpactRun.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createTestImpactRun.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createTestImpactRun.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createTestImpactRun.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createTestImpactRun.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createTestImpactRun.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createTestImpactRun.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist or test impact analysis isn't enabled for it
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createTestImpactRun.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createTestImpactRun.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createTestImpactRun.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createTestImpactRun.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createTestImpactRun.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createTestImpactRun.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createTestImpactRun.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -139474,21 +141272,29 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/token`.
                         public var token: Swift.String
+                        /// Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/writable`.
+                        public var writable: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - expires_in: Seconds until the token expires.
                         ///   - token: The token to send to cache nodes.
+                        ///   - writable: Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
                         public init(
                             expires_in: Swift.Int,
-                            token: Swift.String
+                            token: Swift.String,
+                            writable: Swift.Bool? = nil
                         ) {
                             self.expires_in = expires_in
                             self.token = token
+                            self.writable = writable
                         }
                         public enum CodingKeys: String, CodingKey {
                             case expires_in
                             case token
+                            case writable
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/application\/json`.

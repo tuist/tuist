@@ -372,6 +372,12 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The shard plan ID if this test run is part of a sharded execution."
            },
+           test_impact_run_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not."
+           },
            only_test_identifiers: %Schema{
              type: :array,
              items: %Schema{type: :string},
