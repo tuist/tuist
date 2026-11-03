@@ -10,6 +10,13 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
   Hash pruning happens in the CLI before the server sees anything, so the
   tests of `hash.skipped` targets are out of scope. Scenarios decided before
   the pipeline runs are checked to be fallbacks only (`@decided_elsewhere`).
+
+  The evidence window is the scenario's `baseline` run and the later runs
+  the checkout contains, those of its scheme on its branch. A newer run on
+  the default branch (`stale_base`) is recorded but left out, as
+  `Tuist.Tests.Coverage.TestSources.versions/4` leaves out commits outside
+  the window. The inventory is the baseline's, so tests the checkout deleted
+  (`exists_at_checkout: false`) are decided too.
   """
   use ExUnit.Case, async: true
 
@@ -28,16 +35,6 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
     "no_baseline" => "baseline resolution (step 3) finds no baseline",
     "diff_too_large" => "the runs endpoint (step 5) records it from changed_files_count before the rules run"
   }
-
-  # The files scenarios.sh edits at the runs a scenario records after the
-  # baseline, which golden.json doesn't list.
-  @run_edits Map.new(
-               [{"run/carried-evidence/1", ["Core/Sources/Money.swift"]}] ++
-                 for(
-                   n <- 1..21,
-                   do: {"run/evidence-window/#{String.pad_leading("#{n}", 2, "0")}", ["Core/Sources/Discount.swift"]}
-                 )
-             )
 
   # The files a checkout edits itself, when not all of its changed files:
   # carried_evidence's Money.swift is as run/carried-evidence/1 left it.
@@ -100,29 +97,50 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
   end
 
   defp checkout_input(scenario) do
-    {versions, tree} = record_runs(scenario)
+    {versions, tree, window} = record_runs(scenario)
+    versions = in_window(versions, window)
     edits = Map.get(@checkout_edits, scenario["name"], Enum.map(scenario["changed_files"], & &1["path"]))
     tree = edit(tree, edits, scenario["checkout"]["ref"], scenario["changed_files"])
     input(scenario, scope(scenario), versions, tree)
   end
 
-  # The baseline runs every test; each later run applies the pipeline to its
-  # own diff against the baseline and records versions for the tests it ran.
-  defp record_runs(%{"runs" => [baseline | later]} = scenario) do
+  # The baseline runs every test, and so does a run on the default branch.
+  # Each later run the checkout contains applies the pipeline to its own diff
+  # against the baseline and records versions for the tests it ran; the
+  # checkout's tree carries its edits.
+  defp record_runs(scenario) do
+    {[baseline], later} = Enum.split_with(scenario["runs"], &(&1["ref"] == scenario["baseline"]))
     failing = String.split(get_in(baseline, ["env", "TEST_RUNNER_TESTBED_FAILING_TESTS"]) || "", ",", trim: true)
     tree = baseline_tree()
-    versions = record(%{}, Map.keys(evidence()["tests"]), tree, "baseline", 0, failing)
+    versions = record(%{}, Map.keys(evidence()["tests"]), tree, baseline["ref"], 0, failing)
 
     later
     |> Enum.with_index(1)
-    |> Enum.reduce({versions, tree}, fn {%{"ref" => ref}, index}, {versions, tree} ->
-      tree = edit(tree, Map.fetch!(@run_edits, ref), ref, scenario["changed_files"])
-      changed = changed_since_baseline(tree, scenario["changed_files"])
-      result = TestImpactAnalysis.run(input(%{"changed_files" => changed}, all_tests(), versions, tree))
-      ran = for {id, %{decision: :selected}} <- result.decisions, do: id
-      {record(versions, ran, tree, ref, index, []), tree}
+    |> Enum.reduce({versions, tree, [baseline["ref"]]}, fn {%{"ref" => ref} = run, index}, {versions, tree, window} ->
+      run_tree = edit(tree, run["edits"], ref, scenario["changed_files"])
+
+      if in_window?(scenario, run) do
+        changed = changed_since_baseline(run_tree, scenario["changed_files"])
+
+        result =
+          TestImpactAnalysis.run(input(%{"changed_files" => changed}, all_tests(), in_window(versions, window), run_tree))
+
+        ran = for {id, %{decision: :selected}} <- result.decisions, do: id
+        {record(versions, ran, run_tree, ref, index, []), run_tree, [ref | window]}
+      else
+        assert run["branch"] == @golden["default_branch"]
+        {record(versions, Map.keys(evidence()["tests"]), run_tree, ref, index, []), tree, window}
+      end
     end)
   end
+
+  defp in_window?(scenario, run) do
+    scheme = &(&1["scheme"] || @golden["scheme"])
+    run["branch"] == scenario["checkout"]["branch"] and scheme.(run) == scheme.(scenario)
+  end
+
+  defp in_window(versions, window),
+    do: Map.new(versions, fn {id, test_versions} -> {id, Enum.filter(test_versions, &(&1.sha in window))} end)
 
   defp record(versions, test_ids, tree, sha, index, failing) do
     for id <- test_ids, paths = evidence_paths(id), paths != [], reduce: versions do
