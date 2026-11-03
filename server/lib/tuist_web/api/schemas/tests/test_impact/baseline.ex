@@ -26,7 +26,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Baseline do
       diff_cached: %Schema{
         type: :boolean,
         description:
-          "Whether the diff between the checked-out commit and the baseline is already stored. When true, the client skips deepening and diffing and sends no `changed_files`."
+          "Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`."
       }
     }
   })
