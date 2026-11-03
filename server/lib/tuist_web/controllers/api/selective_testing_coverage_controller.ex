@@ -4,6 +4,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
 
   alias OpenApiSpex.Schema
   alias Tuist.FeatureFlags
+  alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.Storage
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Tests.TestImpact.Baseline
@@ -98,9 +100,27 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     end
   end
 
-  # Baseline resolution isn't implemented yet, so enabled projects also run
-  # default selective testing.
-  defp resolve_baseline(_project, _params), do: %{baseline_sha: nil, reason: "not_enabled", diff_cached: false}
+  defp resolve_baseline(project, params) do
+    commit_sha = params.commit_sha
+
+    scope = %{
+      commit_sha: commit_sha,
+      parent_shas: Map.get(params, :parent_shas) || [],
+      platform: Map.get(params, :platform),
+      scheme: get_in(params, [:xcode, :scheme])
+    }
+
+    case Baselines.resolve(project, scope) do
+      {:ok, %{sha: baseline_sha}} ->
+        %{
+          baseline_sha: baseline_sha,
+          diff_cached: match?({:ok, _diff}, Storage.get_diff(project.id, commit_sha, baseline_sha))
+        }
+
+      {:error, reason} ->
+        %{baseline_sha: nil, reason: Atom.to_string(reason), diff_cached: false}
+    end
+  end
 
   operation(:create_run,
     summary: "Create an impact run for coverage-based test selection.",

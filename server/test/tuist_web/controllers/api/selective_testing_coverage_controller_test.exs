@@ -5,7 +5,9 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
   import OpenApiSpex.TestAssertions, only: [assert_schema: 3]
 
   alias Tuist.FeatureFlags
+  alias Tuist.TestImpactAnalysis.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.Spec
   alias TuistWeb.Authentication
@@ -40,22 +42,53 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       assert_schema(response, "TestImpactBaseline", Spec.spec())
     end
 
-    test "answers not_enabled for enabled projects until baseline resolution lands", %{
+    test "returns the nearest full run on the platform and whether the diff is stored", %{
       conn: conn,
       user: user,
       project: project
     } do
       stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
 
-      response =
-        conn
-        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline", %{
-          build_system: "xcode",
-          commit_sha: "abc"
-        })
-        |> json_response(:ok)
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("main", ["base"], 1),
+          CoverageFixtures.commit("head", ["base"], 2)
+        ])
 
-      assert response["reason"] == "not_enabled"
+      CoverageFixtures.commit_coverage(project, repository_id, "base")
+      path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline"
+
+      params = %{
+        build_system: "xcode",
+        commit_sha: "merge",
+        parent_shas: ["head", "main"],
+        platform: "ios",
+        xcode: %{scheme: "App"}
+      }
+
+      response = conn |> post(path, params) |> json_response(:ok)
+
+      assert response == %{"baseline_sha" => "base", "diff_cached" => false}
+      assert_schema(response, "TestImpactBaseline", Spec.spec())
+
+      :ok = Storage.put_diff(%{project_id: project.id, commit_sha: "merge", baseline_sha: "base", changed_files: []})
+
+      assert conn |> post(path, params) |> json_response(:ok) == %{"baseline_sha" => "base", "diff_cached" => true}
+    end
+
+    test "returns the reason there's no baseline", %{conn: conn, user: user, project: project} do
+      stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
+
+      repository_id = CoverageFixtures.seed_history(user.account, [CoverageFixtures.commit("base", [], 0)])
+      CoverageFixtures.commit_coverage(project, repository_id, "base", runs: [[platform: "macos"], [evidence: false]])
+      path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline"
+
+      assert conn |> post(path, %{build_system: "xcode", commit_sha: "base", platform: "tvos"}) |> json_response(:ok) ==
+               %{"baseline_sha" => nil, "reason" => "no_baseline", "diff_cached" => false}
+
+      assert conn |> post(path, %{build_system: "xcode", commit_sha: "base", platform: "ios"}) |> json_response(:ok) ==
+               %{"baseline_sha" => nil, "reason" => "no_baseline_evidence", "diff_cached" => false}
     end
 
     test "requires the build system and the checked-out commit", %{conn: conn, user: user, project: project} do
