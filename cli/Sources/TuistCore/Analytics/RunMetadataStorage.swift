@@ -105,6 +105,18 @@ public actor RunMetadataStorage {
         self.coverageOutputPath = coverageOutputPath
     }
 
+    /// The coverage-based test selection run the invocation created, which its test runs upload with.
+    public private(set) var testImpactRunId: String?
+    public func update(testImpactRunId: String?) {
+        self.testImpactRunId = testImpactRunId
+    }
+
+    /// The tests coverage-based test selection skipped, as `TestImpactSkipList` identifiers.
+    public private(set) var testImpactSkip: [String]?
+    public func update(testImpactSkip: [String]?) {
+        self.testImpactSkip = testImpactSkip
+    }
+
     /// The ID of the latest build run.
     public private(set) var buildRunId: String?
     public func update(buildRunId: String?) {
@@ -170,7 +182,9 @@ public actor RunMetadataStorage {
             binaryCacheItems: binaryCacheItems,
             selectiveTestingCacheItems: selectiveTestingCacheItems,
             targetContentHashSubhashes: targetContentHashSubhashes,
-            buildRunId: buildRunId
+            buildRunId: buildRunId,
+            testImpactRunId: testImpactRunId,
+            testImpactSkip: testImpactSkip
         )
         let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
         do {
@@ -204,6 +218,10 @@ public actor RunMetadataStorage {
             }
             if let buildRunId = runMetadata.buildRunId {
                 update(buildRunId: buildRunId)
+            }
+            if let testImpactRunId = runMetadata.testImpactRunId {
+                update(testImpactRunId: testImpactRunId)
+                update(testImpactSkip: runMetadata.testImpactSkip)
             }
         } catch {
             Logger.current.warning("Failed to restore run metadata: \(error.localizedDescription)")

@@ -35,7 +35,8 @@ import TuistHTTP
             stressNewTests: Components.Schemas.StressNewTestsResult?,
             gitHistory: TestRunGitHistory?,
             coverage: TestRunCoverage?,
-            coverageEnabled: Bool?
+            coverageEnabled: Bool?,
+            testImpactRunId: String?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -104,7 +105,8 @@ import TuistHTTP
             stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
             gitHistory: TestRunGitHistory? = nil,
             coverage: TestRunCoverage? = nil,
-            coverageEnabled: Bool? = nil
+            coverageEnabled: Bool? = nil,
+            testImpactRunId: String? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
             // Generated once, so a replay of the request carries the same id and the server records the run once.
@@ -316,6 +318,7 @@ import TuistHTTP
                             id: id,
                             shard_plan_id: networkTrusted ? nil : shardPlanId,
                             duration: testSummary.duration ?? 0,
+                            test_impact_run_id: networkTrusted ? nil : testImpactRunId,
                             xcode_version: xcodeVersion,
                             git_commit_sha: gitCommitSHA,
                             test_modules: testModules,

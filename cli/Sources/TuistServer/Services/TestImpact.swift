@@ -160,7 +160,7 @@ public enum TestImpactRunOutcome: Equatable, Sendable {
 
 /// Selection blocks the build, so a request that outlasts `timeout` is abandoned and the run falls
 /// back. Returns nil on timeout.
-func withTestImpactTimeout<T: Sendable>(
+public func withTestImpactTimeout<T: Sendable>(
     _ timeout: Duration,
     _ operation: @escaping @Sendable () async throws -> T
 ) async throws -> T? {

@@ -156,6 +156,14 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     destination: destination
                 )
             )
+            mappers.append(
+                TestImpactGraphMapper(
+                    testPlan: testPlan,
+                    schemeName: schemeName,
+                    includedTargets: includedTargets,
+                    excludedTargets: excludedTargets
+                )
+            )
 
             mappers.append(TreeShakePrunedTargetsGraphMapper())
 
