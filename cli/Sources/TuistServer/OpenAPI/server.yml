@@ -9711,7 +9711,7 @@ components:
           x-struct:
           x-validate:
         diff_cached:
-          description: Whether the diff between the checked-out commit and the baseline is already stored. When true, the client skips deepening and diffing and sends no `changed_files`.
+          description: Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
           type: boolean
           x-struct:
           x-validate:
@@ -11909,7 +11909,7 @@ components:
       x-struct:
       x-validate:
     TestImpactRun:
-      description: 'The impact run: whether coverage selected tests or the invocation falls back to default selective testing.'
+      description: 'The impact run: whether coverage selected tests or the invocation fell back.'
       properties:
         counts:
           description: Test counts for the client's output. Present when the outcome is `selected`.
@@ -11944,12 +11944,12 @@ components:
           x-struct:
           x-validate:
         outcome:
-          description: "`selected` or `fallback`. On `fallback` the client runs default selective testing. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
+          description: "`selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
           type: string
           x-struct:
           x-validate:
         reason:
-          description: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, or `tracked_file_changed`.
+          description: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
           type: string
           x-struct:
           x-validate:
@@ -14661,12 +14661,12 @@ components:
           x-struct:
           x-validate:
         build_system:
-          description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+          description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
           type: string
           x-struct:
           x-validate:
         changed_files:
-          description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
+          description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
           items:
             properties:
               affected_modules:
@@ -14719,7 +14719,7 @@ components:
           x-struct:
           x-validate:
         fallback_reason:
-          description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+          description: "The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
           type: string
           x-struct:
           x-validate:
@@ -14735,6 +14735,15 @@ components:
           x-validate:
         modules:
           description: 'The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.'
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        parent_shas:
+          description: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
           items:
             type: string
             x-struct:
@@ -44340,7 +44349,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs:
     post:
       callbacks: {}
-      description: Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+      description: Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
       operationId: createTestImpactRun
       parameters:
         - description: The handle of the project's account.
@@ -44370,12 +44379,12 @@ paths:
                   x-struct:
                   x-validate:
                 build_system:
-                  description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+                  description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
                   type: string
                   x-struct:
                   x-validate:
                 changed_files:
-                  description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
+                  description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
                   items:
                     properties:
                       affected_modules:
@@ -44428,7 +44437,7 @@ paths:
                   x-struct:
                   x-validate:
                 fallback_reason:
-                  description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+                  description: "The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
                   type: string
                   x-struct:
                   x-validate:
@@ -44444,6 +44453,15 @@ paths:
                   x-validate:
                 modules:
                   description: 'The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.'
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                parent_shas:
+                  description: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
                   items:
                     type: string
                     x-struct:

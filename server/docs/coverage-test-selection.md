@@ -169,7 +169,7 @@ Both endpoints are in `TuistWeb.API.SelectiveTestingCoverageController`, under `
 
 - **Required stays minimal.** Only what every build system has is required. A required field can't become optional without breaking generated clients.
 - **One block per build system.** Xcode's build context goes in `xcode`, the only block the server reads today; Gradle, Mix and Cargo get their own blocks when they need fields. A field moves to the top level only once a second build system needs it.
-- **`build_system` is recorded, not used.** It's stored on the impact run and shown on its Configuration sub-tab. The runs request's OpenAPI description says it picks the tracked files, but it doesn't.
+- **`build_system` is recorded, not used.** It's stored on the impact run and shown on its Configuration sub-tab.
 - **New fields are optional**, with a default that keeps today's behaviour. **Values that will grow are strings, not enums**: the CLI's generated client turns enums into frozen Swift enums, so an unknown value would fail decoding.
 
 ## Sharding

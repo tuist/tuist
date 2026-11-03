@@ -27061,7 +27061,7 @@ public struct Client: APIProtocol {
     }
     /// Create an impact run for coverage-based test selection.
     ///
-    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
