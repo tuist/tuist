@@ -163,9 +163,15 @@ defmodule Tuist.Docs.SidebarTest do
   test "localizes each Insights item by its catalogue path, not by English label" do
     tree = Sidebar.tree_for_tab(:guides, "es")
 
-    insights_by_group =
-      for %Sidebar.Group{label: group, items: items} <- tree,
-          group in ["Builds", "Tests", "Bundles"],
+    es_strings =
+      "../../priv/docs/strings/es.json"
+      |> Path.expand(__DIR__)
+      |> File.read!()
+      |> JSON.decode!()
+
+    insights_by_category =
+      for %Sidebar.Group{category: category, items: items} <- tree,
+          category in ["Builds", "Tests", "Bundles"],
           item <- items,
           item.slug in [
             "/es/guides/features/build-insights",
@@ -173,12 +179,16 @@ defmodule Tuist.Docs.SidebarTest do
             "/es/guides/features/bundle-insights"
           ],
           into: %{} do
-        {group, item.label}
+        {category, item}
       end
 
-    assert insights_by_group["Builds"] == "Análisis de builds"
-    assert insights_by_group["Tests"] == "Insights"
-    assert insights_by_group["Bundles"] == "Insights"
+    assert insights_by_category |> Map.keys() |> Enum.sort() == ["Builds", "Bundles", "Tests"]
+
+    for {_category, item} <- insights_by_category do
+      expected = get_in(es_strings, String.split(item.text_path, ".") ++ ["text"])
+      assert is_binary(expected)
+      assert item.label == expected
+    end
   end
 
   test "returns the top-level category for localized slugs" do

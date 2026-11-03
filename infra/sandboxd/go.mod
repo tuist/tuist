@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/coder/websocket v1.8.13
-	github.com/klauspost/compress v1.17.9
+	github.com/klauspost/compress v1.18.7
 	github.com/prometheus/client_golang v1.20.5
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5

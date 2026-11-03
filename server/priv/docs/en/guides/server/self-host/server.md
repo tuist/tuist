@@ -29,6 +29,14 @@ We follow [semantic versioning](https://semver.org/) to ensure predictable versi
 
 See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
 
+## Browser session upgrade {#browser-session-upgrade}
+
+Browser sessions expire after 15 minutes without authenticated page requests or LiveView interaction, and no later than eight hours after authentication. Remember me restores the same server-side session and cannot extend either deadline. Activity is checkpointed once per minute, so an idle session can expire up to 59 seconds earlier. WebSocket heartbeats, automatic reconnects, and background updates do not renew activity. These deadlines do not change machine credentials or API-token lifetimes.
+
+Run the additive `users_tokens` migration before starting upgraded application processes. Existing rows are not backfilled: their creation time bounds inactivity and absolute expiry, and they must freshly authenticate before accessing an SSO-enforced organization. The callback's provider, issuer or verified Workspace, and custom SSO connection are stored server-side and compared with the organization's current settings. A linked account is not session authentication proof.
+
+Upgrade every serving web replica before treating the policy as enforced. Older binaries can still accept their former 60-day sessions and do not enforce the new LiveView boundary; mixed versions are schema-compatible but not policy-equivalent. Expect users to sign in again. Rollback to older binaries weakens these controls; if schema rollback is necessary, stop all binaries that read the new fields before dropping them. Never extend old sessions or infer provenance to avoid reauthentication.
+
 ## OAuth upgrade and rollback boundary {#oauth-upgrade-and-rollback-boundary}
 
 The OAuth entity-cache removal requires a staged upgrade for existing installations. Before deploying a version that stops OAuth cache invalidations, first deploy the authoritative-reading compatibility release from [#14040](https://github.com/tuist/tuist/pull/14040) to **every OAuth reader and writer**. This compatibility stage first appears in the **1.355** release line: `ghcr.io/tuist/tuist:1.355.0-rc.1` contains it; production deployments should use a stable `1.355.x` release once promoted. Installations on 1.354 or earlier must complete this stage before upgrading to a later release containing the removal. Keep the 1.355 line compatibility-only: do not backport the invalidation removal into it.
@@ -530,6 +538,11 @@ Tuist requires email functionality for user authentication and transactional not
 > **Air-gapped Deployments**
 >
 > For on-premise installations without internet access or email provider configuration, email confirmation is automatically skipped by default. Users can log in immediately after registration. If you have email configured but still want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require email confirmation when email is configured, set `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
+
+> [!NOTE]
+> **Email quotas and password-reset links**
+>
+> When email is configured, invitation emails (created, bulk or resent) are limited to one per recipient every five minutes, and to bursts of 50 refilling at 50 per hour per organization and per inviter. Cancelling an invitation does not restore the budget, and the invitations API answers an exhausted budget with `429` and `Retry-After`. With multiple replicas, configure shared Valkey for deployment-wide quotas; if it is configured but unavailable, invitation emails are refused. Password-reset links expire after 15 minutes.
 
 
 ### Git platform configuration {#git-platform-configuration}

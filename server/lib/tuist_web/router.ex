@@ -1189,6 +1189,7 @@ defmodule TuistWeb.Router do
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/bitrise/started", RunnerBitriseReportsController, :started
     post "/runners/jobs/cache/download", RunnerJobCacheController, :download
     post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
     post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
@@ -1277,7 +1278,14 @@ defmodule TuistWeb.Router do
   scope "/ops" do
     pipe_through [:browser_app, :ops]
 
-    oban_dashboard("/oban", csp_nonce_assign_key: :csp_nonce)
+    oban_dashboard("/oban",
+      csp_nonce_assign_key: :csp_nonce,
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.Authentication, :revalidate_browser_session_on_info}
+      ]
+    )
 
     forward "/flags", FunWithFlags.UI.Router, namespace: "ops/flags"
 
@@ -1337,6 +1345,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
 
     live_session :redirect_if_user_is_authenticated,
+      session: {TuistWeb.UserForgotPasswordLive, :password_reset_session, []},
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
@@ -1516,6 +1525,7 @@ defmodule TuistWeb.Router do
       :require_authenticated_user_for_previews,
       :mark_public_preview_page,
       PublicPageChallengePlug,
+      :require_member_sso_authentication,
       :analytics,
       :embeddable
     ]
@@ -1525,6 +1535,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.Authentication, :require_member_sso_authentication},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
       live "/", PreviewLive, metadata: @public_project_route_metadata
@@ -1562,6 +1573,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1604,6 +1616,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1646,6 +1659,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do
