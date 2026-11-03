@@ -31,7 +31,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   @doc """
   Decides and records an impact run for the runs request's `params` (the
   `CreateTestImpactRunParams` fields, atom keys). Returns `{:ok, %{run:,
-  skip:}}`, `skip` being nil on a fallback.
+  skipped_tests:}}`, `skipped_tests` being nil on a fallback.
   """
   def create(%Project{} = project, params) do
     commit_sha = Map.get(params, :commit_sha) || params.head_sha
@@ -42,7 +42,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
         attrs = attrs |> Map.merge(%{outcome: "fallback", reason: to_string(reason)}) |> Map.merge(extra)
 
         with {:ok, run} <- Storage.create_run(attrs) do
-          {:ok, %{run: run, skip: nil}}
+          {:ok, %{run: run, skipped_tests: nil}}
         end
 
       {:selected, input, result, baseline} ->
@@ -189,7 +189,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       })
 
     with {:ok, run} <- Storage.create_run(attrs, selected) do
-      {:ok, %{run: run, skip: skip_entries(input.tests, MapSet.new(selected, & &1.test_case_id))}}
+      {:ok, %{run: run, skipped_tests: skip_entries(input.tests, MapSet.new(selected, & &1.test_case_id))}}
     end
   end
 

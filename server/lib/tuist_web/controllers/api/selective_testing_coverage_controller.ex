@@ -225,8 +225,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
 
   def create_run(%{assigns: %{selected_project: selected_project}} = conn, _params) do
     if FeatureFlags.test_impact_analysis_enabled?(selected_project.account, selected_project) do
-      {:ok, %{run: run, skip: skip}} = Runs.create(selected_project, conn.body_params)
-      json(conn, run_response(run, skip))
+      {:ok, %{run: run, skipped_tests: skipped_tests}} = Runs.create(selected_project, conn.body_params)
+      json(conn, run_response(run, skipped_tests))
     else
       conn
       |> put_status(:not_found)
@@ -234,16 +234,16 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     end
   end
 
-  defp run_response(%{outcome: "selected"} = run, skip) do
+  defp run_response(%{outcome: "selected"} = run, skipped_tests) do
     %{
       id: run.id,
       outcome: run.outcome,
       counts: %{requested: run.requested_count, selected: run.selected_count, skipped: run.skipped_count},
-      skip: skip
+      skipped_tests: skipped_tests
     }
   end
 
-  defp run_response(run, _skip) do
+  defp run_response(run, _skipped_tests) do
     %{id: run.id, outcome: run.outcome}
     |> put_present(:reason, run.reason)
     |> put_present(:matched_path, run.matched_path)

@@ -93,7 +93,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
 
   describe "create/2" do
     test "selects the impacted tests and those without evidence, and skips the rest", %{project: project, run: baseline} do
-      assert {:ok, %{run: run, skip: skip}} = Runs.create(project, params())
+      assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params())
 
       assert run.outcome == "selected"
       assert run.commit_sha == "c2"
@@ -133,7 +133,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     end
 
     test "records the client's reason when there's no baseline", %{project: project} do
-      assert {:ok, %{run: run, skip: nil}} =
+      assert {:ok, %{run: run, skipped_tests: nil}} =
                Runs.create(project, params(%{baseline_sha: nil, fallback_reason: "history_unavailable"}))
 
       assert {run.outcome, run.reason, run.baseline_sha} == {"fallback", "history_unavailable", nil}
@@ -153,7 +153,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     test "falls back when a tracked file changed, with the rule's trace", %{project: project} do
       changed_files = [%{path: "Package.resolved", status: "M", blob: "new"}]
 
-      assert {:ok, %{run: run, skip: nil}} = Runs.create(project, params(%{changed_files: changed_files}))
+      assert {:ok, %{run: run, skipped_tests: nil}} = Runs.create(project, params(%{changed_files: changed_files}))
       assert {run.outcome, run.reason, run.matched_path} == {"fallback", "tracked_file_changed", "Package.resolved"}
       assert [%{rule: "tracked_files", verdict: "abort"}] = run.rule_trace
       assert {run.requested_count, run.selected_count, run.skipped_count} == {0, 0, 0}
@@ -170,7 +170,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     end
 
     test "keeps to the requested modules", %{project: project} do
-      assert {:ok, %{run: run, skip: skip}} = Runs.create(project, params(%{modules: ["CoreTests"]}))
+      assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params(%{modules: ["CoreTests"]}))
       assert {run.requested_count, run.selected_count, run.requested_modules} == {1, 0, ["CoreTests"]}
       assert skip == [%{module: "CoreTests"}]
     end
@@ -204,11 +204,11 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       opts = [suite_catch_all?: true]
       assert {:ok, first} = Shards.get_shard(project, project.account, "ref", 0, opts)
       assert first.suites == %{"AppTests" => ["MathTests"]}
-      assert first.test_impact_skip == [%{module: "AppTests", suite: "MathTests", name: "testSub()"}]
+      assert first.skipped_tests == [%{module: "AppTests", suite: "MathTests", name: "testSub()"}]
 
       assert {:ok, catch_all} = Shards.get_shard(project, project.account, "ref", 1, opts)
 
-      assert catch_all.test_impact_skip == [
+      assert catch_all.skipped_tests == [
                %{module: "AppTests", suite: "MathTests"},
                %{module: "AppTests", suite: "StringTests", name: "testUpper()"},
                %{module: "CoreTests"}
@@ -229,7 +229,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert plan.granularity == "module"
       assert plan.test_impact_run_id == nil
       assert {:ok, shard} = Shards.get_shard(project, project.account, "ref", 0)
-      refute Map.has_key?(shard, :test_impact_skip)
+      refute Map.has_key?(shard, :skipped_tests)
     end
   end
 

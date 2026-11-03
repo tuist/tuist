@@ -561,7 +561,7 @@ defmodule Tuist.Shards do
             download_urls: download_urls
           }
 
-          {:ok, put_test_impact_skip(shard, project, plan, shard_index, opts)}
+          {:ok, put_skipped_tests(shard, project, plan, shard_index, opts)}
         end
     end
   end
@@ -569,9 +569,9 @@ defmodule Tuist.Shards do
   # A shard of a plan for an impact run carries the tests selection skipped
   # within what the shard runs. The catch-all shard runs every suite the
   # other shards don't own, so its list also covers those suites.
-  defp put_test_impact_skip(shard, _project, %ShardPlan{test_impact_run_id: nil}, _shard_index, _opts), do: shard
+  defp put_skipped_tests(shard, _project, %ShardPlan{test_impact_run_id: nil}, _shard_index, _opts), do: shard
 
-  defp put_test_impact_skip(shard, project, plan, shard_index, opts) do
+  defp put_skipped_tests(shard, project, plan, shard_index, opts) do
     plan = preload_assignments(plan, [:test_suites, :modules])
     {own, other} = Enum.split_with(plan.test_suites, &(&1.shard_index == shard_index))
     own = MapSet.new(own, &{&1.module_name, &1.test_suite_name})
@@ -582,7 +582,7 @@ defmodule Tuist.Shards do
 
     case TestImpactAnalysis.Runs.shard_skip(project.id, plan.test_impact_run_id, own, other) do
       nil -> shard
-      skip -> Map.put(shard, :test_impact_skip, skip)
+      skipped_tests -> Map.put(shard, :skipped_tests, skipped_tests)
     end
   end
 

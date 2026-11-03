@@ -150,7 +150,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
         |> json_response(:ok)
 
       assert %{"id" => id, "outcome" => "fallback", "reason" => "history_unavailable"} = response
-      refute Map.has_key?(response, "skip")
+      refute Map.has_key?(response, "skipped_tests")
       assert_schema(response, "TestImpactRun", Spec.spec())
       assert {:ok, %{outcome: "fallback", baseline_sha: nil}} = Storage.get_run(project.id, id)
     end
@@ -185,7 +185,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
                "id" => id,
                "outcome" => "selected",
                "counts" => %{"requested" => 0, "selected" => 0, "skipped" => 0},
-               "skip" => []
+               "skipped_tests" => []
              } = response
 
       assert_schema(response, "TestImpactRun", Spec.spec())
