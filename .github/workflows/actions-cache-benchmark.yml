@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 30
     env:
       TUIST_ACTIONS_CACHE: ${{ matrix.arm == 'github' && 'false' || 'true' }}
-      KEY: bench-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arm }}-${{ matrix.round }}
+      KEY: bench-${{ github.run_id }}-${{ matrix.arm }}-${{ matrix.round }}
     steps:
       - uses: actions/checkout@v4
       - name: Cache backend
@@ -62,7 +62,7 @@ jobs:
     timeout-minutes: 30
     env:
       TUIST_ACTIONS_CACHE: ${{ matrix.arm == 'github' && 'false' || 'true' }}
-      KEY: bench-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arm }}-${{ matrix.round }}
+      KEY: bench-${{ github.run_id }}-${{ matrix.arm }}-${{ matrix.round }}
     steps:
       - uses: actions/checkout@v4
       - name: Cache backend
