@@ -53,7 +53,7 @@ defmodule TuistWeb.UsageLiveTest do
       period_end: ~D[2026-09-24],
       usage_through: ~D[2026-08-25],
       minutes: 1_000,
-      free_minutes: 100,
+      free_minutes: %{macos: 100, linux: 2_500},
       gross: Money.new(7_500, :USD),
       trial_covered: Money.new(7_500, :USD),
       billed: Money.new(0, :USD),
@@ -84,7 +84,7 @@ defmodule TuistWeb.UsageLiveTest do
       period_end: ~D[2026-09-24],
       usage_through: ~D[2026-08-25],
       minutes: 1_000,
-      free_minutes: 100,
+      free_minutes: %{macos: 100, linux: 2_500},
       gross: Money.new(7_500, :USD),
       trial_covered: Money.new(0, :USD),
       billed: Money.new(6_750, :USD),
@@ -344,9 +344,9 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "−75.00"
     end
 
-    test "shows a Linux receipt billed from its first minute", %{conn: conn, account: account} do
-      # Linux has no free tier, so its receipt carries no allowance line
-      # and bills what it ran.
+    test "shows a Linux receipt billed past its own free minutes", %{conn: conn, account: account} do
+      # 2,590 minutes are 90 past the 2,500 free Linux ones: $6.22 of
+      # usage, $6.00 of it included and 22 cents billed.
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       breakdown = %{
@@ -355,11 +355,11 @@ defmodule TuistWeb.UsageLiveTest do
             %{
               id: "linux",
               platform: :linux,
-              minutes: 90,
-              projected_minutes: 90,
-              included_minutes: nil,
+              minutes: 2_590,
+              projected_minutes: 2_590,
+              included_minutes: 2_500,
               previous_minutes: 0,
-              gross: Money.new(22, :USD),
+              gross: Money.new(622, :USD),
               trial_covered: Money.new(0, :USD),
               billed: Money.new(22, :USD)
             }
@@ -373,9 +373,10 @@ defmodule TuistWeb.UsageLiveTest do
 
       html = render(lv)
 
-      assert html =~ "90 minutes run"
+      assert html =~ "2,590 minutes run"
+      assert html =~ "2,500 minutes included"
+      assert html =~ "−6.00"
       assert html =~ "0.22"
-      refute html =~ "minutes included"
       refute html =~ "Covered by your trial"
     end
 

@@ -12,9 +12,9 @@ msgid ""
 msgstr "Language: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=(n%10==1 && n%100 != 11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10||n%100>=20) ? 1 : 2);\n"
 
 #: lib/tuist_web/live/usage_live.ex:424
-#: lib/tuist_web/live/usage_live.html.heex:205
-#: lib/tuist_web/live/usage_live.html.heex:259
-#: lib/tuist_web/live/usage_live.html.heex:310
+#: lib/tuist_web/live/usage_live.html.heex:208
+#: lib/tuist_web/live/usage_live.html.heex:262
+#: lib/tuist_web/live/usage_live.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr "Запросы"
@@ -26,17 +26,17 @@ msgstr "Страница, которую вы ищете, не существу�
 
 #: lib/tuist_web/live/usage_live.ex:41
 #: lib/tuist_web/live/usage_live.html.heex:4
-#: lib/tuist_web/live/usage_live.html.heex:220
-#: lib/tuist_web/live/usage_live.html.heex:251
-#: lib/tuist_web/live/usage_live.html.heex:390
+#: lib/tuist_web/live/usage_live.html.heex:223
+#: lib/tuist_web/live/usage_live.html.heex:254
+#: lib/tuist_web/live/usage_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "Использование"
 
 #: lib/tuist_web/live/usage_live.ex:417
-#: lib/tuist_web/live/usage_live.html.heex:190
-#: lib/tuist_web/live/usage_live.html.heex:255
-#: lib/tuist_web/live/usage_live.html.heex:270
+#: lib/tuist_web/live/usage_live.html.heex:193
+#: lib/tuist_web/live/usage_live.html.heex:258
+#: lib/tuist_web/live/usage_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr "Исходящий трафик"
@@ -47,12 +47,12 @@ msgstr "Исходящий трафик"
 msgid "Unknown"
 msgstr "Неизвестно"
 
-#: lib/tuist_web/live/usage_live.html.heex:60
+#: lib/tuist_web/live/usage_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
 msgstr "По стандартной ставке, до бесплатного лимита"
 
-#: lib/tuist_web/live/usage_live.html.heex:65
+#: lib/tuist_web/live/usage_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr "Оплачивается"
@@ -72,7 +72,7 @@ msgstr "Время работы раннеров и трафик кэша, оп�
 msgid "Runner usage"
 msgstr "Использование раннеров"
 
-#: lib/tuist_web/live/usage_live.html.heex:59
+#: lib/tuist_web/live/usage_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Usage value"
 msgstr "Значение использования"
@@ -87,43 +87,43 @@ msgstr "Linux"
 msgid "macOS"
 msgstr "macOS"
 
-#: lib/tuist_web/live/usage_live.html.heex:118
+#: lib/tuist_web/live/usage_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes included"
 msgstr "Включено %{count} мин."
 
-#: lib/tuist_web/live/usage_live.html.heex:105
+#: lib/tuist_web/live/usage_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes run"
 msgstr "%{count} мин. работы"
 
 #: lib/tuist_web/live/usage_live.ex:545
-#: lib/tuist_web/live/usage_live.html.heex:125
+#: lib/tuist_web/live/usage_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
 msgstr "Оплачено за этот период"
 
-#: lib/tuist_web/live/usage_live.html.heex:138
+#: lib/tuist_web/live/usage_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Balance"
 msgstr "Баланс"
 
-#: lib/tuist_web/live/usage_live.html.heex:142
+#: lib/tuist_web/live/usage_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Covers this period"
 msgstr "Покрывает этот период"
 
-#: lib/tuist_web/live/usage_live.html.heex:151
+#: lib/tuist_web/live/usage_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
 msgstr "Списывается при выставлении счёта за период, поэтому именно это покрывает ваш баланс сегодня."
 
-#: lib/tuist_web/live/usage_live.html.heex:146
+#: lib/tuist_web/live/usage_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Left to pay"
 msgstr "Осталось оплатить"
 
-#: lib/tuist_web/live/usage_live.html.heex:134
+#: lib/tuist_web/live/usage_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Prepaid credit"
 msgstr "Предоплаченный кредит"
@@ -164,64 +164,64 @@ msgstr "Прогноз"
 msgid "Current period %{from} – %{to}"
 msgstr "Текущий период: %{from} – %{to}"
 
-#: lib/tuist_web/live/usage_live.html.heex:113
+#: lib/tuist_web/live/usage_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Covered by your trial"
 msgstr "Покрывается пробным периодом"
 
 #: lib/tuist_web/live/usage_live.ex:542
-#: lib/tuist_web/live/usage_live.html.heex:66
+#: lib/tuist_web/live/usage_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
 msgstr "Сумма к оплате за этот период"
 
-#: lib/tuist_web/live/usage_live.html.heex:453
+#: lib/tuist_web/live/usage_live.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgstr "%{count} сбойных"
 
-#: lib/tuist_web/live/usage_live.html.heex:382
+#: lib/tuist_web/live/usage_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "%{count} free each period"
 msgstr "%{count} бесплатных за период"
 
-#: lib/tuist_web/live/usage_live.html.heex:332
-#: lib/tuist_web/live/usage_live.html.heex:432
+#: lib/tuist_web/live/usage_live.html.heex:335
+#: lib/tuist_web/live/usage_live.html.heex:435
 #, elixir-autogen, elixir-format
 msgid "%{count} included"
 msgstr "%{count} включено"
 
-#: lib/tuist_web/live/usage_live.html.heex:424
+#: lib/tuist_web/live/usage_live.html.heex:427
 #, elixir-autogen, elixir-format
 msgid "%{count} passing"
 msgstr "%{count} успешных"
 
-#: lib/tuist_web/live/usage_live.html.heex:316
+#: lib/tuist_web/live/usage_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "%{count} requests"
 msgstr "%{count} запросов"
 
-#: lib/tuist_web/live/usage_live.html.heex:469
+#: lib/tuist_web/live/usage_live.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "%{count} run on Tuist Runners"
 msgstr "%{count} запущено на Tuist Runners"
 
-#: lib/tuist_web/live/usage_live.html.heex:461
+#: lib/tuist_web/live/usage_live.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "%{count} skipped"
 msgstr "%{count} пропущено"
 
-#: lib/tuist_web/live/usage_live.html.heex:292
+#: lib/tuist_web/live/usage_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "%{size} included"
 msgstr "%{size} включено"
 
-#: lib/tuist_web/live/usage_live.html.heex:370
+#: lib/tuist_web/live/usage_live.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
 msgstr "Биллинговый период с %{from} по %{to}. Оплачиваются успешно пройденные тесты. Сборки, упавшие и пропущенные тесты, а также тесты, запущенные на Tuist Runners, бесплатны."
 
-#: lib/tuist_web/live/usage_live.html.heex:168
+#: lib/tuist_web/live/usage_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Cache usage"
 msgstr "Использование кэша"
@@ -231,14 +231,14 @@ msgstr "Использование кэша"
 msgid "Estimated for this period"
 msgstr "Оценка за этот период"
 
-#: lib/tuist_web/live/usage_live.html.heex:457
-#: lib/tuist_web/live/usage_live.html.heex:465
-#: lib/tuist_web/live/usage_live.html.heex:473
+#: lib/tuist_web/live/usage_live.html.heex:460
+#: lib/tuist_web/live/usage_live.html.heex:468
+#: lib/tuist_web/live/usage_live.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "Бесплатно"
 
-#: lib/tuist_web/live/usage_live.html.heex:448
+#: lib/tuist_web/live/usage_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "Not billed"
 msgstr "Не оплачивается"
@@ -258,13 +258,13 @@ msgstr "Прогнозируется около %{count} запросов за �
 msgid "On track for about %{size} this period."
 msgstr "Прогнозируется около %{size} за этот период."
 
-#: lib/tuist_web/live/usage_live.html.heex:380
-#: lib/tuist_web/live/usage_live.html.heex:418
+#: lib/tuist_web/live/usage_live.html.heex:383
+#: lib/tuist_web/live/usage_live.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Passing test cases"
 msgstr "Успешные тестовые случаи"
 
-#: lib/tuist_web/live/usage_live.html.heex:358
+#: lib/tuist_web/live/usage_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Test insights usage"
 msgstr "Использование аналитики тестов"
@@ -289,43 +289,43 @@ msgstr "за ГБ"
 msgid "per million"
 msgstr "за миллион"
 
-#: lib/tuist_web/live/usage_live.html.heex:162
+#: lib/tuist_web/live/usage_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "No runner usage in this period"
 msgstr "Нет использования раннеров в этом периоде"
 
-#: lib/tuist_web/live/usage_live.html.heex:482
+#: lib/tuist_web/live/usage_live.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "No test runs in this period"
 msgstr "Нет запусков тестов в этом периоде"
 
-#: lib/tuist_web/live/usage_live.html.heex:276
+#: lib/tuist_web/live/usage_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "%{size} of egress"
 msgstr "%{size} исходящего трафика"
 
-#: lib/tuist_web/live/usage_live.html.heex:180
+#: lib/tuist_web/live/usage_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
 msgstr "Расчётный период с %{from} по %{to}. Исходящий трафик и запросы для всех кэшей используют общий лимит, а трафик от Tuist Runners учитывается с коэффициентом 0,5. Загрузка и хранение бесплатны."
 
-#: lib/tuist_web/live/usage_live.html.heex:192
+#: lib/tuist_web/live/usage_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Data downloaded from your caches. %{size} free each period."
 msgstr "Данные, загруженные из ваших кэшей. %{size} бесплатно каждый период."
 
-#: lib/tuist_web/live/usage_live.html.heex:207
+#: lib/tuist_web/live/usage_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Downloads served from your caches. %{count} free each period."
 msgstr "Загрузки из ваших кэшей. %{count} бесплатно каждый период."
 
-#: lib/tuist_web/live/usage_live.html.heex:351
+#: lib/tuist_web/live/usage_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "No cache usage in this period"
 msgstr "В этом периоде не было использования кэша"
 
-#: lib/tuist_web/live/usage_live.html.heex:287
-#: lib/tuist_web/live/usage_live.html.heex:327
+#: lib/tuist_web/live/usage_live.html.heex:290
+#: lib/tuist_web/live/usage_live.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Tuist Runners discount"
 msgstr "Скидка для Tuist Runners"
@@ -335,12 +335,12 @@ msgstr "Скидка для Tuist Runners"
 msgid "Unknown project"
 msgstr "Неизвестный проект"
 
-#: lib/tuist_web/live/usage_live.html.heex:51
-#, elixir-autogen, elixir-format
-msgid "%{count} free macOS minutes each month"
-msgstr "%{count} бесплатных минут macOS каждый месяц"
-
 #: lib/tuist_web/live/usage_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs."
 msgstr "Биллинговый период с %{from} по %{to}. Минуты измеряются на базовых машинах каждой платформы: macOS (6 vCPU / 14 ГБ) и Linux (2 vCPU / 8 ГБ); более мощная машина расходует больше одной минуты за каждую минуту работы."
+
+#: lib/tuist_web/live/usage_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{macos} free macOS and %{linux} free Linux minutes each month"
+msgstr "%{macos} бесплатных минут macOS и %{linux} бесплатных минут Linux каждый месяц"

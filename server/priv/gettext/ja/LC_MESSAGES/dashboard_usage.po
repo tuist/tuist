@@ -12,9 +12,9 @@ msgid ""
 msgstr "Language: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/usage_live.ex:424
-#: lib/tuist_web/live/usage_live.html.heex:205
-#: lib/tuist_web/live/usage_live.html.heex:259
-#: lib/tuist_web/live/usage_live.html.heex:310
+#: lib/tuist_web/live/usage_live.html.heex:208
+#: lib/tuist_web/live/usage_live.html.heex:262
+#: lib/tuist_web/live/usage_live.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr "リクエスト"
@@ -26,17 +26,17 @@ msgstr "お探しのページは存在しないか、移動されました。"
 
 #: lib/tuist_web/live/usage_live.ex:41
 #: lib/tuist_web/live/usage_live.html.heex:4
-#: lib/tuist_web/live/usage_live.html.heex:220
-#: lib/tuist_web/live/usage_live.html.heex:251
-#: lib/tuist_web/live/usage_live.html.heex:390
+#: lib/tuist_web/live/usage_live.html.heex:223
+#: lib/tuist_web/live/usage_live.html.heex:254
+#: lib/tuist_web/live/usage_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "使用量"
 
 #: lib/tuist_web/live/usage_live.ex:417
-#: lib/tuist_web/live/usage_live.html.heex:190
-#: lib/tuist_web/live/usage_live.html.heex:255
-#: lib/tuist_web/live/usage_live.html.heex:270
+#: lib/tuist_web/live/usage_live.html.heex:193
+#: lib/tuist_web/live/usage_live.html.heex:258
+#: lib/tuist_web/live/usage_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr "エグレス"
@@ -47,12 +47,12 @@ msgstr "エグレス"
 msgid "Unknown"
 msgstr "不明"
 
-#: lib/tuist_web/live/usage_live.html.heex:60
+#: lib/tuist_web/live/usage_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
 msgstr "フリーティア分を除いた標準料金"
 
-#: lib/tuist_web/live/usage_live.html.heex:65
+#: lib/tuist_web/live/usage_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr "請求済み"
@@ -72,7 +72,7 @@ msgstr "このアカウントに請求されるランナー時間とキャッシ
 msgid "Runner usage"
 msgstr "ランナー使用量"
 
-#: lib/tuist_web/live/usage_live.html.heex:59
+#: lib/tuist_web/live/usage_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Usage value"
 msgstr "使用量値"
@@ -87,43 +87,43 @@ msgstr "Linux"
 msgid "macOS"
 msgstr "macOS"
 
-#: lib/tuist_web/live/usage_live.html.heex:118
+#: lib/tuist_web/live/usage_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes included"
 msgstr "%{count} 分を含む"
 
-#: lib/tuist_web/live/usage_live.html.heex:105
+#: lib/tuist_web/live/usage_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes run"
 msgstr "%{count}分実行"
 
 #: lib/tuist_web/live/usage_live.ex:545
-#: lib/tuist_web/live/usage_live.html.heex:125
+#: lib/tuist_web/live/usage_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
 msgstr "今期の請求額"
 
-#: lib/tuist_web/live/usage_live.html.heex:138
+#: lib/tuist_web/live/usage_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Balance"
 msgstr "残高"
 
-#: lib/tuist_web/live/usage_live.html.heex:142
+#: lib/tuist_web/live/usage_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Covers this period"
 msgstr "対象期間"
 
-#: lib/tuist_web/live/usage_live.html.heex:151
+#: lib/tuist_web/live/usage_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
 msgstr "請求時に差し引かれるため、現在の残高でカバーできる金額です。"
 
-#: lib/tuist_web/live/usage_live.html.heex:146
+#: lib/tuist_web/live/usage_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Left to pay"
 msgstr "未払い額"
 
-#: lib/tuist_web/live/usage_live.html.heex:134
+#: lib/tuist_web/live/usage_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Prepaid credit"
 msgstr "プリペイドクレジット"
@@ -164,64 +164,64 @@ msgstr "予測値"
 msgid "Current period %{from} – %{to}"
 msgstr "当期 %{from} – %{to}"
 
-#: lib/tuist_web/live/usage_live.html.heex:113
+#: lib/tuist_web/live/usage_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Covered by your trial"
 msgstr "トライアル期間に含まれます"
 
 #: lib/tuist_web/live/usage_live.ex:542
-#: lib/tuist_web/live/usage_live.html.heex:66
+#: lib/tuist_web/live/usage_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
 msgstr "今期のお支払い予定額"
 
-#: lib/tuist_web/live/usage_live.html.heex:453
+#: lib/tuist_web/live/usage_live.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgstr "%{count} 件の失敗"
 
-#: lib/tuist_web/live/usage_live.html.heex:382
+#: lib/tuist_web/live/usage_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "%{count} free each period"
 msgstr "各期間 %{count} 件まで無料"
 
-#: lib/tuist_web/live/usage_live.html.heex:332
-#: lib/tuist_web/live/usage_live.html.heex:432
+#: lib/tuist_web/live/usage_live.html.heex:335
+#: lib/tuist_web/live/usage_live.html.heex:435
 #, elixir-autogen, elixir-format
 msgid "%{count} included"
 msgstr "%{count} 件を含む"
 
-#: lib/tuist_web/live/usage_live.html.heex:424
+#: lib/tuist_web/live/usage_live.html.heex:427
 #, elixir-autogen, elixir-format
 msgid "%{count} passing"
 msgstr "%{count} 件の成功"
 
-#: lib/tuist_web/live/usage_live.html.heex:316
+#: lib/tuist_web/live/usage_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "%{count} requests"
 msgstr "%{count} リクエスト"
 
-#: lib/tuist_web/live/usage_live.html.heex:469
+#: lib/tuist_web/live/usage_live.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "%{count} run on Tuist Runners"
 msgstr "Tuist Runners で %{count} 回実行"
 
-#: lib/tuist_web/live/usage_live.html.heex:461
+#: lib/tuist_web/live/usage_live.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "%{count} skipped"
 msgstr "%{count} 件をスキップ"
 
-#: lib/tuist_web/live/usage_live.html.heex:292
+#: lib/tuist_web/live/usage_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "%{size} included"
 msgstr "%{size} を含む"
 
-#: lib/tuist_web/live/usage_live.html.heex:370
+#: lib/tuist_web/live/usage_live.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
 msgstr "請求期間 %{from} から %{to} まで。合格したテストケースのみ課金対象です。ビルド、不合格およびスキップされたテストケース、Tuist Runner で実行されたテストは無料です。"
 
-#: lib/tuist_web/live/usage_live.html.heex:168
+#: lib/tuist_web/live/usage_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Cache usage"
 msgstr "キャッシュ使用量"
@@ -231,14 +231,14 @@ msgstr "キャッシュ使用量"
 msgid "Estimated for this period"
 msgstr "今期の推定値"
 
-#: lib/tuist_web/live/usage_live.html.heex:457
-#: lib/tuist_web/live/usage_live.html.heex:465
-#: lib/tuist_web/live/usage_live.html.heex:473
+#: lib/tuist_web/live/usage_live.html.heex:460
+#: lib/tuist_web/live/usage_live.html.heex:468
+#: lib/tuist_web/live/usage_live.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "無料"
 
-#: lib/tuist_web/live/usage_live.html.heex:448
+#: lib/tuist_web/live/usage_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "Not billed"
 msgstr "課金されません"
@@ -258,13 +258,13 @@ msgstr "今期は約 %{count} 件のリクエストに達する見込みです�
 msgid "On track for about %{size} this period."
 msgstr "今期は約 %{size} に達する見込みです。"
 
-#: lib/tuist_web/live/usage_live.html.heex:380
-#: lib/tuist_web/live/usage_live.html.heex:418
+#: lib/tuist_web/live/usage_live.html.heex:383
+#: lib/tuist_web/live/usage_live.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Passing test cases"
 msgstr "合格したテストケース"
 
-#: lib/tuist_web/live/usage_live.html.heex:358
+#: lib/tuist_web/live/usage_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Test insights usage"
 msgstr "テストインサイトの使用量"
@@ -289,43 +289,43 @@ msgstr "GB あたり"
 msgid "per million"
 msgstr "100万回あたり"
 
-#: lib/tuist_web/live/usage_live.html.heex:162
+#: lib/tuist_web/live/usage_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "No runner usage in this period"
 msgstr "今期の実行時間の使用はありません"
 
-#: lib/tuist_web/live/usage_live.html.heex:482
+#: lib/tuist_web/live/usage_live.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "No test runs in this period"
 msgstr "今期のテスト実行はありません"
 
-#: lib/tuist_web/live/usage_live.html.heex:276
+#: lib/tuist_web/live/usage_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "%{size} of egress"
 msgstr "エグレス %{size}"
 
-#: lib/tuist_web/live/usage_live.html.heex:180
+#: lib/tuist_web/live/usage_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
 msgstr "請求期間: %{from} から %{to} まで。すべてのキャッシュからのエグレスとリクエストは共通の枠を共有し、Tuist Runners からのトラフィックは半分としてカウントされます。アップロードとストレージは無料です。"
 
-#: lib/tuist_web/live/usage_live.html.heex:192
+#: lib/tuist_web/live/usage_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Data downloaded from your caches. %{size} free each period."
 msgstr "キャッシュからダウンロードされたデータ。各期間で %{size} まで無料。"
 
-#: lib/tuist_web/live/usage_live.html.heex:207
+#: lib/tuist_web/live/usage_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Downloads served from your caches. %{count} free each period."
 msgstr "キャッシュから配信されたダウンロード数。各期間で %{count} 回まで無料。"
 
-#: lib/tuist_web/live/usage_live.html.heex:351
+#: lib/tuist_web/live/usage_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "No cache usage in this period"
 msgstr "この期間のキャッシュ利用はありません"
 
-#: lib/tuist_web/live/usage_live.html.heex:287
-#: lib/tuist_web/live/usage_live.html.heex:327
+#: lib/tuist_web/live/usage_live.html.heex:290
+#: lib/tuist_web/live/usage_live.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Tuist Runners discount"
 msgstr "Tuist Runners の割引"
@@ -335,12 +335,12 @@ msgstr "Tuist Runners の割引"
 msgid "Unknown project"
 msgstr "不明なプロジェクト"
 
-#: lib/tuist_web/live/usage_live.html.heex:51
-#, elixir-autogen, elixir-format
-msgid "%{count} free macOS minutes each month"
-msgstr "毎月%{count}分の無料macOS実行時間"
-
 #: lib/tuist_web/live/usage_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs."
 msgstr "請求期間 %{from} 〜 %{to}。実行時間は各プラットフォームのベースラインマシン（macOS 6 vCPU / 14 GB、Linux 2 vCPU / 8 GB）で計測され、より大きなマシンでは実行1分あたり1分以上消費します。"
+
+#: lib/tuist_web/live/usage_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{macos} free macOS and %{linux} free Linux minutes each month"
+msgstr "毎月%{macos}の無料macOS分と%{linux}の無料Linux分"
