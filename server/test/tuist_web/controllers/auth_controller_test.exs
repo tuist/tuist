@@ -1164,6 +1164,27 @@ defmodule TuistWeb.AuthControllerTest do
       stub_sso_userinfo("linked-user", user.email)
       correct_conn = sso_callback(build_conn(), target)
       assert {:ok, _, _} = live(recycle(correct_conn), protected_path)
+
+      session = Accounts.get_user_session(get_session(correct_conn, :user_token))
+      {:ok, factor} = Accounts.UserMFA.begin_enrollment(user, session)
+      code = NimbleTOTP.verification_code(factor.secret, time: Tuist.Time.utc_now())
+      {:ok, %{recovery_codes: [other_code, target_code | _]}} = Accounts.UserMFA.confirm_enrollment(user, session, code)
+
+      for {organization, recovery} <- [{other, other_code}, {target, target_code}] do
+        stub_sso_userinfo("linked-user", user.email)
+        pending = sso_callback(build_conn(), organization)
+        assert redirected_to(pending) == ~p"/users/mfa"
+        refute get_session(pending, :user_token)
+        verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => recovery})
+
+        if organization.id == target.id do
+          assert {:ok, _, _} = live(recycle(verified), protected_path)
+        else
+          assert verified |> recycle() |> get(protected_path) |> redirected_to() == expected
+          {:ok, view, _} = live(recycle(verified), ~p"/#{other.account.name}/projects")
+          assert {:error, {:redirect, %{to: ^expected}}} = live_redirect(view, to: protected_path)
+        end
+      end
     end
   end
 

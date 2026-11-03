@@ -13,6 +13,7 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserToken
   alias Tuist.Analytics
   alias Tuist.Authorization
@@ -171,7 +172,35 @@ defmodule TuistWeb.Authentication do
   if you are not using LiveView.
   """
   def log_in_user(conn, user, params \\ %{}) do
-    token = Accounts.generate_user_session_token(user, params)
+    # An enrolled factor always means a challenge: a verified session is only
+    # issued by UserMFA.complete_challenge/2 and bound by log_in_user_session/3.
+    if UserMFA.enabled?(user) do
+      challenge = UserMFA.create_challenge(user, params)
+
+      conn
+      |> configure_session(renew: true)
+      |> delete_session(:user_token)
+      |> delete_session(:live_socket_id)
+      |> delete_session(:auth_method)
+      |> delete_resp_cookie(@remember_me_cookie)
+      |> put_session(:pending_mfa, challenge)
+      |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
+      |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
+      |> redirect(to: ~p"/users/mfa")
+      |> halt()
+    else
+      token = Accounts.generate_user_session_token(user, params)
+      complete_user_login(conn, user, token, params)
+    end
+  end
+
+  # MFA issues the credential atomically with proof consumption. Binding its
+  # existing token to the cookie must not mint a replacement after revocation.
+  def log_in_user_session(conn, %UserToken{context: "session"} = session, params) do
+    complete_user_login(conn, session.user, session.token, params)
+  end
+
+  defp complete_user_login(conn, user, token, params) do
     user_return_to = get_session(conn, :user_return_to)
     auth_method = Map.get(params, :auth_method, :password)
 
@@ -255,6 +284,7 @@ defmodule TuistWeb.Authentication do
   def log_out_user(conn, opts \\ []) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
+    if challenge = get_session(conn, :pending_mfa), do: UserMFA.delete_challenge(challenge)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       TuistWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})

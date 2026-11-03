@@ -316,6 +316,28 @@ defmodule Tuist.Accounts.UserNotifier do
     ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
+  def deliver_mfa_change_notification(user, enabled?) do
+    subject =
+      if enabled?,
+        do: dgettext("dashboard_account", "Two-factor authentication enabled"),
+        else: dgettext("dashboard_account", "Two-factor authentication disabled")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The two-factor authentication settings for your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
   @doc """
   Deliver instructions to view an agent registration OTP.
   """

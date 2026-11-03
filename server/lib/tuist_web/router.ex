@@ -1355,6 +1355,12 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
+    get "/users/settings/mfa", UserMFAController, :show
+    post "/users/settings/mfa/enroll", UserMFAController, :enroll
+    post "/users/settings/mfa/confirm", UserMFAController, :confirm
+    post "/users/settings/mfa/cancel", UserMFAController, :cancel
+    post "/users/settings/mfa/disable", UserMFAController, :disable
+
     live_session :require_authenticated_user,
       session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
@@ -1370,6 +1376,8 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app]
 
+    get "/users/mfa", UserMFAController, :challenge
+    post "/users/mfa", UserMFAController, :verify
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,
