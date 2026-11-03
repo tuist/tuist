@@ -140,7 +140,7 @@ importers:
         specifier: '>=3.0.0'
         version: 3.12.1
       '@types/node':
-        specifier: ^21.0.4 || ^22.0.0 || >=24.0.0
+        specifier: ^20.0.0 || ^22.0.0 || >=24.0.0
         version: 26.1.1
       vite:
         specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
