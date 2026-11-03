@@ -26,6 +26,7 @@ defmodule Tuist.Accounts.UserToken do
     field :last_active_at, :utc_datetime
     field :auth_provider, :string
     field :auth_provider_organization_id, :string
+    field :mfa_verified_at, :utc_datetime
     belongs_to :auth_organization, Tuist.Accounts.Organization
     belongs_to :user, Tuist.Accounts.User
 
@@ -65,6 +66,7 @@ defmodule Tuist.Accounts.UserToken do
        last_active_at: now,
        auth_provider: to_string(Map.get(auth, :auth_method, :password)),
        auth_provider_organization_id: Map.get(auth, :provider_organization_id),
+       mfa_verified_at: Map.get(auth, :mfa_verified_at),
        auth_organization_id: Map.get(auth, :sso_organization_id)
      }}
   end
