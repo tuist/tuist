@@ -122,6 +122,9 @@ defmodule Tuist.Authentication do
 
   """
   def refresh(old_token, opts) do
+    # `:sso_claims` replaces the old token's (see `Tuist.Accounts.refresh_sso_claims/2`).
+    {sso_claims, opts} = Keyword.pop(opts, :sso_claims)
+
     with {:ok, resource, old_claims} <- Tuist.Guardian.resource_from_token(old_token, %{}, opts),
          {:ok, {:resource, resource}} when resource != nil <-
            {:ok, {:resource, preload_account(resource)}},
@@ -129,6 +132,7 @@ defmodule Tuist.Authentication do
          new_claims =
            old_claims
            |> Map.drop(["jti", "iss", "iat", "nbf", "exp"])
+           |> replace_sso_claims(sso_claims)
            |> Map.put("preferred_username", preferred_username),
          {:ok, new_token, new_claims} <- __MODULE__.encode_and_sign(subject, new_claims, opts) do
       Tuist.Guardian.on_revoke(old_claims, old_token)
@@ -140,6 +144,12 @@ defmodule Tuist.Authentication do
       {:ok, {:resource, nil}} ->
         {:error, "The token user doesn't exist"}
     end
+  end
+
+  defp replace_sso_claims(claims, nil), do: claims
+
+  defp replace_sso_claims(claims, sso_claims) do
+    claims |> Map.drop(["sso", "sso_grace_until"]) |> Map.merge(sso_claims)
   end
 
   defp preload_account(%User{} = user), do: Tuist.Repo.preload(user, :account)

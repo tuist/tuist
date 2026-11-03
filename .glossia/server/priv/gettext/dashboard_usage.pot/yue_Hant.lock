@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "8c88d872ae644c388e57cd248799e4dcb740d6307498697b13d3ba0ee8e20281",
+  "hash": "df81feabf6bfeea355dce06e1c94c3496b7c409f57077a57e3fc58a70cdfc988",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "948786e15bda6e2b70dac565241cd528f4c59cca2e7ae4ed23822a5e44c0ce84"
                 },
                 "## effect: edit them in PO (.po) files instead.": {
-                  "content_hash": "3118cdfc7135ade1e759592799a9029ab62eef77e2523b6eaff19d456f223eda"
+                  "content_hash": "f9f90486573169db777cacfd4be431d89568742f35f349f2f646b9f0b598497e"
                 },
                 "## messages that can't be statically extracted.": {
                   "content_hash": "953b56d83f9504088c6b842f692f07f39d9f70ba2c334466776a5a6efc791c48"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "d04a78f69046ae433e817c3f7ea741b3f53573f8f1a04d836b868e499f1535be",
+          "hash": "55d3d21e7cb2c425f6c5c9c697912b3517012aaf988cdba2e343d1745dd6cba2",
           "kind": "source",
           "label": "server/priv/gettext/dashboard_usage.pot",
           "metadata": {
-            "content_hash": "b8f3d1f7351f65529ab2e0ac485dd9bde2cb07f14c69152f4d054b5a819f5aa8"
+            "content_hash": "e197194d291a9179ad88a8112f4c9549a0db37f88f2953061c494f6f6d856824"
           }
         },
         {
@@ -214,20 +214,19 @@
         }
       ],
       "details": {},
-      "hash": "8c88d872ae644c388e57cd248799e4dcb740d6307498697b13d3ba0ee8e20281",
+      "hash": "df81feabf6bfeea355dce06e1c94c3496b7c409f57077a57e3fc58a70cdfc988",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard_usage.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "14135aab97e216c7577424d0701d0f91748908ffdc64383eb300c022815f13f5",
+  "output_hash": "6cf4f493dd13679736519bee6d94025f3e231df90bb095da082423df98bc930f",
   "output_path": "server/priv/gettext/yue_Hant/LC_MESSAGES/dashboard_usage.po",
   "po_units": {
     "00827dcbab84866fabf11bd5ac92135605b36fd7bdd04d5cbcc5be268743a052": "ca3f0e30cc0bc802de36bcf8c030960ab7ba9260a1a22afb6d190fd4c2342cc0",
     "054d128cff1ca058ddcf16771d97d9d8d4e6f2f9d6944addd76dbcd6080a96df": "d09bff3e716ff8efc1e5b4a8e2c4f8639828683a728c75d62c1e7c72819c8c14",
     "09a8c34e13a4b94874aae5641a6668cb76d0aaae8132ee60eaa6273197e73a51": "ddaf95bc75b4cc89cebec6a30b579dc22fd2b3a76460696198fd5ba2ef4f0c48",
-    "0d701be9e80bd9ac81a7a5831501d0d0ca09d1f3cb3f0414facb03e487bade1d": "4fb7e2625b2289063b6ff635a6febc1c7828f6e0f5c5bbd07ab292a1680c102d",
     "11c98665d23df5de75d240aad9b54927520a975bd92dc182a1e3a5b61169ec2c": "dbf08114e2b7c6835d4abe36c7d2445bb786d6f1fd080a15c178272cd62683e7",
     "1212fbf5a51e10037a0c855d4d10d8d21e45e280a5a606a193836297a1034792": "b5eb66ca9cdd8ef238642d9cbc62232dd02796eed47793b34ccd8171a792cb9c",
     "153c1093bd2af5f5c5dbf5d424f1f0a79734d738c29cf6ff9d544cc7a61d429b": "6b730bd7b2fc81d21dcf4e7347014c0bba0f953afffd7ef9633aee2f4c2400a0",
@@ -248,7 +247,6 @@
     "4319e0fc8e85b5d4db366a0524ca5e21112904e89e3583e804a88e2d8eaa8ef4": "e2255fdebf3d57214ce19790c0e1009a377c9d3fc4223fc6b6ebe9fcb7279867",
     "434748643351c1f36b478ad589b0342fa88db6fa06757eb0f64784a060077759": "a55f39c7ef8ece1fc0bf74b8604a37418ce9797506511a0bfddb21a6cc42743f",
     "45de2f09d386804ab2935b87500e78c2ce04f7d908f74a001ae2a86e032e89bb": "f598a9c744ed689972e68222ca6dc0e5f95ab47dcbadf5456afba47323b197ca",
-    "4eaa0490c743147746197fc9387cd3bcf594a309d4ca003c13f834ec4cf1c2e4": "d0dace466cf641cd4b1ced22cd5a26807a8bc1c472c02d1a76f16b5c09cef367",
     "504a1d1ade0057802cbeb893a3c6ae5c4de08b25375790b5b01a032b3d2a67ee": "612a3d642b928c8d0cb768bab886c164a9f219ad627d67812a86e9167b6160a6",
     "580c8c9a59bbaa9fef5e5112898850ca85589ca23372e8eed2f9c1de7e5668a7": "b097a0a16303a176d78acf016e22e6bd8bfcbcd5475cf994d4d053cd73337223",
     "5aff64ce89ecf90ddcea1dd094c4d86986a541f3de3ba3546a747ea17014b054": "28be6878b87842ab16cb036b1bdc5a09333575ba731e501d3006809cd6f2d458",
@@ -281,9 +279,11 @@
     "c8fafe381ecc7557b9a2e49750422fa17a03ea54532337973d6c08e68d908509": "f4d2dc1ecfc31138abe0f79377c98f5616e1d8a7514cf1e462850543dc06f510",
     "caad76f04eb244acf376856bc9b37a57ede3a4d0bf3956325065d90cddd289db": "cfd08e98ec66d418de6c2736ffbea10a89876290ea6bff60f32b80176e527486",
     "dc96afcb6410b3b3ff9b462119c777fb1329a7fb131371bfef0b09fb7b7d19c2": "1e5bf79c19d3efbe5a64294fefe00c8f39ec7fa49c4e842ab6dd7100d3569af8",
+    "e115d06912623f18a4a3f8fe90ccbeaedb0a89b0a47133805b7baf55afc2d338": "3ee91118b0c0397fd9d5ee840a00d70e9646423f600df6367546fab9a85b5b70",
     "e54d25f34bc01cd72014e6695a638b4cc5c36763b9c9eeaf7499bd4944693d14": "23aeea710ceff7e6c23923c4e284efa8c13fdd1098c2980e781eb52e385f0439",
     "e6b463f3de7d1fd26eb9a2bc71e605baaf0add63256e748bae53ff801521edd2": "b4f37660160c79e47941c498cbaae7d34feebe704be3f00b5609f2a7e10a12ce",
     "e78949182ec7ee35133ea5473bce81f8311dae21c9bdb8668c9687c542ba47d1": "7df7dabc0cf86f87412be048b85fe49a36b2cceb9e1d32f43c998baf37c41e3d",
+    "e96c8da3b765fcc0913a57179a3f6c3214fb9ddd1bc4010433dcde9c40f97257": "b8c8c09fc5823fe70f058ba17e041128888ee6fe37b4e286bd6bad9a7ad078e0",
     "ee394fe021c6168abfbc1c131397d47ee731bcaf01ada5684494b3ebc056c50a": "4a529c3d0afc30086c8adef6e775ed2eeca061719493717b2b415d5a284bced7",
     "f22c6d248b0417c094fd0085f01640e207a1d5073a2fb4e9408f62c3fa050c88": "6a1441d923ddb3da80252702f0cfdc29cc2ffdad2412875eed66cb1ba93573f7",
     "fa959a270213bca5793d6d0ba581b05818d19d4dcb12c0f6e79c7eaaa4f279dc": "51bd682d76032b7dfc5818f06eb475c4d940fb11aa9b583809ad4e5e0733fec7",
@@ -307,8 +307,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "9010aaf8b4b736cbf26c9bbc91eea56480079f20",
+  "source_commit_sha": "db90e7a26257ae3354d3391822299b4dc3da15ec",
   "source_path": "server/priv/gettext/dashboard_usage.pot",
-  "translated_at": "2026-10-29T20:42:43.880835Z",
-  "translation_session_id": "01a18965-1ed0-7368-97f0-887f7a8ea99f"
+  "translated_at": "2026-11-03T17:10:27.099384Z",
+  "translation_session_id": "01a1a262-106c-7052-aa35-ccaea7dce456"
 }

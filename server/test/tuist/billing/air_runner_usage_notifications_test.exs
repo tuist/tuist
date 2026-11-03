@@ -14,11 +14,15 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
   alias TuistTestSupport.Fixtures.BillingFixtures
 
   test "checks runner thresholds against the configured allowance" do
-    stub(Allowance, :free_monthly_minutes, fn -> 10 end)
+    stub(Allowance, :free_monthly_minutes, fn :macos -> 10 end)
 
     for {minutes, expected} <- [{0, nil}, {7, nil}, {8, 80}, {9, 80}, {10, 100}, {12, 100}] do
       user = AccountsFixtures.user_fixture()
-      stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: minutes * 60_000}] end)
+
+      stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ ->
+        [%{platform: :macos, total_units: minutes * 60_000}]
+      end)
+
       assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
       notification = Repo.get_by(AirUsageNotification, account_id: user.account.id, metric: :runner_minutes)
       assert (notification && notification.threshold) == expected
