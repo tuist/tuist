@@ -1543,6 +1543,8 @@ defmodule Tuist.Accounts do
         organization_id: organization_id,
         role: role
       })
+      # A duplicate must fail before it spends email quota.
+      |> Changeset.unsafe_validate_unique([:invitee_email, :organization_id], Repo)
       |> limit_invitation_email(email, user_id, organization_id)
       |> Repo.insert()
 
@@ -1557,7 +1559,8 @@ defmodule Tuist.Accounts do
     invitation
   end
 
-  def resend_invitation(%Invitation{} = invitation, %{url: url_fun}, opts \\ []) when is_function(url_fun, 1) do
+  def resend_invitation(%Invitation{} = invitation, %{url: url_fun, inviter: %User{} = inviter}, opts \\ [])
+      when is_function(url_fun, 1) do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
     invitation = Repo.preload(invitation, [:inviter, :organization])
     account = get_account_from_organization(invitation.organization)
@@ -1565,7 +1568,7 @@ defmodule Tuist.Accounts do
     result =
       invitation
       |> Invitation.resend_changeset(%{token: token})
-      |> limit_invitation_email(invitation.invitee_email, invitation.inviter_id, invitation.organization_id)
+      |> limit_invitation_email(invitation.invitee_email, inviter.id, invitation.organization_id)
       |> Repo.update()
 
     if match?({:ok, _invitation}, result) and Environment.mail_configured?() do
@@ -1604,6 +1607,7 @@ defmodule Tuist.Accounts do
 
         Multi.run(multi_acc, {:invitation, email}, fn repo, _changes ->
           invitation_changeset
+          |> Changeset.unsafe_validate_unique([:invitee_email, :organization_id], repo)
           |> limit_invitation_email(email, user_id, organization_id)
           |> repo.insert()
         end)
@@ -1634,36 +1638,33 @@ defmodule Tuist.Accounts do
     end)
   end
 
-  # Keep quotas independent of invitation rows: cancellation must not restore
-  # the email budget, and every caller (including bulk and resend) shares it.
-  # No-mail self-hosted installations can still create and copy links freely.
+  # Quotas live outside invitation rows, so cancelling does not refund them, and
+  # create, bulk and resend share them. No-mail installations skip them.
   defp limit_invitation_email(changeset, email, inviter_id, organization_id) do
     if changeset.valid? and Environment.mail_configured?() do
-      recipient = email |> String.trim() |> String.downcase() |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16()
+      recipient = :sha256 |> :crypto.hash(email |> String.trim() |> String.downcase()) |> Base.encode16()
 
-      Enum.reduce_while(
-        [
-          {"invitation:recipient:#{recipient}", 1, 1 / 300},
-          {"invitation:organization:#{organization_id}", 50, 50 / 3600},
-          {"invitation:inviter:#{inviter_id}", 50, 50 / 3600}
-        ],
-        changeset,
-        fn {key, capacity, refill_rate}, changeset ->
-          case RateLimit.hit(key, algorithm: :token_bucket, capacity: capacity, refill_rate: refill_rate) do
-            {:allow, _} ->
-              {:cont, changeset}
+      # Every allowed hit spends a token, so the shared organization bucket comes
+      # last: an exhausted inviter must not keep draining it.
+      buckets = [
+        {"invitation:recipient:#{recipient}", 1, 300},
+        {"invitation:inviter:#{inviter_id}", 50, 3600},
+        {"invitation:organization:#{organization_id}", 50, 3600}
+      ]
 
-            {:deny, retry_after} ->
-              {:halt,
-               Changeset.add_error(changeset, :invitee_email, "Too many invitations. Please try again later.",
-                 validation: :rate_limit,
-                 # Hammer's token-bucket backend returns a one-second retry
-                 # hint; advertise a full refill interval rather than a loop.
-                 retry_after: max(retry_after, ceil(1000 / refill_rate))
-               )}
-          end
+      Enum.find_value(buckets, changeset, fn {key, capacity, period} ->
+        case RateLimit.hit(key, algorithm: :token_bucket, capacity: capacity, refill_rate: capacity / period) do
+          {:allow, _} ->
+            nil
+
+          # Hammer's token-bucket hint is a fixed second, so advertise the time one token takes to refill.
+          {:deny, _} ->
+            Changeset.add_error(changeset, :invitee_email, "Too many invitations. Please try again later.",
+              validation: :rate_limit,
+              retry_after: div(period, capacity)
+            )
         end
-      )
+      end)
     else
       changeset
     end
@@ -2267,22 +2268,20 @@ defmodule Tuist.Accounts do
     # outside the transaction so a slow provider does not hold a database lock.
     {:ok, issued} =
       Repo.transaction(fn ->
-        user = Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE"))
+        Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE", select: u.id))
 
-        if recently_sent_reset_password_instructions?(user) do
-          :cooldown
-        else
+        if not recently_sent_reset_password_instructions?(user) do
           Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
           {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-          {Repo.preload(user, :account), encoded_token, Repo.insert!(user_token)}
+          {encoded_token, Repo.insert!(user_token)}
         end
       end)
 
     case issued do
-      :cooldown ->
+      nil ->
         :ok
 
-      {user, encoded_token, user_token} ->
+      {encoded_token, user_token} ->
         case UserNotifier.deliver_reset_password_instructions(%{
                user: user,
                reset_password_url: reset_password_url.(encoded_token)
@@ -2336,7 +2335,7 @@ defmodule Tuist.Accounts do
   def reset_user_password(token, attrs) when is_binary(token) do
     Repo.transaction(fn ->
       user = get_user_by_reset_password_token(token) || Repo.rollback(:invalid_token)
-      Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE"))
+      Repo.one(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE")) || Repo.rollback(:invalid_token)
       # Rebuild the expiry query after waiting for the lock. A token may have
       # expired, been replaced or consumed while this request was waiting.
       user = get_user_by_reset_password_token(token) || Repo.rollback(:invalid_token)

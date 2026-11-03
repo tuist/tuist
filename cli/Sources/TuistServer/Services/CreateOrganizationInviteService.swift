@@ -12,7 +12,7 @@ public protocol CreateOrganizationInviteServicing {
     ) async throws -> ServerInvitation
 }
 
-enum CreateOrganizationInviteServiceError: LocalizedError, Equatable {
+enum CreateOrganizationInviteServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
@@ -32,15 +32,7 @@ enum CreateOrganizationInviteServiceError: LocalizedError, Equatable {
 }
 
 public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing {
-    private let makeClient: @Sendable (URL) -> Client
-
-    public init() {
-        self.init(makeClient: { Client.authenticated(serverURL: $0) })
-    }
-
-    init(makeClient: @escaping @Sendable (URL) -> Client) {
-        self.makeClient = makeClient
-    }
+    public init() {}
 
     public func createOrganizationInvite(
         organizationName: String,
@@ -48,7 +40,7 @@ public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing
         role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         serverURL: URL
     ) async throws -> ServerInvitation {
-        let client = makeClient(serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.createInvitation(
             .init(

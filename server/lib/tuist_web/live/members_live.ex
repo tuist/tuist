@@ -591,7 +591,10 @@ defmodule TuistWeb.MembersLive do
          :ok <-
            Authorization.authorize(:invitation_create, socket.assigns.current_user, socket.assigns.selected_account),
          {:ok, invitation} <-
-           Accounts.resend_invitation(invitation, %{url: &url(~p"/auth/invitations/#{&1}")}) do
+           Accounts.resend_invitation(invitation, %{
+             url: &url(~p"/auth/invitations/#{&1}"),
+             inviter: socket.assigns.current_user
+           }) do
       page = if socket.assigns.search_query == "", do: socket.assigns.page, else: 1
 
       socket =

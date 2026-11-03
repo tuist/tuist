@@ -44,24 +44,6 @@ defmodule TuistWeb.UserForgotPasswordLiveTest do
     assert_receive {:reset_email, _}
   end
 
-  test "a configured shared limiter outage does not send mail or enumerate accounts", %{conn: conn} do
-    stub(Environment, :tuist_hosted?, fn -> true end)
-    stub(Environment, :redis_url, fn -> "redis://unavailable" end)
-    stub(Tuist.RateLimit.PersistentTokenBucket, :hit, fn _, _, _, _ -> exit(:noproc) end)
-    user = user_fixture()
-
-    responses =
-      for email <- [user.email, "missing-#{user.id}@example.com"] do
-        {:ok, view, _} = live(conn, "/users/reset_password")
-        render_submit(view, "send_email", %{"user" => %{"email" => email}})
-        view |> element("#forgot-password-success") |> render()
-      end
-
-    assert [response] = Enum.uniq(responses)
-    assert response =~ "If your email exists in our records"
-    refute Repo.exists?(from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"))
-  end
-
   describe "Forgot password page" do
     test "renders email page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password")

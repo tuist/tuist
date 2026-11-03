@@ -85,10 +85,8 @@ defmodule TuistWeb.UserForgotPasswordLive do
     """
   end
 
-  def password_reset_session(conn) do
-    requester = conn |> RemoteIp.get() |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16()
-    %{"reset_requester" => requester}
-  end
+  # Keys the requester limit on the address, like the sibling auth limiters.
+  def password_reset_session(conn), do: %{"reset_requester" => RemoteIp.get(conn)}
 
   def mount(_params, session, socket) do
     if Environment.email_auth_enabled?() do

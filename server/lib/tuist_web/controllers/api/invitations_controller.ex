@@ -148,11 +148,11 @@ defmodule TuistWeb.API.InvitationsController do
 
           {:error, changeset} ->
             case changeset.errors[:invitee_email] do
-              {_message, [validation: :rate_limit, retry_after: retry_after]} ->
+              {message, [validation: :rate_limit, retry_after: retry_after]} ->
                 conn
-                |> put_resp_header("retry-after", to_string(max(1, ceil(retry_after / 1000))))
+                |> put_resp_header("retry-after", to_string(retry_after))
                 |> put_status(:too_many_requests)
-                |> json(%{message: "Too many invitations. Please try again later."})
+                |> json(%{message: message})
 
               _ ->
                 conn |> put_status(:bad_request) |> json(%{message: "The invitation could not be created."})

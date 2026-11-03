@@ -1,6 +1,6 @@
 defmodule Tuist.Accounts.PasswordResetConcurrencyTest do
   use ExUnit.Case, async: false
-  use TuistTestSupport.Cases.LiveCase
+  use Mimic
 
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures

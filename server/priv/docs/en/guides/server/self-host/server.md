@@ -534,7 +534,7 @@ Tuist requires email functionality for user authentication and transactional not
 > [!NOTE]
 > **Email quotas and password-reset links**
 >
-> When email is configured, organization invitations share email quotas across creating, bulk-inviting and resending: one email per recipient address every five minutes (across organizations), and a burst of 50 refilling at 50 per hour for each organization and each inviter. Cancelling an invitation does not restore the budget, and an exhausted budget returns HTTP `429` with `Retry-After` from the invitations API. Installations without email do not consume these quotas, so invitation links can still be created and copied. Configure shared Valkey for deployment-wide quotas with multiple replicas; otherwise quotas are approximate. If a configured shared store is unavailable, invitation emails are denied rather than sent unmetered. Password-reset links expire after 15 minutes, including when an already-open reset form is submitted.
+> When email is configured, invitation emails (created, bulk or resent) are limited to one per recipient every five minutes, and to bursts of 50 refilling at 50 per hour per organization and per inviter. Cancelling an invitation does not restore the budget, and the invitations API answers an exhausted budget with `429` and `Retry-After`. With multiple replicas, configure shared Valkey for deployment-wide quotas; if it is configured but unavailable, invitation emails are refused. Password-reset links expire after 15 minutes.
 
 
 ### Git platform configuration {#git-platform-configuration}

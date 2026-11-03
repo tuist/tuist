@@ -1591,7 +1591,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _resent_invitation} =
         Accounts.resend_invitation(
           invitation,
-          %{url: fn token -> "/auth/invitations/#{token}" end},
+          %{url: fn token -> "/auth/invitations/#{token}" end, inviter: user},
           token: "new-token"
         )
 
@@ -1634,6 +1634,19 @@ defmodule Tuist.AccountsTest do
       assert invitation.invitee_email == "test@tuist.io"
       assert invitation.inviter_type == "User"
       assert invitation.organization_id == organization.id
+    end
+
+    test "rejects a duplicate invitation before charging the email quota" do
+      stub(Environment, :mail_configured?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      opts = %{inviter: user, to: organization, url: fn token -> token end}
+      email = "duplicate-#{user.id}@tuist.io"
+
+      {:ok, _} = Accounts.invite_user_to_organization(email, opts)
+
+      assert {:error, changeset} = Accounts.invite_user_to_organization(email, opts)
+      assert {"has already been taken", _} = changeset.errors[:invitee_email]
     end
 
     test "defaults the invited role to user and records an explicit viewer role" do
@@ -1723,7 +1736,7 @@ defmodule Tuist.AccountsTest do
       {:ok, got} =
         Accounts.resend_invitation(
           invitation,
-          %{url: fn token -> "/auth/invitations/#{token}" end},
+          %{url: fn token -> "/auth/invitations/#{token}" end, inviter: user},
           token: "new-token"
         )
 
