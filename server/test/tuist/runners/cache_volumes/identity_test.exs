@@ -234,6 +234,9 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
 
     assert {:ok, %{provider: "gitlab", scope_id: "123", repository_id: 123, trusted: true, writer_branch: "main"}} =
              Identity.resolve(%{provider: "gitlab", account_id: 7, workflow_job_id: 10})
+
+    expect(GitLab, :get_job, fn 10 -> %{assigned | cache_volume_identity: stored, payload: nil} end)
+    assert {:error, :unavailable} = Identity.resolve(%{provider: "gitlab", account_id: 7, workflow_job_id: 10})
   end
 
   test "GitLab stores nothing when GitLab cannot answer at acquisition" do

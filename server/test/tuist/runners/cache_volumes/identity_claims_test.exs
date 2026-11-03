@@ -3,6 +3,7 @@ defmodule Tuist.Runners.CacheVolumes.IdentityClaimsTest do
 
   import Mimic
 
+  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
   alias Tuist.Repo
@@ -83,6 +84,14 @@ defmodule Tuist.Runners.CacheVolumes.IdentityClaimsTest do
     assert {:ok, %{trusted: false, same_repository: true, writer_branch: "v1.0"}} = Identity.resolve(job)
   end
 
+  test "a tag named like the default branch never saves as the default branch", %{job: job} do
+    default_branch("main")
+    reject(&GitHubClient.get_workflow_run/1)
+
+    bind(job, %{"ref" => "refs/tags/main", "ref_type" => "tag", "event_name" => "workflow_dispatch"})
+    assert {:ok, %{trusted: false, same_repository: true, writer_branch: "main"}} = Identity.resolve(job)
+  end
+
   test "the default branch the volumes recorded stands in when GitHub cannot answer", %{account: account, job: job} do
     bind(job, %{"event_name" => "schedule"})
     stub(GitHubClient, :get_repository, fn _, _ -> {:error, :server_error} end)
@@ -145,6 +154,14 @@ defmodule Tuist.Runners.CacheVolumes.IdentityClaimsTest do
       assert {:error, :unavailable} = Identity.resolve(job)
       Repo.delete!(session)
     end
+  end
+
+  test "stored claims stop applying once the account loses the flag", %{job: job} do
+    bind(job, %{})
+    stub(FeatureFlags, :runner_oidc_execution_enabled?, fn _ -> false end)
+    expect(GitHubClient, :get_workflow_run, fn _ -> {:error, :server_error} end)
+
+    assert {:error, :unavailable} = Identity.resolve(job)
   end
 
   test "a session bound by GitHub's report alone resolves through the run as before", %{job: job} do

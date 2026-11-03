@@ -8,9 +8,11 @@ defmodule Tuist.Runners.ExecutionTokens do
   `id-token: write`, and the node agent forwards it with the pod it came from.
   GitHub signs the token for one job, whose id is its `check_run_id`, so it is
   the one job-supplied input that may bind a session: whoever presents it
-  already runs code in that job. The token's job must be one the account's
-  `queued` webhook reported, in the same repository, and no other open session
-  may already be bound to it.
+  already runs code in that job. The token names no runner, so it never
+  overrides GitHub's own report: the token's job must be one the account's
+  `queued` webhook reported, in the same repository and not yet completed; the
+  session must not be bound to another job; and no other session may be bound
+  to the token's job.
 
   Binding goes through `Dispatch.record_execution/3`, as the webhook does, for
   accounts with `FeatureFlags.runner_oidc_execution_enabled?/1`, and the
@@ -43,8 +45,9 @@ defmodule Tuist.Runners.ExecutionTokens do
          %WorkflowJob{} = job <-
            Repo.get_by(WorkflowJob, workflow_job_id: workflow_job_id, account_id: session.account_id, provider: "github"),
          true <- same_repository?(job.repository, claims["repository"]),
-         false <- bound_elsewhere?(session, workflow_job_id) do
-      record(session, workflow_job_id, claims)
+         true <- job.status != "completed",
+         :ok <- bind(session, workflow_job_id, claims) do
+      :ok
     else
       {:error, reason} ->
         Logger.info("runners: execution token rejected", pod: pod, reason: inspect(reason))
@@ -57,15 +60,37 @@ defmodule Tuist.Runners.ExecutionTokens do
 
   def prove(_params), do: {:error, :unverified}
 
-  defp record(%RunnerSession{} = session, workflow_job_id, claims) do
-    if session.executed_workflow_job_id not in [nil, workflow_job_id] do
-      Logger.warning("runners: execution token disagrees with the recorded execution",
-        runner_name: session.runner_name,
-        workflow_job_id: workflow_job_id,
-        recorded_workflow_job_id: session.executed_workflow_job_id
-      )
-    end
+  # Under the per-account lock `Claims.record_execution/3` takes for GitHub's
+  # reports, so two tokens, or a token and a report, never bind concurrently.
+  defp bind(%RunnerSession{id: id, account_id: account_id}, workflow_job_id, claims) do
+    {:ok, result} =
+      Repo.transaction(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["runner_executions:#{account_id}"])
 
+        case Repo.one(from(s in RunnerSession, where: s.id == ^id and is_nil(s.ended_at), lock: "FOR UPDATE")) do
+          nil ->
+            {:error, :session_ended}
+
+          %RunnerSession{executed_workflow_job_id: recorded} = session when recorded not in [nil, workflow_job_id] ->
+            Logger.warning("runners: execution token disagrees with the recorded execution",
+              runner_name: session.runner_name,
+              workflow_job_id: workflow_job_id,
+              recorded_workflow_job_id: recorded
+            )
+
+            {:error, :recorded_elsewhere}
+
+          session ->
+            if bound_elsewhere?(session, workflow_job_id),
+              do: {:error, :bound_elsewhere},
+              else: record(session, workflow_job_id, claims)
+        end
+      end)
+
+    result
+  end
+
+  defp record(%RunnerSession{} = session, workflow_job_id, claims) do
     if FeatureFlags.runner_oidc_execution_enabled?(%Account{id: session.account_id}) do
       outcome = Dispatch.record_execution(session.runner_name, workflow_job_id, session.account_id)
 
@@ -126,9 +151,7 @@ defmodule Tuist.Runners.ExecutionTokens do
   defp bound_elsewhere?(%RunnerSession{id: id, account_id: account_id}, workflow_job_id) do
     Repo.exists?(
       from(s in RunnerSession,
-        where:
-          s.account_id == ^account_id and s.executed_workflow_job_id == ^workflow_job_id and s.id != ^id and
-            is_nil(s.ended_at)
+        where: s.account_id == ^account_id and s.executed_workflow_job_id == ^workflow_job_id and s.id != ^id
       )
     )
   end

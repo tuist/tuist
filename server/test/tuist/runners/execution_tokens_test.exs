@@ -128,6 +128,46 @@ defmodule Tuist.Runners.ExecutionTokensTest do
     assert {:error, :unverified} = ExecutionTokens.prove(params)
   end
 
+  test "never overrides the job GitHub reported for the session", %{executed: executed, session: session, params: params} do
+    reported = job(%{id: session.account_id}, "org/repo")
+    Repo.update_all(RunnerSession, set: [executed_workflow_job_id: reported.workflow_job_id])
+    expect(OIDC, :github_actions_claims, fn _, _ -> {:ok, claims(executed)} end)
+    stub(FeatureFlags, :runner_oidc_execution_enabled?, fn _ -> true end)
+    reject(&Dispatch.record_execution/3)
+
+    assert {:error, :unverified} = ExecutionTokens.prove(params)
+
+    assert %{executed_workflow_job_id: reported_id, execution_identity: nil} = Repo.get!(RunnerSession, session.id)
+    assert reported_id == reported.workflow_job_id
+  end
+
+  test "rejects a job an ended session was bound to, or one already completed", %{
+    executed: executed,
+    session: session,
+    params: params
+  } do
+    stub(FeatureFlags, :runner_oidc_execution_enabled?, fn _ -> true end)
+    reject(&Dispatch.record_execution/3)
+
+    ended =
+      Repo.insert!(%{
+        session
+        | id: nil,
+          pod_name: "other-pod",
+          runner_name: "runner-2",
+          executed_workflow_job_id: executed.workflow_job_id,
+          ended_at: DateTime.utc_now()
+      })
+
+    expect(OIDC, :github_actions_claims, fn _, _ -> {:ok, claims(executed)} end)
+    assert {:error, :unverified} = ExecutionTokens.prove(params)
+
+    Repo.delete!(ended)
+    Repo.update_all(WorkflowJob, set: [status: "completed"])
+    expect(OIDC, :github_actions_claims, fn _, _ -> {:ok, claims(executed)} end)
+    assert {:error, :unverified} = ExecutionTokens.prove(params)
+  end
+
   test "rejects a token that does not verify", %{params: params} do
     expect(OIDC, :github_actions_claims, fn _, _ -> {:error, :invalid_audience} end)
     reject(&Dispatch.record_execution/3)

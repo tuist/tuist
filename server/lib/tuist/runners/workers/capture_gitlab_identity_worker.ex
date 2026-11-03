@@ -4,9 +4,10 @@ defmodule Tuist.Runners.Workers.CaptureGitLabIdentityWorker do
   (`Tuist.Runners.CacheVolumes.Identity.capture_gitlab/1`), while its job token
   is fresh, so allocation does not have to ask GitLab.
 
-  `Tuist.Runners.GitLab` enqueues it for every dispatched assignment, outside
-  the acquisition itself, so a GitLab failure here never fails the job: without
-  a captured identity, allocation resolves it live.
+  `Tuist.Runners.GitLab` enqueues it in the transaction that stores every
+  dispatched assignment, and it calls GitLab outside the acquisition itself, so
+  a GitLab failure here never fails the job: without a captured identity,
+  allocation resolves it live.
   """
   use Oban.Worker, queue: :webhooks, max_attempts: 3
 

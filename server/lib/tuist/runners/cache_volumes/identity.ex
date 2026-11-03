@@ -3,6 +3,8 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
+  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
   alias Tuist.Repo
@@ -14,7 +16,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   alias Tuist.Runners.RunnerSession
   alias Tuist.VCS
 
-  @default_branch_ttl to_timeout(hour: 1)
+  @default_branch_ttl to_timeout(minute: 5)
 
   def resolve(%{provider: "github"} = job) do
     case execution_identity(job) do
@@ -46,7 +48,8 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
 
   def resolve(%{provider: "gitlab", account_id: account_id} = job) do
     case GitLab.get_job(job.workflow_job_id) do
-      %GitLab.Job{account_id: ^account_id, cache_volume_identity: %{} = identity} ->
+      %GitLab.Job{account_id: ^account_id, payload: payload, cache_volume_identity: %{} = identity}
+      when is_binary(payload) ->
         stored_gitlab_identity(identity)
 
       %GitLab.Job{account_id: ^account_id} = assigned ->
@@ -115,8 +118,15 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   defp stored_gitlab_identity(_identity), do: {:error, :unavailable}
 
   # The claims of the GitHub OIDC token that bound the job's session
-  # (`Tuist.Runners.ExecutionTokens`), when that token named this job.
+  # (`Tuist.Runners.ExecutionTokens`), when that token named this job and the
+  # account still has the flag that lets tokens bind.
   defp execution_identity(job) do
+    if FeatureFlags.runner_oidc_execution_enabled?(%Account{id: job.account_id}) do
+      stored_execution_identity(job)
+    end
+  end
+
+  defp stored_execution_identity(job) do
     Repo.one(
       from(s in RunnerSession,
         where:
@@ -131,7 +141,9 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
 
   # Push, schedule and workflow_dispatch runs are runs of the repository itself,
   # so the token's claims settle their identity; only the default branch, which
-  # no claim carries, comes from GitHub. A pull request still needs the run to
+  # no claim carries, comes from GitHub. Only a branch ref can be the default
+  # branch: a tag of the same name matches writer patterns but never saves as
+  # the default branch. A pull request still needs the run to
   # tell a fork from the repository itself; when GitHub cannot answer, the job
   # reads its repository's volumes and saves nothing.
   defp claimed_identity(job, claims) do
@@ -148,7 +160,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
             {:ok,
              %{
                repository_id: repository_id,
-               trusted: branch == default,
+               trusted: claims["ref"] == "refs/heads/" <> default,
                same_repository: true,
                default_branch: default,
                writer_branch: branch
@@ -183,7 +195,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   defp claimed_branch(%{"ref" => "refs/tags/" <> tag}) when tag != "", do: tag
   defp claimed_branch(_claims), do: nil
 
-  # GitHub's answer, cached for an hour; when GitHub cannot answer, the default
+  # GitHub's answer, cached for five minutes; when GitHub cannot answer, the default
   # branch the repository's volumes last recorded.
   defp default_branch(job, repository_id) do
     fetched =

@@ -162,8 +162,6 @@ defmodule Tuist.Runners.GitLab do
       {{:ok, job}, {:ok, resolved}} ->
         # Best effort: the executor writes the same bytes before its own log.
         Client.write_trace(job.url, payload, waiting_trace(job, payload, resolved))
-        # Best effort: without it, allocation asks GitLab itself.
-        CaptureGitLabIdentityWorker.enqueue(job)
         {:ok, 1}
 
       {{:ok, job}, {:error, _}} ->
@@ -220,8 +218,12 @@ defmodule Tuist.Runners.GitLab do
         })
 
       case target do
-        {:ok, resolved} -> enqueue_assignment(job, account, resolved, payload)
-        {:error, _} -> :ok
+        {:ok, resolved} ->
+          enqueue_assignment(job, account, resolved, payload)
+          {:ok, _} = CaptureGitLabIdentityWorker.enqueue(job)
+
+        {:error, _} ->
+          :ok
       end
 
       job
