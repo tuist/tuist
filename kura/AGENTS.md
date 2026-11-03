@@ -86,12 +86,13 @@ does not repair embedded/native verification or qualify running processes.
   While the source still serves, that walk also keeps a fixed 2 MiB filter of
   listed ids, retained bytes per segment sealed before it began, the oldest
   listed version and the missing bytes. When bodies are missing it then
-  compacts the least-retained of those segments (at most three quarters
-  retained): it copies the filtered artifacts into the active segment without a
-  sibling hint and reclaims the segment only when none of them is left. It
-  copies a segment only while the store admits the copy plus 64 MiB without
-  rotating out anything at or after that version, and stops once the missing
-  bytes fit with 1 GiB to spare.
+  compacts the least-retained of those segments (any whose reclaim frees at
+  least 64 MiB): it copies the filtered artifacts into the active segment
+  without a sibling hint and reclaims the segment only when none of them is
+  left. It copies a segment only while the store admits the copy plus 64 MiB
+  without rotating out anything at or after that version, and stops once the
+  bytes still missing fit with 1 GiB to spare. The applier repeats this before
+  every repair batch of that pass, against the missing bytes not yet applied.
   Never compact under the frozen source.
   Repeat the retained walk if eviction committed during it, including cascaded
   action-cache removals. Publish the eviction generation from the blocking

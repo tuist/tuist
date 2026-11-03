@@ -172,10 +172,13 @@ All Quiescing repair passes share its original 300-second deadline. Equal-sized
 replicas converge through compaction during preparation: when the destination
 lacks records, it copies the source-retained records out of the sealed segments
 that hold the least of them and reclaims those segments, until what is missing
-fits (`kura.handover.compacted` logs segments reclaimed, bytes copied and why it
-stopped). It copies a segment only while the copy plus 64 MiB fits without
-rotating out retained data, so a full ring starts from the active segment's
-remaining room, and it stops once the missing bytes fit with 1 GiB to spare.
+fits (`kura.handover.compacted` logs the phase, segments reclaimed, bytes copied
+and why it stopped). Any segment whose reclaim frees at least 64 MiB qualifies.
+It copies a segment only while the copy plus 64 MiB fits without rotating out
+retained data, so a full ring starts from the active segment's remaining room,
+and it stops once the missing bytes fit with 1 GiB to spare. Before each repair
+batch it compacts again whenever the feed writes and repairs since then leave
+less than that for what is still missing.
 The final full-corpus check still refuses promotion when required data remains
 missing. When the destination knows
 the source's oldest retained version, a counted eviction or a record refused for
