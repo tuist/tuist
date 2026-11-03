@@ -2119,8 +2119,8 @@ defmodule Tuist.Accounts do
   @doc """
   Generates a session token.
   """
-  def generate_user_session_token(user) do
-    {token, user_token} = UserToken.build_session_token(user)
+  def generate_user_session_token(user, auth \\ %{}) do
+    {token, user_token} = UserToken.build_session_token(user, auth)
     Repo.insert!(user_token)
     token
   end
@@ -2155,12 +2155,62 @@ defmodule Tuist.Accounts do
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
-    {:ok, query} = UserToken.verify_session_token_query(token)
+    case get_user_session(token, opts) do
+      nil -> nil
+      session -> session.user
+    end
+  end
 
-    case query |> Repo.one() |> Repo.preload(preload) do
-      %User{active: false} -> nil
-      user -> user
+  @doc """
+  Loads authoritative browser-session state. Only user-initiated requests
+  and LiveView events touch activity; checks, heartbeats and async work do not.
+  """
+  def get_user_session(token, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    session =
+      Repo.one(
+        from session in UserToken.valid_session_query(token),
+          join: user in assoc(session, :user),
+          left_join: factor in Tuist.Accounts.UserMFA,
+          on: factor.user_id == user.id,
+          where: user.active,
+          where: is_nil(factor.confirmed_at) or session.mfa_verified_at >= factor.confirmed_at,
+          preload: [user: user]
+      )
+
+    case session do
+      nil -> nil
+      session -> session |> Repo.preload(user: preload) |> maybe_touch_user_session(opts)
+    end
+  end
+
+  defp maybe_touch_user_session(session, opts) do
+    now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+    checkpoint_before = DateTime.add(now, -60)
+
+    if Keyword.get(opts, :touch, false) and
+         (is_nil(session.last_active_at) or DateTime.compare(session.last_active_at, checkpoint_before) != :gt) do
+      # Recheck both deadlines and the checkpoint age in the write: a concurrent
+      # request must never resurrect an expired/revoked session, write twice in
+      # one minute, or move a newer checkpoint backwards.
+      query =
+        from s in UserToken.valid_session_query(session.token),
+          where: is_nil(s.last_active_at) or s.last_active_at <= ^checkpoint_before
+
+      case Repo.update_all(query, set: [last_active_at: now]) do
+        {1, _} ->
+          %{session | last_active_at: now}
+
+        {0, _} ->
+          # Another request checkpointed first, or the session ended meanwhile.
+          case Repo.one(UserToken.valid_session_query(session.token)) do
+            nil -> nil
+            current -> %{session | last_active_at: current.last_active_at}
+          end
+      end
+    else
+      session
     end
   end
 

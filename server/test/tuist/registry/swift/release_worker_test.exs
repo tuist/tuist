@@ -215,6 +215,89 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
+  test "publishes the release with the fallback credential when GitHub forbids the installation token" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Registry, :swift_registry_github_fallback_token, fn "token" -> "pat" end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, 2, fn
+      "apple/swift-argument-parser", "token", "v1.0.0", _ -> {:error, {:http_error, 403}}
+      "apple/swift-argument-parser", "pat", "v1.0.0", _ -> {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "pat", "Package.swift", "v1.0.0", _ -> {:ok, @default_manifest_content}
+      "apple/swift-argument-parser", "pat", ".gitmodules", "v1.0.0", _ -> {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser", "pat", "v1.0.0", archive_path, _ ->
+      write_basic_zipball(archive_path)
+      :ok
+    end)
+
+    stub_archive_upload(3)
+
+    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
+      assert is_binary(metadata["releases"]["1.0.0"]["checksum"])
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "fails a forbidden release without a skip record when there is no fallback credential" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Registry, :swift_registry_github_fallback_token, fn "token" -> nil end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:error, {:http_error, 403}}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+    capture_log(fn ->
+      assert {:error, {:http_error, 403}} =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end)
+  end
+
   test "defers the job to the reported quota reset when GitHub rate limits a manifest request" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
