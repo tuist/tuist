@@ -52,7 +52,7 @@ does not repair embedded/native verification or qualify running processes.
   Completion only schedules the unchanged bounded Quiescing barrier; cancellation,
   expired grants, epoch/identity changes and drain must stop blocked peer I/O.
   A named destination reconciles the source’s complete retained index before
-  taking its hold. Keep this pass serialized, bounded by normal replication
+  taking its hold, unless the delta repair below applies. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
   subject to store capacity/version/tombstone rules. Repair outlives
   the request: a disconnected begin caller must not cancel/restart the
@@ -74,6 +74,9 @@ does not repair embedded/native verification or qualify running processes.
   only the records the destination names. A version's bytes never change, and a
   manifest exists only while its body does, so metadata proves held content.
   Keep the full-verification fallback for peers that do not negotiate this.
+  Up to four metadata batches await answers at once; the destination looks
+  each up with one multi-get, and records named for full verification are still
+  sent one batch at a time in corpus order, before the next answer is used.
   Before named repair, a complete source-index walk may reclaim sealed,
   unpinned destination-only segments when bodies are missing. Track segment
   identities rather than buffering the corpus; preserve every segment containing
@@ -102,6 +105,15 @@ does not repair embedded/native verification or qualify running processes.
   reports `barrier_failure` and the controller restores Serving before the
   deadline. Every other rejection stays a retryable 409, and older peers
   without the frontier keep the deadline-bounded behavior.
+  The walk lowers that watch to each page's oldest record before checking it,
+  and remembers its feed cursor on the source and up to 100,000 missing
+  records. When it reached the end of the index and nothing counted was evicted
+  since it began, the frozen repair fetches only those records plus the record
+  rows the source's feed added after that cursor, read once without waiting.
+  A different incarnation, a trimmed floor or too many rows runs the full walk.
+  The delta repair skips the revisit on uncounted evictions; the full-corpus
+  metadata verification still checks every retained record before a receipt,
+  so anything the delta missed fails the attempt rather than the transfer.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.

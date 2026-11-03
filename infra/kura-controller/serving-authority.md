@@ -136,7 +136,9 @@ verification for that record; readers after cutover get the newer write.
 A preparing destination also verifies retained content against the serving
 source after its repair walk, stopping 30 seconds before the intent deadline.
 The barrier then checks only metadata for record versions verified this way
-and verifies the rest, mostly writes accepted after preparation, in full. A
+and verifies the rest, mostly writes accepted after preparation, in full. Up to
+four metadata batches are answered at once, each with one manifest multi-get on
+the destination; full verification stays one batch at a time. A
 same-version content mismatch fails preparation without pausing the primary. Older destinations
 retain the direct-quiescence path. Upgrade all controller replicas and the clean
 standby before requesting this flow; the source may remain on the earlier runtime.
@@ -176,6 +178,17 @@ begin and every later one for the intent with 422; the source reports it as
 `barrier_failure` and the controller restores Serving with "Named standby cannot
 complete the retained barrier; retained old primary" instead of waiting for the
 deadline. Every other rejection is retried until the deadline.
+
+A destination whose content walk reached the end of the source's index skips
+the full frozen walk when nothing counted was evicted since the walk began. It
+remembers up to 100,000 records the walk found missing and its feed cursor on
+the source when the walk began. The frozen repair fetches only those records
+and the record rows the source's feed added after that cursor
+(`kura.handover.delta_repair` logs the count). If the feed no longer reaches
+that cursor, or holds too many rows, the full walk runs
+(`kura.handover.delta_unavailable`). Either way the source still verifies the
+metadata of every retained record before any receipt, so a record the shorter
+repair missed fails the attempt; it is never transferred incomplete.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification
