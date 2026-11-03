@@ -83,6 +83,15 @@ does not repair embedded/native verification or qualify running processes.
   a source-listed local record, including newer local versions. Failed/incomplete
   listing must reclaim nothing. Durable retirements use supervised, resumable
   cleanup; active segments, capacity limits and ordinary FIFO rotation stay intact.
+  While the source still serves, that walk also keeps a fixed 2 MiB filter of
+  listed ids, retained bytes per segment sealed before it began, the oldest
+  listed version and the missing bytes. When bodies are missing it then
+  compacts the least-retained of those segments (at most three quarters
+  retained): it copies the filtered artifacts into the active segment without a
+  sibling hint and reclaims the segment only when none of them is left. It
+  copies only while the store admits the copy plus 1 GiB without rotating out
+  anything at or after that version, and stops once the missing bytes fit.
+  Never compact under the frozen source.
   Repeat the retained walk if eviction committed during it, including cascaded
   action-cache removals. Publish the eviction generation from the blocking
   commit and compare it under the same lock that acquires the destination hold.
