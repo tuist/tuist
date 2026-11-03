@@ -47,15 +47,15 @@ func (r *KuraInstanceReconciler) reconcileFencedDataStorageResize(ctx context.Co
 		return true, nil
 	}
 
-	undersized, deleting, err := r.undersizedDataVolumes(ctx, instance, desired)
+	replacements, deleting, err := r.dataVolumesToReplace(ctx, instance, desired)
 	if err != nil {
 		return false, err
 	}
 	if deleting {
 		return true, nil
 	}
-	var standbys []undersizedDataVolume
-	for _, volume := range undersized {
+	var standbys []dataVolumeReplacement
+	for _, volume := range replacements {
 		if fmt.Sprintf("%s-%d", instance.Name, volume.ordinal) != holder {
 			standbys = append(standbys, volume)
 		}
@@ -88,13 +88,13 @@ func (r *KuraInstanceReconciler) reconcileFencedDataStorageResize(ctx context.Co
 	}
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
 		name := fmt.Sprintf("%s-%d", instance.Name, ordinal)
-		if name != holder && !ready[name] && !undersizedOrdinal(standbys, ordinal) {
+		if name != holder && !ready[name] && !replacedOrdinal(standbys, ordinal) {
 			// A standby already rebuilt and coming back: wait for it rather
 			// than take a second one down.
 			return true, nil
 		}
 	}
-	return true, r.rebuildDataVolume(ctx, instance, standbys[0], desired, false)
+	return true, r.rebuildDataVolume(ctx, instance, standbys[0], false)
 }
 
 // authorityTransitionOpen reports a planned handover the grant has not yet
@@ -145,7 +145,7 @@ func (r *KuraInstanceReconciler) settledFencedHolder(ctx context.Context, instan
 	return grant.PodName, grant.LastHandover, nil
 }
 
-func undersizedOrdinal(volumes []undersizedDataVolume, ordinal int32) bool {
+func replacedOrdinal(volumes []dataVolumeReplacement, ordinal int32) bool {
 	for _, volume := range volumes {
 		if volume.ordinal == ordinal {
 			return true

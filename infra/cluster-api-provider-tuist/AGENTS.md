@@ -3492,3 +3492,34 @@ canary/rollback checks. The controller pauses only its configured Deployment,
 evicts through namespace-scoped RBAC, and waits for the guest drain before an
 install. Failures retain owned holds; never clear a fleet Lease just to advance
 another host. No release-triggered or scheduled OS policy is enabled.
+
+## Kura LVM first-boot layout
+
+LVM installation requires the explicit `tuist.dev/kura-storage-layout: lvm-v1`
+annotation on the infrastructure Machine or rack host (or `rack-seed --kura-lvm`
+for a deliberately prepared standalone seed). For a rented pool, set it on the
+MachineDeployment's `spec.template.metadata.annotations`; CAPI passes Machine
+annotations to the cloned infrastructure Machine. Do not put it on the outer
+infrastructure-template metadata. Select replacement pools only after planning
+landing capacity; no managed pool opts in by
+default. Cache taints alone retain the full shared-XFS data disk. Annotating a
+joined host does not convert it.
+
+Explicitly enrolled rented Linux cache hosts (both `tuist.dev/kura-cache` and
+`tuist.dev/runner-cache` taints) convert their installer's empty XFS `/data` md
+filesystem to the `kura-volumes` VG before quota setup and kubelet binds.
+When the installer omits the data mount/fstab entry, bootstrap accepts exactly
+one unmounted XFS md filesystem and inspects it read-only; ambiguous devices,
+populated filesystems and a populated unmounted `/data` directory are refused.
+`controllers/linux/kura_lvm_setup.sh` creates a 128 GiB XFS `data` LV with
+`prjquota`; the remaining extents back CSI volumes. It journals the source
+before wiping, resumes interrupted PV/VG/LV creation, and refuses a populated
+filesystem or an already-joined legacy host. Existing nodes require a reinstall.
+The Vultr conversion uses the same function for its detached non-ESP RAID leg;
+the root still loses its mirror, and conversion gates require the VG. Existing
+successful Vultr conversion records are not invalidated by this change.
+Explicitly enrolled rack storage installs create the same VG and 128 GiB data LV directly through
+curtin in `internal/rackinstall/seed.go`, for both USB and resident-installer
+layouts. Existing rack disks are never converted by bootstrap or drift. Machine deletion also reaps claims pinned
+by `topology.kura-volumes.tuist.dev/node`. Evacuate workloads and retained claims
+before deleting an outgoing Machine; prepare replacement capacity first.
