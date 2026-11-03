@@ -42,20 +42,25 @@ struct CargoReporting {
             try? await process.capture(executable, arguments: arguments, environment: environment, directory: directory)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        async let branch = capture("git", ["rev-parse", "--abbrev-ref", "HEAD"])
-        async let commit = capture("git", ["rev-parse", "HEAD"])
+        // One `rev-parse` answers both: the commit, then the branch.
+        async let revisions = capture("git", ["rev-parse", "HEAD", "--abbrev-ref", "HEAD"])
         async let origin = capture("git", ["remote", "get-url", "origin"])
-        async let rustVersion = capture("rustc", ["--version"])
-        result["git_branch"] = await branch
-        result["git_commit_sha"] = await commit
+        let lines = await revisions?.split(separator: "\n").map(String.init) ?? []
+        result["git_branch"] = lines.count == 2 ? lines[1] : nil
+        result["git_commit_sha"] = lines.count == 2 ? lines[0] : nil
         result["git_remote_url_origin"] = await origin
         result["ci_provider"] = ci.map { String(describing: $0.provider) }
         result["ci_run_id"] = ci?.runId
         result["ci_project_handle"] = ci?.projectHandle
         result["ci_host"] = ci?.host
         result["git_ref"] = environment["GITHUB_REF"] ?? environment["CI_COMMIT_REF_NAME"]
-        result["rust_version"] = await rustVersion
         return result
+    }
+
+    /// `rustc --version`, for sessions that did not resolve the toolchain's identity, whose `-vV` starts with it.
+    func rustVersion() async -> String? {
+        try? await process.capture("rustc", arguments: ["--version"], environment: environment, directory: directory)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func build(

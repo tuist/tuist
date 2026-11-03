@@ -220,13 +220,16 @@ public struct CargoCommandService {
                     process: CargoProcess(runner: runner)
                 )
             }
+            let served = hookServer != nil
+            defer { if served { CargoInputHasher.stopServing(session: root) } }
             let identities = cache == nil ? nil : Task { [environment, runner] in
                 let process = CargoProcess(runner: runner)
                 let directory = context.directory
                 if let identity = await toolchain?.value, let session = environment["TUIST_CARGO_SESSION"] {
                     identity.prewarm(
                         session: URL(fileURLWithPath: session),
-                        cache: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) }
+                        cache: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) },
+                        served: served
                     )
                 }
                 #if os(macOS)
@@ -276,7 +279,17 @@ public struct CargoCommandService {
                 try Task.checkCancellation()
                 defer { prefetch.cancel() }
                 do {
-                    try await executeSession(child, root: root, started: started, metadata: { await metadata.value })
+                    try await executeSession(child, root: root, started: started, drain: { [hookServer] in
+                        await hookServer?.drain()
+                    }, metadata: {
+                        var result = await metadata.value
+                        if let version = await toolchain?.value?.version.split(separator: "\n").first {
+                            result["rust_version"] = String(version)
+                        } else {
+                            result["rust_version"] = await context.reporting.rustVersion()
+                        }
+                        return result
+                    })
                 } catch {
                     await Self.publishDeferred(root: root, units: units)
                     throw error
@@ -303,6 +316,7 @@ public struct CargoCommandService {
         _ context: CargoExecutionContext,
         root: URL,
         started: Date,
+        drain: () async -> Void = {},
         metadata: () async -> [String: Any]
     ) async throws {
         let invocation = CargoInvocation(context.arguments)
@@ -357,6 +371,9 @@ public struct CargoCommandService {
             }
         } catch { executionError = error }
         let finished = Date()
+        // Hooks publish after reporting their compiler's exit; their measurements and stored entries are complete
+        // once they are done.
+        await drain()
         let metadata = await metadata()
         if context.shardOptions.isEmpty, invocation.reportsBuild, !invocation.executesTests || cargoTests != nil {
             await context.reporting.build(

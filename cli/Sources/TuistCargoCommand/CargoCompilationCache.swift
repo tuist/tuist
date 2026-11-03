@@ -116,10 +116,22 @@ struct CargoCompilationCache {
     /// compiler had finished, so only the check after copying the outputs is needed; a key taken before it ran is
     /// checked first, since a source may have changed while it compiled.
     func store(stdout: Data, stderr: Data, keyedAfterCompiling: Bool = false) async throws {
+        guard try await admit(keyedAfterCompiling: keyedAfterCompiling) else { return }
+        try await publish(stdout: stdout, stderr: stderr)
+    }
+
+    /// Checks the inputs the key names and certifies the outputs for strict dependents, which Cargo may start as soon
+    /// as the compiler's exit is reported. `false` when the compilation must not be published.
+    func admit(keyedAfterCompiling: Bool = false) async throws -> Bool {
         try Task.checkCancellation()
         try await invocation.validateDependencies(restoring: false)
-        guard try keyedAfterCompiling || invocation.fingerprint() == invocation.key else { return }
+        guard try keyedAfterCompiling || invocation.fingerprint() == invocation.key else { return false }
         try? invocation.certifyCheckedOutputs()
+        return true
+    }
+
+    /// Stores an admitted compilation's outputs, which must still match the key once copied.
+    func publish(stdout: Data, stderr: Data) async throws {
         guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else { return }
         // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them.
         let widthMarker = messages.diagnostics ? Self.widthMarker(invocation.arguments) : Data()

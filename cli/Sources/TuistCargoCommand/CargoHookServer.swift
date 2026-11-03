@@ -44,6 +44,7 @@ final class CargoHookServer: @unchecked Sendable {
     private let stopped = NSLock()
     private var isStopped = false
     private var acceptor: Thread?
+    private let served = DispatchGroup()
     /// The session's REAPI connection, shared by every hook served.
     private let remote: Task<(any REAPICacheStoring)?, Never>?
 
@@ -118,6 +119,13 @@ final class CargoHookServer: @unchecked Sendable {
         thread.start()
     }
 
+    /// Waits for the hooks still publishing what they compiled, after reporting the compiler's exit to Cargo.
+    func drain() async {
+        await withCheckedContinuation { continuation in
+            served.notify(queue: .global()) { continuation.resume() }
+        }
+    }
+
     /// Stops accepting. Cargo has exited by then, so no client is still waiting.
     func stop() {
         stopped.lock()
@@ -147,7 +155,11 @@ final class CargoHookServer: @unchecked Sendable {
             #endif
             // Each hook blocks on its compiler for seconds; a thread of its own keeps that off Swift's
             // cooperative pool, which the cache work itself runs on.
-            let thread = Thread { [self] in serve(connection) }
+            served.enter()
+            let thread = Thread { [self] in
+                defer { served.leave() }
+                serve(connection)
+            }
             thread.stackSize = 4 << 20
             thread.start()
         }
@@ -211,8 +223,10 @@ final class CargoHookServer: @unchecked Sendable {
             default: break loop
             }
         }
-        Self.wait { await run.finish(succeeded: status == 0) }
+        // Cargo starts dependents once the exit is reported, so publication waits only for what they need.
+        let publish = Self.wait { await run.settle(succeeded: status == 0) }
         _ = Self.write(connection, "X", Self.status(status))
+        Self.wait { await publish() }
     }
 
     /// Runs async cache work from a hook's thread, which may block, without holding a cooperative thread meanwhile.

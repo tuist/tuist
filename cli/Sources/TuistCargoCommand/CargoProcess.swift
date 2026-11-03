@@ -63,6 +63,18 @@ struct CargoProcess {
     ) async throws -> (path: String, toolchain: String?) {
         if let configured = environment["TUIST_CARGO_EXECUTABLE"] { return (configured, nil) }
         let options = invocation.toolchain.map { ["--toolchain", $0] } ?? []
+        // The active toolchain names its directory, so one rustup start answers both questions.
+        if invocation.toolchain == nil, environment["RUSTUP_TOOLCHAIN"] == nil,
+           let active = try? await capture(
+               "rustup", arguments: ["show", "active-toolchain"], environment: environment, directory: directory
+           ).components(separatedBy: " (").first?.trimmingCharacters(in: .whitespacesAndNewlines), !active.isEmpty,
+           !active.contains("/")
+        {
+            let home = environment["RUSTUP_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".rustup").path
+            let cargo = "\(home)/toolchains/\(active)/bin/cargo"
+            if FileManager.default.isExecutableFile(atPath: cargo) { return (cargo, active) }
+        }
         do {
             let path = try await capture(
                 "rustup",

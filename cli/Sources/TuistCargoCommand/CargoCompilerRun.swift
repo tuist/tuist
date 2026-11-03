@@ -17,6 +17,15 @@ protocol CargoHookRun: AnyObject {
     func standardOutput(_ bytes: Data)
     func standardError(_ bytes: Data) -> Data
     func finish(succeeded: Bool) async
+    /// Like `finish`, but returns the part Cargo need not wait for, which the caller runs after reporting the exit.
+    func settle(succeeded: Bool) async -> @Sendable () async -> Void
+}
+
+extension CargoHookRun {
+    func settle(succeeded: Bool) async -> @Sendable () async -> Void {
+        await finish(succeeded: succeeded)
+        return {}
+    }
 }
 
 /// A compilation the cache missed, from the compiler's start to publication. Whoever runs `command` (this process, or
@@ -83,32 +92,46 @@ final class CargoCompilerRun: CargoHookRun {
     }
 
     func finish(succeeded: Bool) async {
-        defer {
+        await settle(succeeded: succeeded)()
+    }
+
+    func settle(succeeded: Bool) async -> @Sendable () async -> Void {
+        let observer = CargoCompilerObserver(runner: runner)
+        observer.record(arguments, environment: hookEnvironment, started: started, failed: !succeeded, diagnostics: diagnostics)
+        let publish = succeeded ? await admit() : nil
+        let script = succeeded && !native
+            && CargoCacheInputs.values("--crate-name", in: arguments).first?.hasPrefix("build_script_") == true
+        // Cargo runs a build script as soon as its compilation exits, so it is stored and shimmed first: the stored
+        // outputs are the compiled build script, never the shim that replaces it.
+        if script {
+            await publish?()
+            try? await CargoBuildScript.install(
+                arguments, environment: hookEnvironment, directory: directory, process: CargoProcess(runner: runner)
+            )
+        }
+        return { [self] in
+            if !script { await publish?() }
             measurement?.write()
             if let log { try? FileManager.default.removeItem(at: log) }
         }
-        let observer = CargoCompilerObserver(runner: runner)
-        observer.record(arguments, environment: hookEnvironment, started: started, failed: !succeeded, diagnostics: diagnostics)
-        guard succeeded else { return }
-        await store()
-        // After storing: the stored outputs are the compiled build script, never the shim that replaces it.
-        if !native { try? await CargoBuildScript.install(
-            arguments, environment: hookEnvironment, directory: directory, process: CargoProcess(runner: runner)
-        ) }
     }
 
-    private func store() async {
-        guard bounded, let root = hookEnvironment["TUIST_CARGO_CACHE_DIR"] else { return }
+    /// Admits the compilation, certifying its outputs for strict dependents, and returns its publication.
+    private func admit() async -> (() async -> Void)? {
+        guard bounded, let root = hookEnvironment["TUIST_CARGO_CACHE_DIR"] else { return nil }
         var refreshed = strict ? invocation : nil
         if let rust = refreshed as? CargoCacheInvocation { refreshed = await rust.refreshed(remote: remote) }
         if var cache, let measurement, let refreshed {
             if refreshed.key != invocation?.key, let rekeyed = try? CargoCompilationCache(
                 invocation: refreshed, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
             ) { cache = rekeyed }
-            try? await cache.store(stdout: stdout, stderr: stderr, keyedAfterCompiling: refreshed.key != invocation?.key)
-        } else if let recorded, let log, let measurement, let finished = recorded.recorded(log: log, started: started),
-                  let reads = finished.reads, let index = finished.index
-        {
+            guard (try? await cache.admit(keyedAfterCompiling: refreshed.key != invocation?.key)) == true else { return nil }
+            return { [stdout, stderr] in try? await cache.publish(stdout: stdout, stderr: stderr) }
+        }
+        // Recorded outputs are never certified, so the whole publication can wait.
+        return { [self] in
+            guard let recorded, let log, let measurement, let finished = recorded.recorded(log: log, started: started),
+                  let reads = finished.reads, let index = finished.index else { return }
             await index.put(reads, remote: remote, environment: hookEnvironment)
             try? await CargoCompilationCache(
                 invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement

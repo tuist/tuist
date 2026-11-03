@@ -257,41 +257,62 @@ struct CargoToolchainIdentity: Codable {
     static func resolve(
         _ executable: String, environment: [String: String], directory: AbsolutePath, process: CargoProcess
     ) async throws -> CargoToolchainIdentity {
-        let memo = environment["TUIST_CARGO_SESSION"].map {
-            URL(fileURLWithPath: $0).appendingPathComponent(
-                "toolchain-" + REAPI.digest(Data("\(executable)\0\(environment["RUSTUP_TOOLCHAIN"] ?? "")".utf8)).hash
-            )
+        let session = environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0) }
+        func memo(_ name: String) -> URL? {
+            session?.appendingPathComponent("toolchain-" + REAPI.digest(Data(name.utf8)).hash)
         }
-        if let memo, let data = try? Data(contentsOf: memo),
-           let identity = try? JSONDecoder().decode(CargoToolchainIdentity.self, from: data) { return identity }
+        // A sysroot's own compiler is the same toolchain whatever rustup would select: build scripts name it by its
+        // absolute path in `RUSTC`, and the session's other hooks by `rustc`.
+        let named = memo("\(executable)\0\(environment["RUSTUP_TOOLCHAIN"] ?? "")")
+        let own = executable.hasPrefix("/") ? memo("\(CargoRelocation.canonical(executable))\0sysroot compiler") : nil
+        for memo in [own, named].compactMap({ $0 }) {
+            if let data = try? Data(contentsOf: memo),
+               let identity = try? JSONDecoder().decode(CargoToolchainIdentity.self, from: data) { return identity }
+        }
         let paths = try await process.capture(
             executable, arguments: ["--print", "sysroot", "--print", "target-libdir"], environment: environment,
             directory: directory
         ).split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let version = try await process.capture(executable, arguments: ["-vV"], environment: environment, directory: directory)
         guard paths.count == 2, paths.allSatisfy({ $0.hasPrefix("/") }) else { throw CargoCacheInvocation.CacheError.unsupported }
         let sysroot = paths[0]
         let root = URL(fileURLWithPath: sysroot).standardizedFileURL
+        let compiler = root.appendingPathComponent("bin/rustc")
+        // The sysroot's compiler answers without another pass through a rustup proxy.
+        let version = try await process.capture(
+            FileManager.default.isExecutableFile(atPath: compiler.path) ? compiler.path : executable, arguments: ["-vV"],
+            environment: environment, directory: directory
+        )
         let libraries = (try? FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("lib").path)) ?? []
-        let compilers = [root.appendingPathComponent("bin/rustc").resolvingSymlinksInPath().path]
+        let compilers = [compiler.resolvingSymlinksInPath().path]
             + libraries.filter { $0.hasPrefix("librustc_driver") }.sorted().map { root.appendingPathComponent("lib/" + $0).path }
         let identity = CargoToolchainIdentity(
             sysrootPath: root.path, targetLibdirPath: paths[1], version: version, compilerPaths: compilers
         )
-        if let memo, let data = try? JSONEncoder().encode(identity) { try? data.write(to: memo, options: .atomic) }
+        if let data = try? JSONEncoder().encode(identity) {
+            for memo in [
+                named,
+                memo("\(CargoRelocation.canonical(compiler.path))\0sysroot compiler"),
+                memo("\(compilers[0])\0sysroot compiler"),
+            ].compactMap({ $0 }) {
+                try? data.write(to: memo, options: .atomic)
+            }
+        }
         return identity
     }
 
     /// Hashes the files strict keys take from the toolchain (top-level `lib`, the host target tree without `bin`, the
     /// compiler) into the session's shared records, so the first wave of compilers finds them instead of queueing
     /// behind one of them on the session lock. Each hook still checks every file's identity before reusing a record.
-    func prewarm(session: URL, cache: URL?) {
+    func prewarm(session: URL, cache: URL?, served: Bool) {
         // Toolchains do not change between builds, so their records persist in the cache and every session starts
-        // from a copy. Each record is still checked against its file's identity before it is used.
+        // from them: a served session from this process's copy in memory, other hooks from copied files. Each record
+        // is still checked against its file's identity before it is used.
         let records = cache?.appendingPathComponent("toolchain")
         let hasher = CargoInputHasher(sessionDirectory: records ?? session)
         defer {
-            if let records {
+            if served {
+                CargoInputHasher.serve(session: session, seed: records)
+            } else if let records {
                 let from = records.appendingPathComponent("input-digests-v1")
                 let to = session.appendingPathComponent("input-digests-v1")
                 try? FileManager.default.createDirectory(at: to, withIntermediateDirectories: true)
@@ -334,6 +355,34 @@ struct CargoToolchainIdentity: Codable {
         if let memo, let data = try? Data(contentsOf: memo), let values = try? JSONDecoder().decode([String].self, from: data) {
             return values
         }
+        // The answers persist with what selects them, as the `cc` shim's probe does: the developer directory and the
+        // identities of the files `xcrun` would find. A selection through `SDKROOT` or `TOOLCHAINS` is probed per session.
+        let selection: [String]? = {
+            guard environment["SDKROOT"] == nil, environment["TOOLCHAINS"] == nil,
+                  let developer = environment["DEVELOPER_DIR"]
+                  ?? (try? FileManager.default.destinationOfSymbolicLink(atPath: "/var/db/xcode_select_link"))
+            else { return nil }
+            let xcode = FileManager.default.fileExists(atPath: developer + "/Toolchains/XcodeDefault.xctoolchain")
+            let tools = developer + (xcode ? "/Toolchains/XcodeDefault.xctoolchain/usr/bin" : "/usr/bin")
+            let sdk = developer + (xcode ? "/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" : "/SDKs/MacOSX.sdk")
+            var identities = [developer]
+            for path in [tools + "/clang", tools + "/ld", sdk + "/SDKSettings.json"] {
+                var info = stat()
+                guard stat(path, &info) == 0 else { return nil }
+                identities.append(
+                    "\(path):\(info.st_dev):\(info.st_ino):\(info.st_size):\(info.st_mtimespec.tv_sec):\(info.st_mtimespec.tv_nsec)"
+                )
+            }
+            return identities
+        }()
+        let persistent = selection == nil ? nil : environment["TUIST_CARGO_CACHE_DIR"]
+            .map { URL(fileURLWithPath: $0).appendingPathComponent("toolchain/linker-identity") }
+        if let persistent, let data = try? Data(contentsOf: persistent),
+           let stored = try? JSONDecoder().decode([[String]].self, from: data), stored.count == 2, stored[0] == selection
+        {
+            if let memo, let data = try? JSONEncoder().encode(stored[1]) { try? data.write(to: memo, options: .atomic) }
+            return stored[1]
+        }
         var values: [String] = []
         for arguments in [["--show-sdk-path"], ["--show-sdk-build-version"], ["clang", "--version"], ["ld", "-v"]] {
             let output = try await process.captureOutput(
@@ -342,6 +391,13 @@ struct CargoToolchainIdentity: Codable {
             values.append(String(decoding: output.stdout + output.stderr, as: UTF8.self))
         }
         if let memo, let data = try? JSONEncoder().encode(values) { try? data.write(to: memo, options: .atomic) }
+        if let persistent, let selection, let data = try? JSONEncoder().encode([selection, values]) {
+            try? FileManager.default.createDirectory(
+                at: persistent.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try? data.write(to: persistent, options: .atomic)
+        }
         return values
     }
 }
