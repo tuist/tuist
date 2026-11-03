@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "6ee181f8d8adbcbc4db2cca44913ae8ff234f3907d806719828e9e29231f5de2",
+  "hash": "586fc0cedfb3746de4a34bd9d99f311601f5dd17ec6c1f329cf2091a974add11",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,59 +11,38 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Previews {#previews}": {
-                  "content_hash": "a515f04d5f833c3b206296ed089c8fffbbaed2f4564b7bfc30936c5a37cd73a8"
+                  "content_hash": "08611397cfff9507fb1c3240272baf78c413d464c8cc576d48ef53c5d09974ce"
                 },
-                "## Automations {#automations}": {
-                  "content_hash": "163da3aadab982fe5fd54583621ff0a852e7e62189df66fe4927de0b359e72bb"
-                },
-                "## In-app update notifications {#in-app-update-notifications}": {
-                  "content_hash": "37f4ae41bedad6439e3826be235580ff39466ca9bb9dd7f21b8a232aa1ca2d4c"
-                },
-                "## Pull/merge request comments {#pullmerge-request-comments}": {
-                  "content_hash": "0910c704dc6ac9d42eb6078c04002c1f9f793308a69fdf26c1c8f45854978b3f"
+                "## Publish a preview {#publish-a-preview}": {
+                  "content_hash": "fd0df65d24f00e06a1d8991760dcf3d39c73af36d5b02badd721a386ac2fc1e0"
                 },
                 "## README badge {#readme-badge}": {
-                  "content_hash": "0fe4c4e725145d700a523670b41588b0556cdbce7224edfe218b20f6137f19c7"
+                  "content_hash": "8a32d12424bb1b06ce04447f60f0580a22eaf0b515034f73efc7ac9cddbbadb6"
                 },
-                "## Release notes {#release-notes}": {
-                  "content_hash": "ffb45384b35b35f6fa3630eb6de1db339759e133c3d052ae5036ca987b116670"
+                "## Run a preview {#run-a-preview}": {
+                  "content_hash": "fe08e889d17ee833a6be5dd9c832fb867257e582aab7cb0021fda1d8b3db37e4"
                 },
                 "## Tracks {#tracks}": {
-                  "content_hash": "9159dba304af1c6cb862b68ea4185e566611497cbae4cc7067b20a4a1aaf5f84"
+                  "content_hash": "a9da0d742a5f768f759db51e2088d7e21c19226da7f8899c4cfec9809feb2516"
                 },
-                "## Tuist iOS app {#tuist-ios-app}": {
-                  "content_hash": "ad48c710124068eb9d792e0d3dfe813cf3aa98fa8a74039588b6e71ca432809f"
+                "## Visibility {#visibility}": {
+                  "content_hash": "b6c7673569eb6b7804c25a89e63ddda952d0e74da7809625f76dfa7c0496ce1f"
                 },
-                "## Tuist macOS app {#tuist-macos-app}": {
-                  "content_hash": "c384ce1b22cb5668430b0478d6ca09c8a90ca32de41258c6a73bddbd6498efed"
-                },
-                "### Compatibility {#preview-metadata-compatibility}": {
-                  "content_hash": "994f5df4fbcce4620c1ada55229c5293638fc9a77b3111a9ef20de0b65e7a988"
-                },
-                "### Installation {#sdk-installation}": {
-                  "content_hash": "ac066f7d9f6a14f0d8665e76e80d9ab2b2afc8133585fd45fa9c7e051714819f"
-                },
-                "### Monitor for updates {#sdk-monitor-updates}": {
-                  "content_hash": "edafc4093175fa202d9b89bde74ed169d9182aaa6e67ffca2b68ff3b01cd7e1e"
-                },
-                "### Single update check {#sdk-single-check}": {
-                  "content_hash": "cf48821ab38930cbc8b076eaae5ad45e0ff8d51addaad2d3d50534b9a3eba4d3"
-                },
-                "### Stopping update monitoring {#sdk-stop-monitoring}": {
-                  "content_hash": "c02b1803a12a30db633e21d1201de2def8b5f87fb8619730c48c432c319620be"
+                "## What you can preview {#what-you-can-preview}": {
+                  "content_hash": "5cd217f26659c1b20a8137318014fee52c83b2435eec057ffdd06172fa757739"
                 },
                 "Preamble": {
-                  "content_hash": "75b50bcf17a33a0aec7e8ff20b7acf4baba00c619e9f9cde2913765bb51b3639"
+                  "content_hash": "63ec4da08acf03c63f8950cea677ab150f0cd3d0a3880f970a71341fbf8cdc71"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "54628c6a81f6af3d705a8920e12e1cdd8bb949ef647b62acd84f4e94781fcae5",
+          "hash": "71eaba9a758810c8441a75425f960ada1ebe04e64b5c100d1fc22226625a96a6",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/previews.md",
           "metadata": {
-            "content_hash": "881a761fbdd4e12122e5df019728a8623c2911bc415a1e290a22d478bb15a755"
+            "content_hash": "18797cbf49b7e8cfa59dcd62b50004c6cc15b8ae19898e569f5c08300305bb60"
           }
         },
         {
@@ -260,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "6ee181f8d8adbcbc4db2cca44913ae8ff234f3907d806719828e9e29231f5de2",
+      "hash": "586fc0cedfb3746de4a34bd9d99f311601f5dd17ec6c1f329cf2091a974add11",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/previews.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a567db75001557129a1681d5715acef903e61ac17ea73c7f3452515d5dbce440",
+  "output_hash": "dcf09a5503c5f411b1668f8f7b1dbf6aa971bc2307dc21ea8ef996e986ff0947",
   "output_path": "server/priv/docs/yue_Hant/guides/features/previews.md",
   "protection_state": "recorded",
   "provider": "",
@@ -287,8 +266,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "f6491f8a407314faabebe91006455753d1894e3d",
+  "source_commit_sha": "4663c58a45478b5c1d0719109d77c3fb4c84b313",
   "source_path": "server/priv/docs/en/guides/features/previews.md",
-  "translated_at": "2026-10-30T14:46:24.368602Z",
-  "translation_session_id": "01a18d43-2e74-7bb9-a6be-b38521ed2cfc"
+  "translated_at": "2026-11-02T14:07:27.397695Z",
+  "translation_session_id": "01a19c92-aab3-74fe-add4-4ffb927ed429"
 }

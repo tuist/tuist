@@ -1,7 +1,7 @@
 ---
 {
   "editLink": false,
-  "titleTemplate": ":title · მაგალითები · მითითებები · Tuist"
+  "titleTemplate": ":title · მაგალითები · ცნობარი · Tuist"
 }
 ---
 <script setup>

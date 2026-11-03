@@ -1,8 +1,8 @@
 ---
 {
   "title": "创建生成式项目",
-  "titleTemplate": ":title · Xcode · 教程 · Tuist",
-  "description": "了解如何创建你的首个由 Tuist 生成的 Xcode 项目并为其添加依赖"
+  "titleTemplate": ":title · Xcode · Tutorials · Tuist",
+  "description": "学习如何创建你的第一个由 Tuist 生成的 Xcode 项目并为其添加依赖"
 }
 ---
 # 创建生成式项目 {#create-a-generated-project}
@@ -21,12 +21,12 @@ tuist init
 <!-- -->
 :::
 
-该命令将引导你完成 <.localized_link href="/guides/features/projects">创建生成式项目</.localized_link> 或集成现有 Xcode 项目或工作区的步骤。它帮助你将本地设置连接到远程服务器，让你能够使用 <.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>、<.localized_link href="/guides/features/previews">预览</.localized_link> 和 <.localized_link href="/guides/features/package-registries/swift">注册表</.localized_link> 等功能。
+该命令将引导你完成<.localized_link href="/guides/features/projects">创建生成式项目</.localized_link>或集成现有 Xcode 项目或工作区的步骤。它有助于你将开发环境连接到远程服务器，让你能够使用<.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>、<.localized_link href="/guides/features/previews">预览</.localized_link>和<.localized_link href="/guides/features/package-registries/swift">包注册表</.localized_link>等功能。
 
 > [!NOTE]
 > **迁移现有项目**
 >
-> 如果你希望将现有项目迁移到生成式项目以改善开发体验并利用我们的 <.localized_link href="/guides/features/cache">缓存</.localized_link>，请查看我们的 <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">迁移指南</.localized_link>。
+> 如果你希望将现有项目迁移到生成式项目以改善开发者体验并利用我们的<.localized_link href="/guides/features/cache">缓存</.localized_link>，请查看我们的<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">迁移指南</.localized_link>。
 
 
 ## 添加依赖项 {#add-dependencies}
@@ -115,7 +115,7 @@ let project = Project(
 
 ## 可视化项目结构 {#visualize-the-project}
 
-你可以通过运行以下命令来可视化项目结构：
+你可以运行以下命令来可视化项目结构：
 
 ```bash
 tuist graph

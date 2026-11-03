@@ -69,6 +69,31 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     refute has_element?(view, "[data-part=build-details] #build-environment")
   end
 
+  test "the build Status filter scopes the summary and analytics", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    Bazel.create_invocations([
+      invocation_attributes(project, "passed-build", "build", finished_at),
+      project
+      |> invocation_attributes("failed-build", "build", finished_at)
+      |> Map.merge(%{status: "failure", exit_code: 1, duration_ms: 45_000})
+    ])
+
+    opts = [commands: ["build"]]
+    assert Bazel.summary(project.id, Keyword.put(opts, :status, "success")).average_duration_ms == 15_000.0
+    assert Bazel.summary(project.id, Keyword.put(opts, :status, "failure")).average_duration_ms == 45_000.0
+    assert Bazel.summary(project.id, opts).total == 2
+    assert Bazel.invocation_analytics(project.id, Keyword.put(opts, :status, "failure")).total == 1
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds?analytics-build-status=failure")
+    render_async(view, @render_async_timeout)
+    assert has_element?(view, "#bazel-builds-status-dropdown")
+  end
+
   test "build and invocation pages only load the trend-aware summary", %{
     conn: conn,
     project: project,

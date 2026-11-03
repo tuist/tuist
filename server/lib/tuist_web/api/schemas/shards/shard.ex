@@ -34,7 +34,7 @@ defmodule TuistWeb.API.Schemas.Shards.Shard do
         description:
           "Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards."
       },
-      test_impact_skip: %Schema{
+      skipped_tests: %Schema{
         type: :array,
         items: SkippedTest,
         description:

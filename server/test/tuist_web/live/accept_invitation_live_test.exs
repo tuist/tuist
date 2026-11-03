@@ -392,7 +392,7 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
       {:ok, _invitation} =
         Accounts.resend_invitation(
           invitation,
-          %{url: fn token -> "/auth/invitations/#{token}" end},
+          %{url: fn token -> "/auth/invitations/#{token}" end, inviter: inviter},
           token: "new-token"
         )
 

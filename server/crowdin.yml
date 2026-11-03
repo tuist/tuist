@@ -1,3 +1,0 @@
-files:
-  - source: /priv/gettext/en/LC_MESSAGES/default.po
-    translation: /priv/gettext/%two_letters_code%/LC_MESSAGES/default.po

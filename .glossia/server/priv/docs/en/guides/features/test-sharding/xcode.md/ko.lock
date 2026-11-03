@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5b4d07a2b0806f3aa955af8491582fec10e411be64b209b013cf806ab055fe84",
+  "hash": "92606f86b4822ccf2bd7342844f043c48d2c248d98ac9c52d3c0d974f99fe2bf",
   "hash_tree": {
     "root": {
       "children": [
@@ -179,7 +179,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -192,21 +192,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -307,21 +307,21 @@
             }
           ],
           "details": {},
-          "hash": "544d837a8de1886f119b6ac5567a353e5e7971c994e7413e3bb0cbbe5f9fe453",
+          "hash": "c386b1e13e9bee05fafaf028cb092c647a900753cf694f7a6d0c852f57248e2d",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "5b4d07a2b0806f3aa955af8491582fec10e411be64b209b013cf806ab055fe84",
+      "hash": "92606f86b4822ccf2bd7342844f043c48d2c248d98ac9c52d3c0d974f99fe2bf",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-sharding/xcode.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f1a29f4c957bbec26c6c511f397b3c7cb3f79249ea7bcd23c3caa35696defdd8",
+  "output_hash": "1e9d1d7266dc0d9118cc05e3cf197a5ed92d2f9a620d7782925fc8453f6e124b",
   "output_path": "server/priv/docs/ko/guides/features/test-sharding/xcode.md",
   "protection_state": "recorded",
   "provider": "",
@@ -344,8 +344,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
+  "source_commit_sha": "d898a2e179dc435fad5461a5ce39f42cdac74dee",
   "source_path": "server/priv/docs/en/guides/features/test-sharding/xcode.md",
-  "translated_at": "2026-10-29T16:14:57.527079Z",
-  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
+  "translated_at": "2026-11-02T15:13:45.620006Z",
+  "translation_session_id": "01a19ccd-c167-7b0e-8031-09b3a8a20582"
 }
