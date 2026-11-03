@@ -431,6 +431,61 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     assert is_binary(kid)
   end
 
+  @tag :sso_credential_boundary
+  test "agent claim requires this session's issuer, not a historical linked identity" do
+    user = AccountsFixtures.user_fixture(email: "member-#{System.unique_integer([:positive])}@sso-claim.example")
+
+    organization =
+      AccountsFixtures.organization_fixture(
+        creator: user,
+        sso_provider: :okta,
+        sso_organization_id: "sso-claim.example",
+        sso_login_domain: "sso-claim.example",
+        sso_login_domain_verified_at: DateTime.truncate(DateTime.utc_now(), :second),
+        oauth2_client_id: "local-client",
+        oauth2_client_secret: "local-secret"
+      )
+
+    {:ok, _} = Tuist.Accounts.update_organization(organization, %{sso_enforced: true})
+    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :okta, provider_organization_id: "sso-claim.example")
+
+    registration = build_conn() |> post("/agent/identity", %{"type" => "anonymous"}) |> json_response(200)
+
+    claim =
+      build_conn()
+      |> post("/agent/identity/claim", %{"claim_token" => registration["claim_token"], "email" => user.email})
+      |> json_response(200)
+
+    claim_attempt_token =
+      claim["claim_attempt"]["verification_uri"] |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+    for workspace <- ["wrong.example", "sso-claim.example"] do
+      token =
+        Tuist.Accounts.generate_user_session_token(user, %{
+          auth_method: :okta,
+          provider_organization_id: workspace,
+          sso_organization_id: organization.id
+        })
+
+      conn =
+        build_conn()
+        |> init_test_session(%{user_token: token, auth_method: :okta})
+        |> post("/agent/identity/claim/complete", %{
+          "claim_attempt_token" => claim_attempt_token["claim_attempt_token"],
+          "user_code" => claim["claim_attempt"]["user_code"]
+        })
+
+      if workspace == "wrong.example" do
+        assert html_response(conn, 403) =~ "Single sign-on required"
+
+        assert Repo.get!(AgentRegistration, String.replace_prefix(registration["registration_id"], "reg_", "")).status ==
+                 :pending
+      else
+        assert html_response(conn, 200) =~ "Agent authorized"
+      end
+    end
+  end
+
   defp load_mcp_authentication(access_token) do
     conn = %{build_conn() | request_path: "/mcp"}
 

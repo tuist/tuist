@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "c21d822d4a3457eb159c32016200c829db0cdc6987dc353d62c52c6f7f1f0344",
+  "hash": "b5c45176c7aba5a767899119d0a8162fd5833631558a38749ad08689fdaee217",
   "hash_tree": {
     "root": {
       "children": [
@@ -30,6 +30,9 @@
                 },
                 "# values.yaml [5]": {
                   "content_hash": "88f0fd6bc4ff1f02360e1cba4c9bda848f19d77a0b7b91f572a8e074dbc89cbc"
+                },
+                "## Browser session upgrade {#browser-session-upgrade}": {
+                  "content_hash": "375505b72964c95212f7a088a50c028d51c32d459c96bd1ebc2f1b3977634ad7"
                 },
                 "## Configuration {#configuration}": {
                   "content_hash": "a2eed6771fa1ce60857c325ebb975eae998d88869b4ebd8548f18bfc3d0bb08c"
@@ -236,11 +239,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "01ac80bb6d1bf7ad1133a0f6eb1e3cf145165f94746476e8fcf3d833e5e9861d",
+          "hash": "966820c9d0632ed31a3f40dc7f1e880dd5d98d0ef1b8535d0da228a8fdfc8704",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/self-host/server.md",
           "metadata": {
-            "content_hash": "01537394b0fa754d5f560f9a9ab40c0d27eed824eb296689f58d56c27fda8f76"
+            "content_hash": "23056673ddf4fe605ac6d5f3d396bd84c85c60295dc9fbcc0ac4997b3b06390f"
           }
         },
         {
@@ -449,14 +452,14 @@
         }
       ],
       "details": {},
-      "hash": "c21d822d4a3457eb159c32016200c829db0cdc6987dc353d62c52c6f7f1f0344",
+      "hash": "b5c45176c7aba5a767899119d0a8162fd5833631558a38749ad08689fdaee217",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/self-host/server.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "03308f36df20f3bec64e17f05d8d1400df0d225239f711a8448e553f70e61c87",
+  "output_hash": "082f876ab988ea3909e8b6b55b7d54b59b080b3d319fafc39519afa5869a5006",
   "output_path": "server/priv/docs/ko/guides/server/self-host/server.md",
   "protection_state": "recorded",
   "provider": "",
@@ -477,8 +480,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "39c45944bb637d8639c9d6a2f2f4e474e6877734",
+  "source_commit_sha": "f3b52931f314aa90655f3fa241917849be3b2b35",
   "source_path": "server/priv/docs/en/guides/server/self-host/server.md",
-  "translated_at": "2026-11-03T10:41:37.210846Z",
-  "translation_session_id": "01a1a0fe-5d6d-708f-a22f-84412476c8c0"
+  "translated_at": "2026-11-03T13:47:14.969054Z",
+  "translation_session_id": "01a1a1a1-2f45-7ca0-9f53-5c3600d4353c"
 }
