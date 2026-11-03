@@ -241,6 +241,11 @@ fn main() {
     let native = run(&format!("{out}/native"), &[]);
     run("/usr/bin/codesign", &["--force", "--sign", "-", &helper]);
     let value = run(&helper, &[]);
+    // As cc-rs asks for the SDK: a `PATH` of its own makes Rust fork and search with `execvp`, and the query runs
+    // with an environment the script changed.
+    let sdk = std::process::Command::new("xcrun").arg("--show-sdk-path")
+        .env("PATH", std::env::var("PATH").unwrap()).env("TUIST_FIXTURE_QUERY", "1").output().unwrap();
+    assert!(sdk.status.success() && sdk.stdout.starts_with(b"/"));
     let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
     std::fs::write(format!("{out}/value.txt"), format!("{}{} {stamp}", value.trim(), native.trim())).unwrap();
 }

@@ -14,7 +14,7 @@ import TuistREAPI
 /// process that does not load the recorder (macOS strips `DYLD_*` from protected programs such as `/bin/sh` or
 /// `/usr/bin/cc`), a network connection, or an unparsable log all mean the run is not published.
 enum CargoReadRecorder {
-    static let version = "tuist-cargo-recorder-v1"
+    static let version = "tuist-cargo-recorder-v2"
 
     /// Builds the recorder once per cache directory with the system C compiler. `nil` when unsupported or unavailable.
     static func prepare(cacheDirectory: URL) -> URL? {
@@ -90,6 +90,7 @@ enum CargoReadRecorder {
         __attribute__((section("__DATA,__interpose"))) = { (const void *)&replacement, (const void *)&replacee };
 
     static int log_fd = -1;
+    static char **initial_environment = NULL;
     static int ready = 0;
     static char toolchain[MAXPATHLEN];
     /* Thread-local storage is unavailable to interposing libraries, so the reentrancy count lives in a pthread key. */
@@ -140,6 +141,14 @@ enum CargoReadRecorder {
         char executable[MAXPATHLEN];
         uint32_t size = sizeof executable;
         emit('P', _NSGetExecutablePath(executable, &size) == 0 ? executable : "?");
+        /* The environment the process started with, which the key holds: a query's own is logged against it. */
+        char **current = *_NSGetEnviron();
+        size_t count = 0;
+        while (current != NULL && current[count] != NULL) count++;
+        initial_environment = calloc(count + 1, sizeof(char *));
+        for (size_t index = 0; initial_environment != NULL && index < count; index++) {
+            initial_environment[index] = strdup(current[index]);
+        }
         char parent[32];
         snprintf(parent, sizeof parent, "%d", getppid());
         emit('p', parent);
@@ -259,10 +268,10 @@ enum CargoReadRecorder {
     }
 
     /* Queries such as `git describe` and tools such as `codesign` run from protected programs the recorder cannot
-       load into. A spawn of one is logged with the program `posix_spawnp` found, its working directory and arguments
-       (`Q`), so the key can hold what a query prints, re-run at lookup, or what a tool reads, instead of their reads.
-       Queries qualify only when the spawn hands over this process's own, unchanged environment; neither may start
-       in a directory the spawn changes. */
+       load into. A spawn of one is logged with the program that ran, its working directory, how its environment
+       differs from the one this process started with (`NAME=VALUE` set, `-NAME` removed) and its arguments (`Q`),
+       so the key can hold what a query prints, re-run at lookup in the same environment, or what a tool reads,
+       instead of their reads. Neither may start in a directory the spawn changes. */
     static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
     static const void *chdir_actions[64];
     static int queries_unknown = 0;
@@ -317,32 +326,65 @@ enum CargoReadRecorder {
     }
     INTERPOSE(my_actions_destroy, posix_spawn_file_actions_destroy)
 
-    /* A process that edits its own environment hands queries a different one than the key re-runs them with. */
-    static int my_setenv(const char *name, const char *value, int overwrite) { queries_unknown = 1; return setenv(name, value, overwrite); }
-    INTERPOSE(my_setenv, setenv)
-    static int my_putenv(char *string) { queries_unknown = 1; return putenv(string); }
-    INTERPOSE(my_putenv, putenv)
-    static int my_unsetenv(const char *name) { queries_unknown = 1; return unsetenv(name); }
-    INTERPOSE(my_unsetenv, unsetenv)
-
     static int representable(const char *text) {
-        return text != NULL && strpbrk(text, "\n\t\x1f") == NULL;
+        return text != NULL && strpbrk(text, "\n\t\x1e\x1f") == NULL;
     }
 
-    static int log_query(const char *path, const posix_spawn_file_actions_t *actions, char *const arguments[], int inherited) {
+    static size_t name_length(const char *entry) {
+        const char *equals = strchr(entry, '=');
+        return equals == NULL ? strlen(entry) : (size_t)(equals - entry);
+    }
+
+    /* Appends how `environment` differs from the initial one, entries separated by `\x1e`. -1 when it cannot. */
+    static int append_environment(char *line, size_t size, int length, char *const environment[]) {
+        if (initial_environment == NULL) return -1;
+        int first = 1;
+        for (int index = 0; environment != NULL && environment[index] != NULL; index++) {
+            int same = 0;
+            for (int other = 0; initial_environment[other] != NULL && !same; other++) {
+                same = strcmp(environment[index], initial_environment[other]) == 0;
+            }
+            if (same) continue;
+            if (!representable(environment[index])) return -1;
+            length += snprintf(line + length, size - (size_t)length, "%s%s", first ? "" : "\x1e", environment[index]);
+            first = 0;
+            if (length <= 0 || (size_t)length >= size) return -1;
+        }
+        for (int other = 0; initial_environment[other] != NULL; other++) {
+            size_t name = name_length(initial_environment[other]);
+            int kept = 0;
+            for (int index = 0; environment != NULL && environment[index] != NULL && !kept; index++) {
+                kept = name_length(environment[index]) == name && strncmp(environment[index], initial_environment[other], name) == 0;
+            }
+            if (kept) continue;
+            if (!representable(initial_environment[other])) return -1;
+            length += snprintf(line + length, size - (size_t)length, "%s-%.*s", first ? "" : "\x1e", (int)name,
+                               initial_environment[other]);
+            first = 0;
+            if (length <= 0 || (size_t)length >= size) return -1;
+        }
+        return length;
+    }
+
+    static int is_modeled(const char *path) {
         const char *name = strrchr(path, '/');
         name = name == NULL ? path : name + 1;
         const char *programs[] = { "git", "sw_vers", "uname", "xcode-select", "xcrun", "codesign", "swiftc", "ar", "ranlib" };
-        int known = 0;
         for (size_t index = 0; index < sizeof programs / sizeof *programs; index++) {
-            if (strcmp(name, programs[index]) == 0) known = 1;
+            if (strcmp(name, programs[index]) == 0) return 1;
         }
-        if (!known || changes_directory(actions)) return 0;
+        return 0;
+    }
+
+    /* `searched`: `path` is a name to find in `PATH`, as `posix_spawnp` does; otherwise the program that runs. */
+    static int log_query(char kind, const char *path, int searched, const posix_spawn_file_actions_t *actions,
+                         char *const arguments[], char *const environment[]) {
+        if (!is_modeled(path) || changes_directory(actions)) return 0;
         char directory[MAXPATHLEN];
         if (getcwd(directory, sizeof directory) == NULL || !representable(directory)) return 0;
         /* The program as `posix_spawnp` found it: the key names what ran, not what a PATH elsewhere would find. */
         char resolved[MAXPATHLEN];
-        if (strchr(path, '/') != NULL) {
+        if (!searched || strchr(path, '/') != NULL) {
             if (path[0] == '/') strlcpy(resolved, path, sizeof resolved);
             else snprintf(resolved, sizeof resolved, "%s/%s", directory, path);
         } else {
@@ -366,8 +408,10 @@ enum CargoReadRecorder {
         }
         if (!representable(resolved)) return 0;
         char line[16384];
-        /* `q`: with an environment of its own, which only tools that rewrite files the run wrote may have. */
-        int length = snprintf(line, sizeof line, "%d\t%c\t%s\x1f%s", getpid(), inherited ? 'Q' : 'q', resolved, directory);
+        int length = snprintf(line, sizeof line, "%d\t%c\t%s\x1f%s\x1f", getpid(), kind, resolved, directory);
+        if (length <= 0 || (size_t)length >= sizeof line) return 0;
+        length = append_environment(line, sizeof line, length, environment);
+        if (length < 0) return 0;
         for (int index = 0; arguments != NULL && arguments[index] != NULL; index++) {
             if (length <= 0 || (size_t)length >= sizeof line || !representable(arguments[index])) return 0;
             length += snprintf(line + length, sizeof line - (size_t)length, "\x1f%s", arguments[index]);
@@ -375,27 +419,32 @@ enum CargoReadRecorder {
         if (length <= 0 || (size_t)length + 1 >= sizeof line) return 0;
         line[length++] = '\n';
         write(log_fd, line, (size_t)length);
-        if (inherited) emit('x', "*");
+        if (environment == *_NSGetEnviron()) emit('x', "*");
         return 1;
     }
 
     static int queried(const char *path, const posix_spawn_file_actions_t *actions, char *const arguments[],
                        char *const environment[]) {
-        if (!ready || depth != 0 || log_fd < 0) return 0;
-        int inherited = !queries_unknown && environment == *_NSGetEnviron();
+        if (!ready || depth != 0 || log_fd < 0 || queries_unknown) return 0;
         depth++;
-        int logged = log_query(path, actions, arguments, inherited);
+        int logged = log_query('Q', path, 1, actions, arguments, environment);
         depth--;
         return logged;
     }
 
     /* A successful exec does not return, so it is logged before; `Y` withdraws an attempt that failed, such as
        each PATH directory `execvp` tries before the one that holds the program. */
+    /* A modeled program is logged as a query (`J`, withdrawn by `Z`), as a forked child running `execvp` does. */
     static int my_execve(const char *path, char *const arguments[], char *const environment[]) {
-        int logged = ready && depth == 0;
-        spawned(path, environment);
+        int logged = ready && depth == 0, query = 0;
+        if (logged && log_fd >= 0 && !queries_unknown) {
+            depth++;
+            query = log_query('J', path, 0, NULL, arguments, environment);
+            depth--;
+        }
+        if (!query) spawned(path, environment);
         int result = execve(path, arguments, environment);
-        if (logged) { int saved = errno; depth++; emit('Y', path); depth--; errno = saved; }
+        if (logged) { int saved = errno; depth++; emit(query ? 'Z' : 'Y', path); depth--; errno = saved; }
         return result;
     }
     INTERPOSE(my_execve, execve)

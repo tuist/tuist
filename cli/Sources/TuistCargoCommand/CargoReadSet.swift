@@ -41,6 +41,24 @@ struct CargoReadSet: Codable, Equatable {
         // `swiftc`, and their children: what they print or produce is keyed, so their own events are not the run's.
         var queryProcesses: Set<String> = []
         var counted: Set<String> = []
+        var attempts: [String: String] = [:]
+        func model(_ value: String) {
+            let parts = value.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count >= 4, !allowedSpawn(parts[0]) else { return }
+            if let query = CargoQuery(parts) {
+                commands.insert(Entry(kind: "command", name: query.relocated(relocation)))
+            } else if let tool = CargoTool(
+                parts, writable: { within($0, allowedWrites) },
+                written: { path in written.contains { $0 == path || $0.hasPrefix(path + "/") } }
+            ) {
+                commands.insert(Entry(kind: "tool", name: relocation.relative(tool.name)))
+                observed += tool.inputs.map { ("R", $0) }
+                written.formUnion(tool.outputs)
+            } else {
+                spawns += 1
+                unrecorded.append(parts.dropFirst(3).joined(separator: " "))
+            }
+        }
         for line in text.split(separator: "\n") {
             let fields = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
             guard fields.count == 3, let kind = fields[1].first, fields[1].count == 1 else {
@@ -50,7 +68,7 @@ struct CargoReadSet: Codable, Equatable {
             let pid = String(fields[0])
             let value = String(fields[2])
             if queryProcesses.contains(pid) {
-                if "XQq".contains(kind) { spawns += 1; unrecorded.append(value) }
+                if "XQJ".contains(kind) { spawns += 1; unrecorded.append(value) }
                 continue
             }
             switch kind {
@@ -64,21 +82,17 @@ struct CargoReadSet: Codable, Equatable {
                     queryProcesses.insert(pid)
                     if counted.remove(pid) != nil { processes -= 1 }
                 }
-            case "Q", "q":
-                let parts = value.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
-                if allowedSpawn(parts[0]) { break }
-                if kind == "Q", let query = CargoQuery(parts) {
-                    commands.insert(Entry(kind: "command", name: query.relocated(relocation)))
-                } else if let tool = CargoTool(
-                    parts, inheritsEnvironment: kind == "Q", writable: { within($0, allowedWrites) },
-                    written: { path in written.contains { $0 == path || $0.hasPrefix(path + "/") } }
-                ) {
-                    commands.insert(Entry(kind: "tool", name: relocation.relative(tool.name)))
-                    observed += tool.inputs.map { ("R", $0) }
-                    written.formUnion(tool.outputs)
-                } else { spawns += 1; unrecorded.append(parts.dropFirst(2).joined(separator: " ")) }
+            case "Q": model(value)
+            // An `execve` of a modeled program, as a forked child's `execvp` tries each `PATH` directory: `Z`
+            // withdraws an attempt that failed, so only the last one stands.
+            case "J": attempts[pid] = value
+            case "Z": attempts[pid] = nil
             case "X": if !allowedSpawn(value) { spawns += 1; unrecorded.append(value) }
-            case "Y": if !allowedSpawn(value) { spawns -= 1 }
+            case "Y":
+                if !allowedSpawn(value) {
+                    spawns -= 1
+                    if let last = unrecorded.lastIndex(of: value) { unrecorded.remove(at: last) }
+                }
             case "x": passedThrough[pid, default: 0] += 1
             case "e": environReads[pid, default: 0] += 1
             case "E": variables.insert(value)
@@ -94,6 +108,9 @@ struct CargoReadSet: Codable, Equatable {
                 explain(kind == "N" ? "connected to the network" : "event \(kind) \(value)")
                 return nil
             }
+        }
+        for attempt in attempts.values.sorted() {
+            model(attempt)
         }
         // Every process started must have loaded the recorder, the first one included.
         guard processes >= 1, processes >= spawns + 1 else {

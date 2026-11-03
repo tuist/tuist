@@ -10,22 +10,40 @@ struct CargoQuery: Equatable {
 
     let program: String
     let directory: String
+    /// How the command's environment differed from the run's: `NAME=VALUE` set, `-NAME` removed.
+    let changes: [String]
     /// Including `argv[0]`.
     let arguments: [String]
 
-    init(program: String, directory: String, arguments: [String]) {
+    init(program: String, directory: String, changes: [String] = [], arguments: [String]) {
         self.program = program
         self.directory = directory
+        self.changes = changes
         self.arguments = arguments
     }
 
-    /// From a recorder `Q` event: the program as `posix_spawnp` found it, the working directory and the arguments.
-    /// `nil` unless the command only reads.
+    /// From a recorder `Q` event: the program that ran, the working directory, the environment changes and the
+    /// arguments. `nil` unless the command only reads.
     init?(_ parts: [String]) {
-        guard parts.count >= 3, Self.isQuery(program: parts[0], arguments: Array(parts.dropFirst(3))) else { return nil }
-        program = parts[0]
-        directory = parts[1]
-        arguments = Array(parts.dropFirst(2))
+        guard parts.count >= 4, Self.isQuery(program: parts[0], arguments: Array(parts.dropFirst(4))) else { return nil }
+        self.init(program: parts[0], directory: parts[1], changes: Self.changes(parts[2]), arguments: Array(parts.dropFirst(3)))
+    }
+
+    static func changes(_ field: String) -> [String] {
+        field.split(separator: "\u{1e}").map(String.init)
+    }
+
+    /// The run's environment with the command's changes applied.
+    static func environment(_ base: [String: String], changes: [String]) -> [String: String] {
+        var result = base
+        for change in changes {
+            if change.hasPrefix("-") {
+                result[String(change.dropFirst())] = nil
+            } else if let separator = change.firstIndex(of: "=") {
+                result[String(change[..<separator])] = String(change[change.index(after: separator)...])
+            }
+        }
+        return result
     }
 
     init?(relocated name: String, relocation: CargoRelocation) {
@@ -34,7 +52,7 @@ struct CargoQuery: Equatable {
     }
 
     func relocated(_ relocation: CargoRelocation) -> String {
-        relocation.relative(([program, directory] + arguments).joined(separator: "\u{1f}"))
+        relocation.relative(([program, directory, changes.joined(separator: "\u{1e}")] + arguments).joined(separator: "\u{1f}"))
     }
 
     private static func isQuery(program: String, arguments: [String]) -> Bool {
@@ -102,7 +120,8 @@ struct CargoQuery: Equatable {
         process.executableURL = URL(fileURLWithPath: program)
         process.arguments = Array(arguments.dropFirst())
         process.currentDirectoryURL = URL(fileURLWithPath: directory, isDirectory: true)
-        process.environment = environment.filter { !$0.key.hasPrefix("DYLD_") && !$0.key.hasPrefix("TUIST_CARGO_READ_") }
+        process.environment = Self.environment(environment, changes: changes)
+            .filter { !$0.key.hasPrefix("DYLD_") && !$0.key.hasPrefix("TUIST_CARGO_READ_") }
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = try FileHandle(forWritingTo: stdout)
         process.standardError = try FileHandle(forWritingTo: stderr)
@@ -134,22 +153,23 @@ struct CargoTool: Equatable {
     let kind: String
     let program: String
     let directory: String
+    let changes: String
     /// Source files the tool reads, which the run's key names like recorded reads.
     let inputs: [String]
     /// Files the tool writes, which are the run's own from then on.
     let outputs: [String]
 
     /// The key entry's name: what identifies the tool where it runs.
-    var name: String { [kind, program, directory].joined(separator: "\u{1f}") }
+    var name: String { [kind, program, directory, changes].joined(separator: "\u{1f}") }
 
     /// From a recorder `Q` event (program, working directory, `argv`). `nil` unless every argument is understood and
     /// every file the tool writes is inside `writable`.
     /// `inheritsEnvironment` says the run handed it its own environment, which a compiler needs: its identity is
     /// taken from the run's.
-    init?(_ parts: [String], inheritsEnvironment: Bool, writable: (String) -> Bool, written: (String) -> Bool) {
-        guard parts.count >= 3 else { return nil }
+    init?(_ parts: [String], writable: (String) -> Bool, written: (String) -> Bool) {
+        guard parts.count >= 4 else { return nil }
         let directory = parts[1]
-        let arguments = Array(parts.dropFirst(3))
+        let arguments = Array(parts.dropFirst(4))
         func path(_ value: String) -> String {
             CargoRelocation.canonical(value.hasPrefix("/") ? value : directory + "/" + value)
         }
@@ -182,7 +202,6 @@ struct CargoTool: Equatable {
             guard adHoc, targets > 0 else { return nil }
             kind = "codesign"
         case "swiftc":
-            guard inheritsEnvironment else { return nil }
             var output = false
             while index < arguments.count {
                 let argument = arguments[index]
@@ -231,6 +250,7 @@ struct CargoTool: Equatable {
         self.outputs = outputs
         program = parts[0]
         self.directory = directory
+        changes = parts[2]
     }
 
     /// What the tool reads besides its arguments, by build: the OS for `codesign`; Xcode for the archivers; for
@@ -239,7 +259,7 @@ struct CargoTool: Equatable {
     /// archive and sign alike.
     static func identity(_ name: String, environment: [String: String], relocation: CargoRelocation) throws -> String {
         let parts = name.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
-        guard parts.count == 3 else { throw CargoCacheInvocation.CacheError.unsupported }
+        guard parts.count == 4 else { throw CargoCacheInvocation.CacheError.unsupported }
         var size = 0
         sysctlbyname("kern.osversion", nil, &size, nil, 0)
         var build = [CChar](repeating: 0, count: max(size, 1))
@@ -248,6 +268,7 @@ struct CargoTool: Equatable {
         }
         var values = [parts[0], "os=" + String(cString: build)]
         guard parts[0] != "codesign" else { return values.joined(separator: "\n") }
+        let environment = CargoQuery.environment(environment, changes: CargoQuery.changes(parts[3]))
         guard environment["SDKROOT"] == nil,
               let developer = environment["DEVELOPER_DIR"]
               ?? (try? FileManager.default.destinationOfSymbolicLink(atPath: "/var/db/xcode_select_link")),
@@ -265,7 +286,9 @@ struct CargoTool: Equatable {
             values.append("\(label)=\(version)")
         }
         if parts[0] == "swiftc" {
-            let compiler = CargoQuery(program: parts[1], directory: parts[2], arguments: ["swiftc", "--version"])
+            let compiler = CargoQuery(
+                program: parts[1], directory: parts[2], changes: CargoQuery.changes(parts[3]), arguments: ["swiftc", "--version"]
+            )
             values.append(try compiler.output(environment: environment, relocation: relocation))
         }
         return values.joined(separator: "\n")
