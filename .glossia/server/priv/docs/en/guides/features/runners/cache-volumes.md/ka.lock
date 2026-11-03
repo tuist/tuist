@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "17fdc5f488c82c5ea1a7283891fce307b0e59ee335360630d6db0d8441b11fc7",
+  "hash": "a461a0413954d935fcb543c4225cf77fd733be4677e14cdb7993d33758f1ca17",
   "hash_tree": {
     "root": {
       "children": [
@@ -35,7 +35,7 @@
                   "content_hash": "9fd3704f33d2f71a303cb46380cd7854fe08e4cd9ea353a96eb48b866fd00033"
                 },
                 "### How keys work {#how-keys-work}": {
-                  "content_hash": "c6832ae546c4295b2a5247b80e1b490424d620236ee6c187418c2b2fe52f439c"
+                  "content_hash": "00de72b31849c639c66bf8b14bd98f4c0b05d65ecf3055cfb0b039c0ef81ae30"
                 },
                 "### Module cache {#module-cache}": {
                   "content_hash": "e466c67a8a83fa5d8654fe25de7c044fe7f9d49381270fa95f9c3a58a5180a89"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "69a4c8de2d9fe393939c9a59037c6f0b385a7d9a75711a393ebfa4e175e43387",
+          "hash": "297524de64d45191d48097d82520e35872a4d664ac49587e4f7196163237ba64",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
           "metadata": {
-            "content_hash": "7c23676234822abc4ea546de4df341f2a20218711acb439de224789de439ec89"
+            "content_hash": "d31406c9361323f8be96b3f510741b095d0428e06147dba5315196c9d068da6e"
           }
         },
         {
@@ -143,7 +143,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -156,21 +156,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -259,21 +259,21 @@
             }
           ],
           "details": {},
-          "hash": "d43f60d9781084b42b7ae70ddf3987b1bd2e0329d2b0ac38fcee40d120e94b70",
+          "hash": "1b10124e5e991445c8530e5a2afa6c0fbc0514c351e19f69633c78555c2b0ff7",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "17fdc5f488c82c5ea1a7283891fce307b0e59ee335360630d6db0d8441b11fc7",
+      "hash": "a461a0413954d935fcb543c4225cf77fd733be4677e14cdb7993d33758f1ca17",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "83697866bc282ba480b302dc57db59672a05f831cb563b747cf4d429addfa320",
+  "output_hash": "f92e23384e32a489ecd7be1d7c0b46b3de25f7df108af4cf21bfe38146b610fc",
   "output_path": "server/priv/docs/ka/guides/features/runners/cache-volumes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -295,8 +295,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "4663c58a45478b5c1d0719109d77c3fb4c84b313",
   "source_path": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
-  "translated_at": "2026-10-29T15:27:08.106297Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-11-02T14:17:59.064627Z",
+  "translation_session_id": "01a19c92-aab3-74fe-add4-4ffb927ed429"
 }

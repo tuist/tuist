@@ -913,6 +913,7 @@ mod tests {
         let client = sentry_http_client_builder(&options)
             .unwrap()
             .no_proxy()
+            .resolve("localhost", address)
             .timeout(Duration::from_secs(3))
             .build()
             .unwrap();

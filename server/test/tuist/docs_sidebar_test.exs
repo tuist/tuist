@@ -64,6 +64,28 @@ defmodule Tuist.Docs.SidebarTest do
     refute Enum.any?(rest, &(&1.label == "Tutorials"))
   end
 
+  test "previews separates build systems, supported types, and ways to run" do
+    bundles = Enum.find(Sidebar.guides_tree(), &(&1.label == "Bundles"))
+    previews = Enum.find(bundles.items, &(&1.label == "Previews"))
+
+    assert [build, types, run] = previews.items
+    assert build.label == "Build and publish"
+    assert {types.label, types.slug} == {"Supported types", "/en/guides/features/previews/types"}
+    assert run.label == "Run previews"
+
+    assert Enum.map(build.items, &{&1.label, &1.slug, &1.icon}) == [
+             {"Xcode", "/en/guides/features/previews/xcode", "brand_apple"},
+             {"Gradle", "/en/guides/features/previews/gradle", "brand_gradle"},
+             {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"}
+           ]
+
+    assert Enum.map(run.items, &{&1.label, &1.slug}) == [
+             {"CLI", "/en/guides/features/previews/run/cli"},
+             {"macOS app", "/en/guides/features/previews/run/macos"},
+             {"iPhone app", "/en/guides/features/previews/run/ios"}
+           ]
+  end
+
   test "links every Rust journey with the Rust brand logo" do
     rust_slugs =
       for group <- Sidebar.guides_tree(),
@@ -141,9 +163,15 @@ defmodule Tuist.Docs.SidebarTest do
   test "localizes each Insights item by its catalogue path, not by English label" do
     tree = Sidebar.tree_for_tab(:guides, "es")
 
-    insights_by_group =
-      for %Sidebar.Group{label: group, items: items} <- tree,
-          group in ["Builds", "Tests", "Bundles"],
+    es_strings =
+      "../../priv/docs/strings/es.json"
+      |> Path.expand(__DIR__)
+      |> File.read!()
+      |> JSON.decode!()
+
+    insights_by_category =
+      for %Sidebar.Group{category: category, items: items} <- tree,
+          category in ["Builds", "Tests", "Bundles"],
           item <- items,
           item.slug in [
             "/es/guides/features/build-insights",
@@ -151,12 +179,16 @@ defmodule Tuist.Docs.SidebarTest do
             "/es/guides/features/bundle-insights"
           ],
           into: %{} do
-        {group, item.label}
+        {category, item}
       end
 
-    assert insights_by_group["Builds"] == "Análisis de builds"
-    assert insights_by_group["Tests"] == "Insights"
-    assert insights_by_group["Bundles"] == "Insights"
+    assert insights_by_category |> Map.keys() |> Enum.sort() == ["Builds", "Bundles", "Tests"]
+
+    for {_category, item} <- insights_by_category do
+      expected = get_in(es_strings, String.split(item.text_path, ".") ++ ["text"])
+      assert is_binary(expected)
+      assert item.label == expected
+    end
   end
 
   test "returns the top-level category for localized slugs" do

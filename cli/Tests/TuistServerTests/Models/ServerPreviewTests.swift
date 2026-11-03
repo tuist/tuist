@@ -42,4 +42,26 @@ import Testing
         #expect(preview.track == "future-track-2030")
         #expect(preview.releaseNotes == "Still plain text")
     }
+
+    @Test func ignores_unknown_build_formats_and_platforms_without_losing_supported_builds() throws {
+        let data = Data("""
+        {"id":"future","url":"https://example.com/preview","qr_code_url":"https://example.com/qr.png",
+         "icon_url":"https://example.com/icon.png","device_url":"https://example.com/install",
+         "inserted_at":"2024-01-01T00:00:00Z","created_from_ci":false,
+         "supported_platforms":["future_os","ios_simulator"],"builds":[
+           {"id":"future","url":"https://example.com/future","type":"future_format",
+            "supported_platforms":["ios_simulator"],"supported_architectures":["future_cpu"]},
+           {"id":"supported","url":"https://example.com/app","type":"app_bundle",
+            "supported_platforms":["future_os","ios_simulator"]}]}
+        """.utf8)
+
+        let response = try JSONDecoder().decode(Components.Schemas.Preview.self, from: data)
+        let preview = try ServerPreview(response)
+
+        #expect(preview.appBuilds.map(\.id) == ["supported"])
+        #expect(preview.appBuilds.first?.supportedPlatforms == [.simulator(.iOS)])
+        #expect(preview.supportedPlatforms == [.simulator(.iOS)])
+        #expect(response.builds[0].supported_architectures == ["future_cpu"])
+        #expect(response.builds[1].supported_architectures == nil)
+    }
 }

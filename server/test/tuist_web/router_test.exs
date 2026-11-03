@@ -6,6 +6,28 @@ defmodule TuistWeb.RouterTest do
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
+  test "blog pages allow privacy-enhanced YouTube embeds and fullscreen without enabling unrelated features",
+       %{conn: conn} do
+    conn = get(conn, ~p"/blog")
+
+    assert [policy] = get_resp_header(conn, "content-security-policy")
+
+    assert policy
+           |> String.split(";")
+           |> Enum.find(&String.starts_with?(&1, "frame-src "))
+           |> String.split()
+           |> Enum.member?("https://www.youtube-nocookie.com")
+
+    assert [permissions] = get_resp_header(conn, "permissions-policy")
+    permissions = String.split(permissions, ", ")
+
+    assert ~s|fullscreen=(self "https://www.youtube-nocookie.com")| in permissions
+
+    for feature <- ~w(autoplay camera encrypted-media microphone picture-in-picture) do
+      assert "#{feature}=()" in permissions
+    end
+  end
+
   test "marketing pages are non-indexable and non-followable when a production and on-premise environment",
        %{conn: conn} do
     stub(Environment, :tuist_hosted?, fn -> false end)

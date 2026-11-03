@@ -1,429 +1,611 @@
 {
-    "aside": {
-        "translate": {
-            "title": {
-                "text": "翻译 🌍"
-            },
-            "description": {
-                "text": "您可以翻译或改进本页的翻译。"
-            },
-            "cta": {
-                "text": "贡献"
-            }
-        }
+  "navigation": {
+    "groups": {
+      "builds": { "text": "构建" },
+      "tests": { "text": "测试" },
+      "compute": { "text": "计算资源" },
+      "bundles": { "text": "应用包" },
+      "other-features": { "text": "其他功能" }
     },
-    "search": {
-        "placeholder": "搜索",
-        "translations": {
-            "button": {
-                "button-text": "搜索文档",
-                "button-aria-label": "搜索文档"
-            },
-            "modal": {
-                "search-box": {
-                    "reset-button-title": "清除查询",
-                    "reset-button-aria-label": "清除查询",
-                    "cancel-button-text": "取消",
-                    "cancel-button-aria-label": "取消"
-                },
-                "start-screen": {
-                    "recent-searches-title": "搜索历史",
-                    "no-recent-searches-text": "没有搜索历史",
-                    "save-recent-search-button-title": "保存到搜索历史",
-                    "remove-recent-search-button-title": "从搜索历史中移除",
-                    "favorite-searches-title": "收藏",
-                    "remove-favorite-search-button-title": "从收藏中移除"
-                },
-                "error-screen": {
-                    "title-text": "无法检索结果",
-                    "help-text": "您可能需要检查网络连接"
-                },
-                "footer": {
-                    "select-text": "选择",
-                    "navigate-text": "导航",
-                    "close-text": "关闭",
-                    "search-by-text": "搜索提供者"
-                },
-                "no-results-screen": {
-                    "no-results-text": "未找到相关结果",
-                    "suggested-query-text": "您可以尝试查询",
-                    "report-missing-results-text": "您认为此查询应该有结果吗？",
-                    "report-missing-results-link-text": "点击提供反馈"
-                }
-            }
+    "items": {
+      "agentic-coding": { "text": "智能体编程" },
+      "bazel": { "text": "Bazel" },
+      "bazel-cache": { "text": "Bazel 缓存" },
+      "bitrise": { "text": "Bitrise" },
+      "build-and-publish": { "text": "构建与发布" },
+      "buildkite": { "text": "Buildkite" },
+      "cache-volumes": { "text": "缓存卷" },
+      "compatibility": { "text": "兼容性" },
+      "coverage": { "text": "覆盖率" },
+      "data-retention": { "text": "数据保留" },
+      "docker": { "text": "Docker" },
+      "elixir": { "text": "Elixir" },
+      "elixir-cache": { "text": "Elixir 缓存" },
+      "github-actions": { "text": "GitHub Actions" },
+      "gitlab-ci": { "text": "GitLab CI" },
+      "gradle": { "text": "Gradle" },
+      "grafana": { "text": "Grafana" },
+      "implicit-dependencies": { "text": "隐式依赖" },
+      "iphone-app": { "text": "iPhone 应用" },
+      "macos-app": { "text": "macOS 应用" },
+      "new-project": { "text": "新建项目" },
+      "origin": { "text": "源" },
+      "profiles": { "text": "配置文件" },
+      "project-description": { "text": "项目描述" },
+      "release-channels": { "text": "发布渠道" },
+      "run-previews": { "text": "运行预览" },
+      "rust": { "text": "Rust" },
+      "rust-cache": { "text": "Rust 缓存" },
+      "rust-project": { "text": "Rust 项目" },
+      "scim-provisioning": { "text": "SCIM 配置" },
+      "server-api": { "text": "服务器 API" },
+      "single-sign-on": { "text": "单点登录" },
+      "supported-types": { "text": "支持的类型" },
+      "webhooks": { "text": "Webhooks" },
+      "xcodegen-project": { "text": "XcodeGen 项目" },
+      "xcodeproj-integration": { "text": "Xcodeproj 集成" },
+      "ufeatures-architecture": { "text": "uFeatures 架构" }
+    }
+  },
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "语言 🌍"
+      },
+      "description": {
+        "text": "你可以帮助 Tuist 支持更多语言，或改进本页的语言指引。"
+      },
+      "cta": {
+        "text": "贡献"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "搜索",
+    "translations": {
+      "button": {
+        "button-text": "搜索文档",
+        "button-aria-label": "搜索文档"
+      },
+      "modal": {
+        "search-box": {
+          "reset-button-title": "清除查询",
+          "reset-button-aria-label": "清除查询",
+          "cancel-button-text": "取消",
+          "cancel-button-aria-label": "取消"
+        },
+        "start-screen": {
+          "recent-searches-title": "搜索历史",
+          "no-recent-searches-text": "无搜索历史",
+          "save-recent-search-button-title": "保存到搜索历史",
+          "remove-recent-search-button-title": "从搜索历史中移除",
+          "favorite-searches-title": "收藏",
+          "remove-favorite-search-button-title": "从收藏中移除"
+        },
+        "error-screen": {
+          "title-text": "无法获取结果",
+          "help-text": "你可能需要检查网络连接"
+        },
+        "footer": {
+          "select-text": "选择",
+          "navigate-text": "导航",
+          "close-text": "关闭",
+          "search-by-text": "搜索提供商"
+        },
+        "no-results-screen": {
+          "no-results-text": "未找到相关结果",
+          "suggested-query-text": "你可以尝试搜索",
+          "report-missing-results-text": "你认为此查询应该有结果吗？",
+          "report-missing-results-link-text": "点击提供反馈"
         }
+      }
+    }
+  },
+  "navbar": {
+    "guides": {
+      "text": "指南"
     },
-    "navbar": {
-        "guides": {
-            "text": "指南"
-        },
-        "cli": {
-            "text": "CLI"
-        },
-        "server": {
-            "text": "服务器"
-        },
-        "resources": {
-            "text": "资源",
-            "items": {
-                "references": {
-                    "text": "参考"
-                },
-                "contributors": {
-                    "text": "贡献者"
-                },
-                "changelog": {
-                    "text": "更新日志"
-                }
-            }
-        }
+    "cli": {
+      "text": "CLI"
     },
-    "sidebars": {
-        "cli": {
-            "text": "CLI",
-            "items": {
-                "cli": {
-                    "items": {
-                        "logging": {
-                            "text": "日志记录"
-                        },
-                        "shell-completions": {
-                            "text": "Shell 补全"
-                        },
-                        "directories": {
-                            "text": "目录"
-                        }
-                    }
-                },
-                "commands": {
-                    "text": "命令"
-                }
-            }
-        },
+    "server": {
+      "text": "服务器"
+    },
+    "tutorials": {
+      "text": "教程"
+    },
+    "resources": {
+      "text": "资源",
+      "items": {
         "references": {
-            "text": "参考",
-            "items": {
-                "examples": {
-                    "text": "示例"
-                },
-                "migrations": {
-                    "text": "迁移",
-                    "items": {
-                        "from-v3-to-v4": {
-                            "text": "从 v3 到 v4"
-                        }
-                    }
-                }
-            }
+          "text": "参考"
         },
         "contributors": {
-            "text": "贡献者",
-            "items": {
-                "get-started": {
-                    "text": "入门"
-                },
-                "issue-reporting": {
-                    "text": "问题报告"
-                },
-                "code-reviews": {
-                    "text": "代码审查"
-                },
-                "principles": {
-                    "text": "原则"
-                },
-                "translate": {
-                    "text": "翻译"
-                },
-                "cli": {
-                    "text": "CLI",
-                    "items": {
-                        "logging": {
-                            "text": "日志记录"
-                        }
-                    }
-                },
-                "releases": {
-                    "text": "运行"
-                }
+          "text": "贡献者"
+        },
+        "changelog": {
+          "text": "更新日志"
+        }
+      }
+    }
+  },
+  "sidebars": {
+    "cli": {
+      "text": "CLI",
+      "items": {
+        "cli": {
+          "items": {
+            "debugging": {
+              "text": "调试"
+            },
+            "directories": {
+              "text": "目录"
+            },
+            "shell-completions": {
+              "text": "Shell 自动补全"
             }
+          }
+        },
+        "commands": {
+          "text": "命令"
+        }
+      }
+    },
+    "references": {
+      "text": "参考",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "generated-projects": {
+              "text": "生成的项目"
+            }
+          }
+        },
+        "examples": {
+          "text": "示例"
+        },
+        "libraries": {
+          "text": "库"
+        },
+        "migrations": {
+          "text": "迁移",
+          "items": {
+            "from-v3-to-v4": {
+              "text": "从 v3 到 v4"
+            }
+          }
+        },
+        "configuration": {
+          "text": "配置",
+          "items": {
+            "tuist-toml": {
+              "text": "tuist.toml"
+            }
+          }
+        }
+      }
+    },
+    "contributors": {
+      "text": "贡献者",
+      "items": {
+        "code": {
+          "text": "代码",
+          "items": {
+            "cli": {
+              "text": "CLI"
+            },
+            "server": {
+              "text": "服务器"
+            },
+            "handbook": {
+              "text": "手册"
+            },
+            "docs": {
+              "text": "文档"
+            }
+          }
+        },
+        "issue-reporting": {
+          "text": "问题报告"
+        },
+        "code-reviews": {
+          "text": "代码审查"
+        },
+        "principles": {
+          "text": "原则"
+        },
+        "debugging": {
+          "text": "调试"
+        },
+        "translate": {
+          "text": "语言"
+        },
+        "releases": {
+          "text": "发布"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "日志记录"
+            }
+          }
+        }
+      }
+    },
+    "server": {
+      "items": {
+        "introduction": {
+          "text": "简介",
+          "items": {
+            "why-server": {
+              "text": "为什么需要服务器？"
+            },
+            "accounts-and-projects": {
+              "text": "账户与项目"
+            },
+            "authentication": {
+              "text": "身份验证"
+            },
+            "integrations": {
+              "text": "集成"
+            }
+          }
+        },
+        "on-premise": {
+          "text": "本地部署",
+          "items": {
+            "install": {
+              "text": "安装"
+            },
+            "metrics": {
+              "text": "指标"
+            }
+          }
+        },
+        "api-documentation": {
+          "text": "API 文档"
+        },
+        "status": {
+          "text": "状态"
+        },
+        "metrics-dashboard": {
+          "text": "指标仪表板"
+        }
+      }
+    },
+    "tutorials": {
+      "text": "教程",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "create-a-generated-project": {
+              "text": "创建生成的项目"
+            }
+          }
+        }
+      }
+    },
+    "guides": {
+      "text": "指南",
+      "items": {
+        "get-started": {
+          "text": "入门",
+          "items": {
+            "choose-your-path": {
+              "text": "入门"
+            },
+            "existing-xcode-project": {
+              "text": "Xcode 项目"
+            },
+            "generated-xcode-project": {
+              "text": "生成的 Xcode 项目"
+            },
+            "gradle-project": {
+              "text": "Gradle 项目"
+            },
+            "elixir-project": {
+              "text": "Elixir 项目"
+            },
+            "bazel-project": {
+              "text": "Bazel 项目"
+            }
+          }
+        },
+        "install-tuist": {
+          "text": "安装 Tuist"
+        },
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "关于 Tuist"
+            }
+          }
+        },
+        "quick-start": {
+          "text": "快速开始",
+          "items": {
+            "install-tuist": {
+              "text": "安装 Tuist"
+            },
+            "get-started": {
+              "text": "入门"
+            }
+          }
+        },
+        "features": {
+          "text": "功能"
+        },
+        "examples": {
+          "text": "示例",
+          "items": {
+            "generated-projects": {
+              "text": "生成的项目"
+            }
+          }
+        },
+        "develop": {
+          "text": "开发",
+          "items": {
+            "generated-projects": {
+              "text": "生成的项目",
+              "items": {
+                "adoption": {
+                  "text": "采用",
+                  "items": {
+                    "new-project": {
+                      "text": "创建新项目"
+                    },
+                    "swift-package": {
+                      "text": "使用 Swift Package 试用"
+                    },
+                    "migrate": {
+                      "text": "迁移",
+                      "items": {
+                        "xcode-project": {
+                          "text": "Xcode 项目"
+                        },
+                        "swift-package": {
+                          "text": "Swift package"
+                        },
+                        "xcodegen-project": {
+                          "text": "XcodeGen 项目"
+                        },
+                        "bazel-project": {
+                          "text": "Bazel 项目"
+                        }
+                      }
+                    }
+                  }
+                },
+                "manifests": {
+                  "text": "清单文件"
+                },
+                "directory-structure": {
+                  "text": "目录结构"
+                },
+                "editing": {
+                  "text": "编辑"
+                },
+                "dependencies": {
+                  "text": "依赖"
+                },
+                "code-sharing": {
+                  "text": "代码共享"
+                },
+                "synthesized-files": {
+                  "text": "生成文件"
+                },
+                "dynamic-configuration": {
+                  "text": "动态配置"
+                },
+                "templates": {
+                  "text": "模板"
+                },
+                "plugins": {
+                  "text": "插件"
+                },
+                "hashing": {
+                  "text": "哈希"
+                },
+                "inspect": {
+                  "text": "检查",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "隐式导入"
+                    }
+                  }
+                },
+                "the-cost-of-convenience": {
+                  "text": "便利的代价"
+                },
+                "tma-architecture": {
+                  "text": "模块化架构"
+                },
+                "metadata-tags": {
+                  "text": "元数据标签"
+                },
+                "best-practices": {
+                  "text": "最佳实践"
+                }
+              }
+            },
+            "cache": {
+              "text": "缓存",
+              "items": {
+                "xcode": {
+                  "text": "Xcode",
+                  "items": {
+                    "xcode-cache": {
+                      "text": "Xcode 缓存"
+                    },
+                    "module-cache": {
+                      "text": "模块缓存"
+                    }
+                  }
+                },
+                "gradle-cache": {
+                  "text": "Gradle 缓存"
+                }
+              }
+            },
+            "package-registries": {
+              "text": "包注册表",
+              "items": {
+                "swift": {
+                  "text": "Swift"
+                },
+                "xcode-project": {
+                  "text": "Xcode 项目"
+                },
+                "generated-project": {
+                  "text": "生成的项目"
+                },
+                "xcodeproj-integration": {
+                  "text": "基于 XcodeProj 的集成"
+                },
+                "swift-package": {
+                  "text": "Swift package"
+                },
+                "continuous-integration": {
+                  "text": "持续集成"
+                }
+              }
+            },
+            "selective-testing": {
+              "text": "选择性测试",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "生成的 Xcode 项目"
+                }
+              }
+            },
+            "test-sharding": {
+              "text": "测试分片",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "生成的 Xcode 项目"
+                }
+              }
+            },
+            "insights": {
+              "text": "洞察",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "生成的 Xcode 项目"
+                }
+              }
+            },
+            "test-insights": {
+              "text": "测试洞察",
+              "items": {
+                "flaky-tests": {
+                  "text": "不稳定测试",
+                  "items": {
+                    "generated-xcode-project": {
+                      "text": "生成的 Xcode 项目"
+                    }
+                  }
+                }
+              }
+            },
+            "bundle-insights": {
+              "text": "应用包洞察",
+              "items": {
+                "apple": {
+                  "text": "Apple"
+                },
+                "android": {
+                  "text": "Android"
+                }
+              }
+            },
+            "runners": {
+              "text": "运行器",
+              "items": {
+                "ci-providers": {
+                  "text": "CI 提供商"
+                }
+              }
+            }
+          }
+        },
+        "agentic-coding": {
+          "text": "智能体编程",
+          "items": {
+            "mcp": {
+              "text": "MCP"
+            },
+            "skills": {
+              "text": "技能"
+            }
+          }
+        },
+        "integrations": {
+          "text": "集成",
+          "items": {
+            "continuous-integration": {
+              "text": "持续集成"
+            },
+            "http-proxy": {
+              "text": "HTTP 代理"
+            },
+            "sso": {
+              "text": "SSO"
+            },
+            "slack": {
+              "text": "Slack"
+            },
+            "git-forges": {
+              "text": "Git 托管平台",
+              "items": {
+                "github": {
+                  "text": "GitHub"
+                }
+              }
+            }
+          }
         },
         "server": {
-            "items": {
-                "introduction": {
-                    "text": "介绍",
-                    "items": {
-                        "why-server": {
-                            "text": "为什么需要服务器？"
-                        },
-                        "accounts-and-projects": {
-                            "text": "账户和项目"
-                        },
-                        "authentication": {
-                            "text": "认证"
-                        },
-                        "integrations": {
-                            "text": "集成"
-                        }
-                    }
-                },
-                "on-premise": {
-                    "text": "本地部署",
-                    "items": {
-                        "install": {
-                            "text": "安装"
-                        },
-                        "metrics": {
-                            "text": "指标"
-                        }
-                    }
-                },
-                "api-documentation": {
-                    "text": "API 文档"
-                },
-                "status": {
-                    "text": "状态"
-                },
-                "metrics-dashboard": {
-                    "text": "指标仪表盘"
-                }
-            }
-        },
-        "guides": {
-            "text": "指南",
-            "items": {
-                "tuist": {
-                    "text": "Tuist",
-                    "items": {
-                        "about": {
-                            "text": "关于 Tuist"
-                        }
-                    }
-                },
-                "quick-start": {
-                    "text": "快速开始",
-                    "items": {
-                        "install-tuist": {
-                            "text": "安装 Tuist"
-                        },
-                        "get-started": {
-                            "text": "入门"
-                        }
-                    }
-                },
-                "features": {
-                    "text": "功能"
-                },
-                "examples": {
-                    "text": "示例",
-                    "items": {
-                        "generated-projects": {
-                            "text": "生成的项目"
-                        }
-                    }
-                },
-                "develop": {
-                    "text": "开发",
-                    "items": {
-                        "generated-projects": {
-                            "text": "生成的项目",
-                            "items": {
-                                "adoption": {
-                                    "text": "采用",
-                                    "items": {
-                                        "new-project": {
-                                            "text": "创建新项目"
-                                        },
-                                        "swift-package": {
-                                            "text": "尝试 Swift Package"
-                                        },
-                                        "migrate": {
-                                            "text": "迁移",
-                                            "items": {
-                                                "xcode-project": {
-                                                    "text": "Xcode 项目"
-                                                },
-                                                "swift-package": {
-                                                    "text": "Swift 包"
-                                                },
-                                                "xcodegen-project": {
-                                                    "text": "XcodeGen 项目"
-                                                },
-                                                "bazel-project": {
-                                                    "text": "Bazel 项目"
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                "manifests": {
-                                    "text": "清单"
-                                },
-                                "directory-structure": {
-                                    "text": "目录结构"
-                                },
-                                "editing": {
-                                    "text": "编辑"
-                                },
-                                "dependencies": {
-                                    "text": "依赖"
-                                },
-                                "code-sharing": {
-                                    "text": "代码共享"
-                                },
-                                "synthesized-files": {
-                                    "text": "合成文件"
-                                },
-                                "dynamic-configuration": {
-                                    "text": "动态配置"
-                                },
-                                "templates": {
-                                    "text": "模板"
-                                },
-                                "plugins": {
-                                    "text": "插件"
-                                },
-                                "hashing": {
-                                    "text": "哈希"
-                                },
-                                "inspect": {
-                                    "text": "检查",
-                                    "items": {
-                                        "implicit-imports": {
-                                            "text": "隐式导入"
-                                        }
-                                    }
-                                },
-                                "the-cost-of-convenience": {
-                                    "text": "便利的代价"
-                                },
-                                "tma-architecture": {
-                                    "text": "模块化架构"
-                                },
-                                "best-practices": {
-                                    "text": "最佳实践"
-                                },
-                                "metadata-tags": {
-                                    "text": "元数据标签"
-                                }
-                            }
-                        },
-                        "cache": {
-                            "text": "缓存",
-                            "items": {
-                                "generated-project": {
-                                    "text": ""
-                                },
-                                "xcode-cache": {
-                                    "text": "Xcode缓存"
-                                },
-                                "module-cache": {
-                                    "text": "模块缓存"
-                                }
-                            }
-                        },
-                        "registry": {
-                            "text": "注册表",
-                            "items": {
-                                "registry": {
-                                    "text": "注册表"
-                                },
-                                "xcode-project": {
-                                    "text": "Xcode 项目"
-                                },
-                                "generated-project": {
-                                    "text": "生成的项目"
-                                },
-                                "xcodeproj-integration": {
-                                    "text": "基于 XcodeProj 的集成"
-                                },
-                                "swift-package": {
-                                    "text": "Swift 包"
-                                },
-                                "continuous-integration": {
-                                    "text": "持续集成"
-                                }
-                            }
-                        },
-                        "selective-testing": {
-                            "text": "选择性测试",
-                            "items": {
-                                "selective-testing": {
-                                    "text": "选择性测试"
-                                },
-                                "xcode-project": {
-                                    "text": "Xcode 项目"
-                                },
-                                "generated-project": {
-                                    "text": "生成的项目"
-                                }
-                            }
-                        },
-                        "insights": {
-                            "text": "构建洞察"
-                        },
-                        "bundle-size": {
-                            "text": "应用包洞察"
-                        }
-                    }
-                },
-                "agentic-coding": {
-                    "text": "Agentic 编码",
-                    "items": {
-                        "mcp": {
-                            "text": "MCP"
-                        }
-                    }
-                },
-                "integrations": {
-                    "text": "集成",
-                    "items": {
-                        "continuous-integration": {
-                            "text": "持续集成"
-                        },
-                        "sso": {
-                            "text": "SSO"
-                        },
-                        "git-forges": {
-                            "text": "Git 锻造",
-                            "items": {
-                                "github": {
-                                    "text": "GitHub"
-                                }
-                            }
-                        }
-                    }
-                },
-                "share": {
-                    "text": "共享",
-                    "items": {
-                        "previews": {
-                            "text": "预览"
-                        }
-                    }
-                },
+          "text": "服务器",
+          "items": {
+            "accounts-and-projects": {
+              "text": "账户与项目"
+            },
+            "authentication": {
+              "text": "身份验证"
+            },
+            "network": {
+              "text": "网络"
+            },
+            "self-hosting": {
+              "text": "自托管",
+              "items": {
                 "server": {
-                    "items": {
-                        "self-hosting": {
-                            "items": {
-                                "telemetry": {
-                                    "text": "遥测"
-                                },
-                                "installation": {
-                                    "text": "安装"
-                                }
-                            },
-                            "text": "自主托管"
-                        },
-                        "accounts-and-projects": {
-                            "text": "Accounts and projects"
-                        },
-                        "authentication": {
-                            "text": "Authentication"
-                        }
-                    },
-                    "text": "Server"
+                  "text": "服务器"
+                },
+                "cache": {
+                  "text": "缓存"
+                },
+                "telemetry": {
+                  "text": "遥测"
                 }
+              }
             }
+          }
+        },
+        "share": {
+          "text": "分享",
+          "items": {
+            "previews": {
+              "text": "预览"
+            }
+          }
         }
+      }
     }
+  }
 }

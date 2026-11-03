@@ -45,7 +45,7 @@ jq --arg rules "${temporary}/rules.json" '
     ]
   | map(
       . as [$name, $desired, $ready, $fires_at_2m, $fires_at_4m, $created]
-      | {cluster: "tuist-production", namespace: "kura", statefulset: $name} as $labels
+      | {cluster: "tuist-production", namespace: "kura", statefulset: "kura-\($name)"} as $labels
       | ($labels | to_entries | map("\(.key)=\(.value | tojson)") | join(",")) as $encoded
       | {
           name: $name, interval: "1m",
@@ -65,7 +65,7 @@ jq --arg rules "${temporary}/rules.json" '
     )
   | . + [
       (
-        {cluster: "tuist-production", namespace: "kura", statefulset: "new_instance_stuck"} as $labels
+        {cluster: "tuist-production", namespace: "kura", statefulset: "kura-new_instance_stuck"} as $labels
         | ($labels | to_entries | map("\(.key)=\(.value | tojson)") | join(",")) as $encoded
         | {
             name: "new_instance_stuck", interval: "1m",
@@ -86,22 +86,32 @@ jq --arg rules "${temporary}/rules.json" '
       {
         name: "missing_and_unrelated_series", interval: "1m",
         input_series: [
-          {series: "kube_statefulset_replicas{namespace=\"kura\",statefulset=\"missing\"}", values: "2+0x6"},
-          {series: "kube_statefulset_replicas{namespace=\"other\",statefulset=\"other\"}", values: "2+0x6"},
-          {series: "kube_statefulset_status_replicas_ready{namespace=\"other\",statefulset=\"other\"}", values: "0+0x6"}
+          {series: "kube_statefulset_replicas{namespace=\"kura\",statefulset=\"kura-missing\"}", values: "2+0x6"},
+          {series: "kube_statefulset_replicas{namespace=\"other\",statefulset=\"kura-other\"}", values: "2+0x6"},
+          {series: "kube_statefulset_status_replicas_ready{namespace=\"other\",statefulset=\"kura-other\"}", values: "0+0x6"},
+          {series: "kube_statefulset_created{namespace=\"other\",statefulset=\"kura-other\"}", values: "-3600+0x6"}
         ],
         promql_expr_test: [{expr: $query, eval_time: "4m", exp_samples: []}]
       },
       {
+        name: "non_instance_statefulset", interval: "1m",
+        input_series: [
+          {series: "kube_statefulset_replicas{cluster=\"tuist-production\",namespace=\"kura\",statefulset=\"shard-storage\"}", values: "1+0x16"},
+          {series: "kube_statefulset_status_replicas_ready{cluster=\"tuist-production\",namespace=\"kura\",statefulset=\"shard-storage\"}", values: "0+0x16"},
+          {series: "kube_statefulset_created{cluster=\"tuist-production\",namespace=\"kura\",statefulset=\"shard-storage\"}", values: "-3600+0x16"}
+        ],
+        alert_rule_test: [{eval_time: "13m", alertname: "KuraInstanceHasNoReadyReplicas", exp_alerts: []}]
+      },
+      {
         name: "cluster_label_absent", interval: "1m",
         input_series: [
-          {series: "kube_statefulset_replicas{namespace=\"kura\",statefulset=\"no-cluster\"}", values: "2+0x6"},
-          {series: "kube_statefulset_status_replicas_ready{namespace=\"kura\",statefulset=\"no-cluster\"}", values: "0+0x6"},
-          {series: "kube_statefulset_created{namespace=\"kura\",statefulset=\"no-cluster\"}", values: "-3600+0x6"}
+          {series: "kube_statefulset_replicas{namespace=\"kura\",statefulset=\"kura-no-cluster\"}", values: "2+0x6"},
+          {series: "kube_statefulset_status_replicas_ready{namespace=\"kura\",statefulset=\"kura-no-cluster\"}", values: "0+0x6"},
+          {series: "kube_statefulset_created{namespace=\"kura\",statefulset=\"kura-no-cluster\"}", values: "-3600+0x6"}
         ],
         alert_rule_test: [{
           eval_time: "2m", alertname: "KuraInstanceHasNoReadyReplicas",
-          exp_alerts: [{exp_labels: ({namespace: "kura", statefulset: "no-cluster"} + $rule.labels)}]
+          exp_alerts: [{exp_labels: ({namespace: "kura", statefulset: "kura-no-cluster"} + $rule.labels)}]
         }]
       }
     ]

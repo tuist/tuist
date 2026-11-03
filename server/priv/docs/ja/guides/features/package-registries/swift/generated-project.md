@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Xcodeパッケージ統合による生成プロジェクト",
-  "titleTemplate": ":title · Swift · Package Registries · Features · Guides · Tuist",
-  "description": "Xcodeパッケージ統合を使用した生成済みXcodeプロジェクトでTuist Registryを利用する方法を学びます。"
+  "title": "Xcodeパッケージ統合を使用した生成済みプロジェクト",
+  "titleTemplate": ":title · Swift · パッケージレジストリ · 機能 · ガイド · Tuist",
+  "description": "Xcodeパッケージ統合を使用した生成済みXcodeプロジェクトでTuist Registryを使用する方法を学びます。"
 }
 ---
-# Xcodeパッケージ統合で生成されたプロジェクト{#generated-project-with-xcode-based-integration}
+# Xcode パッケージ統合を使用したプロジェクトの生成 {#generated-project-with-xcode-based-integration}
 
-Tuist Projectsでパッケージを<.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcodeのデフォルト統合</.localized_link>で使用している場合、パッケージを追加する際はURLではなくレジストリ識別子を使用する必要があります。
+Tuist プロジェクトでパッケージを扱う際に <.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode のデフォルト統合</.localized_link> を使用している場合は、パッケージを追加する際、URL ではなくレジストリ識別子を使用する必要があります。
 ```swift
 import ProjectDescription
 
@@ -33,4 +33,4 @@ let project = Project(
 ```
 
 > [!TIP]
-> すべてのパッケージをレジストリ識別子で追加する必要はありません。プロジェクトが生成された後に`tuist registry setup`を実行すると、ソース管理URLで宣言されたパッケージをレジストリから解決するようにXcodeも構成されます。これは`registryEnabled`単独では行いません。<.localized_link href="/guides/features/package-registries/swift/xcode-project#resolving-source-control-packages">ソース管理パッケージの解決</.localized_link>をご覧ください。
+> すべてのパッケージをレジストリ識別子で追加する必要はありません。プロジェクト生成後に `tuist registry setup` を実行すると、ソース管理 URL で宣言されたパッケージをレジストリから解決するように Xcode も構成されます。これは `registryEnabled` だけでは行われません。<.localized_link href="/guides/features/package-registries/swift/xcode-project#resolving-source-control-packages">ソース管理パッケージの解決</.localized_link> を参照してください。

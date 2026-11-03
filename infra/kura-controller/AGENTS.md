@@ -12,6 +12,9 @@ Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node li
   before Quiescing. Renew the primary normally, bind completion to the exact
   intent/source epoch/destination incarnation, and preserve the original five-minute
   frozen-corpus barrier. Preparation failure never promotes or pauses the primary.
+  A fresh source report of `barrier_failure` for the exact intent restores
+  Serving before that deadline, the same abort as a timeout; destination
+  reports and other intents never release the barrier.
   Clear only Serving-phase preparation when fencing; interrupted Quiescing keeps
   its existing external recovery requirements.
   Durable CAS epochs and positive fencing own activated instances. Missing-node
@@ -44,11 +47,15 @@ Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node li
   metrics are omitted rather than recorded as zero; auxiliary-container usage
   must never influence the runtime request bands.
 - Optional fixed connectivity diagnostics: [`../../kura/src/connectivity/AGENTS.md`](../../kura/src/connectivity/AGENTS.md).
-  Exact deployment-configured instance names receive `KURA_CONNECTIVITY_PROFILE`
-  on the existing runtime container. No sidecar or readiness dependency is added.
-  Disabled by default; no RBAC, token-mount, or JIT policy changes. See
-  [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout:
-  the environment change rolls selected instances under their existing strategy.
+  Exact deployment-selected instances receive expiring live-Pod annotations only
+  when equipped with the fixed projection. Reserve selection env and annotations
+  against instance overrides. Run patches after serving work with one total
+  deadline. No controller-only rollout: preparation defaults off, adopts only
+  on creation/image change, and survives compatible rollback. Establish this
+  controller as the rollback floor before enabling preparation. Legacy pods stay
+  unsupported until their normal upgrade. No sidecar, readiness dependency,
+  RBAC, token-mount or JIT policy changes. See
+  [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout.
 
 ## Account renames
 

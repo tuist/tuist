@@ -29,6 +29,9 @@ const (
 	OpStopWorker  = "stop_worker"
 	OpStatus      = "status"
 	OpReclaim     = "reclaim"
+	OpSaveDisks   = "save_disks"
+	OpDeleteDisks = "delete_disks"
+	OpArchive     = "archive"
 )
 
 const (
@@ -81,6 +84,7 @@ type ReclaimResult struct {
 // the daemon holds on it. SandboxesBytes counts only what jails own
 // exclusively (rootfs deltas, workspaces, their own memory images);
 // hardlinked and reflinked template bytes count under TemplatesBytes.
+// SnapshotsBytes counts what saved disk snapshots own exclusively.
 // BudgetBytes is the share of the filesystem sandboxes may occupy, zero
 // when the node sets none.
 type DiskReport struct {
@@ -88,6 +92,7 @@ type DiskReport struct {
 	AvailableBytes uint64 `json:"available_bytes"`
 	SandboxesBytes uint64 `json:"sandboxes_bytes"`
 	TemplatesBytes uint64 `json:"templates_bytes"`
+	SnapshotsBytes uint64 `json:"snapshots_bytes"`
 	BudgetBytes    uint64 `json:"budget_bytes"`
 }
 
@@ -118,22 +123,36 @@ type SandboxInfo struct {
 	// ColdBoot marks a paused sandbox whose next resume boots the kernel on
 	// its own disks instead of restoring memory, because the daemon lost the
 	// VM while it was running and the disks moved on since the last snapshot.
-	ColdBoot   bool      `json:"cold_boot,omitempty"`
+	ColdBoot bool `json:"cold_boot,omitempty"`
+	// CPUMs is a running VM's CPU time since its process started, for the
+	// server to tell an active guest from an idle one.
+	CPUMs      int64     `json:"cpu_ms,omitempty"`
 	Generation int       `json:"generation"`
 	CreatedAt  time.Time `json:"created_at"`
 	Error      string    `json:"error,omitempty"`
 }
 
+// DiskSnapshotInfo describes a saved copy of a paused sandbox's disks that
+// new sandboxes can be created from.
+type DiskSnapshotInfo struct {
+	ID          string    `json:"id"`
+	Template    string    `json:"template"`
+	TemplateTag string    `json:"template_tag"`
+	WorkspaceGB int       `json:"workspace_gb"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type Hello struct {
-	Type               string         `json:"type"`
-	Node               string         `json:"node"`
-	DaemonVersion      string         `json:"daemon_version"`
-	FirecrackerVersion string         `json:"firecracker_version"`
-	Capacity           Capacity       `json:"capacity"`
-	Elastic            Elastic        `json:"elastic"`
-	Disk               DiskReport     `json:"disk"`
-	Templates          []TemplateInfo `json:"templates"`
-	Sandboxes          []SandboxInfo  `json:"sandboxes"`
+	Type               string             `json:"type"`
+	Node               string             `json:"node"`
+	DaemonVersion      string             `json:"daemon_version"`
+	FirecrackerVersion string             `json:"firecracker_version"`
+	Capacity           Capacity           `json:"capacity"`
+	Elastic            Elastic            `json:"elastic"`
+	Disk               DiskReport         `json:"disk"`
+	Templates          []TemplateInfo     `json:"templates"`
+	Sandboxes          []SandboxInfo      `json:"sandboxes"`
+	DiskSnapshots      []DiskSnapshotInfo `json:"disk_snapshots"`
 }
 
 type Result struct {
@@ -171,11 +190,12 @@ type MemoryReport struct {
 // changes, so a resize reaches the server's budget without waiting out the
 // interval.
 type Report struct {
-	Type      string        `json:"type"`
-	Capacity  Capacity      `json:"capacity"`
-	Sandboxes []SandboxInfo `json:"sandboxes"`
-	Memory    MemoryReport  `json:"memory"`
-	Disk      DiskReport    `json:"disk"`
+	Type          string             `json:"type"`
+	Capacity      Capacity           `json:"capacity"`
+	Sandboxes     []SandboxInfo      `json:"sandboxes"`
+	DiskSnapshots []DiskSnapshotInfo `json:"disk_snapshots"`
+	Memory        MemoryReport       `json:"memory"`
+	Disk          DiskReport         `json:"disk"`
 }
 
 type Command struct {
@@ -193,10 +213,52 @@ type CreateArgs struct {
 	MemoryMB    int    `json:"memory_mb"`
 	WorkspaceGB int    `json:"workspace_gb"`
 	Hostname    string `json:"hostname"`
+	// FromDiskSnapshot names a saved disk snapshot to clone instead of the
+	// template's disks. The sandbox cold boots on the clones.
+	FromDiskSnapshot string `json:"from_disk_snapshot,omitempty"`
+	// FromArchive downloads the sandbox's archived disks and kernel from
+	// object storage instead. The sandbox cold boots on them.
+	FromArchive *ArchiveSource `json:"from_archive,omitempty"`
 }
 
 type SandboxArgs struct {
 	SandboxID string `json:"sandbox_id"`
+}
+
+// PauseArgs asks for a pause. SyncDisks flushes the guest's page cache to
+// its disks first, which a later save_disks requires: a disk-only copy
+// would otherwise miss writes that only the memory image holds.
+type PauseArgs struct {
+	SandboxID string `json:"sandbox_id"`
+	SyncDisks bool   `json:"sync_disks,omitempty"`
+}
+
+type SaveDisksArgs struct {
+	SandboxID  string `json:"sandbox_id"`
+	SnapshotID string `json:"snapshot_id"`
+}
+
+type DiskSnapshotArgs struct {
+	SnapshotID string `json:"snapshot_id"`
+}
+
+// ArchiveArgs asks for a paused sandbox's kernel and disks to be uploaded
+// to object storage as one multipart object. PartURLs are presigned
+// UploadPart URLs for parts 1..n of PartSize bytes each; the daemon holds
+// no storage credentials. The sandbox stays on the node until the server
+// deletes it.
+type ArchiveArgs struct {
+	SandboxID string   `json:"sandbox_id"`
+	PartSize  int64    `json:"part_size"`
+	PartURLs  []string `json:"part_urls"`
+}
+
+// ArchiveSource is an archive to restore: a presigned GET URL and the size
+// and SHA-256 the archive was uploaded with.
+type ArchiveSource struct {
+	URL    string `json:"url"`
+	Bytes  int64  `json:"bytes"`
+	SHA256 string `json:"sha256"`
 }
 
 type ExecArgs struct {
@@ -221,8 +283,30 @@ type ResumeResult struct {
 }
 
 type PauseResult struct {
-	SnapshotMs int64 `json:"snapshot_ms"`
-	MemBytes   int64 `json:"mem_bytes"`
+	SnapshotMs  int64 `json:"snapshot_ms"`
+	MemBytes    int64 `json:"mem_bytes"`
+	DisksSynced bool  `json:"disks_synced"`
+}
+
+type SaveDisksResult struct {
+	DurationMs int64 `json:"duration_ms"`
+}
+
+type ArchivePart struct {
+	PartNumber int    `json:"part_number"`
+	ETag       string `json:"etag"`
+}
+
+// ArchiveResult lists the uploaded parts for the server to complete the
+// upload with. Bytes and SHA256 describe the object; StoredBytes is the
+// file data it holds before compression.
+type ArchiveResult struct {
+	Parts       []ArchivePart `json:"parts"`
+	Bytes       int64         `json:"bytes"`
+	SHA256      string        `json:"sha256"`
+	StoredBytes int64         `json:"stored_bytes"`
+	DisksSynced bool          `json:"disks_synced"`
+	DurationMs  int64         `json:"duration_ms"`
 }
 
 type ExecResult struct {

@@ -166,6 +166,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
+		c.Checkouts.Spare = c.spareCheckout
 		c.Checkouts.Observe = observeCustomCache
 		c.Checkouts.Log = slog.New(logr.ToSlogHandler(log.FromContext(ctx)))
 		// Checkout images are larger than custom ones, so their archives get their own bound.

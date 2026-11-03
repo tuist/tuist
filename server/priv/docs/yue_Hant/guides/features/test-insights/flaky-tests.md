@@ -7,22 +7,22 @@
 ---
 # 不穩定測試 {#flaky-tests}
 
-不穩定測試係指用同一份代碼多次執行時，會出現唔同結果（通過或失敗）嘅測試。佢哋會削弱你對測試套件嘅信心，亦浪費開發人員時間去調查誤報失敗。Tuist 會自動偵測不穩定測試，並幫你隨住時間追蹤佢哋。
+不穩定測試係指喺同一份代碼下多次運行時，會出現唔同結果（通過或失敗）嘅測試。呢啲測試會削弱你對測試套件嘅信心，亦會浪費開發人員排查誤報失敗嘅時間。Tuist 會自動偵測不穩定測試，並幫你持續追蹤。
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="透過 tuist xcodebuild test，在 Xcode 專案中偵測、管理同隔離不穩定測試。"
+    details="透過 tuist xcodebuild test，偵測、管理同隔離 Xcode 專案中嘅不穩定測試。"
     link="/guides/features/test-insights/flaky-tests/xcode"
 />
   <.home_card
-    title="生成專案"
-    details="透過 tuist test，在 Tuist 生成專案中偵測、管理同隔離不穩定測試。"
+    title="生成嘅專案"
+    details="透過 tuist test，偵測、管理同隔離 Tuist 生成專案中嘅不穩定測試。"
     link="/guides/features/test-insights/flaky-tests/generated-xcode-project"
 />
   <.home_card
     title="Gradle"
-    details="在 Gradle 專案中偵測同管理不穩定測試。"
+    details="偵測同管理 Gradle 專案中嘅不穩定測試。"
     link="/guides/features/test-insights/flaky-tests/gradle"
 />
   <.home_card
@@ -32,12 +32,12 @@
 />
   <.home_card
     title="Elixir"
-    details="透過測試重試，在 Elixir 專案中偵測同管理不穩定測試。"
+    details="透過測試重試，偵測同管理 Elixir 專案中嘅不穩定測試。"
     link="/guides/features/test-insights/flaky-tests/elixir"
 />
   <.home_card
     title="Rust"
-    details="利用跨 CI 運行嘅結果，偵測同調查不穩定嘅 Cargo 測試。"
+    details="利用跨 CI 運行嘅結果，偵測同排查不穩定嘅 Cargo 測試。"
     link="/guides/features/test-insights/flaky-tests/rust"
 />
 </.home_cards>

@@ -585,10 +585,7 @@ mod tests {
             }
         });
         let backend = TuistBackend::new(
-            format!(
-                "https://fixture-user:fixture-password@localhost:{}/?fixture-query=fixture-value",
-                address.port()
-            ),
+            format!("https://fixture-user:fixture-password@{address}/?fixture-query=fixture-value"),
             Duration::from_secs(1),
             Duration::from_secs(1),
             None,
@@ -599,7 +596,7 @@ mod tests {
             Metrics::new("test".into(), "test".into()),
         )
         .unwrap();
-        assert_eq!(backend.server_address, "localhost");
+        assert_eq!(backend.server_address, "127.0.0.1");
         for error in [
             backend.introspect("fixture-token").await.unwrap_err(),
             backend
@@ -640,7 +637,7 @@ mod tests {
             }
         });
         let backend = TuistBackend::new(
-            format!("https://localhost:{}", address.port()),
+            format!("https://{address}"),
             Duration::from_secs(1),
             Duration::from_secs(1),
             None,

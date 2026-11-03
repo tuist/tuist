@@ -158,4 +158,29 @@ defmodule TuistWeb.BuildsLiveTest do
     render_async(view, @render_async_timeout)
     refute has_element?(view, "#build-runs-table", "Verification")
   end
+
+  test "build analytics follow the status filter", %{conn: conn, project: project} do
+    yesterday = DateTime.add(DateTime.utc_now(), -1, :day)
+
+    for {status, duration} <- [{"success", 2_000}, {"failure", 10_000}] do
+      RunsFixtures.build_fixture(project_id: project.id, status: status, duration: duration, inserted_at: yesterday)
+    end
+
+    path = "/#{project.account.name}/#{project.name}/builds"
+
+    {:ok, lv, _html} = live(conn, path)
+    render_async(lv, @render_async_timeout)
+    assert lv |> element("#widget-build-duration") |> render() =~ "6.0s"
+
+    render_patch(lv, path <> "?analytics-build-status=success")
+    render_async(lv, @render_async_timeout)
+    assert lv |> element("#widget-build-duration") |> render() =~ "2.0s"
+    assert has_element?(lv, "#widget-total-builds", "1")
+    assert has_element?(lv, "#widget-build-success-rate", "100.0%")
+    assert has_element?(lv, "#widget-failed-builds[data-empty=true]")
+
+    render_patch(lv, path <> "?analytics-build-status=failure")
+    render_async(lv, @render_async_timeout)
+    assert lv |> element("#widget-build-duration") |> render() =~ "10.0s"
+  end
 end
