@@ -31,7 +31,7 @@ See the <.localized_link href="/guides/server/self-host/release-channels">Releas
 
 ## Browser session upgrade {#browser-session-upgrade}
 
-Browser sessions expire after 15 minutes without authenticated page requests or LiveView interaction, and no later than eight hours after authentication. Remember me restores the same server-side session and cannot extend either deadline. Activity is checkpointed once per minute, so an idle session can expire up to 59 seconds earlier. WebSocket heartbeats and background updates do not renew activity. These deadlines do not change machine credentials or API-token lifetimes.
+Browser sessions expire after 15 minutes without authenticated page requests or LiveView interaction, and no later than eight hours after authentication. Remember me restores the same server-side session and cannot extend either deadline. Activity is checkpointed once per minute, so an idle session can expire up to 59 seconds earlier. WebSocket heartbeats, automatic reconnects, and background updates do not renew activity. These deadlines do not change machine credentials or API-token lifetimes.
 
 Run the additive `users_tokens` migration before starting upgraded application processes. Existing rows are not backfilled: their creation time bounds inactivity and absolute expiry, and they must freshly authenticate before accessing an SSO-enforced organization. The callback's provider, issuer or verified Workspace, and custom SSO connection are stored server-side and compared with the organization's current settings. A linked account is not session authentication proof.
 

@@ -23,6 +23,7 @@ defmodule TuistWeb.Authentication do
   @current_user_key :current_user
   @current_project_key :current_project
   @remember_me_cookie "_tuist_web_user_remember_me"
+  @reconnect_recovery_ms 5_000
   @remember_me_options [sign: true, max_age: UserToken.session_absolute_seconds(), same_site: "Lax"]
 
   def authenticated?(%Plug.Conn{} = conn), do: authenticated?(conn.assigns)
@@ -356,7 +357,8 @@ defmodule TuistWeb.Authentication do
     socket = mount_current_user(socket, session)
 
     if socket.assigns.current_user do
-      {:cont, socket}
+      # Pages that always need a user return to login when the session ends.
+      {:cont, Phoenix.Component.assign(socket, :browser_session_login_required?, true)}
     else
       socket =
         socket
@@ -378,6 +380,24 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  # Library dashboards such as Oban Web run their actions from their own
+  # component events, which skip both the root event hook and the component
+  # wrapper, and then message the root view. Revalidate before every such
+  # message. This reads the session without renewing activity, so periodic
+  # dashboard refreshes cannot keep an idle session alive.
+  def on_mount(:revalidate_browser_session_on_info, _params, session, socket) do
+    token = session["user_token"]
+
+    if is_binary(token) and LiveView.connected?(socket) do
+      {:cont,
+       LiveView.attach_hook(socket, :browser_session_messages, :handle_info, fn _message, socket ->
+         check_live_session(socket, token, [])
+       end)}
+    else
+      {:cont, socket}
+    end
+  end
+
   def on_mount(:require_sso_authentication, params, _session, socket) do
     socket |> Phoenix.Component.assign(:sso_route_params, params) |> enforce_live_sso()
   end
@@ -395,15 +415,24 @@ defmodule TuistWeb.Authentication do
 
     if user_session && socket.router && LiveView.connected?(socket) do
       schedule_session_check(user_session)
+      # An automatic reconnect remounts the view, calls handle_params and
+      # replays phx-change forms (form recovery, which can push_patch) with no
+      # user action. Requests in that short window revalidate without renewing.
+      reconnect? = ((LiveView.get_connect_params(socket) || %{})["_mounts"] || 0) > 0
+      automatic_until = if reconnect?, do: System.monotonic_time(:millisecond) + @reconnect_recovery_ms
 
       socket
+      |> Phoenix.Component.assign(:browser_session_automatic_until, automatic_until)
       |> LiveView.attach_hook(:browser_session, :handle_event, fn _, _, socket ->
-        check_live_session(socket, token, touch: true)
+        check_live_session(socket, token, touch: not automatic_request?(socket.assigns))
       end)
-      |> LiveView.attach_hook(:browser_session, :handle_params, fn params, _, socket ->
+      |> LiveView.attach_hook(:browser_session, :handle_params, fn params, url, socket ->
         socket
-        |> Phoenix.Component.assign(:sso_route_params, params)
-        |> check_live_session(token, touch: true)
+        |> Phoenix.Component.assign(
+          sso_route_params: params,
+          browser_session_path: if(!socket.assigns[:browser_session_login_required?], do: request_path(url))
+        )
+        |> check_live_session(token, touch: not automatic_request?(socket.assigns))
       end)
       |> LiveView.attach_hook(:browser_session, :handle_info, fn
         :check_browser_session, socket ->
@@ -424,6 +453,16 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  defp automatic_request?(assigns) do
+    until = assigns[:browser_session_automatic_until]
+    is_integer(until) and System.monotonic_time(:millisecond) < until
+  end
+
+  defp request_path(url) do
+    %URI{path: path, query: query} = URI.parse(url)
+    if query, do: "#{path}?#{query}", else: path
+  end
+
   defp schedule_session_check(session) do
     remaining = DateTime.diff(UserToken.session_expires_at(session), Tuist.Time.utc_now(), :millisecond)
     Process.send_after(self(), :check_browser_session, max(1, min(remaining, 60_000)))
@@ -432,7 +471,10 @@ defmodule TuistWeb.Authentication do
   defp check_live_session(socket, token, opts) do
     case Accounts.get_user_session(token, opts) do
       nil ->
-        {:halt, LiveView.redirect(socket, to: ~p"/users/log_in")}
+        # Pages that also serve signed-out visitors reload instead, so the HTTP
+        # pipeline clears the dead credential and renders them anonymously (or
+        # sends protected ones to login).
+        {:halt, LiveView.redirect(socket, to: socket.assigns[:browser_session_path] || ~p"/users/log_in")}
 
       session ->
         socket |> Phoenix.Component.assign(:current_user_session, session) |> enforce_live_sso()
@@ -459,7 +501,15 @@ defmodule TuistWeb.Authentication do
   # This context dies with the socket; it is not a shared authentication cache.
   defp remember_live_authentication(socket, token) do
     if socket.router && LiveView.connected?(socket) && not Map.has_key?(socket.assigns, :myself) do
-      assigns = Map.take(socket.assigns, [:current_user, :current_user_session, :sso_route_params])
+      assigns =
+        Map.take(socket.assigns, [
+          :current_user,
+          :current_user_session,
+          :sso_route_params,
+          :browser_session_path,
+          :browser_session_automatic_until
+        ])
+
       Process.put({__MODULE__, :live_authentication}, {token, assigns})
     end
   end
@@ -470,7 +520,7 @@ defmodule TuistWeb.Authentication do
       {token, assigns} when is_binary(token) ->
         guarded_socket = %{socket | assigns: Map.merge(socket.assigns, assigns)}
 
-        case check_live_session(guarded_socket, token, touch: true) do
+        case check_live_session(guarded_socket, token, touch: not automatic_request?(assigns)) do
           {:cont, _} -> {:cont, socket}
           {:halt, _} = halted -> halted
         end

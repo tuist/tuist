@@ -1270,7 +1270,14 @@ defmodule TuistWeb.Router do
   scope "/ops" do
     pipe_through [:browser_app, :ops]
 
-    oban_dashboard("/oban", csp_nonce_assign_key: :csp_nonce)
+    oban_dashboard("/oban",
+      csp_nonce_assign_key: :csp_nonce,
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.Authentication, :revalidate_browser_session_on_info}
+      ]
+    )
 
     forward "/flags", FunWithFlags.UI.Router, namespace: "ops/flags"
 

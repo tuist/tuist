@@ -1034,13 +1034,35 @@ defmodule TuistWeb.AuthenticationTest do
     test "an expired connected session cannot submit a project mutation", %{conn: conn, user: user} do
       project = ProjectsFixtures.project_fixture(account: user.account)
       conn = log_in_user(conn, user)
-      {:ok, view, _} = live(conn, ~p"/#{user.account.name}/#{project.name}/settings")
+      path = ~p"/#{user.account.name}/#{project.name}/settings"
+      {:ok, view, _} = live(conn, path)
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
       Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -900)])
 
       render_hook(view, "rename_project", %{"project" => %{"name" => "must-not-change"}})
-      assert_redirect(view, ~p"/users/log_in")
+      # The socket reloads its page; HTTP then sends the expired session to login.
+      assert_redirect(view, path)
+      assert conn |> get(path) |> redirected_to() == ~p"/users/log_in"
       assert Tuist.Projects.get_project_by_id(project.id).name == project.name
+    end
+
+    @tag :browser_session
+    test "an expired session on an open public page falls back to the anonymous page, not login", %{
+      conn: conn,
+      user: user
+    } do
+      project = ProjectsFixtures.project_fixture(account: user.account, visibility: :public)
+      conn = log_in_user(conn, user)
+      path = ~p"/#{user.account.name}/#{project.name}"
+      {:ok, view, _} = live(conn, path)
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -900)])
+
+      send(view.pid, :check_browser_session)
+      assert_redirect(view, path)
+      reloaded = get(conn, path)
+      assert html_response(reloaded, 200)
+      refute reloaded.assigns.current_user
     end
   end
 

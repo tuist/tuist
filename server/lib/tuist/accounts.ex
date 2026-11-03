@@ -2184,14 +2184,27 @@ defmodule Tuist.Accounts do
 
   defp maybe_touch_user_session(session, opts) do
     now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+    checkpoint_before = DateTime.add(now, -60)
 
     if Keyword.get(opts, :touch, false) and
-         (is_nil(session.last_active_at) or DateTime.diff(now, session.last_active_at) >= 60) do
-      # Recheck both deadlines in the write: a concurrent request must never
-      # resurrect an expired/revoked session. Throttle writes, not validation.
-      case Repo.update_all(UserToken.valid_session_query(session.token), set: [last_active_at: now]) do
-        {1, _} -> %{session | last_active_at: now}
-        {0, _} -> nil
+         (is_nil(session.last_active_at) or DateTime.compare(session.last_active_at, checkpoint_before) != :gt) do
+      # Recheck both deadlines and the checkpoint age in the write: a concurrent
+      # request must never resurrect an expired/revoked session, write twice in
+      # one minute, or move a newer checkpoint backwards.
+      query =
+        from s in UserToken.valid_session_query(session.token),
+          where: is_nil(s.last_active_at) or s.last_active_at <= ^checkpoint_before
+
+      case Repo.update_all(query, set: [last_active_at: now]) do
+        {1, _} ->
+          %{session | last_active_at: now}
+
+        {0, _} ->
+          # Another request checkpointed first, or the session ended meanwhile.
+          case Repo.one(UserToken.valid_session_query(session.token)) do
+            nil -> nil
+            current -> %{session | last_active_at: current.last_active_at}
+          end
       end
     else
       session
