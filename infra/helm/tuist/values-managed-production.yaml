@@ -517,7 +517,9 @@ egressTreeAgent:
 # CSI installation and upgrades are separate from tenant enrollment. Routine
 # server deployments preserve its installed image; upgrades require an explicit digest.
 kuraVolumesCSI:
-  enabled: false # Separate infrastructure opt-in; tenant enrollment stays independent.
+  # Installs only through a deploy dispatched with kura_volumes_csi_image_digest;
+  # tenant enrollment stays independent.
+  enabled: true
   # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
   keyServicePublicKey: PCj63J/Ahkzb6ST6Pve32eQARfY0L7zB/EhR+MjwmVw=
   thinRegions: []
