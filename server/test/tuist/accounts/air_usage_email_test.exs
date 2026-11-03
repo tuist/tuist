@@ -90,10 +90,16 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
       email = UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "acme"}, notification)
 
       assert email.subject == "acme has reached #{threshold}% of its Air runner limit"
-      assert email.html_body =~ "#{threshold} of 100 baseline runner minutes used"
+
+      assert email.html_body =~
+               "#{threshold} of 100 free runner minutes used, counted in macOS minutes (2,500 Linux minutes count as 100)"
+
       assert email.html_body =~ "October 1, 2026 (UTC)"
       assert email.html_body =~ ~s(href="https://tuist.dev/acme/billing")
-      assert email.text_body =~ "#{threshold} of 100 baseline runner minutes used"
+
+      assert email.text_body =~
+               "#{threshold} of 100 free runner minutes used, counted in macOS minutes (2,500 Linux minutes count as 100)"
+
       refute email.html_body =~ "remote cache hits"
       refute email.text_body =~ "Remote cache access is paused"
 
