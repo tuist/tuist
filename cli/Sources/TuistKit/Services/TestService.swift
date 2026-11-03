@@ -434,6 +434,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             osVersion: osVersion
         )
 
+        let testImpactSelector = try testImpactSelector(
+            config: config,
+            path: path,
+            action: action,
+            ignoreSelectiveTesting: ignoreSelectiveTesting,
+            schemeName: schemeName,
+            testPlan: testPlanConfiguration?.testPlan,
+            platform: platform,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
+
         let testGenerator = generatorFactory.testing(
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
@@ -452,10 +463,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
-        let (_, graph, mapperEnvironment) = try await testGenerator.generateWithGraph(
-            path: path,
-            options: config.project.generatedProject?.generationOptions
-        )
+        let (_, graph, mapperEnvironment) = try await TestImpactSelector.$current.withValue(testImpactSelector) {
+            try await testGenerator.generateWithGraph(
+                path: path,
+                options: config.project.generatedProject?.generationOptions
+            )
+        }
+        let testImpactOutcome = await testImpactSelector?.outcome
+        await RunMetadataStorage.current.update(testImpactRunId: testImpactOutcome?.runID)
+        let testImpactSkipList = testImpactOutcome?.skipList
+        if !isSharding {
+            await RunMetadataStorage.current.update(testImpactSkip: testImpactSkipList?.identifiers)
+        }
 
         // Which cached binaries carry coverage counters, for the server to judge the run's coverage
         // per target; read off the binaries once they are in place.
@@ -528,6 +547,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     mapperEnvironment.initialGraph.map(GraphTraverser.init)?.schemes()
                         ?? graphTraverser.schemes()
                 if let scheme = schemes.first(where: { $0.name == schemeName }) {
+                    logTestImpactOutcome(testImpactOutcome)
                     Logger.current.log(
                         level: .info,
                         "The scheme \(schemeName)'s test action has no tests to run, finishing early."
@@ -636,7 +656,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             graph: graph,
             action: action,
             requestedTestTargets: testTargets,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            testImpactOutcome: testImpactOutcome
         ) {
             try await finishSkippedTests(
                 schemes: schemes,
@@ -660,8 +681,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
             passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
         }
 
+        // Unsharded runs skip single tests in the test process. Modules with nothing selected were
+        // pruned from the project; sharded runs read their lists from the shard.
+        var testImpactEnvironment: [String: String] = [:]
+        if !isSharding, let testImpactSkipList {
+            testImpactEnvironment = try await testImpactSkipList.environment(
+                directory: fileSystem.makeTemporaryDirectory(prefix: "test-impact"),
+                fileSystem: fileSystem
+            )
+        }
+
         do {
-            let didRunTests = try await testSchemes(
+            let didRunTests = try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                XcodeBuildEnvironment.additionalVariables.merging(testImpactEnvironment) { _, new in new }
+            ) { try await testSchemes(
                 schemes,
                 graph: graph,
                 mapperEnvironment: mapperEnvironment,
@@ -686,7 +719,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 quarantinedTests: mutedQuarantinedTests,
                 mode: mode,
                 stressNewTests: stressNewTests
-            )
+            ) }
             if !didRunTests {
                 try await finishSkippedTests(
                     schemes: schemes,
@@ -764,7 +797,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         buildRunId: buildRunId,
                         requestedTestIdentifiers: testTargets,
                         skipUpload: shardSkipUpload,
-                        archivePath: shardArchivePath
+                        archivePath: shardArchivePath,
+                        testImpactRunId: testImpactSkipList == nil ? nil : testImpactOutcome?.runID
                     )
                 }
             }
@@ -798,6 +832,66 @@ public struct TestService { // swiftlint:disable:this type_body_length
             .collect()
             .isEmpty
         return hasXctestrun ? [buildProductsPath] : []
+    }
+
+    // MARK: - Coverage-based test selection
+
+    /// The selector that applies coverage-based test selection while the project is generated, nil
+    /// when the run doesn't select: selective testing is off, the project has no Tuist account, or
+    /// the run only executes tests built earlier, which read the selection from the build.
+    private func testImpactSelector(
+        config: Tuist,
+        path: AbsolutePath,
+        action: XcodeBuildTestAction,
+        ignoreSelectiveTesting: Bool,
+        schemeName: String?,
+        testPlan: String?,
+        platform: String?,
+        passthroughXcodeBuildArguments: [String]
+    ) throws -> TestImpactSelector? {
+        guard Self.selectsTestsByCoverage(config: config),
+              !ignoreSelectiveTesting,
+              action != .testWithoutBuilding,
+              let fullHandle = config.fullHandle
+        else { return nil }
+        let destination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
+        return TestImpactSelector(
+            invocation: TestImpactSelector.Invocation(
+                fullHandle: fullHandle,
+                serverURL: try serverEnvironmentService.url(configServerURL: config.url),
+                path: path,
+                scheme: schemeName,
+                testPlan: testPlan,
+                destination: destination,
+                platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
+                    ?? destination.flatMap(TestImpactSelector.platform(xcodebuildDestination:))
+            )
+        )
+    }
+
+    /// Whether the project selects tests by coverage: `Tuist.swift`'s `.selectiveTesting(strategy: .coverage())`.
+    static func selectsTestsByCoverage(config: Tuist) -> Bool {
+        config.testInsights.selectiveTesting?.strategy == .coverage
+    }
+
+    private func logTestImpactOutcome(_ outcome: TestImpactOutcome?) {
+        switch outcome {
+        case nil:
+            return
+        case let .selected(selection, skippedModules):
+            let counts = [
+                selection.selected.map { "\($0) selected" },
+                selection.skipped.map { "\($0) skipped" },
+                selection.requested.map { "of \($0) tests" },
+            ].compactMap { $0 }.joined(separator: ", ")
+            let skipped = skippedModules.isEmpty ? "" : " No test selected in: \(skippedModules.joined(separator: ", "))."
+            Logger.current.notice("Coverage-based test selection: \(counts.isEmpty ? "tests selected" : counts).\(skipped)")
+        case let .fallback(_, reason, matchedPath):
+            let action = reason.map(TestImpactSelector.runAllReasons.contains) == true
+                ? "runs every test" : "fell back to selective testing"
+            let path = matchedPath.map { " (\($0))" } ?? ""
+            Logger.current.notice("Coverage-based test selection \(action): \(reason?.rawValue ?? "unknown reason")\(path).")
+        }
     }
 
     // MARK: - Quarantine
@@ -957,12 +1051,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
+        let testImpactSkipList = TestImpactSkipList(shard.skippedTests)
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: shard.testProductsPath,
             testTargets: [],
             skipTestTargets: skipTestTargets,
             shardTestIdentifiers: onlyTestIdentifiers,
-            shardSkipTestIdentifiers: shard.skipTestIdentifiers,
+            shardSkipTestIdentifiers: shard.skipTestIdentifiers + testImpactSkipList.modules,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,
             platform: platform,
@@ -976,11 +1071,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
         var testError: Error?
 
         do {
-            try await runCollectingCoverage(
-                arguments: xcodebuildArguments,
-                resultBundlePath: resultBundlePath,
-                config: config
+            let testImpactEnvironment = try await testImpactSkipList.environment(
+                directory: fileSystem.makeTemporaryDirectory(prefix: "test-impact"),
+                fileSystem: fileSystem
             )
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                XcodeBuildEnvironment.additionalVariables.merging(testImpactEnvironment) { _, new in new }
+            ) {
+                try await runCollectingCoverage(
+                    arguments: xcodebuildArguments,
+                    resultBundlePath: resultBundlePath,
+                    config: config
+                )
+            }
         } catch {
             testError = error
         }
@@ -1101,15 +1204,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let derivedDataPath = try passedValue(for: "-derivedDataPath", arguments: arguments).map {
             try AbsolutePath(validating: $0, relativeTo: currentWorkingDirectory)
         }
+        let destination = passedValue(for: "-destination", arguments: arguments)
+        await RunMetadataStorage.current
+            .update(testPlatform: destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)))
         let session = await testCoverageEvidenceService.prepare(
-            platform: passedValue(for: "-destination", arguments: arguments)
-                .flatMap(TestCoverageEvidencePlatform.init(destination:)),
+            platform: destination.flatMap(TestCoverageEvidencePlatform.init(destination:)),
             config: config
         )
         let runStartedAt = Date()
         var runError: Error?
         do {
-            try await XcodeBuildEnvironment.$additionalVariables.withValue(session?.environment ?? [:]) {
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                XcodeBuildEnvironment.additionalVariables.merging(session?.environment ?? [:]) { _, new in new }
+            ) {
                 try await xcodebuildController.run(arguments: arguments)
             }
         } catch {
@@ -1313,11 +1420,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
         var testError: Error?
 
         do {
-            try await runCollectingCoverage(
-                arguments: xcodebuildArguments,
-                resultBundlePath: resultBundlePath,
-                config: config
-            )
+            // The build pruned the modules coverage skipped whole; single tests are skipped in the
+            // test process.
+            var testImpactEnvironment: [String: String] = [:]
+            if let testImpactSkip = await RunMetadataStorage.current.testImpactSkip {
+                testImpactEnvironment = try await TestImpactSkipList(identifiers: testImpactSkip).environment(
+                    directory: fileSystem.makeTemporaryDirectory(prefix: "test-impact"),
+                    fileSystem: fileSystem
+                )
+            }
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                XcodeBuildEnvironment.additionalVariables.merging(testImpactEnvironment) { _, new in new }
+            ) {
+                try await runCollectingCoverage(
+                    arguments: xcodebuildArguments,
+                    resultBundlePath: resultBundlePath,
+                    config: config
+                )
+            }
         } catch {
             testError = error
         }
@@ -2131,7 +2251,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         graph: Graph,
         action: XcodeBuildTestAction,
         requestedTestTargets: [TestIdentifier] = [],
-        passthroughXcodeBuildArguments: [String] = []
+        passthroughXcodeBuildArguments: [String] = [],
+        testImpactOutcome: TestImpactOutcome? = nil
     ) -> Bool {
         let testActionTargets = testActionTargets(
             for: schemes,
@@ -2146,28 +2267,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return false
         }
 
-        let requestedTargetNames = Set(requestedTestTargets.map(\.target))
-        let skippedBySelectiveTesting = initialTestTargets(
-            mapperEnvironment: mapperEnvironment,
+        logSkippedTargets(
+            testActionTargets: testActionTargets,
             schemes: schemes,
             testPlanConfiguration: testPlanConfiguration,
-            action: action
+            mapperEnvironment: mapperEnvironment,
+            action: action,
+            requestedTestTargets: requestedTestTargets,
+            testImpactOutcome: testImpactOutcome
         )
-        .filter { target in
-            !testActionTargets.contains(where: {
-                $0.bundleId == target.target.bundleId
-            })
-        }
-        .filter { target in
-            requestedTargetNames.isEmpty || requestedTargetNames.contains(target.target.name)
-        }
-
-        if !skippedBySelectiveTesting.isEmpty {
-            Logger.current
-                .notice(
-                    "The following targets have not changed since the last successful run and will be skipped: \(skippedBySelectiveTesting.map(\.target.name).sorted().joined(separator: ", "))"
-                )
-        }
 
         let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
         let targetsAfterPassthroughSkip = testActionTargets
@@ -2190,6 +2298,42 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return true
+    }
+
+    private func logSkippedTargets(
+        testActionTargets: [Target],
+        schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
+        mapperEnvironment: MapperEnvironment,
+        action: XcodeBuildTestAction,
+        requestedTestTargets: [TestIdentifier],
+        testImpactOutcome: TestImpactOutcome?
+    ) {
+        let requestedTargetNames = Set(requestedTestTargets.map(\.target))
+        let skippedByCoverage = Set(testImpactOutcome?.skippedModules ?? [])
+        let skippedBySelectiveTesting = initialTestTargets(
+            mapperEnvironment: mapperEnvironment,
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            action: action
+        )
+        .filter { target in
+            !testActionTargets.contains(where: {
+                $0.bundleId == target.target.bundleId
+            })
+        }
+        .filter { target in
+            requestedTargetNames.isEmpty || requestedTargetNames.contains(target.target.name)
+        }
+        .filter { !skippedByCoverage.contains($0.target.name) }
+
+        if !skippedBySelectiveTesting.isEmpty {
+            Logger.current
+                .notice(
+                    "The following targets have not changed since the last successful run and will be skipped: \(skippedBySelectiveTesting.map(\.target.name).sorted().joined(separator: ", "))"
+                )
+        }
+        logTestImpactOutcome(testImpactOutcome)
     }
 
     /// The scheme's test targets a run executes every test of. Only these can have their selective-testing
@@ -2625,7 +2769,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         do {
-            try await XcodeBuildEnvironment.$additionalVariables.withValue(evidenceSession?.environment ?? [:]) {
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                XcodeBuildEnvironment.additionalVariables.merging(evidenceSession?.environment ?? [:]) { _, new in new }
+            ) {
                 try await xcodebuildController.test(
                     .workspace(graphTraverser.workspace.xcWorkspacePath),
                     scheme: scheme.name,
@@ -3156,7 +3302,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             stressNewTests: nil,
             gitHistory: gitHistory?.payload,
             coverage: nil,
-            coverageEnabled: coverageEnabled
+            coverageEnabled: coverageEnabled,
+            testImpactRunId: await RunMetadataStorage.current.testImpactRunId
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
