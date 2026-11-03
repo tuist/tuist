@@ -25,6 +25,7 @@ type volumeMetrics struct {
 	reserve     prometheus.Gauge
 	maintenance prometheus.Gauge
 	checkouts   prometheus.Gauge
+	prefetched  *prometheus.CounterVec
 	logger      *slog.Logger
 }
 
@@ -38,8 +39,9 @@ func newVolumeMetrics(logger *slog.Logger, reserve uint64) *volumeMetrics {
 		reserve:     prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cache_volume_filesystem_reserve_bytes", Help: "Free-space reserve required for new allocations."}),
 		maintenance: prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cache_volume_maintenance_last_success_timestamp_seconds", Help: "Last successful reconciliation, or zero before the first success."}),
 		checkouts:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cached_checkouts_ready", Help: "1 while this host builds and serves cached checkouts, 0 while it lacks git or git-lfs."}),
+		prefetched:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "tuist_runner_cache_volume_prefetched_bytes_total", Help: "Used bytes of the saved heads background prefetch installed, by why: job (a job started without it), prewarm or recent (the server's listing)."}, []string{"reason"}),
 	}
-	m.registry.MustRegister(m.operations, m.duration, m.free, m.capacity, m.reserve, m.maintenance, m.checkouts)
+	m.registry.MustRegister(m.operations, m.duration, m.free, m.capacity, m.reserve, m.maintenance, m.checkouts, m.prefetched)
 	m.reserve.Set(float64(reserve))
 	return m
 }
@@ -66,6 +68,14 @@ func (m *volumeMetrics) observe(o cachevolumes.Observation) {
 			fields = append(fields, "remote_operation", remote.Operation, "http_status", remote.StatusCode)
 		}
 		m.logger.Log(context.Background(), level, "cache volume operation", fields...)
+	}
+}
+
+// installed counts a master background prefetch installed. The saved head's used
+// bytes bound what its compressed archive moved over the network.
+func (m *volumeMetrics) installed(reason string, bytes int64) {
+	if bytes > 0 {
+		m.prefetched.WithLabelValues(reason).Add(float64(bytes))
 	}
 }
 func (m *volumeMetrics) handler() http.Handler {

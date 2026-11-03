@@ -95,7 +95,7 @@ Coding agents can connect to Tuist's hosted [MCP server](/en/docs-markdown/guide
 
 ## Pricing, deployment, and licensing
 
-- Hosted plans start free; see [Pricing](/marketing-markdown/pricing) and the live [pricing table](/pricing). Runner pricing is not public yet.
+- Hosted plans start free; see [Pricing](/marketing-markdown/pricing) and the live [pricing table](/pricing). Invite-only Tuist Runners are billed per minute at the macOS and Linux rates listed there.
 - [Self-hosting the Tuist server](/en/docs-markdown/guides/server/self-host/server) requires a paid Enterprise license. [Self-hosted cache nodes](/en/docs-markdown/guides/features/cache/self-hosting) are a separate option, also on the Enterprise plan, and can connect to the hosted server.
 - The [source code](https://github.com/tuist/tuist) is public, but not under one license: see [Openness](/marketing-markdown/openness).
 

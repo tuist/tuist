@@ -312,6 +312,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | App-managed file-descriptor budget for request and background I/O. | Yes | auto |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | Yes | `5000` |
 | `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | Maximum grace window Kura gives in-flight HTTP and gRPC work to finish during shutdown before forcing exit progression. | Yes | `240000` |
+| `KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS` | Opt-in relaxed durability for client uploads. Unset or `0` fsyncs every write before acknowledging it. A positive value (at most `60000`) acknowledges client uploads once they reach the page cache and fsyncs the active segment, then the metadata WAL, on this interval and at shutdown; replicated applies, deletes and handover records stay fully synced. A process crash or OOM kill loses nothing. A kernel crash or power loss can lose up to one interval of acknowledged uploads, and can leave a manifest whose bytes never reached disk: the blob then reads as present but fails (or returns zeros) when fetched. Dirty segment bytes stay capped at 64 MiB. Failed periodic syncs count on `kura_relaxed_durability_sync_failures_total`. | Yes | unset |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles; must stay below the FD pool size. | Yes | auto |
 | `KURA_ACCELERATED_FILE_SERVING_ENABLED` | Enables the same-port Linux file serving accelerator for eligible plaintext HTTP/1 public artifact downloads. Non-Linux builds, HTTPS, HTTP/2, non-GET requests, inline artifacts, unsupported routes, and denied requests use the normal Axum/Hyper path. | Yes | `true` |
 | `KURA_ACCELERATED_FILE_SERVING_MODE` | Linux kernel transfer primitive used by the accelerator: `splice` or `sendfile`. | Yes | `splice` |
@@ -474,9 +475,14 @@ staged separately; see the [monitoring rollout guide](../infra/helm/k8s-monitori
 and [bounded resource qualification](docs/metrics-cost-controls.md).
 
 Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
-observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
-`production`, `staging`, or `canary` and is disabled when unset or invalid. The
-controller sets it only for deployment-selected instances. A dedicated thread
+observations to ordinary Kura JSON logs. Equipped pods read only the fixed
+`KURA_CONNECTIVITY_CONFIG_FILE=/etc/kura/connectivity/selection.json` projection.
+The controller selects exact instances through live-Pod annotations with a fixed
+profile and absolute expiry within 24 hours. Sampling expires locally without
+controller/API availability; activation and removal do not roll equipped pods.
+Preparation defaults off and waits for normal image upgrades or creation, after
+establishing the compatible controller rollback floor. Legacy profile env is no
+longer honored by this runtime. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
 Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP

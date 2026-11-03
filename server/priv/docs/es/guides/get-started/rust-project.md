@@ -32,7 +32,7 @@ project = "account/project"
 # url = "https://your-tuist-server.example.com"
 ```
 
-Inicia sesión con `tuist auth login` y luego ejecuta tus comandos habituales de Cargo a través de Tuist. En CI, establece `TUIST_TOKEN` con un token de proyecto. También puedes establecer `TUIST_PROJECT` en lugar de añadir un archivo de configuración, y `TUIST_URL` si utilizas un servidor autoalojado.
+Inicia sesión con `tuist auth login`, luego ejecuta tus comandos habituales de Cargo a través de Tuist. En CI, configura `TUIST_TOKEN` con un token de proyecto. También puedes configurar `TUIST_PROJECT` en lugar de añadir un archivo de configuración, y `TUIST_URL` si utilizas un servidor autoalojado.
 
 ```sh
 tuist cargo build --workspace
@@ -40,11 +40,11 @@ tuist cargo check --all-targets
 tuist cargo test --workspace
 ```
 
-Utiliza los mismos argumentos que sueles pasar a Cargo, incluidas las funcionalidades, las toolchains y los filtros de tests. Cargo mantiene su salida y código de salida habituales, incluso si Tuist no puede subir un informe.
+Usa los mismos argumentos que normalmente pasas a Cargo, incluyendo features, toolchains y filtros de tests. Cargo mantiene su salida y código de salida habituales, incluso si Tuist no puede subir un informe.
 
 ## Sigue escribiendo Cargo
 
-Con [los envoltorios de comandos de mise](https://mise.jdx.dev/dev-tools/shims.html#command-wrappers) activados, añade esto a `mise.toml`:
+Con [los wrappers de comandos de mise](https://mise.jdx.dev/dev-tools/shims.html#command-wrappers) activados, añade esto a `mise.toml`:
 
 ```toml
 [wrappers.cargo]
@@ -52,18 +52,18 @@ command = "tuist"
 args = ["cargo"]
 ```
 
-Ejecuta `mise reshim` después de añadir el envoltorio. Luego podrás usar `cargo build`, `cargo check` y `cargo test` como de costumbre. Mise los ejecuta a través de Tuist por ti.
+Ejecuta `mise reshim` después de añadir el wrapper. Luego podrás usar `cargo build`, `cargo check` y `cargo test` como de costumbre. Mise los ejecuta a través de Tuist por ti.
 
 > [!TIP] Coding agents
 > Esto es útil cuando trabajas con agentes de programación: pueden seguir ejecutando `cargo build` y `cargo test` sin que haya que recordarles añadir el prefijo `tuist`.
 
 ## Caché de compilación
 
-`tuist cargo build` almacena en caché automáticamente las bibliotecas hoja del registro elegibles, de forma local y a través de la caché remota de Kura. No se necesita ninguna herramienta ni configuración adicional de caché. La caché es experimental y aún no cubre todas las compilaciones ni la reutilización entre diferentes rutas de checkout. Consulta <.localized_link href="/guides/features/cache/rust">la caché de Rust</.localized_link> para ver las compilaciones compatibles, la autenticación y cómo verificar la reutilización.
+`tuist cargo build` almacena en caché automáticamente las bibliotecas hoja del registro elegibles, tanto localmente como a través de la caché remota de Kura. No se necesita ninguna herramienta adicional ni configuración de caché. La caché es experimental y aún no cubre todas las compilaciones ni la reutilización entre diferentes rutas de checkout. Consulta <.localized_link href="/guides/features/cache/rust">la caché de Rust</.localized_link> para ver las compilaciones compatibles, la autenticación y cómo verificar la reutilización.
 
 ## Análisis de compilaciones
 
-Abre **Compilaciones** en el dashboard para ver cuánto tardan tus compilaciones y comparar las compilaciones locales con las de CI. Selecciona una compilación para identificar los crates que más tardaron en compilarse e inspeccionar sus advertencias y errores.
+Abre **Compilaciones** en el dashboard para ver cuánto tardan tus compilaciones y comparar las compilaciones locales con las de CI. Selecciona una compilación para encontrar los crates que más tardaron en compilarse e inspeccionar sus advertencias y errores.
 
 Los tiempos del compilador corresponden a los crates, no a los archivos fuente individuales. Consulta <.localized_link href="/guides/features/build-insights/rust">Análisis de compilaciones de Rust</.localized_link> para obtener más información sobre cómo leer un informe de compilación.
 
@@ -75,9 +75,9 @@ Ejecuta tus tests como de costumbre:
 tuist cargo test --workspace
 ```
 
-Abre **Tests** en el dashboard para ver los tests aprobados, fallidos e ignorados, incluidos los doctests. Cargo informa de la duración de las suites, pero libtest estable no expone los tiempos por test.
+Abre **Tests** en el dashboard para ver los tests aprobados, fallidos e ignorados, incluidos los doctests. Cargo informa de las duraciones de las suites, pero libtest estable no expone los tiempos por test.
 
-Para ejecutar solo los doctests:
+Para ejecutar solo doctests:
 
 ```sh
 tuist cargo test --doc

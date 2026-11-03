@@ -7,19 +7,19 @@
 ---
 # Dependencias {#dependencies}
 
-Cuando un proyecto crece, es habitual dividirlo en varios targets para compartir código, definir límites y mejorar los tiempos de compilación. Tener múltiples targets implica definir dependencias entre ellos, formando un **grafo de dependencias**, que también puede incluir dependencias externas.
+Cuando un proyecto crece, es habitual dividirlo en varios targets para compartir código, definir límites y mejorar los tiempos de compilación. Tener varios targets implica definir dependencias entre ellos, formando un **grafo de dependencias**, que también puede incluir dependencias externas.
 
 ## Grafos codificados en XcodeProj {#xcodeprojcodified-graphs}
 
 Debido al diseño de Xcode y XcodeProj, el mantenimiento de un grafo de dependencias puede ser una tarea tediosa y propensa a errores. A continuación se muestran algunos ejemplos de los problemas que podrías encontrar:
 
-- Como el sistema de compilación de Xcode coloca todos los productos del proyecto en el mismo directorio dentro de los datos derivados, es posible que algunos targets puedan importar productos que no deberían. Las compilaciones podrían fallar en CI, donde las compilaciones limpias son más habituales, o más adelante cuando se utiliza una configuración diferente.
-- Las dependencias dinámicas transitivas de un target deben copiarse en cualquiera de los directorios que forman parte de la configuración de compilación `LD_RUNPATH_SEARCH_PATHS`. Si no lo haces, el target no podrá encontrarlas en tiempo de ejecución. Esto es fácil de considerar y configurar cuando el grafo es pequeño, pero se convierte en un problema a medida que el grafo crece.
-- Cuando un target enlaza un [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle) estático, necesita una fase de compilación adicional para que Xcode procese el bundle y extraiga el binario adecuado para la plataforma y arquitectura actuales. Esta fase de compilación no se añade automáticamente y es fácil olvidar incluirla.
+- Como el sistema de compilación de Xcode coloca todos los productos del proyecto en el mismo directorio dentro de los datos derivados, los targets podrían importar productos que no deberían. Las compilaciones podrían fallar en CI, donde las compilaciones limpias son más habituales, o más adelante al usar una configuración diferente.
+- Las dependencias dinámicas transitivas de un target deben copiarse en cualquiera de los directorios que forman parte de la configuración de compilación `LD_RUNPATH_SEARCH_PATHS`. Si no lo están, el target no podrá encontrarlas en tiempo de ejecución. Esto es fácil de considerar y configurar cuando el grafo es pequeño, pero se convierte en un problema a medida que el grafo crece.
+- Cuando un target enlaza un [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle) estático, necesita una fase de compilación adicional para que Xcode procese el bundle y extraiga el binario correcto para la plataforma y arquitectura actuales. Esta fase de compilación no se añade automáticamente y es fácil olvidar agregarla.
 
-Los anteriores son solo algunos ejemplos, pero hay muchos más que hemos encontrado con los años. Imagina si necesitaras un equipo de ingenieros para mantener un grafo de dependencias y garantizar su validez. O, peor aún, que las complejidades se resolvieran en tiempo de compilación mediante un sistema de compilación de código cerrado que no puedes controlar ni personalizar. ¿Te resulta familiar? Este es el enfoque que Apple adoptó con Xcode y XcodeProj y que ha heredado Swift Package Manager.
+Los anteriores son solo algunos ejemplos, pero hay muchos más que hemos encontrado a lo largo de los años. Imagina si necesitaras un equipo de ingenieros para mantener un grafo de dependencias y garantizar su validez. O, peor aún, que esas complejidades se resolvieran en tiempo de compilación mediante un sistema de compilación de código cerrado que no puedes controlar ni personalizar. ¿Te resulta familiar? Este es el enfoque que Apple adoptó con Xcode y XcodeProj y que ha heredado Swift Package Manager.
 
-Creemos firmemente que el grafo de dependencias debe ser **explícito** y **estático**, porque solo así puede ser **validado** y **optimizado**. Con Tuist, te centras en describir qué depende de qué, y nosotros nos encargamos del resto. Las complejidades y los detalles de implementación quedan abstraídos para ti.
+Creemos firmemente que el grafo de dependencias debe ser **explícito** y **estático**, porque solo así puede ser **validado** y **optimizado**. Con Tuist, te centras en describir qué depende de qué y nosotros nos encargamos del resto. Las complejidades y los detalles de implementación quedan abstraídos para ti.
 
 En las siguientes secciones aprenderás cómo declarar dependencias en tu proyecto.
 
@@ -31,7 +31,7 @@ En las siguientes secciones aprenderás cómo declarar dependencias en tu proyec
 
 ## Dependencias locales {#local-dependencies}
 
-Los targets pueden depender de otros targets dentro del mismo proyecto o en proyectos diferentes, así como de binarios. Al instanciar un `Target`, puedes pasar el argumento `dependencies` con cualquiera de las siguientes opciones:
+Los targets pueden depender de otros targets en el mismo proyecto o en proyectos diferentes, así como de binarios. Al instanciar un `Target`, puedes pasar el argumento `dependencies` con cualquiera de las siguientes opciones:
 
 - `Target`: Declara una dependencia con un target dentro del mismo proyecto.
 - `Project`: Declara una dependencia con un target en un proyecto diferente.
@@ -58,9 +58,9 @@ Los Paquetes de Swift son nuestra forma recomendada de declarar dependencias en 
 
 #### Integración basada en XcodeProj de Tuist {#tuists-xcodeprojbased-integration}
 
-Aunque la integración predeterminada de Xcode es la más cómoda, carece de la flexibilidad y el control necesarios para proyectos medianos y grandes. Para superar esto, Tuist ofrece una integración basada en XcodeProj que te permite integrar Paquetes de Swift en tu proyecto utilizando targets de XcodeProj. Gracias a ello, no solo te damos más control sobre la integración, sino que también la hacemos compatible con flujos de trabajo como <.localized_link href="/guides/features/cache">la caché</.localized_link> y <.localized_link href="/guides/features/selective-testing">ejecuciones selectivas de tests</.localized_link>.
+Aunque la integración predeterminada de Xcode es la más cómoda, carece de la flexibilidad y el control necesarios para proyectos medianos y grandes. Para superar esto, Tuist ofrece una integración basada en XcodeProj que te permite integrar Paquetes de Swift en tu proyecto usando targets de XcodeProj. Gracias a ello, no solo te damos más control sobre la integración, sino que también la hacemos compatible con flujos de trabajo como <.localized_link href="/guides/features/cache">el caché</.localized_link> y <.localized_link href="/guides/features/selective-testing">ejecuciones selectivas de tests</.localized_link>.
 
-Es más probable que la integración de XcodeProj tarde más en admitir nuevas funcionalidades de los Paquetes de Swift o manejar más configuraciones de paquetes. Sin embargo, la lógica de mapeo entre los Paquetes de Swift y los targets de XcodeProj es de código abierto y la comunidad puede contribuir a ella. Esto contrasta con la integración predeterminada de Xcode, que es de código cerrado y mantenida por Apple.
+Es más probable que la integración de XcodeProj tarde más en admitir nuevas funcionalidades de los Paquetes de Swift o en manejar más configuraciones de paquetes. Sin embargo, la lógica de mapeo entre Paquetes de Swift y targets de XcodeProj es de código abierto y la comunidad puede contribuir a ella. Esto contrasta con la integración predeterminada de Xcode, que es de código cerrado y la mantiene Apple.
 
 Para añadir dependencias externas, tendrás que crear un `Package.swift` ya sea bajo `Tuist/` o en la raíz del proyecto.
 
@@ -101,7 +101,7 @@ let package = Package(
 > [!TIP]
 > **Configuración de paquetes**
 >
-> La instancia `PackageSettings` envuelta en una directiva del compilador te permite configurar cómo se integran los paquetes. Por ejemplo, en el caso anterior se usa para anular el tipo de producto predeterminado utilizado para los paquetes. Por defecto, no deberías necesitarlo. También puedes usarlo para configurar las firmas esperadas para los targets binarios de SwiftPM mediante `expectedSignatures`.
+> La instancia `PackageSettings` envuelta en una directiva del compilador te permite configurar cómo se integran los paquetes. Por ejemplo, en el ejemplo anterior se usa para anular el tipo de producto predeterminado utilizado para los paquetes. Por defecto, no deberías necesitarlo. También puedes usarlo para configurar las firmas esperadas para los targets binarios de SwiftPM mediante `expectedSignatures`.
 
 
 ### Firmas de targets binarios
@@ -123,7 +123,7 @@ Si un paquete de Swift local o remoto expone un target de XCFramework binario, p
 ```
 
 > [!IMPORTANT] CUSTOM BUILD CONFIGURATIONS
-> Si tu proyecto utiliza configuraciones de compilación personalizadas (configuraciones distintas de las estándar `Debug` y `Release`), debes especificarlas en `PackageSettings` usando `baseSettings`. Las dependencias externas necesitan conocer las configuraciones de tu proyecto para compilarse correctamente. Por ejemplo:
+> Si tu proyecto usa configuraciones de compilación personalizadas (configuraciones distintas de las estándar `Debug` y `Release`), debes especificarlas en `PackageSettings` mediante `baseSettings`. Las dependencias externas necesitan conocer las configuraciones de tu proyecto para compilarse correctamente. Por ejemplo:
 >
 > ```swift
 > #if TUIST
@@ -139,9 +139,9 @@ Si un paquete de Swift local o remoto expone un target de XCFramework binario, p
 > #endif
 > ```
 >
-> Consulta [#8345](https://github.com/tuist/tuist/issues/8345) para obtener más detalles.
+> Consulta [#8345](https://github.com/tuist/tuist/issues/8345) para más detalles.
 
-El archivo `Package.swift` es simplemente una interfaz para declarar dependencias externas, nada más. Por eso no defines ningún target ni producto en el paquete. Una vez definidas las dependencias, puedes ejecutar el siguiente comando para resolverlas y descargarlas en el directorio `Tuist/Dependencies`:
+El archivo `Package.swift` es solo una interfaz para declarar dependencias externas, nada más. Por eso no defines ningún target ni producto en el paquete. Una vez definidas las dependencias, puedes ejecutar el siguiente comando para resolverlas y descargarlas en el directorio `Tuist/Dependencies`:
 
 ```bash
 tuist install
@@ -149,9 +149,9 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-Como habrás notado, seguimos un enfoque similar al de [CocoaPods](https://cocoapods.org), donde la resolución de dependencias es un comando independiente. Esto da a los usuarios el control sobre cuándo desean que se resuelvan y actualicen las dependencias, y permite abrir el proyecto en Xcode con todo listo para compilar. Creemos que la experiencia de desarrollo que ofrece la integración de Apple con el Administrador de Paquetes de Swift se degrada con el tiempo a medida que el proyecto crece.
+Como habrás notado, seguimos un enfoque similar al de [CocoaPods](https://cocoapods.org), donde la resolución de dependencias es un comando independiente. Esto da a los usuarios control sobre cuándo desean resolver y actualizar las dependencias, y permite abrir el proyecto en Xcode con todo listo para compilar. Creemos que la experiencia de desarrollo que ofrece la integración de Apple con el Administrador de Paquetes de Swift se degrada con el tiempo a medida que el proyecto crece.
 
-Desde los targets de tu proyecto puedes hacer referencia a esas dependencias usando el tipo de dependencia `TargetDependency.external`:
+Desde los targets de tu proyecto puedes referenciar esas dependencias usando el tipo de dependencia `TargetDependency.external`:
 
 ::: code-group
 ```swift [Project.swift]
@@ -195,7 +195,7 @@ let project = Project(name: "MyProject", packages: [
 ])
 ```
 
-Y luego hacer referencia a ellos desde tus targets:
+Y luego referenciarlos desde tus targets:
 
 ```swift
 let target = .target(name: "MyTarget", dependencies: [
@@ -203,7 +203,7 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-Al integrar una Macro de Swift o un Plugin de Herramienta de Compilación desde un Paquete de Swift externo mediante la integración predeterminada de Xcode, decláralo con los tipos `.macro` y `.plugin` respectivamente. Las macros también pueden consumirse mediante [la integración basada en XcodeProj de Tuist](#tuists-xcodeprojbased-integration), y si quieres definir tu propia macro de Swift en lugar de consumir una desde un paquete, consulta [Macros de Swift](#swift-macros).
+Al integrar un Macro de Swift o un Plugin de herramienta de compilación desde un Paquete de Swift externo mediante la integración predeterminada de Xcode, decláralo con los tipos `.macro` y `.plugin` respectivamente. Los macros también pueden consumirse mediante [la integración basada en XcodeProj de Tuist](#tuists-xcodeprojbased-integration), y si deseas definir tu propio macro de Swift en lugar de consumir uno desde un paquete, consulta [Macros de Swift](#swift-macros).
 
 > [!WARNING]
 > **Plugins de herramientas de compilación de SPM**
@@ -212,7 +212,7 @@ Al integrar una Macro de Swift o un Plugin de Herramienta de Compilación desde 
 
 Los plugins de herramientas de compilación de SPM son programas de Swift que Xcode y SwiftPM ejecutan para descubrir los comandos de compilación concretos que deben ejecutarse para un target. Esos comandos pueden depender del grafo de paquetes, los archivos del target, el directorio de trabajo del plugin, las herramientas del plugin resueltas y las salidas declaradas por el plugin. Algunos plugins también generan archivos que deben formar parte de la misma compilación del target.
 
-La integración basada en XcodeProj de Tuist mapea productos de paquetes a targets nativos de Xcode cuando el mapeo es estático, por ejemplo bibliotecas, binarios, ejecutables y macros. Los plugins de herramientas de compilación no tienen una primitiva nativa equivalente en el proyecto de Xcode fuera de la integración de SwiftPM de Xcode. Aunque un plugin puede eventualmente ejecutar un ejecutable, invocar ese ejecutable desde una fase de compilación de script regular no es equivalente a ejecutar el plugin: Tuist primero necesitaría evaluar el código Swift del plugin, reproducir el contexto del plugin de SwiftPM, descubrir los comandos, modelar las entradas y salidas declaradas y añadir cualquier archivo generado al grafo del target antes de que Xcode planifique la compilación.
+La integración basada en XcodeProj de Tuist mapea productos de paquetes a targets nativos de Xcode cuando el mapeo es estático, por ejemplo bibliotecas, binarios, ejecutables y macros. Los plugins de herramientas de compilación no tienen una primitiva nativa equivalente en el proyecto de Xcode fuera de la integración de SwiftPM de Xcode. Aunque un plugin puede eventualmente ejecutar un ejecutable, invocar ese ejecutable desde una fase de compilación de script regular no es equivalente a ejecutar el plugin: Tuist primero necesitaría evaluar el código Swift del plugin, reproducir el contexto del plugin de SwiftPM, descubrir los comandos, modelar las entradas y salidas declaradas y añadir cualquier archivo generado al grafo de targets antes de que Xcode planifique la compilación.
 
 Por esta razón, no se admite declarar un paquete de plugin solo en `Tuist/Package.swift` y consumirlo mediante `.external(name:)`. La alternativa admitida es declarar el paquete en `Project.packages` y añadir el producto del plugin al target consumidor con `.package(product:type: .plugin)`. Esto mantiene el plugin adjunto al proyecto de Xcode generado como una dependencia de producto de Paquete de Swift, para que Xcode y SwiftPM puedan ejecutarlo con el contexto nativo del plugin.
 
@@ -220,12 +220,12 @@ La contrapartida es que Xcode posee esa integración del plugin:
 
 - Xcode resuelve y compila el paquete del plugin a través de su integración con SwiftPM.
 - El paquete aparece en el proyecto generado como una referencia de Paquete de Swift en lugar de un target externo generado por Tuist.
-- Tuist no puede dar al plugin el mismo nivel de control, validación, caché y comportamiento de tests selectivos que puede proporcionar para productos de paquetes mapeados estáticamente.
+- Tuist no puede dar al plugin el mismo nivel de control, validación, caché y comportamiento de tests selectivos que proporciona para productos de paquetes mapeados estáticamente.
 - Las compilaciones de CI y locales deben permitir la resolución de paquetes de Xcode para esos paquetes de plugins.
 
-Debido a estas implicaciones, generalmente no recomendamos usar plugins de herramientas de compilación de SPM en proyectos de Tuist. Cuando sea posible, prefiere un script de fase de compilación declarado en el target, o ejecuta la herramienta desde un script fuera del proyecto de Xcode generado antes de invocar a Tuist o Xcode.
+Debido a estas implicaciones, generalmente no recomendamos usar plugins de herramientas de compilación de SPM en proyectos de Tuist. Cuando sea posible, prefiere un script de fase de compilación declarado en el target, o ejecuta la herramienta desde un script fuera del proyecto de Xcode generado antes de invocar Tuist o Xcode.
 
-Una aplicación práctica de un plugin de herramienta de compilación de SPM es realizar linting de código durante la fase de compilación "Ejecutar plugins de herramientas de compilación" de Xcode. Para generar un proyecto de Xcode con el plugin de herramienta de compilación intacto, declara el paquete en el array `packages` del manifiesto del proyecto y luego incluye un paquete con tipo `.plugin` en las dependencias de un target.
+Una aplicación práctica de un plugin de herramienta de compilación de SPM es realizar linting de código durante la fase de compilación "Run Build Tool Plug-ins" de Xcode. Para generar un proyecto de Xcode con el plugin de herramienta de compilación intacto, declara el paquete en el array `packages` del manifiesto del proyecto y luego incluye un paquete con tipo `.plugin` en las dependencias de un target.
 
 ```swift
 import ProjectDescription
@@ -248,7 +248,7 @@ let project = Project(
 
 ### Carthage {#carthage}
 
-Dado que [Carthage](https://github.com/carthage/carthage) genera `frameworks` o `xcframeworks`, puedes ejecutar `carthage update` para generar las dependencias en el directorio `Carthage/Build` y luego usar el tipo de dependencia de target `.framework` o `.xcframework` para declarar la dependencia en tu target. Puedes envolver esto en un script que puedas ejecutar antes de generar el proyecto.
+Dado que [Carthage](https://github.com/carthage/carthage) genera `frameworks` o `xcframeworks`, puedes ejecutar `carthage update` para generar las dependencias en el directorio `Carthage/Build` y luego usar el tipo de dependencia de target `.framework` o `.xcframework` para declarar la dependencia en tu target. Puedes envolver esto en un script que puedes ejecutar antes de generar el proyecto.
 
 ```bash
 #!/usr/bin/env bash
@@ -258,14 +258,14 @@ tuist generate
 ```
 
 > [!WARNING]
-> **Compilar y probar**
+> **Compilación y pruebas**
 >
 > Si compilas y pruebas tu proyecto mediante `xcodebuild build` y `tuist test`, igualmente necesitarás asegurarte de que las dependencias resueltas por Carthage estén presentes ejecutando el comando `carthage update` antes de compilar o probar.
 
 
 ### CocoaPods {#cocoapods}
 
-[CocoaPods](https://cocoapods.org) espera un proyecto de Xcode para integrar las dependencias. Puedes usar Tuist para generar el proyecto y luego ejecutar `pod install` para integrar las dependencias creando un espacio de trabajo que contenga tu proyecto y las dependencias de Pods. Puedes envolver esto en un script que puedas ejecutar antes de generar el proyecto.
+[CocoaPods](https://cocoapods.org) espera un proyecto de Xcode para integrar las dependencias. Puedes usar Tuist para generar el proyecto y luego ejecutar `pod install` para integrar las dependencias creando un espacio de trabajo que contenga tu proyecto y las dependencias de Pods. Puedes envolver esto en un script que puedes ejecutar antes de generar el proyecto.
 
 ```bash
 #!/usr/bin/env bash
@@ -280,18 +280,18 @@ pod install
 
 ## Macros de Swift {#swift-macros}
 
-Hay dos escenarios distintos al trabajar con [Macros de Swift](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/) en un proyecto de Tuist, y vale la pena ser explícito sobre en cuál te encuentras:
+Hay dos escenarios distintos al trabajar con [Macros de Swift](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/) en un proyecto de Tuist, y vale la pena ser explícito sobre cuál estás utilizando:
 
-- **Consumir una macro definida en un Paquete de Swift externo.** Ambos mecanismos de integración admiten macros. Con [la integración basada en XcodeProj de Tuist](#tuists-xcodeprojbased-integration), declaras el paquete en `Tuist/Package.swift` y dependes de él con `.external(name:)` — Tuist mapea el producto de la macro a un target nativo. Con [la integración predeterminada de Xcode](#xcodes-default-integration), declaras la dependencia con `.package(product:type: .macro)`. A diferencia de los plugins de herramientas de compilación, las macros no están restringidas a la integración predeterminada de Xcode.
-- **Definir tu propia macro** como parte de tu proyecto, por ejemplo en una biblioteca compartida dentro de tu monorepo. No necesitas un `Package.swift` para esto: Tuist tiene un tipo de producto `.macro` de primera clase, por lo que puedes declarar el target de la macro directamente en tus manifiestos.
+- **Consumir un macro definido en un Paquete de Swift externo.** Ambos mecanismos de integración admiten macros. Con [la integración basada en XcodeProj de Tuist](#tuists-xcodeprojbased-integration), declaras el paquete en `Tuist/Package.swift` y dependes de él con `.external(name:)` — Tuist mapea el producto del macro a un target nativo. Con [la integración predeterminada de Xcode](#xcodes-default-integration), declaras la dependencia con `.package(product:type: .macro)`. A diferencia de los plugins de herramientas de compilación, los macros no están restringidos a la integración predeterminada de Xcode.
+- **Definir tu propio macro** como parte de tu proyecto, por ejemplo en una biblioteca compartida dentro de tu monorepo. No necesitas un `Package.swift` para esto: Tuist tiene un tipo de producto `.macro` de primera clase, por lo que puedes declarar el target del macro directamente en tus manifiestos.
 
-### Definir tu propia macro {#defining-your-own-macro}
+### Definir tu propio macro {#defining-your-own-macro}
 
-Una macro de Swift es un plugin del compilador: un ejecutable que el compilador de Swift carga y ejecuta en tiempo de compilación. Tuist modela esto de forma nativa con el tipo de producto `.macro`. Aunque Apple no expone un tipo de target de Macro de Swift en los proyectos de Xcode, Tuist lo habilita generando un target de herramienta de línea de comandos, conectándolo como dependencia de los targets que usan la macro e inyectando la bandera `-load-plugin-executable` en sus configuraciones del compilador de Swift. Toda esa configuración se gestiona automáticamente.
+Un macro de Swift es un plugin del compilador: un ejecutable que el compilador de Swift carga y ejecuta en tiempo de compilación. Tuist modela esto de forma nativa con el tipo de producto `.macro`. Aunque Apple no expone un tipo de target de Macro de Swift en los proyectos de Xcode, Tuist lo habilita generando un target de herramienta de línea de comandos, conectándolo como dependencia de los targets que usan el macro e inyectando la bandera `-load-plugin-executable` en sus configuraciones del compilador de Swift. Toda esa infraestructura se gestiona automáticamente.
 
-Una macro típica se divide en dos targets: el target de **plugin** que implementa la macro (`product: .macro`), y el target de **biblioteca** que declara la interfaz pública de la macro (declaraciones `@attached`/`@freestanding`) y depende del plugin mediante `.macro(name:)`. Dado que el plugin se ejecuta en la máquina de compilación, su target es solo para el host (macOS).
+Un macro típico se divide en dos targets: el target del **plugin** que implementa el macro (`product: .macro`) y el target de la **biblioteca** que declara la interfaz pública del macro (declaraciones `@attached`/`@freestanding`) y depende del plugin mediante `.macro(name:)`. Dado que el plugin se ejecuta en la máquina de compilación, su target es solo para el anfitrión (macOS).
 
-La implementación de la macro depende de [swift-syntax](https://github.com/swiftlang/swift-syntax), que declaras como una dependencia externa regular en `Tuist/Package.swift`:
+La implementación del macro depende de [swift-syntax](https://github.com/swiftlang/swift-syntax), que declaras como una dependencia externa regular en `Tuist/Package.swift`:
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
@@ -305,7 +305,7 @@ let package = Package(
 )
 ```
 
-Luego puedes definir los targets del plugin de la macro y de la biblioteca directamente en tu proyecto:
+Luego puedes definir los targets del plugin y la biblioteca del macro directamente en tu proyecto:
 
 ```swift [Project.swift]
 import ProjectDescription
@@ -343,7 +343,7 @@ let project = Project(
 )
 ```
 
-Cualquier target que enlace `MyLibrary` ahora puede usar la macro: Tuist propaga el plugin para que el compilador pueda cargarlo.
+Cualquier target que enlace `MyLibrary` puede usar ahora el macro; Tuist propaga el plugin para que el compilador pueda cargarlo.
 
 
 ## Estático o dinámico {#static-or-dynamic}
@@ -352,7 +352,7 @@ Los frameworks y las bibliotecas pueden enlazarse estática o dinámicamente, **
 
 La **regla general** es que quieres que tantas cosas como sea posible estén enlazadas estáticamente en las compilaciones de release para lograr tiempos de arranque rápidos, y que tantas cosas como sea posible estén enlazadas dinámicamente en las compilaciones de debug para lograr tiempos de iteración rápidos.
 
-El desafío de cambiar entre enlazado estático y dinámico en un grafo de proyecto es que no es trivial en Xcode porque un cambio tiene un efecto cascada en todo el grafo (por ejemplo, las bibliotecas no pueden contener recursos, los frameworks estáticos no necesitan ser embebidos). Apple intentó resolver el problema con soluciones en tiempo de compilación como la decisión automática entre enlazado estático y dinámico de Swift Package Manager, o [Bibliotecas Fusionables](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). Sin embargo, esto añade nuevas variables dinámicas al grafo de compilación, introduciendo nuevas fuentes de no determinismo y potencialmente haciendo que algunas funcionalidades como las Previews de Swift, que dependen del grafo de compilación, sean poco fiables.
+El desafío de cambiar entre enlazado estático y dinámico en un grafo de proyecto es que no es trivial en Xcode porque un cambio tiene un efecto en cascada sobre todo el grafo (por ejemplo, las bibliotecas no pueden contener recursos, los frameworks estáticos no necesitan ser embebidos). Apple intentó resolver el problema con soluciones en tiempo de compilación como la decisión automática entre enlazado estático y dinámico de Swift Package Manager, o [Bibliotecas Fusionables](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). Sin embargo, esto añade nuevas variables dinámicas al grafo de compilación, introduciendo nuevas fuentes de no determinismo y provocando potencialmente que algunas funcionalidades como Swift Previews, que dependen del grafo de compilación, se vuelvan poco fiables.
 
 Afortunadamente, Tuist comprime conceptualmente la complejidad asociada al cambio entre estático y dinámico y sintetiza <.localized_link href="/guides/features/projects/synthesized-files#bundle-accessors">accesores de bundle</.localized_link> que son estándar entre los tipos de enlazado. En combinación con <.localized_link href="/guides/features/projects/dynamic-configuration">configuraciones dinámicas mediante variables de entorno</.localized_link>, puedes pasar el tipo de enlazado en el momento de la invocación y usar el valor en tus manifiestos para establecer el tipo de producto de tus targets.
 
@@ -367,7 +367,7 @@ func productType() -> Product {
 }
 ```
 
-Ten en cuenta que Tuist <.localized_link href="/guides/features/projects/cost-of-convenience">no prioriza la comodidad mediante configuración implícita debido a sus costes</.localized_link>. Esto significa que dependemos de que establezcas el tipo de enlazado y cualquier configuración de compilación adicional que a veces sea necesaria, como la [bandera de enlazador `-ObjC`](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), para garantizar que los binarios resultantes sean correctos. Por lo tanto, nuestra postura es proporcionarte los recursos, generalmente en forma de documentación, para que tomes las decisiones adecuadas.
+Ten en cuenta que Tuist <.localized_link href="/guides/features/projects/cost-of-convenience">no prioriza la comodidad mediante configuración implícita debido a sus costes</.localized_link>. Esto significa que dependemos de que establezcas el tipo de enlazado y cualquier configuración de compilación adicional que a veces sea necesaria, como la [bandera de enlazador `-ObjC`](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), para garantizar que los binarios resultantes sean correctos. Por lo tanto, nuestra postura es proporcionarte los recursos, generalmente en forma de documentación, para que tomes las decisiones correctas.
 
 > [!TIP]
 > **Ejemplo: The Composable Architecture**
@@ -377,9 +377,9 @@ Ten en cuenta que Tuist <.localized_link href="/guides/features/projects/cost-of
 
 ### Escenarios {#scenarios}
 
-Hay algunos escenarios en los que configurar el enlazado completamente como estático o dinámico no es viable o una buena idea. La siguiente es una lista no exhaustiva de escenarios en los que podrías necesitar mezclar enlazado estático y dinámico:
+Hay algunos escenarios donde configurar el enlazado completamente como estático o dinámico no es viable o no es una buena idea. La siguiente es una lista no exhaustiva de escenarios donde podrías necesitar mezclar enlazado estático y dinámico:
 
-- **Apps con extensiones:** Dado que las apps y sus extensiones necesitan compartir código, podrías necesitar hacer esos targets dinámicos. De lo contrario, terminarás con el mismo código duplicado tanto en la app como en la extensión, lo que provocará un aumento del tamaño del binario.
+- **Apps con extensiones:** Dado que las apps y sus extensiones necesitan compartir código, podrías necesitar hacer esos targets dinámicos. De lo contrario, terminarás con el mismo código duplicado tanto en la app como en la extensión, lo que provoca un aumento del tamaño del binario.
 - **Dependencias externas precompiladas:** A veces se te proporcionan binarios precompilados que son estáticos o dinámicos. Los binarios estáticos pueden envolverse en frameworks o bibliotecas dinámicas para enlazarse dinámicamente.
 
 Al realizar cambios en el grafo, Tuist lo analizará y mostrará una advertencia si detecta un "efecto secundario estático". Esta advertencia tiene como objetivo ayudarte a identificar problemas que podrían surgir al enlazar un target estáticamente que depende transitivamente de un target estático a través de targets dinámicos. Estos efectos secundarios a menudo se manifiestan como un aumento del tamaño del binario o, en los peores casos, fallos en tiempo de ejecución.
@@ -392,13 +392,13 @@ Al integrar dependencias de Objective-C, puede ser necesario incluir ciertas ban
 
 Dado que el sistema de compilación y Tuist no tienen forma de inferir si la bandera es necesaria o no, y dado que la bandera conlleva efectos secundarios potencialmente indeseables, Tuist no aplicará automáticamente ninguna de estas banderas. Además, como Swift Package Manager considera que `-ObjC` se incluye mediante un `.unsafeFlag`, la mayoría de los paquetes no pueden incluirla como parte de sus configuraciones de enlazado predeterminadas cuando sea necesario.
 
-Los consumidores de dependencias de Objective-C (o targets internos de Objective-C) deben aplicar las banderas `-ObjC` o `-force_load` cuando sea necesario configurando `OTHER_LDFLAGS` en los targets consumidores.
+Los consumidores de dependencias de Objective-C (o targets internos de Objective-C) deben aplicar las banderas `-ObjC` o `-force_load` cuando sea necesario estableciendo `OTHER_LDFLAGS` en los targets consumidores.
 
 ### Firebase y otras bibliotecas de Google {#firebase-other-google-libraries}
 
 Las bibliotecas de código abierto de Google, aunque potentes, pueden ser difíciles de integrar en Tuist, ya que a menudo utilizan arquitecturas y técnicas no estándar en su construcción.
 
-Aquí tienes algunos consejos que puede ser necesario seguir para integrar Firebase y otras bibliotecas de Google para la plataforma Apple:
+Aquí tienes algunos consejos que podría ser necesario seguir para integrar Firebase y otras bibliotecas de Google para plataformas Apple:
 
 #### Asegúrate de que `-ObjC` se añada a `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
 
@@ -418,7 +418,7 @@ Consulta la sección [Dependencias de Objective-C](#objective-c-dependencies) an
 
 #### Establece el tipo de producto para `FBLPromises` como framework dinámico {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
-Ciertas bibliotecas de Google dependen de `FBLPromises`, otra de las bibliotecas de Google. Es posible que encuentres un fallo que mencione a `FBLPromises`, con un aspecto similar a este:
+Ciertas bibliotecas de Google dependen de `FBLPromises`, otra de las bibliotecas de Google. Podrías encontrarte con un fallo que mencione a `FBLPromises`, similar a este:
 
 ```
 NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selector sent to instance 0x600000cb2640.
@@ -448,9 +448,9 @@ let package = Package(
 
 ### The Composable Architecture {#the-composable-architecture}
 
-Como se describe [aquí](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) y en la [sección de solución de problemas](#troubleshooting), deberás establecer la configuración de compilación `OTHER_LDFLAGS` a `$(inherited) -ObjC` al enlazar los paquetes estáticamente, que es el tipo de enlazado predeterminado de Tuist. Alternativamente, puedes anular el tipo de producto del paquete para que sea dinámico. Al enlazar estáticamente, los targets de pruebas y de aplicación suelen funcionar sin problemas, pero las previsualizaciones de SwiftUI no funcionan. Esto puede resolverse enlazando todo dinámicamente. En el ejemplo siguiente, también se añade [Sharing](https://github.com/pointfreeco/swift-sharing) como dependencia, ya que se usa a menudo junto con The Composable Architecture y tiene sus propios [problemas de configuración](https://github.com/pointfreeco/swift-sharing/issues/150#issuecomment-2797107032).
+Como se describe [aquí](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) y en la [sección de solución de problemas](#troubleshooting), deberás establecer la configuración de compilación `OTHER_LDFLAGS` a `$(inherited) -ObjC` al enlazar los paquetes estáticamente, que es el tipo de enlazado predeterminado de Tuist. Alternativamente, puedes anular el tipo de producto del paquete para que sea dinámico. Al enlazar estáticamente, los targets de pruebas y de aplicación suelen funcionar sin problemas, pero las previsualizaciones de SwiftUI no funcionan. Esto puede resolverse enlazando todo dinámicamente. En el siguiente ejemplo también se añade [Sharing](https://github.com/pointfreeco/swift-sharing) como dependencia, ya que a menudo se usa junto con The Composable Architecture y tiene sus propios [problemas de configuración](https://github.com/pointfreeco/swift-sharing/issues/150#issuecomment-2797107032).
 
-La siguiente configuración enlazará todo dinámicamente, por lo que los targets de aplicación y pruebas, así como las previsualizaciones de SwiftUI, funcionarán correctamente.
+La siguiente configuración enlazará todo dinámicamente, por lo que los targets de aplicación + pruebas y las previsualizaciones de SwiftUI funcionarán.
 
 > [!TIP]
 > **Estático o dinámico**
@@ -509,9 +509,9 @@ let packageSettings = PackageSettings(
 > En lugar de `import Sharing`, tendrás que usar `import SwiftSharing`.
 
 
-### Filtración de dependencias estáticas transitivas a través de `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### Dependencias estáticas transitivas filtrándose a través de `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-Cuando un framework o biblioteca dinámica depende de otros estáticos mediante `import StaticSwiftModule`, los símbolos se incluyen en el `.swiftmodule` del framework o biblioteca dinámica, lo que potencialmente <.localized_link href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">puede hacer que la compilación falle</.localized_link>. Para evitarlo, tendrás que importar la dependencia estática utilizando <.localized_link href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</.localized_link>:
+Cuando un framework o biblioteca dinámica depende de otros estáticos mediante `import StaticSwiftModule`, los símbolos se incluyen en el `.swiftmodule` del framework o biblioteca dinámica, lo que potencialmente <.localized_link href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">puede hacer que la compilación falle</.localized_link>. Para evitarlo, tendrás que importar la dependencia estática usando <.localized_link href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</.localized_link>:
 
 ```swift
 internal import StaticModule

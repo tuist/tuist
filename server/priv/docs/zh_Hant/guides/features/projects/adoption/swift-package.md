@@ -10,7 +10,7 @@
 Tuist 支援將 `Package.swift` 作為專案的 DSL，並將你的套件目標轉換為原生的 Xcode 專案與目標。
 
 > [!WARNING]
-> 此功能的目的是讓開發人員能輕鬆評估在 Swift Packages 中採用 Tuist 的影響。因此，我們不計畫支援完整的 Swift Package Manager 功能，也不會將 Tuist 的獨特功能（例如 <.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link>）帶入套件領域。
+> 此功能的目的是提供開發人員一種簡便的方式，評估在其 Swift Packages 中採用 Tuist 的影響。因此，我們不計畫支援完整的 Swift Package Manager 功能，也不會將 Tuist 的每項獨特功能（例如 <.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link>）帶入套件領域。
 
 
 > [!NOTE]
@@ -21,7 +21,7 @@ Tuist 支援將 `Package.swift` 作為專案的 DSL，並將你的套件目標�
 
 ## 在 Swift Package 中使用 Tuist {#using-tuist-with-a-swift-package}
 
-我們將使用包含 Swift Package 的 [TootSDK Package](https://github.com/TootSDK/TootSDK) 儲存庫來搭配 Tuist。首先需要複製該儲存庫：
+我們將使用包含 Swift Package 的 [TootSDK Package](https://github.com/TootSDK/TootSDK) 儲存庫來搭配 Tuist。首先需要克隆該儲存庫：
 
 ```bash
 git clone https://github.com/TootSDK/TootSDK

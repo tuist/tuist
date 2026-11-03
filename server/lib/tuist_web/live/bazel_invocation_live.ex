@@ -206,6 +206,9 @@ defmodule TuistWeb.BazelInvocationLive do
           url={
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/timeline.json"
           }
+          trace_url={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/trace.json"
+          }
         />
       </section>
       <div :if={@selected_tab == "overview"} data-part="tab-panel">

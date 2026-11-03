@@ -30,25 +30,43 @@ defmodule TuistWeb.UserRegistrationLive do
           <div data-part="features">
             <div data-part="feature">
               <div>
-                <div data-part="icon"><.subtask /></div>
+                <div data-part="icon"><.database /></div>
+                <span data-part="title">{dgettext("dashboard_auth", "Cache")}</span>
+              </div>
+              <span data-part="description">
+                {dgettext("dashboard_auth", "Cut build times by caching and reusing binaries.")}
+              </span>
+            </div>
+            <div data-part="feature">
+              <div>
+                <div data-part="icon"><.exchange /></div>
                 <span data-part="title">{dgettext("dashboard_auth", "Selective testing")}</span>
+              </div>
+              <span data-part="description">
+                {dgettext("dashboard_auth", "Speed up CI by testing only what changed.")}
+              </span>
+            </div>
+            <div data-part="feature">
+              <div>
+                <div data-part="icon"><.versions /></div>
+                <span data-part="title">{dgettext("dashboard_auth", "Build and test insights")}</span>
               </div>
               <span data-part="description">
                 {dgettext(
                   "dashboard_auth",
-                  "Discover how selective testing is reducing your test time."
+                  "Analyze builds and test runs to keep CI fast and reliable."
                 )}
               </span>
             </div>
             <div data-part="feature">
               <div>
-                <div data-part="icon"><.database /></div>
-                <span data-part="title">{dgettext("dashboard_auth", "Binary caching")}</span>
+                <div data-part="icon"><.progress_x /></div>
+                <span data-part="title">{dgettext("dashboard_auth", "Flaky tests")}</span>
               </div>
               <span data-part="description">
                 {dgettext(
                   "dashboard_auth",
-                  "Explore how binary caching is enhancing your build times."
+                  "Detect, track, and quarantine flaky tests automatically."
                 )}
               </span>
             </div>

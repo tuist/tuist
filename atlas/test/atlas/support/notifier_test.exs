@@ -161,6 +161,34 @@ defmodule Atlas.Support.NotifierTest do
     refute text =~ "this must remain private"
   end
 
+  test "shows where agent feedback was reported from" do
+    notification_id = Ecto.UUID.generate()
+    stub(API, :find_message_by_metadata, fn _workspace, _channel, _type, _id -> {:ok, nil} end)
+
+    expect(API, :post_message, fn :company, "C-SUPPORT", _text, blocks, _opts ->
+      assert Enum.any?(blocks, &((get_in(&1, ["text", "text"]) || "") =~ "acme/ios · maya · Example MCP"))
+      {:ok, %{"channel" => "C-SUPPORT", "ts" => "1724515200.000100"}}
+    end)
+
+    thread = %{
+      thread()
+      | metadata: %{
+          "channel" => "agent_feedback",
+          "source" => "Example MCP",
+          "reporter_handle" => "maya",
+          "account_handle" => "acme",
+          "project_handle" => "ios"
+        }
+    }
+
+    assert {:ok, _post} =
+             Notifier.notify(thread, "agent_feedback_received",
+               channel_id: "C-SUPPORT",
+               notification_id: notification_id,
+               message: %Message{body: "The branch filter was ignored."}
+             )
+  end
+
   defp thread do
     %Thread{
       id: Ecto.UUID.generate(),

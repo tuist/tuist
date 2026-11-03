@@ -70,7 +70,7 @@
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "expression": "$C > 0.1 && $B >= 20",
+          "expression": "$B - $A > 0.1 * $B && $B >= 20",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
           "refId": "D",

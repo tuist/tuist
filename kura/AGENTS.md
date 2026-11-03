@@ -52,7 +52,7 @@ does not repair embedded/native verification or qualify running processes.
   Completion only schedules the unchanged bounded Quiescing barrier; cancellation,
   expired grants, epoch/identity changes and drain must stop blocked peer I/O.
   A named destination reconciles the source’s complete retained index before
-  taking its hold. Keep this pass serialized, bounded by normal replication
+  taking its hold, unless the delta repair below applies. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
   subject to store capacity/version/tombstone rules. Repair outlives
   the request: a disconnected begin caller must not cancel/restart the
@@ -74,6 +74,9 @@ does not repair embedded/native verification or qualify running processes.
   only the records the destination names. A version's bytes never change, and a
   manifest exists only while its body does, so metadata proves held content.
   Keep the full-verification fallback for peers that do not negotiate this.
+  Up to four metadata batches await answers at once; the destination looks
+  each up with one multi-get, and records named for full verification are still
+  sent one batch at a time in corpus order, before the next answer is used.
   Before named repair, a complete source-index walk may reclaim sealed,
   unpinned destination-only segments when bodies are missing. Track segment
   identities rather than buffering the corpus; preserve every segment containing
@@ -91,6 +94,26 @@ does not repair embedded/native verification or qualify running processes.
   refuses (a cross-region page, say) releases its seq without landing a row.
   Repair completion never replaces
   the final full-corpus verification or authorizes promotion.
+  The source's first descriptor page carries its oldest retained version. From
+  then on the destination counts capacity and pressure evictions of segments
+  whose newest record is not older (handover reclaims excluded). Preparation
+  fails while the source serves if one was counted, or if the records the walk
+  found missing exceed what the store admits without such an eviction. Under
+  the frozen source a counted eviction or a capacity-refused record ends the
+  attempt instead of revisiting, as does a hole found under the hold. Answer
+  those with 422 to that begin and every later one for the intent; the source
+  reports `barrier_failure` and the controller restores Serving before the
+  deadline. Every other rejection stays a retryable 409, and older peers
+  without the frontier keep the deadline-bounded behavior.
+  The walk lowers that watch to each page's oldest record before checking it,
+  and remembers its feed cursor on the source and up to 100,000 missing
+  records. When it reached the end of the index and nothing counted was evicted
+  since it began, the frozen repair fetches only those records plus the record
+  rows the source's feed added after that cursor, read once without waiting.
+  A different incarnation, a trimmed floor or too many rows runs the full walk.
+  The delta repair skips the revisit on uncounted evictions; the full-corpus
+  metadata verification still checks every retained record before a receipt,
+  so anything the delta missed fails the attempt rather than the transfer.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
@@ -111,10 +134,11 @@ does not repair embedded/native verification or qualify running processes.
 - Clang fault coverage lives in `spec/e2e/clang_chunking_spec.sh` and `spec/fixtures/clang-chunking/`. Its loopback-only Rust request gate forwards to real Kura, interrupts uploads, or holds chunk reads while ShellSpec deletes only the test's isolated namespace. This proves client fallback after remote dependency loss, not a server retention lease. Keep fault injection out of production handlers and assert that the fault actually occurred.
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
   - Request WAL sequence publication and writer enrollment belong to the detached blocking commit, not its awaiting caller. Cancellation must not leave a visible client manifest untracked. Existing-blob acknowledgements and completed-upload status join the pending WAL prefix before they acknowledge; unrelated cursor, usage, and backfill writes must not trigger extra client flushes.
+  - `write_batch_deferring_durability` commits on the bounded `src/commit_threads.rs` lanes: a queued commit still runs after its caller is cancelled; one still waiting for queue room never runs, so nothing of it is visible. Opt-in relaxed durability (`KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS`, `ApplyDurability::Relaxed`) applies only to client uploads (server-stamped specs) and may skip only their acknowledgement barriers. Replicated applies, handover receipts, deletes and every other metadata write stay `Sync`; syncs before a page-cache drop, at rotation, past the unsynced-bytes cap and in backfill batches stay strict.
   - Metadata SST full-key Bloom filters share the existing RocksDB block-cache budget; they only skip definite misses, never replace authoritative reads. Preserve old unfiltered SST and rollback compatibility, and measure pinned filter memory plus normal-compaction steady-state CPU before claiming a benefit.
   - `FindMissingBlobs` resolves presence per batch of digests (`Store::artifacts_exist_extending_lifetime`): one manifest-cache lock, one RocksDB multi-get, one segment-state snapshot, no manifest-cache admission. Keep its answers identical to the per-digest `presence_keys` path, including promotion of present blobs in Old segments while the ring is aging; only digests with a stored recipe may fall back to the per-digest chunk walk.
   - The manifest row cache uses exact LRU ordering in reusable page-indexed slots, not a second hash table. Recency touches preserve handles; sparse-page packing rewrites handles together with their cached rows under the owning cache mutex. Recycle only removed slots, release empty pages during trimming, and pack (then shrink the page index) whenever the index covers more than twice the live rows plus one page, so one hot row cannot pin every old page and released pages cannot keep a historical index peak. Rows are charged their slots and index share, and the fixed one-page slack is deducted from the cache limit before rows are admitted. Preserve recency-link byte accounting and test sustained eviction allocations, not only hit latency: hash tombstones can grow private memory at constant entry count.
-  - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Segments a rotation drops from the ring are owned by a guard from that moment; if anything later fails or is cancelled (the caller's manifest commit, a hold-refused eviction, a dropped request), the rest are queued for the worker, never left for the startup sweep. The worker drains that queue before retained segments and only while no handover hold is active. Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
+  - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Segments a rotation drops from the ring are owned by a guard from that moment; if anything later fails or is cancelled (the caller's manifest commit, a hold-refused eviction, a dropped request), the rest are queued for the worker. Rotations also hand retired segments to the running worker while its queue holds at most `SEGMENT_RETIREMENT_HANDOFF_BACKLOG`; past that the request evicts inline, so retired disk stays bounded. Shutdown first evicts queued retired segments within half its remaining budget (an older binary's startup sweep is far slower after a rollback), then quiesces eviction before the backfill clean-shutdown stamp (no eviction chunk may start after it); the startup sweep finishes what quiesce interrupted. The worker drains that queue before retained segments and only while no handover hold is active. Eviction reads candidates in runs and drops the run at the next eviction commit; never stage from a read older than the latest commit, and with `protect_writes` never from one taken without the candidate's stripe. Requests evict only after releasing their own write locks, and without taking stripes (half are held under load). Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
 - Action-cache removal log: `src/action_cache_removals.rs` records the entries and blobs the store removes (after the deleting write commits, in one bounded log for all namespaces), so the snapshot serve path drops them from a cached index before encoding it (see the snapshot passage in `docs/architecture.md`). Record every new removal path there, or the served snapshot keeps advertising what it removed until the next reconcile.
 - Backfill catch-up passes (the pipeline every pull link runs on): `src/backfill/` — `claims.rs` (shared exclusive-claim set, owned by `AppState.backfill_claims`), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (horizon and capacity rules). Pass scheduling and the bootstrap failure budget live in the links themselves (`src/sync/`).
   Individually fetched inline records must preserve the same origin/checksum
