@@ -95,6 +95,7 @@ defmodule Tuist do
       Kura.Identity,
       Kura.Registrations,
       Kura.RegisteredEndpoint,
+      Kura.VolumeKeys,
       Gradle,
       Gradle.Analytics,
       Gradle.Metrics,
