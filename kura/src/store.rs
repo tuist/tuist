@@ -4534,7 +4534,7 @@ impl Store {
         }
         let mut recovery = self.disk_pressure_reclamation.lock().await;
         self.adopt_deferred_capacity_retirement(&mut recovery);
-        self.finish_segment_retirement(&mut recovery).await?;
+        self.finish_segment_retirement(&mut recovery, true).await?;
         {
             let _refresh = self.segment_refresh_lock.lock().await;
             let _exclusive = self.segment_write_barrier.write().await;
@@ -4595,7 +4595,7 @@ impl Store {
             });
             self.disk_pressure_notify.notify_one();
         }
-        self.finish_segment_retirement(&mut recovery).await
+        self.finish_segment_retirement(&mut recovery, true).await
     }
 
     pub(crate) async fn handover_reclaim_candidates(&self) -> Result<HashSet<String>, String> {
