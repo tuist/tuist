@@ -119,7 +119,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
 }
 
 /// A test not to run. Only `module` is set when none of the module's tests is selected.
-public struct TestImpactSkippedTest: Equatable, Hashable, Sendable {
+public struct SkippedTest: Equatable, Hashable, Sendable {
     public let module: String
     public let suite: String?
     public let name: String?
@@ -138,14 +138,14 @@ public struct TestImpactSelection: Equatable, Sendable {
     public let selected: Int?
     public let skipped: Int?
     /// The tests not to run, empty for sharded runs, which read theirs from the shard.
-    public let skip: [TestImpactSkippedTest]
+    public let skippedTests: [SkippedTest]
 
-    public init(runID: String, requested: Int?, selected: Int?, skipped: Int?, skip: [TestImpactSkippedTest]) {
+    public init(runID: String, requested: Int?, selected: Int?, skipped: Int?, skippedTests: [SkippedTest]) {
         self.runID = runID
         self.requested = requested
         self.selected = selected
         self.skipped = skipped
-        self.skip = skip
+        self.skippedTests = skippedTests
     }
 }
 

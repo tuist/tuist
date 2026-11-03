@@ -107,7 +107,7 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
                     requested: run.counts?.requested,
                     selected: run.counts?.selected,
                     skipped: run.counts?.skipped,
-                    skip: (run.skip ?? []).map { TestImpactSkippedTest(module: $0.module, suite: $0.suite, name: $0.name) }
+                    skippedTests: (run.skipped_tests ?? []).map { SkippedTest(module: $0.module, suite: $0.suite, name: $0.name) }
                 ))
             }
         case let .badRequest(response):
