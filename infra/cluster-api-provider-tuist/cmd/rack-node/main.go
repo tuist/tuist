@@ -9,6 +9,9 @@
 //	rack-node ek      prints the TPM's RSA endorsement key, base64 PKIX DER.
 //	                  The install stick announces it, and the operator reads
 //	                  it over SSH from an installed host.
+//	rack-node check-code
+//	                  prints the endorsement key's check code, as the unit
+//	                  sheet shows it, for a vendor's acceptance report.
 //	rack-node seed --server URL --out FILE MAC...
 //	                  asks the site's boot server for the seed published under
 //	                  one of the MACs (hyphenated), through the TPM when the
@@ -47,7 +50,7 @@ const notPublished = 4
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: rack-node apply|agent|ek|seed")
+		fmt.Fprintln(os.Stderr, "usage: rack-node apply|agent|ek|check-code|seed")
 		os.Exit(2)
 	}
 	var err error
@@ -58,6 +61,8 @@ func main() {
 		err = agent(os.Args[2:])
 	case "ek":
 		err = printEK(os.Stdout)
+	case "check-code":
+		err = printCheckCode(os.Stdout)
 	case "seed":
 		var published bool
 		if published, err = seed(os.Args[2:], os.Stdout); err == nil && !published {
@@ -146,17 +151,30 @@ func agent(args []string) error {
 }
 
 func printEK(stdout io.Writer) error {
-	tpm, err := rackseed.Open()
-	if err != nil {
-		return err
-	}
-	defer tpm.Close()
-	ek, err := tpm.EK()
+	ek, err := readEK()
 	if err != nil {
 		return err
 	}
 	_, err = fmt.Fprintln(stdout, base64.StdEncoding.EncodeToString(ek))
 	return err
+}
+
+func printCheckCode(stdout io.Writer) error {
+	ek, err := readEK()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(stdout, rackseed.CheckCode(ek))
+	return err
+}
+
+func readEK() ([]byte, error) {
+	tpm, err := rackseed.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer tpm.Close()
+	return tpm.EK()
 }
 
 // seed asks for the seed published under the first of the MACs that has
