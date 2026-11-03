@@ -2,12 +2,12 @@
 {
   "title": "Bazel 快取",
   "titleTemplate": ":title · 快取 · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist 在團隊與 CI 之間共享 Bazel 遠端快取項目。"
+  "description": "透過 Tuist，在團隊與 CI 之間共用 Bazel 遠端快取項目。"
 }
 ---
 # Bazel 快取 {#bazel-cache}
 
-Tuist 提供一個 [Remote Execution API](https://github.com/bazelbuild/remote-apis) 快取，Bazel 可將其作為遠端快取連接。當動作的輸出已存在於快取中時，Bazel 會略過該動作並從 Tuist 的快取中提取結果，從而節省團隊與 CI 環境中的編譯時間。
+Tuist 提供一個 [Remote Execution API](https://github.com/bazelbuild/remote-apis) 快取，Bazel 可將其作為遠端快取連線。當動作的輸出已存在於快取中時，Bazel 會略過該動作並從 Tuist 的快取中提取結果，為你的團隊與 CI 環境節省編譯時間。
 
 ## 設定 {#setup}
 
@@ -17,7 +17,7 @@ Tuist 提供一個 [Remote Execution API](https://github.com/bazelbuild/remote-a
 tuist bazel setup
 ```
 
-這會在你的 `.bazelrc` 旁邊寫入一個 `.bazelrc.tuist` 檔案，連線至最近的 Tuist 快取區域，並透過每個工作區專屬的憑證輔助工具進行驗證。它也會在你的儲存庫的 `.bazelrc` 中加入一行 `try-import`：
+這會在你的 `.bazelrc` 旁寫入一個 `.bazelrc.tuist` 檔案，並連線至最近的 Tuist 快取區域，且透過每個工作區專屬的憑證輔助程式進行驗證。它也會在你的儲存庫的 `.bazelrc` 中加入一行 `try-import`：
 
 ```text
 try-import %workspace%/.bazelrc.tuist
@@ -25,9 +25,9 @@ try-import %workspace%/.bazelrc.tuist
 
 若你想自行管理匯入，請傳入 `--no-add-bazelrc-import`。
 
-將 `.bazelrc.tuist` 加入你的 `.gitignore`，並在每台機器上執行設定，而非將其提交至版本控制。產生的檔案會指向目前使用者的 Tuist 設定目錄下的絕對憑證輔助工具路徑，以及最接近產生該檔案之機器的快取區域，因此這些值不會轉移給隊友或持續整合執行器。請在 `.bazelrc` 中提交 `try-import` 這一行，因為它在每台機器上都相同。
+將 `.bazelrc.tuist` 加入你的 `.gitignore`，並在每台機器上執行設定，而非將其提交至版本控制。產生的檔案會指向目前使用者的 Tuist 設定目錄下的絕對憑證輔助程式路徑，以及最接近產生該檔案之機器的快取區域，因此這些值不會轉移給 teammates 或持續整合執行器。請在 `.bazelrc` 中提交 `try-import` 這一行，因為它在每台機器上都相同。
 
-當找不到 Bazel 工作區標記、檔案為符號連結，或已設定遠端快取或 Build Event Service 時，設定會保留現有的 `.bazelrc` 不變。這樣一來，再次執行它是冪等的。
+當找不到 Bazel 工作區標記、檔案為符號連結，或已設定遠端快取或 Build Event Service 時，設定會保留現有的 `.bazelrc` 不變。如此一來，再次執行即為冪等。
 
 執行一般的 Bazel 指令以驗證整合：
 
@@ -35,15 +35,15 @@ try-import %workspace%/.bazelrc.tuist
 bazel build //...
 ```
 
-快取活動隨後會出現在 Tuist 儀表板中專案的 **Bazel Cache** 頁面，顯示快取傳輸、下載與上傳、讀寫延遲、吞吐量，以及動作快取命中率。專案的 **Overview** 則會摘要相同的動作快取命中率與建置耗時。
+快取活動隨後會出現在 Tuist 儀表板專案的 **Bazel Cache** 頁面，顯示快取傳輸、下載與上傳、讀寫延遲、吞吐量，以及動作快取命中率。專案 **Overview** 會提供相同的動作快取命中率摘要，並與建置持續時間並列顯示。
 
-若要查看某個指令如何使用快取，請從 **Invocations** 開啟它。叫用頁面會將動作快取查詢與內容物件請求分開，讓你能區分冷動作快取與緩慢的構件下載。
+若要查看某個指令如何使用快取，請從 **Invocations** 開啟。叫用頁面會將動作快取查詢與內容物件請求分開，讓你能分辨冷動作快取與緩慢的構件下載。
 
 ## 建置洞察 {#build-insights}
 
-預設情況下，`tuist bazel setup` 也會設定 Bazel 的 Build Event Service，使完成的指令出現在 **Invocations** 儀表板上。參閱 <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link> 以了解儀表板顯示的內容以及如何附加自訂中繼資料。
+預設情況下，`tuist bazel setup` 也會設定 Bazel 的 Build Event Service，使完成的指令出現在 **Invocations** 儀表板上。請參閱 <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link> 以了解儀表板顯示的內容以及如何附加自訂中繼資料。
 
-若你只想要遠端快取而不想傳送建置事件串流，請使用以下選項退出：
+若你只想要遠端快取而不想傳送建置事件串流，請使用以下選擇退出：
 
 ```bash
 tuist bazel setup --no-build-insights
@@ -51,8 +51,8 @@ tuist bazel setup --no-build-insights
 
 ## 持續整合 {#continuous-integration}
 
-使用 <.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link> 中的其中一種方法對 CI 進行驗證，然後在檢出步驟中執行一次 `tuist bazel setup`，以便 `.bazelrc.tuist` 反映執行器的正確區域。參閱 <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> 以取得針對特定供應商的範例。
+使用 <.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link> 中的其中一種方法對 CI 進行驗證，然後在 checkout 步驟中執行一次 `tuist bazel setup`，以便 `.bazelrc.tuist` 反映執行器的正確區域。請參閱 <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> 以取得特定供應商的範例。
 
 ## 資料保留 {#data-retention}
 
-Tuist 會保留遠端快取觀察資料 90 天。完整政策請參閱 <.localized_link href="/guides/server/data-retention">data retention</.localized_link>。
+Tuist 會保留遠端快取觀察資料 90 天。請參閱 <.localized_link href="/guides/server/data-retention">data retention</.localized_link> 以了解完整政策。

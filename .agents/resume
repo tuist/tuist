@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Restarts the backing services an orb loses while paused. Fast and idempotent.
+# Restarts the backing services an orb loses while paused or after starting
+# from a project snapshot. Fast and idempotent.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../server"

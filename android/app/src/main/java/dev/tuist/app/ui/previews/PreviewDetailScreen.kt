@@ -58,9 +58,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.SubcomposeAsyncImage
 import dev.tuist.app.R
-import dev.tuist.app.api.model.AppBuild
 import dev.tuist.app.api.model.Preview
-import dev.tuist.app.api.model.PreviewSupportedPlatform
 import dev.tuist.app.ui.noora.NooraSpacing
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -218,7 +216,7 @@ private fun PreviewDetailContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.apk }
+                val apkBuild = preview.builds.firstOrNull { it.type == "apk" }
                 if (apkBuild != null) {
                     Spacer(Modifier.height(NooraSpacing.Spacing3))
                     val context = LocalContext.current
@@ -447,18 +445,19 @@ private fun MetadataRow(
 }
 
 @Composable
-private fun PlatformPill(platform: PreviewSupportedPlatform) {
+private fun PlatformPill(platform: String) {
     val label = when (platform) {
-        PreviewSupportedPlatform.ios -> "iOS"
-        PreviewSupportedPlatform.ios_simulator -> "iOS Simulator"
-        PreviewSupportedPlatform.macos -> "macOS"
-        PreviewSupportedPlatform.tvos -> "tvOS"
-        PreviewSupportedPlatform.tvos_simulator -> "tvOS Simulator"
-        PreviewSupportedPlatform.watchos -> "watchOS"
-        PreviewSupportedPlatform.watchos_simulator -> "watchOS Simulator"
-        PreviewSupportedPlatform.visionos -> "visionOS"
-        PreviewSupportedPlatform.visionos_simulator -> "visionOS Simulator"
-        PreviewSupportedPlatform.android -> "Android"
+        "ios" -> "iOS"
+        "ios_simulator" -> "iOS Simulator"
+        "macos" -> "macOS"
+        "tvos" -> "tvOS"
+        "tvos_simulator" -> "tvOS Simulator"
+        "watchos" -> "watchOS"
+        "watchos_simulator" -> "watchOS Simulator"
+        "visionos" -> "visionOS"
+        "visionos_simulator" -> "visionOS Simulator"
+        "android" -> "Android"
+        else -> return
     }
     Row(
         modifier = Modifier

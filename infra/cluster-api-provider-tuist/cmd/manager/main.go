@@ -658,6 +658,12 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		// The cache holds cluster-wide Pods, Secrets, Nodes and PVCs,
+		// and managedFields are a third to a half of each object. No
+		// controller reads them.
+		Cache: cache.Options{
+			DefaultTransform: cache.TransformStripManagedFields(),
+		},
 	}
 	// When the egress reconciler is wired, scope the Services
 	// informer to the egress namespace. The cache's default is a
@@ -668,12 +674,10 @@ func main() {
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
 	if egressProxyGroup != "" && egressNamespace != "" {
-		mgrOptions.Cache = cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Service{}: {
-					Namespaces: map[string]cache.Config{
-						egressNamespace: {},
-					},
+		mgrOptions.Cache.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Service{}: {
+				Namespaces: map[string]cache.Config{
+					egressNamespace: {},
 				},
 			},
 		}

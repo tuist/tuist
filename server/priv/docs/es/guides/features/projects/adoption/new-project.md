@@ -7,9 +7,9 @@
 ---
 # Crear un nuevo proyecto {#create-a-new-project}
 
-La forma más directa de iniciar un nuevo proyecto con Tuist es usar el comando `tuist init`. Este comando inicia una CLI interactiva que te guía durante la configuración del proyecto. Cuando se te solicite, asegúrate de seleccionar la opción para crear un "proyecto generado".
+La forma más sencilla de iniciar un nuevo proyecto con Tuist es usar el comando `tuist init`. Este comando inicia una CLI interactiva que te guía durante la configuración del proyecto. Cuando se te solicite, asegúrate de seleccionar la opción para crear un "proyecto generado".
 
-Luego puedes <.localized_link href="/guides/features/projects/editing">editar el proyecto</.localized_link> ejecutando `tuist edit`, y Xcode abrirá un proyecto donde podrás editarlo. Uno de los archivos generados es `Project.swift`, que contiene la definición de tu proyecto. Si estás familiarizado con Swift Package Manager, considéralo como el `Package.swift` pero con la terminología de los proyectos de Xcode.
+A continuación, puedes <.localized_link href="/guides/features/projects/editing">editar el proyecto</.localized_link> ejecutando `tuist edit`, y Xcode abrirá un proyecto donde podrás editarlo. Uno de los archivos generados es `Project.swift`, que contiene la definición de tu proyecto. Si estás familiarizado con Swift Package Manager, piénsalo como `Package.swift`, pero con la terminología de los proyectos de Xcode.
 
 ::: code-group
 ```swift [Project.swift]
@@ -64,7 +64,7 @@ mkdir MyFramework
 cd MyFramework
 ```
 
-Luego crea un archivo `Tuist.swift`, que configurará Tuist y lo usa para determinar el directorio raíz del proyecto, y un `Project.swift`, donde se declarará tu proyecto:
+Luego crea un archivo `Tuist.swift`, que configurará Tuist y lo usará para determinar el directorio raíz del proyecto, y un `Project.swift`, donde se declarará tu proyecto:
 
 ::: code-group
 ```swift [Project.swift]
@@ -93,4 +93,4 @@ let tuist = Tuist()
 :::
 
 > [!WARNING]
-> Tuist usa el directorio `Tuist/` para determinar la raíz de tu proyecto y, a partir de ahí, busca otros archivos de manifiesto explorando los directorios. Recomendamos crear esos archivos con tu editor preferido y, a partir de ese momento, puedes usar `tuist edit` para editar el proyecto con Xcode.
+> Tuist usa el directorio `Tuist/` para determinar la raíz de tu proyecto y, a partir de ahí, busca otros archivos de manifiesto recorriendo los directorios. Recomendamos crear esos archivos con el editor que prefieras y, a partir de ese momento, puedes usar `tuist edit` para editar el proyecto con Xcode.

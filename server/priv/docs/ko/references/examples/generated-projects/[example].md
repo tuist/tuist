@@ -1,7 +1,7 @@
 ---
 {
   "editLink": false,
-  "titleTemplate": ":title · 예제 · 레퍼런스 · Tuist"
+  "titleTemplate": ":title · 예제 · 참조 · Tuist"
 }
 ---
 <script setup>
@@ -14,4 +14,4 @@ const { params } = useData()
 
 <!-- @content -->
 
-<a :href="params.url" target="blank">예제 살펴보기</a>
+<a :href="params.url" target="blank">예제 확인하기</a>

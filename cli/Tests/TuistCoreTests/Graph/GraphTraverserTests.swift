@@ -2435,6 +2435,55 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_linkableAndEmbeddableDependencies_when_appAndHostlessUnitTestsDependOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependencies(
+    ) throws {
+        // App ---------------------> Dynamic XCFramework ---> Static ObjC XCFramework (A) ---> Static ObjC XCFramework (B)
+        // Hostless unit tests ----->
+
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [app, tests])
+        let dynamicXCFramework = GraphDependency.testXCFramework(
+            path: "/test/DynamicFramework.xcframework",
+            linking: .dynamic
+        )
+        let staticObjcXCFrameworkAPath = try AbsolutePath(validating: "/test/StaticFrameworkA.xcframework")
+        let staticObjcXCFrameworkA = GraphDependency.testXCFramework(
+            path: staticObjcXCFrameworkAPath,
+            linking: .static,
+            moduleMaps: [staticObjcXCFrameworkAPath.appending(component: "module.modulemap")]
+        )
+        let staticObjcXCFrameworkBPath = try AbsolutePath(validating: "/test/StaticFrameworkB.xcframework")
+        let staticObjcXCFrameworkB = GraphDependency.testXCFramework(
+            path: staticObjcXCFrameworkBPath,
+            linking: .static,
+            moduleMaps: [staticObjcXCFrameworkBPath.appending(component: "module.modulemap")]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): [dynamicXCFramework],
+                .target(name: tests.name, path: project.path): [dynamicXCFramework],
+                dynamicXCFramework: [staticObjcXCFrameworkA],
+                staticObjcXCFrameworkA: [staticObjcXCFrameworkB],
+                staticObjcXCFrameworkB: [],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // Then: the dynamic xcframework already contains the static xcframeworks, so neither consumer links them again.
+        XCTAssertEqual(
+            try subject.linkableDependencies(path: project.path, name: app.name),
+            [GraphDependencyReference(dynamicXCFramework)]
+        )
+        XCTAssertEqual(
+            try subject.linkableDependencies(path: project.path, name: tests.name),
+            [GraphDependencyReference(dynamicXCFramework)]
+        )
+        XCTAssertEqual(subject.embeddableFrameworks(path: project.path, name: tests.name), [])
+    }
+
     func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> libc++.tbd

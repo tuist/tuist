@@ -25,14 +25,14 @@ Tuist は既存の Cargo プロジェクトと連携します。Rust の依存�
 
 ## プロジェクトを接続する
 
-<.localized_link href="/guides/install-tuist">Tuist CLI</.localized_link> と Rust をインストールしてください。ダッシュボードでビルドシステムとして **Cargo (Rust)** を指定してプロジェクトを作成します。リポジトリのルートに `tuist.toml` を追加します:
+<.localized_link href="/guides/install-tuist">Tuist CLI</.localized_link> と Rust をインストールしてください。ダッシュボードでビルドシステムとして **Cargo (Rust)** を指定してプロジェクトを作成します。リポジトリのルートに `tuist.toml` を追加します。
 
 ```toml
 project = "account/project"
 # url = "https://your-tuist-server.example.com"
 ```
 
-`tuist auth login` でログインし、その後 Tuist を介して通常の Cargo コマンドを実行します。CI では、`TUIST_TOKEN` にプロジェクトトークンを設定します。設定ファイルを追加する代わりに `TUIST_PROJECT` を設定したり、セルフホスト型サーバーを使用している場合は `TUIST_URL` を設定することもできます。
+`tuist auth login` でログインし、その後 Tuist を介して通常の Cargo コマンドを実行します。CI では、`TUIST_TOKEN` にプロジェクトトークンを設定します。設定ファイルを追加する代わりに `TUIST_PROJECT` を設定したり、セルフホスト型サーバーを使用する場合は `TUIST_URL` を設定することもできます。
 
 ```sh
 tuist cargo build --workspace
@@ -42,9 +42,9 @@ tuist cargo test --workspace
 
 機能、ツールチェーン、テストフィルターなど、通常 Cargo に渡すのと同じ引数を使用します。Tuist がレポートをアップロードできない場合でも、Cargo は通常の出力と終了コードを維持します。
 
-## Cargo コマンドをそのまま入力
+## Cargo と入力し続ける
 
-[mise のコマンドラッパー](https://mise.jdx.dev/dev-tools/shims.html#command-wrappers) を有効にして、これを `mise.toml` に追加します:
+[mise のコマンドラッパー](https://mise.jdx.dev/dev-tools/shims.html#command-wrappers) を有効にして、これを `mise.toml` に追加します。
 
 ```toml
 [wrappers.cargo]
@@ -55,7 +55,7 @@ args = ["cargo"]
 ラッパーを追加した後、`mise reshim` を実行します。その後、通常どおり `cargo build`、`cargo check`、および `cargo test` を使用できます。Mise がそれらを Tuist を介して実行します。
 
 > [!TIP] Coding agents
-> コーディングエージェントを使用する際に便利です。`tuist` プレフィックスを追加することを思い出さなくても、`cargo build` や `cargo test` を引き続き実行できます。
+> コーディングエージェントと作業する際に便利です。`cargo build` や `cargo test` を実行し続けることができ、`tuist` プレフィックスを追加するよう促される必要がありません。
 
 ## コンパイルキャッシュ
 
@@ -65,22 +65,22 @@ args = ["cargo"]
 
 ダッシュボードで **Builds** を開き、ビルドにかかる時間を確認し、ローカルビルドと CI を比較します。ビルドを選択して、コンパイルに最も時間がかかったクレートを見つけ、その警告とエラーを検査します。
 
-コンパイラの計測時間は個別のソースファイルではなく、クレート単位です。ビルドレポートの読み方については、<.localized_link href="/guides/features/build-insights/rust">Rust ビルドインサイト</.localized_link> を参照してください。
+コンパイラのタイミングはクレート単位であり、個々のソースファイル単位ではありません。ビルドレポートの読み方については、<.localized_link href="/guides/features/build-insights/rust">Rust ビルドインサイト</.localized_link> を参照してください。
 
 ## テストインサイト
 
-通常どおりテストを実行します:
+通常どおりテストを実行します。
 
 ```sh
 tuist cargo test --workspace
 ```
 
-ダッシュボードで **Tests** を開き、doctest を含む合格、不合格、無視されたテストを確認します。Cargo はスイートの所要時間を報告しますが、安定版の libtest はテストごとの計測時間を公開しません。
+ダッシュボードで **Tests** を開き、doctest を含む合格、不合格、無視されたテストを確認します。Cargo はスイートの期間を報告しますが、安定版の libtest はテストごとのタイミングを公開しません。
 
-doctest だけを実行するには:
+doctest のみを実行するには。
 
 ```sh
 tuist cargo test --doc
 ```
 
-詳細は <.localized_link href="/guides/features/test-insights/rust">Rust テストインサイト</.localized_link> および <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Rust 不安定なテスト</.localized_link> を参照してください。
+詳細については、<.localized_link href="/guides/features/test-insights/rust">Rust テストインサイト</.localized_link> および <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Rust 不安定なテスト</.localized_link> を参照してください。

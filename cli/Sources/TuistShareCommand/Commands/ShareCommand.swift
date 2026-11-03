@@ -13,7 +13,7 @@ public struct ShareCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "share",
-            abstract: "Generate a link to share your app."
+            abstract: "Generate a link to share your app or CLI."
         )
     }
 
@@ -25,10 +25,13 @@ public struct ShareCommand: AsyncParsableCommand {
     var path: String?
 
     @Argument(
-        help: "The app name to be looked up in the built products directory or the paths to the app bundles, an .ipa archive, or an .apk file.",
+        help: "An app name, app bundles, an .ipa or .apk file, an executable, or a directory containing a CLI distribution.",
         envKey: .shareApp
     )
     var apps: [String] = []
+
+    @Option(help: "The executable path relative to a CLI distribution directory. Includes the entire directory in the preview.")
+    var executable: String?
 
     #if os(macOS)
         @Option(
@@ -81,7 +84,8 @@ public struct ShareCommand: AsyncParsableCommand {
                 derivedDataPath: derivedDataPath,
                 json: json,
                 track: track,
-                releaseNotes: releaseNotes
+                releaseNotes: releaseNotes,
+                executable: executable
             )
         #else
             try await ShareCommandService().run(
@@ -89,7 +93,8 @@ public struct ShareCommand: AsyncParsableCommand {
                 apps: apps,
                 json: json,
                 track: track,
-                releaseNotes: releaseNotes
+                releaseNotes: releaseNotes,
+                executable: executable
             )
         #endif
     }

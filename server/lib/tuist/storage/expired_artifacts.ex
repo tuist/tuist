@@ -73,7 +73,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
             preview_id: candidate.preview_id
           })
 
-        [app_build_key, icon_key]
+        if candidate.app_build.artifact_storage_key, do: [icon_key], else: [app_build_key, icon_key]
       end)
 
     delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:preview_app_build, rows))
