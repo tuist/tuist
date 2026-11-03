@@ -221,38 +221,29 @@ defmodule TuistWeb.BillingLive do
       |> RunnerBilling.compute_units_by_platform(period_start, now)
       |> Map.new(&{&1.platform, &1.total_units})
 
-    macos_ms = Map.get(by_platform, :macos, 0)
-    linux_ms = Map.get(by_platform, :linux, 0)
-    total_ms = macos_ms + linux_ms
+    total_ms = by_platform |> Map.values() |> Enum.sum()
 
-    # Truncated to whole minutes, matching how the Stripe Price rounds,
-    # so this figure is the quantity that would be invoiced rather than
-    # one running slightly ahead of it.
-    free_minutes = Allowance.free_monthly_minutes()
-    free_ms = free_minutes * 60_000
+    # In macOS minutes, the unit of the shared allowance, so the bar and
+    # its ceiling measure the same thing whichever platform ran.
+    free_minutes = Allowance.free_monthly_minutes(:macos)
 
     # Costed per millisecond rather than per whole minute, because the
     # runner Prices charge that way: their tiers are in raw meter units and
     # Stripe rounds none of it. Costing minutes would show nothing at all
-    # for an account that has run less than one. Only the macOS Price has
-    # a free tier; Linux is charged from its first minute.
-    accrued =
-      Money.add(
-        Prepaid.on_demand_cost_for_milliseconds(:macos, macos_ms),
-        Prepaid.on_demand_cost_for_milliseconds(:linux, linux_ms)
-      )
+    # for an account that has run less than one. Each platform's Price
+    # has its own free tier.
+    accrued = platforms_cost(by_platform, fn _platform, ms -> ms end)
 
     chargeable =
-      Money.add(
-        Prepaid.on_demand_cost_for_milliseconds(:macos, max(macos_ms - free_ms, 0)),
-        Prepaid.on_demand_cost_for_milliseconds(:linux, linux_ms)
-      )
+      platforms_cost(by_platform, fn platform, ms ->
+        max(ms - Allowance.free_monthly_minutes(platform) * 60_000, 0)
+      end)
 
     {billed, not_billed_because} =
       cond do
         Trials.on_trial?(account) -> {Money.new(0, :USD), :trial}
         is_nil(subscription) -> {Money.new(0, :USD), :no_subscription}
-        macos_ms <= free_ms and linux_ms == 0 -> {Money.new(0, :USD), :within_allowance}
+        chargeable == Money.new(0, :USD) -> {Money.new(0, :USD), :within_allowance}
         true -> {chargeable, nil}
       end
 
@@ -267,7 +258,7 @@ defmodule TuistWeb.BillingLive do
       # not it has touched it, and that is the thing the bar answers.
       enabled: FeatureFlags.runners_enabled?(account),
       total_ms: total_ms,
-      minutes: div(total_ms, 60_000),
+      minutes: Allowance.allowance_minutes(by_platform),
       free_minutes: free_minutes,
       prepaid_minutes: prepaid_minutes,
       covered_minutes: free_minutes + prepaid_minutes,
@@ -275,6 +266,13 @@ defmodule TuistWeb.BillingLive do
       billed: billed,
       not_billed_because: not_billed_because
     }
+  end
+
+  defp platforms_cost(by_platform, billable_ms) do
+    Enum.reduce([:macos, :linux], Money.new(0, :USD), fn platform, total ->
+      ms = billable_ms.(platform, Map.get(by_platform, platform, 0))
+      Money.add(total, Prepaid.on_demand_cost_for_milliseconds(platform, ms))
+    end)
   end
 
   @doc """
@@ -296,17 +294,28 @@ defmodule TuistWeb.BillingLive do
   Says what the runner bar's ceiling is made of, so a limit larger than
   the plan's allowance is not left unexplained.
   """
-  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your usage")
+  def runner_minutes_composition(%{prepaid_minutes: 0}),
+    do:
+      dgettext(
+        "dashboard_account",
+        "of your free minutes, counted in macOS minutes (%{linux} Linux minutes count as %{macos})",
+        linux: format_number(Allowance.free_monthly_minutes(:linux)),
+        macos: format_number(Allowance.free_monthly_minutes(:macos))
+      )
 
   def runner_minutes_composition(%{free_minutes: free, prepaid_minutes: prepaid}),
     do:
-      dgettext("dashboard_account", "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)",
+      dgettext("dashboard_account", "of your usage (%{free} free macOS minutes plus %{prepaid} prepaid)",
         free: format_number(free),
         prepaid: format_number(prepaid)
       )
 
   def runner_billed_explanation(:within_allowance),
-    do: dgettext("dashboard_account", "within your %{count} free minutes", count: Allowance.free_monthly_minutes())
+    do:
+      dgettext("dashboard_account", "within your %{macos} free macOS and %{linux} free Linux minutes",
+        macos: format_number(Allowance.free_monthly_minutes(:macos)),
+        linux: format_number(Allowance.free_monthly_minutes(:linux))
+      )
 
   def runner_billed_explanation(:trial), do: dgettext("dashboard_account", "free during your trial")
 

@@ -266,9 +266,6 @@ Tuist rejects a caller-owned scratch directory when a foreign build target needs
 
 ### Code coverage {#code-coverage}
 
-> [!NOTE] EARLY ACCESS
-> Code coverage with the module cache is in early access. Commands only read and warm the instrumented binaries described below when `TUIST_FEATURE_FLAG_COVERAGE=1` is set.
-
 A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. Turn coverage on for your project in `Tuist.swift`:
 
 ```swift

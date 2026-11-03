@@ -4,6 +4,8 @@ defmodule TuistWeb.API.AuthController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserToken
   alias Tuist.Authentication
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
@@ -100,24 +102,19 @@ defmodule TuistWeb.API.AuthController do
       device_code.authenticated ->
         user = Accounts.get_user!(device_code.user_id, preload: [:account])
 
-        {:ok, access_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{
-              email: user.email,
-              preferred_username: user.account.name
-            },
-            token_type: :access,
-            ttl: @access_token_ttl
+        # Refreshing carries the claims over, so the tokens keep the SSO
+        # sign-in that approved the code for `ensure_refresh_satisfies_sso/1`.
+        claims =
+          Map.merge(
+            %{"email" => user.email, "preferred_username" => user.account.name},
+            UserToken.sso_claims(device_code)
           )
 
+        {:ok, access_token, _opts} =
+          Authentication.encode_and_sign(user, claims, token_type: :access, ttl: @access_token_ttl)
+
         {:ok, refresh_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{email: user.email, preferred_username: user.account.name},
-            token_type: :refresh,
-            ttl: @refresh_token_ttl
-          )
+          Authentication.encode_and_sign(user, claims, token_type: :refresh, ttl: @refresh_token_ttl)
 
         conn
         |> put_status(:ok)
@@ -174,11 +171,40 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{
           message: "The refresh token is invalid."
         })
+
+      # 401, which existing clients answer by signing out, so the user signs
+      # in again through the browser, where the organization's SSO applies.
+      {:error, :sso_required} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{
+          message:
+            "Your organization requires single sign-on. Run `tuist auth login` to sign in through your identity provider."
+        })
     end
   end
 
   defp refresh_tokens(conn, refresh_token) do
-    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
+    with {:ok, sso_claims} <- refresh_sso_claims(refresh_token) do
+      rotate_refresh_token(conn, refresh_token, sso_claims)
+    end
+  end
+
+  # A refresh token acts for the user in every account, as the sign-in that
+  # issued it did, so it is renewed only while its SSO claims (or the user's
+  # linked identities, or the grace period) still satisfy the user's
+  # SSO-enforcing organizations. See `Accounts.refresh_sso_claims/2`. Tokens
+  # that don't decode to a user are left to `Authentication.refresh/2` to
+  # handle as before.
+  defp refresh_sso_claims(refresh_token) do
+    case Tuist.Guardian.resource_from_token(refresh_token, %{"typ" => "refresh"}) do
+      {:ok, %User{} = user, claims} -> Accounts.refresh_sso_claims(user, claims)
+      _ -> {:ok, nil}
+    end
+  end
+
+  defp rotate_refresh_token(conn, refresh_token, sso_claims) do
+    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl, sso_claims: sso_claims) do
       {:error, _} ->
         {:error, :invalid_refresh_token}
 
@@ -303,33 +329,44 @@ defmodule TuistWeb.API.AuthController do
   defp issue_user_tokens(conn, user) do
     # Direct credential endpoints cannot silently skip an enrolled factor.
     # CLI/device login completes the browser challenge before authorization.
-    if Accounts.UserMFA.enabled?(user) do
-      conn
-      |> put_status(:unauthorized)
-      |> json(%{message: "Two-factor authentication is enabled. Use browser sign-in."})
-    else
-      {:ok, access_token, _opts} =
-        Authentication.encode_and_sign(
-          user,
-          %{email: user.email, preferred_username: user.account.name},
-          token_type: :access,
-          ttl: @access_token_ttl
-        )
+    # Tokens also act for the user in every account, so members of an
+    # organization that enforces single sign-on have to sign in through its
+    # provider in the browser.
+    cond do
+      Accounts.UserMFA.enabled?(user) ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Two-factor authentication is enabled. Use browser sign-in."})
 
-      {:ok, refresh_token, _opts} =
-        Authentication.encode_and_sign(
-          user,
-          %{email: user.email, preferred_username: user.account.name},
-          token_type: :refresh,
-          ttl: @refresh_token_ttl
-        )
+      # 401 like the MFA refusal above, whose message released clients show.
+      Accounts.sso_requirement(user, nil) != :ok ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Your organization requires single sign-on. Sign in through your identity provider instead."})
 
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        access_token: access_token,
-        refresh_token: refresh_token
-      })
+      true ->
+        {:ok, access_token, _opts} =
+          Authentication.encode_and_sign(
+            user,
+            %{email: user.email, preferred_username: user.account.name},
+            token_type: :access,
+            ttl: @access_token_ttl
+          )
+
+        {:ok, refresh_token, _opts} =
+          Authentication.encode_and_sign(
+            user,
+            %{email: user.email, preferred_username: user.account.name},
+            token_type: :refresh,
+            ttl: @refresh_token_ttl
+          )
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          access_token: access_token,
+          refresh_token: refresh_token
+        })
     end
   end
 
