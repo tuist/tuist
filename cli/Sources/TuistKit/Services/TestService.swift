@@ -988,7 +988,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        let testImpactSkipList = TestImpactSkipList(shard.testImpactSkip)
+        let testImpactSkipList = TestImpactSkipList(shard.skippedTests)
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: shard.testProductsPath,
             testTargets: [],

@@ -89,7 +89,7 @@ struct CreateTestImpactRunServiceTests {
             counts: .init(requested: 11, selected: 5, skipped: 6),
             id: "run-id",
             outcome: "selected",
-            skip: [
+            skipped_tests: [
                 .init(module: "CatalogTests"),
                 .init(module: "CoreTests", name: "testFormatsDollars", suite: "MoneyTests"),
             ]

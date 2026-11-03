@@ -3728,6 +3728,30 @@ components:
       type: object
       x-struct:
       x-validate:
+    SkippedTest:
+      description: A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
+      properties:
+        module:
+          description: The test module (target, Gradle module, Mix app, or crate).
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: The name of the test. Absent when the whole module is skipped.
+          type: string
+          x-struct:
+          x-validate:
+        suite:
+          description: The suite (class) of the test. Absent when the whole module is skipped.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - module
+      title: SkippedTest
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.SkippedTest
+      x-validate:
     BazelBuildAction:
       properties:
         first_seen_at:
@@ -3981,7 +4005,7 @@ components:
           x-struct:
           x-validate:
         test_impact_run_id:
-          description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+          description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
           format: uuid
           type: string
           x-struct:
@@ -4055,6 +4079,13 @@ components:
           type: array
           x-struct:
           x-validate:
+        skipped_tests:
+          description: "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans."
+          items:
+            $ref: '#/components/schemas/SkippedTest'
+          type: array
+          x-struct:
+          x-validate:
         suites:
           additionalProperties:
             items:
@@ -4066,13 +4097,6 @@ components:
             x-validate:
           description: The test suites assigned to this shard, grouped by module name.
           type: object
-          x-struct:
-          x-validate:
-        test_impact_skip:
-          description: "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans."
-          items:
-            $ref: '#/components/schemas/TestImpactSkippedTest'
-          type: array
           x-struct:
           x-validate:
       required:
@@ -9521,30 +9545,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    TestImpactSkippedTest:
-      description: A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
-      properties:
-        module:
-          description: The test module (target, Gradle module, Mix app, or crate).
-          type: string
-          x-struct:
-          x-validate:
-        name:
-          description: The name of the test. Absent when the whole module is skipped.
-          type: string
-          x-struct:
-          x-validate:
-        suite:
-          description: The suite (class) of the test. Absent when the whole module is skipped.
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - module
-      title: TestImpactSkippedTest
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.SkippedTest
-      x-validate:
     GradleBuildsIndexPage:
       default: 1
       description: The page number to return.
@@ -11953,10 +11953,10 @@ components:
           type: string
           x-struct:
           x-validate:
-        skip:
+        skipped_tests:
           description: "The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs."
           items:
-            $ref: '#/components/schemas/TestImpactSkippedTest'
+            $ref: '#/components/schemas/SkippedTest'
           type: array
           x-struct:
           x-validate:
@@ -41801,7 +41801,7 @@ paths:
                   x-struct:
                   x-validate:
                 test_impact_run_id:
-                  description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `test_impact_skip` list. Omit it on fallbacks and default selective testing.
+                  description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
                   format: uuid
                   type: string
                   x-struct:

@@ -1,6 +1,6 @@
 defmodule TuistWeb.API.Schemas.Tests.TestImpact.SkippedTest do
   @moduledoc """
-  A test, suite, or whole module that coverage-based test selection decided not
+  A test, suite, or whole module that test selection decided not
   to run.
   """
   alias OpenApiSpex.Schema
@@ -8,7 +8,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.SkippedTest do
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
-    title: "TestImpactSkippedTest",
+    title: "SkippedTest",
     type: :object,
     description:
       "A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.",
