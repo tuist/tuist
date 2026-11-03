@@ -13,22 +13,20 @@ defmodule Tuist.TestImpactAnalysis.Input do
     client capped it;
   - `tracked_file_globs`: the project's tracked files
     (`Tuist.GitHistory.settings/1`);
-  - `baseline_blobs`: the baseline's blob for the paths the versions
-    executed; overlaid with the changed files, they are the checkout's;
-  - `versions`: each test's versions in the evidence window
-    (`Tuist.Tests.Coverage.TestSources.versions/4`);
+  - `evidence`: each test's evidence at the checkout,
+    `%{test_case_id => %{newest:, reproduced:}}`, from
+    `Tuist.Tests.Coverage.TestEvidence`, the lookup coverage carry uses, over
+    the checkout's blobs (`checkout_blobs/2`);
   - `target_evidence`: per module, what the baseline's test processes
     executed outside every test and suite scope (a hosted app's launch,
     Swift Testing tests);
   - `test_paths`: the files the baseline recorded as test code;
   - `evidence_paths`: every file any of the baseline's evidence includes, in
     any module;
-  - `flaky`: the tests whose newest version comes from a run where they were
-    flaky.
+  - `flaky`: the tests whose newest reproduced version comes from a run
+    where they were flaky.
 
-  `new/1` resolves each test's evidence against the checkout's blobs through
-  the lookup coverage carry uses (`Tuist.Tests.Coverage.TestSources.resolve/2`)
-  and indexes it, so rules asking the same question share one answer.
+  `new/1` indexes it, so rules asking the same question share one answer.
   `load/2` reads it all for a baseline.
   """
   import Ecto.Query
@@ -39,7 +37,7 @@ defmodule Tuist.TestImpactAnalysis.Input do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
-  alias Tuist.Tests.Coverage.TestSources
+  alias Tuist.Tests.Coverage.TestEvidence
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.TestCaseRun
 
@@ -49,14 +47,12 @@ defmodule Tuist.TestImpactAnalysis.Input do
             changed_files: [],
             changed_files_count: 0,
             tracked_file_globs: [],
-            baseline_blobs: %{},
-            versions: %{},
+            evidence: %{},
             target_evidence: %{},
             test_paths: MapSet.new(),
             evidence_paths: MapSet.new(),
             flaky: MapSet.new(),
             # Derived by `new/1`.
-            evidence: %{},
             changed: %{},
             changed_paths: [],
             tracked: nil,
@@ -71,24 +67,26 @@ defmodule Tuist.TestImpactAnalysis.Input do
     input = %{input | flaky: MapSet.new(input.flaky)}
     changed = Map.new(input.changed_files, &{&1.path, &1})
 
-    blobs =
-      Enum.reduce(input.changed_files, input.baseline_blobs, fn
-        %{path: path, blob: blob}, blobs when is_binary(blob) and blob != "" -> Map.put(blobs, path, blob)
-        %{path: path}, blobs -> Map.delete(blobs, path)
-      end)
-
-    evidence = TestSources.resolve(input.versions, blobs)
-
     %{
       input
-      | evidence: evidence,
-        changed: changed,
+      | changed: changed,
         changed_paths: changed |> Map.keys() |> Enum.sort(),
         tracked: input.tracked_file_globs |> ExcludedPaths.pattern() |> ExcludedPaths.compile(),
         evidenced: evidenced(input),
-        tests_by_path: tests_by_path(evidence),
+        tests_by_path: tests_by_path(input.evidence),
         tests_by_module: Enum.group_by(input.tests, & &1.module_name)
     }
+  end
+
+  @doc """
+  The checkout's blobs, `%{path => blob}`: the baseline's overlaid with the
+  changed files', without the files the checkout deleted.
+  """
+  def checkout_blobs(baseline_blobs, changed_files) do
+    Enum.reduce(changed_files, baseline_blobs, fn
+      %{path: path, blob: blob}, blobs when is_binary(blob) and blob != "" -> Map.put(blobs, path, blob)
+      %{path: path}, blobs -> Map.delete(blobs, path)
+    end)
   end
 
   @doc "The changed paths, in path order."
@@ -104,13 +102,12 @@ defmodule Tuist.TestImpactAnalysis.Input do
   @doc "Whether the baseline recorded the path as test code."
   def test_file?(%__MODULE__{test_paths: paths}, path), do: MapSet.member?(paths, path)
 
-  @doc "Whether any of the baseline's evidence, or any version in the window, includes the path."
+  @doc "Whether any of the baseline's evidence, or any test's newest or reproduced version, includes the path."
   def evidenced?(%__MODULE__{evidenced: evidenced}, path), do: MapSet.member?(evidenced, path)
 
   @doc """
-  The test's evidence: `%{versions:, newest:, reproduced:}`, `reproduced`
-  the newest version the checkout reproduces or nil. Nil for a test without
-  versions in the window.
+  The test's evidence: `%{newest:, reproduced:}`, `reproduced` the newest
+  version the checkout reproduces or nil. Nil for a test without versions.
   """
   def evidence(%__MODULE__{evidence: evidence}, test_case_id), do: Map.get(evidence, test_case_id)
 
@@ -126,11 +123,17 @@ defmodule Tuist.TestImpactAnalysis.Input do
     input.target_evidence |> Map.get(module_name, []) |> Enum.filter(&changed?(input, &1)) |> Enum.sort()
   end
 
-  @doc "Whether the test's newest version comes from a run where it was flaky."
+  @doc "Whether the test's newest reproduced version comes from a run where it was flaky."
   def flaky?(%__MODULE__{flaky: flaky}, test_case_id), do: MapSet.member?(flaky, test_case_id)
 
   defp evidenced(input) do
-    version_paths = input.versions |> Map.values() |> Enum.concat() |> Enum.flat_map(& &1.paths)
+    version_paths =
+      for {_test_case_id, evidence} <- input.evidence,
+          version <- [evidence.newest, evidence.reproduced],
+          version != nil,
+          path <- version.paths,
+          do: path
+
     target_paths = input.target_evidence |> Map.values() |> Enum.concat()
     input.evidence_paths |> MapSet.union(MapSet.new(version_paths)) |> MapSet.union(MapSet.new(target_paths))
   end
@@ -146,7 +149,6 @@ defmodule Tuist.TestImpactAnalysis.Input do
 
   - `:repository_id`, `:baseline_sha` and `:baseline_run_ids`, the
     baseline's runs in scope;
-  - `:window_shas`: the evidence window's commits, nil for no bound;
   - `:modules`: the requested modules, nil for every module the baseline
     ran;
   - `:changed_files` and `:changed_files_count`, from the client.
@@ -154,23 +156,39 @@ defmodule Tuist.TestImpactAnalysis.Input do
   def load(%Project{} = project, opts) do
     repository_id = Keyword.fetch!(opts, :repository_id)
     run_ids = Keyword.fetch!(opts, :baseline_run_ids)
-    tests = baseline_tests(project.id, run_ids, Keyword.get(opts, :modules))
-    test_case_ids = Enum.map(tests, & &1.test_case_id)
-    versions = TestSources.versions(project.id, repository_id, test_case_ids, shas: Keyword.get(opts, :window_shas))
-    paths = versions |> Map.values() |> Enum.concat() |> Enum.flat_map(& &1.paths) |> Enum.uniq()
-    {target_evidence, evidence_paths} = baseline_evidence(project.id, run_ids)
+    baseline_sha = Keyword.fetch!(opts, :baseline_sha)
+    changed_files = Keyword.get(opts, :changed_files, [])
+
+    # The tests and their evidence, the baseline's evidence and its test files
+    # don't depend on each other, so they're read concurrently.
+    [{tests, evidence, flaky}, {target_evidence, evidence_paths}, test_paths] =
+      [
+        fn ->
+          tests = baseline_tests(project.id, run_ids, Keyword.get(opts, :modules))
+
+          evidence =
+            TestEvidence.lookup(project.id, repository_id, Enum.map(tests, & &1.test_case_id), fn paths ->
+              repository_id |> GitHistory.blobs_at(baseline_sha, paths) |> checkout_blobs(changed_files)
+            end)
+
+          {tests, evidence, flaky(project.id, evidence)}
+        end,
+        fn -> baseline_evidence(project.id, run_ids) end,
+        fn -> test_paths(project.id, run_ids) end
+      ]
+      |> Task.async_stream(& &1.(), ordered: true, timeout: :infinity)
+      |> Enum.map(fn {:ok, result} -> result end)
 
     new(%{
       tests: tests,
-      changed_files: Keyword.get(opts, :changed_files, []),
+      changed_files: changed_files,
       changed_files_count: Keyword.get(opts, :changed_files_count, 0),
       tracked_file_globs: GitHistory.settings(project).tracked_file_globs,
-      baseline_blobs: GitHistory.blobs_at(repository_id, Keyword.fetch!(opts, :baseline_sha), paths),
-      versions: versions,
+      evidence: evidence,
       target_evidence: target_evidence,
-      test_paths: test_paths(project.id, run_ids),
+      test_paths: test_paths,
       evidence_paths: evidence_paths,
-      flaky: flaky(project.id, versions)
+      flaky: flaky
     })
   end
 
@@ -245,12 +263,15 @@ defmodule Tuist.TestImpactAnalysis.Input do
     )
   end
 
-  defp flaky(_project_id, versions) when versions == %{}, do: []
+  defp flaky(project_id, evidence) do
+    reproduced = for {id, %{reproduced: %{run_id: run_id}}} <- evidence, into: %{}, do: {id, run_id}
+    flaky_in_runs(project_id, reproduced)
+  end
 
-  defp flaky(project_id, versions) do
-    newest = versions |> TestSources.resolve(%{}) |> Map.new(fn {id, %{newest: newest}} -> {id, newest.run_id} end)
+  defp flaky_in_runs(_project_id, reproduced) when reproduced == %{}, do: []
 
-    run_ids = newest |> Map.values() |> Enum.uniq()
+  defp flaky_in_runs(project_id, reproduced) do
+    run_ids = reproduced |> Map.values() |> Enum.uniq()
 
     from(r in TestCaseRun,
       where: r.project_id == ^project_id and r.test_run_id in ^run_ids and r.is_flaky,
@@ -258,7 +279,7 @@ defmodule Tuist.TestImpactAnalysis.Input do
       select: {fragment("toString(?)", r.test_case_id), fragment("toString(?)", r.test_run_id)}
     )
     |> ClickHouseRepo.all()
-    |> Enum.filter(fn {test_case_id, run_id} -> Map.get(newest, test_case_id) == run_id end)
+    |> Enum.filter(fn {test_case_id, run_id} -> Map.get(reproduced, test_case_id) == run_id end)
     |> Enum.map(&elem(&1, 0))
   end
 end
