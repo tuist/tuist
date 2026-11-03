@@ -28,7 +28,7 @@ defmodule Tuist.Repo.Migrations.CreateRunnerActionsCacheEntries do
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(
              :runner_actions_cache_entries,
-             [:account_id, :repository_id, :scope, :version, "key text_pattern_ops"],
+             [:repository_id, :scope, "key text_pattern_ops"],
              name: :runner_actions_cache_entries_key_prefix_index
            )
 
