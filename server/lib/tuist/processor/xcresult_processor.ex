@@ -352,15 +352,39 @@ defmodule Tuist.Processor.XCResultProcessor do
   end
 
   defp replace_test_case_attachments(test_case, uploaded_map) do
-    Map.update(test_case, "attachments", [], fn attachments ->
+    attachments = Map.get(test_case, "attachments", [])
+
+    uploaded_attachments =
       Enum.flat_map(attachments, fn att ->
         case Map.fetch(uploaded_map, att["attachment_id"]) do
           {:ok, uploaded} -> [uploaded]
           :error -> []
         end
       end)
-    end)
+
+    test_case
+    |> Map.put("attachments", uploaded_attachments)
+    |> link_crash_report(attachments, uploaded_map)
   end
+
+  # The parser names the `.ips` a crash report was read from by its path on
+  # disk, while a stored crash report references its attachment by id, so the
+  # report is kept only when that attachment was uploaded.
+  defp link_crash_report(
+         %{"crash_report" => %{"file_path" => file_path} = crash_report} = test_case,
+         attachments,
+         uploaded_map
+       ) do
+    with %{"attachment_id" => attachment_id} <- Enum.find(attachments, &(&1["file_path"] == file_path)),
+         true <- Map.has_key?(uploaded_map, attachment_id) do
+      crash_report = crash_report |> Map.delete("file_path") |> Map.put("attachment_id", attachment_id)
+      Map.put(test_case, "crash_report", crash_report)
+    else
+      _ -> Map.delete(test_case, "crash_report")
+    end
+  end
+
+  defp link_crash_report(test_case, _attachments, _uploaded_map), do: Map.delete(test_case, "crash_report")
 
   defp identify_attachments(parsed_data, opts) do
     scope = %{
