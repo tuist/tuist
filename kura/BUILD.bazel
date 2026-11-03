@@ -101,7 +101,7 @@ rust_junit_test(
     crate = ":kura_lib",
     edition = "2024",
     rustc_flags = _DENY_WARNINGS,
-    size = "small",
+    size = "medium",
     version = _KURA_VERSION,
     deps = all_crate_deps(normal_dev = True),
 )

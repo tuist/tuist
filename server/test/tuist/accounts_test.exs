@@ -2732,6 +2732,58 @@ defmodule Tuist.AccountsTest do
       {1, nil} = Repo.update_all(UserToken, set: [inserted_at: ~N[2020-01-01 00:00:00]])
       refute Accounts.get_user_by_session_token(token)
     end
+
+    @tag :browser_session
+    test "expires at fifteen minutes idle without activity from validity checks", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -899)])
+      assert Accounts.get_user_by_session_token(token)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "activity cannot extend the eight-hour absolute deadline", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [inserted_at: now |> DateTime.add(-28_799) |> DateTime.to_naive(), last_active_at: now]
+      )
+
+      assert Accounts.get_user_session(token, touch: true)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "user activity extends only the idle deadline and only for that session", %{token: token, user: user} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      other_token = Accounts.generate_user_session_token(user)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 840) end)
+      assert Accounts.get_user_session(token, touch: true)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1680) end)
+      assert Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_by_session_token(other_token)
+    end
+
+    @tag :browser_session
+    test "legacy tokens are not renewed from migration or first-use time", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [
+          inserted_at: now |> DateTime.add(-900) |> DateTime.to_naive(),
+          last_active_at: nil,
+          auth_provider: nil,
+          auth_provider_organization_id: nil
+        ]
+      )
+
+      refute Accounts.get_user_session(token, touch: true)
+    end
   end
 
   describe "delete_user_session_token/1" do
