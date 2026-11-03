@@ -3,7 +3,6 @@ import HTTPTypes
 import OpenAPIRuntime
 import Synchronization
 import Testing
-import TuistHTTP
 
 @testable import TuistServer
 
@@ -42,7 +41,7 @@ struct CreateOrganizationInviteServiceTests {
         (429, .tooManyRequests("message")),
         (500, .unknownError(500)),
     ])
-    func maps_errors_without_replaying_the_invitation(status: Int, error: CreateOrganizationInviteServiceError) async throws {
+    func maps_error_responses(status: Int, error: CreateOrganizationInviteServiceError) async throws {
         let transport = InvitationTransport(status: status, json: #"{"message":"message"}"#)
 
         await #expect(throws: error) {
@@ -54,12 +53,11 @@ struct CreateOrganizationInviteServiceTests {
         #expect(transport.attempts == 1)
     }
 
+    /// Exercises the service's own response mapping. Replaying throttled requests is `RetryMiddleware`'s policy and is
+    /// covered by its tests, so the client here sends each request exactly once.
     private func service(_ transport: InvitationTransport) -> CreateOrganizationInviteService {
         CreateOrganizationInviteService(makeClient: { url in
-            Client(
-                serverURL: url, transport: transport,
-                middlewares: [RetryMiddleware(maxRetries: 2, baseDelayMilliseconds: 0)]
-            )
+            Client(serverURL: url, transport: transport)
         })
     }
 }
