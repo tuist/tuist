@@ -5,6 +5,10 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
   that land together are folded once. One pending job per commit: a later
   report pushes the same job back rather than adding another.
 
+  If Oban's uniqueness lock is busy, its conflict has no persisted job ID.
+  Queue a separate delayed fold rather than assuming the lock holder's fold
+  will include this report. Extra folds are safe; a lost fold is not.
+
   Debouncing must never cost a report its fold. A report that lands while the
   fold is already running cannot be in what that fold read, and the job it
   would be deduped into is the one running, so it gets a job of its own
@@ -43,6 +47,9 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
     scheduled_at = DateTime.add(DateTime.utc_now(), delay_seconds, :second)
 
     case args |> new(scheduled_at: scheduled_at) |> Oban.insert() do
+      {:ok, %Oban.Job{id: nil, conflict?: true}} ->
+        args |> new(scheduled_at: scheduled_at, unique: false) |> Oban.insert()
+
       {:ok, %Oban.Job{state: state}} when state not in ["available", "scheduled"] ->
         args |> new(scheduled_at: scheduled_at, unique: false) |> Oban.insert()
 
