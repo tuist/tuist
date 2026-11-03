@@ -16,7 +16,7 @@ struct TestImpactSkipList: Equatable {
     /// `module/suite/name` lines for the skip file.
     let tests: [String]
 
-    init(_ skipped: [TestImpactSkippedTest]) {
+    init(_ skipped: [SkippedTest]) {
         var modules: [String] = []
         var tests: [String] = []
         for entry in skipped {

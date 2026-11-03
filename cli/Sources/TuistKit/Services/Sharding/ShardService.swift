@@ -25,7 +25,7 @@ public struct Shard {
     public let selectiveTestingGraph: SelectiveTestingGraph?
     /// For plans of a coverage-based test selection run: the tests in this shard's work that
     /// selection skipped.
-    public var skippedTests: [TestImpactSkippedTest] = []
+    public var skippedTests: [SkippedTest] = []
 }
 
 @Mockable
@@ -181,7 +181,7 @@ public struct ShardService: ShardServicing {
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph,
             skippedTests: (shard.skipped_tests ?? []).map {
-                TestImpactSkippedTest(module: $0.module, suite: $0.suite, name: $0.name)
+                SkippedTest(module: $0.module, suite: $0.suite, name: $0.name)
             }
         )
     }

@@ -11,8 +11,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
   OpenApiSpex.schema(%{
     title: "TestImpactRun",
     type: :object,
-    description:
-      "The impact run: whether coverage selected tests or the invocation falls back to default selective testing.",
+    description: "The impact run: whether coverage selected tests or the invocation fell back.",
     properties: %{
       id: %Schema{
         type: :string,
@@ -23,12 +22,12 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
       outcome: %Schema{
         type: :string,
         description:
-          "`selected` or `fallback`. On `fallback` the client runs default selective testing. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
+          "`selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
       },
       reason: %Schema{
         type: :string,
         description:
-          "Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, or `tracked_file_changed`."
+          "Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
       },
       matched_path: %Schema{
         type: :string,

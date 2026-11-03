@@ -73,6 +73,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       build_system: "xcode",
       head_sha: "head",
       commit_sha: "merge",
+      parent_shas: ["head", "base"],
       baseline_sha: "baseline",
       changed_files: [
         %{path: "App/Sources/Login.swift", status: "M", blob: "b1", affected_modules: ["AppTests"]},

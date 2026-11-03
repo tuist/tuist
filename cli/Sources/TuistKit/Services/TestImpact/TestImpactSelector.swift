@@ -30,7 +30,7 @@ enum TestImpactOutcome: Equatable {
     /// The tests to skip, nil on a fallback.
     var skipList: TestImpactSkipList? {
         guard case let .selected(selection, _) = self else { return nil }
-        return TestImpactSkipList(selection.skip)
+        return TestImpactSkipList(selection.skippedTests)
     }
 }
 
@@ -165,6 +165,7 @@ actor TestImpactSelector {
         let request = TestImpactRunRequest(
             headSHA: gitInfo.sha ?? checkout.sha,
             commitSHA: checkout.sha == gitInfo.sha ? nil : checkout.sha,
+            parentSHAs: checkout.parentSHAs,
             basis: basis,
             modules: modules,
             platform: platform,
@@ -180,7 +181,7 @@ actor TestImpactSelector {
             request: request
         ) {
         case let .selected(selection):
-            let skippedModules = Set(TestImpactSkipList(selection.skip).modules).intersection(modules)
+            let skippedModules = Set(TestImpactSkipList(selection.skippedTests).modules).intersection(modules)
             outcome = .selected(selection, skippedModules: skippedModules.sorted())
             decision = .prune(skippedModules)
         case let .fallback(runID, reason, matchedPath):

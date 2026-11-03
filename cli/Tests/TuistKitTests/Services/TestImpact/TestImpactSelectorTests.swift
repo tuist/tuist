@@ -53,10 +53,10 @@ struct TestImpactSelectorTests {
             requested: 6,
             selected: 2,
             skipped: 4,
-            skip: [
-                TestImpactSkippedTest(module: "CatalogTests", suite: nil, name: nil),
-                TestImpactSkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
-                TestImpactSkippedTest(module: "OutOfScopeTests", suite: nil, name: nil),
+            skippedTests: [
+                SkippedTest(module: "CatalogTests", suite: nil, name: nil),
+                SkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
+                SkippedTest(module: "OutOfScopeTests", suite: nil, name: nil),
             ]
         )
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
@@ -82,6 +82,7 @@ struct TestImpactSelectorTests {
             request: .value(TestImpactRunRequest(
                 headSHA: "head",
                 commitSHA: "merge",
+                parentSHAs: ["main-tip", "head"],
                 basis: .baseline(
                     sha: "baseline",
                     changedFiles: [

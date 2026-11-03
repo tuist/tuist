@@ -84,6 +84,7 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
             git_branch: request.gitBranch,
             head_sha: request.headSHA,
             modules: request.modules,
+            parent_shas: request.parentSHAs.isEmpty ? nil : request.parentSHAs,
             platform: request.platform,
             xcode: hasScope ? .init(destination: request.destination, scheme: request.scheme, test_plan: request.testPlan) : nil
         )
@@ -107,8 +108,7 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
                     requested: run.counts?.requested,
                     selected: run.counts?.selected,
                     skipped: run.counts?.skipped,
-                    skip: (run.skipped_tests ?? [])
-                        .map { TestImpactSkippedTest(module: $0.module, suite: $0.suite, name: $0.name) }
+                    skippedTests: (run.skipped_tests ?? []).map { SkippedTest(module: $0.module, suite: $0.suite, name: $0.name) }
                 ))
             }
         case let .badRequest(response):
