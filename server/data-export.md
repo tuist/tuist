@@ -865,9 +865,6 @@ The archive contains everything needed to understand the account's complete data
   for each volume as a baseline, and rows cascade with volume/account deletion.
   Export by joining `volume_id` to `runner_cache_volumes.id` and filtering its
   `account_id`. These are logical saved-cache sizes, not physical disk usage.
-  Cache volume storage billing integrates these sizes over time for every
-  volume except `docker` and `checkout` ones; only the daily total, in
-  megabyte-months, leaves Tuist, as a Stripe meter event per account.
 - **Removed built-in volume records**: records of the former built-in macOS cache
   volume (`tuist-cache` and `repo-<16 hex>`), with their uses and measurements,
   HEAD and orphan rows, and the `runner_volume_affinities` table were deleted when
