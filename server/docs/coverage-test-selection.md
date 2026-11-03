@@ -4,7 +4,7 @@ How Tuist skips the tests a change can't affect, using the per-test coverage evi
 
 **The invariant.** Coverage evidence only ever removes tests from what default selective testing would run, never adds to it, so off the default branch a coverage run never runs more than a default run. Within that, anything Tuist can't prove unaffected runs: new tests, tests without evidence, and every test whenever selection can't be computed. When coverage can't decide, the run is a plain selective testing run.
 
-The document has two parts. The [shared model](#strategy) (baselines, the rule pipeline, impact runs and their shards, storage, the API, the UI and the flag) holds for every build system and is written in build-system terms; a build system plugs in through the [hooks](#what-each-build-system-supplies). The [Xcode](#xcode) part describes what only the Xcode client and its evidence do. Only Xcode selects today; Gradle, Mix and Cargo get a part like it when their selection lands.
+The document has two parts. The [shared model](#strategy) (baselines, the rule pipeline, impact runs and their shards, storage, the API, the UI and the flag) holds for every build system and is written in build-system terms; a build system plugs in through the [hooks](#what-each-build-system-supplies), though some shared code still reads Xcode's names (listed under the hooks). The [Xcode](#xcode) part describes what only the Xcode client and its evidence do. Only Xcode selects today; Gradle, Mix and Cargo get a part like it when their selection lands.
 
 ## Strategy
 
@@ -35,7 +35,15 @@ When the project isn't enabled, the baseline request answers `not_enabled`, the 
 | **Test-scoped evidence** | Which tests record the files they executed. The rest fall to `no_evidence`. | [XCTest and XCUITest with TestCoverageAttribution](#swift-testing) |
 | **Platform key** | What a baseline must match, recorded on every coverage upload (`coverage_runs.platform`) and sent in the baseline request. | [The destination's platform](#schemes-and-destinations) |
 | **Build context** | Its block in the requests, stored for display. The block's scheme also picks which baselines qualify. | [`xcode`: scheme, test plan, destination](#schemes-and-destinations) |
-| **Tracked files** | Files whose change falls back, shared with coverage carry. | [Xcode's list](#rule-inputs-on-xcode) |
+| **Tracked files** | Files whose change falls back, shared with coverage carry. | [The server's defaults](#rule-inputs-on-xcode) |
+
+**Not every hook is pluggable yet.** The shared code reads Xcode's names directly:
+
+- **Build context and scope.** The server reads only the `xcode` block. `Runs` stores it as `build_context`, and `Storage` keeps only its `scheme`, `test_plan` and `destination`. `Runs` and the baseline endpoint pass its `scheme` to `Baselines`. The Test Selection page searches runs by that scheme or test plan, and the run tab finds the baseline's runs by that scheme. A request without an `xcode` block has no scheme, so any commit whose measured set lists a scheme can be its baseline.
+- **Tracked files.** There's one server-wide list (`GitHistory.settings/1`'s `tracked_file_globs`, from configuration, with no per-project override) for every build system, and its defaults are Xcode's inputs. `build_system` picks nothing: it's stored on the impact run and shown on its Configuration sub-tab.
+- **Module hashing.** The run tab's module-level hash data is Xcode's `xcode_targets` (see [UI](#ui)).
+
+A second build system needs these turned into hooks first.
 | **`affected_modules`** | Which test modules a changed file can affect, from a build graph. | [The generated graph or XcodeGraphMapper](#rule-inputs-on-xcode) |
 | **Applying a skip list** | How whole modules and single tests are kept from running. | [Pruning, `-skip-testing` and a skip file](#applying-the-selection-on-xcode) |
 
@@ -68,7 +76,7 @@ The Xcode client's names are under [Configuration](#names-in-the-xcode-client).
 
 A commit is a baseline when it has a **full run**, a run at the commit that:
 
-- ran the requested scheme whole, which the commit's measured set lists in `schemes` and not in `partial_schemes` (a request without a scheme accepts any commit whose measured set lists one);
+- ran the requested scheme (`xcode.scheme`), which the commit's measured set lists in `schemes` and not in `partial_schemes`, and which the run's `coverage_runs.scheme` names (a request without a scheme accepts any commit whose measured set lists one, and any of its runs);
 - ran it whole: its `coverage_runs` row isn't `partial`, so no filter narrowed it and every shard reported;
 - ran on the requested platform (`coverage_runs.platform`; see [Scope and platform](#scope-and-platform));
 - uploaded test-scoped evidence (`coverage_files` rows with `scope_kind = 'test'`).
@@ -160,7 +168,8 @@ Both endpoints are in `TuistWeb.API.SelectiveTestingCoverageController`, under `
 `TestImpactSkippedTest` is `{module, suite?, name?}`, named the same way for every build system. The shard read's list is `test_impact_skip` because the read already has `skip`, the catch-all's identifiers as strings. The runs response includes `skip` on every `selected` outcome; sharded clients ignore it and read their shard's list.
 
 - **Required stays minimal.** Only what every build system has is required. A required field can't become optional without breaking generated clients.
-- **One block per build system.** Xcode's build context goes in `xcode`; Gradle, Mix and Cargo get their own blocks when they need fields. A field moves to the top level only once a second build system needs it.
+- **One block per build system.** Xcode's build context goes in `xcode`, the only block the server reads today; Gradle, Mix and Cargo get their own blocks when they need fields. A field moves to the top level only once a second build system needs it.
+- **`build_system` is recorded, not used.** It's stored on the impact run and shown on its Configuration sub-tab. The runs request's OpenAPI description says it picks the tracked files, but it doesn't.
 - **New fields are optional**, with a default that keeps today's behaviour. **Values that will grow are strings, not enums**: the CLI's generated client turns enums into frozen Swift enums, so an unknown value would fail decoding.
 
 ## Sharding
@@ -193,7 +202,7 @@ Impact runs live in ClickHouse next to `shard_plans`, written and read back the 
 | Table | What it holds | Retention |
 | --- | --- | --- |
 | `test_impact_diffs` (`Tuist.TestImpactAnalysis.Diff`) | One row per project, checked-out commit and baseline (`ReplacingMergeTree`, so identical concurrent writes collapse): `changed_files` as `(path, status, blob, affected_modules)`, at most 5,000, and `changed_files_count`. | `TUIST_COVERAGE_FILE_RETENTION_DAYS` (90) |
-| `test_impact_runs` (`Tuist.TestImpactAnalysis.Run`) | One row per invocation, fallbacks included: `head_sha`, `commit_sha`, `baseline_sha`, `baseline_run_ids`, `git_branch`, `dirty`, `strategy`, `build_system`, `platform`, `build_context` (the build system's block, each field capped at 1,024 characters), `requested_modules`, `outcome`, `reason`, `matched_path`, `rules_version`, `rule_trace` as `(rule, selected, skipped, verdict)`, and the counts. Ordered `(project_id, inserted_at, id)` for the overview's range read, with a bloom filter on `id` for the run page. | `TUIST_COVERAGE_RUN_RETENTION_DAYS` (365) |
+| `test_impact_runs` (`Tuist.TestImpactAnalysis.Run`) | One row per invocation, fallbacks included: `head_sha`, `commit_sha`, `baseline_sha`, `baseline_run_ids`, `git_branch`, `dirty`, `strategy`, `build_system`, `platform`, `build_context` (the `xcode` block's `scheme`, `test_plan` and `destination`, each capped at 1,024 characters), `requested_modules`, `outcome`, `reason`, `matched_path`, `rules_version`, `rule_trace` as `(rule, selected, skipped, verdict)`, and the counts. Ordered `(project_id, inserted_at, id)` for the overview's range read, with a bloom filter on `id` for the run page. | `TUIST_COVERAGE_RUN_RETENTION_DAYS` (365) |
 | `test_impact_run_tests` (`Tuist.TestImpactAnalysis.RunTest`) | One row per selected test: `test_case_id`, `module_name`, `suite_name` and `name` (copied so a shard reads its suites by prefix and the client builds identifiers without a join), `reason` and `matched_path`. Ordered `(project_id, test_impact_run_id, module_name, suite_name, name)`. | `TUIST_COVERAGE_FILE_RETENTION_DAYS` (90) |
 | `coverage_runs.platform` | The platform each coverage run tested, for baseline matching. | With `coverage_runs` |
 | `shard_plans.test_impact_run_id` | The impact run a coverage plan distributes. | With `shard_plans` |
@@ -249,7 +258,7 @@ There's no separate accuracy measurement. Default-branch runs are the safety net
 | Test Selection page (`TuistWeb.TestSelectionsLive`, `/tests/test-selection`) | The period's selected and skipped tests, skip rate and runs, with trends; a Runs tab (one row per impact run, opening its test run's Selective Testing tab) and a Baselines tab (default-branch commits that measured coverage and whether each can serve as one) | `test_impact_runs` in the range, joined to their test runs by `test_impact_run_id` |
 | Test run page, Selective Testing tab (`TuistWeb.TestSelection.RunTab`) | Outcome, baseline, counts and invocation, then the Tests, Modules, Changed files, Shards (for a sharded run) and Configuration sub-tabs. A fallback shows the outcome and Configuration only. The tab shows for a run with a `test_impact_run_id`, also once the impact run expired, or when the run has default selective testing data. | The run's impact run |
 | &nbsp;&nbsp;Tests | Every test coverage decided, its decision and the rule, its shard and outcome, filterable; selected tests that never reported are flagged | Selected tests from `test_impact_run_tests`; skipped ones are the baseline's tests in scope minus those, with reason `unaffected` |
-| &nbsp;&nbsp;Modules | Per module, what decided it: its hash or coverage, with tests selected and skipped | The Tests rows grouped by module, plus the build system's hash hits (Xcode's `xcode_targets`) |
+| &nbsp;&nbsp;Modules | Per module, tests selected of requested, skip rate, why it runs and estimated time saved. A test run with module-level selective testing data shows the run page's existing selective testing table here instead. | The Tests rows grouped by module; the replacement reads Xcode's `xcode_targets` (`Xcode.has_selective_testing_data?/1`) |
 | &nbsp;&nbsp;Changed files | Path and status, whether it's a tracked file, and how many tests it selected | `test_impact_diffs` and `matched_path` |
 | &nbsp;&nbsp;Configuration | Rules version, rule trace and tracked files | `test_impact_runs` |
 | Test case run page, Selective Testing tab (`TuistWeb.TestSelection.TestCaseRunTab`, `?tab=selective-testing`) | Why the test ran (rule, matched path), its shard, and the files the baseline's evidence says it executed, the changed ones first | The run's `test_impact_run_tests` row and the baseline's `coverage_files` evidence |
@@ -259,7 +268,7 @@ There's no separate accuracy measurement. Default-branch runs are the safety net
 - Evidence records what ran, so it can't see compile-time dependencies (a changed macro, a constant folded at compile time). Inside modules whose hash changed, rule 6 catches files no evidence includes, but not a file that some test executed and another depends on only at compile time.
 - Inputs outside the project graph and the tracked files (scripts, test data loaded from outside the project, toolchain files) are invisible to both evidence and the graph.
 - The window cap (20 commits with coverage), the excluded branch (only the default branch) and the tracked-file list are fixed. Project-specific settings would go in the project's configuration: tracked files with coverage, since carry stops at them too, and excluded branches and the window cap on the strategy.
-- Only Xcode selects. Another build system would send the same requests with its own block and supply the [hooks](#what-each-build-system-supplies).
+- Only Xcode selects. Another build system would send the same requests with its own block and supply the [hooks](#what-each-build-system-supplies), once the shared code stops reading Xcode's names.
 
 ## Decided against
 
