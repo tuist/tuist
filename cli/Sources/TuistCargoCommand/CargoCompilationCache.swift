@@ -301,7 +301,7 @@ struct CargoCompilationCache {
             guard file.isExecutable == (file.path == invocation.executableOutput),
                   file.digest.sizeBytes <= budget else { return false }
             budget -= file.digest.sizeBytes
-            // Not hashed here: materialization hashes the copy it restores, so each hit reads a blob once.
+            // Not hashed here: materialization verifies each blob before cloning it.
             if blobStore.contains(file.digest) {
                 blobStore.markUsed(file.digest)
             } else {
@@ -333,21 +333,27 @@ struct CargoCompilationCache {
             (try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any])?["$message_type"] as? String != Self
                 .widthMessage
         }
-        guard try invocation.fingerprint() == invocation.key,
-              let restoredStderr = invocation.restoredOutput(Data(replayed.joined(separator: [10]))) else { return false }
+        // The fingerprint is rechecked once the outputs are staged, right before they move into place: the lookup
+        // just computed it, and a change before staging is caught there too.
+        guard let restoredStderr = invocation.restoredOutput(Data(replayed.joined(separator: [10]))) else { return false }
         let properties = try invocation.output.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard properties.isDirectory == true, properties.isSymbolicLink != true else { return false }
+        // Blobs are verified through the persistent identity memo, as dependency units are, rather than by hashing
+        // each copy: an unchanged blob keeps its identity, any write to it changes it, and a clone shares its content.
+        let verifier = CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified"))
         for file in result.outputFiles {
             let destination = invocation.output.appendingPathComponent(file.path)
             if FileManager.default.fileExists(atPath: destination.path) {
                 let properties = try destination.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
                 guard properties.isRegularFile == true, properties.isSymbolicLink != true else { return false }
             }
+            let blob = blobStore.path(file.digest)
+            guard try verifier.digest(blob, shared: true) == file.digest else { return false }
             let temporary = staging.appendingPathComponent(file.path)
-            try FileManager.default.copyItem(at: blobStore.path(file.digest), to: temporary)
-            let properties = try temporary.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            try FileManager.default.copyItem(at: blob, to: temporary)
+            let properties = try temporary.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
-                  try REAPI.digest(file: temporary) == file.digest else { return false }
+                  properties.fileSize.map(Int64.init) == file.digest.sizeBytes else { return false }
             if file.path.hasSuffix(".d") {
                 guard let restored = invocation.restoredOutput(try Data(contentsOf: temporary)) else { return false }
                 try restored.write(to: temporary)
@@ -357,11 +363,18 @@ struct CargoCompilationCache {
         }
         try Task.checkCancellation()
         guard try invocation.fingerprint() == invocation.key else { return false }
+        // Dependents key these outputs next. Cargo runs nothing else that writes this crate's outputs while its
+        // compilation (this hook) runs, so the session records their digests instead of hashing them again.
+        let session = invocation.environment["TUIST_CARGO_SESSION"]
+            .map { CargoInputHasher(sessionDirectory: URL(fileURLWithPath: $0)) }
         for file in result.outputFiles {
             let destination = invocation.output.appendingPathComponent(file.path)
             if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
             try FileManager.default.moveItem(at: staging.appendingPathComponent(file.path), to: destination)
             measurement.reference(file.digest)
+            if !file.path.hasSuffix(".d") {
+                session?.remember(destination, digest: file.digest) { $0.fields[2] == String(file.digest.sizeBytes) }
+            }
         }
         try invocation.certifyOutputs(metadataOnly: false)
         try write(try result.serializedData(), to: index)

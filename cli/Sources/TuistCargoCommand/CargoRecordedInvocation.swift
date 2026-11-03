@@ -275,6 +275,18 @@ struct CargoToolchainIdentity: Codable {
             if let data = try? Data(contentsOf: memo),
                let identity = try? JSONDecoder().decode(CargoToolchainIdentity.self, from: data) { return identity }
         }
+        let selection = persistentSelection(executable, environment: environment)
+        let persistent = selection == nil ? nil : environment["TUIST_CARGO_CACHE_DIR"].map {
+            URL(fileURLWithPath: $0).appendingPathComponent("toolchain/identity-" + REAPI.digest(Data(executable.utf8)).hash)
+        }
+        if let persistent, let selection, let data = try? Data(contentsOf: persistent),
+           let stored = try? JSONDecoder().decode(PersistentIdentity.self, from: data), stored.selection == selection,
+           let compiler = stored.identity.compilerPaths.first,
+           (try? CargoInputHasher.identity(URL(fileURLWithPath: compiler)))?.fields == stored.compiler
+        {
+            if let named, let data = try? JSONEncoder().encode(stored.identity) { try? data.write(to: named, options: .atomic) }
+            return stored.identity
+        }
         let paths = try await process.capture(
             executable, arguments: ["--print", "sysroot", "--print", "target-libdir"], environment: environment,
             directory: directory
@@ -294,6 +306,15 @@ struct CargoToolchainIdentity: Codable {
         let identity = CargoToolchainIdentity(
             sysrootPath: root.path, targetLibdirPath: paths[1], version: version, compilerPaths: compilers
         )
+        if let persistent, let selection, let fields = try? CargoInputHasher.identity(URL(fileURLWithPath: compilers[0])).fields,
+           let data = try? JSONEncoder().encode(PersistentIdentity(selection: selection, identity: identity, compiler: fields))
+        {
+            try? FileManager.default.createDirectory(
+                at: persistent.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try? data.write(to: persistent, options: .atomic)
+        }
         if let data = try? JSONEncoder().encode(identity) {
             for memo in [
                 named,
@@ -304,6 +325,39 @@ struct CargoToolchainIdentity: Codable {
             }
         }
         return identity
+    }
+
+    private struct PersistentIdentity: Codable {
+        let selection: [String]
+        let identity: CargoToolchainIdentity
+        /// The identity of the compiler that answered `-vV`: a reinstalled toolchain asks again.
+        let compiler: [String]
+    }
+
+    /// What selects the toolchain a compiler name answers for, so its answers persist across sessions like the
+    /// linker's: the name, the pinned rustup toolchain and its directory, and the program `PATH` finds for the name.
+    /// Without a pinned toolchain a rustup proxy also reads directory overrides, so those sessions probe.
+    private static func persistentSelection(_ executable: String, environment: [String: String]) -> [String]? {
+        guard let pinned = environment["RUSTUP_TOOLCHAIN"], !pinned.isEmpty, !pinned.contains("/") else { return nil }
+        let program = executable.contains("/") ? executable : (environment["PATH"] ?? "").split(separator: ":")
+            .map { String($0) + "/" + executable }.first { FileManager.default.isExecutableFile(atPath: $0) }
+        let home = environment["RUSTUP_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".rustup").path
+        func status(_ path: String) -> String? {
+            var value = stat()
+            guard lstat(path, &value) == 0 else { return nil }
+            #if os(Linux)
+                let (modified, changed) = (value.st_mtim, value.st_ctim)
+            #else
+                let (modified, changed) = (value.st_mtimespec, value.st_ctimespec)
+            #endif
+            return "\(value.st_dev):\(value.st_ino):\(value.st_mode):\(value.st_size):\(modified.tv_sec):\(modified.tv_nsec):"
+                + "\(changed.tv_sec):\(changed.tv_nsec)"
+        }
+        guard let program, case let resolved = URL(fileURLWithPath: program).resolvingSymlinksInPath().path,
+              let programStatus = status(resolved), let toolchain = status("\(home)/toolchains/\(pinned)")
+        else { return nil }
+        return [executable, pinned, home, program, resolved, programStatus, toolchain]
     }
 
     /// Hashes the files strict keys take from the toolchain (top-level `lib`, the host target tree without `bin`, the
