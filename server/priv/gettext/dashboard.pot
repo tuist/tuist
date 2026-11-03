@@ -337,7 +337,7 @@ msgstr ""
 msgid "The account %{account_handle} was not found."
 msgstr ""
 
-#: lib/tuist_web/authentication.ex:681
+#: lib/tuist_web/authentication.ex:692
 #: lib/tuist_web/live/layout_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
@@ -2680,7 +2680,7 @@ msgstr ""
 msgid "Reset this account's free tier? It gets the full allowance again for the rest of the month, and the runs it has already made stop counting."
 msgstr ""
 
-#: lib/tuist_web/authentication.ex:667
+#: lib/tuist_web/authentication.ex:678
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
