@@ -3,6 +3,7 @@ defmodule TuistWeb.MixBuildsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.BuildStatusFilter, only: [build_status_dropdown: 1]
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.Helpers.MixAnalytics
@@ -13,6 +14,7 @@ defmodule TuistWeb.MixBuildsLive do
   alias Tuist.Mix
   alias Tuist.Mix.Build, as: MixBuild
   alias Tuist.Repo
+  alias TuistWeb.Components.BuildStatusFilter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -41,6 +43,7 @@ defmodule TuistWeb.MixBuildsLive do
       DatePicker.date_picker_params(params, "analytics")
 
     analytics_environment = params["analytics-environment"] || "any"
+    analytics_build_status = BuildStatusFilter.status(params)
 
     opts = [
       schema: MixBuild,
@@ -49,7 +52,7 @@ defmodule TuistWeb.MixBuildsLive do
       end_datetime: end_datetime
     ]
 
-    opts = opts ++ environment_opts(analytics_environment)
+    opts = BuildStatusFilter.put_status(opts ++ environment_opts(analytics_environment), analytics_build_status)
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
@@ -62,6 +65,7 @@ defmodule TuistWeb.MixBuildsLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
+    |> assign(:analytics_build_status, analytics_build_status)
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
     |> assign(:uri, uri)
     |> assign_async(
@@ -80,7 +84,12 @@ defmodule TuistWeb.MixBuildsLive do
       [:total_builds_analytics, :failed_builds_analytics, :build_success_rate_analytics, :analytics_chart_data],
       fn ->
         total_builds_analytics = Analytics.build_analytics(project.id, opts)
-        failed_builds_analytics = Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+        failed_builds_analytics =
+          BuildStatusFilter.failed_builds_analytics(analytics_build_status, total_builds_analytics, fn ->
+            Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
+          end)
+
         build_success_rate_analytics = Analytics.build_success_rate_analytics(project.id, opts)
 
         {:ok,
@@ -177,7 +186,7 @@ defmodule TuistWeb.MixBuildsLive do
 
     opts = [schema: MixBuild, start_datetime: start_datetime, end_datetime: end_datetime]
 
-    opts = opts ++ environment_opts(analytics_environment)
+    opts = BuildStatusFilter.put_status(opts ++ environment_opts(analytics_environment), BuildStatusFilter.status(params))
 
     socket
     |> assign_async(:configuration_insights_analytics, fn ->
@@ -211,14 +220,16 @@ defmodule TuistWeb.MixBuildsLive do
              selected_project: project,
              selected_account: account,
              analytics_environment: analytics_environment,
+             analytics_build_status: analytics_build_status,
              analytics_period: {start_datetime, end_datetime}
            }
          } = socket
        ) do
     filters =
-      Enum.map(environment_opts(analytics_environment), fn {field, value} ->
-        %{field: field, op: :==, value: value}
-      end)
+      analytics_environment
+      |> environment_opts()
+      |> BuildStatusFilter.put_status(analytics_build_status)
+      |> Enum.map(fn {field, value} -> %{field: field, op: :==, value: value} end)
 
     filters =
       filters ++
