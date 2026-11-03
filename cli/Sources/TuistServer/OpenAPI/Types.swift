@@ -970,7 +970,7 @@ public protocol APIProtocol: Sendable {
     func listOnceRuns(_ input: Operations.listOnceRuns.Input) async throws -> Operations.listOnceRuns.Output
     /// Create an impact run for coverage-based test selection.
     ///
-    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
@@ -3788,7 +3788,7 @@ extension APIProtocol {
     }
     /// Create an impact run for coverage-based test selection.
     ///
-    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
@@ -18855,7 +18855,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/baseline_sha`.
             public var baseline_sha: Swift.String?
-            /// Whether the diff between the checked-out commit and the baseline is already stored. When true, the client skips deepening and diffing and sends no `changed_files`.
+            /// Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/diff_cached`.
             public var diff_cached: Swift.Bool?
@@ -18867,7 +18867,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - baseline_sha: The baseline commit. Null when there's none, and `reason` says why.
-            ///   - diff_cached: Whether the diff between the checked-out commit and the baseline is already stored. When true, the client skips deepening and diffing and sends no `changed_files`.
+            ///   - diff_cached: Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
             ///   - reason: Why there's no baseline: `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
             public init(
                 baseline_sha: Swift.String? = nil,
@@ -21768,7 +21768,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GradleTasksIndexPageSize`.
         public typealias GradleTasksIndexPageSize = Swift.Int
-        /// The impact run: whether coverage selected tests or the invocation falls back to default selective testing.
+        /// The impact run: whether coverage selected tests or the invocation fell back.
         ///
         /// - Remark: Generated from `#/components/schemas/TestImpactRun`.
         public struct TestImpactRun: Codable, Hashable, Sendable {
@@ -21821,11 +21821,11 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/matched_path`.
             public var matched_path: Swift.String?
-            /// `selected` or `fallback`. On `fallback` the client runs default selective testing. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
+            /// `selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/outcome`.
             public var outcome: Swift.String
-            /// Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, or `tracked_file_changed`.
+            /// Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/reason`.
             public var reason: Swift.String?
@@ -21839,8 +21839,8 @@ public enum Components {
             ///   - counts: Test counts for the client's output. Present when the outcome is `selected`.
             ///   - id: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
             ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
-            ///   - outcome: `selected` or `fallback`. On `fallback` the client runs default selective testing. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
-            ///   - reason: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, or `tracked_file_changed`.
+            ///   - outcome: `selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
+            ///   - reason: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
             ///   - skipped_tests: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
             public init(
                 counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
@@ -25210,7 +25210,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/baseline_sha`.
             public var baseline_sha: Swift.String?
-            /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+            /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/build_system`.
             public var build_system: Swift.String
@@ -25257,11 +25257,11 @@ public enum Components {
                     case status
                 }
             }
-            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files`.
             public typealias changed_filesPayload = [Components.Schemas.CreateTestImpactRunParams.changed_filesPayloadPayload]
-            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files`.
             public var changed_files: Components.Schemas.CreateTestImpactRunParams.changed_filesPayload?
@@ -25277,7 +25277,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/dirty`.
             public var dirty: Swift.Bool?
-            /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            /// The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/fallback_reason`.
             public var fallback_reason: Swift.String?
@@ -25293,6 +25293,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modules`.
             public var modules: [Swift.String]?
+            /// The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/parent_shas`.
+            public var parent_shas: [Swift.String]?
             /// The platform the tests run on. Absent where the build system has none.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/platform`.
@@ -25342,15 +25346,16 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
-            ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
-            ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+            ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
             ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
             ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
             ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
-            ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            ///   - fallback_reason: The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///   - git_branch: The git branch, shown on the overview.
             ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
             ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+            ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
             ///   - platform: The platform the tests run on. Absent where the build system has none.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
@@ -25364,6 +25369,7 @@ public enum Components {
                 git_branch: Swift.String? = nil,
                 head_sha: Swift.String,
                 modules: [Swift.String]? = nil,
+                parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
                 xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload? = nil
             ) {
@@ -25377,6 +25383,7 @@ public enum Components {
                 self.git_branch = git_branch
                 self.head_sha = head_sha
                 self.modules = modules
+                self.parent_shas = parent_shas
                 self.platform = platform
                 self.xcode = xcode
             }
@@ -25391,6 +25398,7 @@ public enum Components {
                 case git_branch
                 case head_sha
                 case modules
+                case parent_shas
                 case platform
                 case xcode
             }
@@ -107748,7 +107756,7 @@ public enum Operations {
     }
     /// Create an impact run for coverage-based test selection.
     ///
-    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
@@ -107799,7 +107807,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/baseline_sha`.
                     public var baseline_sha: Swift.String?
-                    /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
+                    /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/build_system`.
                     public var build_system: Swift.String
@@ -107846,11 +107854,11 @@ public enum Operations {
                             case status
                         }
                     }
-                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files`.
                     public typealias changed_filesPayload = [Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayloadPayload]
-                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files`.
                     public var changed_files: Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayload?
@@ -107866,7 +107874,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/dirty`.
                     public var dirty: Swift.Bool?
-                    /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    /// The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/fallback_reason`.
                     public var fallback_reason: Swift.String?
@@ -107882,6 +107890,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modules`.
                     public var modules: [Swift.String]?
+                    /// The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/parent_shas`.
+                    public var parent_shas: [Swift.String]?
                     /// The platform the tests run on. Absent where the build system has none.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/platform`.
@@ -107931,15 +107943,16 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
-                    ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies.
-                    ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+                    ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
                     ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
                     ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
                     ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
-                    ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    ///   - fallback_reason: The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///   - git_branch: The git branch, shown on the overview.
                     ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
                     ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+                    ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
                     ///   - platform: The platform the tests run on. Absent where the build system has none.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
@@ -107953,6 +107966,7 @@ public enum Operations {
                         git_branch: Swift.String? = nil,
                         head_sha: Swift.String,
                         modules: [Swift.String]? = nil,
+                        parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
                         xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload? = nil
                     ) {
@@ -107966,6 +107980,7 @@ public enum Operations {
                         self.git_branch = git_branch
                         self.head_sha = head_sha
                         self.modules = modules
+                        self.parent_shas = parent_shas
                         self.platform = platform
                         self.xcode = xcode
                     }
@@ -107980,6 +107995,7 @@ public enum Operations {
                         case git_branch
                         case head_sha
                         case modules
+                        case parent_shas
                         case platform
                         case xcode
                     }
