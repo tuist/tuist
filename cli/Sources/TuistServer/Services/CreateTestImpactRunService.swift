@@ -84,6 +84,7 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
             git_branch: request.gitBranch,
             head_sha: request.headSHA,
             modules: request.modules,
+            parent_shas: request.parentSHAs.isEmpty ? nil : request.parentSHAs,
             platform: request.platform,
             xcode: hasScope ? .init(destination: request.destination, scheme: request.scheme, test_plan: request.testPlan) : nil
         )

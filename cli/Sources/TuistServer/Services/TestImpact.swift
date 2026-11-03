@@ -84,6 +84,9 @@ public struct TestImpactRunRequest: Equatable, Sendable {
     public let headSHA: String
     /// The commit the diff ran against, such as GitHub's synthetic merge commit, when it isn't the head.
     public let commitSHA: String?
+    /// The checked-out commit's parents when it's a pull request's merge commit, as sent to the
+    /// baseline request, so the server resolves the same baseline.
+    public let parentSHAs: [String]
     public let basis: Basis
     /// The test modules left to decide, nil when nothing narrowed the scope.
     public let modules: [String]?
@@ -97,6 +100,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         buildSystem: String = "xcode",
         headSHA: String,
         commitSHA: String?,
+        parentSHAs: [String] = [],
         basis: Basis,
         modules: [String]?,
         platform: String?,
@@ -108,6 +112,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         self.buildSystem = buildSystem
         self.headSHA = headSHA
         self.commitSHA = commitSHA
+        self.parentSHAs = parentSHAs
         self.basis = basis
         self.modules = modules
         self.platform = platform
