@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Builds the coverage test selection test bed's git history. See README.md.
 #
-#   scenarios.sh build <generated|xcodeproj> <output-dir>
+#   scenarios.sh build <generated|xcodeproj|synchronized> <output-dir>
 #   scenarios.sh checkout <repo> <scenario>
 #   scenarios.sh refs <repo>
 #   scenarios.sh check <repo>
+#   scenarios.sh project <xcodeproj|synchronized>
 set -euo pipefail
 
 fixture=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 usage() {
-  sed -n '4,7p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2
+  sed -n '4,8p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2
   exit 64
 }
 
@@ -114,7 +115,7 @@ replace_in() {
 build() {
   local variant=$1 output=$2
   case "$variant" in
-    generated | xcodeproj) ;;
+    generated | xcodeproj | synchronized) ;;
     *) usage ;;
   esac
   if [ -e "$output" ] && [ -n "$(ls -A "$output")" ]; then
@@ -188,12 +189,12 @@ build() {
 
   branch_from_baseline feature/evidence-window
   local revision
-  for revision in $(seq 1 22); do
+  for revision in $(seq 1 21); do
     edit_discount_revision "$revision"
     commit_all "Discount revision $revision"
-    if [ "$revision" -le 21 ]; then git tag "run/evidence-window/$(printf '%02d' "$revision")"; fi
+    if [ "$revision" -le 20 ]; then git tag "run/evidence-window/$(printf '%02d' "$revision")"; fi
   done
-  git tag checkout/window-at-cap run/evidence-window/21
+  git tag checkout/window-at-cap run/evidence-window/20
   git tag checkout/window-over-cap
   git tag checkout/window-unmeasured
 
@@ -368,10 +369,27 @@ PY
   echo "golden.json matches $repo"
 }
 
+# Regenerates a plain variant's Shop.xcodeproj from authoring/Project.swift with tuist.
+project() {
+  local variant=$1 work
+  case "$variant" in
+    xcodeproj) ;;
+    synchronized) export TUIST_SYNCHRONIZED=1 ;;
+    *) usage ;;
+  esac
+  work=$(mktemp -d)
+  rsync -a --exclude .DS_Store "$fixture/common/" "$fixture/authoring/" "$work/"
+  (cd "$work" && tuist generate --no-open >/dev/null)
+  mkdir -p "$fixture/$variant/Shop.xcodeproj"
+  rsync -a --delete --exclude xcuserdata --exclude /project.xcworkspace/xcshareddata/ "$work/Shop.xcodeproj/" "$fixture/$variant/Shop.xcodeproj/"
+  rm -rf "$work"
+}
+
 case "${1:-}" in
   build) [ $# -eq 3 ] || usage; build "$2" "$3" ;;
   checkout) [ $# -eq 3 ] || usage; checkout "$2" "$3" ;;
   refs) [ $# -eq 2 ] || usage; refs "$2" ;;
   check) [ $# -eq 2 ] || usage; check "$2" ;;
+  project) [ $# -eq 2 ] || usage; project "$2" ;;
   *) usage ;;
 esac

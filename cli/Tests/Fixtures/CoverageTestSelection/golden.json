@@ -4,8 +4,8 @@
   "scheme": "Shop",
   "platform": "ios",
   "default_branch": "main",
-  "hash_stage": "Each scenario's hash.skipped lists the test targets whose hash equals one its passing runs stored: selective testing skips them before the selection call, so run and skip only list the tests of the targets left, and a scenario with no target left has outcome no_selection_call. Measured on the generated variant with `tuist hash selective-testing` (Tuist 4.216.0-canary.27), which passes no destination and so leaves out UI test targets; AppUITests' hash is App's measured hash plus its own sources, the inputs a destination-bound hash combines. The xcodeproj variant is expected to match except where a scenario overrides it.",
-  "evidence": "Measured: baseline_evidence is what TestCoverageAttribution 0.3.0 and Xcode's per-process profiles recorded on a full run of the Shop scheme (Xcode 27.0, iOS simulator, parallel testing on), reduced like the CLI reduces them: a record's counters to its functions' files, an app process to the test or suite that launched it, and a target's processes minus its test and suite scopes. Both variants record the same evidence.",
+  "hash_stage": "Each scenario's hash.skipped lists the test targets whose hash equals one its passing runs stored: selective testing skips them before the selection call, so run and skip only list the tests of the targets left, and a scenario with no target left has outcome no_selection_call. Measured on the generated variant with `tuist hash selective-testing` (Tuist 4.216.0-canary.27), which passes no destination and so leaves out UI test targets; AppUITests' hash is App's measured hash plus its own sources, the inputs a destination-bound hash combines. The xcodeproj variant is expected to match except where a scenario overrides it. `tuist hash selective-testing` can't load a plain project, so neither plain variant is measured; the synchronized variant hashes the files in each synchronized folder and is expected to match in every scenario.",
+  "evidence": "Measured: baseline_evidence is what TestCoverageAttribution 0.3.0 and Xcode's per-process profiles recorded on a full run of the Shop scheme (Xcode 27.0, iOS simulator, parallel testing on), reduced like the CLI reduces them: a record's counters to its functions' files, an app process to the test or suite that launched it, and a target's processes minus its test and suite scopes. All three variants record the same evidence.",
   "assumptions": [
     "Target-level evidence is what a module's test processes executed outside every test- and suite-scoped record: a hosted app's launch, and the bodies of Swift Testing tests, which record no test scope. coverage_files' target rows hold the whole process today, so the rules must subtract the test and suite scopes; otherwise every XCTest test in a module whose target evidence includes a changed file is selected, and skips such as MoneyTests in source_change become selections.",
     "Target-level evidence counts as baseline evidence for owned_without_evidence, so a file that only Swift Testing tests executed is evidenced (swift_testing_only_source).",
@@ -894,13 +894,6 @@
           "edits": [
             "Core/Sources/Discount.swift"
           ]
-        },
-        {
-          "ref": "run/evidence-window/20",
-          "branch": "feature/evidence-window",
-          "edits": [
-            "Core/Sources/Discount.swift"
-          ]
         }
       ],
       "checkout": {
@@ -966,7 +959,7 @@
         "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
         "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
       },
-      "notes": "20 measured commits sit between the checkout and the baseline: the window is full but valid."
+      "notes": "19 measured commits sit between the checkout and the baseline, so the window holds 20 commits with coverage, the baseline included: full but valid."
     },
     {
       "name": "window_over_cap",
@@ -1115,13 +1108,6 @@
           "edits": [
             "Core/Sources/Discount.swift"
           ]
-        },
-        {
-          "ref": "run/evidence-window/21",
-          "branch": "feature/evidence-window",
-          "edits": [
-            "Core/Sources/Discount.swift"
-          ]
         }
       ],
       "checkout": {
@@ -1153,7 +1139,7 @@
         "CheckoutTests",
         "AppUITests"
       ],
-      "notes": "21 measured commits sit between the checkout and the baseline. Every test runs with evidence and the checkout becomes the next baseline."
+      "notes": "20 measured commits sit between the checkout and the baseline, so the baseline would be the 21st commit with coverage. Every test runs with evidence and the checkout becomes the next baseline."
     },
     {
       "name": "window_unmeasured",
@@ -1227,7 +1213,7 @@
         "AppUITests/SharedAppUITests/testShowsTotal": "unaffected",
         "AppUITests/SharedAppUITests/testShowsReceipt": "unaffected"
       },
-      "notes": "Same checkout as window_over_cap, but none of the 21 commits in between has a run, so the walk passes them and finds the baseline."
+      "notes": "Same checkout as window_over_cap, but none of the 20 commits in between has a run, so the walk passes them and finds the baseline."
     },
     {
       "name": "default_branch",
@@ -2392,7 +2378,7 @@
           "run_targets": [
             "CoreTests"
           ],
-          "notes": "A plain Xcode project lists every file in project.pbxproj, a tracked file, so removing or renaming one falls back to default selective testing. The hash stage isn't measured on this variant."
+          "notes": "A plain Xcode project with file references lists every file in project.pbxproj, a tracked file, so removing or renaming one falls back to default selective testing. The hash stage isn't measured on this variant."
         }
       }
     },
@@ -2524,7 +2510,7 @@
             "CheckoutTests",
             "AppUITests"
           ],
-          "notes": "A plain Xcode project lists every file in project.pbxproj, a tracked file, so removing or renaming one falls back to default selective testing. The hash stage isn't measured on this variant."
+          "notes": "A plain Xcode project with file references lists every file in project.pbxproj, a tracked file, so removing or renaming one falls back to default selective testing. The hash stage isn't measured on this variant."
         }
       }
     }
