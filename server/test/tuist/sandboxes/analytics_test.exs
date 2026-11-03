@@ -23,7 +23,7 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
           source: "amp",
           vcpus: vcpus,
           memory_mb: vcpus * 2048,
-          inserted_at: NaiveDateTime.from_iso8601!(at)
+          inserted_at: NaiveDateTime.from_iso8601!(at <> ".000000")
         }
       end
     end)
@@ -66,13 +66,13 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
 
     assert result.dates == [~D[2026-10-01], ~D[2026-10-02], ~D[2026-10-03]]
     assert %{count: 2, trend: 100.0, values: [2, 0, 0]} = result.created
-    assert %{count: 1, trend: 0.0, values: [1, 0, 0]} = result.failed
+    assert %{count: 1, trend: +0.0, values: [1, 0, 0]} = result.failed
   end
 
   test "adds up vCPU-hours, running a sandbox that has not stopped until the window ends", %{account: account} do
     result = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
 
-    assert %{vcpu_hours: 13.0, trend: 225.0, values: [11.0, 2.0, 0.0]} = result.compute
+    assert %{vcpu_hours: 13.0, trend: 225.0, values: [11.0, 2.0, +0.0]} = result.compute
   end
 
   test "measures the sessions that ended in the window", %{account: account} do
