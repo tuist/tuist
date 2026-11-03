@@ -107,10 +107,10 @@ let project = Project(
             buildAction: .buildAction(targets: ["App"]),
             testAction: .targets(
                 [
-                    .testableTarget(target: "CoreTests", parallelization: .disabled),
-                    .testableTarget(target: "CatalogTests", parallelization: .disabled),
-                    .testableTarget(target: "AppTests", parallelization: .disabled),
-                    .testableTarget(target: "AppUITests", parallelization: .disabled),
+                    .testableTarget(target: "CoreTests", parallelization: .enabled),
+                    .testableTarget(target: "CatalogTests", parallelization: .enabled),
+                    .testableTarget(target: "AppTests", parallelization: .enabled),
+                    .testableTarget(target: "AppUITests", parallelization: .enabled),
                 ],
                 options: .options(coverage: true)
             ),

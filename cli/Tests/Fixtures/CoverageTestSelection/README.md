@@ -31,8 +31,10 @@ Both variants have the same repository layout, so paths in `golden.json` hold fo
 
 Every test target links [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution),
 the SPM dependency. The generated variant links it statically and adds `-ObjC`; the plain project
-uses Xcode's own package integration. The `Shop` scheme runs every test target serially with
-coverage on, which TestCoverageAttribution needs to attribute each test.
+uses Xcode's own package integration. The `Shop` scheme runs every test target in parallel with
+coverage on. TestCoverageAttribution records per-test evidence for XCTest and UI tests only, and
+XCTest runs one test at a time in each clone, so parallel testing doesn't change it. Swift Testing
+tests record no test scope: what they execute is target-level evidence.
 
 `golden.json`'s `baseline_evidence` lists, per test, the repository files it executes. The tests
 are written so that evidence follows from the code; step 7 confirms it on real runs.
@@ -44,7 +46,7 @@ cli/Tests/Fixtures/CoverageTestSelection/scenarios.sh build generated /tmp/test-
 cd /tmp/test-bed && tuist install && tuist generate --no-open
 xcodebuild test -workspace Shop.xcworkspace -scheme Shop \
   -destination 'platform=iOS Simulator,name=iPhone 17' -enableCodeCoverage YES \
-  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
+  CODE_SIGNING_ALLOWED=NO
 ```
 
 For the plain variant, build `xcodeproj` and pass `-project Shop.xcodeproj` instead. Set

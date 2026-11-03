@@ -1380,7 +1380,7 @@
 			repositoryURL = "https://github.com/tuist/TestCoverageAttribution";
 			requirement = {
 				kind = upToNextMinorVersion;
-				minimumVersion = 0.2.0;
+				minimumVersion = 0.3.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
