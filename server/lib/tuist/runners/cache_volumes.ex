@@ -418,12 +418,13 @@ defmodule Tuist.Runners.CacheVolumes do
         uid: volume.uid,
         volume_bytes: usage.volume_bytes || volume_bytes,
         head_size_bytes: saved_head && saved_head.size_bytes,
-        head_saved_at: saved_head && saved_at(saved_head)
+        head_saved_at: saved_at(saved_head)
       }
     end)
   end
 
   # A published use's `finished_at` is when it was saved.
+  defp saved_at(nil), do: nil
   defp saved_at(%Usage{finished_at: nil}), do: nil
   defp saved_at(%Usage{finished_at: at}), do: at |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
@@ -758,46 +759,35 @@ defmodule Tuist.Runners.CacheVolumes do
     contested =
       for {use, volume} <- discarded, use.can_publish == true, not cold?(volume, use), do: use
 
-    saved =
-      case contested do
-        [] ->
-          []
+    saved = published_bases(contested)
 
-        _ ->
-          Repo.all(
-            from(u in Usage,
-              where:
-                u.volume_id in ^Enum.uniq(Enum.map(contested, & &1.volume_id)) and
-                  u.base_generation in ^Enum.uniq(Enum.map(contested, & &1.base_generation)) and
-                  not is_nil(u.published_generation),
-              select: {u.id, u.volume_id, u.generation, u.base_generation}
-            )
-          )
-      end
+    for {use, volume} <- discarded, reason = discard_reason(use, volume, saved), into: %{}, do: {use.id, reason}
+  end
 
-    discarded
-    |> Map.new(fn {use, volume} ->
-      reason =
-        cond do
-          use.can_publish == false ->
-            :read_only
+  defp discard_reason(%Usage{can_publish: false}, _volume, _saved), do: :read_only
 
-          cold?(volume, use) ->
-            :started_empty
+  defp discard_reason(use, volume, saved) do
+    cond do
+      cold?(volume, use) -> :started_empty
+      MapSet.member?(saved, {use.volume_id, use.generation, use.base_generation}) -> :saved_first
+      true -> nil
+    end
+  end
 
-          Enum.any?(saved, fn {id, volume_id, generation, base} ->
-            id != use.id and volume_id == use.volume_id and generation == use.generation and
-                base == use.base_generation
-          end) ->
-            :saved_first
+  # The (volume, clear generation, base) of uses that published, among those of
+  # the given uses. A use never contests its own publication: it is discarded.
+  defp published_bases([]), do: MapSet.new()
 
-          true ->
-            nil
-        end
-
-      {use.id, reason}
-    end)
-    |> Map.reject(fn {_id, reason} -> is_nil(reason) end)
+  defp published_bases(uses) do
+    from(u in Usage,
+      where:
+        u.volume_id in ^Enum.uniq(Enum.map(uses, & &1.volume_id)) and
+          u.base_generation in ^Enum.uniq(Enum.map(uses, & &1.base_generation)) and
+          not is_nil(u.published_generation),
+      select: {u.volume_id, u.generation, u.base_generation}
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   @doc """
