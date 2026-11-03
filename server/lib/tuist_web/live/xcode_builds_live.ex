@@ -3,6 +3,7 @@ defmodule TuistWeb.XcodeBuildsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.BuildStatusFilter, only: [build_status_dropdown: 1]
   import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.ScatterChart
@@ -13,6 +14,7 @@ defmodule TuistWeb.XcodeBuildsLive do
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds
   alias Tuist.Builds.Analytics
+  alias TuistWeb.Components.BuildStatusFilter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -35,6 +37,7 @@ defmodule TuistWeb.XcodeBuildsLive do
               "analytics-build-configuration",
               "analytics-build-category",
               "analytics-build-tag",
+              BuildStatusFilter.param(),
               "build-duration-type",
               "build-duration-chart-type",
               "build-duration-scatter-group-by",
@@ -97,6 +100,7 @@ defmodule TuistWeb.XcodeBuildsLive do
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
     analytics_build_tag = params["analytics-build-tag"] || "all"
+    analytics_build_status = BuildStatusFilter.status(params)
 
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -109,6 +113,7 @@ defmodule TuistWeb.XcodeBuildsLive do
       |> opts_with_analytics_build_configuration(analytics_build_configuration)
       |> opts_with_analytics_build_category(analytics_build_category)
       |> opts_with_analytics_build_tag(analytics_build_tag)
+      |> BuildStatusFilter.put_status(analytics_build_status)
 
     opts =
       case analytics_environment do
@@ -142,6 +147,7 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> assign(:analytics_build_configuration, analytics_build_configuration)
     |> assign(:analytics_build_category, analytics_build_category)
     |> assign(:analytics_build_tag, analytics_build_tag)
+    |> assign(:analytics_build_status, analytics_build_status)
     |> assign(:build_schemes, Builds.project_build_schemes(project))
     |> assign(:build_configurations, Builds.project_build_configurations(project))
     |> assign(:build_tags, Builds.project_build_tags(project))
@@ -165,7 +171,12 @@ defmodule TuistWeb.XcodeBuildsLive do
       [:total_builds_analytics, :failed_builds_analytics, :build_success_rate_analytics, :analytics_chart_data],
       fn ->
         total_builds_analytics = Analytics.build_analytics(project.id, opts)
-        failed_builds_analytics = Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+        failed_builds_analytics =
+          BuildStatusFilter.failed_builds_analytics(analytics_build_status, total_builds_analytics, fn ->
+            Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
+          end)
+
         build_success_rate_analytics = Analytics.build_success_rate_analytics(project.id, opts)
 
         {:ok,
@@ -364,6 +375,7 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> maybe_add_filter(:configuration, assigns.analytics_build_configuration)
     |> maybe_add_filter(:category, assigns.analytics_build_category)
     |> maybe_add_tag_filter(assigns.analytics_build_tag)
+    |> maybe_add_filter(:status, assigns.analytics_build_status)
     |> Kernel.++([
       %{field: :inserted_at, op: :>=, value: start_datetime},
       %{field: :inserted_at, op: :<=, value: DateTime.add(end_datetime, 1, :second)}
@@ -475,6 +487,7 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> opts_with_analytics_build_configuration(assigns.analytics_build_configuration)
     |> opts_with_analytics_build_category(assigns.analytics_build_category)
     |> opts_with_analytics_build_tag(assigns.analytics_build_tag)
+    |> BuildStatusFilter.put_status(assigns.analytics_build_status)
     |> then(fn opts ->
       case assigns.analytics_environment do
         "ci" -> Keyword.put(opts, :is_ci, true)

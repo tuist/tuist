@@ -528,6 +528,9 @@ defmodule Tuist.Kura.Regions do
         display_name: rack.display_name,
         cluster_id: rack.site,
         node_pool: "rack-storage-#{rack.site}",
+        # The rack CSI release must be installed and this region explicitly
+        # enrolled in LVM before encrypted volumes are provisioned.
+        encrypted_volumes: false,
         # The node's XFS /data, through the same local-path class as
         # the other bare-metal pools.
         storage_class: "scw-local-nvme",
@@ -1015,8 +1018,57 @@ defmodule Tuist.Kura.Regions do
   def exists?(_), do: false
 
   defp managed_regions do
-    Enum.map(@managed_region_specs, &managed_region/1) ++
-      Enum.map(@private_region_specs, &private_region/1)
+    Enum.map(
+      Enum.map(@managed_region_specs, &managed_region/1) ++ Enum.map(@private_region_specs, &private_region/1),
+      &(&1 |> configure_lvm() |> configure_thin())
+    )
+  end
+
+  @doc "The node resource used to admit data volumes in this region."
+  def disk_resource(%__MODULE__{provisioner_config: config}) do
+    config[:disk_resource] || "ephemeral-storage"
+  end
+
+  @doc """
+  Whether the region is listed in `TUIST_KURA_THIN_REGIONS` and runs on a
+  node-local class, so its accounts may be selected for thin volumes.
+  """
+  def thin_volumes?(%__MODULE__{provisioner_config: config}), do: config[:thin_volumes] == true
+
+  @doc """
+  Whether `account`'s instance in the region is built on
+  `kura-thin-encrypted-nvme`: the region is thin-capable and the account is on
+  the `kura_thin_volumes` flag. The flag is read only in thin-capable regions.
+  """
+  def thin_volumes?(%__MODULE__{} = region, account) do
+    thin_volumes?(region) and Tuist.FeatureFlags.kura_thin_volumes_enabled?(account)
+  end
+
+  defp configure_thin(%__MODULE__{provisioner_config: config} = region) do
+    if region.id in Tuist.Environment.kura_thin_region_ids() and
+         config[:storage_class] in ["scw-local-nvme", "kura-lvm-nvme"] do
+      %{region | provisioner_config: Map.put(config, :thin_volumes, true)}
+    else
+      region
+    end
+  end
+
+  defp configure_lvm(%__MODULE__{provisioner_config: config} = region) do
+    if region.id in Tuist.Environment.kura_lvm_region_ids() and
+         config[:storage_class] == "scw-local-nvme" do
+      %{
+        region
+        | provisioner_config:
+            Map.merge(config, %{
+              storage_class: "kura-lvm-nvme",
+              disk_resource: "tuist.dev/kura-disk",
+              encrypted_volumes: true,
+              replicas: max(Map.get(config, :replicas) || 2, 2)
+            })
+      }
+    else
+      region
+    end
   end
 
   defp managed_region(spec) do
@@ -1036,6 +1088,7 @@ defmodule Tuist.Kura.Regions do
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
+        encrypted_volumes: Map.get(spec, :encrypted_volumes, true),
         gateway: Map.get(spec, :gateway, :hetzner),
         # The region's public peer failover IP (bare-metal regions only): the
         # stable IP self-hosted nodes resolve `peer.<host>` to, kept routed to a
@@ -1044,9 +1097,9 @@ defmodule Tuist.Kura.Regions do
         failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
         # These regions declare no claim of their own: every instance carries the
         # one it is built at, and an instance carrying none is sized from its
-        # account's plan at render time rather than from a region-wide constant. nil replicas for the multi-box Hetzner regions
-        # (controller default applies); bare-metal regions set 2 (a warm standby
-        # for gapless rolling deploys).
+        # account's plan at render time rather than from a region-wide constant.
+        # nil replicas for the multi-box Hetzner regions (controller default
+        # applies); bare-metal regions set 2 (a warm standby for gapless deploys).
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
@@ -1149,6 +1202,7 @@ defmodule Tuist.Kura.Regions do
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,
+        encrypted_volumes: Map.get(spec, :encrypted_volumes, true),
         storage_size: Map.get(spec, :storage_size),
         storage_governed: Map.get(spec, :storage_governed, false),
         memory_governed: Map.get(spec, :memory_governed, false),

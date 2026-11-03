@@ -9,6 +9,7 @@ defmodule Tuist.Accounts.UserNotifier do
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.Mailer
+  alias Tuist.Runners.Allowance
   alias Tuist.Utilities.ByteFormatter
 
   # Delivers the email using the application mailer.
@@ -316,6 +317,50 @@ defmodule Tuist.Accounts.UserNotifier do
     ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
+  def deliver_mfa_change_notification(user, enabled?) do
+    subject =
+      if enabled?,
+        do: dgettext("dashboard_account", "Two-factor authentication enabled"),
+        else: dgettext("dashboard_account", "Two-factor authentication disabled")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The two-factor authentication settings for your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_passkey_change_notification(user, added?) do
+    subject =
+      if added?,
+        do: dgettext("dashboard_account", "Passkey added"),
+        else: dgettext("dashboard_account", "Passkey removed")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The passkeys that can sign in to your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
   @doc """
   Deliver instructions to view an agent registration OTP.
   """
@@ -608,7 +653,14 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   defp air_usage_label(:runner_minutes, usage, limit),
-    do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
+    do:
+      dgettext(
+        "dashboard_account",
+        "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})",
+        usage: delimit(usage),
+        limit: delimit(limit),
+        linux: delimit(Allowance.free_monthly_minutes(:linux))
+      )
 
   defp air_usage_label(:cache_egress_megabytes, usage, limit) do
     dgettext("dashboard_account", "%{usage} of %{limit} of cache egress used",

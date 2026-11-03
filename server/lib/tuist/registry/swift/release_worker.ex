@@ -155,12 +155,33 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
+  # Organizations with an IP allow list refuse the App's installation token with
+  # a 403 on every request while still serving their public repositories to a
+  # personal access token. Every GitHub request precedes the first upload, so
+  # the release is rebuilt from scratch with the fallback token.
+  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
+    case sync_release_with_token(scope, name, full_handle, tag, version, token, opts) do
+      {:error, reason} = error ->
+        with true <- forbidden?(reason),
+             fallback_token when is_binary(fallback_token) <- Registry.swift_registry_github_fallback_token(token) do
+          Logger.info("GitHub refused the mirror's token for #{scope}/#{name}@#{tag}; retrying with the fallback token")
+
+          sync_release_with_token(scope, name, full_handle, tag, version, fallback_token, opts)
+        else
+          _no_fallback -> error
+        end
+
+      result ->
+        result
+    end
+  end
+
   # Briefly deletes a dead process's files from inside its single
   # `Briefly.Entry` server, and every `Briefly.create/1` from a new job process
   # makes a 5s call to that same server. Removing a cloned or extracted package
   # tree there stalls it long enough for concurrent release jobs to crash on the
   # call timeout, so the tree is removed here, in the job's own process.
-  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
+  defp sync_release_with_token(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
 
     try do
@@ -169,6 +190,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       File.rm_rf(tmp_dir)
     end
   end
+
+  defp forbidden?({:http_error, 403}), do: true
+  defp forbidden?(tuple) when is_tuple(tuple), do: tuple |> Tuple.to_list() |> Enum.any?(&forbidden?/1)
+  defp forbidden?(list) when is_list(list), do: Enum.any?(list, &forbidden?/1)
+  defp forbidden?(map) when is_map(map), do: map |> Map.values() |> Enum.any?(&forbidden?/1)
+  defp forbidden?(_reason), do: false
 
   defp sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts) do
     archive_path = Path.join(tmp_dir, "source_archive.zip")
@@ -964,8 +991,14 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   defp github_opts do
     # Retry transient connection failures in Req, but leave HTTP rate limits and
-    # upstream statuses to the worker's Oban snooze policy.
-    [finch: Tuist.Finch, retry: fn request, result -> is_exception(result) and Retry.should_retry?(request, result) end]
+    # upstream statuses to the worker's Oban snooze policy. Registry packages
+    # are public, so a token refused by an organization's IP allow list is
+    # retried anonymously.
+    [
+      finch: Tuist.Finch,
+      retry: fn request, result -> is_exception(result) and Retry.should_retry?(request, result) end,
+      anonymous_fallback: true
+    ]
   end
 
   defp fetch_manifests(full_handle, tag, token) do

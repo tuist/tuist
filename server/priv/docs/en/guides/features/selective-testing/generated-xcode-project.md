@@ -15,6 +15,8 @@ To run tests selectively with your <.localized_link href="/guides/features/proje
 
 `tuist test` integrates directly with the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with module caching can dramatically reduce the time it takes to run tests on your CI.
 
+If your test runs only target simulators, pass `--destination simulator` so `tuist test` uses and downloads only the simulator slices of cached binaries. See <.localized_link href="/guides/features/cache/module-cache#destination-selection">destination selection</.localized_link>. Selective-testing hashes are the same for every `--destination` value.
+
 ## Separate build and test jobs {#separate-build-and-test-jobs}
 
 Selective testing supports separate build and test jobs. Run `tuist test --build-only` in the build job so Tuist can persist a `selective-testing-graph.json` file alongside the products the build emits. That graph carries the hashes selective testing needs, so the test job doesn't have to regenerate the project or resolve Swift Package dependencies to figure out which targets to run.

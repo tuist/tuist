@@ -123,6 +123,13 @@
         )
         var os: String?
 
+        @Option(
+            name: .long,
+            help: "Destinations to use cached binaries for: all, simulator, or device. Native macOS targets remain supported. 'device' requires a device -destination after the terminator (--).",
+            envKey: .testDestination
+        )
+        var destination: CacheDestination = .all
+
         @Flag(
             name: .long,
             help:
@@ -483,7 +490,8 @@
                     return nil
                 }(),
                 mode: inspectMode,
-                stressNewTests: stressNewTests
+                stressNewTests: stressNewTests,
+                cacheDestination: destination
             )
         }
     }

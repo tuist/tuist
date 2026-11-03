@@ -7,12 +7,12 @@
 ---
 # Instalar Tuist {#install-tuist}
 
-La interfaz de línea de comandos de Tuist se ejecuta en **macOS** y **Linux** y conecta tus proyectos de Xcode, generados, Gradle y Bazel a la infraestructura de caché, análisis y runners de Tuist. Aunque puedes compilar Tuist desde el [código fuente](https://github.com/tuist/tuist), recomendamos uno de los métodos de instalación siguientes para garantizar una instalación válida y verificable.
+La interfaz de línea de comandos de Tuist se ejecuta en **macOS** y **Linux**, y conecta tus proyectos de Xcode, generados, Gradle y Bazel a la infraestructura de caché, análisis y runners de Tuist. Aunque puedes compilar Tuist desde el [código fuente](https://github.com/tuist/tuist), recomendamos uno de los métodos de instalación siguientes para garantizar una instalación válida y verificable.
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 > [!NOTE]
-> Si no tienes Mise instalado, sigue primero la [guía de inicio rápido](https://mise.jdx.dev/getting-started.html). Mise es una alternativa recomendada a [Homebrew](https://brew.sh) si formas parte de un equipo u organización que necesita garantizar versiones deterministas de las herramientas en distintos entornos.
+> Si no tienes Mise instalado, sigue primero la [guía de introducción](https://mise.jdx.dev/getting-started.html). Mise es una alternativa recomendada a [Homebrew](https://brew.sh) si formas parte de un equipo u organización que necesita garantizar versiones deterministas de las herramientas en distintos entornos.
 
 
 A diferencia de herramientas como Homebrew, que instalan y activan una única versión de la herramienta de forma global, **Mise fija una versión** ya sea globalmente o limitada a un proyecto. Ejecuta `mise use` para instalar y activar Tuist:
@@ -27,7 +27,7 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 Si clonas un proyecto que ya tiene una versión de Tuist fijada en `mise.toml`, ejecuta `mise install` para instalarla.
 
 > [!TIP]
-> `tuist@latest` se resuelve a la última versión **estable**. Tuist también publica compilaciones de prerelease canary y release candidate; estas son solo opcionales y nunca se resuelven mediante `latest`. Consulta <.localized_link href="/cli/release-channels">Canales de lanzamiento</.localized_link> para saber cómo fijar una línea estable en la que puedas confiar y cómo optar por las prereleases.
+> `tuist@latest` resuelve a la última versión **estable**. Tuist también publica compilaciones de prerelease tipo canary y release candidate; estas son solo opcionales y nunca se resuelven mediante `latest`. Consulta <.localized_link href="/cli/release-channels">Canales de lanzamiento</.localized_link> para saber cómo fijar una línea estable en la que puedas confiar y cómo optar por las prereleases.
 
 <details>
 <summary>Compatibilidad con Linux</summary>
@@ -58,4 +58,4 @@ brew install --formula tuist@x.y.z
 
 ## Proxy HTTP {#http-proxy}
 
-Si tu red enruta el tráfico saliente a través de un proxy HTTP, consulta la <.localized_link href="/guides/integrations/http-proxy">\<.localized\_link href="/guides/integrations/http-proxy"\>guía de proxy HTTP\</.localized\_link\></.localized_link>.
+Si tu red enruta el tráfico saliente a través de un proxy HTTP, consulta la <.localized_link href="/guides/integrations/http-proxy">Guía de proxy HTTP</.localized_link>.

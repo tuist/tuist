@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "66e521e3bb58f2d7d9132d314a26723659081c5ed5401ce85a8ad838246be995",
+  "hash": "9f9daa5fa64fb071736c49d69076b033ea61efbab99b659af3194d9617a4d239",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "d3e8d2985b191ef0f46c98acef6cf61ba1a32c39a7df08b858683b39c5137549"
                 },
                 "## Build systems {#build-systems}": {
-                  "content_hash": "ad7ad4add47bfd2e6cef0ba50cff702427c59e95c694955889f0876aa01713f1"
+                  "content_hash": "a319a2d1fcba73e214f17e87b39c8165b1e823219bc5d060f318dd1f814be0a8"
                 },
                 "## Configuration {#configuration}": {
                   "content_hash": "bf2f2c000a9191664924b7213b78505b69cbc2cde4c593fc680d5c749b69f07b"
@@ -32,10 +32,10 @@
                   "content_hash": "38eff2edc396d31900323cf9113affbce2edab998f27f0b18324b181667e33d9"
                 },
                 "## Query options {#query-options}": {
-                  "content_hash": "d8f1c4128cf0f1d10ad0ff84d94b051ee7dcc42c5e9548e087e836247be2e266"
+                  "content_hash": "6531fcfc772a66bc49c76fdf863e517aa261b5f44c985a090ac4d84e54664bdf"
                 },
                 "## Reporting custom metadata {#custom-metadata}": {
-                  "content_hash": "42ad2f7053ae1a160875aa1f031f62a4b5158f483f414d1bf95b45707a16dbc4"
+                  "content_hash": "42579a6b0b8c86e59d069e539dcac8f2fc02c6851ae06e44bdcdce4f809a8f0b"
                 },
                 "## Requirements {#requirements}": {
                   "content_hash": "b7fb28acc0b41173a113bc749dbd6f35259e99ea3b51e54a4621dcbb0e8981dd"
@@ -62,7 +62,7 @@
                   "content_hash": "7e71c7f9289d865c7cfcb77d7c24df4f054ae42d3192f19027f8aa50e2a4d7e9"
                 },
                 "### Failure categories": {
-                  "content_hash": "1d17498a266b577094323340003cf1a023fd62d7b02113b1bcc88d14cb94f103"
+                  "content_hash": "cba4fb775bc5f3e7e6c24525eadf7ae535f4e9348263076447decf9351a3a59c"
                 },
                 "### From the Grafana catalog {#from-the-grafana-catalog}": {
                   "content_hash": "4766a89b227cc0be45f53e0d45bce714cc2bfe2bb56f5e3a8090c98effeecb03"
@@ -77,11 +77,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "37d26c99ae38d67c80580e2d526bfb7d3ba8ff5c75fe682d8b572b3610c2014a",
+          "hash": "06ff8cb0bde91974327d7375b1449fdfe5b4984a60539ec89dc90addc0678a66",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/grafana.md",
           "metadata": {
-            "content_hash": "f88a7dceda0fea782be796b769157b706f79e8f70b16353a143009965e0117ad"
+            "content_hash": "6ba7b26b78aa5c33dfd37252f6f351a0ed2640f752bc85ca057235d2d4562c25"
           }
         },
         {
@@ -167,7 +167,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -180,21 +180,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -283,21 +283,21 @@
             }
           ],
           "details": {},
-          "hash": "1825eef9af8b1d6df388adc7dcc6fcd6f54d5129f5c3d02e3ee2bd79e96af0c0",
+          "hash": "b915e35ee273e507ccb301952fd8875c4436e109fac3ab31a6858b35247a6743",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "66e521e3bb58f2d7d9132d314a26723659081c5ed5401ce85a8ad838246be995",
+      "hash": "9f9daa5fa64fb071736c49d69076b033ea61efbab99b659af3194d9617a4d239",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/grafana.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "05f67b26c0da6fd97c1e3c80da7ee687145a2426c58ed43da316509029482355",
+  "output_hash": "962736a61b23ee785ba207380f2afe5eb82941b74007fae443eec6ba02dfa6dd",
   "output_path": "server/priv/docs/ko/guides/integrations/grafana.md",
   "protection_state": "recorded",
   "provider": "",
@@ -318,8 +318,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "e2d83711f920ed81085070185d1fe39a6f166821",
+  "source_commit_sha": "48b5c3fa3af11d67e1f20100ad034813e56b8a2f",
   "source_path": "server/priv/docs/en/guides/integrations/grafana.md",
-  "translated_at": "2026-10-29T16:50:54.379734Z",
-  "translation_session_id": "01a18889-9abd-7cd5-93c7-fbe3f8e92b65"
+  "translated_at": "2026-11-02T15:56:15.210673Z",
+  "translation_session_id": "01a19cea-0ae5-74c6-87ac-7d85d7430613"
 }
