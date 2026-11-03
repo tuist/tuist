@@ -7,9 +7,9 @@
 ---
 # 隐式导入 {#implicit-imports}
 
-为了降低使用原始 Xcode 项目维护 Xcode 项目图的复杂性，Apple 设计的构建系统允许隐式定义依赖。这意味着一个产品（例如 App）可以依赖于某个框架，即使没有显式声明该依赖。在小规模项目中，这没有问题，但随着项目图复杂度的增加，这种隐式性可能导致增量构建不可靠，或影响基于编辑器的功能，如预览和代码补全。
+为了降低使用原始 Xcode 项目维护 Xcode 项目图的复杂性，Apple 设计的构建系统允许隐式定义依赖。这意味着产品（例如应用）可以依赖于某个框架，即使没有显式声明该依赖。在小规模项目中，这没有问题，但随着项目图复杂度的增加，这种隐式性可能导致增量构建不可靠，或影响基于编辑器的功能，如预览和代码补全。
 
-问题在于你无法阻止隐式依赖的产生。任何开发者都可以在其 Swift 代码中添加 `import` 语句，从而创建隐式依赖。这正是 Tuist 发挥作用的地方。Tuist 提供了一个命令，通过静态分析项目中的代码来检查隐式依赖。以下命令将输出你项目中的隐式依赖：
+问题在于你无法阻止隐式依赖的产生。任何开发者都可以在其 Swift 代码中添加 `import` 语句，从而创建隐式依赖。这正是 Tuist 发挥作用的地方。Tuist 提供了一个命令，通过静态分析项目中的代码来检查隐式依赖。以下命令将输出你项目的隐式依赖：
 
 ```bash
 tuist inspect dependencies --only implicit
@@ -20,7 +20,7 @@ tuist inspect dependencies --only implicit
 > [!TIP]
 > **在 CI 中验证**
 >
-> 我们强烈建议每次向上游推送新代码时，都将此命令作为 <.localized_link href="/guides/integrations/continuous-integration">持续集成</.localized_link> 流程的一部分运行。
+> 我们强烈建议每次有新代码推送到上游时，都将此命令作为 <.localized_link href="/guides/integrations/continuous-integration">持续集成</.localized_link> 流程的一部分运行。
 
 
 > [!WARNING]

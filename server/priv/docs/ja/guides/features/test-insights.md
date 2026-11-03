@@ -2,12 +2,12 @@
 {
   "title": "テストインサイト",
   "titleTemplate": ":title · 機能 · ガイド · Tuist",
-  "description": "Tuist Test Insights を使用して、Xcode、Gradle、Bazel、Elixir、Rust プロジェクトの不安定なテストや低速なテストを特定します。"
+  "description": "Tuist Test Insights を使用して、Xcode、Gradle、Bazel、Elixir、Rust プロジェクト内の不安定なテストや低速なテストを特定します。"
 }
 ---
 # テストインサイト {#test-insights}
 
-Test Insights を使って、低速なテストの特定、不安定なテストの追跡、失敗した CI 実行の迅速な把握により、テストスイートの健全性を監視します。現在、Xcode、Gradle、Bazel、Elixir、Rust をサポートしています。
+Test Insights を使って、遅いテストの特定、不安定なテストの追跡、失敗した CI 実行の迅速な把握により、テストスイートの健全性を監視します。現在は Xcode、Gradle、Bazel、Elixir、Rust に対応しています。
 
 <.home_cards>
   <.home_card

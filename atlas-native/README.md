@@ -211,7 +211,7 @@ mise install rust github:tuist/once
 ONCE_CACHE_PROVIDER=local mise run check
 ```
 
-The toolchain pins Once 0.71.2, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
+The toolchain pins Once 0.74.0, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
 The preparation workaround is still required: this Once release does not include
 [automatic source materialization](https://github.com/tuist/once/pull/390) yet.
 Once that fix ships, remove the preparation task, its task dependencies and CI
@@ -495,6 +495,43 @@ For local shared caching, sign in and omit `ONCE_CACHE_PROVIDER=local`:
 mise exec -- once auth login --provider tuist
 mise run build:android
 ```
+
+### Automatic build previews
+
+`once.toml` selects `AtlasIOS` (iOS simulator) and `AtlasAndroid` (debug APK)
+for publication to `tuist/atlas-mobile` after successful builds. The pinned Once
+0.74.0 includes publication-service support. The destination Tuist server must
+also have the artifact receiver deployed before authorizing publication.
+
+On each machine and checkout, explicitly publish and authorize each target once:
+
+```sh
+mise exec -- once auth login --provider tuist
+mise run build:android
+ndk_host=linux-x86_64
+if [ "$(uname -s)" = Darwin ]; then ndk_host=darwin-x86_64; fi
+export PATH="$PWD/.once/android-tools:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$ndk_host/bin:$PATH"
+mise exec -- once artifact publish AtlasAndroid --allow-on-build
+mise run build:ios
+mise exec -- once artifact publish AtlasIOS --allow-on-build
+```
+
+These commands build and upload their target; iOS requires macOS/Xcode and
+Android requires the SDK, NDK and debug keystore described above. Afterwards,
+`mise run build:android`, `mise run build:ios` and direct `once build` invocations
+publish eligible outputs automatically. Local-only build caching does not disable
+artifact publication. Without local destination authorization, builds make no
+artifact-publication requests. Publication failures fail the command rather than
+silently claiming a preview exists; replaying the same retained publication
+checks its receipt without uploading or creating another preview.
+
+These development previews use the default track and project visibility. Debug
+Android signatures do not establish the stable App Links identity used by nightly
+distribution, and may require uninstalling a differently signed installed app.
+`AtlasIOSDevice`, macOS, CLI and fixture-only preview targets are not selected.
+Physical-device iOS provisioning remains in protected delivery outside Once's
+cached build. CI runners receive no automatic-publication authorization; the
+gated nightly distribution below remains separate and pull requests never publish.
 
 `.github/workflows/atlas-mobile.yml`:
 

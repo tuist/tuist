@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a2d05e4fe5952957a78c0cc87906ee6e5e0ef3d9247ddc741ffcc87d1015e102",
+  "hash": "d89cfa2591ab1f7eef709770dd1c060b47c71ecee34f16fff04323405e10040a",
   "hash_tree": {
     "root": {
       "children": [
@@ -110,7 +110,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -123,21 +123,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -214,21 +214,21 @@
             }
           ],
           "details": {},
-          "hash": "9260aa6c3a212507fe8802543a9f17123892664c777ba5c0a526939b7a43795b",
+          "hash": "c31d35cf124a89005d4f3d55a6de8b9fe2163a9df738dab3c0e6eb5cc9041748",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a2d05e4fe5952957a78c0cc87906ee6e5e0ef3d9247ddc741ffcc87d1015e102",
+      "hash": "d89cfa2591ab1f7eef709770dd1c060b47c71ecee34f16fff04323405e10040a",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/inspect/implicit-dependencies.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "1a0b36aca9f653e99eeef85bfa713dd0293cad64082246431ce57e89f9ef865a",
+  "output_hash": "0a99893c06e1f584c73b75213050e03a1f95d58ea91cbd2086edc513c6dc1477",
   "output_path": "server/priv/docs/ka/guides/features/projects/inspect/implicit-dependencies.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "cac6ca96a2e17b8ced337423dcb83ffc79c208f6",
   "source_path": "server/priv/docs/en/guides/features/projects/inspect/implicit-dependencies.md",
-  "translated_at": "2026-10-29T15:12:59.114593Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-10-30T16:47:41.279472Z",
+  "translation_session_id": "01a18db4-2d21-723a-b42b-8adfa8bce7d0"
 }

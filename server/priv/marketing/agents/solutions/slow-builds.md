@@ -41,6 +41,6 @@ Ask for an evidence-backed bottleneck, one proposed change, and a before/after m
 
 ## Limitations
 
-Caching helps only when compatible outputs exist and downloading them is worthwhile. A highly changed workload, serial linker bottleneck, or external service wait may need another intervention. A graph change can improve one build while making others worse; validate representative edits. Faster compute is sometimes the right answer, but no integration guarantees a speedup or lower costs. Tuist Runners are invite-only and their pricing is not public.
+Caching helps only when compatible outputs exist and downloading them is worthwhile. A highly changed workload, serial linker bottleneck, or external service wait may need another intervention. A graph change can improve one build while making others worse; validate representative edits. Faster compute is sometimes the right answer, but no integration guarantees a speedup or lower costs. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing).
 
 Related: [slow tests](/marketing-markdown/solutions/slow-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).

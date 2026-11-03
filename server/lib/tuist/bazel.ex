@@ -687,6 +687,7 @@ defmodule Tuist.Bazel do
       |> where([invocation], invocation.project_id == ^project_id)
       |> maybe_filter_commands(Keyword.get(opts, :commands))
       |> maybe_filter_environment(Keyword.get(opts, :is_ci))
+      |> maybe_filter_status(Keyword.get(opts, :status))
 
     query =
       case Keyword.get(opts, :start_datetime) do
@@ -809,6 +810,12 @@ defmodule Tuist.Bazel do
   end
 
   defp maybe_filter_environment(query, _is_ci), do: query
+
+  defp maybe_filter_status(query, status) when status in ["success", "failure"] do
+    where(query, [invocation], invocation.status == ^status)
+  end
+
+  defp maybe_filter_status(query, _status), do: query
 
   defp cache_summary_query_options(invocations) do
     first_started_at = invocations |> Enum.min_by(& &1.started_at, NaiveDateTime) |> Map.fetch!(:started_at)

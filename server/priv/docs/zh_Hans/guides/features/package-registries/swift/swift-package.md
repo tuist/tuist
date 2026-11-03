@@ -13,7 +13,7 @@
 swift package --replace-scm-with-registry resolve
 ```
 
-如果你希望每次解析依赖项时都使用注册表，需要更新 `Package.swift` 文件中的 `dependencies`，以使用注册表标识符而非 URL。注册表标识符始终采用 `{organization}.{repository}` 格式。例如，要为 `swift-composable-architecture` 包使用注册表，请执行以下操作：
+如果你希望每次解析依赖项时都使用注册表，需要更新 `Package.swift` 文件中的 `dependencies`，改用注册表标识符而非 URL。注册表标识符的格式始终为 `{organization}.{repository}`。例如，要为 `swift-composable-architecture` 包使用注册表，请执行以下操作：
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")

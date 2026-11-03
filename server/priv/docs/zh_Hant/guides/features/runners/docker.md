@@ -2,12 +2,12 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · 功能 · 指南 · Tuist",
-  "description": "在 Tuist Runners 上使用 Docker：建置與執行容器、容器工作、服務容器，以及私人映像檔註冊表。"
+  "description": "在 Tuist Runners 上使用 Docker：建置與執行容器、容器工作、服務容器，以及私人註冊表。"
 }
 ---
 # Docker {#docker}
 
-Linux 執行器已預先準備好 Docker。每個工作都會在虛擬機器內取得專屬的 Docker daemon，且已預先安裝 `docker` CLI、Buildx 與 Compose。你不需要設定動作，也不需要 `sudo`。
+Linux 執行器已預先安裝 Docker，可直接使用。每個工作都會在虛擬機器內取得專屬的 Docker daemon，且已預先安裝 `docker` CLI、Buildx 與 Compose。你不需要設定動作，也不需要 `sudo`。
 
 ```yaml
 jobs:
@@ -44,7 +44,7 @@ jobs:
 
 ## 服務容器 {#service-containers}
 
-`services` 的運作方式與 GitHub 託管執行器相同。服務可透過其對應的連接埠在 `localhost` 上存取：
+`services` 的運作方式與 GitHub 託管執行器相同。服務可透過對應的連接埠在 `localhost` 上存取：
 
 ```yaml
 jobs:
@@ -62,9 +62,9 @@ jobs:
       - run: mix test
 ```
 
-## 私人註冊表 {#private-registries}
+## 私人 Registry {#private-registries}
 
-在拉取或推送之前，請使用註冊表專屬的登入動作或 `docker login` 進行驗證：
+在拉取或推送前，請使用 Registry 專屬的登入動作或 `docker login` 進行驗證：
 
 ```yaml
       - uses: docker/login-action@v3
@@ -75,13 +75,13 @@ jobs:
       - run: docker pull ghcr.io/my-org/android-ci:latest
 ```
 
-若為工作層級的 `container`，請改透過 `credentials` 金鑰傳遞相同的憑證，如上例所示。
+若要在工作層級的 `container` 中使用，請改為透過 `credentials` 金鑰傳遞相同的憑證，如上方範例所示。
 
 ## 映像檔拉取 {#image-pulls}
 
-Docker Hub 的拉取請求會透過 Tuist 營運的直通快取提供服務，因此工作不會消耗 Docker Hub 的匿名速率限制。其他註冊表的映像檔則直接拉取。
+Docker Hub 的拉取請求會透過 Tuist 營運的直通快取提供，因此工作不會消耗 Docker Hub 的匿名速率限制。來自其他 Registry 的映像檔則直接拉取。
 
-每個工作開始時映像檔儲存區皆為空白，因此工作流程使用的映像檔會在每個工作中拉取一次，而非在不同工作間重複使用。若工作拉取大型自訂映像檔，請保持映像檔小巧，或在工作流程中使用具快取功能的 Buildx 建置器來建置：
+每個工作開始時映像檔儲存區都是空的，因此工作流程使用的映像檔會在每個工作中拉取一次，而非跨工作重複使用。如果工作拉取了大型自訂映像檔，請盡量縮小映像檔大小，或在工作流程中使用具備快取的 Buildx builder 來建置：
 
 ```yaml
       - uses: docker/setup-buildx-action@v3
@@ -94,4 +94,4 @@ Docker Hub 的拉取請求會透過 Tuist 營運的直通快取提供服務，�
           cache-to: type=gha,mode=max
 ```
 
-若需在原生工作或容器工作中使用持久的相依性目錄，請參閱<.localized_link href="/guides/features/runners/cache-volumes">快取磁碟區指南</.localized_link>。
+若需在原生工作或容器工作中使用持久化的相依性目錄，請參閱 <.localized_link href="/guides/features/runners/cache-volumes">快取磁碟區指南</.localized_link>。

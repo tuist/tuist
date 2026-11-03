@@ -44,7 +44,11 @@ defmodule TuistWeb.SSOLinkController do
       conn
       |> delete_session(:pending_sso_link)
       |> put_session(:user_return_to, return_to(link, user))
-      |> Authentication.log_in_user(user, %{auth_method: link.provider})
+      |> Authentication.log_in_user(user, %{
+        auth_method: link.provider,
+        provider_organization_id: link.provider_organization_id,
+        sso_organization_id: link.organization_id
+      })
     else
       :error ->
         render_expired(conn)
@@ -96,6 +100,7 @@ defmodule TuistWeb.SSOLinkController do
          uid: uid,
          provider_organization_id: provider_organization_id,
          email: email,
+         organization_id: organization.id,
          organization_name: Accounts.get_account_from_organization(organization).name,
          return_to: link["return_to"]
        }}

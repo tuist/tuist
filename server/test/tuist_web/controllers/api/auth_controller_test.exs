@@ -222,6 +222,14 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert response["message"] == "The refresh token is expired or invalid"
     end
 
+    test "returns bad request if the request has no body", %{conn: conn} do
+      # When
+      conn = post(conn, "/api/auth/refresh_token")
+
+      # Then
+      assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
+    end
+
     test "returns unautheticated if the refresh token is invalid", %{conn: conn} do
       # Given
       refresh_token = "refresh_token"
@@ -450,6 +458,14 @@ defmodule TuistWeb.API.AuthControllerTest do
   end
 
   describe "POST /api/auth" do
+    test "returns bad request if the request has no body", %{conn: conn} do
+      # When
+      conn = post(conn, "/api/auth")
+
+      # Then
+      assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
+    end
+
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
       password = UUIDv7.generate()
@@ -589,6 +605,14 @@ defmodule TuistWeb.API.AuthControllerTest do
   end
 
   describe "POST /api/auth/apple" do
+    test "returns bad request if the request has no body", %{conn: conn} do
+      # When
+      conn = post(conn, "/api/auth/apple")
+
+      # Then
+      assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
+    end
+
     test "returns access and refresh tokens when Apple authentication succeeds", %{conn: conn} do
       # Given
       identity_token = "identity-token"

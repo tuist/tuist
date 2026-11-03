@@ -24,6 +24,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
   @default_page_size 500
   @deletion_workers [
     {"app_previews", DeleteExpiredPreviewArtifactsWorker},
+    {"app_previews", Tuist.Artifacts.RetentionWorker},
     {"build_archives", DeleteExpiredBuildArchivesWorker},
     {"run_artifacts", DeleteExpiredRunSessionsWorker},
     {"test_attachments", DeleteExpiredTestAttachmentsWorker},

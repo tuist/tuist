@@ -2,7 +2,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Processor.XCResultNIF
   alias Tuist.Processor.XCResultProcessor
+  alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1128,6 +1131,81 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       assert shard_0.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
       assert shard_1.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
+    end
+  end
+
+  describe "perform/1 with a crashed test case" do
+    @tag :tmp_dir
+    test "stores the parsed crash report linked to its uploaded .ips attachment", %{
+      account: account,
+      project: project,
+      tmp_dir: tmp_dir
+    } do
+      test_run_id = Ecto.UUID.generate()
+      ips_path = Path.join(tmp_dir, "App-2026-11-02-101500.ips")
+      File.write!(ips_path, "ips")
+      frames = "0  libsystem_kernel.dylib  __pthread_kill + 8\n1  AppTests  AppTests.testCrash() + 52"
+
+      expect(Tuist.Storage, :download_to_file, fn _key, path, _account ->
+        {:ok, _} = :zip.create(~c"#{path}", [{~c"Test.xcresult/Info.plist", "plist"}])
+        {:ok, :done}
+      end)
+
+      expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
+        {:ok,
+         %{
+           "test_plan_name" => "AppTests",
+           "status" => "failure",
+           "duration" => 1500,
+           "test_modules" => [
+             %{
+               "name" => "AppTests",
+               "status" => "failure",
+               "duration" => 1500,
+               "test_suites" => [%{"name" => "CrashTests", "status" => "failure", "duration" => 1500}],
+               "test_cases" => [
+                 %{
+                   "name" => "testCrash",
+                   "test_suite_name" => "CrashTests",
+                   "status" => "failure",
+                   "duration" => 1500,
+                   "failures" => [
+                     %{"message" => "Crash: AppTests (12345) at __pthread_kill", "issue_type" => "error_thrown"}
+                   ],
+                   "attachments" => [
+                     %{"file_path" => ips_path, "file_name" => "App-2026-11-02-101500.ips", "repetition_number" => nil}
+                   ],
+                   "crash_report" => %{
+                     "exception_type" => "EXC_CRASH",
+                     "signal" => "SIGABRT",
+                     "exception_subtype" => "KERN_INVALID_ADDRESS",
+                     "file_path" => ips_path,
+                     "triggered_thread_frames" => frames
+                   }
+                 }
+               ]
+             }
+           ]
+         }}
+      end)
+
+      expect(Tuist.Storage, :upload_file, fn ^ips_path, _key, :system, _opts -> {:ok, :uploaded} end)
+
+      assert :ok == ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+
+      [test_case_run_id] =
+        ClickHouseRepo.all(from(r in TestCaseRun, where: r.test_run_id == ^test_run_id, select: r.id))
+
+      {:ok, test_case_run} =
+        Tuist.Tests.get_test_case_run_by_id(test_case_run_id, preload: [crash_report: :test_case_run_attachment])
+
+      assert %{
+               exception_type: "EXC_CRASH",
+               signal: "SIGABRT",
+               exception_subtype: "KERN_INVALID_ADDRESS",
+               triggered_thread_frames: ^frames,
+               test_case_run_attachment: %{file_name: "App-2026-11-02-101500.ips", test_case_run_id: ^test_case_run_id}
+             } = test_case_run.crash_report
     end
   end
 end

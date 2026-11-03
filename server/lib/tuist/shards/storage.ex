@@ -10,8 +10,10 @@ defmodule Tuist.Shards.Storage do
   alias Tuist.Storage
   alias Tuist.Storage.S3Target
 
+  def routable?(project), do: project.build_system in [:mix, :cargo]
+
   def select(project, account, grant) do
-    with true <- project.build_system in [:mix, :cargo],
+    with true <- routable?(project),
          false <- Account.custom_s3_storage_configured?(account),
          true <- FeatureFlags.runner_shard_storage_enabled?(account),
          {:ok, site} <- CacheGrant.linux_site(grant, account.id) do
@@ -21,7 +23,7 @@ defmodule Tuist.Shards.Storage do
         with true <- is_map(config),
              true <- config["enabled"] == true and config["private_network_ready"] == true,
              true <- config["site"] == site,
-             {:ok, target} <- target(id, config),
+             {:ok, target} <- s3_target(id, config),
              true <- Storage.available?(target) do
           id
         else
@@ -37,7 +39,7 @@ defmodule Tuist.Shards.Storage do
 
   def resolve(%{storage_target: id}, _account) do
     case Map.fetch(Environment.shard_storage_targets(), id) do
-      {:ok, config} -> target(id, config)
+      {:ok, config} -> s3_target(id, config)
       :error -> {:error, :shard_storage_unavailable}
     end
   end
@@ -60,7 +62,11 @@ defmodule Tuist.Shards.Storage do
     end
   end
 
-  defp target(id, config) do
+  @doc """
+  The S3 target a storage target configuration describes: its endpoint,
+  `"bucket"` and key.
+  """
+  def s3_target(id, config) do
     with %{"endpoint" => endpoint, "bucket" => bucket, "access_key_id" => key, "secret_access_key" => secret} <- config,
          true <- Enum.all?([endpoint, bucket, key, secret], &(is_binary(&1) and &1 != "")),
          %URI{scheme: scheme, host: host, port: port, path: path, userinfo: nil, query: nil, fragment: nil} <-

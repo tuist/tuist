@@ -307,6 +307,76 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
     }
   end
 
+  describe "select_candidate/3 with an idle holder elsewhere" do
+    setup do
+      account = AccountsFixtures.account_fixture()
+      volumes = macos_volumes(account)
+      fleet = "macos-#{System.unique_integer([:positive])}"
+      nodes = %{"mac-01" => node_labels([], 500), "mac-02" => node_labels([volumes.xcode, volumes.module], 500)}
+
+      stub(K8sClient, :get_runner_pool, fn _namespace, ^fleet -> {:ok, %{"spec" => %{"fleetSelector" => fleet}}} end)
+
+      stub(K8sClient, :list_nodes, fn "tuist.dev/fleet=" <> ^fleet ->
+        {:ok, %{"items" => for({name, labels} <- nodes, do: %{"metadata" => %{"name" => name, "labels" => labels}})}}
+      end)
+
+      stub(K8sClient, :get_node, fn name -> {:ok, %{"metadata" => %{"labels" => nodes[name]}}} end)
+
+      %{account: account, fleet: fleet, build: queued_macos(account, "CI", "Build", DateTime.utc_now())}
+    end
+
+    test "passes a young job over while another Node holding its volumes has an idle runner", %{
+      fleet: fleet,
+      build: build
+    } do
+      VolumeAffinities.note_idle(fleet, "mac-02")
+
+      assert VolumeAffinities.select_candidate([build], "mac-01", tolerance_seconds: 30, fleet_name: fleet) == nil
+    end
+
+    test "hands the job to the holder itself", %{fleet: fleet, build: build} do
+      VolumeAffinities.note_idle(fleet, "mac-02")
+
+      assert VolumeAffinities.select_candidate([build], "mac-02", tolerance_seconds: 30, fleet_name: fleet) ==
+               {build, :head_resident}
+    end
+
+    test "keeps a job whose holders have no idle runner", %{fleet: fleet, build: build} do
+      assert VolumeAffinities.select_candidate([build], "mac-01", tolerance_seconds: 30, fleet_name: fleet) ==
+               {build, :no_residency}
+
+      VolumeAffinities.note_idle(fleet, "mac-02")
+      VolumeAffinities.note_busy(fleet, "mac-02")
+
+      assert VolumeAffinities.select_candidate([build], "mac-01", tolerance_seconds: 30, fleet_name: fleet) ==
+               {build, :no_residency}
+    end
+
+    test "keeps a job past the tolerance", %{account: account, fleet: fleet} do
+      VolumeAffinities.note_idle(fleet, "mac-02")
+      overdue = queued_macos(account, "CI", "Build", DateTime.add(DateTime.utc_now(), -60, :second))
+
+      assert VolumeAffinities.select_candidate([overdue], "mac-01", tolerance_seconds: 30, fleet_name: fleet) ==
+               {overdue, :no_residency}
+    end
+
+    test "passes over only the jobs held elsewhere", %{fleet: fleet, build: build} do
+      VolumeAffinities.note_idle(fleet, "mac-02")
+
+      other =
+        queued_macos(AccountsFixtures.account_fixture(), "CI", "Build", DateTime.add(DateTime.utc_now(), 5, :second))
+
+      assert VolumeAffinities.select_candidate([build, other], "mac-01", tolerance_seconds: 30, fleet_name: fleet) ==
+               {other, :no_residency}
+    end
+
+    test "passes nothing over without the pool", %{fleet: fleet, build: build} do
+      VolumeAffinities.note_idle(fleet, "mac-02")
+
+      assert VolumeAffinities.select_candidate([build], "mac-01", tolerance_seconds: 30) == {build, :no_residency}
+    end
+  end
+
   describe "select_candidate/3 with cache room" do
     setup do
       account = AccountsFixtures.account_fixture()

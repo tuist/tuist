@@ -438,7 +438,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     test "describes the settings a lapsed verification keeps and still saves the configuration", %{
       conn: conn,
       account: account,
-      organization: organization
+      organization: organization,
+      user: user
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :okta, %{
@@ -460,7 +461,14 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       {:ok, _lv, html} =
         conn
-        |> init_test_session(%{auth_method: :okta})
+        |> put_session(
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :okta,
+            provider_organization_id: "company.okta.com",
+            sso_organization_id: organization.id
+          })
+        )
         |> live(~p"/#{account.name}/settings/authentication")
 
       assert html =~ "Automatic enrollment is paused until the login email domain is verified"
@@ -729,7 +737,17 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         provider_organization_id: "https://login.vendor.example"
       })
 
-      conn = put_session(conn, :auth_method, :oauth2)
+      conn =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :oauth2,
+            provider_organization_id: "https://login.vendor.example",
+            sso_organization_id: organization.id
+          })
+        )
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       sso_form =
@@ -1033,7 +1051,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     test "turns off automatic enrollment and enforcement when switching to an unverified custom provider", %{
       conn: conn,
       account: account,
-      organization: organization
+      organization: organization,
+      user: user
     } do
       {:ok, _organization} =
         Accounts.update_organization(organization, %{
@@ -1043,7 +1062,16 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
           sso_automatic_enrollment: true
         })
 
-      conn = put_session(conn, :auth_method, :google)
+      conn =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "customer.example"
+          })
+        )
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
       render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
 

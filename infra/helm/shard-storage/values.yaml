@@ -5,6 +5,11 @@ image: dxflrs/garage:v2.5.0
 # storage host, whose disk is not part of any region's allocatable.
 region: eu-west
 bucket: shards
+# Bucket for Amp Orb archives on the same store, created by the lifecycle job
+# and never expired: an archive is the only copy of an archived Orb. Empty
+# keeps archives in each account's own storage. Never rename it on an
+# existing target.
+archiveBucket: ""
 # Start with 1 in every environment; 3 is an optional future topology. Never change
 # this on an existing release: create a new store and immutable target instead.
 replicas: 1
@@ -47,6 +52,9 @@ target:
 privateNetwork: ""
 serverNamespace: tuist
 runnerNamespace: tuist-runners
+# Namespace of the sandbox daemons that upload and restore archives. Empty
+# admits none.
+sandboxNamespace: ""
 # Preserve the existing staging experiment's policy. Fresh environment overlays
 # use a separate 3-day archive lifetime; plan/result retention is unchanged.
 lifecycle:
