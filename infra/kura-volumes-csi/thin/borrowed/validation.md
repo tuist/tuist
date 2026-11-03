@@ -95,7 +95,7 @@ was verified as `c5c25a23f0b130ea156858ac7813c5c9a80cb565c77234600a9f30eb48888a4
 Runtime CPU/throttling, memory events, attributable I/O, host CPU/disk counters,
 actual XFS geometry and filesystem margins were recorded for each sample.
 There was no global cache drop. Synthetic keys/authentication were generated in
-memory; this run exercises data-path performance, not OpenBao authorization.
+memory; this run exercises data-path performance, not key-service authorization.
 
 The runtime is a single-node fixture with itself as its peer and a same-node
 HTTP client. Internet/TLS/ingress latency, cross-node replication, fleet load,
@@ -124,8 +124,8 @@ removed. VG free capacity returned exactly to **812,541,542,400 bytes**, with on
 the original `data` LV remaining. No node restart, CSI deployment, image
 publication, production mutation or global cache drop was performed. The changed
 format command was exercised directly on the staging volumes; the Go-driver and
-OpenBao lifecycle qualifications described below remain prior evidence, not tests
-rerun by this benchmark.
+Kubernetes lifecycle qualifications described below remain prior evidence, not
+tests rerun by this benchmark.
 
 The source remained `f4c163d8d36`; no runtime or driver code changed for this
 comparison. The local reports contain measurements and no credentials:
@@ -159,7 +159,7 @@ Volumes came only from free extents in a private 32 GiB staging pool and a
 separate temporary thick LV. A 64 MiB virtual sentinel kept the diagnostic
 pool active during thick controls. No CSI template, tenant PVC, server
 configuration, or enrollment setting changed. Keys and authentication were
-synthetic: this isolates storage I/O and does not repeat OpenBao authorization
+synthetic: this isolates storage I/O and does not repeat key-service authorization
 qualification. API TLS timeouts affected setup, not the timed pod-IP HTTP path.
 
 The initial 16 samples passed **147,200 requests with zero failures and no
@@ -324,7 +324,7 @@ recovery, supported production runtime layout, or regional capacity/memory gains
 Production-format changes need those applicable gates; this investigation does
 not waive them.
 
-## Real Kubernetes/OpenBao qualification on Paris staging
+## Real Kubernetes qualification on Paris staging
 
 The isolated October 28 fixture runs on
 `tuist-tuist-kura-fleet-fm4h8-qmkn8`: AMD EPYC 7232P (8 cores/16 threads), kernel
@@ -337,16 +337,17 @@ This is ordinary bounded provisioning, not the destructive disposable-VM harness
 Only the Paris CSI pod was replaced, using `OnDelete`; the other two plugin pod
 identities/images stayed unchanged. The ordinary template was restored under
 `OnDelete` immediately after each scoped restart. The test uses an isolated
-three-voter persistent OpenBao 2.7.1 cluster, TLS, Kubernetes authentication and
-a derived non-exportable Transit key. Two synthetic accounts have real persisted
+external Transit key-service fixture (that provider has since been removed) with
+TLS and Kubernetes authentication. Two synthetic accounts have real persisted
 wrapped key rows and distinct live PVC ownership. The main server deployment,
 ordinary key-provider defaults and production enrollment were not changed.
 
 The key listener runs the **compiled production controller, VolumeKeys, Repo,
-Kubernetes client and OpenBao provider**, with a small fixture-only Bandit/PubSub
-bootstrap instead of the main application's supervision tree/background jobs.
-It verifies real projected pod-bound CSI tokens and live PV/PVC ownership. This
-is not a full Phoenix deployment smoke test or permanent OpenBao custody rollout.
+Kubernetes client and that fixture's share provider**, with a small fixture-only
+Bandit/PubSub bootstrap instead of the main application's supervision
+tree/background jobs. It verifies real projected pod-bound CSI tokens and live
+PV/PVC ownership. This is not a full Phoenix deployment smoke test or a
+key-custody rollout.
 
 Image/source identities:
 
@@ -363,22 +364,21 @@ Image/source identities:
 The real staging sequence passed:
 
 1. Verified TLS and rejected an unauthenticated request to the compiled endpoint.
-2. Wrapped only the two fixture accounts with OpenBao, then created real encrypted
-   parent claims through the Kubernetes external provisioner and kubelet.
+2. Wrapped only the two fixture accounts with the fixture key service, then
+   created real encrypted parent claims through the Kubernetes external
+   provisioner and kubelet.
 3. Created a child through the fenced Unix-socket API. It appeared in the already
    running unprivileged Kura pod through host-to-container propagation. Exact
    response replay allocated nothing twice; a stale generation was refused.
 4. Wrote/read a 1 GiB corpus (512 successful requests) across base and child.
    After a real CSI Pod replacement, all 256 objects still matched their hashes.
 5. Deleted the runtime Pod and verified both parent and child dm-crypt mappings
-   were closed. Sealing two of three OpenBao voters removed quorum. A third seal
-   request returned 500 because quorum was already absent; status confirmed two
-   sealed voters and one unsealed standby. Real kubelet restage failed with the
-   expected key-service 503, rather than opening without authorization.
-6. Restored quorum, re-staged, and verified all 256 checksums. Base/child LV UUIDs
-   stayed stable while the runtime Pod UID changed; the previous Pod's lease was
-   rejected. Transit rotation and account-key rewrap to envelope v2, followed by
-   another cold Pod replacement, preserved all 256 checksums again.
+   were closed. With the key service made unavailable, real kubelet restage
+   failed with the expected key-service 503, rather than opening without
+   authorization.
+6. Restored the key service, re-staged, and verified all 256 checksums. Base/child
+   LV UUIDs stayed stable while the runtime Pod UID changed; the previous Pod's
+   lease was rejected.
 7. Held a real child segment open inside the unprivileged Pod. CSI-driven drain
    retired/unlinked its segments. Release failed while the reader remained open;
    both mapped pool usage and full commitment stayed charged. The descriptor's
@@ -387,8 +387,6 @@ The real staging sequence passed:
 8. Created a fresh child for the second synthetic account in the same pool. Its
    experimental runtime wrote/read another 1 GiB corpus (512 successful requests)
    and placed real segments on the new child. Both base LV identities survived.
-9. OpenBao audit inspection found 165 records and verified JWT/plaintext fields
-   were HMAC-protected rather than logged in cleartext.
 
 The held-reader boundary retained **27,917,287,424 committed bytes** and
 **1,383,596,032 pool data bytes**. Final close/deletion reduced commitment to
@@ -412,8 +410,8 @@ Failures during fixture setup are retained as limitations, not passing evidence:
   excludes the existing plain Pod from that list.
 
 Matched hardware comparison and cleanup verification follow below. This
-fixture does not qualify node power loss, permanent unseal/backup custody, the
-production fairness agent, a supported multi-volume cache format, or a new
+fixture does not qualify node power loss, root-key custody, the production
+fairness agent, a supported multi-volume cache format, or a new
 migration/endpoint-handoff path. Existing migration safeguards remain mandatory.
 
 ## Matched Paris hardware comparison and interpretation
@@ -481,14 +479,12 @@ were removed; its empty host directory remains. No forced/lazy unmount was used.
 The original CSI image/template/RollingUpdate strategy is restored and all three
 node plugins are ready. Both non-Paris pod UIDs remained unchanged. Both synthetic
 accounts, ownership rows and key rows were deleted; the key inventory reported
-zero remaining OpenBao rows. The isolated key endpoint, TLS/auth Secrets, OpenBao
-StatefulSet, all three persistent claims/PVs, Services and ConfigMaps were removed.
-The three OpenBao PVs used `Retain`; each was verified Released with its exact
-claim UID gone before changing only those PVs to `Delete`. All three PVs are now
-absent. [Cleanup run 40753215580](https://github.com/tuist/tuist/actions/runs/40753215580)
+zero remaining fixture rows. The isolated key endpoint and key-service fixture,
+including its TLS/auth Secrets, persistent storage, Services and ConfigMaps, were
+removed. [Cleanup run 40753215580](https://github.com/tuist/tuist/actions/runs/40753215580)
 removed the fixture StorageClass and TokenReview identity/RBAC through the normal
-staging deployment lane. Private test unseal shares, root token and TLS private
-keys were destroyed after resource teardown. Only dedicated fixture image tags
+staging deployment lane. Fixture key material and TLS private keys were
+destroyed after resource teardown. Only dedicated fixture image tags
 and non-secret measurement artifacts remain; production was not changed.
 
 ## Recovery follow-up and second matched comparison
@@ -595,7 +591,7 @@ of released-ID reuse, and transfer to another tenant's independently keyed child
 Both base identities survived and final commitment returned to zero. The restart
 is reconstruction of the driver object plus real mapping close/reopen, not a
 kubelet, containerd or node reboot. Keys remain fixture-derived: this run does not
-qualify Kubernetes ownership or OpenBao integration.
+qualify Kubernetes ownership or key-service integration.
 
 All five layouts now have **13 GiB aggregate virtual size**, the same experimental
 runtime binary, 4 GiB cache budget, one CPU, 768 MiB memory, and the same forward/
@@ -645,9 +641,9 @@ runtime/CSI images were subsequently published under dedicated `kura-child-fixtu
 tags after explicit user approval. The alternate host-containerd socket importer
 was rejected and was not used. Native amd64 server release boot passed in
 [40740703970](https://github.com/tuist/tuist/actions/runs/40740703970); this is not
-full web-server readiness. An isolated three-voter OpenBao fixture and compiled
-key endpoint and matched hardware comparison passed the staging sequence
-recorded above. Cleanup/restoration evidence is recorded alongside it.
+full web-server readiness. The isolated Kubernetes fixture, compiled key
+endpoint and matched hardware comparison passed the staging sequence recorded
+above. Cleanup/restoration evidence is recorded alongside it.
 
 ## Earlier fixture-only prototype (historical evidence)
 
@@ -657,8 +653,8 @@ The harness calls the actual CSI driver against its own private loop-backed VG,
 with a 24 GiB thin data pool, 512 MiB metadata, 512 KiB chunks, 256 MiB data
 reserve, 32 MiB metadata reserve and eight device slots. Each fixture volume has
 a distinct derived key and runs LUKS2 + XFS with the current CSI sizing profile.
-The key service is a test double; OpenBao and Kubernetes authorization are not
-qualified by these runs.
+The key service is a test double; key custody and Kubernetes authorization are
+not qualified by these runs.
 
 Two instances each have a 4 GiB useful floor and a 16 GiB logical ceiling. A
 borrowed unit adds 4 GiB useful capacity. The unchanged `Targets` function from
@@ -821,7 +817,7 @@ This successful bounded prototype leaves production work: stable parent/child id
 and authorization, durable and fenced asynchronous grant operations, complete
 retained-volume inventory, Kubernetes mount lifecycle, quota/overhead conversion,
 unit-granularity fairness, larger device-count metadata/memory qualification, and
-migration of existing monolithic volumes. OpenBao custody/recovery and staged
-catch-up, destination-bound write acknowledgments and endpoint handoff remain
-independent release requirements. The original single-filesystem requirement is
+migration of existing monolithic volumes. Staged catch-up, destination-bound
+write acknowledgments and endpoint handoff remain independent release
+requirements. The original single-filesystem requirement is
 changed by this candidate, and that tradeoff must remain explicit.
