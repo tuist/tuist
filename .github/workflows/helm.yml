@@ -304,7 +304,7 @@ jobs:
             kubeconform -strict -summary xcresult-processor.yaml
           done
       # The rack charts render with another chart's values, which the loop
-      # above cannot express.
+      # above cannot express. Deploys pass the CSI image; CI pins a placeholder.
       - name: kubeconform the rack charts
         run: |
           set -euo pipefail
@@ -312,7 +312,8 @@ jobs:
             helm template tuist-rack-nodes infra/helm/rack-nodes --namespace tuist \
               -f infra/helm/tuist/values.yaml \
               -f infra/helm/tuist/values-managed-common.yaml \
-              -f "infra/helm/tuist/values-managed-$env.yaml" > rack-nodes.yaml
+              -f "infra/helm/tuist/values-managed-$env.yaml" \
+              --set kuraVolumesCSI.image.tag=validation > rack-nodes.yaml
             kubeconform -strict -summary rack-nodes.yaml
           done
           for overlay in values-tuist-staging.yaml values-tuist.yaml; do
