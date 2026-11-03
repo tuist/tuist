@@ -247,7 +247,7 @@
           id="test-selection-runs-fallback-dropdown"
           label={
             if @fallback?,
-              do: dgettext("dashboard_tests", "Ran everything"),
+              do: dgettext("dashboard_tests", "Fell back"),
               else: dgettext("dashboard_tests", "Any")
           }
           secondary_text={dgettext("dashboard_tests", "Outcome:")}
@@ -257,7 +257,7 @@
             value={fallback}
             label={
               if fallback == "true",
-                do: dgettext("dashboard_tests", "Ran everything"),
+                do: dgettext("dashboard_tests", "Fell back"),
                 else: dgettext("dashboard_tests", "Any")
             }
             patch={"?#{@uri.query |> Query.put("fallback", fallback) |> Query.drop("page")}"}
@@ -277,34 +277,36 @@
         >
           <:col :let={run} label={dgettext("dashboard_tests", "Commit")}>
             <.text_and_description_cell
-              label={short_sha(run.git_commit_sha)}
+              label={short_sha(run.commit_sha)}
               description={run.git_branch}
             />
           </:col>
           <:col :let={run} label={scheme_label(@selected_project)}>
             <.text_and_description_cell
-              label={if run.test_plan != "", do: run.test_plan, else: run.scheme}
-              description={run.destination}
+              label={run_scope(run)}
+              description={Map.get(run.build_context, "destination", "")}
             />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_tests", "Baseline")}>
+            <.text_cell label={
+              if run.baseline_sha in [nil, ""], do: "–", else: short_sha(run.baseline_sha)
+            } />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected")}>
             <.text_cell label={"#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Skip rate")}>
             <.text_cell
-              :if={run.fallback_reason == ""}
+              :if={!Selections.fallback?(run)}
               label={"#{Selections.skip_rate(run.selected_count, run.skipped_count)}%"}
             />
             <.badge_cell
-              :if={run.fallback_reason != ""}
-              label={fallback_label(run.fallback_reason)}
+              :if={Selections.fallback?(run)}
+              label={fallback_label(run.reason)}
               color="warning"
               style="light-fill"
               icon="alert_triangle"
             />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Shards")}>
-            <.text_cell label={format_number(run.shard_count)} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.inserted_at)} />

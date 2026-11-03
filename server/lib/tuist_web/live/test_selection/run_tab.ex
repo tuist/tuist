@@ -1,17 +1,24 @@
 defmodule TuistWeb.TestSelection.RunTab do
   @moduledoc """
-  The coverage selection a test run's tests came from, in the test run's
-  Selective Testing tab: the baseline, the counts and the invocation; then
-  four tabs:
+  The impact run a test run points to, in the test run's Selective Testing
+  tab: the outcome, the baseline, the counts and the invocation; then these
+  tabs:
 
-  - Tests: every requested test with its decision, reason, shard, estimated
-    duration and outcome, the selected tests that never reported flagged; each opens its test case run's Selective Testing
-    tab (`TuistWeb.TestSelection.TestCaseRunTab`).
-  - Modules: the requested tests per test module. The test run page fills
-    it with its module-level selective testing table instead when it has one.
-  - Changed files: what changed since the baseline and how many tests each
-    file reaches.
-  - Shards: per shard, what was planned and what ran.
+  - Tests: every test coverage decided with its decision, the rule that
+    decided it, the shard, the estimated duration and the outcome, the
+    selected tests that never reported flagged; each opens its test case
+    run's Selective Testing tab (`TuistWeb.TestSelection.TestCaseRunTab`).
+    Skipped tests are derived from the baseline run.
+  - Modules: the tests per module. The test run page fills it with its
+    module-level selective testing table instead when it has one.
+  - Changed files: what changed since the baseline, whether each file is
+    tracked and how many tests it selected.
+  - Shards, for a run a shard plan distributed: per shard, what was planned
+    and what ran.
+  - Configuration: the rules version, the trace of the rules that decided
+    it and the tracked files.
+
+  A fallback shows the outcome and the Configuration tab only.
 
   Its query parameters are prefixed with `selection-` so they don't clash
   with the test run page's own.
@@ -27,15 +34,15 @@ defmodule TuistWeb.TestSelection.RunTab do
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
-  @tabs ~w(tests modules files shards)
+  @tabs ~w(tests modules files shards configuration)
   @sort_fields ~w(decision name shard duration)
-  @kinds ~w(source test resource tracked ignored)
 
   @doc "What the tab shows before its data is loaded."
   def assign_defaults(socket) do
     Phoenix.Component.assign(socket,
       selection_summary: nil,
-      selection_impact: nil,
+      selection_diff: nil,
+      selection_plan: nil,
       selection_baseline_coverage?: false,
       selection_tab: "tests",
       selection_filters: %{},
@@ -49,47 +56,53 @@ defmodule TuistWeb.TestSelection.RunTab do
   end
 
   @doc """
-  Loads what the tab shows for `selection_run` from the page's query
-  `params`. The run's summary and impact are loaded once and kept.
+  Loads what the tab shows for `selection_run`, the impact run the test run
+  `test_run_id` points to, from the page's query `params`. The run's
+  summary, diff and shard plan are loaded once and kept.
   """
-  def assign_data(socket, selection_run, params) do
+  def assign_data(socket, selection_run, test_run_id, params) do
     socket =
       if socket.assigns.selection_summary do
         socket
       else
-        [summary, impact, baseline_coverage?] =
+        [summary, diff, plan, baseline_coverage?] =
           Tuist.Tasks.parallel_tasks([
-            fn -> Selections.run_summary(selection_run) end,
-            fn -> Selections.get_impact(selection_run) end,
+            fn -> Selections.run_summary(selection_run, test_run_id) end,
+            fn -> Selections.get_diff(selection_run) end,
+            fn -> Selections.shard_plan(selection_run) end,
             fn -> Selections.coverage?(selection_run.project_id, selection_run.baseline_sha) end
           ])
 
-        socket
-        |> Phoenix.Component.assign(:selection_summary, summary)
-        |> Phoenix.Component.assign(:selection_impact, impact)
-        |> Phoenix.Component.assign(:selection_baseline_coverage?, baseline_coverage?)
+        Phoenix.Component.assign(socket,
+          selection_summary: summary,
+          selection_diff: diff,
+          selection_plan: plan,
+          selection_baseline_coverage?: baseline_coverage?
+        )
       end
 
-    tabs = tabs(selection_run)
-    tab = if params["selection-tab"] in tabs, do: params["selection-tab"], else: "tests"
+    tabs = tabs(selection_run, socket.assigns.selection_plan)
+    tab = if params["selection-tab"] in tabs, do: params["selection-tab"], else: hd(tabs)
 
     socket
     |> Phoenix.Component.assign(:selection_tab, tab)
-    |> assign_tab(tab, selection_run, params)
+    |> assign_tab(tab, selection_run, test_run_id, params)
   end
 
-  defp assign_tab(socket, "tests", run, params) do
+  defp assign_tab(socket, "tests", run, test_run_id, params) do
     search = params["selection-search"] || ""
     decision = if params["selection-decision"] in ~w(selected skipped), do: params["selection-decision"], else: "any"
+    reason = if params["selection-reason"] in reasons(), do: params["selection-reason"], else: "any"
     flag = if params["selection-flag"] in ~w(not_run), do: params["selection-flag"], else: "any"
-    shard = parse_shard(params["selection-shard"], run.shard_count)
+    shard = parse_shard(params["selection-shard"], socket.assigns.selection_plan)
     sort_by = if params["selection-sort-by"] in @sort_fields, do: params["selection-sort-by"], else: "decision"
     sort_order = if params["selection-sort-order"] == "desc", do: "desc", else: "asc"
 
     {rows, meta} =
-      Selections.run_tests(run,
+      Selections.run_tests(run, test_run_id,
         search: search,
         decision: decision,
+        reason: reason,
         flag: flag,
         shard: shard,
         sort_by: sort_by,
@@ -103,6 +116,7 @@ defmodule TuistWeb.TestSelection.RunTab do
       selection_filters: %{
         search: search,
         decision: decision,
+        reason: reason,
         flag: flag,
         shard: shard,
         sort_by: sort_by,
@@ -111,19 +125,19 @@ defmodule TuistWeb.TestSelection.RunTab do
     )
   end
 
-  defp assign_tab(socket, "files", _run, params) do
+  defp assign_tab(socket, "files", run, _test_run_id, params) do
     search = params["selection-search"] || ""
-    kind = if params["selection-kind"] in @kinds, do: params["selection-kind"], else: "any"
+    tracked = if params["selection-tracked"] == "true", do: "true", else: "any"
 
     {rows, meta} =
-      case socket.assigns.selection_impact do
+      case socket.assigns.selection_diff do
         nil ->
           {[], %{current_page: 1, total_pages: 1, total_count: 0}}
 
-        impact ->
-          Selections.impact_changed_files(impact,
+        diff ->
+          Selections.changed_files(socket.assigns.selected_project, run, diff,
             search: search,
-            kind: kind,
+            tracked: tracked == "true",
             page: parse_page(params["selection-page"])
           )
       end
@@ -131,25 +145,34 @@ defmodule TuistWeb.TestSelection.RunTab do
     Phoenix.Component.assign(socket,
       selection_files: rows,
       selection_files_meta: meta,
-      selection_filters: %{search: search, kind: kind}
+      selection_filters: %{search: search, tracked: tracked}
     )
   end
 
-  defp assign_tab(socket, "modules", run, _params),
+  defp assign_tab(socket, "modules", run, _test_run_id, _params),
     do: Phoenix.Component.assign(socket, :selection_targets, Selections.run_targets(run))
 
-  defp assign_tab(socket, "shards", run, _params),
-    do: Phoenix.Component.assign(socket, :selection_shards, Selections.run_shards(run))
+  defp assign_tab(socket, "shards", run, test_run_id, _params),
+    do:
+      Phoenix.Component.assign(
+        socket,
+        :selection_shards,
+        Selections.run_shards(run, socket.assigns.selection_plan, test_run_id)
+      )
+
+  defp assign_tab(socket, "configuration", _run, _test_run_id, _params), do: socket
 
   @doc "The query that searches the current tab for `search`."
   def search_query(uri, search), do: uri.query |> Query.put("selection-search", search) |> Query.drop("selection-page")
 
-  defp tabs(%{shard_count: count}) when count > 1, do: @tabs
-  defp tabs(_run), do: List.delete(@tabs, "shards")
+  defp tabs(%{outcome: "fallback"}, _plan), do: ["configuration"]
+  defp tabs(_run, nil), do: List.delete(@tabs, "shards")
+  defp tabs(_run, _plan), do: @tabs
 
   attr :selection_run, :map, required: true
   attr :summary, :map, required: true
-  attr :impact, :any, required: true
+  attr :diff, :any, required: true
+  attr :plan, :any, required: true
   attr :baseline_coverage?, :boolean, required: true
   attr :tab, :string, required: true
   attr :uri, :any, required: true
@@ -176,7 +199,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         data-part="selection-summary-card"
       >
         <.card_section
-          :if={@selection_run.fallback_reason != ""}
+          :if={Selections.fallback?(@selection_run)}
           data-part="selection-verdict-section"
         >
           <.alert
@@ -185,14 +208,25 @@ defmodule TuistWeb.TestSelection.RunTab do
             status="warning"
             size="large"
             title={
-              dgettext("dashboard_tests", "Ran everything: %{reason}",
-                reason: fallback_label(@selection_run.fallback_reason)
+              dgettext("dashboard_tests", "Fell back to default selective testing: %{reason}",
+                reason: fallback_label(@selection_run.reason)
               )
             }
-            description={fallback_description(@selection_run.fallback_reason)}
+            description={
+              Enum.join(
+                Enum.reject(
+                  [fallback_description(@selection_run.reason), @selection_run.matched_path],
+                  &(&1 == "")
+                ),
+                " "
+              )
+            }
           />
         </.card_section>
-        <.card_section data-part="selection-widgets-section">
+        <.card_section
+          :if={!Selections.fallback?(@selection_run)}
+          data-part="selection-widgets-section"
+        >
           <div data-part="widgets">
             <.widget
               id="widget-selection-selected"
@@ -228,10 +262,10 @@ defmodule TuistWeb.TestSelection.RunTab do
               description={
                 dgettext(
                   "dashboard_tests",
-                  "The skipped tests' estimated duration, run one after another."
+                  "The skipped tests' durations in the baseline run, one after another."
                 )
               }
-              value={format_duration(@selection_run.skipped_duration)}
+              value={format_duration(@summary.skipped_duration)}
             />
             <.widget
               id="widget-selection-not-run"
@@ -252,7 +286,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
               <dd>
                 <.link_button
-                  :if={@selection_run.baseline_sha != "" and @baseline_coverage?}
+                  :if={has_baseline?(@selection_run) and @baseline_coverage?}
                   navigate={
                     "/#{@account.name}/#{@project.name}/tests/coverage/commits/#{@selection_run.baseline_sha}"
                   }
@@ -261,10 +295,10 @@ defmodule TuistWeb.TestSelection.RunTab do
                   size="large"
                   underline
                 />
-                <span :if={@selection_run.baseline_sha != "" and !@baseline_coverage?}>
+                <span :if={has_baseline?(@selection_run) and !@baseline_coverage?}>
                   {short_sha(@selection_run.baseline_sha)}
                 </span>
-                <span :if={@selection_run.baseline_sha == ""}>
+                <span :if={!has_baseline?(@selection_run)}>
                   {dgettext("dashboard_tests", "None")}
                 </span>
               </dd>
@@ -272,33 +306,33 @@ defmodule TuistWeb.TestSelection.RunTab do
             <div>
               <dt>{dgettext("dashboard_tests", "Changed since the baseline")}</dt>
               <dd>
-                {if @impact,
+                {if @diff,
                   do:
                     dngettext(
                       "dashboard_tests",
                       "%{count} file",
                       "%{count} files",
-                      @impact.changed_files_count,
-                      count: format_number(@impact.changed_files_count)
+                      @diff.changed_files_count,
+                      count: format_number(@diff.changed_files_count)
                     ),
                   else: "–"}
               </dd>
             </div>
-            <div>
+            <div :if={context(@selection_run, "scheme") != ""}>
               <dt>{scheme_label(@project)}</dt>
-              <dd>{@selection_run.scheme}</dd>
+              <dd>{context(@selection_run, "scheme")}</dd>
             </div>
-            <div :if={@selection_run.test_plan != ""}>
+            <div :if={context(@selection_run, "test_plan") != ""}>
               <dt>{dgettext("dashboard_tests", "Test plan")}</dt>
-              <dd>{@selection_run.test_plan}</dd>
+              <dd>{context(@selection_run, "test_plan")}</dd>
             </div>
-            <div :if={@selection_run.destination != ""}>
+            <div :if={context(@selection_run, "destination") != ""}>
               <dt>{dgettext("dashboard_tests", "Destination")}</dt>
-              <dd>{@selection_run.destination}</dd>
+              <dd>{context(@selection_run, "destination")}</dd>
             </div>
-            <div>
+            <div :if={@plan}>
               <dt>{dgettext("dashboard_tests", "Shards")}</dt>
-              <dd>{format_number(@selection_run.shard_count)}</dd>
+              <dd>{format_number(@plan.shard_count)}</dd>
             </div>
             <div>
               <dt>{dgettext("dashboard_tests", "Selected at")}</dt>
@@ -308,9 +342,9 @@ defmodule TuistWeb.TestSelection.RunTab do
         </.card_section>
       </.card>
 
-      <.tab_menu_horizontal>
+      <.tab_menu_horizontal :if={!Selections.fallback?(@selection_run)}>
         <.tab_menu_horizontal_item
-          :for={tab <- tabs(@selection_run)}
+          :for={tab <- tabs(@selection_run, @plan)}
           selected={@tab == tab}
           label={tab_label(tab, assigns)}
           patch={"?#{@uri.query |> Query.put("selection-tab", tab) |> drop_tab_params()}"}
@@ -323,11 +357,31 @@ defmodule TuistWeb.TestSelection.RunTab do
     """
   end
 
+  @doc "What the Selective Testing tab shows when the test run's impact run expired."
+  def expired_selection(assigns) do
+    ~H"""
+    <.alert
+      id="test-selection-expired"
+      type="secondary"
+      status="information"
+      size="large"
+      title={dgettext("dashboard_tests", "The coverage selection's details expired")}
+      description={
+        dgettext(
+          "dashboard_tests",
+          "This test run used coverage-based test selection, but its impact run is past retention."
+        )
+      }
+    />
+    """
+  end
+
   defp tab_card(%{tab: "tests"} = assigns), do: tests_card(assigns)
   defp tab_card(%{tab: "files"} = assigns), do: files_card(assigns)
   defp tab_card(%{tab: "modules", modules: [_ | _]} = assigns), do: ~H"{render_slot(@modules)}"
   defp tab_card(%{tab: "modules"} = assigns), do: modules_card(assigns)
   defp tab_card(%{tab: "shards"} = assigns), do: shards_card(assigns)
+  defp tab_card(%{tab: "configuration"} = assigns), do: configuration_card(assigns)
 
   defp tests_card(assigns) do
     ~H"""
@@ -370,7 +424,22 @@ defmodule TuistWeb.TestSelection.RunTab do
             </.dropdown_item>
           </.dropdown>
           <.dropdown
-            :if={@selection_run.test_run_id}
+            id="selection-reason-dropdown"
+            label={reason_filter_label(@filters.reason)}
+            secondary_text={dgettext("dashboard_tests", "Reason:")}
+          >
+            <.dropdown_item
+              :for={reason <- ["any" | reasons()]}
+              value={reason}
+              label={reason_filter_label(reason)}
+              patch={filter_patch(@uri, "selection-reason", reason)}
+              data-selected={@filters.reason == reason}
+            >
+              <:right_icon :if={@filters.reason == reason}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.dropdown
+            :if={@summary.reported}
             id="selection-flag-dropdown"
             label={flag_filter_label(@filters.flag)}
             secondary_text={dgettext("dashboard_tests", "Flag:")}
@@ -386,7 +455,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             </.dropdown_item>
           </.dropdown>
           <.dropdown
-            :if={@selection_run.shard_count > 1}
+            :if={@plan}
             id="selection-shard-dropdown"
             label={shard_filter_label(@filters.shard)}
             secondary_text={dgettext("dashboard_tests", "Shard:")}
@@ -400,7 +469,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               <:right_icon :if={is_nil(@filters.shard)}><.check /></:right_icon>
             </.dropdown_item>
             <.dropdown_item
-              :for={index <- 0..(@selection_run.shard_count - 1)}
+              :for={index <- 0..(@plan.shard_count - 1)//1}
               value={to_string(index)}
               label={shard_filter_label(index)}
               patch={filter_patch(@uri, "selection-shard", index)}
@@ -442,13 +511,13 @@ defmodule TuistWeb.TestSelection.RunTab do
             </:col>
             <:col
               :let={test}
-              :if={@selection_run.shard_count > 1}
+              :if={@plan}
               label={dgettext("dashboard_tests", "Shard")}
               patch={column_sort_patch(@uri, @filters, "shard")}
               sort_order={@filters.sort_by == "shard" && @filters.sort_order}
             >
               <.text_cell label={
-                if test.decision == "selected", do: format_number(test.shard_index), else: "–"
+                if is_nil(test.shard_index), do: "–", else: format_number(test.shard_index)
               } />
             </:col>
             <:col
@@ -457,13 +526,13 @@ defmodule TuistWeb.TestSelection.RunTab do
               patch={column_sort_patch(@uri, @filters, "duration")}
               sort_order={@filters.sort_by == "duration" && @filters.sort_order}
             >
-              <.text_cell label={format_duration(test.estimated_duration_ms)} icon="history" />
+              <.text_cell label={format_duration(test.duration)} icon="history" />
             </:col>
             <:col :let={test} label={dgettext("dashboard_tests", "Outcome")}>
               <.outcome_cell
                 outcome={test.outcome}
                 decision={test.decision}
-                reported={not is_nil(@selection_run.test_run_id)}
+                reported={@summary.reported}
               />
             </:col>
           </.table>
@@ -512,21 +581,35 @@ defmodule TuistWeb.TestSelection.RunTab do
             />
           </.form>
           <.dropdown
-            id="selection-kind-dropdown"
-            label={kind_filter_label(@filters.kind)}
-            secondary_text={dgettext("dashboard_tests", "Kind:")}
+            id="selection-tracked-dropdown"
+            label={tracked_filter_label(@filters.tracked)}
+            secondary_text={dgettext("dashboard_tests", "Files:")}
           >
             <.dropdown_item
-              :for={kind <- ["any" | kinds()]}
-              value={kind}
-              label={kind_filter_label(kind)}
-              patch={filter_patch(@uri, "selection-kind", kind)}
-              data-selected={@filters.kind == kind}
+              :for={tracked <- ~w(any true)}
+              value={tracked}
+              label={tracked_filter_label(tracked)}
+              patch={filter_patch(@uri, "selection-tracked", tracked)}
+              data-selected={@filters.tracked == tracked}
             >
-              <:right_icon :if={@filters.kind == kind}><.check /></:right_icon>
+              <:right_icon :if={@filters.tracked == tracked}><.check /></:right_icon>
             </.dropdown_item>
           </.dropdown>
         </div>
+
+        <.alert
+          :if={@diff && @diff.changed_files_count > length(@diff.changed_files)}
+          id="selection-files-capped"
+          type="secondary"
+          status="information"
+          size="small"
+          title={
+            dgettext("dashboard_tests", "Showing the first %{shown} of %{total} changed files",
+              shown: format_number(length(@diff.changed_files)),
+              total: format_number(@diff.changed_files_count)
+            )
+          }
+        />
 
         <div :if={@files != []} data-part="selection-table">
           <.table id="selection-files-table" rows={@files} row_key={& &1.path}>
@@ -542,15 +625,17 @@ defmodule TuistWeb.TestSelection.RunTab do
                 label={file_status_label(file.status)}
               />
             </:col>
-            <:col :let={file} label={dgettext("dashboard_tests", "Kind")}>
+            <:col :let={file} label={dgettext("dashboard_tests", "Tracked")}>
               <.badge_cell
-                label={file_kind_label(file.kind)}
-                color={file_kind_color(file.kind)}
+                :if={file.tracked}
+                label={dgettext("dashboard_tests", "Tracked")}
+                color="warning"
                 style="light-fill"
               />
+              <.text_cell :if={!file.tracked} label="–" />
             </:col>
-            <:col :let={file} label={dgettext("dashboard_tests", "Tests it reaches")}>
-              <.text_cell label={format_number(file.impacted_tests_count)} />
+            <:col :let={file} label={dgettext("dashboard_tests", "Tests it selected")}>
+              <.text_cell label={format_number(file.selected_tests_count)} />
             </:col>
           </.table>
           <.pagination_group
@@ -564,7 +649,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         <.coverage_empty
           :if={@files == []}
           title={
-            if @impact,
+            if @diff,
               do: dgettext("dashboard_tests", "No file matches"),
               else: dgettext("dashboard_tests", "No baseline to diff against")
           }
@@ -686,23 +771,108 @@ defmodule TuistWeb.TestSelection.RunTab do
     """
   end
 
-  defp tab_label("tests", %{selection_run: run}),
-    do: dgettext("dashboard_tests", "Tests (%{count})", count: format_number(run.requested_count))
+  defp configuration_card(assigns) do
+    assigns = assign(assigns, :tracked_file_globs, Selections.tracked_file_globs(assigns.project))
 
-  defp tab_label("files", %{impact: impact}),
+    ~H"""
+    <.card
+      title={dgettext("dashboard_tests", "Configuration")}
+      icon="settings"
+      data-part="selection-configuration-card"
+    >
+      <.card_section data-part="selection-details-section">
+        <dl data-part="details">
+          <div>
+            <dt>{dgettext("dashboard_tests", "Strategy")}</dt>
+            <dd>{@selection_run.strategy}</dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard_tests", "Rules version")}</dt>
+            <dd id="selection-rules-version">
+              {if @selection_run.rules_version != "", do: @selection_run.rules_version, else: "–"}
+            </dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard_tests", "Build system")}</dt>
+            <dd>{@selection_run.build_system}</dd>
+          </div>
+          <div :if={@selection_run.platform != ""}>
+            <dt>{dgettext("dashboard_tests", "Platform")}</dt>
+            <dd>{@selection_run.platform}</dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard_tests", "Requested modules")}</dt>
+            <dd>
+              {if @selection_run.requested_modules == [],
+                do: dgettext("dashboard_tests", "Every module the baseline measured"),
+                else: Enum.join(@selection_run.requested_modules, ", ")}
+            </dd>
+          </div>
+        </dl>
+      </.card_section>
+      <.card_section data-part="selection-table-section">
+        <div :if={@selection_run.rule_trace != []} data-part="selection-table">
+          <.table
+            id="selection-rule-trace-table"
+            rows={Enum.with_index(@selection_run.rule_trace)}
+            row_key={fn {entry, index} -> "#{index}-#{entry.rule}" end}
+          >
+            <:col :let={{entry, _index}} label={dgettext("dashboard_tests", "Rule")}>
+              <.text_cell label={entry.rule} />
+            </:col>
+            <:col :let={{entry, _index}} label={dgettext("dashboard_tests", "Selected")}>
+              <.text_cell label={format_number(entry.selected)} />
+            </:col>
+            <:col :let={{entry, _index}} label={dgettext("dashboard_tests", "Skipped")}>
+              <.text_cell label={format_number(entry.skipped)} />
+            </:col>
+            <:col :let={{entry, _index}} label={dgettext("dashboard_tests", "Verdict")}>
+              <.badge_cell
+                label={entry.verdict}
+                color={if String.starts_with?(entry.verdict, "abort"), do: "warning", else: "neutral"}
+                style="light-fill"
+              />
+            </:col>
+          </.table>
+        </div>
+        <.coverage_empty
+          :if={@selection_run.rule_trace == []}
+          title={dgettext("dashboard_tests", "No rule ran")}
+          image="table"
+          data-part="empty-selection-rule-trace"
+        />
+      </.card_section>
+      <.card_section data-part="selection-tracked-files-section">
+        <dl data-part="details">
+          <div>
+            <dt>{dgettext("dashboard_tests", "Tracked files")}</dt>
+            <dd id="selection-tracked-files">{Enum.join(@tracked_file_globs, ", ")}</dd>
+          </div>
+        </dl>
+      </.card_section>
+    </.card>
+    """
+  end
+
+  defp tab_label("tests", %{summary: summary}),
+    do: dgettext("dashboard_tests", "Tests (%{count})", count: format_number(summary.requested))
+
+  defp tab_label("files", %{diff: diff}),
     do:
       dgettext("dashboard_tests", "Changed files (%{count})",
-        count: format_number((impact && impact.changed_files_count) || 0)
+        count: format_number((diff && diff.changed_files_count) || 0)
       )
 
   defp tab_label("modules", %{selection_run: run} = assigns),
     do:
       dgettext("dashboard_tests", "Modules (%{count})",
-        count: format_number(assigns.modules_count || length(run.requested_targets))
+        count: format_number(assigns.modules_count || length(run.requested_modules))
       )
 
-  defp tab_label("shards", %{selection_run: run}),
-    do: dgettext("dashboard_tests", "Shards (%{count})", count: format_number(run.shard_count))
+  defp tab_label("shards", %{plan: plan}),
+    do: dgettext("dashboard_tests", "Shards (%{count})", count: format_number(plan.shard_count))
+
+  defp tab_label("configuration", _assigns), do: dgettext("dashboard_tests", "Configuration")
 
   # A test that ran opens its test case run's Selective Testing tab; one the
   # selection skipped never ran, so it opens the test case.
@@ -713,7 +883,7 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   defp drop_tab_params(query) do
     Enum.reduce(
-      ~w(selection-search selection-decision selection-flag selection-shard selection-kind selection-sort-by selection-sort-order selection-page),
+      ~w(selection-search selection-decision selection-reason selection-flag selection-shard selection-tracked selection-sort-by selection-sort-order selection-page),
       query,
       &Query.drop(&2, &1)
     )
@@ -732,7 +902,11 @@ defmodule TuistWeb.TestSelection.RunTab do
     "?#{uri.query |> Query.put("selection-sort-by", column) |> Query.put("selection-sort-order", order) |> Query.drop("selection-page")}"
   end
 
-  defp kinds, do: @kinds
+  defp reasons, do: Selections.selected_reasons() ++ Selections.skipped_reasons()
+
+  defp has_baseline?(run), do: run.baseline_sha not in [nil, ""]
+
+  defp context(run, key), do: Map.get(run.build_context || %{}, key, "")
 
   defp decision_filter_label("any"), do: dgettext("dashboard_tests", "Any")
   defp decision_filter_label(decision), do: decision_label(decision)
@@ -743,14 +917,19 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp shard_filter_label(nil), do: dgettext("dashboard_tests", "Any")
   defp shard_filter_label(index), do: dgettext("dashboard_tests", "Shard %{index}", index: index)
 
-  defp kind_filter_label("any"), do: dgettext("dashboard_tests", "Any")
-  defp kind_filter_label(kind), do: file_kind_label(kind)
+  defp reason_filter_label("any"), do: dgettext("dashboard_tests", "Any")
+  defp reason_filter_label(reason), do: reason_label(reason)
+
+  defp tracked_filter_label("true"), do: dgettext("dashboard_tests", "Tracked")
+  defp tracked_filter_label(_tracked), do: dgettext("dashboard_tests", "All")
 
   defp format_duration(duration), do: DateFormatter.format_duration_from_milliseconds(duration)
 
-  defp parse_shard(value, shard_count) do
+  defp parse_shard(_value, nil), do: nil
+
+  defp parse_shard(value, plan) do
     case Integer.parse(value || "") do
-      {index, ""} when index >= 0 and index < shard_count -> index
+      {index, ""} when index >= 0 and index < plan.shard_count -> index
       _ -> nil
     end
   end

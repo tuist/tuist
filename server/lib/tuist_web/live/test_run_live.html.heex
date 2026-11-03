@@ -216,7 +216,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data || @selection_run}
+      :if={@has_selective_testing_data || @run.test_impact_run_id}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
@@ -492,17 +492,15 @@
           <div data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Baseline")}</div>
-              <span :if={@selection_run.baseline_sha != ""} data-part="value">
+              <span :if={@selection_run.baseline_sha not in [nil, ""]} data-part="value">
                 {String.slice(@selection_run.baseline_sha, 0, 7)}
               </span>
               <.badge
-                :if={@selection_run.fallback_reason != ""}
+                :if={Tuist.Tests.Selections.fallback?(@selection_run)}
                 label={
-                  dgettext("dashboard_tests", "Ran everything: %{reason}",
+                  dgettext("dashboard_tests", "Fell back: %{reason}",
                     reason:
-                      TuistWeb.TestSelection.Components.fallback_label(
-                        @selection_run.fallback_reason
-                      )
+                      TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
                   )
                 }
                 color="warning"
@@ -1824,14 +1822,19 @@
   </div>
 
   <div
-    :if={@selected_tab == "test-optimizations" && (@has_selective_testing_data || @selection_run)}
+    :if={
+      @selected_tab == "test-optimizations" &&
+        (@has_selective_testing_data || @run.test_impact_run_id)
+    }
     data-part="selective-testing"
   >
+    <RunTab.expired_selection :if={@selection_expired?} />
     <RunTab.coverage_selection
       :if={@selection_run}
       selection_run={@selection_run}
       summary={@selection_summary}
-      impact={@selection_impact}
+      diff={@selection_diff}
+      plan={@selection_plan}
       baseline_coverage?={@selection_baseline_coverage?}
       tab={@selection_tab}
       uri={@uri}
@@ -1868,7 +1871,10 @@
       </:modules>
     </RunTab.coverage_selection>
     <.selective_testing_tab
-      :if={@has_selective_testing_data && !@selection_run}
+      :if={
+        @has_selective_testing_data &&
+          (!@selection_run || Tuist.Tests.Selections.fallback?(@selection_run))
+      }
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}

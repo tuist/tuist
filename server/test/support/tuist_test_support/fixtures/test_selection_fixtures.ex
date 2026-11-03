@@ -1,119 +1,147 @@
 defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
   @moduledoc """
-  Fixtures for coverage-based test selection: selection runs with their
-  tests, and test impacts with their changed files and affected tests.
+  Fixtures for coverage-based test selection: impact runs with the tests
+  they selected, their diffs, and the baseline runs whose tests the skipped
+  ones are derived from.
   """
   alias Tuist.IngestRepo
-  alias Tuist.Tests.TestImpact
-  alias Tuist.Tests.TestImpactChangedFile
-  alias Tuist.Tests.TestImpactTest
-  alias Tuist.Tests.TestSelectionRun
-  alias Tuist.Tests.TestSelectionTest
+  alias Tuist.TestImpactAnalysis.Run
+  alias Tuist.TestImpactAnalysis.RunTest
+  alias Tuist.TestImpactAnalysis.Storage
+  alias Tuist.Tests.CoverageRun
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   @doc """
-  Inserts a selection run for `project_id` with the given `tests` (maps over
-  a test's fields; `decision` and `name` at least) and returns it. Counts
-  are derived from the tests.
+  Inserts an impact run for `project_id` with the given `selected` tests
+  (maps over a selected test's fields; `name` at least) and returns it. The
+  selected count is derived from them; `skipped_count` defaults to 0.
   """
   def run_fixture(attrs \\ []) do
     project_id = Keyword.fetch!(attrs, :project_id)
     id = Keyword.get(attrs, :id, UUIDv7.generate())
     inserted_at = Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    commit_sha = Keyword.get(attrs, :commit_sha, "a1b2c3d4e5f6")
+    outcome = Keyword.get(attrs, :outcome, "selected")
 
-    tests =
+    selected =
       attrs
-      |> Keyword.get(:tests, [])
+      |> Keyword.get(:selected, [])
       |> Enum.map(fn test ->
         Map.merge(
           %{
+            test_impact_run_id: id,
             project_id: project_id,
-            selection_run_id: id,
             test_case_id: UUIDv7.generate(),
             module_name: "AppTests",
             suite_name: "AppTests",
-            name: "",
-            shard_index: 0,
-            reason: if(test[:decision] == "selected", do: "impacted", else: "unaffected"),
+            reason: "impacted",
             matched_path: "",
-            estimated_duration_ms: 100,
             inserted_at: inserted_at
           },
           test
         )
       end)
 
-    {selected, skipped} = Enum.split_with(tests, &(&1.decision == "selected"))
+    skipped_count = Keyword.get(attrs, :skipped_count, 0)
 
-    run = %{
-      id: id,
-      project_id: project_id,
-      idempotency_key: Keyword.get(attrs, :idempotency_key, "github:1:test"),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha, "a1b2c3d4e5f6"),
-      git_branch: Keyword.get(attrs, :git_branch, "feature/search"),
-      baseline_sha: Keyword.get(attrs, :baseline_sha, "0f0f0f0f0f0f"),
-      scheme: Keyword.get(attrs, :scheme, "App"),
-      test_plan: Keyword.get(attrs, :test_plan, ""),
-      destination: Keyword.get(attrs, :destination, "iPhone 17 Pro · iOS 26.1"),
-      requested_targets: tests |> Enum.map(& &1.module_name) |> Enum.uniq() |> Enum.sort(),
-      shard_count: Keyword.get(attrs, :shard_count, 1),
-      shard_plan_id: nil,
-      test_run_id: Keyword.get(attrs, :test_run_id),
-      ci_provider: "github",
-      ci_run_id: Keyword.get(attrs, :ci_run_id, "1"),
-      ci_job_id: Keyword.get(attrs, :ci_job_id, "test"),
-      requested_count: length(tests),
-      selected_count: length(selected),
-      skipped_count: length(skipped),
-      skipped_duration: skipped |> Enum.map(& &1.estimated_duration_ms) |> Enum.sum(),
-      fallback_reason: Keyword.get(attrs, :fallback_reason, ""),
-      inserted_at: inserted_at,
-      updated_at: inserted_at
-    }
+    run =
+      struct(Run, %{
+        id: id,
+        project_id: project_id,
+        inserted_at: inserted_at,
+        head_sha: Keyword.get(attrs, :head_sha, commit_sha),
+        commit_sha: commit_sha,
+        baseline_sha: Keyword.get(attrs, :baseline_sha, "0f0f0f0f0f0f"),
+        git_branch: Keyword.get(attrs, :git_branch, "feature/search"),
+        dirty: false,
+        strategy: "coverage",
+        build_system: "xcode",
+        platform: Keyword.get(attrs, :platform, "ios"),
+        build_context:
+          Keyword.get(attrs, :build_context, %{"scheme" => "App", "destination" => "iPhone 17 Pro · iOS 26.1"}),
+        requested_modules: Keyword.get(attrs, :requested_modules, []),
+        outcome: outcome,
+        reason: Keyword.get(attrs, :reason, ""),
+        matched_path: Keyword.get(attrs, :matched_path, ""),
+        rules_version: Keyword.get(attrs, :rules_version, "1"),
+        rule_trace:
+          Enum.map(
+            Keyword.get(attrs, :rule_trace, []),
+            &{&1.rule, &1.selected, &1.skipped, &1.verdict}
+          ),
+        requested_count: if(outcome == "fallback", do: 0, else: length(selected) + skipped_count),
+        selected_count: if(outcome == "fallback", do: 0, else: length(selected)),
+        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count)
+      })
 
-    IngestRepo.insert_all(TestSelectionRun, [run])
-    if tests != [], do: IngestRepo.insert_all(TestSelectionTest, tests)
+    {:ok, _} = IngestRepo.insert(run)
+    if selected != [], do: IngestRepo.insert_all(RunTest, selected)
 
-    struct(TestSelectionRun, run)
+    {:ok, run} = Storage.get_run(project_id, id)
+    run
   end
 
   @doc """
-  Inserts the test impact of `head_sha` against `baseline_sha` with the given
-  `changed_files` (maps with `path` at least) and `tests` (maps with
-  `test_case_id`, `name` and `reason` at least), and returns it.
+  Stores the diff between `baseline_sha` and the checked-out `commit_sha`
+  with the given `changed_files` (maps with `path` at least).
   """
-  def impact_fixture(attrs \\ []) do
-    project_id = Keyword.fetch!(attrs, :project_id)
-    head = Keyword.get(attrs, :head_sha, "a1b2c3d4e5f6")
-    baseline = Keyword.get(attrs, :baseline_sha, "0f0f0f0f0f0f")
-    inserted_at = Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
-    key = %{project_id: project_id, head_sha: head, baseline_sha: baseline, inserted_at: inserted_at}
-
-    files =
+  def diff_fixture(attrs \\ []) do
+    changed_files =
       attrs
       |> Keyword.get(:changed_files, [])
-      |> Enum.map(&Map.merge(Map.merge(key, %{status: "modified", kind: "source", impacted_tests_count: 0}), &1))
+      |> Enum.map(&Map.merge(%{status: "modified", blob: "", affected_modules: []}, &1))
 
-    tests =
-      attrs
-      |> Keyword.get(:tests, [])
-      |> Enum.map(
-        &Map.merge(
-          Map.merge(key, %{module_name: "AppTests", suite_name: "AppTests", matched_path: ""}),
-          &1
-        )
+    :ok =
+      Storage.put_diff(%{
+        project_id: Keyword.fetch!(attrs, :project_id),
+        commit_sha: Keyword.get(attrs, :commit_sha, "a1b2c3d4e5f6"),
+        baseline_sha: Keyword.get(attrs, :baseline_sha, "0f0f0f0f0f0f"),
+        changed_files: changed_files,
+        changed_files_count: Keyword.get(attrs, :changed_files_count)
+      })
+  end
+
+  @doc """
+  Inserts the baseline run of `baseline_sha`: a test run that reported
+  coverage for `scheme`, with a test case run per test in `tests` (maps
+  with `test_case_id` and `name` at least). Returns the test run.
+  """
+  def baseline_fixture(attrs \\ []) do
+    project_id = Keyword.fetch!(attrs, :project_id)
+    baseline_sha = Keyword.get(attrs, :baseline_sha, "0f0f0f0f0f0f")
+    scheme = Keyword.get(attrs, :scheme, "App")
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project_id,
+        git_commit_sha: baseline_sha,
+        scheme: scheme,
+        git_branch: "main",
+        test_modules: []
       )
 
-    impact =
-      Map.merge(key, %{
-        git_branch: Keyword.get(attrs, :git_branch, "feature/search"),
-        changed_files_count: length(files),
-        impacted_tests_count: length(tests)
-      })
+    for test <- Keyword.get(attrs, :tests, []) do
+      RunsFixtures.test_case_run_fixture(
+        Keyword.merge(
+          [project_id: project_id, test_run_id: test_run.id, git_commit_sha: baseline_sha, scheme: scheme],
+          Map.to_list(test)
+        )
+      )
+    end
 
-    IngestRepo.insert_all(TestImpact, [impact])
-    if files != [], do: IngestRepo.insert_all(TestImpactChangedFile, files)
-    if tests != [], do: IngestRepo.insert_all(TestImpactTest, tests)
+    IngestRepo.insert_all(CoverageRun, [
+      %{
+        project_id: project_id,
+        test_run_id: test_run.id,
+        scheme: scheme,
+        git_commit_sha: baseline_sha,
+        covered_lines: 1,
+        executable_lines: 2,
+        version: 1,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    ])
 
-    struct(TestImpact, impact)
+    test_run
   end
 end

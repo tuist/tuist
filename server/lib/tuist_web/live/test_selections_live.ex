@@ -1,12 +1,12 @@
 defmodule TuistWeb.TestSelectionsLive do
   @moduledoc """
   The project's Test Selection page. The period's figures
-  (`Selections.analytics/2`): how many requested tests the selection runs
+  (`Selections.analytics/2`): how many requested tests the impact runs
   selected and skipped, the skip rate and the runs. Then two tabs: the
-  selection runs, one per invocation, newest first
+  impact runs, one per invocation, newest first
   (`Selections.list_runs/2`), each opening the Selective Testing tab of the
-  test run that reported its results (`TuistWeb.TestSelection.RunTab`); and
-  the baselines, the
+  test run that reported it (`TuistWeb.TestSelection.RunTab`); and the
+  baselines, the
   default-branch commits that measured coverage and whether each can serve
   as one (`Selections.baselines/2`).
   """
@@ -20,7 +20,6 @@ defmodule TuistWeb.TestSelectionsLive do
   import TuistWeb.TestSelection.Components
 
   alias Tuist.FeatureFlags
-  alias Tuist.Projects.Project
   alias Tuist.Tests.Selections
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
@@ -32,7 +31,7 @@ defmodule TuistWeb.TestSelectionsLive do
   @tabs ~w(runs baselines)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    if !(Project.xcode_project?(project) and FeatureFlags.xcode_coverage_enabled?(account)) do
+    if !FeatureFlags.test_impact_analysis_enabled?(account, project) do
       raise NotFoundError, dgettext("dashboard_tests", "Test selection is not enabled for this project.")
     end
 
@@ -125,9 +124,8 @@ defmodule TuistWeb.TestSelectionsLive do
   def tab_label("baselines"), do: dgettext("dashboard_tests", "Baselines")
 
   @doc """
-  A selection run opens the tab that shows it on the test run that
-  reported its results; one whose results never arrived has nowhere to go
-  and stays on this page.
+  An impact run opens the tab that shows it on the test run that reported
+  it; one no test run reported has nowhere to go and stays on this page.
   """
   def run_href(%{selected_account: account, selected_project: project}, %{test_run_id: test_run_id})
       when not is_nil(test_run_id),
@@ -137,6 +135,14 @@ defmodule TuistWeb.TestSelectionsLive do
 
   defp path_from_assigns(%{selected_account: account, selected_project: project}),
     do: "/#{account.name}/#{project.name}/tests/test-selection"
+
+  @doc "What an impact run ran: its test plan, or else its scheme."
+  def run_scope(%{build_context: context}) do
+    case Map.get(context, "test_plan", "") do
+      "" -> Map.get(context, "scheme", "")
+      test_plan -> test_plan
+    end
+  end
 
   @doc false
   def coverage_href(%{selected_account: account, selected_project: project}, sha),

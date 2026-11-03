@@ -2,109 +2,153 @@ defmodule Tuist.Tests.SelectionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Tests.Selections
-  alias Tuist.Tests.TestSelectionRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
   alias TuistTestSupport.Fixtures.TestSelectionFixtures
 
   setup do
     %{project: ProjectsFixtures.project_fixture()}
   end
 
-  # A selection run that skipped `test_refresh()` and `test_reset()`, whose
-  # test run ran `test_load()` (passed) but never reported `test_gone()`.
-  defp run(project) do
-    test_run_id = UUIDv7.generate()
+  # An impact run that selected `test_load()` (impacted) and the new
+  # `test_gone()` (no evidence) and skipped the baseline's `test_refresh()`
+  # and `test_reset()`. Its test run ran `test_load()` (passed) but never
+  # reported `test_gone()`. A two-shard plan put each selected test's suite
+  # on its own shard.
+  defp run(project, attrs \\ []) do
     [load, refresh, reset, gone] = for _ <- 1..4, do: UUIDv7.generate()
+
+    TestSelectionFixtures.baseline_fixture(
+      project_id: project.id,
+      tests: [
+        %{
+          test_case_id: load,
+          module_name: "SearchTests",
+          suite_name: "SearchViewModelTests",
+          name: "test_load()",
+          duration: 300
+        },
+        %{
+          test_case_id: refresh,
+          module_name: "AuthTests",
+          suite_name: "SessionTests",
+          name: "test_refresh()",
+          duration: 500
+        },
+        %{test_case_id: reset, module_name: "AuthTests", suite_name: "SessionTests", name: "test_reset()", duration: 200}
+      ]
+    )
 
     run =
       TestSelectionFixtures.run_fixture(
-        project_id: project.id,
-        test_run_id: test_run_id,
-        shard_count: 2,
-        tests: [
-          %{
-            test_case_id: load,
-            decision: "selected",
-            module_name: "SearchTests",
-            name: "test_load()",
-            matched_path: "Sources/Search/Search.swift",
-            estimated_duration_ms: 300
-          },
-          %{
-            test_case_id: gone,
-            decision: "selected",
-            module_name: "SearchTests",
-            name: "test_gone()",
-            reason: "no_evidence",
-            shard_index: 1,
-            estimated_duration_ms: 100
-          },
-          %{
-            test_case_id: refresh,
-            decision: "skipped",
-            module_name: "AuthTests",
-            name: "test_refresh()",
-            estimated_duration_ms: 500
-          },
-          %{
-            test_case_id: reset,
-            decision: "skipped",
-            module_name: "AuthTests",
-            name: "test_reset()",
-            estimated_duration_ms: 200
-          }
-        ]
+        Keyword.merge(
+          [
+            project_id: project.id,
+            skipped_count: 2,
+            selected: [
+              %{
+                test_case_id: load,
+                module_name: "SearchTests",
+                suite_name: "SearchViewModelTests",
+                name: "test_load()",
+                matched_path: "Sources/Search/Search.swift"
+              },
+              %{
+                test_case_id: gone,
+                module_name: "SearchTests",
+                suite_name: "SearchGoneTests",
+                name: "test_gone()",
+                reason: "no_evidence"
+              }
+            ]
+          ],
+          attrs
+        )
       )
 
-    RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run_id, test_case_id: load, status: 0)
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: run.id)
 
-    run
+    RunsFixtures.test_case_run_fixture(
+      project_id: project.id,
+      test_run_id: test_run.id,
+      test_case_id: load,
+      module_name: "SearchTests",
+      suite_name: "SearchViewModelTests",
+      name: "test_load()",
+      status: 0
+    )
+
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, granularity: "suite", test_impact_run_id: run.id)
+
+    for {suite, index} <- [{"SearchViewModelTests", 0}, {"SearchGoneTests", 1}] do
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        shard_index: index,
+        module_name: "SearchTests",
+        test_suite_name: suite,
+        estimated_duration_ms: 400
+      )
+    end
+
+    %{run: run, test_run: test_run, plan: plan}
   end
 
   describe "list_runs/2" do
-    test "lists the project's selection runs newest first, filtered", %{project: project} do
-      TestSelectionFixtures.run_fixture(
-        project_id: project.id,
-        git_commit_sha: "older",
-        scheme: "Core",
-        fallback_reason: "no_baseline",
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
-      )
+    test "lists the project's impact runs newest first, filtered, with the test run that reported each", %{
+      project: project
+    } do
+      older =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          commit_sha: "older",
+          build_context: %{"scheme" => "Core"},
+          outcome: "fallback",
+          reason: "no_baseline",
+          baseline_sha: nil,
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
+        )
 
-      TestSelectionFixtures.run_fixture(project_id: project.id, git_commit_sha: "newer")
+      TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "newer")
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: older.id)
 
       {rows, meta} = Selections.list_runs(project.id)
 
-      assert Enum.map(rows, & &1.git_commit_sha) == ["newer", "older"]
+      assert Enum.map(rows, &{&1.commit_sha, &1.test_run_id}) == [{"newer", nil}, {"older", test_run.id}]
       assert meta.total_count == 2
-      assert {[%{git_commit_sha: "older"}], _meta} = Selections.list_runs(project.id, search: "core")
-      assert {[%{git_commit_sha: "older"}], _meta} = Selections.list_runs(project.id, fallback: true)
+      assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, search: "core")
+      assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, fallback: true)
     end
   end
 
   describe "get_run/2 and run_for_test_run/2" do
-    test "find a selection run by its id and by the test run that reported it", %{project: project} do
-      test_run_id = UUIDv7.generate()
-      run = TestSelectionFixtures.run_fixture(project_id: project.id, test_run_id: test_run_id)
+    test "find an impact run by its id and by the test run that points to it", %{project: project} do
+      run = TestSelectionFixtures.run_fixture(project_id: project.id)
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: run.id)
+      id = run.id
 
-      assert {:ok, %{id: id}} = Selections.get_run(project.id, run.id)
-      assert id == run.id
+      assert {:ok, %{id: ^id}} = Selections.get_run(project.id, id)
       assert {:error, :not_found} = Selections.get_run(project.id, UUIDv7.generate())
       assert {:error, :not_found} = Selections.get_run(project.id, "not-a-uuid")
-      assert %{id: ^id} = Selections.run_for_test_run(project.id, test_run_id)
-      assert is_nil(Selections.run_for_test_run(project.id, UUIDv7.generate()))
+      assert {:ok, %{id: ^id}} = Selections.run_for_test_run(project.id, test_run)
+      assert {:ok, %{id: ^id}} = Selections.run_for_test_run(project.id, test_run.id)
+      assert {:error, :none} = Selections.run_for_test_run(project.id, %{test_impact_run_id: nil})
+      assert {:error, :expired} = Selections.run_for_test_run(project.id, %{test_impact_run_id: UUIDv7.generate()})
     end
   end
 
-  describe "run_summary/1" do
-    test "adds up the run's tests and the selected tests that never reported", %{project: project} do
-      summary = project |> run() |> Selections.run_summary()
+  describe "run_summary/2" do
+    test "adds up the run's tests, the skipped tests' baseline duration and the selected tests that never reported",
+         %{project: project} do
+      %{run: run, test_run: test_run} = run(project)
+      summary = Selections.run_summary(run, test_run.id)
 
       assert summary.requested == 4
       assert summary.selected == 2
       assert summary.skipped == 2
       assert summary.skip_rate == 50.0
+      assert summary.skipped_duration == 700
       assert summary.not_run == 1
       assert summary.reported
 
@@ -114,68 +158,75 @@ defmodule Tuist.Tests.SelectionsTest do
                %{decision: "skipped", reason: "unaffected", count: 2}
              ]
     end
-
-    test "reports no outcomes before a test run reported", %{project: project} do
-      run =
-        TestSelectionFixtures.run_fixture(project_id: project.id, tests: [%{decision: "selected", name: "test_a()"}])
-
-      assert %{reported: false, not_run: 0} = Selections.run_summary(run)
-    end
   end
 
-  describe "run_tests/2" do
-    test "lists selected tests first with their outcomes", %{project: project} do
-      {rows, meta} = project |> run() |> Selections.run_tests()
+  describe "run_tests/3" do
+    test "lists the selected tests, then the skipped ones derived from the baseline, with their outcomes and shards",
+         %{project: project} do
+      %{run: run, test_run: test_run} = run(project)
+      {rows, meta} = Selections.run_tests(run, test_run.id)
 
-      assert Enum.map(rows, &{&1.name, &1.outcome}) == [
-               {"test_gone()", nil},
-               {"test_load()", "success"},
-               {"test_refresh()", nil},
-               {"test_reset()", nil}
+      assert Enum.map(rows, &{&1.name, &1.decision, &1.outcome, &1.shard_index, &1.duration}) == [
+               {"test_gone()", "selected", nil, 1, 0},
+               {"test_load()", "selected", "success", 0, 300},
+               {"test_refresh()", "skipped", nil, nil, 500},
+               {"test_reset()", "skipped", nil, nil, 200}
              ]
 
       assert meta.total_count == 4
     end
 
-    test "filters by decision, flag, shard and search, and sorts by duration", %{project: project} do
-      run = run(project)
+    test "filters by decision, reason, flag, shard and search, and sorts by duration", %{project: project} do
+      %{run: run, test_run: test_run} = run(project)
 
-      assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, flag: "not_run")
-      assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, shard: 1)
-      assert {rows, _meta} = Selections.run_tests(run, decision: "skipped")
+      assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, flag: "not_run")
+      assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, shard: 1)
+      assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, reason: "no_evidence")
+      assert {rows, _meta} = Selections.run_tests(run, test_run.id, decision: "skipped")
       assert Enum.map(rows, & &1.name) == ["test_refresh()", "test_reset()"]
-      assert {[%{name: "test_load()"}], _meta} = Selections.run_tests(run, search: "load")
+      assert {[%{name: "test_load()"}], _meta} = Selections.run_tests(run, test_run.id, search: "load")
 
-      assert {rows, _meta} = Selections.run_tests(run, sort_by: "duration", sort_order: "desc")
-      assert Enum.map(rows, & &1.estimated_duration_ms) == [500, 300, 200, 100]
+      assert {rows, _meta} = Selections.run_tests(run, test_run.id, sort_by: "duration", sort_order: "desc")
+      assert Enum.map(rows, & &1.duration) == [500, 300, 200, 0]
     end
 
-    test "pages", %{project: project} do
-      {rows, meta} = project |> run() |> Selections.run_tests(page: 2, page_size: 3)
+    test "lists only the selected tests without a baseline", %{project: project} do
+      run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          baseline_sha: nil,
+          selected: [%{name: "test_a()", reason: "no_evidence"}]
+        )
 
-      assert length(rows) == 1
-      assert meta.total_pages == 2
-      assert meta.current_page == 2
+      assert {[%{name: "test_a()", decision: "selected"}], _meta} = Selections.run_tests(run, UUIDv7.generate())
     end
   end
 
-  describe "get_run_test/2" do
+  describe "get_run_test/3" do
     test "returns one of the run's tests with its outcome", %{project: project} do
-      run = run(project)
-      {[test | _rest], _meta} = Selections.run_tests(run, search: "load")
+      %{run: run, test_run: test_run} = run(project)
+      {[test], _meta} = Selections.run_tests(run, test_run.id, search: "load")
+      {[skipped | _], _meta} = Selections.run_tests(run, test_run.id, decision: "skipped")
 
-      assert {:ok, %{name: "test_load()", outcome: "success"}} = Selections.get_run_test(run, test.test_case_id)
-      assert {:error, :not_found} = Selections.get_run_test(run, UUIDv7.generate())
+      assert {:ok, %{name: "test_load()", outcome: "success"}} =
+               Selections.get_run_test(run, test_run.id, test.test_case_id)
+
+      assert {:ok, %{decision: "skipped", reason: "unaffected"}} =
+               Selections.get_run_test(run, test_run.id, skipped.test_case_id)
+
+      assert {:error, :not_found} = Selections.get_run_test(run, test_run.id, UUIDv7.generate())
     end
   end
 
-  describe "run_shards/1 and run_targets/1" do
-    test "add up the run's tests per shard and per target", %{project: project} do
-      run = run(project)
+  describe "run_shards/3 and run_targets/1" do
+    test "add up the run's tests per shard and per module", %{project: project} do
+      %{run: run, test_run: test_run, plan: plan} = run(project)
 
-      assert Selections.run_shards(run) == [
-               %{shard_index: 0, planned: 1, estimated_duration: 300, ran: 1, failed: 0, not_run: 0},
-               %{shard_index: 1, planned: 1, estimated_duration: 100, ran: 0, failed: 0, not_run: 1}
+      assert Selections.shard_plan(run).id == plan.id
+
+      assert Selections.run_shards(run, plan, test_run.id) == [
+               %{shard_index: 0, planned: 1, estimated_duration: 400, ran: 1, failed: 0, not_run: 0},
+               %{shard_index: 1, planned: 1, estimated_duration: 400, ran: 0, failed: 0, not_run: 1}
              ]
 
       assert [
@@ -185,54 +236,48 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
-  describe "impacts" do
-    test "find a run's impact and list its changed files", %{project: project} do
-      TestSelectionFixtures.impact_fixture(
+  describe "changed files" do
+    test "list a run's diff with tracked files and the tests each selected", %{project: project} do
+      %{run: run} = run(project)
+
+      TestSelectionFixtures.diff_fixture(
         project_id: project.id,
-        baseline_sha: "older",
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
+        changed_files_count: 4,
+        changed_files: [
+          %{path: "docs/README.md"},
+          %{path: "Sources/Search/Search.swift"},
+          %{path: "App/Project.swift"}
+        ]
       )
 
-      impact =
-        TestSelectionFixtures.impact_fixture(
-          project_id: project.id,
-          baseline_sha: "newer",
-          changed_files: [
-            %{path: "docs/README.md", kind: "ignored"},
-            %{path: "Sources/Search/Search.swift", impacted_tests_count: 2},
-            %{path: "Sources/Auth/Session.swift", impacted_tests_count: 1}
-          ]
-        )
+      diff = Selections.get_diff(run)
+      assert diff.changed_files_count == 4
 
-      run_with = fn baseline ->
-        %TestSelectionRun{project_id: project.id, git_commit_sha: "a1b2c3d4e5f6", baseline_sha: baseline}
-      end
+      {rows, meta} = Selections.changed_files(project, run, diff)
 
-      assert %{baseline_sha: "newer", changed_files_count: 3} = Selections.get_impact(run_with.("newer"))
-      assert %{baseline_sha: "older"} = Selections.get_impact(run_with.("older"))
-      assert Selections.get_impact(run_with.("")) == nil
-
-      {rows, meta} = Selections.impact_changed_files(impact)
-
-      assert Enum.map(rows, & &1.path) == [
-               "Sources/Search/Search.swift",
-               "Sources/Auth/Session.swift",
-               "docs/README.md"
+      assert Enum.map(rows, &{&1.path, &1.tracked, &1.selected_tests_count}) == [
+               {"Sources/Search/Search.swift", false, 1},
+               {"App/Project.swift", true, 0},
+               {"docs/README.md", false, 0}
              ]
 
       assert meta.total_count == 3
-      assert {[%{path: "docs/README.md"}], _meta} = Selections.impact_changed_files(impact, kind: "ignored")
+      assert {[%{path: "App/Project.swift"}], _meta} = Selections.changed_files(project, run, diff, tracked: true)
+      assert {[%{path: "docs/README.md"}], _meta} = Selections.changed_files(project, run, diff, search: "readme")
+      assert Selections.get_diff(%{run | baseline_sha: nil}) == nil
     end
   end
 
   describe "analytics/2" do
-    test "adds up the period's selection runs", %{project: project} do
+    test "adds up the period's impact runs", %{project: project} do
       run(project)
+      TestSelectionFixtures.run_fixture(project_id: project.id, outcome: "fallback", reason: "no_baseline")
 
       now = DateTime.utc_now()
       analytics = Selections.analytics(project.id, {DateTime.add(now, -7, :day), DateTime.add(now, 60, :second)})
 
-      assert analytics.totals.runs == 1
+      assert analytics.totals.runs == 2
+      assert analytics.totals.fallbacks == 1
       assert analytics.totals.selected == 2
       assert analytics.totals.skipped == 2
       assert analytics.totals.skip_rate == 50.0

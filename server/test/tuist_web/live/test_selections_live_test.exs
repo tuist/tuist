@@ -8,6 +8,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
   alias TuistTestSupport.Fixtures.TestSelectionFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -15,32 +16,37 @@ defmodule TuistWeb.TestSelectionsLiveTest do
   @sha "a1b2c3d4e5f6a7b8"
 
   defp selection(project, attrs \\ []) do
-    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, git_commit_sha: @sha, scheme: "App")
     load = UUIDv7.generate()
     refresh = UUIDv7.generate()
+
+    TestSelectionFixtures.baseline_fixture(
+      project_id: project.id,
+      tests: [
+        %{test_case_id: load, module_name: "SearchTests", suite_name: "SearchViewModelTests", name: "test_load()"},
+        %{test_case_id: refresh, module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"}
+      ]
+    )
 
     run =
       TestSelectionFixtures.run_fixture(
         Keyword.merge(
           [
             project_id: project.id,
-            git_commit_sha: @sha,
-            test_run_id: test_run.id,
-            tests: [
+            commit_sha: @sha,
+            skipped_count: 1,
+            rules_version: "2026-11-01",
+            rule_trace: [
+              %{rule: "tracked_files", selected: 0, skipped: 0, verdict: "continue"},
+              %{rule: "impacted", selected: 1, skipped: 0, verdict: "continue"},
+              %{rule: "unaffected", selected: 0, skipped: 1, verdict: "done"}
+            ],
+            selected: [
               %{
                 test_case_id: load,
-                decision: "selected",
                 module_name: "SearchTests",
                 suite_name: "SearchViewModelTests",
                 name: "test_load()",
                 matched_path: "Sources/Search/SearchViewModel.swift"
-              },
-              %{
-                test_case_id: refresh,
-                decision: "skipped",
-                module_name: "AuthTests",
-                suite_name: "SessionTests",
-                name: "test_refresh()"
               }
             ]
           ],
@@ -48,25 +54,26 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         )
       )
 
-    load_run =
-      RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run.id, test_case_id: load, status: 0)
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(project_id: project.id, git_commit_sha: @sha, scheme: "App", test_impact_run_id: run.id)
 
-    TestSelectionFixtures.impact_fixture(
+    load_run =
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_run_id: test_run.id,
+        test_case_id: load,
+        module_name: "SearchTests",
+        suite_name: "SearchViewModelTests",
+        name: "test_load()",
+        status: 0
+      )
+
+    TestSelectionFixtures.diff_fixture(
       project_id: project.id,
-      head_sha: @sha,
+      commit_sha: @sha,
       changed_files: [
-        %{path: "Sources/Search/SearchViewModel.swift", impacted_tests_count: 1},
-        %{path: "docs/testing.md", kind: "ignored"}
-      ],
-      tests: [
-        %{
-          test_case_id: load,
-          module_name: "SearchTests",
-          suite_name: "SearchViewModelTests",
-          name: "test_load()",
-          reason: "impacted",
-          matched_path: "Sources/Search/SearchViewModel.swift"
-        }
+        %{path: "Sources/Search/SearchViewModel.swift"},
+        %{path: "App/Project.swift"}
       ]
     )
 
@@ -107,12 +114,12 @@ defmodule TuistWeb.TestSelectionsLiveTest do
     end
 
     test "filters the runs that ran everything", %{conn: conn, organization: organization, project: project} do
-      selection(project, fallback_reason: "timeout")
+      selection(project, outcome: "fallback", reason: "history_unavailable")
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection?fallback=true")
 
-      assert has_element?(lv, "#test-selection-runs-table", "Timed out")
+      assert has_element?(lv, "#test-selection-runs-table", "History too shallow")
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection?search=main")
@@ -128,8 +135,12 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "[data-part='empty-baselines']")
     end
 
-    test "is not found without the coverage flag", %{conn: conn, organization: organization, project: project} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+    test "is not found without the test impact analysis flag", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      stub(Tuist.FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> false end)
 
       assert_raise NotFoundError, fn ->
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
@@ -176,8 +187,20 @@ defmodule TuistWeb.TestSelectionsLiveTest do
              )
     end
 
-    test "shows the modules, changed files and shards", %{conn: conn, organization: organization, project: project} do
-      %{test_run: test_run} = selection(project, shard_count: 2)
+    test "shows the modules, changed files, shards and configuration", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{run: run, test_run: test_run} = selection(project)
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, granularity: "suite", test_impact_run_id: run.id)
+
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        module_name: "SearchTests",
+        test_suite_name: "SearchViewModelTests"
+      )
 
       path =
         ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
@@ -192,23 +215,30 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         |> Floki.find("a")
         |> Enum.map(&Floki.text/1)
         |> Enum.map(&String.trim/1)
-        |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(/))
+        |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(|^Configuration$/))
 
-      assert [tests, modules, files, shards] = tabs
+      assert [tests, modules, files, shards, configuration] = tabs
       assert tests =~ "Tests"
       assert modules =~ "Modules"
       assert files =~ "Changed files"
       assert shards =~ "Shards"
+      assert configuration == "Configuration"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=files")
       assert has_element?(lv, "#selection-files-table", "SearchViewModel.swift")
-      assert has_element?(lv, "#selection-files-table", "Ignored")
+      assert has_element?(lv, "#selection-files-table", "Tracked")
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=modules")
       assert has_element?(lv, "#selection-modules-table", "AuthTests")
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=shards")
       assert has_element?(lv, "#selection-shards-table", "Shard 0")
+
+      {:ok, lv, _html} = live(conn, path <> "&selection-tab=configuration")
+      assert has_element?(lv, "#selection-rules-version", "2026-11-01")
+      assert has_element?(lv, "#selection-rule-trace-table", "unaffected")
+      assert has_element?(lv, "#selection-rule-trace-table", "done")
+      assert has_element?(lv, "#selection-tracked-files", "**/Package.resolved")
     end
 
     test "shows the module-level selection's hits next to the selection's modules", %{
@@ -258,7 +288,13 @@ defmodule TuistWeb.TestSelectionsLiveTest do
     end
 
     test "explains a fallback", %{conn: conn, organization: organization, project: project} do
-      %{test_run: test_run} = selection(project, fallback_reason: "no_baseline", baseline_sha: "")
+      %{test_run: test_run} =
+        selection(project,
+          outcome: "fallback",
+          reason: "tracked_file_changed",
+          matched_path: "Package.resolved",
+          rule_trace: [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
+        )
 
       {:ok, lv, _html} =
         live(
@@ -266,7 +302,21 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
         )
 
-      assert has_element?(lv, "#test-selection-fallback", "No baseline")
+      assert has_element?(lv, "#test-selection-fallback", "Tracked file changed")
+      assert has_element?(lv, "#test-selection-fallback", "Package.resolved")
+      assert has_element?(lv, "#selection-rule-trace-table", "abort")
+      refute has_element?(lv, "#selection-tests-table")
+    end
+
+    test "says when the run's impact run expired", %{conn: conn, organization: organization, project: project} do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: UUIDv7.generate())
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, "a[href*='tab=test-optimizations']", "Selective Testing")
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
+      assert has_element?(lv, "#test-selection-expired")
     end
 
     test "links the overview's card to the Selective Testing tab", %{
@@ -295,6 +345,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         )
 
       assert has_element?(lv, "#test-selection-test-reason", "Selected: Executes a changed file")
+      assert has_element?(lv, "#test-selection-test-reason", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-executed-files-table", "SearchViewModel.swift")
     end
 

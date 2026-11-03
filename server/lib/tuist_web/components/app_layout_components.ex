@@ -150,10 +150,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={
-            Project.xcode_project?(@selected_project) and
-              Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)
-          }
+          :if={Tuist.FeatureFlags.test_impact_analysis_enabled?(@selected_account, @selected_project)}
           label={dgettext("dashboard", "Test Selection")}
           icon="filter"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}

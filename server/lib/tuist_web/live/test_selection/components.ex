@@ -3,8 +3,8 @@ defmodule TuistWeb.TestSelection.Components do
   The cells and words test selection shares across the Test Selection page,
   a test run's Selective Testing tab and a test case run's Selective
   Testing tab: a decision as a badge, the reasons behind it, a test's
-  outcome, why a selection run fell back to running everything, and the
-  kinds of changed files.
+  outcome, why an impact run fell back to default selective testing, and how
+  a changed file changed.
   """
   use TuistWeb, :html
   use Noora
@@ -48,42 +48,53 @@ defmodule TuistWeb.TestSelection.Components do
   defp decision_icon("selected"), do: "player_play"
   defp decision_icon(_decision), do: "player_track_next"
 
-  @doc "A test's reason, short enough for a table cell."
-  def reason_label("impacted"), do: dgettext("dashboard_tests", "Executes a changed file")
-  def reason_label("target_changed"), do: dgettext("dashboard_tests", "Its target changed")
-  def reason_label("failed_at_baseline"), do: dgettext("dashboard_tests", "Failed at the baseline")
+  @doc "A test's reason, short enough for a table cell: the rule that decided it."
+  def reason_label("test_file_changed"), do: dgettext("dashboard_tests", "Its test file changed")
+  def reason_label("failed_last_run"), do: dgettext("dashboard_tests", "Failed last run")
   def reason_label("no_evidence"), do: dgettext("dashboard_tests", "No evidence")
-  def reason_label("run_all"), do: dgettext("dashboard_tests", "Ran everything")
+  def reason_label("impacted"), do: dgettext("dashboard_tests", "Executes a changed file")
+  def reason_label("owned_without_evidence"), do: dgettext("dashboard_tests", "Its module changed")
+  def reason_label("undecided"), do: dgettext("dashboard_tests", "Undecided")
   def reason_label("unaffected"), do: dgettext("dashboard_tests", "No executed file changed")
   def reason_label(reason), do: reason
 
   @doc "A test's reason, as the sentence its page explains it with."
-  def reason_description("impacted", path),
+  def reason_description("test_file_changed", path),
     do:
       dgettext(
         "dashboard_tests",
-        "The baseline's evidence shows it executed %{path}, which changed since, so it has to run again.", path: path)
+        "%{path} is test code of its suite and changed since the baseline, so every test of the suite runs.", path: path)
 
-  def reason_description("target_changed", path),
+  def reason_description("failed_last_run", _path),
     do:
       dgettext(
         "dashboard_tests",
-        "%{path} changed its target's hash and coverage can't tell which tests depend on it (a resource, a dependency or the project's configuration), so every test of the target runs.",
-        path: path
+        "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
       )
-
-  def reason_description("failed_at_baseline", _path),
-    do: dgettext("dashboard_tests", "It failed or flaked in the baseline run, so a past pass can't vouch for it.")
 
   def reason_description("no_evidence", _path),
     do:
       dgettext(
         "dashboard_tests",
-        "The baseline recorded no coverage evidence of its own for it (it is new, it overlapped another test, or its target doesn't link TestCoverageAttribution), so Tuist can't tell what it depends on."
+        "No run in the evidence window recorded coverage evidence of its own for it (it is new, it is a Swift Testing test, or its target doesn't link TestCoverageAttribution), so Tuist can't tell what it depends on."
       )
 
-  def reason_description("run_all", _path),
-    do: dgettext("dashboard_tests", "The selection fell back to running every requested test.")
+  def reason_description("impacted", path),
+    do:
+      dgettext("dashboard_tests", "Its evidence shows it executed %{path}, which changed since, so it has to run again.",
+        path: path
+      )
+
+  def reason_description("owned_without_evidence", path),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "%{path} changed, no evidence includes it (a resource, a new file or one with only declarations), and its module can affect this test's module, so every test there runs.",
+        path: path
+      )
+
+  def reason_description("undecided", _path),
+    do: dgettext("dashboard_tests", "No rule decided it, so it runs: selection only skips what a rule proves unaffected.")
 
   def reason_description("unaffected", _path),
     do:
@@ -94,13 +105,18 @@ defmodule TuistWeb.TestSelection.Components do
 
   def reason_description(reason, _path), do: reason
 
-  @doc "Why a selection run selected every test it requested, when it did."
+  @doc "Why an impact run fell back to default selective testing."
+  def fallback_label("excluded_branch"), do: dgettext("dashboard_tests", "Default branch")
   def fallback_label("no_baseline"), do: dgettext("dashboard_tests", "No baseline")
-  def fallback_label("baseline_too_far"), do: dgettext("dashboard_tests", "Baseline too far back")
-  def fallback_label("deepen_budget_exhausted"), do: dgettext("dashboard_tests", "History too shallow")
-  def fallback_label("timeout"), do: dgettext("dashboard_tests", "Timed out")
-  def fallback_label("platform_mismatch"), do: dgettext("dashboard_tests", "Different platform")
+  def fallback_label("baseline_too_old"), do: dgettext("dashboard_tests", "Baseline too far back")
+  def fallback_label("no_baseline_evidence"), do: dgettext("dashboard_tests", "No baseline evidence")
+  def fallback_label("history_unavailable"), do: dgettext("dashboard_tests", "History too shallow")
+  def fallback_label("tracked_file_changed"), do: dgettext("dashboard_tests", "Tracked file changed")
+  def fallback_label("diff_too_large"), do: dgettext("dashboard_tests", "Diff too large")
   def fallback_label(reason), do: reason
+
+  def fallback_description("excluded_branch"),
+    do: dgettext("dashboard_tests", "Runs on the default branch run every test, so later runs have a full baseline.")
 
   def fallback_description("no_baseline"),
     do:
@@ -109,21 +125,24 @@ defmodule TuistWeb.TestSelection.Components do
         "No ancestor of this commit has a complete full run with per-test evidence for the requested scope."
       )
 
-  def fallback_description("baseline_too_far"),
-    do: dgettext("dashboard_tests", "The nearest baseline is further back than the project allows.")
+  def fallback_description("baseline_too_old"),
+    do: dgettext("dashboard_tests", "The nearest baseline is more than 20 measured commits back.")
 
-  def fallback_description("deepen_budget_exhausted"),
+  def fallback_description("no_baseline_evidence"),
+    do: dgettext("dashboard_tests", "The baseline recorded no per-test coverage evidence.")
+
+  def fallback_description("history_unavailable"),
     do: dgettext("dashboard_tests", "The CLI couldn't fetch enough history to diff against the baseline in time.")
 
-  def fallback_description("timeout"),
-    do: dgettext("dashboard_tests", "The server didn't answer in time, so the run went ahead with every test.")
-
-  def fallback_description("platform_mismatch"),
+  def fallback_description("tracked_file_changed"),
     do:
       dgettext(
         "dashboard_tests",
-        "The baseline's evidence was recorded on a different platform, where tests can execute different files."
+        "A file that can affect any test without showing up in coverage changed, such as a dependency pin or build settings."
       )
+
+  def fallback_description("diff_too_large"),
+    do: dgettext("dashboard_tests", "More than 5,000 files changed since the baseline.")
 
   def fallback_description(reason), do: reason
 
@@ -167,19 +186,6 @@ defmodule TuistWeb.TestSelection.Components do
     />
     """
   end
-
-  def file_kind_label("source"), do: dgettext("dashboard_tests", "Source")
-  def file_kind_label("test"), do: dgettext("dashboard_tests", "Test")
-  def file_kind_label("resource"), do: dgettext("dashboard_tests", "Resource")
-  def file_kind_label("tracked"), do: dgettext("dashboard_tests", "Tracked")
-  def file_kind_label("ignored"), do: dgettext("dashboard_tests", "Ignored")
-  def file_kind_label(kind), do: kind
-
-  def file_kind_color("tracked"), do: "warning"
-  def file_kind_color("resource"), do: "attention"
-  def file_kind_color("ignored"), do: "neutral"
-  def file_kind_color("test"), do: "secondary"
-  def file_kind_color(_kind), do: "information"
 
   def file_status_label("added"), do: dgettext("dashboard_tests", "Added")
   def file_status_label("deleted"), do: dgettext("dashboard_tests", "Deleted")
