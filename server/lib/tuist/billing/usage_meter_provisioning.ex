@@ -4,10 +4,9 @@ defmodule Tuist.Billing.UsageMeterProvisioning do
 
   Idempotent: a Meter is found by its event name and a Price by its lookup
   key, so a second run answers with what already exists instead of creating a
-  duplicate. The tiers come from `Tuist.Billing.UsagePricing.meter_prices/0`
-  and `Tuist.Runners.CacheVolumeBilling.meter_price/0`, so a Price cannot be
-  provisioned at a rate the dashboard does not quote, and a Price whose tiers
-  no longer match them is replaced by a new one.
+  duplicate. The tiers come from `Tuist.Billing.UsagePricing.meter_prices/0`,
+  so a Price cannot be provisioned at a rate the dashboard does not quote, and
+  a Price whose tiers no longer match them is replaced by a new one.
 
   Run it against test mode first. Live mode needs `live: true`, because the
   Prices it creates are what customers are charged on.
@@ -15,23 +14,20 @@ defmodule Tuist.Billing.UsageMeterProvisioning do
 
   alias Tuist.Billing.UsagePricing
   alias Tuist.Environment
-  alias Tuist.Runners.CacheVolumeBilling
 
   @product_names %{
     "cache_egress_megabytes" => "Cache egress",
     "cache_requests" => "Cache requests",
-    "passing_test_cases" => "Passing test cases",
-    "runner_cache_volume_megabyte_months" => "Cache volume storage"
+    "passing_test_cases" => "Passing test cases"
   }
 
   @doc """
-  Provisions every meter and answers with `%{event_name => price_id}`. Cache
-  volume storage goes under `stripe.prices.runners`, the rest under
-  `stripe.prices.usage_meters`.
+  Provisions every meter and answers with `%{event_name => price_id}`, ready
+  to paste into `stripe.prices.usage_meters`.
   """
   def provision(opts \\ []) do
     with :ok <- check_mode(Keyword.get(opts, :live, false)) do
-      Enum.reduce_while(meter_prices(), {:ok, %{}}, fn meter, {:ok, price_ids} ->
+      Enum.reduce_while(UsagePricing.meter_prices(), {:ok, %{}}, fn meter, {:ok, price_ids} ->
         case provision_meter(meter) do
           {:ok, price_id} -> {:cont, {:ok, Map.put(price_ids, meter.event_name, price_id)}}
           {:error, reason} -> {:halt, {:error, {meter.event_name, reason}}}
@@ -59,8 +55,6 @@ defmodule Tuist.Billing.UsageMeterProvisioning do
       {false, false} -> {:error, :refusing_live_mode_without_opt_in}
     end
   end
-
-  defp meter_prices, do: UsagePricing.meter_prices() ++ [CacheVolumeBilling.meter_price()]
 
   defp provision_meter(%{event_name: event_name} = meter) do
     with {:ok, meter_id} <- find_or_create_meter(event_name) do
