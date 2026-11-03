@@ -12,6 +12,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
@@ -66,6 +67,9 @@ defmodule TuistWeb.UsageLive do
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
      |> assign_async(:usage_pricing, fn ->
        {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
+     end)
+     |> assign_async(:storage, fn ->
+       {:ok, %{storage: CacheVolumeBilling.period_breakdown(account, period)}}
      end)}
   end
 
@@ -485,6 +489,48 @@ defmodule TuistWeb.UsageLive do
 
   defp chart_value(value, :dollars), do: Float.round(value / 1, 2)
   defp chart_value(value, _field), do: round(value)
+
+  @doc """
+  The average bytes each repository's cache volumes held each day, followed
+  by the days the period has not reached at what is saved now.
+  """
+  def storage_chart_series(%{days: days, projected_days: projected_days} = storage) do
+    dates = usage_chart_dates(storage)
+
+    days
+    |> Enum.group_by(& &1.repository)
+    |> Enum.sort_by(fn {_repository, rows} -> -Enum.sum(Enum.map(rows, & &1.bytes)) end)
+    |> Enum.with_index()
+    |> Enum.map(fn {{repository, rows}, index} ->
+      bar_series(
+        repository_label(repository),
+        Enum.at(@repository_colors, rem(index, length(@repository_colors))),
+        dates,
+        rows,
+        :bytes
+      )
+    end)
+    |> Kernel.++(projected_series(projected_days, dates, :bytes))
+  end
+
+  def storage_used?(%{byte_months: byte_months, stored_bytes: stored_bytes}), do: byte_months > 0 or stored_bytes > 0
+  def storage_used?(_storage), do: false
+
+  def storage_rate_label, do: "$0.10 " <> dgettext("dashboard_usage", "per GB-month")
+
+  def gigabyte_months_label(byte_months),
+    do:
+      dgettext("dashboard_usage", "%{count} GB-months",
+        count: CldrHelpers.format_number(byte_months / 1_000_000_000, fractional_digits: 1)
+      )
+
+  def storage_pace_label(%{projected: nil}), do: nil
+
+  def storage_pace_label(%{projected: projected}),
+    do:
+      dgettext("dashboard_usage", "At what is saved now, this period comes to about %{amount}.",
+        amount: gigabyte_months_label(projected)
+      )
 
   def runner_usage?(%{minutes: minutes, by_repository: by_repository}), do: minutes > 0 or by_repository != []
 

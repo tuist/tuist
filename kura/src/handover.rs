@@ -7,13 +7,15 @@ use crate::{
         },
         window::BackfillWindow,
     },
-    http::BackfillBodyManifestMeta,
+    http::{BackfillBodyManifestMeta, BackfillEntry},
     serving_authority::Holder,
     state::SharedState,
     store::manifest_version_ms,
+    sync::feed::SyncPosition,
     utils::BackfillRecordKind,
 };
 use axum::{Json, extract::State, http::StatusCode};
+use futures_util::{StreamExt, stream::FuturesOrdered};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, sync::atomic::Ordering, time::Duration};
@@ -29,10 +31,15 @@ const DESCRIPTOR_PAGE_BODY_BYTES: u64 = 128 * 1024 * 1024;
 // Metadata-only descriptors checked per request inside the barrier.
 const DESCRIPTOR_BATCH_RECORDS: usize = 1024;
 const DESCRIPTOR_BATCH_METADATA_BYTES: usize = 256 * 1024;
+// Metadata-only batches awaiting their answers at once.
+const DESCRIPTOR_BATCHES_IN_FLIGHT: usize = 4;
 // Bounds the destination's verified set to about 32 MiB; versions past it are
 // verified in full inside the barrier.
 const MAX_VERIFIED_CONTENT: usize = 2_000_000;
 const CONTENT_WALK_DEADLINE_MARGIN_MS: u64 = 30_000;
+// Bounds the records a content-verified destination remembers as missing, so
+// the frozen repair fetches only those; past it, the full walk runs.
+const MAX_DELTA_REPAIR_RECORDS: usize = 100_000;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
@@ -53,6 +60,63 @@ pub struct Preparation {
     pub error: Option<String>,
 }
 
+/// A retained barrier rejection that retrying the same intent cannot change.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct HandoverFailure {
+    pub id: String,
+    pub reason: String,
+}
+
+/// A destination rejection. Terminal ones answer 422 so the frozen source
+/// reports them instead of retrying until the Quiescing deadline.
+#[derive(Debug)]
+pub(crate) struct Rejection {
+    reason: String,
+    terminal: bool,
+}
+
+fn terminal(reason: impl Into<String>) -> Rejection {
+    Rejection {
+        reason: reason.into(),
+        terminal: true,
+    }
+}
+
+impl From<String> for Rejection {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            terminal: false,
+        }
+    }
+}
+
+impl From<&str> for Rejection {
+    fn from(reason: &str) -> Self {
+        reason.to_string().into()
+    }
+}
+
+impl From<Rejection> for String {
+    fn from(rejection: Rejection) -> Self {
+        rejection.reason
+    }
+}
+
+impl std::ops::Deref for Rejection {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.reason
+    }
+}
+
+impl std::fmt::Display for Rejection {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.reason)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Receipt {
     pub id: String,
@@ -65,7 +129,7 @@ pub struct Receipt {
     pub digest: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Record {
     kind: String,
     id: String,
@@ -112,7 +176,7 @@ fn bounded_detail(detail: &str) -> String {
     detail.chars().take(1024).collect()
 }
 
-async fn record(
+pub(crate) async fn record(
     state: &SharedState,
     kind: BackfillRecordKind,
     id: &str,
@@ -214,16 +278,22 @@ async fn verify_response(
                 %id,
                 %context,
                 %reason,
+                terminal = error.terminal,
                 "Retained-corpus verification rejected"
             );
-            (StatusCode::CONFLICT, reason)
+            let status = if error.terminal {
+                StatusCode::UNPROCESSABLE_ENTITY
+            } else {
+                StatusCode::CONFLICT
+            };
+            (status, reason)
         })
 }
 
 async fn verify_inner(
     state: &SharedState,
     request: VerifyRequest,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, Rejection> {
     if request.records.len() > MAX_BATCH_RECORDS
         || (!request.records.is_empty()
             && (request.begin || request.record.is_some() || request.receipt.is_some()))
@@ -234,6 +304,15 @@ async fn verify_inner(
     require_current_destination(state, &request)?;
     if request.begin {
         let receipt = request.receipt.as_ref().ok_or("missing source position")?;
+        if let Some(failure) = authority
+            .frozen_failure
+            .lock()
+            .map_err(|_| "frozen failure poisoned")?
+            .as_ref()
+            .filter(|failure| failure.id == request.intent.id)
+        {
+            return Err(terminal(failure.reason.clone()));
+        }
         let _preparation = authority
             .handover_preparation
             .try_lock()
@@ -257,13 +336,90 @@ async fn verify_inner(
             hold.is_some()
         };
         if !already_held {
+            // A destination that content-verified this intent while the source
+            // served watches every segment that may hold a record it checked.
+            // With the source frozen, a counted eviction punches holes the
+            // next walk could only repair by evicting again. When that walk
+            // covered the whole index and nothing counted was evicted since,
+            // every record it confirmed is still held, so only the records it
+            // found missing need repair; the full-corpus verification still
+            // checks every retained record before any receipt.
+            let (losses_at, delta, feed_from) = authority
+                .verified_content
+                .lock()
+                .map_err(|_| "verified content poisoned")?
+                .as_ref()
+                .filter(|verified| verified.intent_id == request.intent.id)
+                .filter(|verified| verified.frontier_ms.is_some())
+                .map_or((None, None, None), |verified| {
+                    let delta = verified
+                        .complete
+                        .then(|| verified.missing.clone())
+                        .flatten();
+                    (Some(verified.losses_at), delta, verified.feed_from)
+                });
+            // Records the source added after the walk began, whether or not
+            // the forward link kept them, join the repair; without the whole
+            // range the full walk runs.
+            let delta = match (delta, feed_from) {
+                (Some(mut missing), Some(from)) if from.incarnation == receipt.incarnation => {
+                    match crate::sync::replica::feed_records_between(
+                        state,
+                        &request.intent.source_url,
+                        from,
+                        receipt.head,
+                        MAX_DELTA_REPAIR_RECORDS.saturating_sub(missing.len()),
+                    )
+                    .await
+                    {
+                        Ok(Some(added)) => {
+                            missing.extend(added);
+                            Some(missing)
+                        }
+                        outcome => {
+                            tracing::info!(event.name = "kura.handover.delta_unavailable", id = %request.intent.id,
+                                error = ?outcome.err().map(|error| bounded_detail(&error)),
+                                "Source feed does not cover the walk; repairing the whole retained index");
+                            None
+                        }
+                    }
+                }
+                _ => None,
+            };
+            let record_terminal = |rejection: &Rejection| -> Result<(), Rejection> {
+                if rejection.terminal {
+                    *authority
+                        .frozen_failure
+                        .lock()
+                        .map_err(|_| "frozen failure poisoned")? = Some(HandoverFailure {
+                        id: request.intent.id.clone(),
+                        reason: bounded_detail(rejection),
+                    });
+                }
+                Ok(())
+            };
+            if let Some(missing) = &delta {
+                tracing::info!(event.name = "kura.handover.delta_repair", id = %request.intent.id,
+                    records = missing.len(),
+                    "Repairing only the records preparation found missing");
+            }
             loop {
                 require_current_destination(state, &request)?;
                 let before = state
                     .store
                     .handover_eviction_generation
                     .load(Ordering::Acquire);
-                reconcile_retained_corpus(state, &request, None).await?;
+                let repaired = match &delta {
+                    Some(missing) if missing.is_empty() => Ok(()),
+                    _ => {
+                        reconcile_retained_corpus(state, &request, None, losses_at, delta.clone())
+                            .await
+                    }
+                };
+                if let Err(rejection) = repaired {
+                    record_terminal(&rejection)?;
+                    return Err(rejection);
+                }
                 let mut hold = state
                     .store
                     .handover_hold
@@ -273,11 +429,23 @@ async fn verify_inner(
                 // this comparison and freezing the destination. Never release a
                 // hold to repair a failed verification; finish repair first.
                 require_current_destination(state, &request)?;
+                if let Some(start) = losses_at {
+                    let lost = state.store.retained_loss_evictions().wrapping_sub(start);
+                    if lost > 0 {
+                        let rejection = terminal(format!(
+                            "destination evicted {lost} segments that may hold retained records since preparation"
+                        ));
+                        record_terminal(&rejection)?;
+                        return Err(rejection);
+                    }
+                }
                 let after = state
                     .store
                     .handover_eviction_generation
                     .load(Ordering::Acquire);
-                if before != after {
+                // An uncounted eviction removed only segments older than every
+                // record the walk checked; the full walk revisits instead.
+                if delta.is_none() && before != after {
                     tracing::info!(event.name="kura.handover.repair_revisit", id=%request.intent.id,
                         eviction_commits=after.wrapping_sub(before),
                         "Revisiting retained corpus after repair eviction");
@@ -318,7 +486,10 @@ async fn verify_inner(
         for expected in records {
             verify_record(state, &expected)
                 .await
-                .map_err(|error| format!("{}; {error}", record_context(&expected)))?;
+                .map_err(|error| Rejection {
+                    reason: format!("{}; {}", record_context(&expected), error.reason),
+                    terminal: error.terminal,
+                })?;
             count += 1;
         }
         return Ok(
@@ -370,7 +541,10 @@ async fn reconcile_retained_corpus(
     state: &SharedState,
     request: &VerifyRequest,
     preparation_epoch: Option<u64>,
-) -> Result<(), String> {
+    losses_at: Option<u64>,
+    // Exactly the records to repair, or None for the source's whole index.
+    missing: Option<Vec<BackfillEntry>>,
+) -> Result<(), Rejection> {
     // A feed cursor covers arrivals, not everything the source still retains:
     // bootstrap is horizon bounded and local eviction can remove older rows.
     // Reuse the bounded replication pipeline before freezing the destination.
@@ -378,9 +552,10 @@ async fn reconcile_retained_corpus(
     // age-based selection policy: even old records belong to this barrier.
     // Full verification, never pass completion, authorizes the transfer.
     let mut tuning = BackfillPassTuning::from_config(&state.config);
-    tuning.source = PassSource::RetainedIndex;
+    tuning.source = missing.map_or(PassSource::RetainedIndex, PassSource::RetainedEntries);
     tuning.feed_rows = false;
     tuning.bandwidth_shaped = preparation_epoch.is_some();
+    tuning.compact_retained = preparation_epoch.is_some();
     let cancel = CancellationToken::new();
     let pass = run_backfill_pass_with_tuning(
         state,
@@ -397,10 +572,20 @@ async fn reconcile_retained_corpus(
     loop {
         tokio::select! {
             biased;
-            _ = check.tick() => match preparation_epoch {
-                Some(epoch) => require_current_preparation(state, request, epoch)?,
-                None => require_current_destination(state, request)?,
-            },
+            _ = check.tick() => {
+                match preparation_epoch {
+                    Some(epoch) => require_current_preparation(state, request, epoch)?,
+                    None => require_current_destination(state, request)?,
+                }
+                if let Some(start) = losses_at {
+                    let lost = state.store.retained_loss_evictions().wrapping_sub(start);
+                    if lost > 0 {
+                        return Err(terminal(format!(
+                            "destination evicted {lost} segments that may hold retained records while repairing the frozen corpus"
+                        )));
+                    }
+                }
+            }
             outcome = &mut pass => {
                 return match outcome {
                     BackfillPassOutcome::Completed { stats, .. } => {
@@ -408,9 +593,17 @@ async fn reconcile_retained_corpus(
                             listed=stats.tuples_listed, applied=stats.bodies_applied,
                             bytes=stats.bytes_applied, capacity_skipped=stats.tuples_capacity_skipped,
                             "Named destination reconciled before retained-corpus verification");
+                        // The frozen corpus cannot change, so a record the
+                        // store refused for capacity stays a hole.
+                        if preparation_epoch.is_none() && stats.tuples_capacity_skipped > 0 {
+                            return Err(terminal(format!(
+                                "destination refused {} retained records for capacity while repairing the frozen corpus",
+                                stats.tuples_capacity_skipped
+                            )));
+                        }
                         Ok(())
                     }
-                    BackfillPassOutcome::Failed { error, .. } => Err(format!("retained corpus reconciliation failed: {}", bounded_detail(&error))),
+                    BackfillPassOutcome::Failed { error, .. } => Err(format!("retained corpus reconciliation failed: {}", bounded_detail(&error)).into()),
                     BackfillPassOutcome::Cancelled { .. } => Err("retained corpus reconciliation cancelled".into()),
                 };
             }
@@ -456,15 +649,45 @@ async fn prepare_live_destination(
     };
     let _preparation = state.runtime.authority.handover_preparation.lock().await;
     require_current_preparation(state, &request, preparation.epoch)?;
-    reconcile_retained_corpus(state, &request, Some(preparation.epoch)).await?;
-    verify_content_while_serving(state, &request, preparation.epoch).await?;
+    reconcile_retained_corpus(state, &request, Some(preparation.epoch), None, None).await?;
+    let walk = verify_content_while_serving(state, &request, preparation.epoch).await?;
     // A live cache may evict on every walk. Waiting for an eviction-free pass
     // can starve until the deadline while the source keeps accepting writes.
     // Quiescing still repairs, atomically freezes and verifies the full corpus.
-    require_current_preparation(state, &request, preparation.epoch)
+    require_current_preparation(state, &request, preparation.epoch)?;
+    require_room_for_barrier(state, &walk)
 }
 
-async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), String> {
+// Quiescing refuses the source's writes until repair converges. A destination
+// that has dropped records the source retains, or cannot fetch what it lacks
+// without dropping more, would only evict until the deadline, so it reports
+// failure while the source still serves.
+fn require_room_for_barrier(state: &SharedState, walk: &ContentWalk) -> Result<(), String> {
+    let Some(frontier) = walk.frontier_ms else {
+        return Ok(());
+    };
+    let lost = state
+        .store
+        .retained_loss_evictions()
+        .wrapping_sub(walk.losses_at);
+    if lost > 0 {
+        return Err(format!(
+            "destination evicted {lost} segments that may hold retained records during preparation"
+        ));
+    }
+    let admissible = state.store.handover_admissible_bytes(frontier);
+    if walk.missing_bytes > admissible {
+        return Err(format!(
+            "destination cannot hold the retained corpus without evicting it: missing_records={} missing_bytes={} admissible_bytes={admissible}",
+            walk.missing_records, walk.missing_bytes
+        ));
+    }
+    Ok(())
+}
+
+// Called only under the destination's hold: a missing or different record
+// cannot be repaired any more, so those rejections are terminal.
+pub(crate) async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Rejection> {
     let kind =
         BackfillRecordKind::from_wire_name(&expected.kind).ok_or("unknown retained record kind")?;
     let actual = match record(state, kind, &expected.id, expected.version).await? {
@@ -485,20 +708,20 @@ async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Str
             if version.is_some_and(|version| version > expected.version) {
                 return Ok(());
             }
-            return Err(format!(
+            return Err(terminal(format!(
                 "retained record missing or version differs: expected_version={} actual_version={version:?}",
                 expected.version
-            ));
+            )));
         }
     };
     if actual.size != expected.size || actual.digest != expected.digest {
-        return Err(format!(
+        return Err(terminal(format!(
             "retained record content mismatch: expected_size={} actual_size={} expected_digest={} actual_digest={}",
             expected.size,
             actual.size,
             bounded_detail(&expected.digest),
             actual.digest
-        ));
+        )));
     }
     Ok(())
 }
@@ -509,6 +732,18 @@ async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Str
 pub struct VerifiedContent {
     intent_id: String,
     keys: HashSet<u128>,
+    // The oldest version the destination watches for counted evictions: the
+    // source's oldest retained version, lowered to every version checked.
+    frontier_ms: Option<u64>,
+    // Counted evictions when the walk began.
+    losses_at: u64,
+    // Whether the walk reached the end of the source's index.
+    complete: bool,
+    // What the walk found missing, or None past the repair bound.
+    missing: Option<Vec<BackfillEntry>>,
+    // This destination's feed cursor on the source when the walk began: every
+    // record the source added since is a feed row after it.
+    feed_from: Option<SyncPosition>,
 }
 
 fn content_key(kind: &str, id: &str, version: u64) -> u128 {
@@ -536,6 +771,9 @@ pub struct DescriptorRequest {
 pub struct DescriptorPage {
     records: Vec<Record>,
     next_after: Option<String>,
+    // Sent on the first page only; older sources omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    oldest_version_ms: Option<u64>,
 }
 
 /// One page of the serving source's retained content descriptors, hashed from
@@ -570,6 +808,11 @@ async fn descriptor_page(
         .map(hex::decode)
         .transpose()
         .map_err(|_| "invalid descriptor cursor")?;
+    let oldest_version_ms = if after.is_none() {
+        state.store.backfill_index_oldest_version_ms()?
+    } else {
+        None
+    };
     let page = state
         .store
         .backfill_index_page(after.as_deref(), DESCRIPTOR_PAGE_RECORDS)?;
@@ -587,12 +830,14 @@ async fn descriptor_page(
             return Ok(DescriptorPage {
                 records,
                 next_after: Some(hex::encode(cursor)),
+                oldest_version_ms,
             });
         }
     }
     Ok(DescriptorPage {
         records,
         next_after: page.next_after.map(hex::encode),
+        oldest_version_ms,
     })
 }
 
@@ -605,11 +850,22 @@ async fn verify_content_while_serving(
     state: &SharedState,
     request: &VerifyRequest,
     epoch: u64,
-) -> Result<(), String> {
+) -> Result<ContentWalk, String> {
     let started = std::time::Instant::now();
     let mut verified = VerifiedContent {
         intent_id: request.intent.id.clone(),
         keys: HashSet::new(),
+        frontier_ms: None,
+        losses_at: 0,
+        complete: false,
+        missing: Some(Vec::new()),
+        feed_from: None,
+    };
+    let mut walk = ContentWalk {
+        frontier_ms: None,
+        losses_at: 0,
+        missing_records: 0,
+        missing_bytes: 0,
     };
     let (mut unverified, mut after) = (0u64, None::<String>);
     loop {
@@ -656,6 +912,23 @@ async fn verify_content_while_serving(
                 break;
             }
         };
+        if after.is_none()
+            && let Some(frontier) = page.oldest_version_ms
+        {
+            // Evictions from here on that may reach the source's retained
+            // range are counted against this preparation.
+            state.store.watch_retained_evictions(frontier);
+            walk.losses_at = state.store.retained_loss_evictions();
+            walk.frontier_ms = Some(frontier);
+            verified.feed_from = state.store.sync_cursor(&request.intent.source_url)?;
+        }
+        // Watch the oldest record on this page before checking that it is
+        // held, so a later eviction of its segment is counted.
+        if walk.frontier_ms.is_some()
+            && let Some(oldest) = page.records.iter().map(|record| record.version).min()
+        {
+            walk.frontier_ms = Some(state.store.lower_retained_watch(oldest));
+        }
         for expected in &page.records {
             let kind = BackfillRecordKind::from_wire_name(&expected.kind)
                 .ok_or("unknown retained record kind")?;
@@ -685,24 +958,60 @@ async fn verify_content_while_serving(
                         record_context(expected)
                     ));
                 }
-                None => unverified += 1,
+                None => {
+                    unverified += 1;
+                    walk.missing_records += 1;
+                    walk.missing_bytes = walk.missing_bytes.saturating_add(expected.size);
+                    if verified
+                        .missing
+                        .as_ref()
+                        .is_some_and(|missing| missing.len() >= MAX_DELTA_REPAIR_RECORDS)
+                    {
+                        verified.missing = None;
+                    }
+                    if let Some(missing) = verified.missing.as_mut() {
+                        missing.push(BackfillEntry {
+                            record_kind: expected.kind.clone(),
+                            record_id: expected.id.clone(),
+                            version_ms: expected.version,
+                            size: (kind != BackfillRecordKind::NamespaceTombstone)
+                                .then_some(expected.size),
+                        });
+                    }
+                }
             }
         }
         match page.next_after {
             Some(next) => after = Some(next),
-            None => break,
+            None => {
+                verified.complete = true;
+                break;
+            }
         }
     }
     tracing::info!(event.name = "kura.handover.content_verified", id = %request.intent.id,
-        verified = verified.keys.len(), unverified, elapsed_ms = started.elapsed().as_millis() as u64,
+        verified = verified.keys.len(), unverified, missing = walk.missing_records,
+        missing_bytes = walk.missing_bytes, frontier_ms = ?walk.frontier_ms,
+        complete = verified.complete, elapsed_ms = started.elapsed().as_millis() as u64,
         "Verified retained content while the source serves");
+    verified.frontier_ms = walk.frontier_ms;
+    verified.losses_at = walk.losses_at;
     *state
         .runtime
         .authority
         .verified_content
         .lock()
         .map_err(|_| "verified content poisoned")? = Some(verified);
-    Ok(())
+    Ok(walk)
+}
+
+/// What a preparation's content walk found missing, and from which retained
+/// frontier and eviction count it watches for further losses.
+struct ContentWalk {
+    frontier_ms: Option<u64>,
+    losses_at: u64,
+    missing_records: u64,
+    missing_bytes: u64,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -765,14 +1074,30 @@ fn descriptor_answer(
         .as_ref()
         .filter(|verified| verified.intent_id == batch.intent.id)
         .map(|verified| &verified.keys);
+    let kinds = batch
+        .records
+        .iter()
+        .map(|expected| {
+            BackfillRecordKind::from_wire_name(&expected.kind).ok_or("unknown retained record kind")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut manifests = state
+        .store
+        .manifests_from_db(
+            batch
+                .records
+                .iter()
+                .zip(&kinds)
+                .filter(|(_, kind)| **kind != BackfillRecordKind::NamespaceTombstone)
+                .map(|(expected, _)| expected.id.as_str()),
+        )?
+        .into_iter();
     let (mut accepted, mut needs_content) = (0usize, Vec::new());
-    for (index, expected) in batch.records.iter().enumerate() {
-        let kind = BackfillRecordKind::from_wire_name(&expected.kind)
-            .ok_or("unknown retained record kind")?;
+    for (index, (expected, kind)) in batch.records.iter().zip(kinds).enumerate() {
         let current = if kind == BackfillRecordKind::NamespaceTombstone {
             None
         } else {
-            state.store.manifest_from_db(&expected.id)?
+            manifests.next().flatten()
         };
         // A manifest exists only while its body does: eviction removes both.
         let held = current.as_ref().is_some_and(|manifest| {
@@ -834,9 +1159,22 @@ async fn send_to(
     let bytes =
         crate::replication::read_bounded_body(response, 16 * 1024, "handover verification").await?;
     if !status.is_success() {
+        let reason = bounded_detail(&String::from_utf8_lossy(&bytes));
+        if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+            tracing::warn!(event.name = "kura.handover.barrier_failed", id = %intent.id, %context, %reason,
+                "Destination cannot complete the retained barrier; reporting it so the source resumes");
+            *state
+                .runtime
+                .authority
+                .barrier_failure
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Some(HandoverFailure {
+                id: intent.id.clone(),
+                reason: reason.clone(),
+            });
+        }
         return Err(format!(
-            "destination rejected handover: {status}; {context}; reason={:?}",
-            bounded_detail(&String::from_utf8_lossy(&bytes))
+            "destination rejected handover: {status}; {context}; reason={reason:?}"
         ));
     }
     serde_json::from_slice(&bytes).map_err(|e| e.to_string())
@@ -876,15 +1214,14 @@ fn frozen_descriptor(
         }))
 }
 
-/// Sends one batch of frozen descriptors and verifies in full, with body
-/// digests, every record the destination could not accept from metadata.
-async fn verify_descriptor_batch(
+/// Sends one batch of frozen descriptors and returns it with the indexes of
+/// the records the destination could not accept from metadata.
+async fn descriptor_needs(
     state: &SharedState,
     intent: &Intent,
     source: &Holder,
     descriptors: Vec<Record>,
-    batch_size: usize,
-) -> Result<u64, String> {
+) -> Result<(Vec<Record>, Vec<usize>), String> {
     let count = descriptors.len();
     let batch = DescriptorBatch {
         intent: intent.clone(),
@@ -911,10 +1248,23 @@ async fn verify_descriptor_batch(
     if accepted as usize + needs.len() != count || needs.iter().any(|index| *index >= count) {
         return Err("destination did not account for every descriptor".into());
     }
+    Ok((batch.records, needs))
+}
+
+/// Verifies in full, with body digests, the records of one descriptor batch
+/// the destination could not accept from metadata.
+async fn verify_needed_content(
+    state: &SharedState,
+    intent: &Intent,
+    source: &Holder,
+    records: &[Record],
+    needs: &[usize],
+    batch_size: usize,
+) -> Result<u64, String> {
     let mut full = Vec::with_capacity(batch_size);
     let mut body_bytes = 0u64;
-    for index in &needs {
-        let descriptor = &batch.records[*index];
+    for index in needs {
+        let descriptor = &records[*index];
         let kind = BackfillRecordKind::from_wire_name(&descriptor.kind)
             .ok_or("unknown retained record kind")?;
         let value = record(state, kind, &descriptor.id, descriptor.version)
@@ -1035,6 +1385,10 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     let started = std::time::Instant::now();
     let mut content_verified = 0u64;
     if preverified > 0 {
+        // Metadata answers overlap; records named for full verification are
+        // still sent one batch at a time, in corpus order.
+        let source = receipt.source.clone();
+        let mut in_flight = FuturesOrdered::new();
         let mut descriptors = Vec::new();
         let mut metadata_bytes = 0usize;
         loop {
@@ -1053,15 +1407,21 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
                         || metadata_bytes.saturating_add(encoded.len())
                             > DESCRIPTOR_BATCH_METADATA_BYTES)
                 {
-                    content_verified += verify_descriptor_batch(
+                    in_flight.push_back(descriptor_needs(
                         state,
                         intent,
-                        &receipt.source,
+                        &source,
                         std::mem::take(&mut descriptors),
-                        batch_size,
-                    )
-                    .await?;
+                    ));
                     metadata_bytes = 0;
+                    if in_flight.len() == DESCRIPTOR_BATCHES_IN_FLIGHT {
+                        let (records, needs) =
+                            in_flight.next().await.expect("a batch is in flight")?;
+                        content_verified += verify_needed_content(
+                            state, intent, &source, &records, &needs, batch_size,
+                        )
+                        .await?;
+                    }
                 }
                 metadata_bytes += encoded.len();
                 digest.update((encoded.len() as u64).to_be_bytes());
@@ -1075,9 +1435,12 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             }
         }
         if !descriptors.is_empty() {
+            in_flight.push_back(descriptor_needs(state, intent, &source, descriptors));
+        }
+        while let Some(answer) = in_flight.next().await {
+            let (records, needs) = answer?;
             content_verified +=
-                verify_descriptor_batch(state, intent, &receipt.source, descriptors, batch_size)
-                    .await?;
+                verify_needed_content(state, intent, &source, &records, &needs, batch_size).await?;
         }
     } else {
         loop {
@@ -1244,6 +1607,12 @@ pub fn spawn(state: SharedState) {
                 .unwrap_or_else(|e| e.into_inner())
                 .as_ref()
                 .is_some_and(|r| r.id == intent.id)
+                || authority
+                    .barrier_failure
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .as_ref()
+                    .is_some_and(|failure| failure.id == intent.id)
             {
                 continue;
             }
@@ -1270,8 +1639,7 @@ pub fn spawn(state: SharedState) {
 mod tests {
     use super::*;
     use crate::{
-        artifact::producer::ArtifactProducer, serving_authority::Grant, sync::feed::SyncPosition,
-        test_support::test_context,
+        artifact::producer::ArtifactProducer, serving_authority::Grant, test_support::test_context,
     };
 
     async fn serve(state: SharedState) -> (String, tokio::task::JoinHandle<()>) {
@@ -2700,6 +3068,7 @@ mod tests {
                 .await
                 .unwrap_err();
             assert!(error.contains("retained record content mismatch"));
+            assert!(error.terminal, "a hole under the hold cannot be repaired");
             assert!(error.contains(&format!("actual_digest={}", expected.digest)));
             verify_inner(state, request(false, Some(expected), None))
                 .await
@@ -3032,6 +3401,7 @@ mod tests {
         source: crate::test_support::TestContext,
         target: crate::test_support::TestContext,
         intent: Intent,
+        source_requests: Requests,
         target_requests: Requests,
     }
 
@@ -3040,7 +3410,7 @@ mod tests {
             let source = fenced_context("source").await;
             let target = fenced_context("destination").await;
             source.state.store.sync_feed_activate().await.unwrap();
-            let (source_url, _) = serve_counting(source.state.clone()).await;
+            let (source_url, source_requests) = serve_counting(source.state.clone()).await;
             let (target_url, target_requests) = serve_counting(target.state.clone()).await;
             let intent = Intent {
                 id: "content".into(),
@@ -3053,8 +3423,56 @@ mod tests {
                 source,
                 target,
                 intent,
+                source_requests,
                 target_requests,
             }
+        }
+
+        // The destination's forward link has applied everything the source's
+        // feed holds so far.
+        fn catch_up_cursor(&self) {
+            let feed = self.source.state.store.sync_feed();
+            self.target
+                .state
+                .store
+                .write_sync_cursor(
+                    &self.intent.source_url,
+                    SyncPosition {
+                        incarnation: feed.incarnation(),
+                        seq: feed.head(),
+                    },
+                )
+                .unwrap();
+        }
+
+        // Renews the named intent in `phase` on both peers, as the controller
+        // would, until the returned task is aborted.
+        fn keep_granted(&self, phase: &'static str) -> tokio::task::JoinHandle<()> {
+            let states = [self.source.state.clone(), self.target.state.clone()];
+            let holder = self.source.state.runtime.authority.identity().clone();
+            let intent = self.intent.clone();
+            tokio::spawn(async move {
+                loop {
+                    let grant = Grant {
+                        epoch: 1,
+                        holder: holder.clone(),
+                        phase: phase.into(),
+                        expires_ms: crate::utils::now_ms() + 14_000,
+                        handover: Some(intent.clone()),
+                        barrier: None,
+                        resume_epoch: None,
+                        exit_resume: None,
+                    };
+                    for state in &states {
+                        state.runtime.authority.install(grant.clone()).unwrap();
+                    }
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+            })
+        }
+
+        fn source_requests(&self, path: &str) -> usize {
+            *self.source_requests.lock().unwrap().get(path).unwrap_or(&0)
         }
 
         fn install(&self, phase: &str) {
@@ -3175,6 +3593,202 @@ mod tests {
             pair.requests("/_internal/handover/verify"),
             3,
             "begin, one full batch for the late record, and the receipt"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_content_verified_destination_repairs_only_what_preparation_and_the_feed_missed() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        // Written after the walk began; the link has not applied it yet.
+        pair.seed("late", &vec![2; 32 * 1024]).await;
+        let listings = pair.source_requests("/_internal/backfill/entries");
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(receipt.records, 2);
+        assert_eq!(
+            pair.source_requests("/_internal/backfill/entries"),
+            listings,
+            "the frozen repair never lists the source's whole index"
+        );
+        assert_eq!(pair.source_requests("/_internal/sync/forward"), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn overlapping_descriptor_batches_still_verify_every_record_in_order() {
+        let pair = ContentPair::new().await;
+        let batches = DESCRIPTOR_BATCHES_IN_FLIGHT + 1;
+        for index in 0..DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 8 {
+            pair.seed(&format!("record-{index}"), &index.to_be_bytes())
+                .await;
+        }
+        pair.catch_up_cursor();
+        let renew = pair.keep_granted("Serving");
+        pair.prepare_while_serving().await.unwrap();
+        renew.abort();
+        pair.seed("late", &vec![2; 32 * 1024]).await;
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(
+            receipt.records as usize,
+            DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 9
+        );
+        assert_eq!(
+            pair.requests("/_internal/handover/verify-descriptors"),
+            batches
+        );
+        assert_eq!(
+            pair.requests("/_internal/handover/verify"),
+            3,
+            "begin, the late record in full, and the receipt"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_feed_that_no_longer_reaches_the_walk_falls_back_to_the_full_repair() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        let feed = pair.source.state.store.sync_feed();
+        pair.target
+            .state
+            .store
+            .write_sync_cursor(
+                &pair.intent.source_url,
+                SyncPosition {
+                    incarnation: feed.incarnation().wrapping_add(1),
+                    seq: feed.head(),
+                },
+            )
+            .unwrap();
+        pair.prepare_while_serving().await.unwrap();
+        pair.seed("late", &vec![2; 32 * 1024]).await;
+        let listings = pair.source_requests("/_internal/backfill/entries");
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(receipt.records, 2);
+        assert!(pair.source_requests("/_internal/backfill/entries") > listings);
+    }
+
+    fn content_request(pair: &ContentPair) -> VerifyRequest {
+        VerifyRequest {
+            begin: false,
+            intent: pair.intent.clone(),
+            source: pair.source.state.runtime.authority.identity().clone(),
+            record: None,
+            records: Vec::new(),
+            receipt: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn preparation_refuses_a_destination_without_room_for_what_it_lacks() {
+        let pair = ContentPair::new().await;
+        pair.seed("held", &vec![1; 64 * 1024]).await;
+        pair.prepare_while_serving().await.unwrap();
+        pair.seed("missing", &vec![2; 96 * 1024]).await;
+        pair.source.state.store.run_backfill_index_build().unwrap();
+
+        let mut walk = verify_content_while_serving(&pair.target.state, &content_request(&pair), 1)
+            .await
+            .unwrap();
+
+        let oldest = pair
+            .source
+            .state
+            .store
+            .backfill_index_oldest_version_ms()
+            .unwrap();
+        assert!(oldest.is_some());
+        assert_eq!(walk.frontier_ms, oldest);
+        assert_eq!(walk.missing_records, 1);
+        assert!(walk.missing_bytes >= 96 * 1024, "{}", walk.missing_bytes);
+        require_room_for_barrier(&pair.target.state, &walk).unwrap();
+
+        walk.missing_bytes = pair
+            .target
+            .state
+            .store
+            .handover_admissible_bytes(walk.frontier_ms.unwrap())
+            + 1;
+        let error = require_room_for_barrier(&pair.target.state, &walk).unwrap_err();
+        assert!(error.contains("cannot hold the retained corpus"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn a_frozen_repair_that_drops_retained_data_ends_the_attempt() {
+        let pair = ContentPair::new().await;
+        pair.seed("segment", &vec![42; 64 * 1024]).await;
+        pair.source.state.store.run_backfill_index_build().unwrap();
+        pair.install("Quiescing");
+        // One counted eviction since the frozen repair began.
+        let losses_at = pair
+            .target
+            .state
+            .store
+            .retained_loss_evictions()
+            .wrapping_sub(1);
+
+        let rejection = reconcile_retained_corpus(
+            &pair.target.state,
+            &content_request(&pair),
+            None,
+            Some(losses_at),
+            None,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(rejection.terminal);
+        assert!(
+            rejection.contains("while repairing the frozen corpus"),
+            "{rejection}"
+        );
+        reconcile_retained_corpus(
+            &pair.target.state,
+            &content_request(&pair),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_terminal_destination_rejection_is_reported_by_the_frozen_source() {
+        let pair = ContentPair::new().await;
+        pair.seed("segment", &vec![42; 64 * 1024]).await;
+        pair.prepare_while_serving().await.unwrap();
+        *pair
+            .target
+            .state
+            .runtime
+            .authority
+            .frozen_failure
+            .lock()
+            .unwrap() = Some(HandoverFailure {
+            id: pair.intent.id.clone(),
+            reason: "destination evicted 1 segments that may hold retained records".into(),
+        });
+
+        let error = pair.freeze().await.unwrap_err();
+
+        assert!(error.contains("422"), "{error}");
+        let authority = &pair.source.state.runtime.authority;
+        let failure = authority.barrier_failure.lock().unwrap().clone().unwrap();
+        assert_eq!(failure.id, pair.intent.id);
+        assert!(
+            failure.reason.contains("destination evicted"),
+            "{failure:?}"
+        );
+        assert_eq!(
+            authority.report()["barrier_failure"]["id"],
+            serde_json::json!(pair.intent.id)
         );
     }
 

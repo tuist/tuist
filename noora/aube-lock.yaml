@@ -89,7 +89,7 @@ time:
   expect-type@1.3.0: 2025-12-08T13:04:58.798Z
   fdir@6.5.0: 2025-08-14T16:56:03.948Z
   fsevents@2.3.3: 2023-08-21T16:24:22.854Z
-  happy-dom@20.11.0: 2026-07-18T17:21:23.567Z
+  happy-dom@21.0.4: 2026-10-20T18:05:53.295Z
   lightningcss-darwin-arm64@1.32.0: 2026-03-09T04:23:07.357Z
   lightningcss-linux-arm64-gnu@1.32.0: 2026-03-09T04:23:18.594Z
   lightningcss-linux-arm64-musl@1.32.0: 2026-03-09T04:23:21.203Z
@@ -207,8 +207,8 @@ importers:
         specifier: ^0.27.0
         version: 0.27.7
       happy-dom:
-        specifier: ^20.0.0
-        version: 20.11.0
+        specifier: ^21.0.4
+        version: 21.0.4
       lit:
         specifier: ^3.3.3
         version: 3.3.3
@@ -220,7 +220,7 @@ importers:
         version: 2.2.0(prettier@3.8.3)
       vitest:
         specifier: ^4.0.0
-        version: 4.1.5(@types/node@26.1.1)(happy-dom@20.11.0)(vite@8.0.10(@types/node@26.1.1)(esbuild@0.27.7))
+        version: 4.1.5(@types/node@26.1.1)(happy-dom@21.0.4)(vite@8.0.10(@types/node@26.1.1)(esbuild@0.27.7))
 
 packages:
 
@@ -577,8 +577,8 @@ packages:
     os:
     - darwin
 
-  happy-dom@20.11.0:
-    resolution: {integrity: sha512-XogN4asPd1a56di9prVG6bZxteNcXsZxxKmAvcEfc5Px5Ca2hMyMgk8wvqK2K1V8zXg40j9VANXsDaJYh9DeNA==}
+  happy-dom@21.0.4:
+    resolution: {integrity: sha512-tFm+GaLBgo6o0awHnvHaNoraVo27qJ+2tZEtZ+cIa08hXbeitrxAJajLI05hsUy/2/YTKcUjQYzHe5mCcraLBw==}
     engines: {node: '>=20.0.0'}
 
   lightningcss-darwin-arm64@1.32.0:
@@ -1232,7 +1232,7 @@ snapshots:
 
   fsevents@2.3.3: {}
 
-  happy-dom@20.11.0:
+  happy-dom@21.0.4:
     dependencies:
       '@types/node': 26.1.1
       '@types/whatwg-mimetype': 3.0.2
@@ -1373,7 +1373,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  vitest@4.1.5(@types/node@26.1.1)(happy-dom@20.11.0)(vite@8.0.10(@types/node@26.1.1)(esbuild@0.27.7)):
+  vitest@4.1.5(@types/node@26.1.1)(happy-dom@21.0.4)(vite@8.0.10(@types/node@26.1.1)(esbuild@0.27.7)):
     dependencies:
       '@types/node': 26.1.1
       '@vitest/expect': 4.1.5
@@ -1385,7 +1385,7 @@ snapshots:
       '@vitest/utils': 4.1.5
       es-module-lexer: 2.1.0
       expect-type: 1.3.0
-      happy-dom: 20.11.0
+      happy-dom: 21.0.4
       magic-string: 0.30.21
       obug: 2.1.1
       pathe: 2.0.3
