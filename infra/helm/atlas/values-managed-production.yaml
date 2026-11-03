@@ -33,6 +33,22 @@ tuistServer:
   tokenMountPath: /var/run/secrets/tuist
   tokenExpirationSeconds: 3600
 
+# Pulso (observability backends in the Tuist clusters), proxied over MCP as
+# one upstream per environment; tools surface as `<name>__<tool>`. Each Pulso
+# verifies the projected ServiceAccount token offline against this cluster's
+# pinned JWKS and trusts `system:serviceaccount:atlas-production:atlas`
+# read-only for its own audience (infra/helm/k8s-monitoring
+# `workloadIdentity`). Add production (`pulso.tuist.dev`) once it is deployed:
+# an unreachable upstream slows every tools/list by its timeout.
+pulso:
+  upstreams:
+    - name: pulso-staging
+      mcpUrl: https://pulso-staging.tuist.dev/mcp
+      audience: pulso-staging.tuist.dev
+    - name: pulso-canary
+      mcpUrl: https://pulso-canary.tuist.dev/mcp
+      audience: pulso-canary.tuist.dev
+
 image:
   repository: ghcr.io/tuist/atlas
   # Tag is set per-deploy by the GitHub Actions workflow (`--set image.tag=…`).
