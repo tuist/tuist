@@ -1301,6 +1301,82 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "add_missing_runner_items/1" do
+    setup do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "runner.linux",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos.new"
+          },
+          "retired_runners" => %{"runner_macos_compute_unit_milliseconds" => ["runner.macos.old"]}
+        }
+      end)
+
+      accounts =
+        Map.new(["sub_macos", "sub_retired", "sub_both", "sub_trial", "sub_scheduled"], fn subscription_id ->
+          account = AccountsFixtures.user_fixture(preload: [:account]).account
+          BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: subscription_id, status: "active")
+          {subscription_id, account.id}
+        end)
+
+      stub(Stripe.Subscription, :retrieve, fn
+        "sub_macos" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "runner.macos.new"])}
+
+        "sub_retired" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "runner.macos.old"])}
+
+        "sub_both" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "runner.macos.new", "runner.linux"])}
+
+        "sub_trial" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "pro.flat.monthly"])}
+
+        "sub_scheduled" ->
+          {:ok, %{stripe_subscription("active", ["runner.macos.new"]) | schedule: "sub_sched_1"}}
+      end)
+
+      %{accounts: accounts}
+    end
+
+    test "only reports what it would do by default" do
+      # Given
+      reject(&Stripe.Subscription.update/2)
+
+      # When
+      got = Billing.add_missing_runner_items()
+
+      # Then
+      assert Map.new(got, &{&1.subscription_id, {&1.action, &1.result}}) == %{
+               "sub_macos" => {{:add, [%{price: "runner.linux"}]}, :dry_run},
+               "sub_retired" => {{:add, [%{price: "runner.linux"}]}, :dry_run},
+               "sub_scheduled" => {{:skip, :scheduled}, :skipped}
+             }
+    end
+
+    test "adds the Linux item beside a macOS one without prorating", %{accounts: accounts} do
+      # Given
+      expect(Stripe.Subscription, :update, 2, fn subscription_id, params ->
+        assert subscription_id in ["sub_macos", "sub_retired"]
+        assert params == %{items: [%{price: "runner.linux"}], proration_behavior: "none"}
+        {:ok, %Stripe.Subscription{}}
+      end)
+
+      # When
+      got = Billing.add_missing_runner_items(dry_run: false)
+
+      # Then
+      assert Enum.find(got, &(&1.subscription_id == "sub_macos")) == %{
+               subscription_id: "sub_macos",
+               account_id: accounts["sub_macos"],
+               action: {:add, [%{price: "runner.linux"}]},
+               result: :ok
+             }
+    end
+  end
+
   describe "usage meter Prices" do
     setup do
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")

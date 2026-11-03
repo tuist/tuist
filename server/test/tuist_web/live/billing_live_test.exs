@@ -432,7 +432,7 @@ defmodule TuistWeb.BillingLiveTest do
       # Prepaid minutes are already paid for, so they raise the ceiling
       # rather than appearing as a balance of their own.
       assert html =~ "10100"
-      assert html =~ "100 free runner minutes plus 10K prepaid"
+      assert html =~ "100 free macOS minutes plus 10K prepaid"
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."
@@ -460,7 +460,7 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       html = render(lv)
-      assert html =~ "100 free runner minutes plus 40K prepaid"
+      assert html =~ "100 free macOS minutes plus 40K prepaid"
       refute html =~ "200K"
     end
   end

@@ -1,0 +1,325 @@
+{{- if .Values.kuraVolumesCSI.enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-csi-pv-boundary
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - persistentvolumes
+      operations:
+      - CREATE
+      - UPDATE
+      - DELETE
+  matchConditions:
+  - name: kura-csi-only
+    expression: request.userInfo.username == 'system:serviceaccount:kura-volumes:kura-volumes-csi-node'
+  variables:
+  - name: node
+    expression: "'authentication.kubernetes.io/node-name' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/node-name']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/node-name'][0] : ''"
+  validations:
+  - expression: variables.node != ''
+    message: Kura CSI requires a pod-bound node identity.
+  - expression: 'request.operation == ''CREATE'' ? (has(object.spec.csi) && object.spec.csi.driver
+      == ''kura-volumes.tuist.dev'' && object.spec.csi.volumeHandle == object.metadata.name
+      && has(object.spec.claimRef) && object.spec.claimRef.namespace == ''kura'' &&
+      object.metadata.name == ''pvc-'' + string(object.spec.claimRef.uid) && has(object.spec.nodeAffinity)
+      && has(object.spec.nodeAffinity.required) && size(object.spec.nodeAffinity.required.nodeSelectorTerms)
+      > 0 && object.spec.nodeAffinity.required.nodeSelectorTerms.all(t, has(t.matchExpressions)
+      && t.matchExpressions.exists(e, e.key == ''topology.kura-volumes.tuist.dev/node''
+      && e.operator == ''In'' && e.values == [variables.node]))) : (has(oldObject.spec.csi)
+      && oldObject.spec.csi.driver == ''kura-volumes.tuist.dev'' && oldObject.spec.csi.volumeHandle
+      == oldObject.metadata.name && has(oldObject.spec.claimRef) && oldObject.spec.claimRef.namespace
+      == ''kura'' && oldObject.metadata.name == ''pvc-'' + string(oldObject.spec.claimRef.uid)
+      && has(oldObject.spec.nodeAffinity) && has(oldObject.spec.nodeAffinity.required)
+      && size(oldObject.spec.nodeAffinity.required.nodeSelectorTerms) > 0 && oldObject.spec.nodeAffinity.required.nodeSelectorTerms.all(t,
+      has(t.matchExpressions) && t.matchExpressions.exists(e, e.key == ''topology.kura-volumes.tuist.dev/node''
+      && e.operator == ''In'' && e.values == [variables.node])))'
+    message: Kura CSI can manage only its own node-local Kura volumes.
+  - expression: request.operation != 'UPDATE' || object.spec == oldObject.spec
+    message: Kura CSI cannot change an existing volume specification.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kura-csi-pv-boundary
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  policyName: kura-csi-pv-boundary
+  validationActions:
+  - Deny
+---
+# Each Kura claim is evaluated as a param. A volume may name a claim only once
+# the scheduler selected the caller's node for it, so a node plugin cannot
+# pre-bind a pending claim to itself.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-csi-pv-claim-node
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - persistentvolumes
+      operations:
+      - CREATE
+  matchConditions:
+  - name: kura-csi-only
+    expression: request.userInfo.username == 'system:serviceaccount:kura-volumes:kura-volumes-csi-node'
+  variables:
+  - name: node
+    expression: "'authentication.kubernetes.io/node-name' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/node-name']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/node-name'][0] : ''"
+  - name: names
+    expression: has(object.spec.claimRef) && object.spec.claimRef.namespace == params.metadata.namespace
+      && object.spec.claimRef.name == params.metadata.name
+  validations:
+  - expression: "!variables.names || (variables.node != '' && object.spec.claimRef.uid
+      == params.metadata.uid && has(params.metadata.annotations) && 'volume.kubernetes.io/selected-node'
+      in params.metadata.annotations && params.metadata.annotations['volume.kubernetes.io/selected-node']
+      == variables.node)"
+    message: Kura CSI can create a volume only for a claim scheduled to its own node.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kura-csi-pv-claim-node
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  policyName: kura-csi-pv-claim-node
+  validationActions:
+  - Deny
+  paramRef:
+    namespace: kura
+    selector:
+      matchLabels:
+        app.kubernetes.io/managed-by: kura-controller
+    parameterNotFoundAction: Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-csi-pvc-boundary
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - persistentvolumeclaims
+      operations:
+      - UPDATE
+  matchConditions:
+  - name: kura-csi-only
+    expression: request.userInfo.username == 'system:serviceaccount:kura-volumes:kura-volumes-csi-node'
+  variables:
+  - name: node
+    expression: "'authentication.kubernetes.io/node-name' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/node-name']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/node-name'][0] : ''"
+  - name: annotations
+    expression: 'has(object.metadata.annotations) ? object.metadata.annotations :
+      {}'
+  - name: oldAnnotations
+    expression: 'has(oldObject.metadata.annotations) ? oldObject.metadata.annotations
+      : {}'
+  validations:
+  - expression: variables.node != ''
+    message: Kura CSI requires a pod-bound node identity.
+  - expression: object.metadata.namespace == 'kura' && object.spec == oldObject.spec
+    message: Kura CSI cannot change claim specifications or other namespaces.
+  - expression: has(object.metadata.labels) == has(oldObject.metadata.labels) && (!has(object.metadata.labels)
+      || object.metadata.labels == oldObject.metadata.labels) && has(object.metadata.ownerReferences)
+      == has(oldObject.metadata.ownerReferences) && (!has(object.metadata.ownerReferences)
+      || object.metadata.ownerReferences == oldObject.metadata.ownerReferences) &&
+      has(object.metadata.finalizers) == has(oldObject.metadata.finalizers) && (!has(object.metadata.finalizers)
+      || object.metadata.finalizers == oldObject.metadata.finalizers)
+    message: Kura CSI cannot change claim ownership.
+  - expression: variables.oldAnnotations.filter(k, k != 'volume.kubernetes.io/selected-node').all(k,
+      k in variables.annotations && variables.annotations[k] == variables.oldAnnotations[k])
+      && variables.annotations.filter(k, k != 'volume.kubernetes.io/selected-node').all(k,
+      k in variables.oldAnnotations)
+    message: Kura CSI can change only the selected-node annotation.
+  # Kura classes bind WaitForFirstConsumer: only the scheduler selects a node.
+  # The node plugin may release a selection of its own node, never set one.
+  - expression: "'volume.kubernetes.io/selected-node' in variables.annotations ?
+      ('volume.kubernetes.io/selected-node' in variables.oldAnnotations && variables.annotations['volume.kubernetes.io/selected-node']
+      == variables.oldAnnotations['volume.kubernetes.io/selected-node']) : (!('volume.kubernetes.io/selected-node'
+      in variables.oldAnnotations) || variables.oldAnnotations['volume.kubernetes.io/selected-node']
+      == variables.node)"
+    message: Kura CSI can only release its own node's selection.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kura-csi-pvc-boundary
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  policyName: kura-csi-pvc-boundary
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-csi-capacity-boundary
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - nodes/status
+      operations:
+      - UPDATE
+  matchConditions:
+  - name: kura-csi-only
+    expression: request.userInfo.username == 'system:serviceaccount:kura-volumes:kura-volumes-csi-node'
+  variables:
+  - name: node
+    expression: "'authentication.kubernetes.io/node-name' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/node-name']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/node-name'][0] : ''"
+  - name: capacity
+    expression: 'has(object.status.capacity) ? object.status.capacity : {}'
+  - name: oldCapacity
+    expression: 'has(oldObject.status.capacity) ? oldObject.status.capacity : {}'
+  validations:
+  - expression: variables.node != ''
+    message: Kura CSI requires a pod-bound node identity.
+  - expression: object.metadata.name == variables.node && object.spec == oldObject.spec
+    message: Kura CSI can publish capacity only on its bound node.
+  - expression: has(object.metadata.labels) == has(oldObject.metadata.labels) && (!has(object.metadata.labels)
+      || object.metadata.labels == oldObject.metadata.labels) && has(object.metadata.annotations)
+      == has(oldObject.metadata.annotations) && (!has(object.metadata.annotations)
+      || object.metadata.annotations == oldObject.metadata.annotations) && has(object.metadata.ownerReferences)
+      == has(oldObject.metadata.ownerReferences) && (!has(object.metadata.ownerReferences)
+      || object.metadata.ownerReferences == oldObject.metadata.ownerReferences) &&
+      has(object.metadata.finalizers) == has(oldObject.metadata.finalizers) && (!has(object.metadata.finalizers)
+      || object.metadata.finalizers == oldObject.metadata.finalizers) && has(object.status.addresses)
+      == has(oldObject.status.addresses) && (!has(object.status.addresses) || object.status.addresses
+      == oldObject.status.addresses) && has(object.status.allocatable) == has(oldObject.status.allocatable)
+      && (!has(object.status.allocatable) || object.status.allocatable == oldObject.status.allocatable)
+      && has(object.status.conditions) == has(oldObject.status.conditions) && (!has(object.status.conditions)
+      || object.status.conditions == oldObject.status.conditions) && has(object.status.config)
+      == has(oldObject.status.config) && (!has(object.status.config) || object.status.config
+      == oldObject.status.config) && has(object.status.daemonEndpoints) == has(oldObject.status.daemonEndpoints)
+      && (!has(object.status.daemonEndpoints) || object.status.daemonEndpoints ==
+      oldObject.status.daemonEndpoints) && has(object.status.features) == has(oldObject.status.features)
+      && (!has(object.status.features) || object.status.features == oldObject.status.features)
+      && has(object.status.images) == has(oldObject.status.images) && (!has(object.status.images)
+      || object.status.images == oldObject.status.images) && has(object.status.nodeInfo)
+      == has(oldObject.status.nodeInfo) && (!has(object.status.nodeInfo) || object.status.nodeInfo
+      == oldObject.status.nodeInfo) && has(object.status.runtimeHandlers) == has(oldObject.status.runtimeHandlers)
+      && (!has(object.status.runtimeHandlers) || object.status.runtimeHandlers ==
+      oldObject.status.runtimeHandlers) && has(object.status.volumesAttached) == has(oldObject.status.volumesAttached)
+      && (!has(object.status.volumesAttached) || object.status.volumesAttached ==
+      oldObject.status.volumesAttached) && has(object.status.volumesInUse) == has(oldObject.status.volumesInUse)
+      && (!has(object.status.volumesInUse) || object.status.volumesInUse == oldObject.status.volumesInUse)
+    message: Kura CSI cannot change node metadata or other status fields.
+  - expression: variables.oldCapacity.filter(k, k != 'tuist.dev/kura-disk').all(k,
+      k in variables.capacity && variables.capacity[k] == variables.oldCapacity[k])
+      && variables.capacity.filter(k, k != 'tuist.dev/kura-disk').all(k, k in variables.oldCapacity)
+    message: Kura CSI can change only its disk capacity resource.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kura-csi-capacity-boundary
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  policyName: kura-csi-capacity-boundary
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-csi-token-requests
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - serviceaccounts/token
+      operations:
+      - CREATE
+  matchConditions:
+  - name: kura-csi-only
+    expression: request.userInfo.username == 'system:serviceaccount:kura-volumes:kura-volumes-csi-node'
+  variables:
+  - name: podName
+    expression: "'authentication.kubernetes.io/pod-name' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/pod-name']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/pod-name'][0] : ''"
+  - name: podUID
+    expression: "'authentication.kubernetes.io/pod-uid' in request.userInfo.extra
+      && size(request.userInfo.extra['authentication.kubernetes.io/pod-uid']) ==
+      1 ? request.userInfo.extra['authentication.kubernetes.io/pod-uid'][0] : ''"
+  validations:
+  - expression: variables.podName != '' && variables.podUID != ''
+    message: Kura CSI requires a pod-bound identity to mint tokens.
+  - expression: has(object.spec.boundObjectRef) && object.spec.boundObjectRef.kind ==
+      'Pod' && object.spec.boundObjectRef.apiVersion == 'v1' && object.spec.boundObjectRef.name
+      == variables.podName && has(object.spec.boundObjectRef.uid) && object.spec.boundObjectRef.uid
+      == variables.podUID
+    message: Kura CSI can mint tokens only bound to its own pod.
+  - expression: size(object.spec.audiences) == 1 && object.spec.audiences[0].matches('^kura-volume-keys[.]tuist[.]dev/v2/[0-9a-f]{64}$')
+    message: Kura CSI can mint tokens only for one key-service request.
+  - expression: has(object.spec.expirationSeconds) && object.spec.expirationSeconds
+      <= 600
+    message: Kura CSI tokens must expire within ten minutes.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kura-csi-token-requests
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  policyName: kura-csi-token-requests
+  validationActions:
+  - Deny
+{{- end }}

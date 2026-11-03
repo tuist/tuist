@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "df93c53a2ab7f0d5d4d53f22a2520e3148ab850310284a1b356d6be4fff66b29",
+  "hash": "9c83aa55434f3cbfcf6b9147136dca4970de195e1cee2ca6252e3287a3c57deb",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "948786e15bda6e2b70dac565241cd528f4c59cca2e7ae4ed23822a5e44c0ce84"
                 },
                 "## effect: edit them in PO (.po) files instead.": {
-                  "content_hash": "1e6d83726ebed55d90c579d09c0427e5a60e8c71e8987876dc3885822b97c64b"
+                  "content_hash": "6d7193b96694207a77f5bb31c6c699d61e73d4a97ab0c59fbce9e36d724b75a4"
                 },
                 "## messages that can't be statically extracted.": {
                   "content_hash": "953b56d83f9504088c6b842f692f07f39d9f70ba2c334466776a5a6efc791c48"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8d765f49917b47f5910c26c0405efd4d326023a0f896a895bff6b3377b863458",
+          "hash": "35b09cc1702c1bb46a530109cefe087895fffe1fe2412f0bb0bfd0e0f7590765",
           "kind": "source",
           "label": "server/priv/gettext/docs.pot",
           "metadata": {
-            "content_hash": "4b17004cfebefe4beab273a950c82aa847533dc4d3574bd5bf143c6897d51387"
+            "content_hash": "36387a33f500dc09eb85c4a0a84903d17255b3618261d9dc2d796e7fc878b0e2"
           }
         },
         {
@@ -220,14 +220,14 @@
         }
       ],
       "details": {},
-      "hash": "df93c53a2ab7f0d5d4d53f22a2520e3148ab850310284a1b356d6be4fff66b29",
+      "hash": "9c83aa55434f3cbfcf6b9147136dca4970de195e1cee2ca6252e3287a3c57deb",
       "kind": "translation_input",
       "label": "server/priv/gettext/docs.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "897d466cc5b7c81fecf43f43f93a1f229c8d4f859428376124de2a447433290c",
+  "output_hash": "4519450843ee9a7a5a3c7161056c2a232738a721355fba163d87479d3a84d3c9",
   "output_path": "server/priv/gettext/ar/LC_MESSAGES/docs.po",
   "po_units": {
     "064dd1afe6c6d1dcb73a1cdb006a2a82ffa5889df4eec556b151ce32f6a15d7f": "51aa0af03b0d1c5920b3b0645dbb4c65f9e4661505a60d5024e1778c86e11dfb",
@@ -286,6 +286,7 @@
     "a7734fe8ab831aa0f0f2e38945178fc64fbbc18ada8a38d9f05a6e2fdace2210": "34b6120358f1fcb9e45e25ed5c4b5ff3df54c9bb72e3a784512c27636ad574ce",
     "ab54d548d167e2a040a93af04535575cde8a25e0340db37990dfb5a46216c98d": "ac0ef28de85bc58b92bc1f2439943e0f1cf10d82fee0dfad83f8f7d320f85b7e",
     "ab660985aee32fd6e338e3ec36df624d4fbabc2954397853202b073c44730086": "59a26c84587d67929b8984dbd53621cf7462e46bfd6350d32ce6e0eb369425b9",
+    "ad40d0fa073364890a3b575f2b3a867abe24cfade07dda47ecd934f5b0edf947": "8ae0112665b81e529057d419f7d463604b7c6667afe58c782225a2d872ef5ae5",
     "b32c120218b28189b8a901b6b5b6107cdacba8597ac7d977be80a4b293b09aa8": "57e1810a63d205feb10fc73d36cc733c1d4baa2bd5174a287d0e8a130b649dd5",
     "b553abd74b0827928b62aff3168380963bfaf2eb35f078305c68464bd426d21c": "f4c6651e51c19c7a7d832fa77b48f07d1410265ff80323f14ae1363ae2a76aaa",
     "bab92770b3b7aa81f12819910604a7e7c14906c3fa23673a4a321c2e6da54c2d": "93851f46bd4a66416c309cffe458396574dc5115b8c97d45bafb526094bfcae3",
@@ -333,8 +334,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "9010aaf8b4b736cbf26c9bbc91eea56480079f20",
+  "source_commit_sha": "fa63324015f6e62c4cabc882814cb2e541238a49",
   "source_path": "server/priv/gettext/docs.pot",
-  "translated_at": "2026-10-29T20:42:44.402994Z",
-  "translation_session_id": "01a18965-1ed0-7368-97f0-887f7a8ea99f"
+  "translated_at": "2026-11-02T19:14:58.097028Z",
+  "translation_session_id": "01a19dad-d3ee-72a5-ab8a-bd7ed18f90e1"
 }

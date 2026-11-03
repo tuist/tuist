@@ -125,7 +125,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             configuration: String?,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String? = nil
+            schemeName: String? = nil,
+            sdkSelection: BinaryCacheSDKSelection = .all
         ) -> [GraphMapping] {
             var mappers: [GraphMapping] = []
 
@@ -198,7 +199,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     ),
                     configuration: configuration,
                     cacheStorage: cacheStorage,
-                    coverage: BinaryCacheCoverage(config: config)
+                    coverage: BinaryCacheCoverage(config: config),
+                    sdkSelection: sdkSelection
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
@@ -212,6 +214,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
             mappers.append(CachedModulesDebuggingGraphMapper(config: config))
+            if sdkSelection == .simulators || sdkSelection == .devices {
+                mappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
+            }
 
             return mappers
         }

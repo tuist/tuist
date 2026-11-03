@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f796199cb74e0f51dfe3d6c8a4cce7921e8a652840296fb0b2989ad4bc2a9a04",
+  "hash": "c77ea0d017ad7a8f6bd9f6f2b72602c5da778a28bb7641af0777f383bd6469ca",
   "hash_tree": {
     "root": {
       "children": [
@@ -143,7 +143,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -156,21 +156,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -265,21 +265,21 @@
             }
           ],
           "details": {},
-          "hash": "f49f725aef3fb81fd587739c0fd7c4fab7adc4c7d0da093e3374c82e627c5a46",
+          "hash": "5076757fd6ca3728445d472bf1b7fd679a89a38a62a8934dd82abd8e50be1806",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "f796199cb74e0f51dfe3d6c8a4cce7921e8a652840296fb0b2989ad4bc2a9a04",
+      "hash": "c77ea0d017ad7a8f6bd9f6f2b72602c5da778a28bb7641af0777f383bd6469ca",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/elixir.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e024a087275dbde61c640ba0dcb75234600864b7ad4256bea509ca4c925c21df",
+  "output_hash": "d99d046e5cd7e23d52cb12711e876dac0540b0fe146c68a464087de77948994f",
   "output_path": "server/priv/docs/zh_Hant/guides/features/test-insights/flaky-tests/elixir.md",
   "protection_state": "recorded",
   "provider": "",
@@ -302,8 +302,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "4ab73b41c999a401d392145890b4278eb7f6550d",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/elixir.md",
-  "translated_at": "2026-10-29T15:48:44.657296Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-11-02T14:47:24.780078Z",
+  "translation_session_id": "01a19cb4-523e-7840-ba53-3aeffc96e9f9"
 }

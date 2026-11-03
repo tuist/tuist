@@ -48,8 +48,8 @@ msgstr "平均ジョブ所要時間"
 msgid "Avg. workflow duration"
 msgstr "平均ワークフロー所要時間"
 
-#: lib/tuist/runners/analytics.ex:946
-#: lib/tuist_web/live/runner_job_live.html.heex:177
+#: lib/tuist/runners/analytics.ex:976
+#: lib/tuist_web/live/runner_job_live.html.heex:190
 #: lib/tuist_web/live/runner_jobs_live.ex:507
 #: lib/tuist_web/live/runner_jobs_live.html.heex:618
 #: lib/tuist_web/live/runner_workflow_live.ex:186
@@ -71,8 +71,8 @@ msgstr "ブランチ"
 msgid "Cancel"
 msgstr "キャンセル"
 
-#: lib/tuist/runners/analytics.ex:910
-#: lib/tuist_web/live/runner_job_live.ex:262
+#: lib/tuist/runners/analytics.ex:940
+#: lib/tuist_web/live/runner_job_live.ex:265
 #: lib/tuist_web/live/runner_jobs_live.ex:498
 #: lib/tuist_web/live/runner_jobs_live.ex:523
 #: lib/tuist_web/live/runner_workflow_live.ex:177
@@ -83,7 +83,7 @@ msgstr "キャンセル"
 msgid "Cancelled"
 msgstr "キャンセル済み"
 
-#: lib/tuist_web/live/runner_job_live.ex:270
+#: lib/tuist_web/live/runner_job_live.ex:273
 #: lib/tuist_web/live/runner_jobs_live.ex:494
 #: lib/tuist_web/live/runner_jobs_live.ex:516
 #: lib/tuist_web/live/runner_workflow_live.ex:173
@@ -119,7 +119,7 @@ msgstr "コンピューティング分数"
 msgid "Custom"
 msgstr "カスタム"
 
-#: lib/tuist/runners/analytics.ex:949
+#: lib/tuist/runners/analytics.ex:979
 #: lib/tuist_web/live/runner_jobs_live.ex:562
 #: lib/tuist_web/live/runner_jobs_live.html.heex:553
 #: lib/tuist_web/live/runner_jobs_live.html.heex:641
@@ -132,10 +132,10 @@ msgstr "カスタム"
 msgid "Duration"
 msgstr "期間"
 
-#: lib/tuist_web/live/runner_job_live.ex:259
-#: lib/tuist_web/live/runner_job_live.ex:516
-#: lib/tuist_web/live/runner_job_live.ex:553
-#: lib/tuist_web/live/runner_job_live.ex:576
+#: lib/tuist_web/live/runner_job_live.ex:262
+#: lib/tuist_web/live/runner_job_live.ex:519
+#: lib/tuist_web/live/runner_job_live.ex:556
+#: lib/tuist_web/live/runner_job_live.ex:579
 #: lib/tuist_web/live/runner_jobs_live.ex:643
 #: lib/tuist_web/live/runner_jobs_live.html.heex:195
 #: lib/tuist_web/live/runner_workflow_live.html.heex:220
@@ -150,7 +150,7 @@ msgstr "失敗"
 msgid "Failed jobs"
 msgstr "失敗したジョブ"
 
-#: lib/tuist/runners/analytics.ex:909
+#: lib/tuist/runners/analytics.ex:939
 #: lib/tuist_web/live/runner_jobs_live.ex:497
 #: lib/tuist_web/live/runner_jobs_live.ex:522
 #: lib/tuist_web/live/runner_workflow_live.ex:176
@@ -167,7 +167,7 @@ msgstr "失敗"
 msgid "Filter"
 msgstr "フィルター"
 
-#: lib/tuist/runners/analytics.ex:944
+#: lib/tuist/runners/analytics.ex:974
 #: lib/tuist_web/components/runs/ci_context_card.ex:48
 #: lib/tuist_web/live/runner_jobs_live.ex:560
 #: lib/tuist_web/live/runner_jobs_live.html.heex:537
@@ -182,7 +182,7 @@ msgstr "フィルター"
 msgid "Job"
 msgstr "ジョブ"
 
-#: lib/tuist_web/live/runner_job_live.ex:66
+#: lib/tuist_web/live/runner_job_live.ex:67
 #: lib/tuist_web/live/runner_job_live.html.heex:6
 #: lib/tuist_web/live/runner_jobs_live.ex:43
 #: lib/tuist_web/live/runner_jobs_live.html.heex:467
@@ -294,7 +294,7 @@ msgstr "ワークフローはまだありません"
 msgid "Prev"
 msgstr "前へ"
 
-#: lib/tuist_web/live/runner_job_live.ex:267
+#: lib/tuist_web/live/runner_job_live.ex:270
 #: lib/tuist_web/live/runner_jobs_live.ex:493
 #: lib/tuist_web/live/runner_jobs_live.ex:515
 #: lib/tuist_web/live/runner_jobs_live.html.heex:491
@@ -311,8 +311,8 @@ msgstr "キュー待ち"
 msgid "Recent jobs"
 msgstr "最近のジョブ"
 
-#: lib/tuist/runners/analytics.ex:945
-#: lib/tuist_web/live/runner_job_live.html.heex:193
+#: lib/tuist/runners/analytics.ex:975
+#: lib/tuist_web/live/runner_job_live.html.heex:206
 #: lib/tuist_web/live/runner_jobs_live.html.heex:599
 #: lib/tuist_web/live/runner_volumes_live.ex:223
 #: lib/tuist_web/live/runner_volumes_live.html.heex:211
@@ -329,7 +329,7 @@ msgstr "リポジトリ"
 msgid "Runners"
 msgstr "ランナー"
 
-#: lib/tuist_web/live/runner_job_live.ex:273
+#: lib/tuist_web/live/runner_job_live.ex:276
 #: lib/tuist_web/live/runner_jobs_live.ex:495
 #: lib/tuist_web/live/runner_jobs_live.ex:517
 #: lib/tuist_web/live/runner_jobs_live.html.heex:474
@@ -340,9 +340,9 @@ msgstr "ランナー"
 msgid "Running"
 msgstr "実行中"
 
-#: lib/tuist/runners/analytics.ex:911
-#: lib/tuist_web/live/runner_job_live.ex:265
-#: lib/tuist_web/live/runner_job_live.ex:579
+#: lib/tuist/runners/analytics.ex:941
+#: lib/tuist_web/live/runner_job_live.ex:268
+#: lib/tuist_web/live/runner_job_live.ex:582
 #: lib/tuist_web/live/runner_jobs_live.ex:499
 #: lib/tuist_web/live/runner_jobs_live.ex:524
 #: lib/tuist_web/live/runner_workflow_live.ex:178
@@ -353,8 +353,8 @@ msgstr "実行中"
 msgid "Skipped"
 msgstr "スキップ済み"
 
-#: lib/tuist/runners/analytics.ex:947
-#: lib/tuist_web/live/runner_job_live.html.heex:122
+#: lib/tuist/runners/analytics.ex:977
+#: lib/tuist_web/live/runner_job_live.html.heex:135
 #: lib/tuist_web/live/runner_jobs_live.ex:489
 #: lib/tuist_web/live/runner_jobs_live.html.heex:366
 #: lib/tuist_web/live/runner_jobs_live.html.heex:417
@@ -367,7 +367,7 @@ msgstr "スキップ済み"
 msgid "Status"
 msgstr "ステータス"
 
-#: lib/tuist/runners/analytics.ex:908
+#: lib/tuist/runners/analytics.ex:938
 #: lib/tuist_web/live/runner_jobs_live.ex:496
 #: lib/tuist_web/live/runner_jobs_live.ex:521
 #: lib/tuist_web/live/runner_workflow_live.ex:175
@@ -393,13 +393,13 @@ msgstr "成功"
 
 #: lib/tuist_web/controllers/runner_job_logs_controller.ex:48
 #: lib/tuist_web/controllers/runner_job_redirect_controller.ex:33
-#: lib/tuist_web/live/runner_job_live.ex:106
-#: lib/tuist_web/live/runner_job_live.ex:139
+#: lib/tuist_web/live/runner_job_live.ex:109
+#: lib/tuist_web/live/runner_job_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "The job you are looking for doesn't exist or has been moved."
 msgstr "お探しのジョブは存在しないか、移動されました。"
 
-#: lib/tuist_web/live/runner_job_live.ex:50
+#: lib/tuist_web/live/runner_job_live.ex:51
 #: lib/tuist_web/live/runner_jobs_live.ex:32
 #: lib/tuist_web/live/runner_profiles_live.ex:25
 #: lib/tuist_web/live/runner_workflow_live.ex:29
@@ -428,17 +428,17 @@ msgstr "ジョブ総数"
 msgid "Total wall-clock time from the first job start to the last job completion in a workflow run."
 msgstr "ワークフロー実行における最初のジョブ開始から最後のジョブ完了までの合計経過時間。"
 
-#: lib/tuist/runners/analytics.ex:906
-#: lib/tuist/runners/analytics.ex:907
-#: lib/tuist/runners/analytics.ex:953
-#: lib/tuist/runners/analytics.ex:954
+#: lib/tuist/runners/analytics.ex:936
+#: lib/tuist/runners/analytics.ex:937
+#: lib/tuist/runners/analytics.ex:983
+#: lib/tuist/runners/analytics.ex:984
 #: lib/tuist_web/components/runs/ci_context_card.ex:101
-#: lib/tuist_web/live/runner_job_live.ex:275
-#: lib/tuist_web/live/runner_job_live.ex:286
-#: lib/tuist_web/live/runner_job_live.ex:290
-#: lib/tuist_web/live/runner_job_live.ex:511
-#: lib/tuist_web/live/runner_job_live.ex:561
-#: lib/tuist_web/live/runner_job_live.ex:581
+#: lib/tuist_web/live/runner_job_live.ex:278
+#: lib/tuist_web/live/runner_job_live.ex:289
+#: lib/tuist_web/live/runner_job_live.ex:293
+#: lib/tuist_web/live/runner_job_live.ex:514
+#: lib/tuist_web/live/runner_job_live.ex:564
+#: lib/tuist_web/live/runner_job_live.ex:584
 #: lib/tuist_web/live/runner_jobs_live.ex:519
 #: lib/tuist_web/live/runner_jobs_live.ex:604
 #: lib/tuist_web/live/runner_jobs_live.ex:608
@@ -471,7 +471,7 @@ msgstr "不明"
 msgid "View more"
 msgstr "さらに表示"
 
-#: lib/tuist/runners/analytics.ex:943
+#: lib/tuist/runners/analytics.ex:973
 #: lib/tuist_web/components/runs/ci_context_card.ex:35
 #: lib/tuist_web/live/runner_jobs_live.ex:474
 #: lib/tuist_web/live/runner_jobs_live.ex:561
@@ -717,10 +717,10 @@ msgstr "期間内に受信したワークフローのジョブ（結果別）。
 msgid "Failed job runs"
 msgstr "失敗したジョブの実行"
 
-#: lib/tuist_web/live/runner_job_live.ex:256
-#: lib/tuist_web/live/runner_job_live.ex:525
-#: lib/tuist_web/live/runner_job_live.ex:550
-#: lib/tuist_web/live/runner_job_live.ex:573
+#: lib/tuist_web/live/runner_job_live.ex:259
+#: lib/tuist_web/live/runner_job_live.ex:528
+#: lib/tuist_web/live/runner_job_live.ex:553
+#: lib/tuist_web/live/runner_job_live.ex:576
 #: lib/tuist_web/live/runner_jobs_live.ex:642
 #: lib/tuist_web/live/runner_jobs_live.html.heex:178
 #, elixir-autogen, elixir-format
@@ -742,8 +742,8 @@ msgstr "すべて"
 msgid "All job runs"
 msgstr "すべてのジョブ実行"
 
-#: lib/tuist/runners/analytics.ex:926
-#: lib/tuist_web/live/runner_job_live.ex:283
+#: lib/tuist/runners/analytics.ex:956
+#: lib/tuist_web/live/runner_job_live.ex:286
 #: lib/tuist_web/live/runner_jobs_live.ex:557
 #: lib/tuist_web/live/runner_jobs_live.ex:601
 #: lib/tuist_web/live/runner_profiles_live.ex:441
@@ -770,8 +770,8 @@ msgstr "N/A"
 msgid "Platform:"
 msgstr "プラットフォーム:"
 
-#: lib/tuist/runners/analytics.ex:923
-#: lib/tuist_web/live/runner_job_live.ex:280
+#: lib/tuist/runners/analytics.ex:953
+#: lib/tuist_web/live/runner_job_live.ex:283
 #: lib/tuist_web/live/runner_jobs_live.ex:556
 #: lib/tuist_web/live/runner_jobs_live.ex:598
 #: lib/tuist_web/live/runner_profiles_live.ex:442
@@ -789,14 +789,14 @@ msgstr "macOS"
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform."
 msgstr "10,000件の上限に達したため、%{date}までのデータのみが含まれています。日付範囲、リポジトリ、またはプラットフォームを絞り込んでみてください。"
 
-#: lib/tuist/runners/analytics.ex:929
-#: lib/tuist/runners/analytics.ex:933
+#: lib/tuist/runners/analytics.ex:959
+#: lib/tuist/runners/analytics.ex:963
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr "その他"
 
-#: lib/tuist/runners/analytics.ex:948
-#: lib/tuist_web/live/runner_job_live.html.heex:168
+#: lib/tuist/runners/analytics.ex:978
+#: lib/tuist_web/live/runner_job_live.html.heex:181
 #: lib/tuist_web/live/runner_jobs_live.html.heex:367
 #: lib/tuist_web/live/runner_jobs_live.html.heex:418
 #: lib/tuist_web/live/runner_jobs_live.html.heex:632
@@ -809,17 +809,17 @@ msgid "Platform"
 msgstr "プラットフォーム"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:19
-#: lib/tuist_web/live/runner_job_live.html.heex:114
+#: lib/tuist_web/live/runner_job_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "CI Details"
 msgstr "CIの詳細"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:131
+#: lib/tuist_web/live/runner_job_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "CI duration"
 msgstr "CIの実行時間"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:187
+#: lib/tuist_web/live/runner_job_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr "コミットSHA"
@@ -834,23 +834,23 @@ msgstr "コミットSHA"
 msgid "Enqueued at"
 msgstr "キュー投入時刻"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:48
+#: lib/tuist_web/live/runner_job_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:181
+#: lib/tuist_web/live/runner_job_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr "なし"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:65
-#: lib/tuist_web/live/runner_job_live.html.heex:141
+#: lib/tuist_web/live/runner_job_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Queue time"
 msgstr "キュー待ち時間"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:151
+#: lib/tuist_web/live/runner_job_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr "実行日時"
@@ -1018,60 +1018,60 @@ msgstr "runs-on: %{label} を使用するワークフローは、更新される
 msgid "This profile is a default and can't be deleted."
 msgstr "このプロファイルはデフォルトであり、削除できません。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:649
+#: lib/tuist_web/live/runner_job_live.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Download logs"
 msgstr "ログをダウンロード"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:720
+#: lib/tuist_web/live/runner_job_live.html.heex:744
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
 msgstr "古いログを読み込む"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:84
-#: lib/tuist_web/live/runner_job_live.html.heex:637
+#: lib/tuist_web/live/runner_job_live.html.heex:97
+#: lib/tuist_web/live/runner_job_live.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "ログ"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:692
+#: lib/tuist_web/live/runner_job_live.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "No log lines match your search."
 msgstr "検索条件に一致するログ行はありません。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:656
+#: lib/tuist_web/live/runner_job_live.html.heex:669
 #, elixir-autogen, elixir-format
 msgid "No logs have been captured for this job yet."
 msgstr "このジョブのログはまだ取得されていません。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:608
+#: lib/tuist_web/live/runner_job_live.html.heex:621
 #, elixir-autogen, elixir-format
 msgid "No logs were captured for this step."
 msgstr "このステップのログは取得されませんでした。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:79
+#: lib/tuist_web/live/runner_job_live.html.heex:92
 #: lib/tuist_web/live/runner_volumes_live.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "概要"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:666
+#: lib/tuist_web/live/runner_job_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Search logs..."
 msgstr "ログを検索..."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:411
+#: lib/tuist_web/live/runner_job_live.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "Steps"
 msgstr "ステップ"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:432
+#: lib/tuist_web/live/runner_job_live.html.heex:445
 #, elixir-autogen, elixir-format
 msgid "Steps will appear here once the job finishes."
 msgstr "ジョブが完了すると、ここにステップが表示されます。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:422
-#: lib/tuist_web/live/runner_job_live.html.heex:677
+#: lib/tuist_web/live/runner_job_live.html.heex:435
+#: lib/tuist_web/live/runner_job_live.html.heex:701
 #, elixir-autogen, elixir-format
 msgid "Timestamps"
 msgstr "タイムスタンプ"
@@ -1119,15 +1119,15 @@ msgstr "CPU I/O待機"
 msgid "In"
 msgstr "受信"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:752
+#: lib/tuist_web/live/runner_job_live.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "Machine metrics will appear here once the job has run on a Tuist runner."
 msgstr "ジョブがTuistランナーで実行されると、マシンのメトリクスがここに表示されます。"
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:31
-#: lib/tuist_web/live/runner_job_live.html.heex:89
-#: lib/tuist_web/live/runner_job_live.html.heex:399
-#: lib/tuist_web/live/runner_job_live.html.heex:747
+#: lib/tuist_web/live/runner_job_live.html.heex:102
+#: lib/tuist_web/live/runner_job_live.html.heex:412
+#: lib/tuist_web/live/runner_job_live.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "メトリクス"
@@ -1162,149 +1162,149 @@ msgstr "使用済み"
 msgid "Wait"
 msgstr "待機"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:870
+#: lib/tuist_web/live/runner_job_live.html.heex:894
 #, elixir-autogen, elixir-format
 msgid "Start VNC"
 msgstr "VNCを開始"
 
-#: lib/tuist_web/live/runner_job_live.ex:800
+#: lib/tuist_web/live/runner_job_live.ex:803
 #, elixir-autogen, elixir-format
 msgid "The runner pod is not available for this job."
 msgstr "このジョブではランナーPodを利用できません。"
 
-#: lib/tuist_web/live/runner_job_live.ex:797
+#: lib/tuist_web/live/runner_job_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "VNC can be requested while the macOS runner job is claimed or running."
 msgstr "macOSランナージョブが割り当て済みまたは実行中の間、VNCをリクエストできます。"
 
-#: lib/tuist_web/live/runner_job_live.ex:794
+#: lib/tuist_web/live/runner_job_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "VNC is available for macOS runner jobs."
 msgstr "macOSランナージョブでVNCを利用できます。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:911
+#: lib/tuist_web/live/runner_job_live.html.heex:935
 #, elixir-autogen, elixir-format
 msgid "VNC session idle"
 msgstr "VNCセッションがアイドル状態です"
 
-#: lib/tuist_web/live/runner_job_live.ex:791
+#: lib/tuist_web/live/runner_job_live.ex:794
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to request interactive access."
 msgstr "インタラクティブアクセスをリクエストする権限がありません。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:857
+#: lib/tuist_web/live/runner_job_live.html.heex:881
 #, elixir-autogen, elixir-format
 msgid "Exit full screen"
 msgstr "全画面表示を終了"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:852
-#: lib/tuist_web/live/runner_job_live.html.heex:853
-#: lib/tuist_web/live/runner_job_live.html.heex:856
+#: lib/tuist_web/live/runner_job_live.html.heex:876
+#: lib/tuist_web/live/runner_job_live.html.heex:877
+#: lib/tuist_web/live/runner_job_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "Full screen"
 msgstr "全画面表示"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:920
+#: lib/tuist_web/live/runner_job_live.html.heex:944
 #, elixir-autogen, elixir-format
 msgid "VNC session active"
 msgstr "VNCセッションがアクティブです"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:917
+#: lib/tuist_web/live/runner_job_live.html.heex:941
 #, elixir-autogen, elixir-format
 msgid "VNC session ready"
 msgstr "VNCセッションの準備完了"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:923
+#: lib/tuist_web/live/runner_job_live.html.heex:947
 #, elixir-autogen, elixir-format
 msgid "VNC session unavailable"
 msgstr "VNCセッションを利用できません"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:914
+#: lib/tuist_web/live/runner_job_live.html.heex:938
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner relay"
 msgstr "ランナーリレーを待機中"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:492
+#: lib/tuist_web/live/runner_job_live.html.heex:505
 #, elixir-autogen, elixir-format
 msgid "Build"
 msgstr "ビルド"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:225
+#: lib/tuist_web/live/runner_job_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "ビルド"
 
-#: lib/tuist_web/live/runner_job_live.ex:519
-#: lib/tuist_web/live/runner_job_live.ex:559
+#: lib/tuist_web/live/runner_job_live.ex:522
+#: lib/tuist_web/live/runner_job_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "Failed processing"
 msgstr "処理に失敗しました"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:217
+#: lib/tuist_web/live/runner_job_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Insights"
 msgstr "インサイト"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:263
+#: lib/tuist_web/live/runner_job_live.html.heex:276
 #: lib/tuist_web/live/runner_volumes_live.ex:527
 #, elixir-autogen, elixir-format
 msgid "Module cache"
 msgstr "モジュールキャッシュ"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:230
+#: lib/tuist_web/live/runner_job_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "No build runs have reported insights for this runner job yet."
 msgstr "このランナージョブでインサイトを報告したビルド実行はまだありません。"
 
-#: lib/tuist_web/live/runner_job_live.ex:491
-#: lib/tuist_web/live/runner_job_live.ex:503
+#: lib/tuist_web/live/runner_job_live.ex:494
+#: lib/tuist_web/live/runner_job_live.ex:506
 #, elixir-autogen, elixir-format
 msgid "No cache data"
 msgstr "キャッシュデータなし"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:325
+#: lib/tuist_web/live/runner_job_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "No test runs have reported insights for this runner job yet."
 msgstr "このランナージョブでインサイトを報告したテスト実行はまだありません。"
 
-#: lib/tuist_web/live/runner_job_live.ex:570
+#: lib/tuist_web/live/runner_job_live.ex:573
 #, elixir-autogen, elixir-format
 msgid "Passed (flaky)"
 msgstr "成功（不安定）"
 
-#: lib/tuist_web/live/runner_job_live.ex:522
-#: lib/tuist_web/live/runner_job_live.ex:556
+#: lib/tuist_web/live/runner_job_live.ex:525
+#: lib/tuist_web/live/runner_job_live.ex:559
 #, elixir-autogen, elixir-format
 msgid "Processing"
 msgstr "処理中"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:348
+#: lib/tuist_web/live/runner_job_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Selective testing"
 msgstr "選択的テスト"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:520
+#: lib/tuist_web/live/runner_job_live.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "Test"
 msgstr "テスト"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:320
+#: lib/tuist_web/live/runner_job_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "テスト"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:242
-#: lib/tuist_web/live/runner_job_live.html.heex:335
+#: lib/tuist_web/live/runner_job_live.html.heex:255
+#: lib/tuist_web/live/runner_job_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Total duration"
 msgstr "合計所要時間"
 
-#: lib/tuist_web/live/runner_job_live.ex:567
+#: lib/tuist_web/live/runner_job_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Unknown scheme"
 msgstr "不明なスキーム"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:254
+#: lib/tuist_web/live/runner_job_live.html.heex:267
 #: lib/tuist_web/live/runner_volumes_live.ex:526
 #, elixir-autogen, elixir-format
 msgid "Xcode cache"
@@ -1330,44 +1330,44 @@ msgstr "プロファイル"
 msgid "Step"
 msgstr "ステップ"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:774
+#: lib/tuist_web/live/runner_job_live.html.heex:798
 #, elixir-autogen, elixir-format
 msgid "Start terminal"
 msgstr "ターミナルを起動"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:95
-#: lib/tuist_web/live/runner_job_live.html.heex:763
+#: lib/tuist_web/live/runner_job_live.html.heex:108
+#: lib/tuist_web/live/runner_job_live.html.heex:787
 #, elixir-autogen, elixir-format
 msgid "Terminal"
 msgstr "ターミナル"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:824
+#: lib/tuist_web/live/runner_job_live.html.heex:848
 #, elixir-autogen, elixir-format
 msgid "Terminal session active"
 msgstr "ターミナルセッションがアクティブです"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:815
+#: lib/tuist_web/live/runner_job_live.html.heex:839
 #, elixir-autogen, elixir-format
 msgid "Terminal session idle"
 msgstr "ターミナルセッションがアイドル状態です"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:821
+#: lib/tuist_web/live/runner_job_live.html.heex:845
 #, elixir-autogen, elixir-format
 msgid "Terminal session ready"
 msgstr "ターミナルセッションの準備完了"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:827
+#: lib/tuist_web/live/runner_job_live.html.heex:851
 #, elixir-autogen, elixir-format
 msgid "Terminal session unavailable"
 msgstr "ターミナルセッションを利用できません"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:101
-#: lib/tuist_web/live/runner_job_live.html.heex:841
+#: lib/tuist_web/live/runner_job_live.html.heex:114
+#: lib/tuist_web/live/runner_job_live.html.heex:865
 #, elixir-autogen, elixir-format
 msgid "VNC"
 msgstr "VNC"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:818
+#: lib/tuist_web/live/runner_job_live.html.heex:842
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner shell"
 msgstr "ランナーシェルの待機中"
@@ -1427,23 +1427,23 @@ msgstr "最近のワークフロー実行はすべてスキップまたはキャ
 msgid "Tahoe"
 msgstr "Tahoe"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:70
+#: lib/tuist_web/live/runner_job_live.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Buildkite"
 msgstr "Buildkite"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:59
+#: lib/tuist_web/live/runner_job_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "GitLab"
 msgstr "GitLab"
 
-#: lib/tuist_web/live/runner_job_live.ex:204
+#: lib/tuist_web/live/runner_job_live.ex:207
 #: lib/tuist_web/live/runner_volumes_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "キャッシュ"
 
-#: lib/tuist_web/live/runner_job_live.ex:228
+#: lib/tuist_web/live/runner_job_live.ex:231
 #: lib/tuist_web/live/runner_volumes_live.ex:225
 #: lib/tuist_web/live/runner_volumes_live.ex:577
 #: lib/tuist_web/live/runner_volumes_live.html.heex:237
@@ -1478,13 +1478,13 @@ msgstr "削除保留中"
 msgid "Empty"
 msgstr "空"
 
-#: lib/tuist_web/live/runner_job_live.ex:210
+#: lib/tuist_web/live/runner_job_live.ex:213
 #: lib/tuist_web/live/runner_volumes_live.html.heex:541
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "ヒット"
 
-#: lib/tuist_web/live/runner_job_live.ex:211
+#: lib/tuist_web/live/runner_job_live.ex:214
 #: lib/tuist_web/live/runner_volumes_live.html.heex:540
 #: lib/tuist_web/live/runner_volumes_live.html.heex:542
 #, elixir-autogen, elixir-format
@@ -1501,7 +1501,7 @@ msgstr "使用記録なし"
 msgid "Ready"
 msgstr "準備完了"
 
-#: lib/tuist_web/live/runner_job_live.ex:201
+#: lib/tuist_web/live/runner_job_live.ex:204
 #: lib/tuist_web/live/runner_volumes_live.ex:222
 #: lib/tuist_web/live/runner_volumes_live.html.heex:203
 #, elixir-autogen, elixir-format
@@ -1509,7 +1509,7 @@ msgid "Volume"
 msgstr "ボリューム"
 
 #: lib/tuist_web/components/app_layout_components.ex:509
-#: lib/tuist_web/live/runner_job_live.ex:171
+#: lib/tuist_web/live/runner_job_live.ex:174
 #: lib/tuist_web/live/runner_volumes_live.ex:31
 #: lib/tuist_web/live/runner_volumes_live.ex:575
 #: lib/tuist_web/live/runner_volumes_live.html.heex:7
@@ -1532,7 +1532,7 @@ msgstr[0] "%{count} コピー未測定"
 msgid "Total used space"
 msgstr "使用済み容量の合計"
 
-#: lib/tuist_web/live/runner_job_live.ex:225
+#: lib/tuist_web/live/runner_job_live.ex:228
 #: lib/tuist_web/live/runner_volumes_live.ex:224
 #: lib/tuist_web/live/runner_volumes_live.ex:576
 #: lib/tuist_web/live/runner_volumes_live.html.heex:226
@@ -1674,12 +1674,12 @@ msgstr "データなし"
 msgid "No previous data"
 msgstr "以前のデータなし"
 
-#: lib/tuist_web/live/runner_job_live.ex:183
+#: lib/tuist_web/live/runner_job_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "%{volume} ran out of space"
 msgstr "%{volume} の空き容量が不足しています"
 
-#: lib/tuist_web/live/runner_job_live.ex:188
+#: lib/tuist_web/live/runner_job_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job."
 msgstr "このジョブは、ボリュームの %{capacity} のうち %{used} を使用しました。フル状態のボリュームへの書き込みは「デバイスに空き領域がありません」などのエラーで失敗し、ジョブが失敗する可能性があります。"
@@ -1752,18 +1752,18 @@ msgstr "ブランチなし"
 msgid "e.g. develop, release/* or *"
 msgstr "例: develop、release/*、*"
 
-#: lib/tuist_web/live/runner_job_live.ex:209
+#: lib/tuist_web/live/runner_job_live.ex:212
 #: lib/tuist_web/live/runner_volumes_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Older copy"
 msgstr "古いコピー"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:596
+#: lib/tuist_web/live/runner_job_live.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "This step's output couldn't be separated from the rest of the job's log."
 msgstr "このステップの出力は、ジョブのログの残りと分離できませんでした。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:604
+#: lib/tuist_web/live/runner_job_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "View the full log"
 msgstr "完全なログを表示"
@@ -1798,22 +1798,22 @@ msgstr "キャッシュされたチェックアウト"
 msgid "Keeps each repository checked out on a \"checkout\" cache volume, so actions/checkout only fetches what changed."
 msgstr "各リポジトリを「チェックアウト」キャッシュボリュームでチェックアウト状態に保ち、actions/checkout が変更分のみを取得するようにします。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:621
+#: lib/tuist_web/live/runner_job_live.html.heex:634
 #, elixir-autogen, elixir-format
 msgid "Load earlier lines"
 msgstr "以前の行を読み込む"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:583
+#: lib/tuist_web/live/runner_job_live.html.heex:596
 #, elixir-autogen, elixir-format
 msgid "Loading logs"
 msgstr "ログを読み込み中"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:620
+#: lib/tuist_web/live/runner_job_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "Loading..."
 msgstr "読み込み中..."
 
-#: lib/tuist_web/live/runner_job_live.html.heex:590
+#: lib/tuist_web/live/runner_job_live.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "This step's logs couldn't be loaded. Collapse and expand the step to retry."
 msgstr "このステップのログを読み込めませんでした。ステップを折りたたんで展開し、再試行してください。"
@@ -1828,7 +1828,7 @@ msgstr "より小さいサイズがリクエストされました"
 msgid "Saved at %{capacity}. New contents will use %{pending} after the next clear."
 msgstr "%{capacity}で保存されました。次のクリア後、新しいコンテンツは%{pending}を使用します。"
 
-#: lib/tuist_web/live/runner_job_live.html.heex:201
+#: lib/tuist_web/live/runner_job_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Runner"
 msgstr "ランナー"
@@ -1904,3 +1904,18 @@ msgstr "平均"
 #, elixir-autogen, elixir-format
 msgid "Size of the current saved cache, independent of the selected date range."
 msgstr "選択した期間に関係なく、現在保存されているキャッシュのサイズ。"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Bitrise"
+msgstr "Bitrise"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:672
+#, elixir-autogen, elixir-format
+msgid "Logs for Bitrise builds stay on Bitrise."
+msgstr "Bitrise ビルドのログは Bitrise に残ります。"
+
+#: lib/tuist_web/live/runner_job_live.html.heex:677
+#, elixir-autogen, elixir-format
+msgid "Open the build on Bitrise"
+msgstr "Bitrise でビルドを開く"

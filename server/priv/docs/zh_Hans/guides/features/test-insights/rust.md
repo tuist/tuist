@@ -2,15 +2,15 @@
 {
   "title": "Rust 测试洞察",
   "titleTemplate": ":title · 测试洞察 · 功能 · 指南 · Tuist",
-  "description": "在 Tuist 仪表板中跟踪 Cargo 测试结果，包括 Rust doctests。"
+  "description": "在 Tuist 仪表板中跟踪 Cargo 测试结果，包括 Rust 文档测试。"
 }
 ---
 # Rust 测试洞察 {#rust-test-insights}
 
-Tuist 会报告来自 `cargo test` 的单个测试结果，包括单元测试、集成测试和文档测试。无需 Rust 依赖或额外的测试运行器。
+Tuist 会报告来自 `cargo test` 的单个测试结果，包括单元测试、集成测试和文档测试。无需额外的 Rust 依赖或测试运行器。
 
 > [!IMPORTANT] Requirements
-> - 请遵循 <.localized_link href="/guides/get-started/rust-project">Rust 项目设置</.localized_link>。
+> - 请按照<.localized_link href="/guides/get-started/rust-project">Rust 项目设置</.localized_link>进行操作。
 
 ## 报告你的测试运行 {#report-your-test-runs}
 
@@ -18,9 +18,9 @@ Tuist 会报告来自 `cargo test` 的单个测试结果，包括单元测试、
 tuist cargo test --workspace
 ```
 
-配置好 mise Cargo 包装器后，你可以继续输入 `cargo test`。Cargo 仍会使用其常规参数、输出和退出代码来编译并运行你的测试。报告失败不会改变你的测试结果。
+配置好 mise Cargo 包装器后，你可以继续输入 `cargo test`。Cargo 仍会使用其常规参数、输出和退出码来编译并运行你的测试。报告失败不会改变你的测试结果。
 
-你可以照常选择包或过滤测试：
+你可以像往常一样选择包或过滤测试：
 
 ```sh
 tuist cargo test -p store
@@ -34,11 +34,11 @@ tuist cargo test authentication
 - 整个套件的耗时。
 - 可用的分支、提交、CI 和运行器元数据。
 
-被过滤的测试以及在失败后未执行的测试永远不会被报告为通过。结果会显示在仪表板的 **测试** 下。
+被过滤的测试以及在失败后未执行的测试永远不会被报告为通过。结果会显示在仪表板的**测试**下。
 
 ## 包、模块和测试用例 {#test-hierarchy}
 
-Tuist 按 Cargo 包和目标对结果进行分组。Rust 模块路径将目标内的单个测试分组：
+Tuist 按 Cargo 包和目标对结果进行分组。Rust 模块路径将目标内的各个测试分组：
 
 | 仪表板标签 | Rust 含义 | 示例 |
 | --- | --- | --- |
@@ -50,13 +50,13 @@ Tuist 按 Cargo 包和目标对结果进行分组。Rust 模块路径将目标�
 
 ## 文档测试和耗时 {#cargo-test}
 
-文档测试会随你常用的测试命令一起运行，包括 `compile_fail`、`should_panic` 和 `no_run` 示例。要仅运行文档测试：
+文档测试会使用你常规的测试命令运行，包括 `compile_fail`、`should_panic` 和 `no_run` 示例。要仅运行文档测试：
 
 ```sh
 tuist cargo test --doc
 ```
 
-稳定的 libtest 会报告整个套件的耗时，但不会报告单个测试的耗时。不可用的计时数据会从每个用例的耗时历史记录和耗时分析中排除，而测试结果仍会贡献于可靠性和运行次数统计。
+稳定的 libtest 会报告整个套件的耗时，但不会报告单个测试的耗时。不可用的计时数据会从每个用例的耗时历史和耗时分析中排除，而测试结果仍会贡献于可靠性和运行次数统计。
 
 ## 报告限制 {#reporting-limits}
 
@@ -68,7 +68,7 @@ Tuist 在收集结果时会流式输出。这可能会影响自动颜色检测�
 
 ## 可靠性和选择 {#reliability-and-selection}
 
-使用 <.localized_link href="/guides/features/test-insights/flaky-tests/rust">不稳定测试检测和隔离</.localized_link> 来调查不稳定的测试，并将其静音或跳过。<.localized_link href="/guides/features/test-sharding/rust">测试分片</.localized_link> 会将整个 Cargo 目标分布到 CI 工作节点上。覆盖率摄入、基于覆盖率的测试选择以及一次构建分发不适用于普通的 Cargo 测试运行。
+使用<.localized_link href="/guides/features/test-insights/flaky-tests/rust">不稳定测试检测和隔离</.localized_link>来调查不稳定的测试，并将其静音或跳过。<.localized_link href="/guides/features/test-sharding/rust">测试分片</.localized_link>会将整个 Cargo 目标分布到 CI 工作节点上。普通 Cargo 测试运行不支持覆盖率摄入、基于覆盖率的测试选择以及一次构建分发。
 
 ## 故障排除 {#troubleshooting}
 

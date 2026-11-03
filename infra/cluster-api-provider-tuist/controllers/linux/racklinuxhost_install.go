@@ -290,6 +290,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		return err
 	}
 	seed := rackinstall.Seed{
+		KuraLVM:         kuraLVMRequested(host.Annotations),
 		Host:            host.Spec.Hostname,
 		Role:            host.Spec.Role,
 		User:            firstNonEmpty(host.Spec.SSHUser, "tuist"),
