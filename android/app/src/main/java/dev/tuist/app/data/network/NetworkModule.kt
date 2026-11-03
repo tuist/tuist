@@ -12,8 +12,10 @@ import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
 import dev.tuist.app.api.AISubscriptionsApi
 import dev.tuist.app.api.FeatureFlagsApi
+import dev.tuist.app.api.NotificationPreferencesApi
 import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
+import dev.tuist.app.api.PushDevicesApi
 import dev.tuist.app.data.EnvironmentConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -99,6 +101,16 @@ object NetworkModule {
     @Singleton
     fun provideAISubscriptionsApi(retrofit: Retrofit): AISubscriptionsApi =
         retrofit.create(AISubscriptionsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun providePushDevicesApi(retrofit: Retrofit): PushDevicesApi =
+        retrofit.create(PushDevicesApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideNotificationPreferencesApi(retrofit: Retrofit): NotificationPreferencesApi =
+        retrofit.create(NotificationPreferencesApi::class.java)
 }
 
 /** Generated models type `date-time` fields as [OffsetDateTime], which Moshi doesn't support out of the box. */

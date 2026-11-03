@@ -64,4 +64,6 @@
     <string name="ai_subscriptions_chatgpt_copy">"Copy code"</string>
     <string name="ai_subscriptions_chatgpt_open">"Open sign-in page"</string>
     <string name="ai_subscriptions_chatgpt_expired">"The sign-in expired. Close this and connect again."</string>
+    <string name="notifications_channel_new_previews">"New previews"</string>
+    <string name="notifications_channel_new_previews_description">"New previews of your projects"</string>
 </resources>
