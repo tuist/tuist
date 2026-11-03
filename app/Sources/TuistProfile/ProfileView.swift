@@ -3,6 +3,7 @@ import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
+import TuistNotifications
 import TuistServer
 
 public struct ProfileView: View {
@@ -80,6 +81,7 @@ public struct ProfileView: View {
             Section {
                 Button(action: {
                     Task {
+                        await PushNotifications.shared.signOut()
                         await authenticationService.signOut()
                     }
                 }) {
@@ -107,6 +109,7 @@ public struct ProfileView: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 errorHandler.fireAndHandleError {
+                    // The server deletes the account's devices with it.
                     try await authenticationService.deleteAccount(account)
                 }
             }
