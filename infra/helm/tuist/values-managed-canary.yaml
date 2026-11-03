@@ -64,6 +64,12 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
+      enabled: true
     originAppKey:
       enabled: true
     externalSecrets:
@@ -123,10 +129,11 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # Linux stays reporting-only: its Meter exists and receives usage,
-      # but with no agreed rate there is no Price to point at, and an
-      # empty id means no subscription can carry a Linux runner item, so
-      # nothing can be charged for it.
+      # The Linux Price is per unit with no free tier: each compute-unit
+      # millisecond on the 2 vCPU / 8 GB baseline costs 0.000004 cents,
+      # which is $0.0024 per baseline machine-minute and $0.001 on the
+      # 1 vCPU / 2 GB machine. It must stay in step with `@on_demand_rates`
+      # in `Tuist.Runners.Prepaid`, which the usage page costs it with.
       #
       # An account is only actually billed once it is off a runner trial.
       # Run `Tuist.Runners.Trials.backfill_runner_trials/0` before this id
@@ -141,7 +148,7 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: ""
+        runner_linux_compute_unit_milliseconds: "price_1UXi2WQ9gGM5W1agxzvD1sls"
         runner_macos_compute_unit_milliseconds: "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
@@ -441,6 +448,16 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
+
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
+kuraVolumesCSI:
+  # Installs only through a deploy dispatched with kura_volumes_csi_image_digest;
+  # tenant enrollment stays independent.
+  enabled: true
+  # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: nk4ZDtWdt8FCgqpqKfSEloNrVVwkLacRMEJzbt75tVY=
+  thinRegions: []
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
@@ -870,6 +887,9 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 24
   diskGiB: 50
+  # Short so canary exercises archive and restore through the in-rack store
+  # within an hour of a pause.
+  archiveAfterHours: 1
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true

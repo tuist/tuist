@@ -27,6 +27,26 @@ defmodule Tuist.Runners.PrepaidTest do
     :ok
   end
 
+  describe "on_demand_cost_for_milliseconds/2" do
+    test "charges a macOS baseline minute $0.06" do
+      assert Prepaid.on_demand_cost_for_milliseconds(:macos, 100 * 60_000) == Money.new(600, :USD)
+    end
+
+    test "charges a Linux baseline minute $0.0024, as the pricing page lists for 2 vCPU / 8 GB" do
+      assert Prepaid.on_demand_cost_for_milliseconds(:linux, 1_000 * 60_000) == Money.new(240, :USD)
+    end
+
+    test "charges the 1 vCPU / 2 GB Linux machine $0.001 a minute through its multiplier" do
+      multiplier = Tuist.Runners.Catalog.billing_multiplier(:linux, 1, 2)
+      units = div(10_000 * 60_000 * multiplier, 10_000)
+
+      # The multiplier truncates to a basis point, so 10,000 minutes come
+      # to a hair under $10.
+      assert Prepaid.on_demand_cost_for_milliseconds(:linux, units) == Money.new(999, :USD)
+      assert_in_delta Prepaid.on_demand_dollars(:linux, units), 10.0, 0.01
+    end
+  end
+
   describe "refresh_balance/1" do
     test "writes the cache even when nothing is left" do
       # summarize/1 answers nil for an account holding nothing, and the

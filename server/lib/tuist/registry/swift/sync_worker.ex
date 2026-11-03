@@ -311,7 +311,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
         {:error, :not_found} -> empty_metadata(scope, name, full_handle)
       end
 
-    case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
+    case list_tags(full_handle, token) do
       {:ok, tags} ->
         sync_tags(scope, name, full_handle, tags, metadata)
 
@@ -351,7 +351,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   # found" for the length of the repair, and left it permanently missing when
   # the rebuild then failed.
   defp do_force_resync_package_version(scope, name, full_handle, version, resync_flags, token) do
-    case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
+    case list_tags(full_handle, token) do
       {:ok, tags} ->
         case source_tag_for_version(tags, version) do
           nil ->
@@ -376,6 +376,27 @@ defmodule Tuist.Registry.Swift.SyncWorker do
         Logger.warning("Failed to fetch tags before force resyncing #{scope}/#{name}@#{version}: #{inspect(reason)}")
 
         {:error, reason}
+    end
+  end
+
+  # Organizations with an IP allow list refuse the App's installation token with
+  # a 403 on every request, so their packages never got past the tag listing
+  # while their public repositories still answer a personal access token.
+  defp list_tags(full_handle, token) do
+    case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
+      {:error, {:http_error, 403}} = error ->
+        case Registry.swift_registry_github_fallback_token(token) do
+          nil ->
+            error
+
+          fallback_token ->
+            Logger.info("GitHub refused the mirror's token for #{full_handle}; listing tags with the fallback token")
+
+            TuistCommon.GitHub.list_tags(full_handle, fallback_token, @github_opts)
+        end
+
+      result ->
+        result
     end
   end
 

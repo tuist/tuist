@@ -1232,6 +1232,7 @@ defmodule TuistWeb.Router do
     post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
     get "/kura/mesh/peers", KuraMeshController, :peers
     post "/kura/mesh/registrations", KuraMeshController, :register
+    post "/kura/volume-keys", KuraVolumeKeysController, :create
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -1274,7 +1275,14 @@ defmodule TuistWeb.Router do
   scope "/ops" do
     pipe_through [:browser_app, :ops]
 
-    oban_dashboard("/oban", csp_nonce_assign_key: :csp_nonce)
+    oban_dashboard("/oban",
+      csp_nonce_assign_key: :csp_nonce,
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.Authentication, :revalidate_browser_session_on_info}
+      ]
+    )
 
     forward "/flags", FunWithFlags.UI.Router, namespace: "ops/flags"
 
@@ -1346,10 +1354,21 @@ defmodule TuistWeb.Router do
     end
 
     post "/users/log_in", UserSessionController, :create
+    post "/users/log_in/passkey/options", UserPasskeyController, :authentication_options
+    post "/users/log_in/passkey", UserPasskeyController, :authenticate
   end
 
   scope "/", TuistWeb do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
+
+    get "/users/settings/mfa", UserMFAController, :show
+    post "/users/settings/mfa/enroll", UserMFAController, :enroll
+    post "/users/settings/mfa/confirm", UserMFAController, :confirm
+    post "/users/settings/mfa/cancel", UserMFAController, :cancel
+    post "/users/settings/mfa/disable", UserMFAController, :disable
+    post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
+    post "/users/settings/passkeys", UserPasskeyController, :create
+    post "/users/settings/passkeys/:id/delete", UserPasskeyController, :delete
 
     live_session :require_authenticated_user,
       session: {TuistWeb.RemoteIp, :live_session, []},
@@ -1366,6 +1385,9 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app]
 
+    get "/users/mfa", UserMFAController, :challenge
+    post "/users/mfa", UserMFAController, :verify
+    post "/users/mfa/passkey/options", UserMFAController, :passkey_options
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,
@@ -1514,6 +1536,7 @@ defmodule TuistWeb.Router do
       :require_authenticated_user_for_previews,
       :mark_public_preview_page,
       PublicPageChallengePlug,
+      :require_member_sso_authentication,
       :analytics,
       :embeddable
     ]
@@ -1523,6 +1546,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.Authentication, :require_member_sso_authentication},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
       live "/", PreviewLive, metadata: @public_project_route_metadata
@@ -1560,6 +1584,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1602,6 +1627,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1644,6 +1670,7 @@ defmodule TuistWeb.Router do
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Authentication, :require_sso_authentication},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do

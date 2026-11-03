@@ -57,3 +57,36 @@ deploy, which resolves it) an Xcode without an override is skipped.
 {{- end -}}
 {{- $tags | uniq | toJson -}}
 {{- end -}}
+
+{{- /*
+The Kura cache pools, as JSON: a copy of the tuist chart's `tuist.kuraCachePools`
+over the same values. rack_chart_test.go keeps the two in step.
+*/ -}}
+{{- define "rackNodes.kuraCachePools" -}}
+{{- $pools := list -}}
+{{- if .Values.kuraFleet.enabled -}}
+{{- $pools = append $pools (.Values.kuraFleet.nodePool | default "kura-scw-fr-par") -}}
+{{- end -}}
+{{- if .Values.ovhFleet.enabled -}}
+{{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") -}}
+{{- end -}}
+{{- range $key, $fleet := .Values.ovhFleets -}}
+{{- if $fleet.enabled -}}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet -}}
+{{- if eq $taint.key "tuist.dev/kura-cache" -}}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $fleet := .Values.vultrFleets -}}
+{{- if $fleet.enabled -}}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet -}}
+{{- if eq $taint.key "tuist.dev/kura-cache" -}}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $pools | toJson -}}
+{{- end -}}

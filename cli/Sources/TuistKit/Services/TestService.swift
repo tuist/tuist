@@ -932,16 +932,21 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
-        // A shard run is restricted from three directions, and all three would otherwise go out as
+        // A shard run is restricted from four directions, and all four would otherwise go out as
         // `-only-testing`, which xcodebuild runs the union of: a shard scoped to a whole module
         // would run it whole however narrow the request was. The build job's restriction has to be
         // restored from the products, since this runner is usually a separate job that repeats
         // neither it nor anything else from the build command.
-        let restrictions = [
-            shard.testIdentifiers,
+        let passthroughOnlyTestIdentifiers = XcodeBuildTestCommandService.testIdentifiers(
+            for: "-only-testing",
+            in: passthroughXcodeBuildArguments
+        )
+        let requestRestrictions = [
             shard.selectiveTestingGraph?.requestedTestIdentifiers ?? [],
             testTargets.map(\.description),
+            passthroughOnlyTestIdentifiers,
         ]
+        let restrictions = [shard.testIdentifiers] + requestRestrictions
         let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
         if onlyTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
             Logger.current.notice(
@@ -965,7 +970,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: Self.removingOnlyTesting(passthroughXcodeBuildArguments)
         )
 
         var testError: Error?
@@ -1024,12 +1029,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
         await removeOwnedDerivedData(ownedDerivedDataPath)
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
+            // The other shards run the rest of a target this one holds part of, so only the request
+            // narrowing a target keeps its hash back.
+            let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(requestRestrictions)
+            let passingNames = await passingTargetNames(
+                resultBundlePath: resultBundlePath,
+                withholding: stressResult
+            )
             try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: await passingTargetNames(
-                    resultBundlePath: resultBundlePath,
-                    withholding: stressResult
-                ),
+                passingTargetNames: requestedTestIdentifiers.isEmpty
+                    ? passingNames
+                    : passingNames.intersection(Self.fullyRunTestTargetNames(requestedTestIdentifiers)),
                 cacheStorage: hashUploadStorage
             )
         }

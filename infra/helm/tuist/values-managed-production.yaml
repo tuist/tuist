@@ -97,6 +97,12 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
+      enabled: true
     originAppKey:
       enabled: true
     atlasEmail:
@@ -143,10 +149,11 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # Linux stays reporting-only: its Meter exists and receives usage,
-      # but with no agreed rate there is no Price to point at, and an
-      # empty id means no subscription can carry a Linux runner item, so
-      # nothing can be charged for it.
+      # The Linux Price is per unit with no free tier: each compute-unit
+      # millisecond on the 2 vCPU / 8 GB baseline costs 0.000004 cents,
+      # which is $0.0024 per baseline machine-minute and $0.001 on the
+      # 1 vCPU / 2 GB machine. It must stay in step with `@on_demand_rates`
+      # in `Tuist.Runners.Prepaid`, which the usage page costs it with.
       #
       # An account is only actually billed once it is off a runner trial.
       # Run `Tuist.Runners.Trials.backfill_runner_trials/0` before this id
@@ -161,7 +168,7 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: ""
+        runner_linux_compute_unit_milliseconds: "price_1UXgCMLWue9IBlPSqFeUEhhJ"
         runner_macos_compute_unit_milliseconds: "price_1UXO5iLWue9IBlPSX793RSDB"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
@@ -506,6 +513,16 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
+
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
+kuraVolumesCSI:
+  # Installs only through a deploy dispatched with kura_volumes_csi_image_digest;
+  # tenant enrollment stays independent.
+  enabled: true
+  # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: PCj63J/Ahkzb6ST6Pve32eQARfY0L7zB/EhR+MjwmVw=
+  thinRegions: []
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
