@@ -27,6 +27,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
   alias Tuist.Telemetry.QueryErrorContext
+  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -363,6 +364,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
           Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
           Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
+          Supervisor.child_spec(CrashReport.Buffer, id: CrashReport.Buffer),
           Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
           Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
