@@ -870,6 +870,9 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 24
   diskGiB: 50
+  # Short so canary exercises archive and restore through the in-rack store
+  # within an hour of a pause.
+  archiveAfterHours: 1
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true
