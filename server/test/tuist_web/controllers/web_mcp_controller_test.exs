@@ -19,9 +19,10 @@ defmodule TuistWeb.WebMCPControllerTest do
     :ok
   end
 
-  describe "POST /api/webmcp" do
+  describe "POST /api/webmcp/accounts/:account_handle" do
     test "lists only read-only tools", %{conn: conn} do
-      tools = conn |> browser_session(AccountsFixtures.user_fixture()) |> list_tools("/api/webmcp")
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      tools = conn |> browser_session(user) |> list_tools(account_path(user.account))
 
       names = Enum.map(tools, & &1["name"])
       assert "list_projects" in names
@@ -39,46 +40,72 @@ defmodule TuistWeb.WebMCPControllerTest do
       result =
         conn
         |> browser_session(user)
-        |> call_tool("/api/webmcp", "get_project", %{
-          "account_handle" => user.account.name,
-          "project_handle" => project.name
-        })
+        |> call_tool(account_path(user.account), "get_project", project_arguments(project))
 
       refute result["isError"]
       assert result["structuredContent"]["full_handle"] == "#{user.account.name}/#{project.name}"
     end
 
-    test "refuses a private project the user cannot read", %{conn: conn} do
+    test "lets an organization member read the organization's projects", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      organization = organization_with_member(user)
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      result =
+        conn
+        |> browser_session(user)
+        |> call_tool(account_path(organization.account), "get_project", project_arguments(project))
+
+      refute result["isError"]
+    end
+
+    test "refuses another account's data, even one the user can read", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = organization_with_member(user)
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      result =
+        conn
+        |> browser_session(user)
+        |> call_tool(account_path(user.account), "get_project", project_arguments(project))
+
+      assert result["isError"]
+      assert [%{"text" => "You do not have access to project:" <> _}] = result["content"]
+    end
+
+    test "lists only the account's projects and the account itself", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = organization_with_member(user)
+      own = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      conn = browser_session(conn, user)
+
+      projects = call_tool(conn, account_path(user.account), "list_projects", %{})
+      accounts = call_tool(conn, account_path(user.account), "list_accounts", %{})
+
+      assert Enum.map(projects["structuredContent"]["projects"], & &1["name"]) == [own.name]
+      assert Enum.map(accounts["structuredContent"]["accounts"], & &1["handle"]) == [user.account.name]
+    end
+
+    test "refuses a private project of an account the user does not belong to", %{conn: conn} do
       other = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: other.account.id)
 
       result =
         conn
         |> browser_session(AccountsFixtures.user_fixture())
-        |> call_tool("/api/webmcp", "get_project", %{
-          "account_handle" => other.account.name,
-          "project_handle" => project.name
-        })
+        |> call_tool(account_path(other.account), "get_project", project_arguments(project))
 
       assert result["isError"]
-      assert [%{"text" => "You do not have access to project:" <> _}] = result["content"]
     end
 
-    test "lets an organization member read the organization's projects", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(preload: [:account])
-      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
-      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
-
-      result =
+    test "answers 404 for an unknown account", %{conn: conn} do
+      conn =
         conn
-        |> browser_session(user)
-        |> call_tool("/api/webmcp", "get_project", %{
-          "account_handle" => organization.account.name,
-          "project_handle" => project.name
-        })
+        |> browser_session(AccountsFixtures.user_fixture())
+        |> post_rpc("/api/webmcp/accounts/does-not-exist", "tools/list", %{})
 
-      refute result["isError"]
+      assert json_response(conn, 404)["message"] == "Account not found: does-not-exist"
     end
 
     test "refuses write tools", %{conn: conn} do
@@ -87,7 +114,7 @@ defmodule TuistWeb.WebMCPControllerTest do
       response =
         conn
         |> browser_session(user)
-        |> post_rpc("/api/webmcp", "tools/call", %{
+        |> post_rpc(account_path(user.account), "tools/call", %{
           "name" => "create_project",
           "arguments" => %{"account_handle" => user.account.name, "project_handle" => "from-webmcp"}
         })
@@ -98,62 +125,67 @@ defmodule TuistWeb.WebMCPControllerTest do
     end
 
     test "answers only tool listings and calls", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
       response =
         conn
-        |> browser_session(AccountsFixtures.user_fixture())
-        |> post_rpc("/api/webmcp", "prompts/list", %{})
+        |> browser_session(user)
+        |> post_rpc(account_path(user.account), "prompts/list", %{})
         |> json_response(400)
 
       assert response["error"]["code"] == -32_600
 
       notification =
         build_conn()
-        |> browser_session(AccountsFixtures.user_fixture())
+        |> browser_session(user)
         |> put_req_header("content-type", "application/json")
-        |> post("/api/webmcp", JSON.encode!(%{"jsonrpc" => "2.0", "method" => "tools/list"}))
+        |> post(account_path(user.account), JSON.encode!(%{"jsonrpc" => "2.0", "method" => "tools/list"}))
 
       assert json_response(notification, 400)["error"]["code"] == -32_600
     end
 
     test "requires a signed-in session", %{conn: conn} do
-      conn = conn |> browser_session(nil) |> post_rpc("/api/webmcp", "tools/list", %{})
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      conn = conn |> browser_session(nil) |> post_rpc(account_path(account), "tools/list", %{})
 
       assert json_response(conn, 401)
     end
 
     test "does not accept a bearer token instead of a session", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
 
       conn =
         conn
         |> browser_session(nil)
         |> put_req_header("authorization", "Bearer #{user.token}")
-        |> post_rpc("/api/webmcp", "tools/list", %{})
+        |> post_rpc(account_path(user.account), "tools/list", %{})
 
       assert json_response(conn, 401)
     end
 
     test "requires the session's CSRF token", %{conn: conn} do
-      conn = conn |> browser_session(AccountsFixtures.user_fixture()) |> delete_req_header("x-csrf-token")
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = conn |> browser_session(user) |> delete_req_header("x-csrf-token")
 
-      assert_error_sent 403, fn -> post_rpc(conn, "/api/webmcp", "tools/list", %{}) end
+      assert_error_sent 403, fn -> post_rpc(conn, account_path(user.account), "tools/list", %{}) end
     end
 
-    test "requires the sign-in method every SSO-enforcing organization of the user requires", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      enforce_sso(user, :google)
+    test "requires the sign-in method the account's organization enforces, as its dashboard does", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      google = enforce_sso(organization_with_member(user), :google)
+      okta = enforce_sso(organization_with_member(user), :okta)
 
-      assert conn |> browser_session(user, auth_method: :password) |> list_tools_status() == 403
-      assert build_conn() |> browser_session(user, auth_method: nil) |> list_tools_status() == 403
-      assert build_conn() |> browser_session(user, auth_method: :google) |> list_tools_status() == 200
+      assert conn |> browser_session(user, auth_method: :password) |> list_tools_status(google) == 403
+      assert build_conn() |> browser_session(user, auth_method: nil) |> list_tools_status(google) == 403
+      assert build_conn() |> browser_session(user, auth_method: :google) |> list_tools_status(google) == 200
 
-      enforce_sso(user, :okta)
-
-      assert build_conn() |> browser_session(user, auth_method: :google) |> list_tools_status() == 403
+      # Other accounts keep their own requirements.
+      assert build_conn() |> browser_session(user, auth_method: :google) |> list_tools_status(okta) == 403
+      assert build_conn() |> browser_session(user, auth_method: :password) |> list_tools_status(user) == 200
     end
 
     test "uses its own rate limit bucket", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
       test_process = self()
       stub(RateLimit.MCP, :hit, &Mimic.call_original(RateLimit.MCP, :hit, [&1]))
 
@@ -162,19 +194,21 @@ defmodule TuistWeb.WebMCPControllerTest do
         {:allow, 1}
       end)
 
-      conn |> browser_session(user) |> post_rpc("/api/webmcp", "tools/list", %{})
+      conn |> browser_session(user) |> post_rpc(account_path(user.account), "tools/list", %{})
 
       assert_received {:rate_limit_key, key}
       assert key == "webmcp:auth:user:#{user.id}"
     end
 
-    test "dashboard pages advertise it only to signed-in users", %{conn: conn} do
+    test "account pages advertise it to signed-in users, other pages the public tools", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
 
-      refute conn |> get("/users/log_in") |> html_response(200) =~ "webmcp-endpoint"
+      signed_out = conn |> get("/users/log_in") |> html_response(200)
+      assert signed_out =~ ~s(<meta name="webmcp-endpoint" content="/api/webmcp/public">)
+      refute signed_out =~ "data-webmcp-endpoint"
 
       assert build_conn() |> log_in_user(user) |> get("/#{user.account.name}/projects") |> html_response(200) =~
-               ~s(<meta name="webmcp-endpoint" content="/api/webmcp">)
+               ~s(data-webmcp-endpoint="/api/webmcp/accounts/#{user.account.name}")
     end
   end
 
@@ -223,19 +257,27 @@ defmodule TuistWeb.WebMCPControllerTest do
     end
   end
 
-  defp enforce_sso(user, provider) do
-    organization =
-      AccountsFixtures.organization_fixture(
-        creator: user,
-        sso_provider: provider,
-        sso_organization_id: "#{TuistTestSupport.Utilities.unique_integer()}.example.com",
-        oauth2_client_id: "client-id",
-        oauth2_client_secret: "client-secret"
-      )
+  defp organization_with_member(user) do
+    organization = AccountsFixtures.organization_fixture(preload: [:account])
+    :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+    organization
+  end
 
+  defp enforce_sso(organization, provider) do
     # Enabling enforcement through `Accounts` also requires a verified login
     # email domain, which is not what these tests are about.
-    organization |> Ecto.Changeset.change(sso_enforced: true) |> Tuist.Repo.update!()
+    organization
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: provider)
+    |> Tuist.Repo.update!()
+    |> Tuist.Repo.preload(:account)
+  end
+
+  defp account_path(%{account: account}), do: account_path(account)
+  defp account_path(account), do: "/api/webmcp/accounts/#{account.name}"
+
+  defp project_arguments(project) do
+    project = Tuist.Repo.preload(project, :account)
+    %{"account_handle" => project.account.name, "project_handle" => project.name}
   end
 
   # Sends what the dashboard sends: the session cookie and the session's CSRF
@@ -254,7 +296,8 @@ defmodule TuistWeb.WebMCPControllerTest do
   defp list_tools(conn, path),
     do: conn |> post_rpc(path, "tools/list", %{}) |> json_response(200) |> get_in(["result", "tools"])
 
-  defp list_tools_status(conn), do: conn |> post_rpc("/api/webmcp", "tools/list", %{}) |> Map.fetch!(:status)
+  defp list_tools_status(conn, account),
+    do: conn |> post_rpc(account_path(account), "tools/list", %{}) |> Map.fetch!(:status)
 
   defp call_tool(conn, path, name, arguments) do
     conn

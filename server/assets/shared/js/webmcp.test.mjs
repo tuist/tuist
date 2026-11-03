@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { registerWebMCPTools } from "./webmcp.mjs";
+import { registerEndpointTools, registerWebMCPTools } from "./webmcp.mjs";
 
 const listProjects = {
   name: "list_projects",
@@ -17,9 +17,11 @@ function fakeModelContext({ reject = [] } = {}) {
   const tools = new Map();
   return {
     tools,
-    async registerTool(tool) {
+    async registerTool(tool, { signal } = {}) {
       if (reject.includes(tool.name)) throw new TypeError(`Invalid tool ${tool.name}`);
+      if (tools.has(tool.name)) throw new DOMException(`Duplicate tool ${tool.name}`, "InvalidStateError");
       tools.set(tool.name, tool);
+      signal?.addEventListener("abort", () => tools.delete(tool.name));
     },
   };
 }
@@ -40,15 +42,15 @@ function fakeFetch(...answers) {
 async function registeredTool(callAnswer, tool = listProjects) {
   const modelContext = fakeModelContext();
   const { fetch, requests } = fakeFetch(rpcResult({ tools: [tool] }), callAnswer);
-  await registerWebMCPTools({ modelContext, endpoint: "/api/webmcp", csrfToken: "csrf", fetch });
+  await registerEndpointTools({ modelContext, endpoint: "/api/webmcp", csrfToken: "csrf", fetch });
   return { tool: modelContext.tools.get(tool.name), requests };
 }
 
 test("does nothing without WebMCP or an endpoint", async () => {
   const { fetch, requests } = fakeFetch();
 
-  assert.deepEqual(await registerWebMCPTools({ modelContext: undefined, endpoint: "/api/webmcp", fetch }), []);
-  assert.deepEqual(await registerWebMCPTools({ modelContext: fakeModelContext(), endpoint: undefined, fetch }), []);
+  assert.deepEqual(await registerEndpointTools({ modelContext: undefined, endpoint: "/api/webmcp", fetch }), []);
+  assert.deepEqual(await registerEndpointTools({ modelContext: fakeModelContext(), endpoint: undefined, fetch }), []);
   assert.equal(requests.length, 0);
 });
 
@@ -56,7 +58,7 @@ test("registers the listed tools with their schema and annotations", async () =>
   const modelContext = fakeModelContext();
   const { fetch, requests } = fakeFetch(rpcResult({ tools: [listProjects] }));
 
-  const names = await registerWebMCPTools({ modelContext, endpoint: "/api/webmcp", csrfToken: "csrf", fetch });
+  const names = await registerEndpointTools({ modelContext, endpoint: "/api/webmcp", csrfToken: "csrf", fetch });
 
   assert.deepEqual(names, ["list_projects"]);
   const tool = modelContext.tools.get("list_projects");
@@ -71,7 +73,7 @@ test("registers the listed tools with their schema and annotations", async () =>
 test("sends no CSRF header when the page has no token", async () => {
   const { fetch, requests } = fakeFetch(rpcResult({ tools: [] }));
 
-  await registerWebMCPTools({ modelContext: fakeModelContext(), endpoint: "/api/webmcp/public", fetch });
+  await registerEndpointTools({ modelContext: fakeModelContext(), endpoint: "/api/webmcp/public", fetch });
 
   assert.equal("x-csrf-token" in requests[0].init.headers, false);
 });
@@ -80,7 +82,7 @@ test("a tool the browser rejects does not stop the others", async () => {
   const modelContext = fakeModelContext({ reject: ["bad_tool"] });
   const { fetch } = fakeFetch(rpcResult({ tools: [{ ...listProjects, name: "bad_tool" }, listProjects] }));
 
-  assert.deepEqual(await registerWebMCPTools({ modelContext, endpoint: "/api/webmcp", fetch }), ["list_projects"]);
+  assert.deepEqual(await registerEndpointTools({ modelContext, endpoint: "/api/webmcp", fetch }), ["list_projects"]);
 });
 
 test("never rejects when the listing fails", async (t) => {
@@ -95,14 +97,66 @@ test("never rejects when the listing fails", async (t) => {
   for (const answer of answers) {
     const modelContext = fakeModelContext();
     const { fetch } = fakeFetch(answer);
-    assert.deepEqual(await registerWebMCPTools({ modelContext, endpoint: "/api/webmcp", fetch }), []);
+    assert.deepEqual(await registerEndpointTools({ modelContext, endpoint: "/api/webmcp", fetch }), []);
     assert.equal(modelContext.tools.size, 0);
   }
 });
 
 test("never rejects when the page has no document", async (t) => {
   t.mock.method(console, "warn", () => {});
+  assert.deepEqual(await registerEndpointTools(), []);
   assert.deepEqual(await registerWebMCPTools(), []);
+});
+
+test("replaces the tools when navigation changes the page's endpoint", async () => {
+  const modelContext = fakeModelContext();
+  const target = new EventTarget();
+  let endpoint = "/api/webmcp/accounts/acme";
+  const listing = (name) => rpcResult({ tools: [{ ...listProjects, name }] });
+  const { fetch, requests } = fakeFetch(listing("acme_tool"), listing("other_tool"));
+  const navigate = async () => {
+    target.dispatchEvent(new Event("phx:page-loading-stop"));
+    await new Promise((resolve) => setTimeout(resolve));
+  };
+
+  assert.deepEqual(await registerWebMCPTools({ modelContext, target, endpoint: () => endpoint, fetch }), ["acme_tool"]);
+
+  // A navigation within the account keeps the registered tools.
+  await navigate();
+  assert.equal(requests.length, 1);
+
+  // A live redirect stops loading before the next view renders its endpoint.
+  endpoint = undefined;
+  target.dispatchEvent(new CustomEvent("phx:page-loading-stop", { detail: { kind: "redirect" } }));
+  assert.equal(requests.length, 1);
+
+  endpoint = "/api/webmcp/accounts/other";
+  await navigate();
+  assert.deepEqual([...modelContext.tools.keys()], ["other_tool"]);
+  assert.equal(requests[1].url, "/api/webmcp/accounts/other");
+});
+
+test("a navigation during the listing drops the stale endpoint's tools", async () => {
+  const modelContext = fakeModelContext();
+  const target = new EventTarget();
+  let endpoint = "/api/webmcp/accounts/acme";
+  let answerAcme;
+  const fetch = async (url, init) => {
+    if (url.endsWith("/other")) return rpcResult({ tools: [{ ...listProjects, name: "other_tool" }] });
+    return new Promise((resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      answerAcme = () => resolve(rpcResult({ tools: [{ ...listProjects, name: "acme_tool" }] }));
+    });
+  };
+
+  const acme = registerWebMCPTools({ modelContext, target, endpoint: () => endpoint, fetch });
+  endpoint = "/api/webmcp/accounts/other";
+  target.dispatchEvent(new Event("phx:page-loading-stop"));
+  answerAcme();
+
+  assert.deepEqual(await acme, []);
+  await new Promise((resolve) => setTimeout(resolve));
+  assert.deepEqual([...modelContext.tools.keys()], ["other_tool"]);
 });
 
 test("execute calls the tool and returns its structured content", async () => {

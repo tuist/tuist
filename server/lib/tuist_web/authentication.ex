@@ -18,6 +18,7 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
 
   @current_user_key :current_user
   @current_project_key :current_project
@@ -428,18 +429,9 @@ defmodule TuistWeb.Authentication do
         conn
 
       true ->
-        with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
-             organization_id when not is_nil(organization_id) <- account.organization_id,
-             {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
-             true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-             auth_method = get_session(conn, :auth_method),
-             false <- auth_method == organization.sso_provider do
-          conn
-          |> put_session(:oauth_return_to, current_path(conn))
-          |> redirect(to: sso_provider_path(organization))
-          |> halt()
-        else
-          _ -> conn
+        case organization_requiring_sso_sign_in(conn, account_handle) do
+          nil -> conn
+          organization -> redirect_to_sso_sign_in(conn, organization)
         end
     end
   end
@@ -447,21 +439,68 @@ defmodule TuistWeb.Authentication do
   def require_sso_authentication(conn, _opts), do: conn
 
   @doc """
-  Refuses a WebMCP request when the session's sign-in method does not satisfy
-  the SSO enforcement of any of the user's organizations. Tools can reach any
-  of them, so this applies the dashboard's per-account check to all at once.
+  The dashboard's per-account SSO check for JSON endpoints that act on the
+  account in the path, such as WebMCP: refuses the request instead of
+  redirecting to the provider.
   """
-  def require_sso_authentication_for_all_organizations(conn, _opts) do
-    if Accounts.sso_enforcement_satisfied?(current_user(conn), get_session(conn, :auth_method)) do
-      conn
-    else
-      conn
-      |> put_status(:forbidden)
-      |> json(%{
-        message: "Sign in with your organization's single sign-on provider to use Tuist tools in the browser."
-      })
-      |> halt()
+  def require_sso_authentication_for_account_api(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    case organization_requiring_sso_sign_in(conn, account_handle) do
+      nil ->
+        conn
+
+      _organization ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "Sign in with this organization's single sign-on provider to use its Tuist tools."})
+        |> halt()
     end
+  end
+
+  @doc """
+  Guards pages that issue credentials acting for the user in every account
+  they can reach, such as OAuth authorizations and CLI device codes, so the
+  credential cannot be used to sidestep an organization's SSO enforcement.
+  """
+  def require_sso_authentication_for_credentials(conn, _opts) do
+    case current_user(conn) do
+      nil ->
+        conn
+
+      user ->
+        case Accounts.sso_requirement(user, get_session(conn, :auth_method)) do
+          :ok ->
+            conn
+
+          {:sign_in_with, organization} ->
+            redirect_to_sso_sign_in(conn, organization)
+
+          {:error, :conflicting_providers} ->
+            raise UnauthorizedError,
+                  dgettext(
+                    "dashboard_auth",
+                    "Your organizations require different single sign-on providers, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
+                  )
+        end
+    end
+  end
+
+  defp organization_requiring_sso_sign_in(conn, account_handle) do
+    with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+         organization_id when not is_nil(organization_id) <- account.organization_id,
+         {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+         true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+         false <- get_session(conn, :auth_method) == organization.sso_provider do
+      organization
+    else
+      _ -> nil
+    end
+  end
+
+  defp redirect_to_sso_sign_in(conn, organization) do
+    conn
+    |> put_session(:oauth_return_to, current_path(conn))
+    |> redirect(to: sso_provider_path(organization))
+    |> halt()
   end
 
   defp anonymous_public_account?(conn, account_handle) do

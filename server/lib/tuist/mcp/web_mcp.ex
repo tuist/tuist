@@ -3,8 +3,9 @@ defmodule Tuist.MCP.WebMCP do
   The tool sets the website registers with WebMCP for agents built into the
   browser. Those agents receive the tools without the user adding them and read
   content that builds and tests produce, so no tool that changes data is
-  offered: signed-in pages get the read-only tools, and public pages only the
-  documentation and source tools, which do not depend on who is asking.
+  offered: a signed-in account page gets the read-only tools, limited to that
+  account (`Tuist.MCP.Authorization.account_scope/1`), and other pages only
+  the documentation and source tools, which do not depend on who is asking.
   """
 
   alias Tuist.MCP.Components.Tools
@@ -12,7 +13,7 @@ defmodule Tuist.MCP.WebMCP do
 
   @public_tools [Tools.SearchTuist, Tools.SearchTuistCode, Tools.ListTuistFiles, Tools.ReadTuistFile]
 
-  def signed_in_server, do: restrict(& &1.annotations().readOnlyHint)
+  def account_server, do: restrict(& &1.annotations().readOnlyHint)
 
   def public_server, do: restrict(&(&1 in @public_tools))
 

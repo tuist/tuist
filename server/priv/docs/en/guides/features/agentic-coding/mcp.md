@@ -26,6 +26,8 @@ For clients that support plugin installation, use the <.localized_link href="/gu
 
 Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. The server's initialization instructions and public server card describe OAuth 2.0 with dynamic client registration and the standard browser authorization flow inline, without asking agents to fetch or follow external authentication documents. These server-wide instructions keep workflow guidance generic: tool authentication does not authenticate local command-line tools or build-system integrations, and agents should verify requested changes through the relevant Tuist tools. Build-system-specific setup and authentication checks are documented in the integration guides and prompts. Tuist still advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md` separately.
 
+If one of your organizations enforces single sign-on, authorizing a client in the browser requires a session signed in with that organization's provider, and Tuist sends you to the provider first when needed. See <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">single sign-on</.localized_link>.
+
 The endpoint accepts the stateless `2026-07-28` Model Context Protocol request lifecycle, including `server/discover`, alongside the older session-based lifecycle. Existing clients can continue using their current connection method.
 
 Clients that support Model Context Protocol events can subscribe to project events. See [Events](#events) for the available event and delivery requirements.
@@ -186,11 +188,11 @@ If your agent supports `auth.md`, it can start anonymously without opening a bro
 In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
 
 - **Website and documentation pages** register the documentation and source tools (`search_tuist`, `search_tuist_code`, `list_tuist_files` and `read_tuist_file`). They don't need you to sign in.
-- **The dashboard**, when you're signed in, registers Tuist's read-only tools. They run as the signed-in user, so they only reach data you can read in the dashboard.
+- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. They run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another account's pages, the tools are replaced with that account's.
 
 Tools that create, change, or delete data are not available through WebMCP, because a browser agent receives the tools without you adding them and reads content that builds and tests produce. Connect an MCP client to the `/mcp` endpoint to use those tools.
 
-If one of your organizations enforces single sign-on, sign in to the dashboard with that provider to use the dashboard's tools. Organizations that enforce different providers can't share one browser session, so in that case use an MCP client instead.
+If the organization enforces single sign-on, sign in to the dashboard with its provider to use its tools.
 
 ## Build-system integrations use two credentials
 

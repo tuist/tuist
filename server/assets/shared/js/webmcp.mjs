@@ -1,35 +1,72 @@
 // WebMCP (https://webmachinelearning.github.io/webmcp) lets agents built into
-// the browser call tools a page registers. Pages that render a
-// `webmcp-endpoint` meta tag register the Tuist MCP tools that endpoint serves:
-// read-only tools on signed-in dashboard pages, documentation tools on
-// marketing and docs pages.
+// the browser call tools a page registers. Pages name a Tuist endpoint that
+// serves the tools to register: an account's read-only tools on signed-in
+// dashboard pages (`data-webmcp-endpoint` on the headerbar, which changes as
+// LiveView navigates between accounts), and the documentation tools elsewhere
+// (the `webmcp-endpoint` meta tag).
 //
 // Registration is a progressive enhancement: it never throws or rejects, so
 // nothing that goes wrong here can affect the page.
 
-export async function registerWebMCPTools(options = {}) {
+// Registers the tools of the page's endpoint, and replaces them whenever a
+// LiveView navigation changes that endpoint.
+export function registerWebMCPTools({ target = globalThis, endpoint = currentEndpoint, ...options } = {}) {
+  let registration;
+
+  const sync = () => {
+    try {
+      const next = endpoint();
+      if (registration && next === registration.endpoint) return registration.tools;
+
+      // Aborting unregisters the previous endpoint's tools before the new
+      // ones, which mostly share their names, are registered.
+      registration?.controller.abort();
+      const controller = new AbortController();
+      const tools = registerEndpointTools({ ...options, endpoint: next, signal: controller.signal });
+      registration = { endpoint: next, controller, tools };
+      return tools;
+    } catch (error) {
+      console.warn("Could not register Tuist's WebMCP tools", error);
+      return Promise.resolve([]);
+    }
+  };
+
+  try {
+    // A live redirect stops loading before the new view renders, so its
+    // endpoint is only known at the `initial` stop that follows.
+    target.addEventListener?.("phx:page-loading-stop", (event) => event.detail?.kind !== "redirect" && sync());
+  } catch (error) {
+    console.warn("Could not follow page navigation for Tuist's WebMCP tools", error);
+  }
+  return sync();
+}
+
+// Registers the tools one endpoint serves until `signal` aborts, and resolves
+// to their names.
+export async function registerEndpointTools(options = {}) {
   try {
     return await register(options);
   } catch (error) {
-    console.warn("Could not register Tuist's WebMCP tools", error);
+    if (error?.name !== "AbortError") console.warn("Could not register Tuist's WebMCP tools", error);
     return [];
   }
 }
 
 async function register({
   modelContext = globalThis.document?.modelContext,
-  endpoint = metaContent("webmcp-endpoint"),
+  endpoint,
   csrfToken = metaContent("csrf-token"),
   fetch = globalThis.fetch,
+  signal,
 }) {
   if (!modelContext?.registerTool || !endpoint) return [];
 
-  const call = (method, params, signal) => request({ fetch, endpoint, csrfToken }, method, params, signal);
-  const { result, error } = await call("tools/list", {});
+  const call = (method, params, callSignal) => request({ fetch, endpoint, csrfToken }, method, params, callSignal);
+  const { result, error } = await call("tools/list", {}, signal);
   if (error) throw new Error(error);
 
   const registrations = await Promise.allSettled(
-    result.tools.map((tool) => modelContext.registerTool(webMCPTool(tool, call)).then(() => tool.name)),
+    result.tools.map((tool) => modelContext.registerTool(webMCPTool(tool, call), { signal }).then(() => tool.name)),
   );
   return registrations.filter(({ status }) => status === "fulfilled").map(({ value }) => value);
 }
@@ -86,5 +123,9 @@ async function request({ fetch, endpoint, csrfToken }, method, params, signal) {
 
 const contentText = (content = []) =>
   content.map((item) => (item.type === "text" ? item.text : JSON.stringify(item))).join("\n") || "The tool failed.";
+
+const currentEndpoint = () =>
+  globalThis.document?.querySelector("[data-webmcp-endpoint]")?.getAttribute("data-webmcp-endpoint") ??
+  metaContent("webmcp-endpoint");
 
 const metaContent = (name) => globalThis.document?.querySelector(`meta[name='${name}']`)?.getAttribute("content");

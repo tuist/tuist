@@ -705,7 +705,13 @@ defmodule TuistWeb.AppLayoutComponents do
 
   def headerbar(assigns) do
     ~H"""
-    <header class="headerbar">
+    <%!-- The WebMCP tools of the account this page belongs to; see
+    assets/shared/js/webmcp.mjs. It changes with live navigation, unlike the
+    root layout's endpoint for other pages. --%>
+    <header
+      class="headerbar"
+      data-webmcp-endpoint={@current_user && ~p"/api/webmcp/accounts/#{@selected_account.name}"}
+    >
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
           <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />

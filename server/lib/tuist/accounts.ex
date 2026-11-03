@@ -1721,18 +1721,30 @@ defmodule Tuist.Accounts do
   def sso_enforced_for_email?(_email), do: false
 
   @doc """
-  Returns true when a session signed in with `auth_method` satisfies the SSO
-  enforcement of every organization `user` belongs to. The dashboard enforces
-  SSO per visited account; callers that can reach any of the user's
-  organizations in one session, such as WebMCP, use this stricter check.
+  Returns what a session signed in with `auth_method` needs before it can
+  issue credentials that act for `user` in every organization they belong to,
+  such as OAuth authorizations and CLI device codes:
+
+    * `:ok` when every SSO-enforcing organization accepts `auth_method`.
+    * `{:sign_in_with, organization}` when the session has to sign in with that
+      organization's provider first.
+    * `{:error, :conflicting_providers}` when the organizations enforce
+      different providers, which no single session can satisfy.
   """
-  def sso_enforcement_satisfied?(%User{} = user, auth_method) do
-    user
-    |> get_user_organization_accounts()
-    |> Enum.all?(fn %{organization: organization} ->
-      not organization.sso_enforced or is_nil(organization.sso_provider) or
-        organization.sso_provider == auth_method
-    end)
+  def sso_requirement(%User{} = user, auth_method) do
+    enforcing =
+      user
+      |> get_user_organization_accounts()
+      |> Enum.map(& &1.organization)
+      |> Enum.filter(&(&1.sso_enforced and not is_nil(&1.sso_provider)))
+      |> Enum.uniq_by(& &1.sso_provider)
+
+    case enforcing do
+      [] -> :ok
+      [%{sso_provider: ^auth_method}] -> :ok
+      [organization] -> {:sign_in_with, organization}
+      _ -> {:error, :conflicting_providers}
+    end
   end
 
   @doc """

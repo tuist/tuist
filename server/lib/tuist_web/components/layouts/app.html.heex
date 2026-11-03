@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <meta :if={assigns[:current_user]} name="webmcp-endpoint" content={~p"/api/webmcp"} />
+    <meta name="webmcp-endpoint" content={~p"/api/webmcp/public"} />
     <script nonce={get_csp_nonce()}>
       (function() {
         function getPreferredTheme() {
