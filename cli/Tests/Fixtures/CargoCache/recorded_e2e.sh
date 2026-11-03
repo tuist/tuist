@@ -236,8 +236,9 @@ fn main() {
         String::from_utf8(output.stdout).unwrap()
     };
     run("swiftc", &["-O", "helper.swift", "-o", &helper]);
-    // Through `PATH`, as cc-rs runs it: the session's `cc` shim must keep the compiler recorded.
-    run("cc", &["-O2", "native.c", "-o", &format!("{out}/native")]);
+    // Through `PATH`, as cc-rs runs it: the session's `cc` shim must keep the compiler recorded. With debug
+    // information, as mise's notification helper, which its library embeds.
+    run("cc", &["-g", "-O2", "native.c", "-o", &format!("{out}/native")]);
     let native = run(&format!("{out}/native"), &[]);
     run("/usr/bin/codesign", &["--force", "--sign", "-", &helper]);
     let value = run(&helper, &[]);
@@ -250,7 +251,8 @@ fn main() {
     std::fs::write(format!("{out}/value.txt"), format!("{}{} {stamp}", value.trim(), native.trim())).unwrap();
 }
 RUST
-    printf 'pub const VALUE: &str = include_str!(concat!(env!("OUT_DIR"), "/value.txt"));\n' > "$path/helper/src/lib.rs"
+    printf 'pub const VALUE: &str = include_str!(concat!(env!("OUT_DIR"), "/value.txt"));\npub static NATIVE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/native"));\n' \
+        > "$path/helper/src/lib.rs"
     printf '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2021"\n[dependencies]\nhelper = { path = "../helper" }\n' \
         > "$path/app/Cargo.toml"
     printf 'fn main() { println!("{}", helper::VALUE); }\n' > "$path/app/src/main.rs"
@@ -280,3 +282,12 @@ expect tools-source 437 "$VALUE"
 printf '#define DIGIT 8\n' > "$t/helper/digit.h"
 build_tools "$t" tools-header
 expect tools-header 438 "$VALUE"
+header=$STAMP
+# The same sources at another path: the helper's debug information must not name the checkout, or the library that
+# embeds it is bound to the first path and misses here.
+m=$(tools tools-moved/nested)
+printf 'print(41 + 2)\n' > "$m/helper/helper.swift"
+printf '#define DIGIT 8\n' > "$m/helper/digit.h"
+build_tools "$m" tools-moved
+expect "tools-moved: the run must be restored and the library must hit" "438 $header hit" \
+    "$VALUE $STAMP $(task tools-moved helper)"

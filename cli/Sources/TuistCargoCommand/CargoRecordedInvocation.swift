@@ -226,7 +226,8 @@ struct CargoRecordedInvocation: CargoCacheAction {
     static func isVolatile(_ name: String) -> Bool {
         CargoCacheInvocation.ignoredEnvironment.contains(name)
             || CargoCacheInvocation.ignoredEnvironmentPrefixes.contains(where: name.hasPrefix)
-            || ["PWD", "TMPDIR", "NUM_JOBS"].contains(name)
+            // compiler-rt marks its profiling runtime as initialized for an instrumented process's children.
+            || ["PWD", "TMPDIR", "NUM_JOBS", "__LLVM_PROFILE_RT_INIT_ONCE"].contains(name)
     }
 
     func validateDependencies(restoring _: Bool) async throws {}

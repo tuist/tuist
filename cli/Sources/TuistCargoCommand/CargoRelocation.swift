@@ -62,6 +62,12 @@ struct CargoRelocation: Equatable {
         roots.reversed().map { "--remap-path-prefix=\($0.path)\($0.remapped.isEmpty ? "/" : "")=\($0.remapped)" }
     }
 
+    /// The same mappings for clang's debug information, which also applies the last matching one. Its compilation
+    /// directory carries no trailing slash, so the workspace maps to `.`, as Bazel's `-fdebug-prefix-map=$PWD=.` does.
+    var debugPrefixMapArguments: [String] {
+        roots.reversed().map { "-fdebug-prefix-map=\($0.path)=\($0.remapped.isEmpty ? "." : $0.remapped)" }
+    }
+
     /// Replaces each root that appears as a whole path prefix: `/a/proj` matches `/a/proj` and `/a/proj/x`, never
     /// `/a/project`.
     func relative(_ text: String) -> String {

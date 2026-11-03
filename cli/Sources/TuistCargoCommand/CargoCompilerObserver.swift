@@ -74,8 +74,12 @@ struct CargoCompilerObserver {
             var recorded = environment
             recorded["DYLD_INSERT_LIBRARIES"] = recorder
             if recorded["SDKROOT"] == nil { recorded["SDKROOT"] = sdk }
+            // Like rustc's `--remap-path-prefix`: debug information naming the checkout would bind every crate that
+            // embeds the output (mise links a helper this way) to that path. C does not read the Rust sysroot, and
+            // `/` is not a root. The script's own mappings come later, so they still win.
+            let maps = CargoRelocation(environment: environment, sysroot: URL(fileURLWithPath: "/")).debugPrefixMapArguments
             return .compile(CargoCompilerRun(
-                command: [clang] + arguments.dropFirst(), environment: recorded, arguments: arguments,
+                command: [clang] + maps + arguments.dropFirst(), environment: recorded, arguments: arguments,
                 hookEnvironment: environment, directory: directory, native: true, runner: runner, invocation: nil,
                 recorded: nil, cache: nil, measurement: nil, remote: nil, log: nil, strict: false
             ))
