@@ -15,7 +15,7 @@ public struct CacheCommand: AsyncParsableCommand {
 
     private static var subcommands: [ParsableCommand.Type] {
         #if os(macOS)
-            [CacheWarmCommand.self, CacheConfigCommand.self]
+            [CacheWarmCommand.self, CachePullCommand.self, CacheConfigCommand.self]
         #else
             [CacheConfigCommand.self]
         #endif
