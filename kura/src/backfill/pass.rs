@@ -9,6 +9,8 @@
 //! (Unit 8); a pass only reports a rich [`BackfillPassOutcome`] for it to
 //! consume.
 
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -34,7 +36,7 @@ use crate::{
         BACKFILL_BATCH_FLUSH_INTERVAL_MS, BACKFILL_BODIES_BATCH_BYTES, BACKFILL_FETCH_QUEUE_TUPLES,
         BACKFILL_RETRY_BACKOFF_BASE_MS, BACKFILL_RETRY_BACKOFF_MAX_MS, MAX_BACKFILL_BODIES_ENTRIES,
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_PEER_PAGE_BYTES, MAX_PEER_PAGE_ITEMS,
-        MAX_REPLICATION_BODY_BYTES,
+        MAX_REPLICATION_BODY_BYTES, MAX_SEGMENT_BYTES,
     },
     failpoints::FailpointName,
     file_cache::FileCachePolicy,
@@ -47,7 +49,7 @@ use crate::{
     reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
-    store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
+    store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath, Store},
     utils::{BackfillRecordKind, TempFileCleanup, temp_file_path, url_encode},
 };
 
@@ -182,6 +184,10 @@ pub struct BackfillPassTuning {
     /// not-capable cap watchdog (a 404 peer cannot heal without its own
     /// binary swap, so its waits convert to a capability charge much sooner).
     pub not_capable_wait_observer: Option<Arc<AtomicU64>>,
+    /// Whether a retained-index repair compacts sealed segments the source
+    /// mostly no longer retains before fetching what is missing. Only while
+    /// the source still serves: copying under a frozen source pauses writes.
+    pub compact_retained: bool,
 }
 
 impl BackfillPassTuning {
@@ -197,6 +203,7 @@ impl BackfillPassTuning {
             page_limit: MAX_PEER_PAGE_ITEMS,
             retryable_wait_observer: None,
             not_capable_wait_observer: None,
+            compact_retained: false,
         }
     }
 }
@@ -421,6 +428,17 @@ async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbo
     // Keep only segment identities, not the source's complete manifest set.
     // A sealed, unpinned segment cannot gain a newly committed artifact while
     // this walk proves that none of its current records belong to the source.
+    // Compaction keeps a fixed-size filter of the listed ids and the retained
+    // bytes per segment instead, for the segments sealed before the walk.
+    let mut layout = context.tuning.compact_retained.then(|| RetainedLayout {
+        ids: RetainedIds::new(),
+        retained: candidates
+            .iter()
+            .map(|segment| (segment.clone(), 0))
+            .collect(),
+        frontier_ms: u64::MAX,
+        missing_bytes: 0,
+    });
     let mut missing = false;
     let mut after = None;
     loop {
@@ -438,8 +456,17 @@ async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbo
                 && let Some(segment) = manifest.segment_id
             {
                 candidates.remove(&segment);
+                if let Some(retained) = layout
+                    .as_mut()
+                    .and_then(|layout| layout.retained.get_mut(&segment))
+                {
+                    *retained = retained.saturating_add(manifest.size);
+                }
             }
-            if candidates.is_empty() {
+            if let Some(layout) = layout.as_mut() {
+                layout.ids.insert(&entry.record_id);
+                layout.frontier_ms = layout.frontier_ms.min(entry.version_ms);
+            } else if candidates.is_empty() {
                 return Ok(());
             }
             if kind == BackfillRecordKind::SegmentArtifact
@@ -450,6 +477,10 @@ async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbo
                     .map_err(PassAbort::Hard)?
             {
                 missing = true;
+                if let Some(layout) = layout.as_mut() {
+                    layout.missing_bytes =
+                        layout.missing_bytes.saturating_add(entry.size.unwrap_or(0));
+                }
             }
         }
         match page.next_after {
@@ -459,6 +490,9 @@ async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbo
     }
     if missing {
         for segment in candidates {
+            if let Some(layout) = layout.as_mut() {
+                layout.retained.remove(&segment);
+            }
             cancellable(
                 context,
                 context.state.store.reclaim_handover_segment(&segment),
@@ -466,7 +500,136 @@ async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbo
             .await?
             .map_err(PassAbort::Hard)?;
         }
+        if let Some(layout) = layout {
+            compact_retained_segments(&context.state.store, context.cancel, context.peer, layout)
+                .await?;
+        }
     }
+    Ok(())
+}
+
+// A fixed 2 MiB Bloom filter of the record ids a source lists. A false
+// positive only keeps a destination-only record during compaction.
+const RETAINED_ID_FILTER_BITS: u64 = 1 << 24;
+const RETAINED_ID_FILTER_HASHES: u64 = 4;
+// Only segments at most three quarters retained are worth copying out of.
+const COMPACTION_MAX_RETAINED_BYTES: u64 = MAX_SEGMENT_BYTES / 4 * 3;
+// Room kept free while copying, for the feed writes that keep arriving.
+const COMPACTION_MARGIN_BYTES: u64 = 2 * MAX_SEGMENT_BYTES;
+
+struct RetainedIds {
+    bits: Vec<u64>,
+}
+
+impl RetainedIds {
+    fn new() -> Self {
+        Self {
+            bits: vec![0; (RETAINED_ID_FILTER_BITS / 64) as usize],
+        }
+    }
+
+    fn positions(id: &str) -> impl Iterator<Item = u64> {
+        let digest = Sha256::digest(id.as_bytes());
+        let first = u64::from_be_bytes(digest[..8].try_into().expect("eight bytes"));
+        let step = u64::from_be_bytes(digest[8..16].try_into().expect("eight bytes")) | 1;
+        (0..RETAINED_ID_FILTER_HASHES).map(move |index| {
+            first.wrapping_add(index.wrapping_mul(step)) % RETAINED_ID_FILTER_BITS
+        })
+    }
+
+    fn insert(&mut self, id: &str) {
+        for position in Self::positions(id) {
+            self.bits[(position / 64) as usize] |= 1 << (position % 64);
+        }
+    }
+
+    fn contains(&self, id: &str) -> bool {
+        Self::positions(id)
+            .all(|position| self.bits[(position / 64) as usize] & (1 << (position % 64)) != 0)
+    }
+}
+
+/// What a complete retained-index walk learned about this destination's
+/// sealed segments: the source's listed ids, the bytes each segment holds of
+/// them, the oldest listed version and the bytes still missing.
+struct RetainedLayout {
+    ids: RetainedIds,
+    retained: HashMap<String, u64>,
+    frontier_ms: u64,
+    missing_bytes: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CompactionStep {
+    /// The missing bytes already fit, with the margin to spare.
+    Enough,
+    /// Copying this segment's retained bytes could rotate out retained data.
+    NoRoom,
+    Copy,
+}
+
+fn compaction_step(admissible: u64, missing_bytes: u64, retained: u64) -> CompactionStep {
+    if admissible >= missing_bytes.saturating_add(COMPACTION_MARGIN_BYTES) {
+        CompactionStep::Enough
+    } else if admissible < retained.saturating_add(COMPACTION_MARGIN_BYTES) {
+        CompactionStep::NoRoom
+    } else {
+        CompactionStep::Copy
+    }
+}
+
+/// Makes room for the records the destination lacks by copying the retained
+/// records out of the sealed segments that hold the least of them and
+/// reclaiming those segments. Copies only while the store can write them
+/// without rotating out anything the source may retain, and stops once the
+/// missing bytes fit.
+async fn compact_retained_segments(
+    store: &Store,
+    cancel: &CancellationToken,
+    peer: &str,
+    layout: RetainedLayout,
+) -> Result<(), PassAbort> {
+    let RetainedLayout {
+        ids,
+        retained,
+        frontier_ms,
+        missing_bytes,
+    } = layout;
+    let mut segments: Vec<_> = retained
+        .into_iter()
+        .filter(|(_, bytes)| *bytes <= COMPACTION_MAX_RETAINED_BYTES)
+        .collect();
+    segments.sort_by_key(|(_, bytes)| *bytes);
+    let (mut reclaimed, mut copied) = (0u64, 0u64);
+    let mut stopped = CompactionStep::Copy;
+    for (segment, bytes) in segments {
+        stopped = compaction_step(
+            store.handover_admissible_bytes(frontier_ms),
+            missing_bytes,
+            bytes,
+        );
+        if stopped != CompactionStep::Copy {
+            break;
+        }
+        let (moved, left) = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => return Err(PassAbort::Cancelled),
+            outcome = store.compact_handover_segment(&segment, |id| ids.contains(id)) => outcome.map_err(PassAbort::Hard)?,
+        };
+        copied = copied.saturating_add(moved);
+        if left == 0 {
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => return Err(PassAbort::Cancelled),
+                outcome = store.reclaim_handover_segment(&segment) => outcome.map_err(PassAbort::Hard)?,
+            }
+            reclaimed += 1;
+        }
+    }
+    tracing::info!(event.name = "kura.handover.compacted", peer, reclaimed, last_step = ?stopped,
+        copied_bytes = copied, missing_bytes,
+        admissible_bytes = store.handover_admissible_bytes(frontier_ms),
+        "Compacted segments the source mostly no longer retains");
     Ok(())
 }
 
@@ -1815,6 +1978,28 @@ mod tests {
         (format!("http://{address}"), handle)
     }
 
+    #[test]
+    fn compaction_copies_only_while_what_is_missing_does_not_fit_and_the_copy_does() {
+        let margin = COMPACTION_MARGIN_BYTES;
+        assert_eq!(compaction_step(10 + margin, 10, 1), CompactionStep::Enough);
+        assert_eq!(compaction_step(9 + margin, 10, 9), CompactionStep::Copy);
+        assert_eq!(compaction_step(9 + margin, 10, 10), CompactionStep::NoRoom);
+        assert_eq!(compaction_step(0, 10, 0), CompactionStep::NoRoom);
+    }
+
+    #[test]
+    fn retained_id_filter_never_forgets_a_listed_id() {
+        let mut ids = RetainedIds::new();
+        for index in 0..10_000 {
+            ids.insert(&format!("listed-{index}"));
+        }
+        assert!((0..10_000).all(|index| ids.contains(&format!("listed-{index}"))));
+        let false_positives = (0..10_000)
+            .filter(|index| ids.contains(&format!("unlisted-{index}")))
+            .count();
+        assert!(false_positives < 10, "{false_positives}");
+    }
+
     fn tuning() -> BackfillPassTuning {
         BackfillPassTuning {
             source: PassSource::PeerIndex,
@@ -1827,6 +2012,7 @@ mod tests {
             page_limit: MAX_PEER_PAGE_ITEMS,
             retryable_wait_observer: None,
             not_capable_wait_observer: None,
+            compact_retained: false,
         }
     }
 

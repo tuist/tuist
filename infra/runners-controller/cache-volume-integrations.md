@@ -83,7 +83,13 @@ retrieves provider metadata; the storage lifecycle never accepts scope or save
 permission from the mount request or job environment.
 
 - **GitHub:** retain the existing installation-authenticated run/repository
-  lookup, including run attempt and source repository checks.
+  lookup, including run attempt and source repository checks. A job whose
+  workflow grants `id-token: write` also hands the server a GitHub OIDC token
+  from the job-started hook, which binds the session to the job it names without
+  waiting for the `in_progress` webhook (`Runners.ExecutionTokens`). Its
+  claims then settle the identity of push, schedule and workflow_dispatch jobs
+  without reading the run; pull request jobs still read it, and attach read-only
+  when GitHub cannot answer.
 - **Buildkite:** before returning the job acquisition token, retrieve the account-owned job UUID through the existing
   [Stacks job API](https://buildkite.com/docs/apis/agent-api/stacks). Check job,
   build, build number, organization slug and pipeline slug against the assignment.
@@ -98,7 +104,8 @@ permission from the mount request or job environment.
   the job. Mounts use that snapshot with the live executed-job binding and an
   enabled installation. Failed refreshes clear prior authority. No additional
   API token is needed.
-- **GitLab:** use the encrypted acquired job token for
+- **GitLab:** when the job is acquired, and again at allocation only if that
+  failed, use the encrypted acquired job token for
   [GET /job](https://docs.gitlab.com/api/jobs/#retrieve-a-job-by-job-token), checking
   the assigned job ID, project ID, running status and commit SHA. Scope by the
   canonical instance digest and immutable project ID. Find the exact branch
