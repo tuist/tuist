@@ -11,8 +11,6 @@ defmodule TuistWeb.WebMCPController do
   alias Tuist.Accounts
   alias Tuist.MCP.WebMCP
 
-  @methods ["tools/list", "tools/call"]
-
   def account(conn, %{"account_handle" => account_handle}) do
     case Accounts.get_account_by_handle(account_handle) do
       nil ->
@@ -29,20 +27,27 @@ defmodule TuistWeb.WebMCPController do
 
   def public(conn, _params), do: handle(conn, WebMCP.public_server())
 
-  # Both methods are requests, so a message without an `id` (a notification)
-  # is refused rather than answered with an empty JSON-RPC response.
-  defp handle(%{body_params: %{"jsonrpc" => "2.0", "id" => _, "method" => method} = request} = conn, server)
-       when method in @methods do
-    json(conn, EMCP.Server.handle_message(server, conn, request))
+  defp handle(conn, server) do
+    if supported?(conn.body_params) do
+      json(conn, EMCP.Server.handle_message(server, conn, conn.body_params))
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{
+        jsonrpc: "2.0",
+        id: conn.body_params["id"],
+        error: %{code: -32_600, message: "Only tools/list and tools/call requests are supported."}
+      })
+    end
   end
 
-  defp handle(conn, _server) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{
-      jsonrpc: "2.0",
-      id: conn.body_params["id"],
-      error: %{code: -32_600, message: "Only tools/list and tools/call requests are supported."}
-    })
-  end
+  # Both methods are requests, so a message without an `id` (a notification)
+  # is refused rather than answered with an empty JSON-RPC response, and a
+  # call has to name its tool.
+  defp supported?(%{"jsonrpc" => "2.0", "id" => _, "method" => "tools/list"}), do: true
+
+  defp supported?(%{"jsonrpc" => "2.0", "id" => _, "method" => "tools/call", "params" => %{"name" => name}})
+       when is_binary(name), do: true
+
+  defp supported?(_message), do: false
 end

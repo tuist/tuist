@@ -14,61 +14,54 @@ export function registerWebMCPTools({ target = globalThis, endpoint = currentEnd
   let registration;
 
   const sync = () => {
-    try {
-      const next = endpoint();
-      if (registration && next === registration.endpoint) return registration.tools;
+    const next = endpoint();
+    if (registration && next === registration.endpoint) return registration.tools;
 
-      // Aborting unregisters the previous endpoint's tools before the new
-      // ones, which mostly share their names, are registered.
-      registration?.controller.abort();
-      const controller = new AbortController();
-      const tools = registerEndpointTools({ ...options, endpoint: next, signal: controller.signal });
-      registration = { endpoint: next, controller, tools };
-      return tools;
-    } catch (error) {
-      console.warn("Could not register Tuist's WebMCP tools", error);
-      return Promise.resolve([]);
-    }
+    // Aborting unregisters the previous endpoint's tools before the new
+    // ones, which mostly share their names, are registered.
+    registration?.controller.abort();
+    const controller = new AbortController();
+    const current = { endpoint: next, controller };
+    // A listing that failed, for example on a rate limit, is retried at the
+    // next navigation instead of leaving the page without tools.
+    current.tools = registerEndpointTools({ ...options, endpoint: next, signal: controller.signal }).then((names) => {
+      if (names.length === 0 && registration === current) registration = undefined;
+      return names;
+    });
+    registration = current;
+    return current.tools;
   };
 
-  try {
-    // A live redirect stops loading before the new view renders, so its
-    // endpoint is only known at the `initial` stop that follows.
-    target.addEventListener?.("phx:page-loading-stop", (event) => event.detail?.kind !== "redirect" && sync());
-  } catch (error) {
-    console.warn("Could not follow page navigation for Tuist's WebMCP tools", error);
-  }
+  // A live redirect stops loading before the new view renders, so its
+  // endpoint is only known at the `initial` stop that follows.
+  target.addEventListener?.("phx:page-loading-stop", (event) => event.detail?.kind !== "redirect" && sync());
   return sync();
 }
 
 // Registers the tools one endpoint serves until `signal` aborts, and resolves
 // to their names.
-export async function registerEndpointTools(options = {}) {
-  try {
-    return await register(options);
-  } catch (error) {
-    if (error?.name !== "AbortError") console.warn("Could not register Tuist's WebMCP tools", error);
-    return [];
-  }
-}
-
-async function register({
+export async function registerEndpointTools({
   modelContext = globalThis.document?.modelContext,
   endpoint,
   csrfToken = metaContent("csrf-token"),
   fetch = globalThis.fetch,
   signal,
-}) {
+} = {}) {
   if (!modelContext?.registerTool || !endpoint) return [];
 
-  const call = (method, params, callSignal) => request({ fetch, endpoint, csrfToken }, method, params, callSignal);
-  const { result, error } = await call("tools/list", {}, signal);
-  if (error) throw new Error(error);
+  try {
+    const call = (method, params, callSignal) => request({ fetch, endpoint, csrfToken }, method, params, callSignal);
+    const { result, error } = await call("tools/list", {}, signal);
+    if (error) throw new Error(error);
 
-  const registrations = await Promise.allSettled(
-    result.tools.map((tool) => modelContext.registerTool(webMCPTool(tool, call), { signal }).then(() => tool.name)),
-  );
-  return registrations.filter(({ status }) => status === "fulfilled").map(({ value }) => value);
+    const registrations = await Promise.allSettled(
+      result.tools.map((tool) => modelContext.registerTool(webMCPTool(tool, call), { signal }).then(() => tool.name)),
+    );
+    return registrations.filter(({ status }) => status === "fulfilled").map(({ value }) => value);
+  } catch (error) {
+    if (error?.name !== "AbortError") console.warn("Could not register Tuist's WebMCP tools", error);
+    return [];
+  }
 }
 
 const webMCPTool = (tool, call) => ({
@@ -112,7 +105,10 @@ async function request({ fetch, endpoint, csrfToken }, method, params, signal) {
 
   // JSON-RPC and rate-limit errors carry `error.message`, authentication
   // errors `message`, and CSRF failures are not JSON at all.
-  const body = await response.json().catch(() => null);
+  const body = await response.json().catch((error) => {
+    if (error?.name === "AbortError") throw error;
+    return null;
+  });
   if (body?.result) return { result: body.result };
 
   const reload = [401, 403].includes(response.status) ? " Reload the page to refresh your session." : "";

@@ -117,7 +117,7 @@ msgid "Continue"
 msgstr ""
 
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:61
+#: lib/tuist_web/live/device_codes_success_live.ex:62
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr ""
@@ -286,14 +286,14 @@ msgstr ""
 msgid "This username has already been taken"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:41
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr ""
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:30
+#: lib/tuist_web/live/device_codes_success_live.ex:31
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -306,7 +306,7 @@ msgstr ""
 msgid "Tuist Logo"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:39
+#: lib/tuist_web/live/device_codes_success_live.ex:40
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr ""
@@ -323,7 +323,7 @@ msgstr ""
 msgid "Tuist documentation"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:43
+#: lib/tuist_web/live/device_codes_success_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr ""
@@ -365,17 +365,17 @@ msgstr ""
 msgid "Welcome! Create an account to continue"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:53
+#: lib/tuist_web/live/device_codes_success_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:49
+#: lib/tuist_web/live/device_codes_success_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:51
+#: lib/tuist_web/live/device_codes_success_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr ""

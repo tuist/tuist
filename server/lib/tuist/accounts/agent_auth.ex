@@ -1492,7 +1492,18 @@ defmodule Tuist.Accounts.AgentAuth do
   defp ensure_protocol_claim_startable(%AgentRegistration{registration_type: :anonymous}), do: :ok
   defp ensure_protocol_claim_startable(_registration), do: {:error, :claim_not_available}
 
+  # The claimed credential acts in every account of the user, so beyond the
+  # email domain's organization, the session must also satisfy every
+  # organization the user belongs to, as OAuth authorizations and device
+  # codes do.
   defp ensure_browser_sso_policy_satisfied(%User{} = user, auth_method) do
+    case Accounts.sso_requirement(user, auth_method) do
+      :ok -> ensure_email_domain_sso_policy_satisfied(user, auth_method)
+      _requirement -> {:error, :sso_required}
+    end
+  end
+
+  defp ensure_email_domain_sso_policy_satisfied(user, auth_method) do
     if Accounts.sso_enforced_for_email?(user.email) do
       with {:ok, organization} <- Accounts.sso_organization_for_user_email(user.email),
            true <- auth_method == organization.sso_provider,

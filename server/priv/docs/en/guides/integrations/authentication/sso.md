@@ -56,7 +56,7 @@ The **Enforce single sign-on** setting is independent of enrollment. Enforcement
 Enforcement applies wherever a member's session reaches the organization:
 
 - **Dashboard**: the organization's pages, and the tools they offer to browser agents through <.localized_link href="/guides/features/agentic-coding/mcp#webmcp">WebMCP</.localized_link>, require a session signed in with the organization's provider.
-- **Tuist CLI, the Tuist app, and MCP clients**: signing them in creates a credential that acts for the member in every organization, so it requires a session signed in with the provider of every organization that enforces single sign-on. Tuist sends a member who signed in another way to the provider first. Credentials issued earlier are not revoked.
+- **Tuist CLI, the Tuist app, MCP clients, and the API reference**: signing them in creates a credential that acts for the member in every organization, so it requires a session signed in with the provider of every organization that enforces single sign-on. Tuist sends a member who signed in another way to the provider first, and refuses sign-in with an email and password or with Apple. Credentials issued earlier are not revoked.
 
 A member of several organizations that enforce different providers can't sign in to the CLI, the app, or MCP clients, because one session uses one provider.
 

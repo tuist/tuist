@@ -15,8 +15,9 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
       Accounts.authenticate_device_code(device_code, user)
       {:ok, assign(socket, type: type)}
     else
-      # Live navigation can reach this page without the device-code route's
-      # SSO check, so send the session through that route instead.
+      # This page approves the code and its route has no SSO check of its own
+      # (it is reached directly or through live navigation), so send the
+      # session through the device-code route, which has one.
       {:ok, redirect(socket, to: ~p"/auth/device_codes/#{device_code}?type=#{type}")}
     end
   end

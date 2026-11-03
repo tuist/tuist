@@ -6528,6 +6528,63 @@ defmodule Tuist.AccountsTest do
     org
   end
 
+  describe "sso_requirement/2" do
+    setup do
+      %{user: AccountsFixtures.user_fixture()}
+    end
+
+    test "is satisfied when no organization of the user enforces single sign-on", %{user: user} do
+      assert Accounts.sso_requirement(user, :password) == :ok
+
+      member_of(user, sso_enforced: false, sso_provider: :google)
+      member_of(user, sso_enforced: true, sso_provider: nil)
+
+      assert Accounts.sso_requirement(user, :password) == :ok
+    end
+
+    test "asks for the provider of the organization that enforces it", %{user: user} do
+      organization = member_of(user, sso_enforced: true, sso_provider: :google)
+      organization_id = organization.id
+
+      assert Accounts.sso_requirement(user, :google) == :ok
+      assert {:sign_in_with, %{id: ^organization_id}} = Accounts.sso_requirement(user, :password)
+      # A session resumed from the remember-me cookie records no sign-in method.
+      assert {:sign_in_with, %{id: ^organization_id}} = Accounts.sso_requirement(user, nil)
+    end
+
+    test "is satisfied by one session for organizations enforcing the same provider", %{user: user} do
+      member_of(user, sso_enforced: true, sso_provider: :google)
+      member_of(user, sso_enforced: true, sso_provider: :google)
+
+      assert Accounts.sso_requirement(user, :google) == :ok
+    end
+
+    test "cannot be satisfied when organizations enforce different providers", %{user: user} do
+      member_of(user, sso_enforced: true, sso_provider: :google)
+      member_of(user, sso_enforced: true, sso_provider: :okta)
+
+      # Signing in with either provider must not send the session to the other
+      # one, which would then send it back.
+      assert Accounts.sso_requirement(user, :google) == {:error, :conflicting_providers}
+      assert Accounts.sso_requirement(user, :okta) == {:error, :conflicting_providers}
+    end
+
+    test "ignores organizations the user does not belong to", %{user: user} do
+      organization = AccountsFixtures.organization_fixture()
+      organization |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google) |> Repo.update!()
+
+      assert Accounts.sso_requirement(user, :password) == :ok
+    end
+
+    defp member_of(user, attrs) do
+      organization = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      # Enabling enforcement through `Accounts` also requires a verified login
+      # email domain, which is not what these tests are about.
+      organization |> Ecto.Changeset.change(attrs) |> Repo.update!()
+    end
+  end
+
   describe "sso_enforced_for_email?/1" do
     test "returns true when the existing user belongs to an SSO-enforced organization" do
       email = AccountsFixtures.unique_user_email()

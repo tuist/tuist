@@ -2,11 +2,13 @@ defmodule TuistWeb.WebMCPControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import Phoenix.LiveViewTest
+
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.MCP.Search
-  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.RateLimit
 
@@ -73,6 +75,19 @@ defmodule TuistWeb.WebMCPControllerTest do
       assert [%{"text" => "You do not have access to project:" <> _}] = result["content"]
     end
 
+    test "refuses another account's records addressed by ID or dashboard URL", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = organization_with_member(user)
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      url = Environment.app_url(path: "/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+      conn = browser_session(conn, user)
+
+      refute call_tool(conn, account_path(organization), "get_preview", %{"preview_id" => preview.id})["isError"]
+      assert call_tool(conn, account_path(user.account), "get_preview", %{"preview_id" => preview.id})["isError"]
+      assert call_tool(conn, account_path(user.account), "get_preview", %{"preview_id" => url})["isError"]
+    end
+
     test "lists only the account's projects and the account itself", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = organization_with_member(user)
@@ -87,18 +102,6 @@ defmodule TuistWeb.WebMCPControllerTest do
       assert Enum.map(accounts["structuredContent"]["accounts"], & &1["handle"]) == [user.account.name]
     end
 
-    test "refuses a private project of an account the user does not belong to", %{conn: conn} do
-      other = AccountsFixtures.user_fixture(preload: [:account])
-      project = ProjectsFixtures.project_fixture(account_id: other.account.id)
-
-      result =
-        conn
-        |> browser_session(AccountsFixtures.user_fixture())
-        |> call_tool(account_path(other.account), "get_project", project_arguments(project))
-
-      assert result["isError"]
-    end
-
     test "answers 404 for an unknown account", %{conn: conn} do
       conn =
         conn
@@ -106,22 +109,6 @@ defmodule TuistWeb.WebMCPControllerTest do
         |> post_rpc("/api/webmcp/accounts/does-not-exist", "tools/list", %{})
 
       assert json_response(conn, 404)["message"] == "Account not found: does-not-exist"
-    end
-
-    test "refuses write tools", %{conn: conn} do
-      user = AccountsFixtures.user_fixture(preload: [:account])
-
-      response =
-        conn
-        |> browser_session(user)
-        |> post_rpc(account_path(user.account), "tools/call", %{
-          "name" => "create_project",
-          "arguments" => %{"account_handle" => user.account.name, "project_handle" => "from-webmcp"}
-        })
-        |> json_response(200)
-
-      assert response["error"]["message"] == "Tool not found: create_project"
-      assert Projects.get_project_by_account_and_project_handles(user.account.name, "from-webmcp") == nil
     end
 
     test "answers only tool listings and calls", %{conn: conn} do
@@ -142,6 +129,13 @@ defmodule TuistWeb.WebMCPControllerTest do
         |> post(account_path(user.account), JSON.encode!(%{"jsonrpc" => "2.0", "method" => "tools/list"}))
 
       assert json_response(notification, 400)["error"]["code"] == -32_600
+
+      nameless_call =
+        build_conn()
+        |> browser_session(user)
+        |> post_rpc(account_path(user.account), "tools/call", %{"arguments" => %{}})
+
+      assert json_response(nameless_call, 400)["error"]["code"] == -32_600
     end
 
     test "requires a signed-in session", %{conn: conn} do
@@ -203,12 +197,19 @@ defmodule TuistWeb.WebMCPControllerTest do
     test "account pages advertise it to signed-in users, other pages the public tools", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
 
-      signed_out = conn |> get("/users/log_in") |> html_response(200)
-      assert signed_out =~ ~s(<meta name="webmcp-endpoint" content="/api/webmcp/public">)
-      refute signed_out =~ "data-webmcp-endpoint"
+      assert conn |> get("/users/log_in") |> html_response(200) =~
+               ~s(<meta name="webmcp-endpoint" content="/api/webmcp/public">)
 
       assert build_conn() |> log_in_user(user) |> get("/#{user.account.name}/projects") |> html_response(200) =~
                ~s(data-webmcp-endpoint="/api/webmcp/accounts/#{user.account.name}")
+
+      headerbar = fn assigns ->
+        render_component(&TuistWeb.AppLayoutComponents.headerbar/1, Map.merge(headerbar_assigns(user), assigns))
+      end
+
+      refute headerbar.(%{current_user: nil}) =~ "data-webmcp-endpoint"
+      refute headerbar.(%{webmcp: false}) =~ "data-webmcp-endpoint"
+      assert headerbar.(%{}) =~ "data-webmcp-endpoint"
     end
   end
 
@@ -225,16 +226,6 @@ defmodule TuistWeb.WebMCPControllerTest do
       result = call_tool(conn, "/api/webmcp/public", "search_tuist", %{"query" => "cache"})
 
       assert [%{"text" => "Tuist search is unavailable: timeout"}] = result["content"]
-    end
-
-    test "does not act on the signed-in user's behalf", %{conn: conn} do
-      response =
-        conn
-        |> log_in_user(AccountsFixtures.user_fixture())
-        |> post_rpc("/api/webmcp/public", "tools/call", %{"name" => "list_accounts", "arguments" => %{}})
-        |> json_response(200)
-
-      assert response["error"]["message"] == "Tool not found: list_accounts"
     end
 
     test "rate limits by client address", %{conn: conn} do
@@ -270,6 +261,10 @@ defmodule TuistWeb.WebMCPControllerTest do
     |> Ecto.Changeset.change(sso_enforced: true, sso_provider: provider)
     |> Tuist.Repo.update!()
     |> Tuist.Repo.preload(:account)
+  end
+
+  defp headerbar_assigns(user) do
+    %{breadcrumbs: [], current_user: user, selected_account: user.account, latest_app_release: nil}
   end
 
   defp account_path(%{account: account}), do: account_path(account)

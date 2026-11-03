@@ -225,6 +225,7 @@ defmodule TuistWeb.API.AuthController do
         AuthenticationTokens
       },
       unauthorized: {"Invalid email or password.", "application/json", Error},
+      forbidden: {"The user's organization requires single sign-on.", "application/json", Error},
       too_many_requests: {"You've exceeded the rate limit.", "application/json", Error}
     }
   )
@@ -257,6 +258,7 @@ defmodule TuistWeb.API.AuthController do
         AuthenticationTokens
       },
       unauthorized: {"Invalid Apple identity token or authorization code.", "application/json", Error},
+      forbidden: {"The user's organization requires single sign-on.", "application/json", Error},
       bad_request: {"Invalid request parameters.", "application/json", Error}
     }
   )
@@ -296,29 +298,45 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{message: "Invalid email or password."})
 
       {:ok, user} ->
-        {:ok, access_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{email: user.email, preferred_username: user.account.name},
-            token_type: :access,
-            ttl: @access_token_ttl
-          )
-
-        {:ok, refresh_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{email: user.email, preferred_username: user.account.name},
-            token_type: :refresh,
-            ttl: @refresh_token_ttl
-          )
-
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          access_token: access_token,
-          refresh_token: refresh_token
-        })
+        if Accounts.sso_requirement(user, :password) == :ok do
+          issue_tokens(conn, user)
+        else
+          sso_required(conn)
+        end
     end
+  end
+
+  defp issue_tokens(conn, user) do
+    {:ok, access_token, _opts} =
+      Authentication.encode_and_sign(
+        user,
+        %{email: user.email, preferred_username: user.account.name},
+        token_type: :access,
+        ttl: @access_token_ttl
+      )
+
+    {:ok, refresh_token, _opts} =
+      Authentication.encode_and_sign(
+        user,
+        %{email: user.email, preferred_username: user.account.name},
+        token_type: :refresh,
+        ttl: @refresh_token_ttl
+      )
+
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      access_token: access_token,
+      refresh_token: refresh_token
+    })
+  end
+
+  # Tokens act for the user in every account, so members of an organization
+  # that enforces single sign-on have to sign in through its provider.
+  defp sso_required(conn) do
+    conn
+    |> put_status(:forbidden)
+    |> json(%{message: "Your organization requires single sign-on. Sign in through your identity provider instead."})
   end
 
   def authenticate_apple(
@@ -327,6 +345,7 @@ defmodule TuistWeb.API.AuthController do
       ) do
     with {:ok, user} <-
            Apple.verify_apple_identity_token_and_create_user(identity_token, authorization_code),
+         {:sso, :ok} <- {:sso, Accounts.sso_requirement(user, :apple)},
          {:ok, access_token, _} <-
            Authentication.encode_and_sign(
              user,
@@ -345,6 +364,9 @@ defmodule TuistWeb.API.AuthController do
       |> put_status(:ok)
       |> json(%{access_token: access_token, refresh_token: refresh_token})
     else
+      {:sso, _requirement} ->
+        sso_required(conn)
+
       {:error, reason} ->
         conn
         |> put_status(:unauthorized)

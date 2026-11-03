@@ -9,8 +9,12 @@ defmodule TuistWeb.APIController do
         Tuist.Environment.app_url(path: "/images/open-graph/api-docs-card.jpeg")
       end
 
+    # The token acts for the user in every account, so a session that skipped
+    # an organization's enforced single sign-on does not get one.
+    user = conn.assigns[:current_user]
+
     bearer_token =
-      if user = conn.assigns[:current_user] do
+      if user && Tuist.Accounts.sso_requirement(user, get_session(conn, :auth_method)) == :ok do
         {:ok, access_token, _opts} =
           Tuist.Authentication.encode_and_sign(user, %{},
             token_type: :access,

@@ -703,6 +703,11 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:latest_app_release, :map, required: true)
   attr(:title, :string, default: nil)
 
+  attr(:webmcp, :boolean,
+    default: true,
+    doc: "Whether the page registers the selected account's WebMCP tools; pages that are not that account's turn it off."
+  )
+
   def headerbar(assigns) do
     ~H"""
     <%!-- The WebMCP tools of the account this page belongs to; see
@@ -710,7 +715,9 @@ defmodule TuistWeb.AppLayoutComponents do
     root layout's endpoint for other pages. --%>
     <header
       class="headerbar"
-      data-webmcp-endpoint={@current_user && ~p"/api/webmcp/accounts/#{@selected_account.name}"}
+      data-webmcp-endpoint={
+        @webmcp && @current_user && ~p"/api/webmcp/accounts/#{@selected_account.name}"
+      }
     >
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>

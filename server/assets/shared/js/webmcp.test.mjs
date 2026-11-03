@@ -18,6 +18,7 @@ function fakeModelContext({ reject = [] } = {}) {
   return {
     tools,
     async registerTool(tool, { signal } = {}) {
+      if (signal?.aborted) throw signal.reason;
       if (reject.includes(tool.name)) throw new TypeError(`Invalid tool ${tool.name}`);
       if (tools.has(tool.name)) throw new DOMException(`Duplicate tool ${tool.name}`, "InvalidStateError");
       tools.set(tool.name, tool);
@@ -129,11 +130,31 @@ test("replaces the tools when navigation changes the page's endpoint", async () 
   endpoint = undefined;
   target.dispatchEvent(new CustomEvent("phx:page-loading-stop", { detail: { kind: "redirect" } }));
   assert.equal(requests.length, 1);
+  assert.deepEqual([...modelContext.tools.keys()], ["acme_tool"]);
 
   endpoint = "/api/webmcp/accounts/other";
   await navigate();
   assert.deepEqual([...modelContext.tools.keys()], ["other_tool"]);
   assert.equal(requests[1].url, "/api/webmcp/accounts/other");
+});
+
+test("a failed listing is retried at the next navigation", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const modelContext = fakeModelContext();
+  const target = new EventTarget();
+  const { fetch, requests } = fakeFetch(
+    json({ jsonrpc: "2.0", id: null, error: { code: -32_603, message: "Rate limit exceeded." } }, 429),
+    rpcResult({ tools: [listProjects] }),
+  );
+
+  const endpoint = () => "/api/webmcp/accounts/acme";
+  assert.deepEqual(await registerWebMCPTools({ modelContext, target, endpoint, fetch }), []);
+
+  target.dispatchEvent(new Event("phx:page-loading-stop"));
+  await new Promise((resolve) => setTimeout(resolve));
+
+  assert.equal(requests.length, 2);
+  assert.deepEqual([...modelContext.tools.keys()], ["list_projects"]);
 });
 
 test("a navigation during the listing drops the stale endpoint's tools", async () => {
