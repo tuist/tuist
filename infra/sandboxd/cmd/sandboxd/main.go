@@ -130,6 +130,7 @@ func main() {
 
 	netManager := network.NewManager(logger)
 	netManager.PodInterface = os.Getenv("POD_INTERFACE")
+	netManager.DaemonOnlyTCPPort = intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0)
 	if err := netManager.EnsurePodNAT(ctx); err != nil {
 		logger.Error("pod NAT setup", "error", err)
 		os.Exit(1)

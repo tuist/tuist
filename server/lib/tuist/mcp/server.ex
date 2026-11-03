@@ -57,6 +57,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListXcodeBuildFiles,
     Tools.ListXcodeBuildSteps,
     Tools.GetXcodeBuildStep,
+    Tools.GetBuildTrace,
     Tools.ListXcodeBuildIssues,
     Tools.ListXcodeBuildCacheTasks,
     Tools.ListXcodeBuildCASOutputs,
@@ -150,7 +151,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.46.0",
+      version: "1.47.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

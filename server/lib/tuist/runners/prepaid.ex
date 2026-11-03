@@ -80,12 +80,11 @@ defmodule Tuist.Runners.Prepaid do
 
   @bp_basis 10_000
 
-  # Tenths of a cent per machine-minute on the macOS 6 vCPU / 14 GB
-  # baseline: $0.075 on demand. Tenths because $0.075 is not a whole
-  # number of cents. This duplicates what the Stripe Price says, the same
-  # way `Tuist.Billing`'s `@unit_prices` does, and has to be kept in step
-  # with it by hand.
-  @macos_on_demand_rate 75
+  # US cents per machine-minute on the macOS 6 vCPU / 14 GB baseline:
+  # $0.06 on demand. This duplicates what the Stripe Price says, the same
+  # way `Tuist.Billing.UsagePricing` duplicates the usage meter Prices, and
+  # has to be kept in step with it by hand.
+  @macos_on_demand_rate 6
 
   # Par. Granting less than was paid would be a premium for prepaying,
   # which is only ever a typo.
@@ -127,7 +126,7 @@ defmodule Tuist.Runners.Prepaid do
   to minutes would understate every bill that is not a round number.
   """
   def on_demand_cost_for_milliseconds(total_ms) when is_integer(total_ms) and total_ms >= 0 do
-    Money.new(div(total_ms * @macos_on_demand_rate, 600_000), :USD)
+    Money.new(div(total_ms * @macos_on_demand_rate, 60_000), :USD)
   end
 
   @doc """
@@ -141,7 +140,7 @@ defmodule Tuist.Runners.Prepaid do
   rather than running slightly ahead of it.
   """
   def on_demand_cost(minutes) when is_integer(minutes) and minutes >= 0 do
-    Money.new(div(minutes * @macos_on_demand_rate, 10), :USD)
+    Money.new(minutes * @macos_on_demand_rate, :USD)
   end
 
   @doc """
@@ -486,7 +485,7 @@ defmodule Tuist.Runners.Prepaid do
   # Credit is spent at the gross on-demand rate, so that rate is what
   # turns an amount of money into the minutes it buys on the baseline
   # machine.
-  defp minutes_for(cents), do: div(cents * 10, @macos_on_demand_rate)
+  defp minutes_for(cents), do: div(cents, @macos_on_demand_rate)
 
   defp past_period_end(period_end), do: DateTime.add(period_end, @expiry_grace_days, :day)
 
@@ -519,20 +518,25 @@ defmodule Tuist.Runners.Prepaid do
   defp expired?(nil), do: false
   defp expired?(%DateTime{} = expires_at), do: DateTime.before?(expires_at, DateTime.utc_now())
 
+  # A grant also covers the platform's retired Prices, so it pays for a
+  # subscription that has not been moved off one yet.
   defp price_ids(platforms) do
-    configured = configured_runner_prices()
+    prices = Tuist.Environment.stripe_prices() || %{}
+    configured = Map.get(prices, "runners", %{})
+    retired = Map.get(prices, "retired_runners", %{})
+
+    meters =
+      platforms
+      |> Enum.map(&RunnerBilling.meter_event_name/1)
+      |> Enum.filter(&(is_binary(configured[&1]) and configured[&1] != ""))
 
     ids =
-      platforms
-      |> Enum.map(&Map.get(configured, RunnerBilling.meter_event_name(&1)))
+      meters
+      |> Enum.flat_map(&[configured[&1] | List.wrap(retired[&1])])
       |> Enum.filter(&(is_binary(&1) and &1 != ""))
       |> Enum.uniq()
 
     if ids == [], do: {:error, :no_runner_prices_configured}, else: {:ok, ids}
-  end
-
-  defp configured_runner_prices do
-    Map.get(Tuist.Environment.stripe_prices() || %{}, "runners", %{})
   end
 
   # Stripe preserves metadata keys as strings on the objects it has a

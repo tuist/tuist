@@ -108,7 +108,7 @@ server:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
       # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
-      # millisecond costs 0.000125 cents, which is $0.075 per baseline
+      # millisecond costs 0.0001 cents, which is $0.06 per baseline
       # machine-minute.
       #
       # The 100 included minutes must stay in step with the free
@@ -136,10 +136,16 @@ server:
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
       # delete it, taking the cycle's accrued usage with it. Pause billing
-      # by removing the item, not by emptying this map.
+      # by removing the item, not by emptying this map. A replaced Price
+      # keeps being recognised the same way: its id moves under its meter in
+      # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
+      # and the renewal schedules have moved every item off it.
       runners:
         runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
+        runner_macos_compute_unit_milliseconds: "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1U6woPQ9gGM5W1agDGX7fNED"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
@@ -867,6 +873,9 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 24
   diskGiB: 50
+  networkPolicy:
+    # Amp Orb archives go to the in-rack shard-storage release.
+    archiveStoreEgress: true
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
