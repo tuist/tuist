@@ -530,7 +530,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["suites"] == %{}
       assert response["skip"] == []
       assert response["download_url"] == "https://download.example.com"
-      refute Map.has_key?(response, "test_impact_skip")
+      refute Map.has_key?(response, "skipped_tests")
     end
 
     test "returns the tests coverage-based test selection skipped in the shard", %{
@@ -538,7 +538,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
       user: user,
       project: project
     } do
-      test_impact_skip = [
+      skipped_tests = [
         %{module: "AppTests", suite: "LoginTests", name: "testLogout"},
         %{module: "CoreTests"}
       ]
@@ -550,7 +550,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
            modules: [],
            suites: %{"AppTests" => ["LoginTests"]},
            skip: [],
-           test_impact_skip: test_impact_skip,
+           skipped_tests: skipped_tests,
            download_url: "https://download.example.com",
            download_urls: ["https://download.example.com"]
          }}
@@ -562,7 +562,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/0")
         |> json_response(:ok)
 
-      assert response["test_impact_skip"] == [
+      assert response["skipped_tests"] == [
                %{"module" => "AppTests", "suite" => "LoginTests", "name" => "testLogout"},
                %{"module" => "CoreTests"}
              ]

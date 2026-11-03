@@ -15,6 +15,7 @@ import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting
 import TuistREAPI
+import TuistTestCommand
 import TuistTesting
 
 @testable import TuistKit
@@ -110,6 +111,71 @@ struct MultiplatformCacheAcceptanceTests {
     }
 
     // swiftlint:enable function_body_length
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_workspace_with_multiplatform_cache")
+    ) func simulatorTestRunUsesSimulatorOnlyWarm() async throws {
+        let fixture = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let cache = try CacheDirectoriesProvider().cacheDirectory(for: .binaries)
+        let manifest = fixture.appending(components: ["Phone", "Project.swift"])
+        try await fileSystem.writeText(
+            try await fileSystem.readTextFile(at: manifest).replacingOccurrences(
+                of: "    )]\n)",
+                with: """
+                    ), .target(
+                        name: "PhoneConsumerTests",
+                        destinations: [.iPhone, .iPad, .macWithiPadDesign],
+                        product: .unitTests,
+                        bundleId: "dev.tuist.fixture.phone.tests",
+                        deploymentTargets: .iOS("16.0"),
+                        infoPlist: .default,
+                        sources: ["PhoneTests.swift"],
+                        dependencies: [.target(name: "PhoneConsumer")]
+                    )]
+                )
+                """
+            ),
+            at: manifest
+        )
+        try await fileSystem.writeText(
+            "import PhoneConsumer\nimport XCTest\n\nfinal class PhoneConsumerTests: XCTestCase {\n    func testValue() { XCTAssertFalse(phoneValue().isEmpty) }\n}\n",
+            at: fixture.appending(components: ["Phone", "PhoneTests.swift"])
+        )
+        try await TuistTest.run(InstallCommand.self, ["--path", fixture.pathString])
+        try await TuistTest.run(CacheCommand.self, [
+            "--path", fixture.pathString, "--no-upload", "--cache-profile", "only-external",
+            "PhoneConsumer", "--destination", "simulator",
+        ])
+        #expect(try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect().count == 4)
+
+        let project = fixture.appending(components: ["Phone", "Phone.xcodeproj"])
+        func test(_ destination: [String], derivedData: String) async throws {
+            try await TuistTest.run(TestCommand.self, [
+                "PhoneConsumer", "--build-only", "--no-upload", "--no-selective-testing", "--path", fixture.pathString,
+            ] + destination + [
+                "--", "-destination", "generic/platform=iOS Simulator",
+                "-derivedDataPath", temporaryDirectory.appending(component: derivedData).pathString,
+                "CODE_SIGN_IDENTITY=", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGNING_ALLOWED=NO",
+            ])
+        }
+
+        try await test(["--destination", "simulator"], derivedData: "simulator")
+        try TuistTest.expectLinked("Shared.xcframework", by: "PhoneConsumer", inXcodeProj: project)
+        let restricted = try await fileSystem.readTextFile(at: project.appending(component: "project.pbxproj"))
+        #expect(restricted.contains("SUPPORTED_PLATFORMS = iphonesimulator;"))
+        #expect(try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect().count == 4)
+
+        try await test([], derivedData: "all")
+        let sources = try await fileSystem.readTextFile(at: project.appending(component: "project.pbxproj"))
+        #expect(!sources.contains("Shared.xcframework"))
+        #expect(!sources.contains("SUPPORTED_PLATFORMS = iphonesimulator;"))
+    }
 
     @Test(
         .inTemporaryDirectory,

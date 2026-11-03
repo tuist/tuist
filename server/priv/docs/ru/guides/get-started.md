@@ -2,12 +2,12 @@
 {
   "title": "Начало работы",
   "titleTemplate": ":title · Начало работы · Руководства · Tuist",
-  "description": "Выберите подход Tuist, соответствующий текущему способу сборки вашего приложения: Xcode, генерируемые проекты Xcode, Gradle, Elixir, Rust или Bazel."
+  "description": "Выберите путь Tuist, соответствующий текущему способу сборки вашего приложения: Xcode, генерируемые проекты Xcode, Gradle, Elixir, Rust или Bazel."
 }
 ---
 # Начало работы {#get-started}
 
-Выберите путь, соответствующий тому, как ваше приложение собирается сегодня. В каждом разделе описано, что нужно установить, как включить кэширование, аналитику и возможности тестирования, а также как проверить настройку от начала до конца. Вы можете внедрять их по отдельности или комбинировать, если выпускаете обновления для нескольких платформ.
+Выберите путь, соответствующий тому, как ваше приложение собирается сейчас. Каждый вариант подробно описывает, что нужно установить, как включить кэширование, аналитику и функции тестирования, а также как проверить настройку от начала до конца. Вы можете внедрять их по отдельности или комбинировать, если выпускаете обновления для нескольких платформ.
 
 ## Проект Xcode {#existing-xcode-project}
 
@@ -17,7 +17,7 @@
 
 ## Сгенерированный проект Xcode {#generated-xcode-project}
 
-Позвольте Tuist определить и сгенерировать ваш проект Xcode из манифестов Swift. Сгенерированные проекты сводят сложность модульных проектов Xcode к лаконичному декларативному описанию графа и являются строгим требованием для <.localized_link href="/guides/features/cache/module-cache">кэша модулей</.localized_link> и <.localized_link href="/guides/features/selective-testing/generated-xcode-project">выборочного тестирования</.localized_link>.
+Позвольте Tuist определять и генерировать ваш проект Xcode на основе манифестов Swift. Сгенерированные проекты сводят сложность модульных проектов Xcode к лаконичному декларативному описанию графа и являются строгим требованием для <.localized_link href="/guides/features/cache/module-cache">кэша модулей</.localized_link> и <.localized_link href="/guides/features/selective-testing/generated-xcode-project">выборочного тестирования</.localized_link>.
 
 <.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated project →</.localized_link>
 
@@ -45,4 +45,4 @@
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
-Прежде чем приступать к любому из этих вариантов, <.localized_link href="/guides/install-tuist">установите интерфейс командной строки Tuist</.localized_link>. Проекты Elixir — исключение: им достаточно пакета Hex.
+Прежде чем приступать к любому из этих вариантов, <.localized_link href="/guides/install-tuist">установите интерфейс командной строки Tuist</.localized_link>. Проекты Elixir являются исключением: им достаточно пакета Hex.
