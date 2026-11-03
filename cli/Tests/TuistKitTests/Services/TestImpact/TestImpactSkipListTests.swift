@@ -8,10 +8,10 @@ import TuistServer
 struct TestImpactSkipListTests {
     @Test func splits_whole_modules_from_single_tests() {
         let skipList = TestImpactSkipList([
-            TestImpactSkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
-            TestImpactSkippedTest(module: "AppUITests", suite: nil, name: nil),
-            TestImpactSkippedTest(module: "CoreTests", suite: "DiscountTests", name: nil),
-            TestImpactSkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
+            SkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
+            SkippedTest(module: "AppUITests", suite: nil, name: nil),
+            SkippedTest(module: "CoreTests", suite: "DiscountTests", name: nil),
+            SkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
         ])
 
         #expect(skipList.modules == ["AppUITests"])

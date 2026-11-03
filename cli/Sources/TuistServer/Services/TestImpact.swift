@@ -84,6 +84,9 @@ public struct TestImpactRunRequest: Equatable, Sendable {
     public let headSHA: String
     /// The commit the diff ran against, such as GitHub's synthetic merge commit, when it isn't the head.
     public let commitSHA: String?
+    /// The checked-out commit's parents when it's a pull request's merge commit, as sent to the
+    /// baseline request, so the server resolves the same baseline.
+    public let parentSHAs: [String]
     public let basis: Basis
     /// The test modules left to decide, nil when nothing narrowed the scope.
     public let modules: [String]?
@@ -97,6 +100,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         buildSystem: String = "xcode",
         headSHA: String,
         commitSHA: String?,
+        parentSHAs: [String] = [],
         basis: Basis,
         modules: [String]?,
         platform: String?,
@@ -108,6 +112,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         self.buildSystem = buildSystem
         self.headSHA = headSHA
         self.commitSHA = commitSHA
+        self.parentSHAs = parentSHAs
         self.basis = basis
         self.modules = modules
         self.platform = platform
@@ -119,7 +124,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
 }
 
 /// A test not to run. Only `module` is set when none of the module's tests is selected.
-public struct TestImpactSkippedTest: Equatable, Hashable, Sendable {
+public struct SkippedTest: Equatable, Hashable, Sendable {
     public let module: String
     public let suite: String?
     public let name: String?
@@ -138,14 +143,14 @@ public struct TestImpactSelection: Equatable, Sendable {
     public let selected: Int?
     public let skipped: Int?
     /// The tests not to run, empty for sharded runs, which read theirs from the shard.
-    public let skip: [TestImpactSkippedTest]
+    public let skippedTests: [SkippedTest]
 
-    public init(runID: String, requested: Int?, selected: Int?, skipped: Int?, skip: [TestImpactSkippedTest]) {
+    public init(runID: String, requested: Int?, selected: Int?, skipped: Int?, skippedTests: [SkippedTest]) {
         self.runID = runID
         self.requested = requested
         self.selected = selected
         self.skipped = skipped
-        self.skip = skip
+        self.skippedTests = skippedTests
     }
 }
 

@@ -7,10 +7,11 @@ import Testing
 struct CreateTestImpactRunServiceTests {
     private typealias Output = Operations.createTestImpactRun.Output
 
-    private func request(_ basis: TestImpactRunRequest.Basis) -> TestImpactRunRequest {
+    private func request(_ basis: TestImpactRunRequest.Basis, parentSHAs: [String] = ["base", "head"]) -> TestImpactRunRequest {
         TestImpactRunRequest(
             headSHA: "head",
             commitSHA: "merge",
+            parentSHAs: parentSHAs,
             basis: basis,
             modules: ["CoreTests"],
             platform: "ios",
@@ -41,6 +42,7 @@ struct CreateTestImpactRunServiceTests {
         #expect(body.fallback_reason == nil)
         #expect(body.head_sha == "head")
         #expect(body.commit_sha == "merge")
+        #expect(body.parent_shas == ["base", "head"])
         #expect(body.build_system == "xcode")
         #expect(body.modules == ["CoreTests"])
         #expect(body.platform == "ios")
@@ -76,6 +78,12 @@ struct CreateTestImpactRunServiceTests {
         #expect(body.changed_files_count == nil)
     }
 
+    @Test func sendsNoParentsOutsideAMergeCommit() {
+        let body = CreateTestImpactRunService.body(for: request(.fallback(.noBaseline), parentSHAs: []))
+
+        #expect(body.parent_shas == nil)
+    }
+
     @Test func sendsTheFallbackReasonWithoutABaseline() {
         let body = CreateTestImpactRunService.body(for: request(.fallback(.historyUnavailable)))
 
@@ -100,9 +108,9 @@ struct CreateTestImpactRunServiceTests {
             requested: 11,
             selected: 5,
             skipped: 6,
-            skip: [
-                TestImpactSkippedTest(module: "CatalogTests", suite: nil, name: nil),
-                TestImpactSkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testFormatsDollars"),
+            skippedTests: [
+                SkippedTest(module: "CatalogTests", suite: nil, name: nil),
+                SkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testFormatsDollars"),
             ]
         )))
     }

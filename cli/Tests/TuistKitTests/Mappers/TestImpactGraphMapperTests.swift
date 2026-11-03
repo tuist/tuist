@@ -61,9 +61,9 @@ struct TestImpactGraphMapperTests {
                 requested: 3,
                 selected: 1,
                 skipped: 2,
-                skip: [
-                    TestImpactSkippedTest(module: "CatalogTests", suite: nil, name: nil),
-                    TestImpactSkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
+                skippedTests: [
+                    SkippedTest(module: "CatalogTests", suite: nil, name: nil),
+                    SkippedTest(module: "CoreTests", suite: "MoneyTests", name: "testAdd()"),
                 ]
             )))
 
