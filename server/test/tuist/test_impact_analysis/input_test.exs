@@ -3,6 +3,7 @@ defmodule Tuist.TestImpactAnalysis.InputTest do
 
   import TuistTestSupport.Fixtures.TestImpactAnalysisFixtures, only: [changed: 2]
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.TestImpactAnalysis.Input
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -71,7 +72,7 @@ defmodule Tuist.TestImpactAnalysis.InputTest do
     Input.load(
       project,
       Keyword.merge(
-        [repository_id: repository_id, baseline_sha: "c1", baseline_run_ids: [run.id], window_shas: ["c1"]],
+        [repository_id: repository_id, baseline_sha: "c1", baseline_run_ids: [run.id]],
         opts
       )
     )
@@ -107,14 +108,66 @@ defmodule Tuist.TestImpactAnalysis.InputTest do
     assert %{reproduced: nil} = Input.evidence(input, test_case_id(input, "testAdd()"))
   end
 
-  test "keeps only the versions in the window and the requested modules", %{
+  test "keeps only the requested modules", %{project: project, run: run, repository_id: repository_id} do
+    assert load(project, run, repository_id, modules: ["OtherTests"]).tests == []
+  end
+
+  test "uses a version recorded last by a run on another branch when the checkout reproduces it", %{
     project: project,
     run: run,
     repository_id: repository_id
   } do
-    input = load(project, run, repository_id, window_shas: ["c0"])
-    assert Input.evidence(input, test_case_id(input, "testAdd()")) == nil
+    # A later run on another branch executed testAdd() over the same blobs, so
+    # coverage_test_sources' one row for that version now names its commit.
+    account = Tuist.Repo.preload(project, :account).account
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("other", ["c1"], 1)])
+    CoverageFixtures.seed_listing(account, "other", ["Sources/Math.swift", "Sources/Setup.swift", "Tests/AppTests.swift"])
 
-    assert load(project, run, repository_id, modules: ["OtherTests"]).tests == []
+    other =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          CoverageFixtures.file("Sources/Math.swift", [1, 1]),
+          CoverageFixtures.file("Sources/Setup.swift", [1]),
+          CoverageFixtures.file("Tests/AppTests.swift", [1], is_test: true)
+        ],
+        %{
+          git_commit_sha: "other",
+          git_branch: "feature/other",
+          ran_at: DateTime.add(DateTime.utc_now(), 3600, :second),
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [%{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 1}]
+            }
+          ],
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Tests/AppTests.swift", "Sources/Setup.swift"],
+            scopes: [
+              %{
+                kind: "test",
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd()",
+                files: [0, 1],
+                lines: [[1, 2], [1, 1]]
+              },
+              %{kind: "suite", module: "AppTests", suite: "MathTests", name: "", files: [2], lines: [[1, 1]]}
+            ]
+          }
+        }
+      )
+
+    ClickHouseRepo.query!("OPTIMIZE TABLE coverage_test_sources FINAL")
+
+    input = load(project, run, repository_id)
+    test_case_id = test_case_id(input, "testAdd()")
+
+    assert %{newest: newest, reproduced: newest} = Input.evidence(input, test_case_id)
+    assert {newest.sha, newest.run_id} == {"other", other.id}
+    assert MapSet.new(Input.tests_touching(input, "Sources/Math.swift")) == MapSet.new([test_case_id])
   end
 end
