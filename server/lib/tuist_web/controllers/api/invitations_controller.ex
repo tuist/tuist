@@ -53,7 +53,9 @@ defmodule TuistWeb.API.InvitationsController do
       bad_request: {"The user could not be invited due to a validation error", "application/json", Error},
       not_found: {"The organization was not found", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests:
+        {"The invitation email budget is exhausted; retry after the Retry-After interval", "application/json", Error}
     }
   )
 
@@ -116,7 +118,7 @@ defmodule TuistWeb.API.InvitationsController do
         inviter = inviter_from_subject(subject)
         inviter_account = Accounts.get_account_from_user(inviter)
 
-        {:ok, invitation} =
+        result =
           Accounts.invite_user_to_organization(
             invitee_email,
             %{
@@ -127,20 +129,35 @@ defmodule TuistWeb.API.InvitationsController do
             role: String.to_existing_atom(role)
           )
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          id: invitation.id,
-          invitee_email: invitation.invitee_email,
-          inviter: %{
-            id: inviter.id,
-            email: inviter.email,
-            name: inviter_account.name
-          },
-          token: invitation.token,
-          organization_id: invitation.organization_id,
-          role: invitation.role
-        })
+        case result do
+          {:ok, invitation} ->
+            conn
+            |> put_status(:ok)
+            |> json(%{
+              id: invitation.id,
+              invitee_email: invitation.invitee_email,
+              inviter: %{
+                id: inviter.id,
+                email: inviter.email,
+                name: inviter_account.name
+              },
+              token: invitation.token,
+              organization_id: invitation.organization_id,
+              role: invitation.role
+            })
+
+          {:error, changeset} ->
+            case changeset.errors[:invitee_email] do
+              {_message, [validation: :rate_limit, retry_after: retry_after]} ->
+                conn
+                |> put_resp_header("retry-after", to_string(max(1, ceil(retry_after / 1000))))
+                |> put_status(:too_many_requests)
+                |> json(%{message: "Too many invitations. Please try again later."})
+
+              _ ->
+                conn |> put_status(:bad_request) |> json(%{message: "The invitation could not be created."})
+            end
+        end
     end
   end
 

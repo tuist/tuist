@@ -37,7 +37,7 @@ msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
-#: lib/tuist_web/live/user_forgot_password_live.ex:71
+#: lib/tuist_web/live/user_forgot_password_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Back to log in"
 msgstr ""
@@ -53,7 +53,7 @@ msgid "Change your password"
 msgstr ""
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:34
-#: lib/tuist_web/live/user_forgot_password_live.ex:39
+#: lib/tuist_web/live/user_forgot_password_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Check your email"
 msgstr ""
@@ -134,7 +134,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:95
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
-#: lib/tuist_web/live/user_forgot_password_live.ex:51
+#: lib/tuist_web/live/user_forgot_password_live.ex:53
 #: lib/tuist_web/live/user_login_live.ex:144
 #: lib/tuist_web/live/user_registration_live.ex:163
 #, elixir-autogen, elixir-format
@@ -161,12 +161,12 @@ msgstr ""
 msgid "Forgot password?"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:28
+#: lib/tuist_web/live/user_forgot_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Forgot your password?"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:41
+#: lib/tuist_web/live/user_forgot_password_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
 msgstr ""
@@ -248,7 +248,7 @@ msgstr ""
 msgid "Project Ready? Proceed to dashboard"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:60
+#: lib/tuist_web/live/user_forgot_password_live.ex:62
 #: lib/tuist_web/live/user_reset_password_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Reset password"
@@ -297,7 +297,7 @@ msgstr ""
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
-#: lib/tuist_web/live/user_forgot_password_live.ex:22
+#: lib/tuist_web/live/user_forgot_password_live.ex:24
 #: lib/tuist_web/live/user_login_live.ex:46
 #: lib/tuist_web/live/user_registration_live.ex:84
 #: lib/tuist_web/live/user_registration_live.ex:242
@@ -350,7 +350,7 @@ msgstr ""
 msgid "Waiting for connection"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:30
+#: lib/tuist_web/live/user_forgot_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
 msgstr ""

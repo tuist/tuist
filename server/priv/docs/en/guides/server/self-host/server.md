@@ -531,6 +531,11 @@ Tuist requires email functionality for user authentication and transactional not
 >
 > For on-premise installations without internet access or email provider configuration, email confirmation is automatically skipped by default. Users can log in immediately after registration. If you have email configured but still want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require email confirmation when email is configured, set `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 
+> [!NOTE]
+> **Email quotas and password-reset links**
+>
+> When email is configured, organization invitations share email quotas across creating, bulk-inviting and resending: one email per recipient address every five minutes (across organizations), and a burst of 50 refilling at 50 per hour for each organization and each inviter. Cancelling an invitation does not restore the budget, and an exhausted budget returns HTTP `429` with `Retry-After` from the invitations API. Installations without email do not consume these quotas, so invitation links can still be created and copied. Configure shared Valkey for deployment-wide quotas with multiple replicas; otherwise quotas are approximate. If a configured shared store is unavailable, invitation emails are denied rather than sent unmetered. Password-reset links expire after 15 minutes, including when an already-open reset form is submitted.
+
 
 ### Git platform configuration {#git-platform-configuration}
 

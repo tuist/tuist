@@ -39,7 +39,7 @@ msgid "Add payment method"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:175
-#: lib/tuist_web/live/members_live.ex:821
+#: lib/tuist_web/live/members_live.ex:828
 #, elixir-autogen, elixir-format
 msgid "Admin"
 msgstr ""
@@ -567,7 +567,7 @@ msgstr ""
 msgid "Payments for your subscription are made using the default card."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:817
+#: lib/tuist_web/live/members_live.ex:824
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
@@ -867,7 +867,7 @@ msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:684
 #: lib/tuist_web/live/members_live.ex:163
-#: lib/tuist_web/live/members_live.ex:823
+#: lib/tuist_web/live/members_live.ex:830
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr ""
@@ -1893,7 +1893,7 @@ msgstr ""
 msgid "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:815
+#: lib/tuist_web/live/members_live.ex:822
 #, elixir-autogen, elixir-format
 msgid "Expired"
 msgstr ""
@@ -2545,7 +2545,7 @@ msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:685
 #: lib/tuist_web/live/members_live.ex:187
-#: lib/tuist_web/live/members_live.ex:822
+#: lib/tuist_web/live/members_live.ex:829
 #, elixir-autogen, elixir-format
 msgid "Viewer"
 msgstr ""

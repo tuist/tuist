@@ -12,6 +12,56 @@ defmodule TuistWeb.UserForgotPasswordLiveTest do
   alias Tuist.Environment
   alias Tuist.Repo
 
+  test "unknown addresses spend the same requester budget across fresh sessions", %{conn: conn} do
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+    parent = self()
+
+    stub(Bamboo.TestAdapter, :deliver, fn email, config ->
+      send(parent, {:reset_email, email})
+      Mimic.call_original(Bamboo.TestAdapter, :deliver, [email, config])
+    end)
+
+    user = user_fixture()
+    # Fresh HTTP/LiveView sessions from one requester must not reset its quota.
+    conn = %{conn | remote_ip: {192, 0, 2, rem(user.id, 250) + 1}}
+
+    for _ <- 1..10 do
+      {:ok, view, _} = live(conn, "/users/reset_password")
+      render_submit(view, "send_email", %{"user" => %{"email" => "missing-#{user.id}@example.com"}})
+      assert has_element?(view, "#forgot-password-success")
+    end
+
+    {:ok, blocked, _} = live(conn, "/users/reset_password")
+    render_submit(blocked, "send_email", %{"user" => %{"email" => user.email}})
+    assert has_element?(blocked, "#forgot-password-success")
+    refute_receive {:reset_email, _}
+    refute Repo.exists?(from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"))
+
+    {:ok, allowed, _} = live(%{conn | remote_ip: {198, 51, 100, rem(user.id, 250) + 1}}, "/users/reset_password")
+    render_submit(allowed, "send_email", %{"user" => %{"email" => user.email}})
+    assert has_element?(allowed, "#forgot-password-success")
+    assert_receive {:reset_email, _}
+  end
+
+  test "a configured shared limiter outage does not send mail or enumerate accounts", %{conn: conn} do
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Environment, :redis_url, fn -> "redis://unavailable" end)
+    stub(Tuist.RateLimit.PersistentTokenBucket, :hit, fn _, _, _, _ -> exit(:noproc) end)
+    user = user_fixture()
+
+    responses =
+      for email <- [user.email, "missing-#{user.id}@example.com"] do
+        {:ok, view, _} = live(conn, "/users/reset_password")
+        render_submit(view, "send_email", %{"user" => %{"email" => email}})
+        view |> element("#forgot-password-success") |> render()
+      end
+
+    assert [response] = Enum.uniq(responses)
+    assert response =~ "If your email exists in our records"
+    refute Repo.exists?(from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"))
+  end
+
   describe "Forgot password page" do
     test "renders email page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password")

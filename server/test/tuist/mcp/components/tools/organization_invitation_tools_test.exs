@@ -17,6 +17,23 @@ defmodule Tuist.MCP.Components.Tools.OrganizationInvitationToolsTest do
   end
 
   describe "invite_organization_member" do
+    test "cancel and reinvite cannot bypass the email budget", %{
+      conn: conn,
+      creator: creator,
+      organization: organization
+    } do
+      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      args = %{"organization_handle" => organization.account.name, "email" => "mcp-#{creator.id}@example.com"}
+      refute InviteOrganizationMember.call(conn, args)["isError"]
+      assert_receive {:delivered_email, _}
+      refute CancelOrganizationInvitation.call(conn, args)["isError"]
+      assert %{"isError" => true, "content" => [%{"text" => text}]} = InviteOrganizationMember.call(conn, args)
+      assert text =~ "Too many invitations"
+      refute_receive {:delivered_email, _}
+      refute Accounts.get_invitation_by_invitee_email_and_organization(args["email"], organization)
+    end
+
     test "invites an email that does not belong to a Tuist user", %{conn: conn, organization: organization} do
       stub(Environment, :mail_configured?, fn -> true end)
 

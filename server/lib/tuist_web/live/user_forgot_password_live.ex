@@ -7,6 +7,8 @@ defmodule TuistWeb.UserForgotPasswordLive do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias TuistWeb.RateLimit
+  alias TuistWeb.RemoteIp
 
   def render(assigns) do
     ~H"""
@@ -83,9 +85,14 @@ defmodule TuistWeb.UserForgotPasswordLive do
     """
   end
 
-  def mount(_params, _session, socket) do
+  def password_reset_session(conn) do
+    requester = conn |> RemoteIp.get() |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16()
+    %{"reset_requester" => requester}
+  end
+
+  def mount(_params, session, socket) do
     if Environment.email_auth_enabled?() do
-      {:ok, assign(socket, form: to_form(%{}, as: "user"), success: false)}
+      {:ok, assign(socket, form: to_form(%{}, as: "user"), success: false, reset_requester: session["reset_requester"])}
     else
       {:ok, redirect(socket, to: ~p"/users/log_in")}
     end
@@ -102,17 +109,37 @@ defmodule TuistWeb.UserForgotPasswordLive do
   defp send_reset_email(email, socket) do
     email = String.trim(email)
 
-    case Accounts.get_user_by_email(email) do
-      {:ok, user} ->
-        Accounts.deliver_user_reset_password_instructions(%{
-          user: user,
-          reset_password_url: &url(~p"/users/reset_password/#{&1}")
-        })
+    if allow_reset_request?(socket) do
+      case Accounts.get_user_by_email(email) do
+        {:ok, user} ->
+          Accounts.deliver_user_reset_password_instructions(%{
+            user: user,
+            reset_password_url: &url(~p"/users/reset_password/#{&1}")
+          })
 
-      {:error, :not_found} ->
-        :ok
+        {:error, :not_found} ->
+          :ok
+      end
     end
 
     {:noreply, assign(socket, success: true)}
+  end
+
+  defp allow_reset_request?(socket) do
+    if Environment.tuist_hosted?() do
+      requester = socket.assigns.reset_requester
+
+      is_binary(requester) and
+        match?(
+          {:allow, _},
+          RateLimit.hit("password-reset:requester:#{requester}",
+            algorithm: :token_bucket,
+            capacity: 10,
+            refill_rate: 1 / 60
+          )
+        )
+    else
+      true
+    end
   end
 end
