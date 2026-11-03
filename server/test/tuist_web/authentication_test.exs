@@ -946,6 +946,39 @@ defmodule TuistWeb.AuthenticationTest do
     end
 
     @tag :sso_boundary
+    test "preview pages require SSO from members only, so shared public previews stay open to outsiders", %{
+      conn: conn,
+      user: user
+    } do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      private_project = ProjectsFixtures.project_fixture(account: organization.account, visibility: :private)
+      public_project = ProjectsFixtures.project_fixture(account: organization.account, visibility: :public)
+      private_preview = AppBuildsFixtures.preview_fixture(project: private_project)
+      public_preview = AppBuildsFixtures.preview_fixture(project: public_project, visibility: :public)
+      private_path = ~p"/#{organization.account.name}/#{private_project.name}/previews/#{private_preview.id}"
+      public_path = ~p"/#{organization.account.name}/#{public_project.name}/previews/#{public_preview.id}"
+
+      member = log_in_user(conn, user)
+      assert member |> get(private_path) |> redirected_to() == ~p"/users/auth/google"
+      assert member |> get(public_path) |> redirected_to() == ~p"/users/auth/google"
+
+      sso_member =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+        )
+
+      assert {:ok, _, _} = live(sso_member, private_path)
+
+      outsider = log_in_user(build_conn(), user_fixture())
+      assert outsider |> get(public_path) |> html_response(200)
+      assert {:ok, _, _} = live(outsider, public_path)
+      assert {:ok, _, _} = live(build_conn(), public_path)
+    end
+
+    @tag :sso_boundary
     test "a connected join rechecks proof after its initial HTTP render", %{conn: conn, user: user} do
       organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})

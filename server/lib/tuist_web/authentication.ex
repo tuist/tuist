@@ -402,6 +402,11 @@ defmodule TuistWeb.Authentication do
     socket |> Phoenix.Component.assign(:sso_route_params, params) |> enforce_live_sso()
   end
 
+  # See require_member_sso_authentication/2.
+  def on_mount(:require_member_sso_authentication, params, session, socket) do
+    on_mount(:require_sso_authentication, params, session, Phoenix.Component.assign(socket, :sso_members_only?, true))
+  end
+
   def mount_current_user(socket, session) do
     token = session["user_token"]
     user_session = token && Accounts.get_user_session(token, preload: [:account])
@@ -506,6 +511,7 @@ defmodule TuistWeb.Authentication do
           :current_user,
           :current_user_session,
           :sso_route_params,
+          :sso_members_only?,
           :browser_session_path,
           :browser_session_automatic_until
         ])
@@ -579,6 +585,14 @@ defmodule TuistWeb.Authentication do
 
   def require_sso_authentication(conn, _opts), do: conn
 
+  # Preview links are shared outside the organization (pull requests, chats),
+  # and public previews serve everyone the same page. Only members get
+  # member-level access there (private previews, deletion), so only members
+  # must satisfy the organization's SSO; other visitors keep the public view.
+  def require_member_sso_authentication(conn, opts) do
+    conn |> assign(:sso_members_only?, true) |> require_sso_authentication(opts)
+  end
+
   defp required_sso_organization(_subject, nil, _session), do: nil
 
   defp required_sso_organization(subject, account_handle, session) do
@@ -604,6 +618,7 @@ defmodule TuistWeb.Authentication do
              organization_id when not is_nil(organization_id) <- account.organization_id,
              {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
              true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+             true <- sso_applies_to?(subject.assigns, organization),
              false <- UserToken.satisfies_sso?(session, organization) do
           organization
         else
@@ -611,6 +626,15 @@ defmodule TuistWeb.Authentication do
         end
     end
   end
+
+  defp sso_applies_to?(%{sso_members_only?: true} = assigns, organization) do
+    case assigns[:current_user] do
+      %User{} = user -> Accounts.belongs_to_organization?(user, organization)
+      _ -> false
+    end
+  end
+
+  defp sso_applies_to?(_assigns, _organization), do: true
 
   defp anonymous_public_account?(subject, account_handle) do
     if authenticated?(subject.assigns) do

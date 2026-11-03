@@ -1517,6 +1517,7 @@ defmodule TuistWeb.Router do
       :require_authenticated_user_for_previews,
       :mark_public_preview_page,
       PublicPageChallengePlug,
+      :require_member_sso_authentication,
       :analytics,
       :embeddable
     ]
@@ -1526,6 +1527,7 @@ defmodule TuistWeb.Router do
       on_mount: [
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.Authentication, :require_member_sso_authentication},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
       live "/", PreviewLive, metadata: @public_project_route_metadata
