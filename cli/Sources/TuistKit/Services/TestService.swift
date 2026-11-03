@@ -2196,6 +2196,48 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return false
         }
 
+        logSkippedTargets(
+            testActionTargets: testActionTargets,
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            mapperEnvironment: mapperEnvironment,
+            action: action,
+            requestedTestTargets: requestedTestTargets,
+            testImpactOutcome: testImpactOutcome
+        )
+
+        let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
+        let targetsAfterPassthroughSkip = testActionTargets
+            .filter { !passthroughSkippedTargetNames.contains($0.name) }
+
+        if targetsAfterPassthroughSkip.isEmpty, !testActionTargets.isEmpty {
+            Logger.current
+                .notice(
+                    "All test targets selected by selective testing are excluded by -skip-testing in the xcodebuild passthrough arguments, finishing early"
+                )
+            return false
+        }
+
+        let testedTargetNames = targetsAfterPassthroughSkip.map(\.name).sorted()
+        if !testedTargetNames.isEmpty {
+            Logger.current
+                .notice(
+                    "Testing the following targets: \(testedTargetNames.joined(separator: ", "))"
+                )
+        }
+
+        return true
+    }
+
+    private func logSkippedTargets(
+        testActionTargets: [Target],
+        schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
+        mapperEnvironment: MapperEnvironment,
+        action: XcodeBuildTestAction,
+        requestedTestTargets: [TestIdentifier],
+        testImpactOutcome: TestImpactOutcome?
+    ) {
         let requestedTargetNames = Set(requestedTestTargets.map(\.target))
         let skippedByCoverage = Set(testImpactOutcome?.skippedModules ?? [])
         let skippedBySelectiveTesting = initialTestTargets(
@@ -2221,28 +2263,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
         }
         logTestImpactOutcome(testImpactOutcome)
-
-        let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
-        let targetsAfterPassthroughSkip = testActionTargets
-            .filter { !passthroughSkippedTargetNames.contains($0.name) }
-
-        if targetsAfterPassthroughSkip.isEmpty, !testActionTargets.isEmpty {
-            Logger.current
-                .notice(
-                    "All test targets selected by selective testing are excluded by -skip-testing in the xcodebuild passthrough arguments, finishing early"
-                )
-            return false
-        }
-
-        let testedTargetNames = targetsAfterPassthroughSkip.map(\.name).sorted()
-        if !testedTargetNames.isEmpty {
-            Logger.current
-                .notice(
-                    "Testing the following targets: \(testedTargetNames.joined(separator: ", "))"
-                )
-        }
-
-        return true
     }
 
     /// The scheme's test targets a run executes every test of. Only these can have their selective-testing
