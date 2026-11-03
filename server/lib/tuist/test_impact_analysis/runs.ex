@@ -98,7 +98,6 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           repository_id: baseline.repository_id,
           baseline_sha: baseline_sha,
           baseline_run_ids: baseline.run_ids,
-          window_shas: baseline.window_shas,
           modules: Map.get(params, :modules),
           changed_files: changed_files,
           changed_files_count: changed_files_count

@@ -12,7 +12,7 @@ defmodule Tuist.Tests.Coverage.TestSources do
   test's history keeps every version of the code it ran. A commit whose run
   skipped a test reads the test's versions and carries it from the latest
   run whose fingerprint its own blobs reproduce, on any branch
-  (`Tuist.Tests.Coverage.Reported`), without walking its history.
+  (`Tuist.Tests.Coverage.TestEvidence`), without walking its history.
 
   Files a run did not report are ones its repository's Git does not track (a
   submodule's): nothing holds their blob, and they never count, so they are
@@ -102,29 +102,19 @@ defmodule Tuist.Tests.Coverage.TestSources do
   The versions recorded for each of the tests in the repository, with the
   latest run of each, as `%{test_case_id => [version]}`. Merges keep one row
   per version, but until they run a version can have several, so the latest
-  is picked.
-
-  `:shas` keeps only the runs at those commits, such as an evidence window's.
+  is picked. Which of them hold at a checkout is
+  `Tuist.Tests.Coverage.TestEvidence`'s call.
   """
-  def versions(project_id, repository_id, test_case_ids, opts \\ [])
-  def versions(_project_id, _repository_id, [], _opts), do: %{}
+  def versions(_project_id, _repository_id, []), do: %{}
 
-  def versions(project_id, repository_id, test_case_ids, opts) do
-    shas = Keyword.get(opts, :shas)
-
+  def versions(project_id, repository_id, test_case_ids) do
     test_case_ids
     |> Enum.uniq()
-    |> Coverage.id_chunks(2 + length(shas || []))
+    |> Coverage.id_chunks(2)
     |> Enum.flat_map(fn ids ->
-      query =
-        from(s in CoverageTestSource,
-          where: s.project_id == ^project_id and s.git_repository_id == ^repository_id and s.test_case_id in ^ids
-        )
-
-      query = if is_nil(shas), do: query, else: where(query, [s], s.git_commit_sha in ^shas)
-
       ClickHouseRepo.all(
-        from(s in query,
+        from(s in CoverageTestSource,
+          where: s.project_id == ^project_id and s.git_repository_id == ^repository_id and s.test_case_id in ^ids,
           group_by: [s.test_case_id, s.fingerprint],
           select: %{
             test_case_id: fragment("toString(?)", s.test_case_id),
@@ -141,49 +131,6 @@ defmodule Tuist.Tests.Coverage.TestSources do
     end)
     |> Enum.group_by(& &1.test_case_id)
   end
-
-  @doc """
-  Each test's evidence at a checkout, the lookup coverage carry
-  (`Tuist.Tests.Coverage.Reported`) and test impact analysis
-  (`Tuist.TestImpactAnalysis`) share: its versions (`versions/4`, which
-  `opts` go to) resolved against the checkout's blobs (`resolve/2`).
-  `blobs` is handed every path the versions executed and returns the
-  checkout's blob for each it knows.
-  """
-  def lookup(project_id, repository_id, test_case_ids, blobs, opts \\ []) do
-    versions = versions(project_id, repository_id, test_case_ids, opts)
-    paths = versions |> Map.values() |> Enum.concat() |> Enum.flat_map(& &1.paths) |> Enum.uniq()
-    resolve(versions, blobs.(paths))
-  end
-
-  @doc """
-  Each test's versions, `%{test_case_id => [version]}`, against the
-  checkout's blobs, `%{path => blob}`: as `%{test_case_id => %{versions:,
-  newest:, reproduced:}}`, `newest` its latest version and `reproduced` the
-  latest one the checkout reproduces (`reproduced?/2`), nil when it
-  reproduces none. Tests without versions are left out.
-  """
-  def resolve(versions_by_test, blobs) do
-    versions_by_test
-    |> Enum.reject(fn {_test_case_id, versions} -> versions == [] end)
-    |> Map.new(fn {test_case_id, versions} ->
-      {test_case_id,
-       %{
-         versions: versions,
-         newest: Enum.max_by(versions, &ran_at/1, DateTime),
-         reproduced: versions |> Enum.filter(&reproduced?(&1, blobs)) |> Enum.max_by(&ran_at/1, DateTime, fn -> nil end)
-       }}
-    end)
-  end
-
-  @doc "Whether every file the version executed has, in `blobs`, the blob it had then."
-  def reproduced?(version, blobs) do
-    Enum.all?(version.paths, &is_binary(blobs[&1])) and
-      fingerprint(Enum.map(version.paths, &{&1, blobs[&1]})) == version.fingerprint
-  end
-
-  defp ran_at(%{ran_at: %DateTime{} = ran_at}), do: ran_at
-  defp ran_at(%{ran_at: %NaiveDateTime{} = ran_at}), do: DateTime.from_naive!(ran_at, "Etc/UTC")
 
   @doc """
   Records the test versions and target sources

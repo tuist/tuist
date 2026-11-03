@@ -13,18 +13,20 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
   Scenarios decided before the pipeline runs are checked to be fallbacks
   only (`@decided_elsewhere`).
 
-  The evidence window is the scenario's `baseline` run and the later runs
-  the checkout contains, those of its scheme on its branch. A newer run on
-  the default branch (`stale_base`) is recorded but left out, as
-  `Tuist.Tests.Coverage.TestSources.versions/4` leaves out commits outside
-  the window. The inventory is the baseline's, so tests the checkout deleted
-  (`exists_at_checkout: false`) are decided too.
+  The checkout contains the scenario's `baseline` run and the later runs of
+  its scheme on its branch, and its tree carries their edits. A newer run on
+  the default branch (`stale_base`) is a full run on a tree of its own: its
+  versions are recorded like any other, as evidence isn't bounded by commit
+  (`Tuist.Tests.Coverage.TestEvidence`), and hold wherever the checkout
+  reproduces them. The inventory is the baseline's, so tests the checkout
+  deleted (`exists_at_checkout: false`) are decided too.
   """
   use ExUnit.Case, async: true
 
   alias Tuist.GitHistory
   alias Tuist.TestImpactAnalysis
   alias Tuist.TestImpactAnalysis.Input
+  alias Tuist.Tests.Coverage.TestEvidence
   alias Tuist.Tests.Coverage.TestSources
 
   @golden_path Path.expand("../../../../cli/Tests/Fixtures/CoverageTestSelection/golden.json", __DIR__)
@@ -109,8 +111,7 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
   end
 
   defp checkout_input(scenario) do
-    {versions, tree, window} = record_runs(scenario)
-    versions = in_window(versions, window)
+    {versions, tree} = record_runs(scenario)
     edits = Map.get(@checkout_edits, scenario["name"], Enum.map(scenario["changed_files"], & &1["path"]))
     tree = edit(tree, edits, scenario["checkout"]["ref"], scenario["changed_files"])
     input(scenario, scope(scenario), versions, tree)
@@ -128,31 +129,28 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
 
     later
     |> Enum.with_index(1)
-    |> Enum.reduce({versions, tree, [baseline["ref"]]}, fn {%{"ref" => ref} = run, index}, {versions, tree, window} ->
+    |> Enum.reduce({versions, tree}, fn {%{"ref" => ref} = run, index}, {versions, tree} ->
       run_tree = edit(tree, run["edits"], ref, scenario["changed_files"])
 
-      if in_window?(scenario, run) do
+      if contains?(scenario, run) do
         changed = changed_since_baseline(run_tree, scenario["changed_files"])
 
         result =
-          TestImpactAnalysis.run(input(%{"changed_files" => changed}, all_tests(), in_window(versions, window), run_tree))
+          TestImpactAnalysis.run(input(%{"changed_files" => changed}, all_tests(), versions, run_tree))
 
         ran = for {id, %{decision: :selected}} <- result.decisions, do: id
-        {record(versions, ran, run_tree, ref, index, []), run_tree, [ref | window]}
+        {record(versions, ran, run_tree, ref, index, []), run_tree}
       else
         assert run["branch"] == @golden["default_branch"]
-        {record(versions, Map.keys(evidence()["tests"]), run_tree, ref, index, []), tree, window}
+        {record(versions, Map.keys(evidence()["tests"]), run_tree, ref, index, []), tree}
       end
     end)
   end
 
-  defp in_window?(scenario, run) do
+  defp contains?(scenario, run) do
     scheme = &(&1["scheme"] || @golden["scheme"])
     run["branch"] == scenario["checkout"]["branch"] and scheme.(run) == scheme.(scenario)
   end
-
-  defp in_window(versions, window),
-    do: Map.new(versions, fn {id, test_versions} -> {id, Enum.filter(test_versions, &(&1.sha in window))} end)
 
   defp record(versions, test_ids, tree, sha, index, failing) do
     for id <- test_ids, paths = evidence_paths(id), paths != [], reduce: versions do
@@ -189,8 +187,7 @@ defmodule Tuist.TestImpactAnalysis.GoldenTest do
       changed_files: changed_files,
       changed_files_count: scenario["changed_files_count"] || length(changed_files),
       tracked_file_globs: GitHistory.settings(nil).tracked_file_globs,
-      baseline_blobs: baseline_tree(),
-      versions: versions,
+      evidence: TestEvidence.resolve(versions, Input.checkout_blobs(baseline_tree(), changed_files)),
       target_evidence: evidence()["targets"],
       test_paths: evidence()["test_files"],
       evidence_paths: all_evidence_paths(),

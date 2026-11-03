@@ -1,7 +1,8 @@
 defmodule Tuist.TestImpactAnalysis.Rules.FailedLastRun do
   @moduledoc """
-  Rule 3. Selects the tests whose newest version in the window failed, or
-  comes from a run where they were flaky.
+  Rule 3. Selects the tests whose newest reproduced version failed, or
+  comes from a run where they were flaky. A test the checkout reproduces no
+  version of is left to `Tuist.TestImpactAnalysis.Rules.Impacted`.
   """
   @behaviour Tuist.TestImpactAnalysis.Rule
 
@@ -24,8 +25,8 @@ defmodule Tuist.TestImpactAnalysis.Rules.FailedLastRun do
 
   defp failed?(input, test_case_id) do
     case Input.evidence(input, test_case_id) do
-      %{newest: %{passed: passed}} -> passed not in [true, 1] or Input.flaky?(input, test_case_id)
-      nil -> false
+      %{reproduced: %{passed: passed}} -> passed not in [true, 1] or Input.flaky?(input, test_case_id)
+      _ -> false
     end
   end
 end
