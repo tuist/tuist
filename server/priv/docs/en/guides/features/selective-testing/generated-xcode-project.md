@@ -75,8 +75,40 @@ Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, 
 > [!WARNING]
 > **Module Vs File-level Granularity**
 >
-> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
+> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of the default selective testing is at the target level. The [coverage strategy](#coverage-based-test-selection) narrows it down to single XCTest tests. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
 
+
+## Coverage-based test selection {#coverage-based-test-selection}
+
+> [!NOTE]
+> **Early access**
+>
+> Coverage-based test selection is in early access. Contact us to enable it for your account. Until it's enabled, the strategy behaves like the default selective testing.
+
+By default, selective testing skips whole test targets whose hash already passed. The `.coverage()` strategy goes further: in the test targets left, it also skips the XCTest and XCUITest tests whose code coverage on an earlier run includes none of the files your change touched. Enable it in `Tuist.swift`:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    fullHandle: "{account-handle}/{project-handle}",
+    testInsights: .testInsights(
+        coverage: .coverage(upload: true),
+        selectiveTesting: .selectiveTesting(strategy: .coverage())
+    ),
+    project: .tuist()
+)
+```
+
+The strategy requires:
+
+- **Coverage uploads.** Tuist selects tests by the coverage that earlier runs uploaded, so `tuist test` fails to load a manifest that sets `.coverage()` with `upload: false`.
+- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.3.0 or later** linked by your test targets. It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
+- **Test runs on your default branch.** They run every test and become the baseline later runs compare against, so `tuist test` on the default branch never skips anything.
+
+On every other branch, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run. Swift Testing tests run whenever their target runs.
+
+When coverage can't decide, the output says why. Without a recent baseline on the same platform, or when the change touches more than 5,000 files, every test runs so that the commit can become a baseline. When a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`, the run uses the default selective testing. To run every test, pass `--no-selective-testing`.
 
 > [!WARNING]
 > **Test Coverage**

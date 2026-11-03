@@ -811,10 +811,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
     }
 
-    /// Whether the project selects tests by coverage. Until the manifest has the option, an internal
-    /// client feature flag turns it on.
-    static func selectsTestsByCoverage(config _: Tuist) -> Bool {
-        ClientFeatureFlags.contains("TEST_IMPACT_ANALYSIS")
+    /// Whether the project selects tests by coverage: `Tuist.swift`'s `.selectiveTesting(strategy: .coverage())`.
+    static func selectsTestsByCoverage(config: Tuist) -> Bool {
+        config.testInsights.selectiveTesting?.strategy == .coverage
     }
 
     private func logTestImpactOutcome(_ outcome: TestImpactOutcome?) {
