@@ -125,7 +125,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
   operation(:create_run,
     summary: "Create an impact run for coverage-based test selection.",
     description:
-      "Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. The client runs default selective testing on `fallback`, on an error, and when the request times out.",
+      "Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.",
     operation_id: "createTestImpactRun",
     parameters: @path_parameters,
     request_body:
@@ -136,8 +136,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
          properties: %{
            build_system: %Schema{
              type: :string,
-             description:
-               "The build system, `xcode` first, then `gradle`, `mix` and `cargo`. It picks the project's tracked files and the build-system block that applies."
+             description: "The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run."
            },
            head_sha: %Schema{
              type: :string,
@@ -149,6 +148,12 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description:
                "The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff."
            },
+           parent_shas: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again."
+           },
            baseline_sha: %Schema{
              type: :string,
              description: "The baseline the baseline request returned. When absent, `fallback_reason` says why."
@@ -156,12 +161,12 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
            fallback_reason: %Schema{
              type: :string,
              description:
-               "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+               "The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
            },
            changed_files: %Schema{
              type: :array,
              description:
-               "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent only when the baseline request said the diff isn't cached. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.",
+               "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.",
              items: %Schema{
                type: :object,
                properties: %{
