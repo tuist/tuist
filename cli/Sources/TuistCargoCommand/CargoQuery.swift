@@ -55,6 +55,18 @@ struct CargoQuery: Equatable {
         relocation.relative(([program, directory, changes.joined(separator: "\u{1e}")] + arguments).joined(separator: "\u{1f}"))
     }
 
+    /// Where a git query runs, after its `-C` options.
+    var gitDirectory: String? {
+        guard URL(fileURLWithPath: program).lastPathComponent == "git" else { return nil }
+        var result = URL(fileURLWithPath: directory, isDirectory: true)
+        var index = 1
+        while index + 1 < arguments.count, arguments[index] == "-C" {
+            result = URL(fileURLWithPath: arguments[index + 1], isDirectory: true, relativeTo: result)
+            index += 2
+        }
+        return result.standardizedFileURL.path
+    }
+
     private static func isQuery(program: String, arguments: [String]) -> Bool {
         switch URL(fileURLWithPath: program).lastPathComponent {
         case "sw_vers", "uname":

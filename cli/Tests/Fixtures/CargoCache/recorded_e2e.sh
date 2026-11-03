@@ -168,7 +168,13 @@ extern crate proc_macro;
 #[proc_macro]
 pub fn describe(_: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let output = std::process::Command::new("git").args(["describe", "--always", "--dirty"]).output().unwrap();
-    format!("{:?}", String::from_utf8(output.stdout).unwrap().trim()).parse().unwrap()
+    // As `git_version!`, so Cargo reruns it when the repository changes.
+    let git = format!("{}/../.git", std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    let git = std::fs::canonicalize(git).unwrap().display().to_string();
+    format!(
+        "{{ include_bytes!({:?}); include_bytes!({:?}); {:?} }}",
+        format!("{git}/index"), format!("{git}/logs/HEAD"), String::from_utf8(output.stdout).unwrap().trim()
+    ).parse().unwrap()
 }
 RUST
     printf '[package]\nname = "rev"\nversion = "0.1.0"\nedition = "2021"\n' > "$path/rev/Cargo.toml"
@@ -210,6 +216,12 @@ build_queried "$q" query-commit
 expect query-commit "$(expected_query "$q") miss" "$QUERIED $(task query-commit app)"
 build_queried "$q" query-commit-warm
 expect query-commit-warm "$(expected_query "$q") hit" "$QUERIED $(task query-commit-warm app)"
+# A copy at another path: its `.git/index` names other inodes and times, but git describes the same commit.
+mkdir -p "$ROOT/queried-moved"
+cp -R "$q" "$ROOT/queried-moved/ws"
+rm -rf "$ROOT/queried-moved/ws/target"
+build_queried "$ROOT/queried-moved/ws" query-moved
+expect query-moved "$(expected_query "$q") hit" "$QUERIED $(task query-moved app)"
 
 # `swiftc` and `codesign` run from protected `xcrun` shims too. A build script that compiles a Swift helper and signs
 # it ad hoc, as mise's does, is keyed by the helper's source and the Xcode, SDK and OS builds; a changed source must
