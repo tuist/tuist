@@ -48,6 +48,12 @@ final class CargoInputHasher {
                 }
                 for (path, records) in trees where path.hasPrefix(prefix) {
                     trees[directory.path + "/" + path.dropFirst(prefix.count)] = records
+                    // Hooks look toolchain files up one by one (a recorded compilation's compiler files, the sysroot
+                    // files rustc read), not through the tree, so each record is a file record of the session too.
+                    for (file, entry) in records {
+                        let memo = directory.path + "/" + REAPI.digest(Data(file.utf8)).hash
+                        if files[memo] == nil { files[memo] = entry }
+                    }
                 }
             }
             lock.unlock()
@@ -96,6 +102,10 @@ final class CargoInputHasher {
         processRecords.serve(
             session.appendingPathComponent("input-digests-v1"), seededFrom: seed?.appendingPathComponent("input-digests-v1")
         )
+    }
+
+    static func isServing(session: URL) -> Bool {
+        processRecords.isServed(session.appendingPathComponent("input-digests-v1"))
     }
 
     static func stopServing(session: URL) {
@@ -170,8 +180,8 @@ final class CargoInputHasher {
 
     /// Records a digest computed elsewhere (a blob hashed as it was stored) for the file's current identity, so later
     /// sessions reuse it without hashing the file again.
-    func remember(_ file: URL, digest: REAPI.Digest) {
-        guard let sharedDirectory, let identity = try? identify(file), identity.precise else { return }
+    func remember(_ file: URL, digest: REAPI.Digest, when accepts: (Identity) -> Bool = { _ in true }) {
+        guard let sharedDirectory, let identity = try? identify(file), identity.precise, accepts(identity) else { return }
         let entry = Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes)
         let memo = sharedDirectory.appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash, isDirectory: false)
         if !inMemory, let data = try? JSONEncoder().encode(entry) {
@@ -282,6 +292,11 @@ final class CargoInputHasher {
         guard lstat(file.path, &value) == 0, value.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else {
             throw CargoCacheInvocation.CacheError.unsupported
         }
+        return identity(value)
+    }
+
+    /// The identity of a regular file whose status the caller already has, such as from a directory walk.
+    static func identity(_ value: stat) -> Identity {
         #if os(Linux)
             let modified = value.st_mtim
             let changed = value.st_ctim

@@ -475,11 +475,27 @@ extension CargoUnitCache {
                     Self.writeProof(proof)
                 }
             }
+            remember(unit.files, at: date)
             return true
         } catch {
             try? FileManager.default.removeItem(at: profile.appendingPathComponent(".fingerprint/" + unit.name))
             debug("unit \(unit.name) was not restored: \(error)")
             return false
+        }
+    }
+
+    /// Restored files are clones of verified content, so a served session records their digests under the clones'
+    /// identities: the hooks that read them (externs, a build script's outputs) do not hash them again. Only while a
+    /// file keeps its restoration time and size; a write since restoration changes them.
+    private func remember(_ files: [File], at date: Date) {
+        guard let session = environment["TUIST_CARGO_SESSION"].map({ URL(fileURLWithPath: $0) }),
+              CargoInputHasher.isServing(session: session) else { return }
+        let hasher = CargoInputHasher(sessionDirectory: session)
+        let seconds = String(Int(date.timeIntervalSince1970))
+        for file in files where !file.path.hasPrefix(".fingerprint/") {
+            hasher.remember(profile.appendingPathComponent(file.path, isDirectory: false), digest: file.digest) {
+                $0.fields[2] == String(file.size) && $0.fields[4] == seconds && $0.fields[5] == "0"
+            }
         }
     }
 
@@ -532,10 +548,8 @@ extension CargoUnitCache {
             guard let data = try? Data(contentsOf: recordFile),
                   let record = try? JSONDecoder().decode(SnapshotRecord.self, from: data) else { return nil }
             guard Set(record.files.keys) == Set(units.flatMap { $0.files.map(\.path) }),
-                  Self.holdsOnly(units, directory),
-                  record.files.allSatisfy({ path, fields in
-                      (try? CargoInputHasher.identity(directory.appendingPathComponent(path)))?.fields == fields
-                  })
+                  let entries = Self.walk(directory), Self.holdsOnly(units, entries),
+                  record.files.allSatisfy({ path, fields in entries[path].map(CargoInputHasher.identity)?.fields == fields })
             else {
                 debug("discarding a dependency unit snapshot whose files changed")
                 discardSnapshot(id)
@@ -553,6 +567,7 @@ extension CargoUnitCache {
             for file in units.flatMap(\.files) where file.certified == true {
                 if let proof = CargoCacheInputs.proofPath(file.digest, environment: environment) { Self.writeProof(proof) }
             }
+            remember(units.flatMap(\.files), at: Date(timeIntervalSince1970: record.at))
             // Use marks are renewed hourly, like a blob's; the snapshot's blobs stay recent with it, since restoring
             // from them again needs them once the snapshot is gone.
             if CargoBlobStore.markUsed(directory.path) {
@@ -578,19 +593,14 @@ extension CargoUnitCache {
             let temporary = snapshots.appendingPathComponent(".tmp-" + UUID().uuidString)
             guard clonefile(profile.path, temporary.path, UInt32(CLONE_NOFOLLOW)) == 0 else { return }
             unlink(temporary.appendingPathComponent(".cargo-lock").path)
-            guard Self.holdsOnly(units, temporary) else {
+            guard let entries = Self.walk(temporary), Self.holdsOnly(units, entries) else {
                 debug("not saving a dependency unit snapshot: the profile holds files restoration did not write")
                 try? FileManager.default.removeItem(at: temporary)
                 return
             }
-            let expected = Set(units.flatMap { $0.files.map(\.path) })
             var files: [String: [String]] = [:]
-            for path in expected {
-                guard let identity = try? CargoInputHasher.identity(temporary.appendingPathComponent(path)) else {
-                    try? FileManager.default.removeItem(at: temporary)
-                    return
-                }
-                files[path] = identity.fields
+            for (path, value) in entries where value.st_mode & S_IFMT == S_IFREG {
+                files[path] = CargoInputHasher.identity(value).fields
             }
             guard let data = try? JSONEncoder().encode(SnapshotRecord(at: date.timeIntervalSince1970, files: files)),
                   rename(temporary.path, snapshots.appendingPathComponent(id).path) == 0
@@ -615,33 +625,59 @@ extension CargoUnitCache {
         #endif
     }
 
-    /// Whether `directory` holds nothing but the files of `units` and the directories they create. A snapshot's
-    /// recorded identities vouch for those files only; anything else, such as the outputs of a Cargo that built in
-    /// the profile meanwhile, would be restored unverified.
-    private static func holdsOnly(_ units: [Unit], _ directory: URL) -> Bool {
-        let files = Set(units.flatMap { $0.files.map(\.path) })
-        var directories: Set<String> = []
-        for path in units.flatMap(\.directories) + files.map({ ($0 as NSString).deletingLastPathComponent }) {
-            var current = path
-            while !current.isEmpty, directories.insert(current).inserted {
-                current = (current as NSString).deletingLastPathComponent
+    #if canImport(Darwin)
+        /// Whether a walk found nothing but the files of `units` and the directories they create. A snapshot's
+        /// recorded identities vouch for those files only; anything else, such as the outputs of a Cargo that built in
+        /// the profile meanwhile, would be restored unverified.
+        private static func holdsOnly(_ units: [Unit], _ entries: [String: stat]) -> Bool {
+            let files = Set(units.flatMap { $0.files.map(\.path) })
+            var directories: Set<String> = []
+            for path in units.flatMap(\.directories) + files.map({ ($0 as NSString).deletingLastPathComponent }) {
+                var current = path
+                while !current.isEmpty, directories.insert(current).inserted {
+                    current = (current as NSString).deletingLastPathComponent
+                }
+            }
+            var seen = 0
+            for (path, value) in entries {
+                switch value.st_mode & S_IFMT {
+                case S_IFREG:
+                    guard files.contains(path) else { return false }
+                    seen += 1
+                case S_IFDIR:
+                    guard directories.contains(path) else { return false }
+                default:
+                    return false
+                }
+            }
+            return seen == files.count
+        }
+
+        /// Every entry below `directory` by relative path, with its `lstat` status, from one walk. Foundation's enumerator
+        /// also reads every entry's extended attributes, which cost more than the walk itself on a warm build. Nil when
+        /// any entry cannot be read.
+        private static func walk(_ directory: URL) -> [String: stat]? {
+            let base = directory.path
+            return base.withCString { path -> [String: stat]? in
+                var roots: [UnsafeMutablePointer<CChar>?] = [UnsafeMutablePointer(mutating: path), nil]
+                guard let stream = fts_open(&roots, FTS_PHYSICAL | FTS_NOCHDIR, nil) else { return nil }
+                defer { fts_close(stream) }
+                var entries: [String: stat] = [:]
+                while let entry = fts_read(stream) {
+                    switch Int32(entry.pointee.fts_info) {
+                    case FTS_DP: continue
+                    case FTS_D, FTS_F, FTS_SL, FTS_SLNONE, FTS_DEFAULT:
+                        guard entry.pointee.fts_level > 0, let status = entry.pointee.fts_statp else { continue }
+                        entries[String(String(cString: entry.pointee.fts_path).dropFirst(base.count + 1))] = status.pointee
+                    default:
+                        return nil
+                    }
+                }
+                // The end of the walk sets `errno` to 0; an error leaves it set.
+                return errno == 0 ? entries : nil
             }
         }
-        guard let entries = FileManager.default.enumerator(atPath: directory.path) else { return false }
-        var seen = 0
-        while let path = entries.nextObject() as? String {
-            switch entries.fileAttributes?[.type] as? FileAttributeType {
-            case .typeRegular?:
-                guard files.contains(path) else { return false }
-                seen += 1
-            case .typeDirectory?:
-                guard directories.contains(path) else { return false }
-            default:
-                return false
-            }
-        }
-        return seen == files.count
-    }
+    #endif
 
     private func discardSnapshot(_ id: String) {
         try? FileManager.default.removeItem(at: snapshots.appendingPathComponent(id + ".json"))
@@ -755,9 +791,24 @@ extension CargoUnitCache {
         // A unit is a dependency's when every source its compiler read is in Cargo's registry or git checkouts
         // (or generated into this target directory). Build-script runs read nothing through rustc: they belong to
         // a package only when all of that package's compiled units are dependencies.
-        // A unit restored before Cargo started and left untouched by it is already known, file by file.
-        let reused = candidates
-            .compactMap { name in restored.units[name].flatMap { isUntouched($0, since: restored.at) ? $0 : nil } }
+        // A unit restored before Cargo started and left untouched by it is already known, file by file. One walk of
+        // the profile answers that for every unit.
+        #if canImport(Darwin)
+            let profileEntries = restored.units.isEmpty ? nil : Self.walk(profile)
+        #else
+            let profileEntries: [String: stat]? = nil
+        #endif
+        let fingerprintFiles = profileEntries.map(Self.fingerprintFiles)
+        let reused = candidates.compactMap { name in
+            restored.units[name].flatMap { unit in
+                let untouched = if let profileEntries, let fingerprintFiles {
+                    Self.isUntouched(unit, since: restored.at, entries: profileEntries, fingerprints: fingerprintFiles)
+                } else {
+                    isUntouched(unit, since: restored.at)
+                }
+                return untouched ? unit : nil
+            }
+        }
         let reusedNames = Set(reused.map(\.name))
         var classified: [String: Bool] = [:]
         for name in candidates where !reusedNames.contains(name) {
@@ -804,6 +855,38 @@ extension CargoUnitCache {
                 .resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey])
             return values?.isRegularFile == true && values?.fileSize.map(Int64.init) == file.size
                 && values?.contentModificationDate == date
+        }
+    }
+
+    /// The files directly in each `.fingerprint/<unit>` directory of a profile walk, by unit.
+    private static func fingerprintFiles(_ entries: [String: stat]) -> [String: Set<String>] {
+        var result: [String: Set<String>] = [:]
+        for path in entries.keys where path.hasPrefix(".fingerprint/") {
+            let components = path.split(separator: "/", omittingEmptySubsequences: false)
+            guard components.count == 3 else { continue }
+            result[String(components[1]), default: []].insert(path)
+        }
+        return result
+    }
+
+    /// `isUntouched` from a walk of the profile instead of a listing and a status call per file.
+    private static func isUntouched(
+        _ unit: Unit, since date: Date, entries: [String: stat], fingerprints: [String: Set<String>]
+    ) -> Bool {
+        let fingerprint = ".fingerprint/" + unit.name + "/"
+        let listed = Set(unit.files.map(\.path).filter { $0.hasPrefix(fingerprint) })
+        guard (fingerprints[unit.name] ?? []) == listed else { return false }
+        let seconds = Int(date.timeIntervalSince1970)
+        guard Double(seconds) == date.timeIntervalSince1970 else { return false }
+        return unit.files.allSatisfy { file in
+            guard let value = entries[file.path] else { return false }
+            #if os(Linux)
+                let modified = value.st_mtim
+            #else
+                let modified = value.st_mtimespec
+            #endif
+            return value.st_mode & S_IFMT == S_IFREG && Int64(value.st_size) == file.size
+                && modified.tv_sec == seconds && modified.tv_nsec == 0
         }
     }
 

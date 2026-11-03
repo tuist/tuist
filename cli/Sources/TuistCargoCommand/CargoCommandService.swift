@@ -180,6 +180,8 @@ public struct CargoCommandService {
             {
                 server.start()
                 hookServer = server
+                // Before units restore, so the digests restoration records stay in memory too.
+                CargoInputHasher.serve(session: root, seed: nil)
                 environment[CargoHookServer.socketVariable] = server.socketPath
                 environment[CargoHookServer.fallbackVariable] = fallback
                 environment[CargoHookServer.nativeVariable] = client.path
