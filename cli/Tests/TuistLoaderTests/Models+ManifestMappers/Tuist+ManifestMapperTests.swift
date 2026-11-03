@@ -32,4 +32,54 @@ struct TuistManifestMapperTests {
         // Then
         #expect(got.xcodeCache.storeSizeLimit == nil)
     }
+
+    @Test func from_mapsTheCoverageSelectiveTestingStrategy() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let manifest = ProjectDescription.Config(
+            testInsights: .testInsights(
+                coverage: .coverage(upload: true),
+                selectiveTesting: .selectiveTesting(strategy: .coverage())
+            ),
+            project: .tuist(generationOptions: .options())
+        )
+
+        // When
+        let got = try await TuistConfig.Tuist.from(manifest: manifest, rootDirectory: path, at: path)
+
+        // Then
+        #expect(got.testInsights.selectiveTesting == TuistConfig.Tuist.TestInsights.SelectiveTesting(strategy: .coverage))
+    }
+
+    @Test func from_leavesTheSelectiveTestingStrategyUnsetByDefault() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let manifest = ProjectDescription.Config(
+            testInsights: .testInsights(selectiveTesting: .selectiveTesting()),
+            project: .tuist(generationOptions: .options())
+        )
+
+        // When
+        let got = try await TuistConfig.Tuist.from(manifest: manifest, rootDirectory: path, at: path)
+
+        // Then
+        #expect(got.testInsights.selectiveTesting == TuistConfig.Tuist.TestInsights.SelectiveTesting(strategy: nil))
+    }
+
+    @Test func from_requiresCoverageUploadForTheCoverageStrategy() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let manifest = ProjectDescription.Config(
+            testInsights: .testInsights(
+                coverage: .coverage(upload: false),
+                selectiveTesting: .selectiveTesting(strategy: .coverage())
+            ),
+            project: .tuist(generationOptions: .options())
+        )
+
+        // When / Then
+        await #expect(throws: ConfigManifestMapperError.coverageStrategyRequiresCoverageUpload) {
+            try await TuistConfig.Tuist.from(manifest: manifest, rootDirectory: path, at: path)
+        }
+    }
 }
