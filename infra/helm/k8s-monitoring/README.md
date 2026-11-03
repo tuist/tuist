@@ -118,7 +118,11 @@ The collector also exposes `macos_host_info`, `macos_host_uptime_seconds`,
 `macos_host_tcp_time_wait` and `macos_host_health_collection_success`: four series
 per host for OS maintenance and TCP stall diagnostics. Preserve `instance`,
 `job`, `cluster`, `env`, `product_version` and `kernel_release` in downstream
-aggregation. `runner-macos-host-alert-rules.json` contains three Grafana rules
+aggregation. The destination's non-production filter must also retain the Mac
+exporter's `node_textfile_mtime_seconds` and `node_textfile_scrape_error`; without
+the timestamp, the freshness join silently excludes non-rack canary and staging
+hosts from the risk alerts even when their `macos_host_*` readings are present.
+`runner-macos-host-alert-rules.json` contains three Grafana rules
 for old Tahoe kernels approaching a TCP clock wrap, persistent TIME_WAIT
 accumulation and failed/stale collection. Provision that payload separately
 after releasing the collector and this chart; Helm does not install alert JSON.
