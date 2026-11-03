@@ -1246,7 +1246,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     end)
 
     stub(Allowance, :period_breakdown, fn %{id: ^account_id}, ^period ->
-      %{minutes: 250, free_minutes: 100, billed: Money.new(1_200, :USD)}
+      %{minutes: 250, free_minutes: %{macos: 100, linux: 2_500}, billed: Money.new(1_200, :USD)}
     end)
   end
 end

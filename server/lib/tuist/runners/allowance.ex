@@ -3,25 +3,29 @@ defmodule Tuist.Runners.Allowance do
   The free monthly runner allowance, and whether an account may keep
   dispatching once it is spent.
 
-  Every plan gets the same allowance, because it is a tier on the macOS
-  runner Price rather than a plan attribute: the first
-  `free_monthly_minutes/0` macOS baseline machine-minutes of each
+  Every plan gets the same allowance, because it is a tier on each
+  platform's runner Price rather than a plan attribute: the first
+  `free_monthly_minutes/1` baseline machine-minutes of each platform in a
   billing period cost nothing, and usage past that is charged at the
-  standard rate. Linux has no free tier: its Price charges from the
-  first minute. What differs by plan is whether exceeding the allowance
-  is *possible*.
+  standard rate. The two allowances are worth the same: 100 macOS
+  minutes and 2,500 Linux minutes are both $6. What differs by plan is
+  whether exceeding the allowance is *possible*.
 
   A paid plan can exceed it and be billed for the excess. A free account
   cannot: it has no subscription for the excess to land on, so without a
   cap its runner usage would be unbounded and unbillable. That is the
-  one thing this module enforces.
+  one thing this module enforces. Dispatch decides before it knows a
+  job's platform, so the cap is one budget across platforms: a Linux
+  minute spends `free_monthly_minutes(:macos) / free_monthly_minutes(:linux)`
+  of a macOS one, and a free account is cut off once the two together
+  reach the macOS allowance.
 
   ## Why the cap is here and not in the Price
 
   Stripe can express the free tier but not refuse the work. The Price
   stops charging below the allowance; only dispatch can stop a job from
-  running past it. The two have to agree, so
-  `free_monthly_minutes/0` and the macOS Price's first tier are the same
+  running past it. The two have to agree, so each platform's
+  `free_monthly_minutes/1` and its Price's first tier are the same
   number stated twice, and have to be changed together — the same
   hand-kept duplication `Tuist.Billing`'s `@unit_prices` carries.
   """
@@ -35,16 +39,15 @@ defmodule Tuist.Runners.Allowance do
 
   @priced_platforms [:macos, :linux]
 
-  # The one platform whose Price has a free first tier.
-  @allowance_platform :macos
-
-  # Must match the first tier of that environment's runner Price. The
-  # default is the real allowance; staging lowers both together so the
-  # cap and the paid tier can be reached without burning a hundred
-  # minutes of real Mac time to get there. Lowering only this would move
-  # the cap without moving the Price, so an account would be cut off
-  # before it could ever reach the charged tier.
-  @default_free_monthly_minutes 100
+  # Each must match the first tier of that environment's runner Price for
+  # the platform. The defaults are the real allowances; staging lowers
+  # them together with its Prices so the cap and the paid tier can be
+  # reached without burning a hundred minutes of real Mac time to get
+  # there. Lowering only this would move the cap without moving the
+  # Price, so an account would be cut off before it could ever reach the
+  # charged tier.
+  @default_free_monthly_minutes %{macos: 100, linux: 2_500}
+  @free_monthly_minutes_config %{macos: :runner_free_monthly_minutes, linux: :runner_linux_free_monthly_minutes}
 
   # A projection needs a tenth of the period behind it before it says
   # anything useful.
@@ -58,11 +61,41 @@ defmodule Tuist.Runners.Allowance do
   @usage_cache_ttl to_timeout(second: 30)
 
   @doc """
-  Baseline machine-minutes every account gets free each billing period.
+  Baseline machine-minutes of `platform` every account gets free each
+  billing period.
   """
-  def free_monthly_minutes do
-    Application.get_env(:tuist, :runner_free_monthly_minutes, @default_free_monthly_minutes)
+  def free_monthly_minutes(platform) when is_map_key(@default_free_monthly_minutes, platform) do
+    Application.get_env(
+      :tuist,
+      Map.fetch!(@free_monthly_minutes_config, platform),
+      Map.fetch!(@default_free_monthly_minutes, platform)
+    )
   end
+
+  @doc """
+  Whole minutes of the shared allowance that `by_platform` spends, in
+  macOS baseline minutes, from compute-unit milliseconds keyed by
+  platform.
+
+  Each platform spends it in proportion to its own allowance, so using
+  up either platform's free minutes spends all of it. A platform with no
+  free minutes spends all of it with any usage at all.
+  """
+  def allowance_minutes(by_platform) do
+    macos_free_ms = free_monthly_minutes(:macos) * 60_000
+
+    by_platform
+    |> Enum.map(fn
+      {_platform, 0} -> 0
+      {:macos, ms} -> ms
+      {platform, ms} -> allowance_milliseconds(ms, free_monthly_minutes(platform) * 60_000, macos_free_ms)
+    end)
+    |> Enum.sum()
+    |> div(60_000)
+  end
+
+  defp allowance_milliseconds(_ms, 0, macos_free_ms), do: macos_free_ms
+  defp allowance_milliseconds(ms, free_ms, macos_free_ms), do: div(ms * macos_free_ms, free_ms)
 
   @doc """
   True when `account` must not be given another runner job.
@@ -80,14 +113,15 @@ defmodule Tuist.Runners.Allowance do
       # that does not let it run runners. The trial is what makes the usage
       # unbillable; nothing else has to hold it back.
       Trials.on_trial?(account) -> false
-      Billing.effective_plan(account) == :air -> minutes_used(account) >= free_monthly_minutes()
+      Billing.effective_plan(account) == :air -> minutes_used(account) >= free_monthly_minutes(:macos)
       true -> false
     end
   end
 
   @doc """
-  Whole baseline machine-minutes `account` has used in the current
-  calendar month.
+  Whole minutes of the shared allowance `account` has spent in the
+  current calendar month, in macOS baseline minutes. See
+  `allowance_minutes/1`.
 
   Truncated, so an account is only cut off once it has fully spent the
   allowance rather than partway through the minute that crosses it. The
@@ -98,10 +132,6 @@ defmodule Tuist.Runners.Allowance do
   accounts this gates have no subscription, so there is no period to
   read. For a paid account the figure is only ever advisory: nothing is
   blocked on it.
-
-  Every platform counts, although only macOS has a free tier. An account
-  with no subscription has nothing to bill Linux time against either, so
-  its Linux time spends the same cap rather than running unbounded.
   """
   def minutes_used(%Account{id: account_id}) do
     KeyValueStore.get_or_update(
@@ -112,8 +142,8 @@ defmodule Tuist.Runners.Allowance do
         month_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
 
         account_id
-        |> RunnerBilling.compute_milliseconds(month_start, now)
-        |> div(60_000)
+        |> milliseconds_by_platform(month_start, now)
+        |> allowance_minutes()
       end
     )
   end
@@ -146,7 +176,7 @@ defmodule Tuist.Runners.Allowance do
     # A closed period is reported whole; the open one only as far as now.
     usage_end = if DateTime.before?(now, period_end), do: now, else: period_end
     trial_window = trial_window(account, period_start, usage_end)
-    free_ms = free_monthly_minutes() * 60_000
+    free_ms = Map.new(@priced_platforms, &{&1, free_monthly_minutes(&1) * 60_000})
 
     per_day =
       account_id
@@ -161,7 +191,7 @@ defmodule Tuist.Runners.Allowance do
         # the trial covered consume it would charge the account for
         # minutes the trial was supposed to pay for, one day later.
         billable = subtract(by_platform, Map.get(covered_per_day, date, %{}))
-        included = min(Map.get(billable, @allowance_platform, 0), remaining_free)
+        included = Map.new(billable, fn {platform, ms} -> {platform, min(ms, Map.get(remaining_free, platform, 0))} end)
 
         day = %{
           # The table keys rows on `:id`; without one every row shares a
@@ -170,10 +200,10 @@ defmodule Tuist.Runners.Allowance do
           date: date,
           minutes: div(sum(by_platform), 60_000),
           gross: cost(by_platform),
-          billed: cost(Map.update(billable, @allowance_platform, 0, &(&1 - included)))
+          billed: cost(subtract(billable, included))
         }
 
-        {day, remaining_free - included}
+        {day, subtract(remaining_free, included)}
       end)
 
     priced = per_day |> Enum.map(&elem(&1, 1)) |> merge()
@@ -185,10 +215,10 @@ defmodule Tuist.Runners.Allowance do
       period_end: DateTime.to_date(period_end),
       usage_through: DateTime.to_date(usage_end),
       minutes: div(sum(priced), 60_000),
-      free_minutes: free_monthly_minutes(),
+      free_minutes: Map.new(@priced_platforms, &{&1, free_monthly_minutes(&1)}),
       gross: cost(priced),
       trial_covered: cost(covered),
-      billed: cost(Map.update(billable, @allowance_platform, 0, &max(&1 - free_ms, 0))),
+      billed: cost(Map.new(billable, fn {platform, ms} -> {platform, billed_milliseconds(platform, ms)} end)),
       days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD))),
       by_repository: by_repository(account_id, period_start, usage_end),
       projected_days: projected_days(priced, period_start, period_end, usage_end),
@@ -308,10 +338,10 @@ defmodule Tuist.Runners.Allowance do
         platform: platform,
         minutes: div(ms, 60_000),
         projected_minutes: project(ms, period_start, period_end, usage_end),
-        # Only the macOS Price has a free tier. An account with nothing
-        # billable in the period cannot reach it at all, and a line it
-        # can never spend is worse than no line.
-        included_minutes: if(platform == @allowance_platform and reachable_allowance?, do: free_monthly_minutes()),
+        # An account with nothing billable in the period cannot reach
+        # its free tier at all, and a line it can never spend is worse
+        # than no line.
+        included_minutes: if(reachable_allowance?, do: free_monthly_minutes(platform)),
         previous_minutes: previous_by_platform |> Map.get(platform, 0) |> div(60_000),
         gross: Prepaid.on_demand_cost_for_milliseconds(platform, ms),
         trial_covered: Prepaid.on_demand_cost_for_milliseconds(platform, ms - billable_ms),
@@ -354,9 +384,7 @@ defmodule Tuist.Runners.Allowance do
     |> Map.new(&{&1.platform, &1.total_units})
   end
 
-  defp billed_milliseconds(@allowance_platform, billable_ms), do: max(billable_ms - free_monthly_minutes() * 60_000, 0)
-
-  defp billed_milliseconds(_platform, billable_ms), do: billable_ms
+  defp billed_milliseconds(platform, billable_ms), do: max(billable_ms - free_monthly_minutes(platform) * 60_000, 0)
 
   # Straight-line: what the period has used so far, scaled to its full
   # length. Honest only as an extrapolation, which is what a projection
@@ -403,6 +431,6 @@ defmodule Tuist.Runners.Allowance do
   Minutes left on `account`'s allowance, floored at zero.
   """
   def minutes_remaining(%Account{} = account) do
-    max(free_monthly_minutes() - minutes_used(account), 0)
+    max(free_monthly_minutes(:macos) - minutes_used(account), 0)
   end
 end

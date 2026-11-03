@@ -515,10 +515,11 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
-# Baseline machine-minutes every account gets free per billing period.
-# Must match the first tier of the environment's runner Stripe Price;
-# see `Tuist.Runners.Allowance`.
+# Baseline machine-minutes of each platform every account gets free per
+# billing period. Each must match the first tier of the environment's runner
+# Stripe Price for that platform; see `Tuist.Runners.Allowance`.
 config :tuist, :runner_free_monthly_minutes, 100
+config :tuist, :runner_linux_free_monthly_minutes, 2_500
 
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
