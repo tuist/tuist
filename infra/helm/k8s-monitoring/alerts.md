@@ -2158,6 +2158,66 @@ No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
 
+### Kura migration bridge armed but not ready
+
+```promql
+max by (cluster, namespace, pod) (kura_migration_bridge_armed)
+- max by (cluster, namespace, pod) (kura_migration_bridge_ready)
+```
+
+- Threshold: `> 0`
+- Pending period: 15 minutes
+- Severity: critical
+- All environments (both gauges are on the non-production allowlist in
+  `values.yaml`, because planned storage moves are rehearsed on staging).
+  Folder `Alerts`, group `Cache`, no contact point on the rule (policy
+  routing). **No Data: Normal** (older runtimes do not publish these gauges),
+  **Error: Error**.
+- Summary: `Kura migration bridge on {{ $labels.pod }} has been armed but not
+  ready for 15 minutes ({{ $labels.cluster }})`
+- Proposed rule, recorded in
+  [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
+  `kura-migration-bridge-unready`); it must be created in Grafana separately.
+
+During a planned thin-storage move the source pod arms a write bridge after
+its preparation walk (`infra/kura-controller/thin-migration.md`). From then
+on every write it acknowledges was verified on the named destination process.
+A healthy bridge is armed and ready within seconds of arming. It goes armed
+but unready when the controller rebinds it to a restarted destination process
+and the re-proof cannot finish: the restarted process lost retained records or
+cannot be reached. The controller will not retire the donor until it is ready
+again, so the move is stuck with routing possibly already on the destination.
+
+**When it fires.** Look at `kura_migration_reproof_failures_total_total` and
+the source's `kura.migration.reproof_failed` warning for the cause, and at
+`kura_migration_preparation_walk_records` for how far the re-proof got. Keep
+both volumes. Follow the destination process restart section of the handoff
+protocol; never clear a bridge whose source was already demoted.
+
+A destination that dies after the bridge became ready keeps `ready` at 1; the
+next rule catches it.
+
+### Kura migration bridge armed without destination proof
+
+```promql
+max by (cluster, namespace, pod) (kura_migration_bridge_last_proof_age_seconds)
+```
+
+- Threshold: `> 60`, pending period 2m. The gauge is 0 while no bridge is armed.
+- Severity: critical, all environments (the gauge is on the non-production
+  allowlist). Folder `Alerts`, group `Cache`, policy routing. **No Data:
+  Normal**, **Error: Error**.
+- Proposed rule in
+  [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
+  `kura-migration-bridge-unproven`); it must be created in Grafana separately.
+
+The bridge loop proves the feed on the destination every second, so a growing
+last-proof age means the destination stopped answering or lost records while
+the source refuses writes it cannot prove. Keep both volumes, read the source's
+`kura.migration.bridge_failed` warning and the destination pod's state, and
+follow the handoff protocol. Never clear a bridge whose source was already
+demoted.
+
 ### Kura receiving no REAPI requests
 
 ```promql
@@ -2995,7 +3055,7 @@ cannot tell a leak from a busy customer.
 
 ### Runner cache volume rules
 
-Five rules in folder `Alerts`, group **Runner cache volumes**, evaluated
+Six rules in folder `Alerts`, group **Runner cache volumes**, evaluated
 every five minutes, watch the runner cache volumes (custom, managed and
 checkout volumes attached to Tuist Runners jobs). They are recorded in
 [`runner-cache-volume-alert-rules.json`](runner-cache-volume-alert-rules.json)
@@ -3011,9 +3071,10 @@ and the file together.
 | Runner cache volumes waiting on GitHub job binding | `runner-cache-volume-execution-pending` | policy tree (`#notifications`) |
 | Runner cache volume warm rate low | `runner-cache-volume-warm-rate-low` | policy tree (`#notifications`) |
 | Runner cache volume saves incomplete | `runner-cache-volume-saves-incomplete` | policy tree (`#notifications`) |
+| Runner execution token disagrees with GitHub | `runner-execution-token-disagrees` | policy tree (`#notifications`) |
 
-All five are production only. The warm-rate rule reads Postgres (see its
-section); the other four read Loki (`grafanacloud-logs`), because the metric
+All six are production only. The warm-rate rule reads Postgres (see its
+section); the other five read Loki (`grafanacloud-logs`), because the metric
 that carries the same fields undercounts.
 `tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
@@ -7000,6 +7061,16 @@ comes from the `workflow_job` `in_progress` webhook, and
 `Tuist.Runners.Workers.ExecutionLookupWorker` reading the GitHub API is only a
 fallback. The host gives up after 30 seconds and the job runs cold.
 
+A job whose workflow grants `id-token: write` presents a GitHub OIDC token from
+its job-started hook instead (`Tuist.Runners.ExecutionTokens`). For accounts with
+the `:runner_oidc_execution` flag the token binds the session at job start, so
+those jobs no longer count here. For the others the server logs
+`execution token names a job (not binding)` with the job the token names and
+`recorded_workflow_job_id`, the binding so far; compare them with
+`runner_sessions.executed_workflow_job_id` before enabling the flag. A token
+that disagrees with a recorded binding logs
+`execution token disagrees with the recorded execution`.
+
 ```logql
 (sum(count_over_time({cluster="tuist-production", namespace="tuist-runners", service_name="agent"}
     |= `"msg":"cache volume operation"` |= `"result":"execution_pending"`
@@ -7023,6 +7094,29 @@ to 16 an hour in every other hour from 10-20 to 10-22. GitHub's delivery delay
 ran from 14:52 to 19:23. The host-side refusals stopped at about 17:00, so the
 rule resolves around 17:30, while the server kept missing a few bindings until
 about 21:00.
+
+### Runner execution token disagrees with GitHub
+
+The number of times in the last 30 minutes the server logged
+`execution token disagrees with the recorded execution`: a GitHub Actions OIDC
+token a job minted (`Tuist.Runners.ExecutionTokens`) named a different job for
+its runner session than the `workflow_job` `in_progress` webhook or
+`ExecutionLookupWorker` did, in either order. It reads the server's own stream
+because only the server sees both sources.
+
+```logql
+sum(count_over_time({cluster="tuist-production", service_name="tuist"}
+    |= `execution token disagrees with the recorded execution` [30m])) or vector(0)
+```
+
+- Threshold: `> 0`; no pending period; severity warning; policy tree
+  (`#notifications`). The token is signed by GitHub for one job, so any
+  disagreement is a bug or an attack, never noise.
+- Each line carries `runner_name`, `workflow_job_id` (the token's job) and
+  `recorded_workflow_job_id` (the other source's). The later binding replaces
+  the earlier, and cache volume allocation stops using the token's claims once
+  they no longer name the session's job.
+- No backtest: the log line is new with the token path.
 
 ### Runner cache volume warm rate low
 

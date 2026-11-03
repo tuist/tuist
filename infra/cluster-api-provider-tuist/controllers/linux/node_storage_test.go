@@ -47,10 +47,12 @@ func TestDeleteNodeLocalPVCs(t *testing.T) {
 		Spec:       corev1.PersistentVolumeSpec{ClaimRef: &corev1.ObjectReference{Kind: "PersistentVolumeClaim", Namespace: "kura", Name: "data-net-0"}},
 	}
 
+	encrypted := hostPinnedPV("pv-encrypted", deadNode, "data-encrypted-0")
+	encrypted.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key = "topology.kura-volumes.tuist.dev/node"
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 		hostPinnedPV("pv-dead", deadNode, "data-dead-0"),
 		hostPinnedPV("pv-live", liveNode, "data-live-0"),
-		networkPV,
+		networkPV, encrypted, pvc("data-encrypted-0"),
 		pvc("data-dead-0"),
 		pvc("data-live-0"),
 		pvc("data-net-0"),
@@ -65,6 +67,9 @@ func TestDeleteNodeLocalPVCs(t *testing.T) {
 	}
 	if err := get("data-dead-0"); !apierrors.IsNotFound(err) {
 		t.Fatalf("PVC on the reprovisioned node must be deleted, got %v", err)
+	}
+	if err := get("data-encrypted-0"); !apierrors.IsNotFound(err) {
+		t.Fatalf("encrypted claim was not reaped: %v", err)
 	}
 	if err := get("data-live-0"); err != nil {
 		t.Fatalf("PVC pinned to a different, live node must be kept, got %v", err)

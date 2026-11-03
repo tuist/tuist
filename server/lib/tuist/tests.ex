@@ -2736,10 +2736,10 @@ defmodule Tuist.Tests do
         )
       end
 
-    {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
-      Enum.reduce(Enum.with_index(test_cases), {[], [], [], [], []}, fn {case_attrs, occurrence},
-                                                                        {runs_acc, failures_acc, reps_acc,
-                                                                         attachments_acc, args_acc} ->
+    {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments, all_crash_reports} =
+      Enum.reduce(Enum.with_index(test_cases), {[], [], [], [], [], []}, fn {case_attrs, occurrence},
+                                                                            {runs_acc, failures_acc, reps_acc,
+                                                                             attachments_acc, args_acc, crash_reports_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
@@ -2797,13 +2797,15 @@ defmodule Tuist.Tests do
         test_case_failures = build_failures(case_attrs, test_case_run_id)
         test_case_repetitions = build_repetitions(case_attrs, test_case_run_id)
         test_case_attachments = build_attachments(case_attrs, test_case_run_id, test.id)
+        test_case_crash_reports = build_crash_reports(case_attrs, test_case_run_id)
 
         {
           [test_case_run | runs_acc],
           arg_failures ++ test_case_failures ++ failures_acc,
           arg_repetitions ++ test_case_repetitions ++ reps_acc,
           test_case_attachments ++ attachments_acc,
-          arg_records ++ args_acc
+          arg_records ++ args_acc,
+          test_case_crash_reports ++ crash_reports_acc
         }
       end)
 
@@ -2825,6 +2827,10 @@ defmodule Tuist.Tests do
 
     if Enum.any?(all_attachments) do
       Batch.insert_all(TestCaseRunAttachment, all_attachments)
+    end
+
+    if Enum.any?(all_crash_reports) do
+      Batch.insert_all(CrashReport, all_crash_reports)
     end
 
     # The audit-log row and the outbound webhook fire on the same set:
@@ -2966,6 +2972,27 @@ defmodule Tuist.Tests do
       }
     end)
   end
+
+  # Only xcresult processing reports a crash inline, already linked to the id
+  # of the `.ips` attachment it was parsed from. Clients post crash reports
+  # separately once they know the attachment ids.
+  defp build_crash_reports(%{crash_report: %{attachment_id: attachment_id} = crash_report}, test_case_run_id)
+       when is_binary(attachment_id) do
+    [
+      %{
+        id: Batch.uuid({:crash_report, test_case_run_id, attachment_id}),
+        exception_type: Map.get(crash_report, :exception_type) || "",
+        signal: Map.get(crash_report, :signal) || "",
+        exception_subtype: Map.get(crash_report, :exception_subtype) || "",
+        triggered_thread_frames: Map.get(crash_report, :triggered_thread_frames) || "",
+        test_case_run_id: test_case_run_id,
+        test_case_run_attachment_id: attachment_id,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    ]
+  end
+
+  defp build_crash_reports(_case_attrs, _test_case_run_id), do: []
 
   # The intersection of "this test case row is brand-new" and "the run
   # is the first one observed on the default branch (in the last 90

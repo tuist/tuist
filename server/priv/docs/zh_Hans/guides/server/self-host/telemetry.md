@@ -1,13 +1,13 @@
 ---
 {
   "title": "遥测",
-  "titleTemplate": ":title | 自托管 | Server | 指南 | Tuist",
+  "titleTemplate": ":title | 自托管 | 服务器 | 指南 | Tuist",
   "description": "通过 Prometheus 指标、OpenTelemetry 追踪和日志转发监控你的 Tuist 服务器。"
 }
 ---
 # 遥测 {#telemetry}
 
-Tuist 提供三种互补的可观测性信号：**指标**（Prometheus）、**追踪**（OpenTelemetry）和 **日志**（兼容 Loki）。这三者均为可选，可以独立启用。
+Tuist 提供三种互补的可观测性信号：**指标**（Prometheus）、**追踪**（OpenTelemetry）和 **日志**（兼容 Loki）。这三者均为可选，并可独立启用。
 
 ## 分布式追踪（OpenTelemetry）{#opentelemetry}
 
@@ -17,21 +17,21 @@ Tuist 支持使用 [OpenTelemetry](https://opentelemetry.io/) 进行分布式追
 
 设置以下环境变量以启用追踪导出：
 
-| 环境变量 | 描述 | 必填 | 默认值 | 示例 |
+| 环境变量 | 描述 | 是否必需 | 默认值 | 示例 |
 | --- | --- | --- | --- | --- |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry Collector 的 gRPC 端点（例如 Grafana Alloy、Jaeger 或任何兼容 OTLP 的收集器） | 否 | | `http://localhost:4317` |
 
-未设置此变量时，追踪功能处于禁用状态，不会增加任何开销。
+未设置此变量时，追踪功能将被禁用且不会产生额外开销。
 
 ### 已插桩的库 {#opentelemetry-instrumented-libraries}
 
-启用追踪后，以下库会自动进行插桩：
+启用追踪后，以下库会自动被插桩：
 
-- **Bandit** -- HTTP 服务器连接跨度
-- **Phoenix** -- 请求生命周期跨度（控制器操作、LiveView）
-- **Ecto** -- 带有查询元数据的数据库查询跨度
-- **Finch** -- 出站 HTTP 客户端请求跨度
-- **Broadway** -- 消息处理管道跨度
+- **Bandit** – HTTP 服务器连接跨度
+- **Phoenix** – 请求生命周期跨度（控制器动作、LiveView）
+- **Ecto** – 带有查询元数据的数据库查询跨度
+- **Finch** – 出站 HTTP 客户端请求跨度
+- **Broadway** – 消息处理流水线跨度
 
 ### 使用 Grafana Alloy 的示例设置 {#opentelemetry-alloy-example}
 
@@ -48,19 +48,19 @@ otelcol.receiver.otlp "default" {
 }
 ```
 
-然后设置 `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` 指向 Alloy 实例，例如 `http://alloy:4317`。
+然后将 `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` 设置为指向 Alloy 实例，例如 `http://alloy:4317`。
 
 ## 日志转发（Loki）{#log-forwarding}
 
-Tuist 可以将应用日志转发到兼容 [Loki](https://grafana.com/oss/loki/) 的端点。这使你可以将日志与指标和追踪集中在一起，形成完整的可观测性视图。日志通过 Loki HTTP 推送 API（`/loki/api/v1/push`）推送，并包含 `app`、`env` 和 `level` 标签。
+Tuist 可以将应用日志转发到兼容 [Loki](https://grafana.com/oss/loki/) 的端点。这使你能够将日志与指标和追踪集中在一起，形成完整的可观测性视图。日志通过 Loki HTTP 推送 API（`/loki/api/v1/push`）推送，并包含 `app`、`env` 和 `level` 标签。
 
 ### 配置 {#log-forwarding-configuration}
 
-| 环境变量 | 描述 | 必填 | 默认值 | 示例 |
+| 环境变量 | 描述 | 是否必需 | 默认值 | 示例 |
 | --- | --- | --- | --- | --- |
 | `TUIST_LOKI_URL` | 兼容 Loki 的推送 API 端点的基础 URL | 否 | | `http://localhost:3100` |
 
-未设置此变量时，日志转发功能处于禁用状态。
+未设置此变量时，日志转发功能将被禁用。
 
 ### 使用 Grafana Alloy 的示例设置 {#log-forwarding-alloy-example}
 
@@ -89,7 +89,7 @@ loki.write "your_backend" {
 
 然后设置 `TUIST_LOKI_URL=http://alloy:3100`。
 
-如果 Loki 实例暴露了推送 API，你也可以将 `TUIST_LOKI_URL` 直接指向该实例。
+如果 Loki 实例公开了推送 API，你也可以将 `TUIST_LOKI_URL` 直接指向该实例。
 
 ## Prometheus 指标 {#prometheus-metrics}
 
@@ -97,35 +97,35 @@ loki.write "your_backend" {
 
 ## 真实用户监控 {#real-user-monitoring}
 
-Tuist 可以使用捆绑在所提供的 JavaScript 中的 [Grafana Faro](https://grafana.com/oss/faro/) Web SDK，报告来自营销网站、文档和仪表板的浏览器性能。它会捕获核心网页指标（包括最大内容绘制）、未捕获的错误和页面浏览量，并将这些数据发布到你运行的 [Faro 接收器](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/)——例如 Grafana Alloy 中的 `faro.receiver` 组件，该组件会将数据转发到 Loki 和 Tempo。
+Tuist 可以使用捆绑在服务 JavaScript 中的 [Grafana Faro](https://grafana.com/oss/faro/) Web SDK 报告营销网站、文档和仪表板的浏览器性能。它会捕获核心 Web 指标（包括最大内容绘制）、未捕获的错误和页面浏览量，并将这些数据发布到你运行的 [Faro 接收器](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/)——例如 Grafana Alloy 中的 `faro.receiver` 组件，该组件会将数据转发到 Loki 和 Tempo。
 
 ### 配置 {#real-user-monitoring-configuration}
 
-| 环境变量 | 描述 | 必填 | 默认值 | 示例 |
+| 环境变量 | 描述 | 是否必需 | 默认值 | 示例 |
 | --- | --- | --- | --- | --- |
-| `TUIST_FARO_COLLECTOR_URL` | 浏览器发布 Faro 负载的 URL | 否 | | `/-/faro` |
+| `TUIST_FARO_COLLECTOR_URL` | 浏览器向此 URL 发送 Faro 负载 | 否 | | `/-/faro` |
 
 > [!NOTE]
-> 仅当设置 `TUIST_FARO_COLLECTOR_URL` 时，真实用户监控才会启用。如果没有它，不会收集任何浏览器遥测数据，也不会加载任何第三方脚本。
+> 仅当设置 `TUIST_FARO_COLLECTOR_URL` 时才会启用真实用户监控。如果没有它，不会收集任何浏览器遥测数据，也不会加载任何第三方脚本。
 
-使用同源路径（如 `/-/faro`）可以避免跨域请求，并保持浏览器的内容安全策略不变。通过你的入口网关将其指向你的 Faro 接收器。
+同源路径（如 `/-/faro`）可以避免跨域请求，并保持浏览器的内容安全策略不变。请通过你的入口将其指向你的 Faro 接收器。
 
 ### 收集的内容 {#real-user-monitoring-collected}
 
-- **Web Vitals**：LCP、CLS、INP、FCP 和 TTFB，由浏览器自动捕获
-- **页面浏览量**：在加载和 Phoenix LiveView 导航时记录
-- **视图**：每个负载都携带生成它的部分——`marketing`、`docs`、`dashboard` 或 `api-docs`
+- **Web 指标**：LCP、CLS、INP、FCP 和 TTFB，由浏览器自动捕获
+- **页面浏览量**：在加载时和 Phoenix LiveView 导航时记录
+- **视图**：每个负载都携带产生它的部分——`marketing`、`docs`、`dashboard` 或 `api-docs`
 - **错误**：未捕获的异常和未处理的 Promise 拒绝
 
-### 隐私考量 {#real-user-monitoring-privacy}
+### 隐私考虑 {#real-user-monitoring-privacy}
 
 - 不附加用户身份：负载中不包含用户 ID、电子邮件或账户信息
-- 会话不会在访问之间持久化，因此不会向浏览器存储写入任何内容
-- 控制台捕获处于关闭状态，因此应用日志输出绝不会从浏览器发送
+- 会话不会在多次访问间持久化，因此不会向浏览器存储写入任何内容
+- 控制台捕获已关闭，因此应用日志输出绝不会从浏览器发送出去
 
 ## Elixir 指标 {#elixir-metrics}
 
-默认情况下，我们包含 Elixir 运行时、BEAM、Elixir 以及我们使用的一些库的指标。以下是你可以看到的一些指标：
+默认情况下，我们包含 Elixir 运行时、BEAM、Elixir 以及我们使用的部分库的指标。以下是你可以看到的一些指标：
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -138,19 +138,19 @@ Tuist 可以使用捆绑在所提供的 JavaScript 中的 [Grafana Faro](https:/
 
 ## 运行指标 {#runs-metrics}
 
-一组与 Tuist Runs 相关的指标。
+一组与 Tuist 运行相关的指标。
 
 ### `tuist_runs_total`（计数器）{#tuist_runs_total-counter}
 
-Tuist Runs 的总数。
+Tuist 运行的总次数。
 
 #### 标签 {#tuist-runs-total-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
 | `name` | 运行的 `tuist` 命令的名称，例如 `build`、`test` 等。 |
-| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发人员的机器。 |
-| `status` | `success` 成功时 `0`，`failure` 失败时 `1`。 |
+| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发者的机器。 |
+| `status` | `success` 时为 `0`，`failure` 时为 `1`。 |
 
 ### `tuist_runs_duration_milliseconds`（直方图）{#tuist_runs_duration_milliseconds-histogram}
 
@@ -161,12 +161,12 @@ Tuist Runs 的总数。
 | 标签 | 描述 |
 |--- | ---- |
 | `name` | 运行的 `tuist` 命令的名称，例如 `build`、`test` 等。 |
-| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发人员的机器。 |
-| `status` | `success` 成功时 `0`，`failure` 失败时 `1`。 |
+| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发者的机器。 |
+| `status` | `0` 表示 `success`，`1` 表示 `failure`。 |
 
 ## 缓存指标 {#cache-metrics}
 
-一组与 Tuist Cache 相关的指标。
+一组与 Tuist 缓存相关的指标。
 
 ### `tuist_cache_events_total`（计数器）{#tuist_cache_events_total-counter}
 
@@ -212,7 +212,7 @@ Tuist Runs 的总数。
 
 ## 存储指标 {#storage-metrics}
 
-一组与远程存储（例如 S3）中工件存储相关的指标。
+一组与远程存储（例如 S3）中构件存储相关的指标。
 
 > [!TIP]
 > 这些指标有助于了解存储操作的性能并识别潜在瓶颈。
@@ -448,7 +448,7 @@ Tuist Runs 的总数。
 
 一组与数据库连接相关的指标。
 
-仓库池指标在内部每 100 毫秒采样一次，然后通过 `/metrics` 暴露给 Prometheus。下面的 `last_value` 指标显示抓取时的最新池状态。后文的压力指标是从这些 100 毫秒样本中得出的总和，这使得即使在下次抓取之前已恢复的短暂饱和窗口也更容易被发现。
+仓库连接池指标每 100 毫秒在内部采样一次，然后通过 `/metrics` 暴露给 Prometheus。下面的 `last_value` 指标显示抓取时的最新连接池状态。下方的压力指标是从这些 100 毫秒样本中得出的总和，这使得即使在下次抓取之前恢复，也更容易发现短暂的饱和窗口。
 
 ### `tuist_repo_pool_checkout_queue_length`（最新值）{#tuist_repo_pool_checkout_queue_length-last_value}
 
@@ -474,7 +474,7 @@ Tuist Runs 的总数。
 
 ### `tuist_repo_pool_size`（最新值）{#tuist_repo_pool_size-last_value}
 
-池中配置的连接数。
+连接池中配置的连接数。
 
 #### 标签 {#tuist_repo_pool_size-tags}
 
@@ -485,7 +485,7 @@ Tuist Runs 的总数。
 
 ### `tuist_repo_pool_checkout_queue_total_samples_sum`（总和）{#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
 
-执行的仓库池轮询总次数（每次轮询增加 1）。在计算忙碌率或饥饿率百分比时将其用作分母：`rate(busy_samples) / rate(total_samples)` 或 `rate(starved_samples) / rate(total_samples)`。
+执行的仓库连接池轮询总次数（每次轮询增加 1）。在计算繁忙率或饥饿率百分比时，将此用作分母：`rate(busy_samples) / rate(total_samples)` 或 `rate(starved_samples) / rate(total_samples)`。
 
 #### 标签 {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
 
@@ -496,7 +496,7 @@ Tuist Runs 的总数。
 
 ### `tuist_repo_pool_checkout_queue_observed_sum`（总和）{#tuist_repo_pool_checkout_queue_observed_sum-sum}
 
-在仓库池轮询中观察到的排队检出请求的总和。这对于检测可能仅在最新队列长度样本中不可见的短暂池争用突发非常有用。
+在仓库连接池轮询中观察到的排队检出请求的总和。这对于检测可能仅从最新的队列长度样本中无法看到的短暂连接池争用很有用。
 
 #### 标签 {#tuist_repo_pool_checkout_queue_observed_sum-tags}
 
@@ -507,7 +507,7 @@ Tuist Runs 的总数。
 
 ### `tuist_repo_pool_checkout_queue_busy_samples_sum`（总和）{#tuist_repo_pool_checkout_queue_busy_samples_sum-sum}
 
-至少有一个数据库检出请求在队列中等待的仓库池轮询次数。
+仓库连接池轮询中至少有一个数据库检出请求在队列中等待的次数。
 
 #### 标签 {#tuist_repo_pool_checkout_queue_busy_samples_total-tags}
 
@@ -518,7 +518,7 @@ Tuist Runs 的总数。
 
 ### `tuist_repo_pool_checkout_queue_starved_samples_sum`（总和）{#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
 
-检出请求排队且没有可用就绪连接的仓库池轮询次数。此处持续增加通常意味着池已饱和。
+仓库连接池轮询中检出请求排队且没有可用就绪连接的次数。此处持续增加通常意味着连接池已饱和。
 
 #### 标签 {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
 
@@ -558,11 +558,11 @@ Tuist Runs 的总数。
 
 ### `tuist_http_queue_count`（计数器）{#tuist_http_queue_count-counter}
 
-从池中检索的请求数量。
+从连接池中检索的请求数量。
 
 ### `tuist_http_queue_duration_nanoseconds_sum`（总和）{#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-从池中检索连接所需的时间。
+从连接池中检索连接所需的时间。
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum`（总和）{#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
@@ -570,7 +570,7 @@ Tuist Runs 的总数。
 
 ### `tuist_http_queue_duration_nanoseconds_bucket`（分布）{#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-从池中检索连接所需的时间。
+从连接池中检索连接所需的时间。
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket`（分布）{#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
@@ -590,19 +590,19 @@ Tuist Runs 的总数。
 
 ### `tuist_http_send_count`（计数器）{#tuist_http_send_count-counter}
 
-分配到池中的连接后已发送的请求数量。
+从连接池分配连接后已发送的请求数量。
 
 ### `tuist_http_send_duration_nanoseconds_sum`（总和）{#tuist_http_send_duration_nanoseconds_sum-sum}
 
-分配到池中的连接后请求完成所需的时间。
+从连接池分配连接后请求完成所需的时间。
 
 ### `tuist_http_send_duration_nanoseconds_bucket`（分布）{#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-分配到池中的连接后请求完成所需时间的分布。
+从连接池分配连接后请求完成所需时间的分布。
 
 ### `tuist_http_receive_count`（计数器）{#tuist_http_receive_count-counter}
 
-从已发送请求中收到的响应数量。
+已收到已发送请求的响应数量。
 
 ### `tuist_http_receive_duration_nanoseconds_sum`（总和）{#tuist_http_receive_duration_nanoseconds_sum-sum}
 
@@ -618,4 +618,4 @@ Tuist Runs 的总数。
 
 ### `tuist_http_queue_in_use_connections`（最新值）{#tuist_http_queue_in_use_connections-last_value}
 
-正在使用的队列连接数。
+队列中正在使用的连接数。

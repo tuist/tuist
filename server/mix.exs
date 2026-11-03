@@ -26,7 +26,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
-      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh]
+      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh, :inets]
     ]
   end
 
@@ -66,6 +66,9 @@ defmodule Tuist.MixProject do
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.12.0", override: true},
+      # Keep the production WebSocket adapter while qualifying storage changes;
+      # upgrading this otherwise re-resolved transitive dependency is separate.
+      {:websock_adapter, "0.6.0", override: true},
       # The WebSocket upgrade crash that originally held this at 1.19.2
       # (ArgumentError ":upgrade not a binary") came from the header validation
       # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
@@ -126,6 +129,8 @@ defmodule Tuist.MixProject do
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
+      {:nimble_totp, "~> 1.0"},
+      {:wax_, "~> 0.7"},
       {:yaml_elixir, "~> 2.11"},
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
