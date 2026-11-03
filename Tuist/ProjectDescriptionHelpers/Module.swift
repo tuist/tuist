@@ -510,7 +510,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.alert.targetName),
-                    .target(name: Module.tuistExtension.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -1905,6 +1904,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
+                    .target(name: Module.tuistExtension.targetName),
                     .target(name: Module.jobSummary.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
