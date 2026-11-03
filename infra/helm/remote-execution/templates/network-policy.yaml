@@ -7,7 +7,12 @@ spec:
   podSelector:
     matchLabels: {app: "{{ .Release.Name }}-workers"}
   policyTypes: [Ingress, Egress]
-  ingress: []
+  # Only the gateway claims executions the server leased to it.
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: "{{ .Release.Name }}-gateway"}
+      ports: [{protocol: TCP, port: 7071}]
   egress:
     - to:
         - namespaceSelector:

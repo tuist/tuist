@@ -49,6 +49,29 @@ readable for one minute. Queued operations fail after 15 minutes. The queue is
 bounded to four times the account concurrency, at most 512 actions; a full queue
 returns `RESOURCE_EXHAUSTED`.
 
+### Leases
+
+While a project is active, each gateway replica holds one **lease** for it: a
+prepared VM whose node waits for the gateway to claim it. The gateway runs the
+project's next action by claiming that VM directly on its node with the
+action request, and receives the result from the node, without a server
+request. Queued operations take ready VMs before leases. The scheduler grants a
+lease by sending the node an `exec` that waits for a single-use nonce, which
+only the gateway receives; the project credential stays on the node. The
+pending `exec` ends when the action finishes, which retires the VM, or after
+30 seconds unclaimed, which returns the untouched VM to the pool. The gateway
+stops using a lease five seconds before that and replaces each lease once
+used or expired, until the project has been idle for a minute.
+
+The gateway uses a lease only for a credential the server accepted for the
+project in the last ten seconds, and never past the credential's expiry, the
+same decision reuse as the server's. Other credentials, projects without a
+lease and refused claims go through the server. Identical in-flight actions
+do not share an operation on this path, and `WaitExecution` for its operations
+returns `NOT_FOUND`, which Bazel answers by executing again. The server
+advertises leases in the capabilities response; nodes serve claims on
+`DIRECT_EXEC_ADDR`, reachable only from gateway Pods.
+
 ### Account concurrency
 
 `max_concurrency` bounds the account's **VMs**, not its actions. Every VM has a

@@ -132,6 +132,18 @@ defmodule Tuist.RemoteExecution do
     end
   end
 
+  @doc """
+  Grants the gateway a prepared VM of the project, waiting up to `:wait` for
+  one. The gateway runs its next action of the project on it directly through
+  the node, with the returned single-use nonce, until `expires_in_ms`; an
+  unclaimed lease returns the VM to the pool. Returns `{:ok, nil}` when no VM
+  became ready in time.
+  """
+  def lease(project, opts \\ []) do
+    attrs = %{project_id: project.id, account_name: project.account.name, project_name: project.name}
+    Scheduler.lease(project.account_id, attrs, wait(opts))
+  end
+
   def maintain, do: VMs.reap()
 
   defp cached_authorization(key) do

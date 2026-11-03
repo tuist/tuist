@@ -113,10 +113,11 @@ spec:
             - {name: PREBUILD_SHAPES, value: "2x4096"}
             - {name: DISK_BUDGET_GIB, value: {{ .Values.workers.diskGiB | quote }}}
             - {name: METRICS_ADDR, value: "$(POD_IP):9090"}
+            - {name: DIRECT_EXEC_ADDR, value: "$(POD_IP):7071"}
           resources:
             requests: {cpu: {{ mul $slots 2 | quote }}, memory: "{{ add 512 (mul $slots 4160) }}Mi"}
             limits: {cpu: {{ mul $slots 2 | quote }}, memory: "{{ add 512 (mul $slots 4160) }}Mi"}
-          ports: [{name: metrics, containerPort: 9090}]
+          ports: [{name: metrics, containerPort: 9090}, {name: direct-exec, containerPort: 7071}]
           volumeMounts:
             - {name: data, mountPath: /data/sandboxes}
             - {name: kvm, mountPath: /dev/kvm}

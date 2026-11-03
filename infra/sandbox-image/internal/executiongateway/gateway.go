@@ -45,6 +45,11 @@ type Gateway struct {
 	conns        map[string]*grpc.ClientConn
 	// Each project's cache endpoint, learned from capability checks.
 	endpoints map[string]endpoint
+	// Direct claims a leased VM's exec on its node; it has no timeout of
+	// its own because the claim lasts as long as the action.
+	Direct         *http.Client
+	projects       map[string]*projectLeases
+	authorizations map[[32]byte]time.Time
 }
 
 const maxStreams = 128
@@ -52,13 +57,15 @@ const maxStreams = 128
 type endpoint struct {
 	url     string
 	expires time.Time
+	// The control plane grants this project's VMs as leases.
+	leases bool
 }
 
 func New(serverURL string) *Gateway {
 	// Every admitted stream may hold a server connection, including long polls.
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = maxStreams
-	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}}
+	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
@@ -95,6 +102,7 @@ type operation struct {
 	ActionHash  string `json:"action_hash"`
 	ActionSize  int64  `json:"action_size"`
 	CASEndpoint string `json:"cas_endpoint"`
+	Leases      bool   `json:"leases"`
 }
 
 func (g *Gateway) call(ctx context.Context, method, account, project, suffix, auth string, body any) (operation, error) {
@@ -155,7 +163,7 @@ func (g *Gateway) GetCapabilities(ctx context.Context, r *re.GetCapabilitiesRequ
 	if err != nil {
 		return nil, err
 	}
-	g.remember(account, r.InstanceName, op.CASEndpoint)
+	g.remember(account, r.InstanceName, op.CASEndpoint, op.Leases)
 	return &re.ServerCapabilities{LowApiVersion: &semver.SemVer{Major: 2}, HighApiVersion: &semver.SemVer{Major: 2, Minor: 3}, ExecutionCapabilities: &re.ExecutionCapabilities{ExecEnabled: true, DigestFunction: re.DigestFunction_SHA256, DigestFunctions: []re.DigestFunction_Value{re.DigestFunction_SHA256}}}, nil
 }
 
@@ -184,14 +192,19 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	if r.ExecutionPolicy.GetPriority() != 0 || r.ResultsCachePolicy.GetPriority() != 0 {
 		return status.Error(codes.InvalidArgument, "execution priorities are not supported")
 	}
+	inputs := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
+	if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
+		return g.stream(s, account, r.InstanceName, auth, op)
+	}
 	body := map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup}
-	if inputs := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest); inputs != "" {
+	if inputs != "" {
 		body["inputs"] = inputs
 	}
 	op, err := g.call(s.Context(), http.MethodPost, account, r.InstanceName, "/operations", auth, body)
 	if err != nil {
 		return err
 	}
+	g.rememberAuthorization(auth, account, r.InstanceName)
 	return g.stream(s, account, r.InstanceName, auth, op)
 }
 

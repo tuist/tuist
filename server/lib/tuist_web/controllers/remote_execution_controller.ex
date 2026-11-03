@@ -13,7 +13,8 @@ defmodule TuistWeb.RemoteExecutionController do
           image: settings.image_tag,
           endpoint: settings.executor_endpoint,
           cas_endpoint: settings.cas_endpoint,
-          max_concurrency: concurrency
+          max_concurrency: concurrency,
+          leases: true
         })
 
       _ ->
@@ -33,6 +34,22 @@ defmodule TuistWeb.RemoteExecutionController do
 
       {:error, :queue_full} ->
         conn |> put_status(:too_many_requests) |> json(%{message: "execution queue is full"})
+
+      {:error, _} ->
+        conn |> put_status(:service_unavailable) |> json(%{message: "execution unavailable"})
+    end
+  end
+
+  def lease(conn, _params) do
+    case RemoteExecution.lease(conn.assigns.execution_project) do
+      {:ok, nil} ->
+        send_resp(conn, :no_content, "")
+
+      {:ok, lease} ->
+        json(conn, lease)
+
+      {:error, :unsupported} ->
+        conn |> put_status(:not_found) |> json(%{message: "direct execution is not available"})
 
       {:error, _} ->
         conn |> put_status(:service_unavailable) |> json(%{message: "execution unavailable"})

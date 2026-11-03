@@ -259,6 +259,7 @@ Server to node:
 {"type":"command","id":"c3","op":"pause","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c4","op":"delete","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c5","op":"exec","args":{"sandbox_id":"...","cmd":["/bin/bash","-lc","ls"],"env":{},"cwd":"/workspace","timeout_ms":60000}}
+{"type":"command","id":"c11","op":"exec","args":{"sandbox_id":"...","cmd":["/usr/local/bin/sbx-executor"],"env":{...},"cwd":"/workspace","timeout_ms":780000,"claim":{"nonce_sha256":"<hex>","env":"SBX_EXECUTION_REQUEST","timeout_ms":30000}}}
 {"type":"command","id":"c6","op":"start_worker","args":{"sandbox_id":"...","env":{"ANTHROPIC_SESSION_ID":"...","ANTHROPIC_WORK_ID":"...","ANTHROPIC_ENVIRONMENT_ID":"...","ANTHROPIC_ENVIRONMENT_KEY":"...","ANTHROPIC_WORK_SECRET":"...","ANTHROPIC_BASE_URL":"...","SBX_MAX_IDLE":"30s"}}}
 {"type":"command","id":"c7","op":"stop_worker","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
@@ -276,6 +277,14 @@ its result (`data.exit_code`). `start_worker` results as soon as the worker
 process is running; `worker_exited` follows as an event. Credentials travel
 only in `start_worker` args, are handed to the guest over vsock, and are never
 written to the node's disk by the daemon.
+
+An `exec` with a `claim` waits up to `claim.timeout_ms` for a caller to post
+`{sandbox_id, nonce, value}` to `POST /v1/claims` on `DIRECT_EXEC_ADDR`
+(advertised as `direct_exec_endpoint` in `hello`). The nonce must hash to
+`claim.nonce_sha256`; the claim is single-use. The command then runs with
+`value` in `claim.env`, its standard output goes only to the caller
+(`{exit_code, stdout}`), and the result carries the exit code. Unclaimed, the
+result is `{"unclaimed": true}` and nothing ran.
 
 The daemon rereads its cgroup's memory limit every 250 ms and sends a
 `report` as soon as it changes, so a resize of its Pod reaches the server's
@@ -413,6 +422,7 @@ agent so the manager runs end to end without KVM).
 | `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. |
 | `ALLOWED_SHAPES` | | The only shapes `create` and template builds accept. Empty accepts any valid shape. |
 | `DISK_BUDGET_GIB` | `0` | Share of the data filesystem sandboxes may reserve, reported as `disk.budget_bytes`; the server reserves each sandbox's ceiling against it. `0` reports no budget. |
+| `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |
 | `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
 | `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |

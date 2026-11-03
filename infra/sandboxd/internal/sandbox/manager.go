@@ -85,6 +85,7 @@ type Manager struct {
 	metrics   *Metrics
 	events    func(protocol.Event)
 	log       *slog.Logger
+	claims    *Claims
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -168,8 +169,12 @@ func New(cfg Config, deps Deps) *Manager {
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
 		sandboxes: map[string]*Sandbox{},
+		claims:    NewClaims(),
 	}
 }
+
+// Claims holds the claimed execs waiting for their direct caller.
+func (m *Manager) Claims() *Claims { return m.claims }
 
 func (m *Manager) get(id string) (*Sandbox, error) {
 	m.mu.Lock()

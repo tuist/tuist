@@ -82,6 +82,33 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     end
   end
 
+  test "leases go to enabled, writable credentials only", %{conn: conn, project: project, prefix: prefix} do
+    stub(Introspection, :token_response, fn _, _ -> grant(project) end)
+    stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> true end)
+    project_id = project.id
+
+    lease = %{
+      sandbox_id: "vm",
+      endpoint: "http://10.0.0.1:7071",
+      nonce: "bm9uY2U=",
+      image: "sha-a",
+      expires_in_ms: 25_000
+    }
+
+    expect(RemoteExecution, :lease, fn %{id: ^project_id} -> {:ok, lease} end)
+    assert %{"sandbox_id" => "vm", "nonce" => "bm9uY2U="} = conn |> post(prefix <> "/leases") |> json_response(:ok)
+
+    expect(RemoteExecution, :lease, fn _ -> {:ok, nil} end)
+    assert conn |> post(prefix <> "/leases") |> response(:no_content)
+
+    expect(RemoteExecution, :lease, fn _ -> {:error, :unsupported} end)
+    assert conn |> post(prefix <> "/leases") |> json_response(:not_found)
+
+    stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> false end)
+    reject(&RemoteExecution.lease/1)
+    assert conn |> post(prefix <> "/leases") |> json_response(:forbidden)
+  end
+
   test "operations stay readable after admission is disabled", %{conn: conn, project: project, prefix: prefix} do
     stub(Introspection, :token_response, fn _, _ -> grant(project) end)
     stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> false end)

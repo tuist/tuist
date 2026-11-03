@@ -18,6 +18,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.VMs
+  alias Tuist.Sandboxes.Nodes
 
   @supervisor Tuist.RemoteExecution.Schedulers
   @tasks Tuist.RemoteExecution.Tasks
@@ -37,6 +38,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
   @fresh_lease_ms 40_000
   # A cached project credential must outlive the longest action it is given to.
   @token_min_remaining_seconds 780
+  # The gateway stops using a lease this long before its node expires it.
+  @lease_margin_ms 5_000
 
   def name(account_id), do: {:global, {__MODULE__, account_id}}
 
@@ -58,6 +61,12 @@ defmodule Tuist.RemoteExecution.Scheduler do
   def submit(account_id, attrs, wait_ms) do
     with {:ok, pid} <- ensure_started(account_id) do
       call(pid, {:submit, attrs, wait_ms}, wait_ms)
+    end
+  end
+
+  def lease(account_id, attrs, wait_ms) do
+    with {:ok, pid} <- ensure_started(account_id) do
+      call(pid, {:lease, attrs, wait_ms}, wait_ms)
     end
   end
 
@@ -116,6 +125,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
            settings: settings,
            ops: %{},
            queue: :queue.new(),
+           lease_waiters: :queue.new(),
            inflight: %{},
            vms: %{},
            tasks: %{},
@@ -139,6 +149,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   @impl GenServer
   def handle_call({:submit, _attrs, _wait_ms}, _from, %{settings: nil} = state) do
+    {:reply, {:error, :unavailable}, state}
+  end
+
+  def handle_call({:lease, _attrs, _wait_ms}, _from, %{settings: nil} = state) do
     {:reply, {:error, :unavailable}, state}
   end
 
@@ -169,6 +183,13 @@ defmodule Tuist.RemoteExecution.Scheduler do
           wait_for(state, op.id, from, :done, wait_ms)
         end
     end
+  end
+
+  def handle_call({:lease, attrs, wait_ms}, from, state) do
+    timer = make_ref()
+    Process.send_after(self(), {:lease_timeout, timer}, wait_ms)
+    waiter = %{from: from, attrs: attrs, timer: timer}
+    {:noreply, dispatch(%{state | active_at: now_ms(), lease_waiters: :queue.in(waiter, state.lease_waiters)})}
   end
 
   def handle_call({:await, project_id, id, after_state, wait_ms}, from, state) do
@@ -215,6 +236,12 @@ defmodule Tuist.RemoteExecution.Scheduler do
         Enum.each(expired, fn {from, _mode, _timer} -> GenServer.reply(from, {:ok, view(op)}) end)
         {:noreply, put_op(state, %{op | waiters: waiting})}
     end
+  end
+
+  def handle_info({:lease_timeout, timer}, state) do
+    {expired, waiting} = state.lease_waiters |> :queue.to_list() |> Enum.split_with(&(&1.timer == timer))
+    Enum.each(expired, &GenServer.reply(&1.from, {:ok, nil}))
+    {:noreply, %{state | lease_waiters: :queue.from_list(waiting)}}
   end
 
   def handle_info({:destroy, vm_id}, state) do
@@ -333,7 +360,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
   defp dispatch(state) do
     case :queue.peek(state.queue) do
       :empty ->
-        reconcile(state)
+        grant_leases(state)
 
       {:value, id} ->
         case {Map.get(state.ops, id), ready_vm(state)} do
@@ -380,6 +407,54 @@ defmodule Tuist.RemoteExecution.Scheduler do
     |> notify(op.id)
   end
 
+  # Queued operations take ready VMs first; leases get the rest.
+  defp grant_leases(state) do
+    with {:value, waiter} <- :queue.peek(state.lease_waiters),
+         %{} = vm <- ready_vm(state) do
+      grant_leases(grant(%{state | lease_waiters: :queue.drop(state.lease_waiters)}, waiter, vm))
+    else
+      _ -> reconcile(state)
+    end
+  end
+
+  defp grant(state, waiter, vm) do
+    case direct_endpoint(vm.sandbox.node_name) do
+      nil ->
+        GenServer.reply(waiter.from, {:error, :unsupported})
+        state
+
+      endpoint ->
+        nonce = :crypto.strong_rand_bytes(32)
+        digest = Base.encode16(:crypto.hash(:sha256, nonce), case: :lower)
+        project_id = waiter.attrs.project_id
+        token = cached_token(state, project_id)
+
+        GenServer.reply(
+          waiter.from,
+          {:ok,
+           %{
+             sandbox_id: vm.sandbox.id,
+             endpoint: endpoint,
+             nonce: Base.encode64(nonce),
+             image: vm.sandbox.template_tag,
+             cas_endpoint: state.settings.cas_endpoint,
+             expires_in_ms: VMs.claim_timeout_ms() - @lease_margin_ms
+           }}
+        )
+
+        %{state | arrivals: :queue.in(now_ms(), state.arrivals)}
+        |> put_vm(%{vm | state: :leased})
+        |> start_task({:lease, vm.id, project_id}, fn -> VMs.lease(vm.sandbox, digest, project_id, token) end)
+    end
+  end
+
+  defp direct_endpoint(node) do
+    case Nodes.lookup(node) do
+      {:ok, _pid, %{direct_exec_endpoint: "http" <> _ = endpoint}} -> endpoint
+      _ -> nil
+    end
+  end
+
   defp cached_token(state, project_id) do
     case Map.get(state.tokens, project_id) do
       {token, expires_at} -> if expires_at - System.system_time(:second) >= @token_min_remaining_seconds, do: token
@@ -404,6 +479,20 @@ defmodule Tuist.RemoteExecution.Scheduler do
     |> complete(op_id, result)
     |> retire(vm_id, nil)
     |> dispatch()
+  end
+
+  defp handle_task({:lease, vm_id, project_id}, result, state) do
+    {result, state} =
+      case result do
+        {result, {token, expires_at}} -> {result, put_in(state.tokens[project_id], {token, expires_at})}
+        {result, nil} -> {result, state}
+        :crashed -> {:crashed, state}
+      end
+
+    case {result, Map.get(state.vms, vm_id)} do
+      {:unclaimed, %{state: :leased} = vm} -> dispatch(put_vm(state, %{vm | state: :ready}))
+      _ -> state |> retire(vm_id, nil) |> dispatch()
+    end
   end
 
   defp handle_task({:prepare, placeholder}, result, state) do
@@ -473,9 +562,9 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   defp handle_task({:renew, _ids, _sent_at}, _error, state), do: state
 
-  # The reaper deleted this row: its VM is gone or being deleted. A busy VM's
-  # action fails on its own; idle and retiring ones need nothing more.
-  defp lost(vms, %{state: :busy}), do: vms
+  # The reaper deleted this row: its VM is gone or being deleted. A busy or
+  # leased VM's action fails on its own; idle and retiring ones need nothing more.
+  defp lost(vms, %{state: state}) when state in [:busy, :leased], do: vms
   defp lost(vms, vm), do: Map.delete(vms, vm.id)
 
   defp complete(state, id, result) do
@@ -523,7 +612,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
   defp reconcile(state) do
     settings = state.settings
     {warm, state} = warm_target(state, now_ms())
-    queued = Enum.count(state.ops, fn {_id, op} -> op.state == :queued end)
+    queued = Enum.count(state.ops, fn {_id, op} -> op.state == :queued end) + :queue.len(state.lease_waiters)
     ready = state.vms |> Map.values() |> Enum.filter(&(&1.state == :ready))
     {stale, ready} = Enum.split_with(ready, &(not matches?(&1.sandbox, settings)))
     excess = if queued == 0, do: Enum.drop(Enum.sort_by(ready, & &1.renewed_at, :desc), warm), else: []
@@ -531,8 +620,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     vms = Map.values(state.vms)
     count = fn states -> Enum.count(vms, &(&1.state in states)) end
-    desired = min(settings.max_concurrency, count.([:busy]) + queued + warm)
-    room = min(desired - count.([:reserving, :ready, :busy]), settings.max_concurrency - map_size(state.vms))
+    desired = min(settings.max_concurrency, count.([:busy, :leased]) + queued + warm)
+    room = min(desired - count.([:reserving, :ready, :busy, :leased]), settings.max_concurrency - map_size(state.vms))
 
     if room > 0 and is_nil(state.blocked_on) and now_ms() >= state.prepare_after do
       Enum.reduce(1..room, state, fn _, state -> start_prepare(state) end)

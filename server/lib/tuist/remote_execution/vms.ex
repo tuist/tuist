@@ -7,7 +7,7 @@ defmodule Tuist.RemoteExecution.VMs do
 
   The owning scheduler renews its rows' leases in batches. A row whose lease
   lapsed belongs to a lost scheduler; `reap/0` deletes its VM. None of these
-  functions run per action except `execute/4`, which only talks to the node.
+  functions run per action except `execute/4` and `lease/4`, which only talk to the node.
   """
   import Ecto.Query
 
@@ -30,6 +30,8 @@ defmodule Tuist.RemoteExecution.VMs do
   @max_stdout_bytes 262_144
   @max_response_bytes 131_072
   @token_ttl_seconds 1800
+  # A lease the gateway does not use returns its VM to the pool after this.
+  @claim_timeout_ms 30_000
 
   def lease_seconds, do: @lease_seconds
 
@@ -115,11 +117,7 @@ defmodule Tuist.RemoteExecution.VMs do
   and returned so the scheduler can cache it.
   """
   def execute(%Sandbox{} = sandbox, request, project_id, token) do
-    {token, issued} =
-      case token do
-        nil -> issue_token(project_id)
-        token -> {token, nil}
-      end
+    {token, issued} = token_for(project_id, token)
 
     result =
       case token do
@@ -129,6 +127,42 @@ defmodule Tuist.RemoteExecution.VMs do
 
     {result, issued}
   end
+
+  @doc """
+  Holds a prepared VM for a direct caller: its node runs the executor once
+  the caller claims the exec with the nonce whose SHA-256 is `nonce_sha256`,
+  and only the caller receives the output. Returns `:claimed` after that
+  action ran and `:unclaimed` when the claim expired with the VM untouched,
+  with the issued credential as in `execute/4`.
+  """
+  def lease(%Sandbox{} = sandbox, nonce_sha256, project_id, token) do
+    {token, issued} = token_for(project_id, token)
+
+    args = %{
+      sandbox_id: sandbox.id,
+      cmd: ["/usr/local/bin/sbx-executor"],
+      env: %{"SBX_EXECUTION_TOKEN" => token},
+      cwd: "/workspace",
+      timeout_ms: @exec_timeout_ms,
+      claim: %{nonce_sha256: nonce_sha256, env: "SBX_EXECUTION_REQUEST", timeout_ms: @claim_timeout_ms}
+    }
+
+    result =
+      with token when is_binary(token) <- token,
+           {:ok, data} <-
+             Nodes.call(sandbox.node_name, "exec", args, timeout: @claim_timeout_ms + @exec_timeout_ms + 10_000) do
+        if data["unclaimed"] == true, do: :unclaimed, else: :claimed
+      else
+        _ -> {:error, :lease_failed}
+      end
+
+    {result, issued}
+  end
+
+  def claim_timeout_ms, do: @claim_timeout_ms
+
+  defp token_for(project_id, nil), do: issue_token(project_id)
+  defp token_for(_project_id, token), do: {token, nil}
 
   defp issue_token(project_id) do
     project = project_id |> Projects.get_project_by_id() |> Repo.preload(:account)

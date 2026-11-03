@@ -155,6 +155,8 @@ type Hello struct {
 	Templates          []TemplateInfo     `json:"templates"`
 	Sandboxes          []SandboxInfo      `json:"sandboxes"`
 	DiskSnapshots      []DiskSnapshotInfo `json:"disk_snapshots"`
+	// DirectExecEndpoint serves claims of claimed execs.
+	DirectExecEndpoint string `json:"direct_exec_endpoint,omitempty"`
 }
 
 type Result struct {
@@ -272,6 +274,16 @@ type ExecArgs struct {
 	Env       map[string]string `json:"env"`
 	Cwd       string            `json:"cwd"`
 	TimeoutMs int64             `json:"timeout_ms"`
+	// Claim makes the exec wait for a direct caller to supply one variable.
+	Claim *ClaimArgs `json:"claim,omitempty"`
+}
+
+// ClaimArgs: the exec runs only once a caller presents the nonce whose
+// SHA-256 is NonceSHA256, with the value of Env, within TimeoutMs.
+type ClaimArgs struct {
+	NonceSHA256 string `json:"nonce_sha256"`
+	Env         string `json:"env"`
+	TimeoutMs   int64  `json:"timeout_ms"`
 }
 
 type StartWorkerArgs struct {
@@ -317,6 +329,8 @@ type ArchiveResult struct {
 type ExecResult struct {
 	ExitCode   int   `json:"exit_code"`
 	DurationMs int64 `json:"duration_ms"`
+	// Unclaimed: a claimed exec expired before a caller claimed it.
+	Unclaimed bool `json:"unclaimed,omitempty"`
 }
 
 type StartWorkerResult struct {

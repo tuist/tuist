@@ -76,6 +76,10 @@ defmodule Tuist.RemoteExecutionTest do
       send(test, {:node, command, args})
 
       case command do
+        "exec" when is_map_key(args, :claim) ->
+          send(test, {:claim_pending, self()})
+          receive do: ({:claim, outcome} -> outcome)
+
         "exec" ->
           if args.cmd == ["/usr/local/bin/sbx-executor"], do: run_action(test, call_opts, result, opts)
           {:ok, %{"exit_code" => 0}}
@@ -305,6 +309,61 @@ defmodule Tuist.RemoteExecutionTest do
     assert [id] = VMs.renew([row.id, Ecto.UUID.generate()])
     assert id == row.id
     assert DateTime.after?(Repo.get!(Sandbox, row.id).execution_lease_expires_at, short)
+  end
+
+  describe "leases" do
+    setup do
+      stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{direct_exec_endpoint: "http://10.0.0.1:7071"}} end)
+      :ok
+    end
+
+    test "a lease hands a prepared VM to the gateway through a claimed exec", %{project: project} do
+      stub_node()
+
+      assert {:ok, lease} = RemoteExecution.lease(project, wait: 5_000)
+      assert %{endpoint: "http://10.0.0.1:7071", image: @image, cas_endpoint: "grpcs://cache.example"} = lease
+      assert lease.expires_in_ms > 0
+      assert_receive {:claim_pending, node_call}
+      assert_received {:node, "exec", %{sandbox_id: id, env: env, claim: claim}}
+      assert id == lease.sandbox_id
+      assert env["SBX_EXECUTION_TOKEN"] == "scoped-credential"
+      refute Map.has_key?(env, "SBX_EXECUTION_REQUEST")
+      assert claim.env == "SBX_EXECUTION_REQUEST"
+      assert claim.nonce_sha256 == Base.encode16(:crypto.hash(:sha256, Base.decode64!(lease.nonce)), case: :lower)
+
+      send(node_call, {:claim, {:ok, %{"exit_code" => 0}}})
+      assert_receive {:node, "delete", %{sandbox_id: ^id}}
+      eventually(fn -> vm_rows(project) == [] end)
+    end
+
+    test "an unclaimed lease returns its VM untouched to the next action", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{sandbox_id: id}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, node_call}
+      send(node_call, {:claim, {:ok, %{"exit_code" => 0, "unclaimed" => true}}})
+
+      assert {:ok, %{done: true}} = submit(project)
+
+      assert_received {:node, "exec",
+                       %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^id, env: %{"SBX_EXECUTION_REQUEST" => _}}}
+    end
+
+    test "a lease that finds no VM in time returns none", %{project: project} do
+      {:ok, _} = configure(project, max_concurrency: 1)
+      stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
+      assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
+      assert_receive {:holding, _task}, 2_000
+
+      assert {:ok, nil} = RemoteExecution.lease(project, wait: 100)
+    end
+
+    test "nodes without a direct endpoint grant no leases", %{project: project} do
+      stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{}} end)
+      stub_node()
+
+      assert {:error, :unsupported} = RemoteExecution.lease(project, wait: 5_000)
+    end
   end
 
   defp flush_node_messages do

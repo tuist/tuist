@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/admin"
+	"github.com/tuist/tuist/infra/sandboxd/internal/direct"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
@@ -56,6 +57,7 @@ func main() {
 	uidBase := intEnv(logger, "JAIL_UID_BASE", 10000)
 	metricsAddr := envOr("METRICS_ADDR", ":9470")
 	adminAddr := os.Getenv("ADMIN_ADDR")
+	directExecAddr := os.Getenv("DIRECT_EXEC_ADDR")
 	bootTimeout := durationEnv(logger, "BOOT_TIMEOUT", sandbox.DefaultBootTimeout)
 	templateBootTimeout := durationEnv(logger, "TEMPLATE_BOOT_TIMEOUT", template.DefaultBootTimeout)
 	shutdownTimeout := durationEnv(logger, "SHUTDOWN_TIMEOUT", 60*time.Second)
@@ -245,6 +247,20 @@ func main() {
 		}()
 	}
 
+	var directExecServer *http.Server
+	directExecEndpoint := ""
+	if directExecAddr != "" {
+		directExecEndpoint = "http://" + directExecAddr
+		directExecServer = &http.Server{Addr: directExecAddr, Handler: direct.NewHandler(manager.Claims()), ReadHeaderTimeout: 5 * time.Second}
+		go func() {
+			logger.Info("direct exec claims listening", "addr", directExecAddr)
+			if err := directExecServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("direct exec server", "error", err)
+				os.Exit(1)
+			}
+		}()
+	}
+
 	disk := diskusage.Accounter{
 		DataDir: dataDir, TemplatesDir: store.Dir, SnapshotsDir: snapshotDir, JailDir: jailBase,
 		BudgetBytes: uint64(diskBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
@@ -269,6 +285,7 @@ func main() {
 				return protocol.Hello{
 					ExecutionDeadlines: true,
 					ExecutionSlots:     executionSlots,
+					DirectExecEndpoint: directExecEndpoint,
 					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
 					Templates: manager.Templates(), Sandboxes: manager.List(), DiskSnapshots: manager.DiskSnapshots(),
 				}
@@ -308,6 +325,9 @@ func main() {
 	<-serverDone
 	if adminServer != nil {
 		_ = adminServer.Close()
+	}
+	if directExecServer != nil {
+		_ = directExecServer.Close()
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()

@@ -1159,6 +1159,7 @@ defmodule TuistWeb.Router do
 
     get "/:account/:project/capabilities", RemoteExecutionController, :capabilities
     post "/:account/:project/operations", RemoteExecutionController, :create
+    post "/:account/:project/leases", RemoteExecutionController, :lease
     get "/:account/:project/operations/:id", RemoteExecutionController, :show
   end
 

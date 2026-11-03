@@ -25,7 +25,7 @@ const (
 	prefetchEntry = 96
 )
 
-func (g *Gateway) remember(account, project, url string) {
+func (g *Gateway) remember(account, project, url string, leases bool) {
 	if url == "" {
 		return
 	}
@@ -34,7 +34,14 @@ func (g *Gateway) remember(account, project, url string) {
 	if len(g.endpoints) >= 4096 {
 		clear(g.endpoints)
 	}
-	g.endpoints[account+"/"+project] = endpoint{url: url, expires: time.Now().Add(endpointTTL)}
+	g.endpoints[account+"/"+project] = endpoint{url: url, expires: time.Now().Add(endpointTTL), leases: leases}
+}
+
+func (g *Gateway) leasable(account, project string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	e, ok := g.endpoints[account+"/"+project]
+	return ok && e.leases && time.Now().Before(e.expires)
 }
 
 func (g *Gateway) endpoint(account, project string) string {
