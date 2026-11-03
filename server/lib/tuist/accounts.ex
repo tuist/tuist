@@ -381,12 +381,18 @@ defmodule Tuist.Accounts do
     Repo.get_by(DeviceCode, code: code)
   end
 
-  def authenticate_device_code(code, %User{} = user) do
+  def authenticate_device_code(code, %User{} = user, session \\ nil) do
     device_code = get_device_code(code)
 
     {:ok, device_code} =
       device_code
-      |> DeviceCode.authenticate_changeset(%{authenticated: true, user_id: user.id})
+      |> DeviceCode.authenticate_changeset(%{
+        authenticated: true,
+        user_id: user.id,
+        auth_provider: session && session.auth_provider,
+        auth_provider_organization_id: session && session.auth_provider_organization_id,
+        auth_organization_id: session && session.auth_organization_id
+      })
       |> Repo.update()
 
     device_code

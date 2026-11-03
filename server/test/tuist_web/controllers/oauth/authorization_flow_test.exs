@@ -103,6 +103,74 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     assert build_conn() |> init_test_session(%{}) |> put_session(:user_token, google_token) |> authorize(client_id)
   end
 
+  describe "refreshing with SSO enforcement" do
+    test "tokens authorized through the organization's SSO keep its proof and keep refreshing", %{user: user} do
+      organization = sso_member_of(user)
+      client_id = register_client(build_conn())
+      sso_conn = sso_session_conn(user, organization)
+
+      %{"access_token" => access_token, "refresh_token" => refresh_token} =
+        exchange_code(client_id, authorize(sso_conn, client_id))
+
+      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "example.com"}}} =
+               Tuist.Guardian.decode_and_verify(access_token)
+
+      assert %{"access_token" => refreshed_access_token, "refresh_token" => refreshed_refresh_token} =
+               client_id |> refresh_conn(refresh_token) |> json_response(200)
+
+      # The proof carries over to the rotated pair, so later refreshes pass too.
+      assert {:ok, %{"sso" => %{"provider_organization_id" => "example.com"}}} =
+               Tuist.Guardian.decode_and_verify(refreshed_access_token)
+
+      assert %{"access_token" => _} = client_id |> refresh_conn(refreshed_refresh_token) |> json_response(200)
+    end
+
+    test "tokens without SSO proof keep refreshing for users no organization enforces it for", %{
+      conn: conn,
+      user: user
+    } do
+      tap(
+        AccountsFixtures.organization_fixture(),
+        &(:ok = Tuist.Accounts.add_user_to_organization(user, &1, role: :user))
+      )
+
+      client_id = register_client(conn)
+      %{"refresh_token" => refresh_token} = exchange_code(client_id, authorize(conn, client_id))
+
+      assert %{"access_token" => _} = client_id |> refresh_conn(refresh_token) |> json_response(200)
+    end
+
+    test "tokens issued without SSO proof stop refreshing once an organization of the user enforces it", %{
+      conn: conn,
+      user: user
+    } do
+      client_id = register_client(conn)
+      # Authorized from a password session, as every token issued before
+      # tokens carried SSO proof was.
+      %{"refresh_token" => refresh_token} = exchange_code(client_id, authorize(conn, client_id))
+      organization = sso_member_of(user)
+
+      assert %{"error" => "invalid_grant", "error_description" => "Your organization requires single sign-on." <> _} =
+               client_id |> refresh_conn(refresh_token) |> json_response(400)
+
+      # The refused token is not spent: it works again once enforcement is off.
+      organization |> Ecto.Changeset.change(sso_enforced: false) |> Repo.update!()
+      assert %{"access_token" => _} = client_id |> refresh_conn(refresh_token) |> json_response(200)
+    end
+
+    test "tokens whose SSO proof no longer matches the organization stop refreshing", %{user: user} do
+      organization = sso_member_of(user)
+      client_id = register_client(build_conn())
+
+      %{"refresh_token" => refresh_token} =
+        exchange_code(client_id, authorize(sso_session_conn(user, organization), client_id))
+
+      organization |> Ecto.Changeset.change(sso_organization_id: "other.example.com") |> Repo.update!()
+
+      assert %{"error" => "invalid_grant"} = client_id |> refresh_conn(refresh_token) |> json_response(400)
+    end
+  end
+
   test "rejects a code revoked in the database after an earlier lookup", %{conn: conn} do
     client_id = register_client(conn)
     code = authorize(conn, client_id)
@@ -347,6 +415,46 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
                "scope" => "project:admin:write project:cache:write"
              })
              |> json_response(400)
+  end
+
+  defp sso_member_of(user) do
+    organization = AccountsFixtures.organization_fixture()
+    :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # Enabling enforcement through `Accounts` also requires a verified login
+    # email domain, which is not what these tests are about.
+    organization
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Repo.update!()
+  end
+
+  defp sso_session_conn(user, organization) do
+    token =
+      Tuist.Accounts.generate_user_session_token(user, %{
+        auth_method: organization.sso_provider,
+        provider_organization_id: organization.sso_organization_id
+      })
+
+    build_conn() |> init_test_session(%{}) |> put_session(:user_token, token)
+  end
+
+  defp exchange_code(client_id, code) do
+    build_conn()
+    |> post(~p"/oauth2/token", %{
+      "grant_type" => "authorization_code",
+      "client_id" => client_id,
+      "redirect_uri" => @redirect_uri,
+      "code" => code
+    })
+    |> json_response(200)
+  end
+
+  defp refresh_conn(client_id, refresh_token) do
+    post(build_conn(), ~p"/oauth2/token", %{
+      "grant_type" => "refresh_token",
+      "client_id" => client_id,
+      "refresh_token" => refresh_token
+    })
   end
 
   defp register_client(conn) do

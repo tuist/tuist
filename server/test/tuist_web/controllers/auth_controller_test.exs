@@ -77,6 +77,20 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/auth/device_codes/SSO-1234/success?type=cli"
     end
 
+    test "the success page records the SSO sign-in that approved the device code", %{conn: conn, user: user} do
+      Accounts.create_device_code("SSO-9012")
+
+      token =
+        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+
+      conn = conn |> init_test_session(%{}) |> put_session(:user_token, token)
+
+      assert {:ok, _view, _html} = live(conn, "/auth/device_codes/SSO-9012/success?type=cli")
+
+      assert %{authenticated: true, auth_provider: "google", auth_provider_organization_id: "example.com"} =
+               Accounts.get_device_code("SSO-9012")
+    end
+
     test "the success page does not approve the device code for a session the route would refuse", %{
       conn: conn,
       user: user

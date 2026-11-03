@@ -4,6 +4,8 @@ defmodule TuistWeb.API.AuthController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserToken
   alias Tuist.Authentication
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
@@ -100,24 +102,19 @@ defmodule TuistWeb.API.AuthController do
       device_code.authenticated ->
         user = Accounts.get_user!(device_code.user_id, preload: [:account])
 
-        {:ok, access_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{
-              email: user.email,
-              preferred_username: user.account.name
-            },
-            token_type: :access,
-            ttl: @access_token_ttl
+        # Refreshing carries the claims over, so the tokens keep the SSO
+        # sign-in that approved the code for `ensure_refresh_satisfies_sso/1`.
+        claims =
+          Map.merge(
+            %{"email" => user.email, "preferred_username" => user.account.name},
+            UserToken.sso_claims(device_code)
           )
 
+        {:ok, access_token, _opts} =
+          Authentication.encode_and_sign(user, claims, token_type: :access, ttl: @access_token_ttl)
+
         {:ok, refresh_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{email: user.email, preferred_username: user.account.name},
-            token_type: :refresh,
-            ttl: @refresh_token_ttl
-          )
+          Authentication.encode_and_sign(user, claims, token_type: :refresh, ttl: @refresh_token_ttl)
 
         conn
         |> put_status(:ok)
@@ -174,10 +171,44 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{
           message: "The refresh token is invalid."
         })
+
+      # 401, which existing clients answer by signing out, so the user signs
+      # in again through the browser, where the organization's SSO applies.
+      {:error, :sso_required} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{
+          message:
+            "Your organization requires single sign-on. Run `tuist auth login` to sign in through your identity provider."
+        })
     end
   end
 
   defp refresh_tokens(conn, refresh_token) do
+    with :ok <- ensure_refresh_satisfies_sso(refresh_token) do
+      rotate_refresh_token(conn, refresh_token)
+    end
+  end
+
+  # A refresh token acts for the user in every account, as the sign-in that
+  # issued it did, so it is renewed only while its claims still satisfy the
+  # user's SSO-enforcing organizations. Tokens issued without that claim,
+  # including every one issued before credentials carried it, keep refreshing
+  # unless an organization of the user enforces SSO. Tokens that don't decode
+  # are left to `Authentication.refresh/2` to reject as before.
+  defp ensure_refresh_satisfies_sso(refresh_token) do
+    case Tuist.Guardian.resource_from_token(refresh_token, %{"typ" => "refresh"}) do
+      {:ok, %User{} = user, claims} ->
+        if Accounts.sso_requirement(user, UserToken.from_sso_claims(claims)) == :ok,
+          do: :ok,
+          else: {:error, :sso_required}
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp rotate_refresh_token(conn, refresh_token) do
     case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
       {:error, _} ->
         {:error, :invalid_refresh_token}

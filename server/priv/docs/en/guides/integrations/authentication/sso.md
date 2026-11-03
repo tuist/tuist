@@ -56,7 +56,7 @@ The **Enforce single sign-on** setting is independent of enrollment. Access to t
 Enforcement applies wherever a member's session reaches the organization:
 
 - **Dashboard**: the organization's pages require a session signed in with the organization's provider.
-- **Tuist CLI, the Tuist app, MCP clients, and the API reference**: signing them in creates a credential that acts for the member in every organization, so it requires a session signed in through the organization that enforces single sign-on. Tuist sends a member who signed in another way to the provider first, and refuses sign-in with an email and password or with Apple. Credentials issued earlier are not revoked.
+- **Tuist CLI, the Tuist app, MCP clients, and the API reference**: signing them in creates a credential that acts for the member in every organization, so it requires a session signed in through the organization that enforces single sign-on. Tuist sends a member who signed in another way to the provider first, and refuses sign-in with an email and password or with Apple. Each time one of these clients renews its credential, Tuist checks again: a credential that wasn't obtained through the organization's single sign-on, including one obtained before the organization enforced it, stops renewing, and the client asks the member to sign in again.
 
 A member of several organizations that enforce single sign-on can't sign in to the CLI, the app, or MCP clients, because one session signs in through one organization.
 
