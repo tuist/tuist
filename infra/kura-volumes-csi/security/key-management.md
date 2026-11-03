@@ -7,9 +7,8 @@ root key. Root keys live in each environment's 1Password vault as item
 `KURA_VOLUME_ROOT_KEYS`, field `value`, and reach the web server through
 ExternalSecrets when `server.config.kuraVolumeRootKeys.enabled` is set. The value
 is a comma-separated list of `<id>:<base64 32-byte key>` entries; the first wraps
-new shares and every entry decrypts. Staging has root sync enabled. Production
-and canary root sync and CSI installation default off until their prerequisites
-are explicitly qualified. Missing or malformed roots fail closed.
+new shares and every entry decrypts. Staging, canary and production enable root
+sync. Missing or malformed roots fail closed.
 
 The October 27, 2026 access review used only metadata. No root key, volume
 passphrase, Secret value or backup object was retrieved. No production mutation

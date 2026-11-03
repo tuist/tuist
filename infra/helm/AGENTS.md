@@ -33,8 +33,8 @@ Helm-installed resource; publishing it is a separate rollout step.
   authorizes by that TokenReview username. Explicit driver upgrades require
   `kuraVolumesCSI.image.digest`; the tag fallback preserves older installations.
   Server deployments preserve the driver independently of controller tags.
-  Production/canary installation and root sync default off; staging retains
-  its validated installation. An account's
+  Every managed overlay enables the driver and root sync; canary and
+  production install it only through a digest-pinned deploy. An account's
   instances use encryption when their region is LVM-enrolled or its legacy
   policy permits the `:kura_encrypted_volumes` feature flag. Root keys are
   synced by `server.config.kuraVolumeRootKeys.enabled` from the env's
