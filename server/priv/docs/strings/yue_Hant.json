@@ -8,9 +8,10 @@
       "other-features": { "text": "其他功能" }
     },
     "items": {
-      "agentic-coding": { "text": "AI 代理程式編碼" },
+      "agentic-coding": { "text": "AI 代理編碼" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 快取" },
+      "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "建置與發布" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "快取磁碟區" },
@@ -78,15 +79,15 @@
           "no-recent-searches-text": "沒有搜尋記錄",
           "save-recent-search-button-title": "儲存至搜尋記錄",
           "remove-recent-search-button-title": "從搜尋記錄移除",
-          "favorite-searches-title": "收藏",
-          "remove-favorite-search-button-title": "從收藏移除"
+          "favorite-searches-title": "我的最愛",
+          "remove-favorite-search-button-title": "從我的最愛移除"
         },
         "error-screen": {
           "title-text": "無法取得結果",
           "help-text": "你可能需要檢查網路連線"
         },
         "footer": {
-          "select-text": "選取",
+          "select-text": "選擇",
           "navigate-text": "導覽",
           "close-text": "關閉",
           "search-by-text": "搜尋提供者"
@@ -123,7 +124,7 @@
           "text": "貢獻者"
         },
         "changelog": {
-          "text": "變更記錄"
+          "text": "更新日誌"
         }
       }
     }
@@ -135,13 +136,13 @@
         "cli": {
           "items": {
             "debugging": {
-              "text": "偵錯"
+              "text": "除錯"
             },
             "directories": {
               "text": "目錄"
             },
             "shell-completions": {
-              "text": "Shell 自動補全"
+              "text": "Shell 自動補完"
             }
           }
         },
@@ -215,7 +216,7 @@
           "text": "原則"
         },
         "debugging": {
-          "text": "偵錯"
+          "text": "除錯"
         },
         "translate": {
           "text": "語言"
@@ -227,7 +228,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "記錄"
+              "text": "紀錄"
             }
           }
         }
@@ -253,7 +254,7 @@
           }
         },
         "on-premise": {
-          "text": "本地部署",
+          "text": "內部部署",
           "items": {
             "install": {
               "text": "安裝"
@@ -359,7 +360,7 @@
                       "text": "建立新專案"
                     },
                     "swift-package": {
-                      "text": "試用 Swift Package"
+                      "text": "以 Swift Package 試用"
                     },
                     "migrate": {
                       "text": "遷移",
@@ -402,10 +403,10 @@
                   "text": "動態設定"
                 },
                 "templates": {
-                  "text": "樣板"
+                  "text": "模板"
                 },
                 "plugins": {
-                  "text": "外掛程式"
+                  "text": "外掛"
                 },
                 "hashing": {
                   "text": "雜湊"
@@ -499,7 +500,7 @@
               }
             },
             "test-insights": {
-              "text": "洞察",
+              "text": "測試洞察",
               "items": {
                 "flaky-tests": {
                   "text": "不穩定測試",
@@ -512,7 +513,7 @@
               }
             },
             "bundle-insights": {
-              "text": "洞察",
+              "text": "套件洞察",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -533,7 +534,7 @@
           }
         },
         "agentic-coding": {
-          "text": "AI 代理程式編碼",
+          "text": "AI 代理編碼",
           "items": {
             "mcp": {
               "text": "MCP"
@@ -550,7 +551,7 @@
               "text": "持續整合"
             },
             "http-proxy": {
-              "text": "HTTP 代理伺服器"
+              "text": "HTTP 代理"
             },
             "sso": {
               "text": "SSO"

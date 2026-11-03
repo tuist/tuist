@@ -11,6 +11,7 @@
       "agentic-coding": { "text": "エージェント型コーディング" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazelキャッシュ" },
+      "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "ビルドと公開" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "キャッシュボリューム" },
@@ -31,7 +32,7 @@
       "origin": { "text": "オリジン" },
       "profiles": { "text": "プロファイル" },
       "project-description": { "text": "プロジェクトの説明" },
-      "release-channels": { "text": "リリースチャンネル" },
+      "release-channels": { "text": "リリースチャネル" },
       "run-previews": { "text": "プレビューの実行" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rustキャッシュ" },
@@ -52,7 +53,7 @@
         "text": "言語 🌍"
       },
       "description": {
-        "text": "Tuistの対応言語を増やす、またはこのページの翻訳ガイドラインを改善するためにご協力いただけます。"
+        "text": "Tuistの多言語対応を支援したり、このページの言語ガイドを改善することができます。"
       },
       "cta": {
         "text": "貢献する"
@@ -94,7 +95,7 @@
         "no-results-screen": {
           "no-results-text": "関連する結果が見つかりません",
           "suggested-query-text": "次のクエリを試してみてください",
-          "report-missing-results-text": "このクエリで結果が表示されるべきだと思いますか？",
+          "report-missing-results-text": "このクエリに結果があるべきだと思いますか？",
           "report-missing-results-link-text": "クリックしてフィードバックを送信"
         }
       }
@@ -120,7 +121,7 @@
           "text": "リファレンス"
         },
         "contributors": {
-          "text": "貢献者"
+          "text": "コントリビューター"
         },
         "changelog": {
           "text": "変更履歴"
@@ -186,7 +187,7 @@
       }
     },
     "contributors": {
-      "text": "貢献者",
+      "text": "コントリビューター",
       "items": {
         "code": {
           "text": "コード",
@@ -475,7 +476,7 @@
               }
             },
             "selective-testing": {
-              "text": "選択的テスト",
+              "text": "選択",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成されたXcodeプロジェクト"
@@ -502,7 +503,7 @@
               "text": "インサイト",
               "items": {
                 "flaky-tests": {
-                  "text": "不安定なテスト",
+                  "text": "不安定性",
                   "items": {
                     "generated-xcode-project": {
                       "text": "生成されたXcodeプロジェクト"

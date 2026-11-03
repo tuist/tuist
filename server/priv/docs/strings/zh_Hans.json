@@ -11,6 +11,7 @@
       "agentic-coding": { "text": "智能体编程" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 缓存" },
+      "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "构建与发布" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "缓存卷" },
@@ -28,7 +29,7 @@
       "iphone-app": { "text": "iPhone 应用" },
       "macos-app": { "text": "macOS 应用" },
       "new-project": { "text": "新建项目" },
-      "origin": { "text": "源站" },
+      "origin": { "text": "源" },
       "profiles": { "text": "配置文件" },
       "project-description": { "text": "项目描述" },
       "release-channels": { "text": "发布渠道" },
@@ -40,7 +41,7 @@
       "server-api": { "text": "服务器 API" },
       "single-sign-on": { "text": "单点登录" },
       "supported-types": { "text": "支持的类型" },
-      "webhooks": { "text": "Webhook" },
+      "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "XcodeGen 项目" },
       "xcodeproj-integration": { "text": "Xcodeproj 集成" },
       "ufeatures-architecture": { "text": "uFeatures 架构" }
@@ -52,7 +53,7 @@
         "text": "语言 🌍"
       },
       "description": {
-        "text": "你可以协助 Tuist 支持更多语言，或改进本页的语言指引。"
+        "text": "你可以帮助 Tuist 支持更多语言，或改进本页的语言指引。"
       },
       "cta": {
         "text": "贡献"
@@ -94,7 +95,7 @@
         "no-results-screen": {
           "no-results-text": "未找到相关结果",
           "suggested-query-text": "你可以尝试搜索",
-          "report-missing-results-text": "认为此查询应有结果？",
+          "report-missing-results-text": "你认为此查询应该有结果吗？",
           "report-missing-results-link-text": "点击提供反馈"
         }
       }
@@ -141,7 +142,7 @@
               "text": "目录"
             },
             "shell-completions": {
-              "text": "Shell 补全"
+              "text": "Shell 自动补全"
             }
           }
         },
@@ -227,7 +228,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "日志"
+              "text": "日志记录"
             }
           }
         }
@@ -291,10 +292,10 @@
       "text": "指南",
       "items": {
         "get-started": {
-          "text": "开始使用",
+          "text": "入门",
           "items": {
             "choose-your-path": {
-              "text": "开始使用"
+              "text": "入门"
             },
             "existing-xcode-project": {
               "text": "Xcode 项目"
@@ -325,13 +326,13 @@
           }
         },
         "quick-start": {
-          "text": "快速入门",
+          "text": "快速开始",
           "items": {
             "install-tuist": {
               "text": "安装 Tuist"
             },
             "get-started": {
-              "text": "开始使用"
+              "text": "入门"
             }
           }
         },
@@ -359,7 +360,7 @@
                       "text": "创建新项目"
                     },
                     "swift-package": {
-                      "text": "试用 Swift Package"
+                      "text": "使用 Swift Package 试用"
                     },
                     "migrate": {
                       "text": "迁移",
@@ -368,7 +369,7 @@
                           "text": "Xcode 项目"
                         },
                         "swift-package": {
-                          "text": "Swift 包"
+                          "text": "Swift package"
                         },
                         "xcodegen-project": {
                           "text": "XcodeGen 项目"
@@ -381,7 +382,7 @@
                   }
                 },
                 "manifests": {
-                  "text": "清单"
+                  "text": "清单文件"
                 },
                 "directory-structure": {
                   "text": "目录结构"
@@ -467,7 +468,7 @@
                   "text": "基于 XcodeProj 的集成"
                 },
                 "swift-package": {
-                  "text": "Swift 包"
+                  "text": "Swift package"
                 },
                 "continuous-integration": {
                   "text": "持续集成"

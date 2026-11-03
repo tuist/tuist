@@ -8,9 +8,10 @@
       "other-features": { "text": "其他功能" }
     },
     "items": {
-      "agentic-coding": { "text": "AI 代理程式編碼" },
+      "agentic-coding": { "text": "代理程式編碼" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 快取" },
+      "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "建置與發布" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "快取磁碟區" },
@@ -39,7 +40,7 @@
       "scim-provisioning": { "text": "SCIM 佈建" },
       "server-api": { "text": "伺服器 API" },
       "single-sign-on": { "text": "單一登入" },
-      "supported-types": { "text": "支援的類型" },
+      "supported-types": { "text": "支援類型" },
       "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "XcodeGen 專案" },
       "xcodeproj-integration": { "text": "Xcodeproj 整合" },
@@ -52,7 +53,7 @@
         "text": "語言 🌍"
       },
       "description": {
-        "text": "你可以協助 Tuist 支援更多語言，或改善此頁面的語言指引。"
+        "text": "你可以協助 Tuist 支援更多語言，或改進此頁面的語言指引。"
       },
       "cta": {
         "text": "貢獻"
@@ -74,19 +75,19 @@
           "cancel-button-aria-label": "取消"
         },
         "start-screen": {
-          "recent-searches-title": "搜尋記錄",
-          "no-recent-searches-text": "無搜尋記錄",
-          "save-recent-search-button-title": "儲存至搜尋記錄",
-          "remove-recent-search-button-title": "從搜尋記錄中移除",
-          "favorite-searches-title": "我的最愛",
-          "remove-favorite-search-button-title": "從我的最愛中移除"
+          "recent-searches-title": "搜尋歷史記錄",
+          "no-recent-searches-text": "無搜尋歷史記錄",
+          "save-recent-search-button-title": "儲存至搜尋歷史記錄",
+          "remove-recent-search-button-title": "從搜尋歷史記錄中移除",
+          "favorite-searches-title": "收藏",
+          "remove-favorite-search-button-title": "從收藏中移除"
         },
         "error-screen": {
           "title-text": "無法取得結果",
           "help-text": "你可能需要檢查網路連線"
         },
         "footer": {
-          "select-text": "選擇",
+          "select-text": "選取",
           "navigate-text": "導覽",
           "close-text": "關閉",
           "search-by-text": "搜尋提供者"
@@ -123,7 +124,7 @@
           "text": "貢獻者"
         },
         "changelog": {
-          "text": "變更記錄"
+          "text": "變更紀錄"
         }
       }
     }
@@ -221,13 +222,13 @@
           "text": "語言"
         },
         "releases": {
-          "text": "發布"
+          "text": "發布版本"
         },
         "cli": {
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "日誌記錄"
+              "text": "日誌"
             }
           }
         }
@@ -242,7 +243,7 @@
               "text": "為什麼需要伺服器？"
             },
             "accounts-and-projects": {
-              "text": "帳號與專案"
+              "text": "帳戶與專案"
             },
             "authentication": {
               "text": "驗證"
@@ -253,7 +254,7 @@
           }
         },
         "on-premise": {
-          "text": "地端部署",
+          "text": "內部部署",
           "items": {
             "install": {
               "text": "安裝"
@@ -381,7 +382,7 @@
                   }
                 },
                 "manifests": {
-                  "text": "資訊清單"
+                  "text": "清單檔案"
                 },
                 "directory-structure": {
                   "text": "目錄結構"
@@ -419,7 +420,7 @@
                   }
                 },
                 "the-cost-of-convenience": {
-                  "text": "便利性的代價"
+                  "text": "便利的代價"
                 },
                 "tma-architecture": {
                   "text": "模組化架構"
@@ -452,7 +453,7 @@
               }
             },
             "package-registries": {
-              "text": "套件註冊表",
+              "text": "套件註冊中心",
               "items": {
                 "swift": {
                   "text": "Swift"
@@ -533,7 +534,7 @@
           }
         },
         "agentic-coding": {
-          "text": "AI 代理程式編碼",
+          "text": "代理程式編碼",
           "items": {
             "mcp": {
               "text": "MCP"
@@ -550,7 +551,7 @@
               "text": "持續整合"
             },
             "http-proxy": {
-              "text": "HTTP 代理伺服器"
+              "text": "HTTP 代理"
             },
             "sso": {
               "text": "SSO"
@@ -559,7 +560,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git 平台",
+              "text": "Git 託管平台",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -572,7 +573,7 @@
           "text": "伺服器",
           "items": {
             "accounts-and-projects": {
-              "text": "帳號與專案"
+              "text": "帳戶與專案"
             },
             "authentication": {
               "text": "驗證"

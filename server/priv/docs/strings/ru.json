@@ -8,9 +8,10 @@
       "other-features": { "text": "Другие возможности" }
     },
     "items": {
-      "agentic-coding": { "text": "Agentic coding" },
+      "agentic-coding": { "text": "Агентная разработка" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Кэш Bazel" },
+      "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "Сборка и публикация" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "Тома кэша" },
@@ -52,7 +53,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist поддержать больше языков или улучшить языковые рекомендации для этой страницы."
+        "text": "Вы можете помочь Tuist поддержать больше языков или улучшить рекомендации по языку для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -63,8 +64,8 @@
     "placeholder": "Поиск",
     "translations": {
       "button": {
-        "button-text": "Поиск по документации",
-        "button-aria-label": "Поиск по документации"
+        "button-text": "Поиск в документации",
+        "button-aria-label": "Поиск в документации"
       },
       "modal": {
         "search-box": {
@@ -83,18 +84,18 @@
         },
         "error-screen": {
           "title-text": "Не удалось получить результаты",
-          "help-text": "Возможно, вам стоит проверить подключение к сети"
+          "help-text": "Возможно, вам нужно проверить подключение к сети"
         },
         "footer": {
           "select-text": "Выбрать",
           "navigate-text": "Навигация",
           "close-text": "Закрыть",
-          "search-by-text": "Поставщик поиска"
+          "search-by-text": "Поисковый провайдер"
         },
         "no-results-screen": {
           "no-results-text": "Релевантные результаты не найдены",
           "suggested-query-text": "Попробуйте запрос",
-          "report-missing-results-text": "Считаете, что этот запрос должен давать результаты?",
+          "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
       }
@@ -138,7 +139,7 @@
               "text": "Отладка"
             },
             "directories": {
-              "text": "Каталоги"
+              "text": "Директории"
             },
             "shell-completions": {
               "text": "Автодополнение в оболочке"
@@ -384,7 +385,7 @@
                   "text": "Манифесты"
                 },
                 "directory-structure": {
-                  "text": "Структура каталогов"
+                  "text": "Структура директорий"
                 },
                 "editing": {
                   "text": "Редактирование"
@@ -499,10 +500,10 @@
               }
             },
             "test-insights": {
-              "text": "Аналитика",
+              "text": "Аналитика тестов",
               "items": {
                 "flaky-tests": {
-                  "text": "Нестабильные тесты",
+                  "text": "Нестабильность",
                   "items": {
                     "generated-xcode-project": {
                       "text": "Генерируемый проект Xcode"
@@ -512,7 +513,7 @@
               }
             },
             "bundle-insights": {
-              "text": "Аналитика",
+              "text": "Аналитика бандлов",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -533,7 +534,7 @@
           }
         },
         "agentic-coding": {
-          "text": "Agentic Coding",
+          "text": "Агентная разработка",
           "items": {
             "mcp": {
               "text": "MCP"
@@ -597,7 +598,7 @@
           }
         },
         "share": {
-          "text": "Обмен",
+          "text": "Публикация",
           "items": {
             "previews": {
               "text": "Превью"

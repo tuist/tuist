@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3c27747f6474bf66946f1ccfe1eb1986f472c05b5cee850471c9d7d548d0d7ba",
+  "hash": "e5cf7c6b5c01ad7090f3178d43b4404239199ab8adcf6690a24b994ed66374fa",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "Preamble": {
-                  "content_hash": "e89bc5b754578e652c02e796c8c8579b5bcd369e65dcda72647998ca471ce89f"
+                  "content_hash": "ea390eed3e2472dac329187c95db608fd97005904b10d4c3b9281c9c683bc2e3"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "1a076b930d876976a01c20fbfe88024b96bbed086f1c95cf3b0897e0be7b7c6a",
+          "hash": "fe9bc68386aa1871483cec28e0c5458900ef46338f10848487f117c06a6f9380",
           "kind": "source",
           "label": "server/priv/docs/strings/en.json",
           "metadata": {
-            "content_hash": "ae6a20451351d5b9b8c148588528564bf16912aa50269b57199335bd7c845d62"
+            "content_hash": "1c9f71330c91ec1e2fd36238ed3f7db68d8e1decd3c786c04204ae2f857f7f3d"
           }
         },
         {
@@ -224,14 +224,14 @@
         }
       ],
       "details": {},
-      "hash": "3c27747f6474bf66946f1ccfe1eb1986f472c05b5cee850471c9d7d548d0d7ba",
+      "hash": "e5cf7c6b5c01ad7090f3178d43b4404239199ab8adcf6690a24b994ed66374fa",
       "kind": "translation_input",
       "label": "server/priv/docs/strings/en.json",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e617655565ae4ac4ecc0e3e57015f1b5a433ea3265581aefd5e87a29e0b044d4",
+  "output_hash": "3210d7a15208b3230765d53a024c78c1667f5e012cd1da1bcfcfb947e6ae5749",
   "output_path": "server/priv/docs/strings/ja.json",
   "protection_state": "recorded",
   "provider": "",
@@ -252,8 +252,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "54c058a5d7e3a3b42582b13028c373f04370823e",
+  "source_commit_sha": "5d0bcf13983f548ec37b088ca3dbccd143e0f402",
   "source_path": "server/priv/docs/strings/en.json",
-  "translated_at": "2026-11-02T18:50:14.808601Z",
-  "translation_session_id": "01a19d91-e5f0-7129-b49d-3ea55acb63fd"
+  "translated_at": "2026-11-03T07:06:45.307112Z",
+  "translation_session_id": "01a1a038-43ae-72d2-8622-9ecd7779d03a"
 }
