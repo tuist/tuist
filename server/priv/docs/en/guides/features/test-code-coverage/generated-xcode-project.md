@@ -1,14 +1,14 @@
 ---
 {
   "title": "Generated Xcode project",
-  "titleTemplate": ":title · Code Coverage · Test Insights · Features · Guides · Tuist",
+  "titleTemplate": ":title · Code Coverage · Features · Guides · Tuist",
   "description": "Measure the code coverage of a Tuist-generated Xcode project per file and per commit, including the code the binary cache and selective testing skip."
 }
 ---
 # Generated Xcode project {#generated-xcode-project-code-coverage}
 
 > [!NOTE] EARLY ACCESS
-> Code coverage is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account, and set `TUIST_FEATURE_FLAG_COVERAGE=1` wherever you run Tuist, on CI and on developers' machines. Without the variable, Tuist collects and uploads no coverage.
+> Code coverage for Xcode projects is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account. Until then, Tuist doesn't store the coverage your runs upload.
 
 Code coverage tells you which lines of your code your tests executed. Tuist uploads the line coverage of every `tuist test` run and folds the runs of a commit into one figure, for the project, each target and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
 
@@ -18,12 +18,13 @@ The figure stays accurate when Tuist skips work. Your targets from the <.localiz
 
 ### Turn coverage on {#turn-coverage-on}
 
-Turn coverage on in the generation options of your `Tuist.swift`:
+Turn coverage on in the generation options of your `Tuist.swift`, and turn on the coverage upload, which is off by default:
 
 ```swift
 import ProjectDescription
 
 let tuist = Tuist(
+    testInsights: .testInsights(coverage: .coverage(upload: true)),
     project: .tuist(
         generationOptions: .options(
             coverage: .coverage(enabled: true)
@@ -32,15 +33,15 @@ let tuist = Tuist(
 )
 ```
 
-With the option on:
+With the generation option on:
 
-- The test action of every scheme Tuist generates collects coverage, and so does the test action of every scheme you define that leaves `coverage` unset. A scheme with `.options(coverage: false)` or `.options(coverage: true)` keeps its value, and test plans decide coverage themselves.
+- The test action of every scheme Tuist generates collects coverage, and so does the test action of every scheme you define that leaves `coverage` unset. A scheme with `.options(coverage: false)` or `.options(coverage: true)` keeps its value. Test plans decide coverage themselves: for test plans Tuist generates, pass `coverage: true` to `.testPlans(_:coverage:)`.
 - Your project's own targets are read from and warmed into the binary cache with coverage counters in Debug configurations. See [How it works](#instrumented-binaries).
 
-The `TUIST_COVERAGE_ENABLED` environment variable (`1` or `0`) takes precedence over the option. Set it for a whole environment, such as a CI workflow, rather than for a single command, so that the commands that warm the cache and the ones that read it agree.
+The `TUIST_COVERAGE_ENABLED` and `TUIST_COVERAGE_UPLOAD` environment variables (`1` or `0`) take precedence over `enabled` and `upload`. Set them for a whole environment, such as a CI workflow, rather than for a single command, so that the commands that warm the cache and the ones that read it agree.
 
 > [!IMPORTANT] KEEP THE VALUE THE SAME EVERYWHERE
-> The option changes the cache keys of your project's targets and the selective-testing hashes of its test targets. Use the same value on every machine that shares the cache, and don't derive it from the environment (for example from `Environment.isCI`). A run with coverage off doesn't reuse the binaries or the selective-testing results of runs with coverage on.
+> The generation option changes the cache keys of your project's targets and the selective-testing hashes of its test targets. Use the same value on every machine that shares the cache, and don't derive it from the environment (for example from `Environment.isCI`). A run with coverage off doesn't reuse the binaries or the selective-testing results of runs with coverage on.
 
 ### Leave schemes out {#leave-schemes-out}
 
@@ -66,24 +67,7 @@ Run your tests with `tuist test`, as usual:
 tuist test
 ```
 
-Tuist uploads the coverage the run collected along with its test results. To upload test runs without their coverage, turn the upload off in `Tuist.swift`, or set `TUIST_COVERAGE_UPLOAD=0` for a single environment:
-
-```swift
-let tuist = Tuist(
-    testInsights: .testInsights(coverage: .coverage(upload: false)),
-    project: .tuist()
-)
-```
-
-### Separate build and test jobs {#separate-build-and-test-jobs}
-
-When your test jobs run tests built in another job, through <.localized_link href="/guides/features/selective-testing/generated-xcode-project#separate-build-and-test-jobs">`tuist test --without-building`</.localized_link> or <.localized_link href="/guides/features/test-sharding/generated-xcode-project">test sharding</.localized_link>, pass `--derived-data-path` to each test job:
-
-```sh
-tuist test --without-building --shard-index 0 --derived-data-path .build/DerivedData
-```
-
-That's where Tuist finds the coverage the run collected. Without it, xcodebuild writes the coverage under a derived data folder Tuist can't locate, and Tuist falls back to Xcode's coverage report, which leaves out the code that came from the binary cache and records no target-level coverage.
+Tuist uploads the coverage the run collected along with its test results. That includes <.localized_link href="/guides/features/test-sharding/generated-xcode-project">sharded runs</.localized_link> and runs that test products built in another job with `--without-building`. To keep a run's coverage out of Tuist, for example in jobs that run pull requests from forks, set `TUIST_COVERAGE_UPLOAD=0`.
 
 ### Complete each commit on CI {#complete-each-commit}
 
@@ -184,6 +168,14 @@ When a scheme's test action collects coverage, Xcode also instruments the target
 ### Other coverage tools {#other-coverage-tools}
 
 `-enableCodeCoverage YES` only decides whether a run collects coverage, as in Xcode. It doesn't make Tuist read instrumented binaries from the cache, so use the `Tuist.swift` option or `TUIST_COVERAGE_ENABLED` instead.
+
+To feed another coverage tool, have `tuist test` write each run's coverage as LCOV. It's the same coverage Tuist uploads, with repository-relative paths and the code from the binary cache included:
+
+```sh
+tuist test --coverage-output-path coverage
+```
+
+Each run writes `coverage/<result bundle name>.lcov`. Merge the files of a sharded run with `lcov -a`. The option needs the coverage upload on.
 
 Xcode's own coverage report, and the tools that read it, only include targets Xcode built in that run, never code that came from the binary cache. Tuist's upload measures both. If you want a target's coverage in Xcode's report, generate the project with that target built from source: `tuist generate MyTarget` keeps `MyTarget` as source and takes the rest from the cache.
 
