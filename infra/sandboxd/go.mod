@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/coder/websocket v1.8.13
-	github.com/klauspost/compress v1.17.9
+	github.com/klauspost/compress v1.18.7
 	github.com/prometheus/client_golang v1.20.5
 	golang.org/x/sys v0.30.0
 )
