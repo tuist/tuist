@@ -5308,6 +5308,83 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
+    func test_run_testWithoutBuilding_fromBundle_doesNotStoreHashesOfTargetsNarrowedByOnlyTesting() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["MyTests": "abc123"]))
+            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "MyTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: "MySuite",
+                                    module: "MyTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        let localCacheStorage = MockCacheStoring()
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(localCacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn([])
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                noUpload: true,
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: [
+                    "-testProductsPath", testProductsPath.pathString,
+                    "-only-testing:MyTests/MySuite/testExample",
+                ]
+            )
+        }
+
+        // Then
+        verify(localCacheStorage)
+            .store(.any, cacheCategory: .any)
+            .called(0)
+    }
+
     func test_run_testWithoutBuilding_shard_doesNotReportTheRunsSelectiveTestingHitsAsSkippedByTheShard() async throws {
         // Given
         let path = try temporaryPath()
@@ -7687,6 +7764,100 @@ struct TestServiceShardingTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_from_a_bundle_runs_only_the_requested_targets_selective_testing_built() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(
+                testTargetHashes: [:],
+                requestedTestIdentifiers: ["AppTests", "CachedTests", "CoreTests"],
+                builtTestTargetNames: ["AppTests", "CoreTests"]
+            ),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: temporaryDirectory, testProductsPath: testProductsPath)
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .matching { arguments in
+                arguments.containsConsecutive("-only-testing", "AppTests")
+                    && arguments.containsConsecutive("-only-testing", "CoreTests")
+                    && !arguments.containsConsecutive("-only-testing", "CachedTests")
+            })
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_from_a_bundle_skips_execution_when_selective_testing_built_none_of_the_requested_targets(
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(
+                testTargetHashes: [:],
+                requestedTestIdentifiers: ["AppTests", "CachedTests"],
+                builtTestTargetNames: ["AppTests"]
+            ),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                testProductsPath: testProductsPath,
+                testTargets: [try TestIdentifier(target: "CachedTests")]
+            )
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_from_a_bundle_narrows_the_builds_targets_to_the_passthrough_only_testing() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(
+                testTargetHashes: [:],
+                requestedTestIdentifiers: ["AppTests", "CachedTests"],
+                builtTestTargetNames: ["AppTests"]
+            ),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                testProductsPath: testProductsPath,
+                passthroughXcodeBuildArguments: [
+                    "-only-testing:AppTests/CartTests/testAdd",
+                    "-only-testing", "CachedTests/ProfileTests",
+                ]
+            )
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .matching { arguments in
+                arguments.filter { $0.hasPrefix("-only-testing") }.count == 1
+                    && arguments.containsConsecutive("-only-testing", "AppTests/CartTests/testAdd")
+            })
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func without_building_narrows_a_module_shard_to_the_requested_suites() async throws {
         // A module-granularity shard selects the whole test target. Its identifier and the run's
         // `--test-targets` would both go out as `-only-testing`, which xcodebuild runs the union of,
@@ -7934,7 +8105,8 @@ private struct TestServiceShardingFixture {
         shardIndex: Int? = nil,
         shardArchivePath: AbsolutePath? = nil,
         testProductsPath: AbsolutePath? = nil,
-        testTargets: [TestIdentifier] = []
+        testTargets: [TestIdentifier] = [],
+        passthroughXcodeBuildArguments: [String] = []
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -7960,7 +8132,8 @@ private struct TestServiceShardingFixture {
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 generateOnly: false,
-                passthroughXcodeBuildArguments: testProductsPath.map { ["-testProductsPath", $0.pathString] } ?? [],
+                passthroughXcodeBuildArguments: (testProductsPath.map { ["-testProductsPath", $0.pathString] } ?? [])
+                    + passthroughXcodeBuildArguments,
                 skipQuarantine: true,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,
@@ -9624,6 +9797,7 @@ struct TestServiceTargetQueryTests {
             )
             #expect(metadata.testTargetTags == ["AppTests": ["snapshot"], "CachedTests": ["snapshot"]])
             #expect(metadata.requestedTestIdentifiers == ["AppTests", "CachedTests"])
+            #expect(metadata.builtTestTargetNames == ["AppTests"])
         }
     }
 

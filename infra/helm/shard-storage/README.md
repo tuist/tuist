@@ -2,12 +2,22 @@
 
 This independently released chart runs Garage on OVH hosts in Gravelines,
 reached over the private vRack by OVH Linux runners. Start with one node per
-environment: this is a transfer optimization with rebuildable artifacts, not
-an authoritative storage service. Three-node replication remains an optional
-future topology, not a prerequisite for the initial rollout.
+environment: for shard artifacts this is a transfer optimization with
+rebuildable artifacts; the Orb archive bucket below is the exception.
+Three-node replication remains an optional future topology, not a
+prerequisite for the initial rollout.
 It is disabled by default. It stores disposable Mix `_build` archives and Cargo
 nextest archives; losing the volume requires rerunning the build job. It does
 not store the authoritative shard plan or change Xcode artifact routing.
+
+With `archiveBucket` set (canary and production: `sandbox-archives`), it also
+holds archived Amp Orbs (`infra/amp-orbs/README.md`). These are not
+rebuildable: an archive is the only copy of an Orb's files, so losing the
+volume loses them. The hourly lifecycle job creates that bucket when missing
+and gives it no expiration, only an abort of incomplete uploads. The target
+publishes it as `archive_bucket`, and `sandboxNamespace` admits the sandbox
+daemons that upload and restore archives. Never rename the bucket or delete
+it on an existing target, and include it in any store replacement.
 
 The `scw-local-nvme` provisioner enforces the configured PVC with an XFS project
 quota (200 GiB by default, 3 TiB in the production overlay). The pod requests
@@ -115,8 +125,8 @@ retained Linux shard archives totalled 215.6 GiB and the largest rolling 72-hour
 window was 55.7 GiB. Compare retained bytes and daily upload volume with the
 window before widening enrollment.
 
-Staging's existing singleton runs on a shared Kura host in the
-`kura-ovh-gra-runners` pool and continues under its current policy. A fresh
+Staging's existing singleton shares the EU-West Kura host in the `kura-dedibox`
+pool, so EU-West capacity admission counts its reservation. A fresh
 parallel staging store needs its own capacity while old artifacts drain.
 
 Production uses the dedicated ADVANCE-4 `ns3027117.ip-91-134-8.eu` in

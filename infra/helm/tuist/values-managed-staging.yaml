@@ -281,9 +281,6 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1UXNkKLlKoN51eczld0hbV1t"
-      retired_runners:
-        runner_macos_compute_unit_milliseconds:
-          - "price_1U6UUkLlKoN51ecznSpfuCBI"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
@@ -909,6 +906,7 @@ sandboxes:
   maxMemoryGiB: 40
   prebuildShapes: "2x4096,4x8192"
   diskGiB: 100
+  archiveAfterHours: 24
   admin:
     enabled: true
   logLevel: debug

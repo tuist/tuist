@@ -395,6 +395,11 @@ defmodule Tuist.Docs.Sidebar do
                     label: "GitLab CI",
                     slug: "/en/guides/features/runners/ci-providers/gitlab-ci",
                     icon: "brand_gitlab"
+                  },
+                  %Item{
+                    label: "Bitrise",
+                    slug: "/en/guides/features/runners/ci-providers/bitrise",
+                    icon: "brand_bitrise"
                   }
                 ]
               },

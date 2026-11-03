@@ -252,6 +252,10 @@ spec:
               value: {{ max .Values.sandboxes.memoryGiB (.Values.sandboxes.maxMemoryGiB | default 0) | quote }}
             - name: DISK_BUDGET_GIB
               value: {{ .Values.sandboxes.diskGiB | quote }}
+            {{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
+            - name: DAEMON_ONLY_TCP_PORT
+              value: "3900"
+            {{- end }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}
@@ -435,6 +439,18 @@ spec:
       ports:
         - protocol: TCP
           port: 4000
+    {{- end }}
+    {{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kura
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: shard-storage
+      ports:
+        - protocol: TCP
+          port: 3900
     {{- end }}
 {{- end }}
 {{- end }}
