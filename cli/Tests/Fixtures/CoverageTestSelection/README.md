@@ -9,13 +9,15 @@ integration test per scenario), the CLI orchestration, and the end-to-end runs.
 
 | Path | What it is |
 | --- | --- |
-| `common/` | The app's sources, tests, resources and `Configs/Base.xcconfig`, shared by both variants. |
+| `common/` | The app's sources, tests, resources and `Configs/Base.xcconfig`, shared by every variant. |
 | `generated/` | The Tuist variant: `Project.swift`, `Tuist.swift`, `Tuist/Package.swift` and `Tuist/Package.resolved`. |
-| `xcodeproj/` | The plain Xcode variant: `Shop.xcodeproj`, with its `Package.resolved`, and `Tuist.swift`. |
+| `xcodeproj/` | The plain Xcode variant: `Shop.xcodeproj`, with file references and its `Package.resolved`, and `Tuist.swift`. |
+| `synchronized/` | The same plain project with synchronized folders, the layout new projects get since Xcode 16. |
+| `authoring/` | The manifest both plain projects are generated from. |
 | `scenarios.sh` | Assembles a variant into a new repository and commits the scenarios. |
 | `golden.json` | The expected outcome, selected tests and reasons per scenario. |
 
-Both variants have the same repository layout, so paths in `golden.json` hold for either.
+Every variant has the same repository layout, so paths in `golden.json` hold for any of them.
 
 ## The app
 
@@ -31,15 +33,16 @@ Both variants have the same repository layout, so paths in `golden.json` hold fo
 | `AppUITests` | XCUITest | `ShopUITestCase`, a base class that launches the app in `setUp` and terminates it in `tearDown`; a test that relaunches the app; a suite whose class `setUp` launches one app for all its tests |
 
 Every test target links [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution),
-the SPM dependency. The generated variant links it statically and adds `-ObjC`; the plain project
-uses Xcode's own package integration. The `Shop` scheme runs every test target in parallel with
+the SPM dependency. The generated variant links it statically and adds `-ObjC`; the plain projects
+use Xcode's own package integration. The synchronized project excludes `CatalogTests/Fixtures` from
+`CatalogTests`, so the fixture stays outside every target there too. The `Shop` scheme runs every test target in parallel with
 coverage on; `ShopAppCoverage` is the same but gathers coverage for `App` and `Catalog` only. TestCoverageAttribution records per-test evidence for XCTest and UI tests only, and
 XCTest runs one test at a time in each clone, so parallel testing doesn't change it. Swift Testing
 tests record no test scope: what they execute is target-level evidence.
 
 `golden.json`'s `baseline_evidence` lists the repository files each test, suite and target
 executed on a measured full run, reduced the way the CLI reduces TestCoverageAttribution's output
-and Xcode's per-process profiles. Both variants record the same evidence.
+and Xcode's per-process profiles. Every variant records the same evidence.
 
 ## Building and testing a variant
 
@@ -51,13 +54,13 @@ xcodebuild test -workspace Shop.xcworkspace -scheme Shop \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-For the plain variant, build `xcodeproj` and pass `-project Shop.xcodeproj` instead. Set
+For a plain variant, build `xcodeproj` or `synchronized` and pass `-project Shop.xcodeproj` instead. Set
 `TEST_RUNNER_TEST_COVERAGE_ATTRIBUTION_DIR` to a fresh directory to see what
 TestCoverageAttribution records.
 
 ## The history
 
-`scenarios.sh build <generated|xcodeproj> <dir>` commits the variant as `baseline` on `main`, then
+`scenarios.sh build <variant> <dir>` commits the variant as `baseline` on `main`, then
 one branch per scenario, and prints every ref. Identity, dates and git settings are fixed, so a
 fixture revision always produces the same SHAs. The script tags each scenario's checkout as
 `checkout/<scenario>` and each commit a scenario records a run on as `run/…`.
@@ -79,9 +82,9 @@ fixture revision always produces the same SHAs. The script tags each scenario's 
 | `new_test` | A new test in `DiscountTests.swift` | It runs, unknown to the server |
 | `failed_at_baseline` | `docs/notes.md`; the baseline ran with `testAddsAmounts` failing | Only `testAddsAmounts` runs in `CoreTests` (`failed_last_run`) |
 | `carried_evidence` | A run on `Money.swift`, then `Discount.swift` | The first run's evidence keeps `MoneyTests` and `testShowsCatalog` skipped |
-| `window_at_cap` | 20 measured commits since the baseline | Selected |
-| `window_over_cap` | 21 measured commits | `fallback`, `baseline_too_old` |
-| `window_unmeasured` | 21 commits without runs | Selected: unmeasured commits don't count |
+| `window_at_cap` | 19 measured commits since the baseline: 20 with coverage, the baseline included | Selected |
+| `window_over_cap` | 20 measured commits since the baseline: 21 with coverage | `fallback`, `baseline_too_old` |
+| `window_unmeasured` | 20 commits without runs | Selected: unmeasured commits don't count |
 | `default_branch` | A commit on `main` | `fallback`, `excluded_branch` |
 | `diff_too_large` | 5,002 changed files | `fallback`, `diff_too_large` |
 | `tracked_file` | `Configs/Base.xcconfig` | `fallback`, `tracked_file_changed` |
@@ -89,7 +92,7 @@ fixture revision always produces the same SHAs. The script tags each scenario's 
 | `unowned_file` | `README.md` and `Discount.swift` | Same as `source_change` |
 | `unowned_file_only` | `README.md` | Every target's hash matches: `no_selection_call` |
 | `unowned_test_fixture` | `catalog-fixture.json` | `no_selection_call`, so nothing runs: accepted gap |
-| `dirty_checkout` | Uncommitted `Discount.swift`, untracked `Featured.swift` | Differs per variant: the plain project doesn't own the new file |
+| `dirty_checkout` | Uncommitted `Discount.swift`, untracked `Featured.swift` | Differs per variant: the project with file references doesn't own the new file |
 | `local_merge` | Merge commit of a branch (`Discount.swift`) into `main` (`Catalog.swift`) | Both sides' changes select tests |
 | `swift_testing_only_source` | `Search.swift`, executed only by Swift Testing | Every `CatalogTests` test runs |
 | `no_baseline` | `source_change`'s commit, nothing recorded | `fallback`, `no_baseline` |
@@ -98,8 +101,8 @@ fixture revision always produces the same SHAs. The script tags each scenario's 
 | `receipt_change` | `Receipt.swift`, reached through a relaunch and a shared app | The relaunching test and both tests of the shared-app suite are `impacted` |
 | `test_helper_change` | `CoreTests/Support/Prices.swift` | `test_file_changed` for the suites that called it |
 | `ui_test_base_class_change` | `ShopUITestCase.swift` | `test_file_changed` for its subclasses |
-| `deleted_test_file` | `MoneyTests.swift` deleted | The server still decides its tests; the plain project falls back (`project.pbxproj`) |
-| `renamed_source` | `Discount.swift` renamed | Its tests are `impacted`; the rest of `Core`'s dependents `owned_without_evidence`; the plain project falls back |
+| `deleted_test_file` | `MoneyTests.swift` deleted | The server still decides its tests; the project with file references falls back (`project.pbxproj`) |
+| `renamed_source` | `Discount.swift` renamed | Its tests are `impacted`; the rest of `Core`'s dependents `owned_without_evidence`; the project with file references falls back |
 
 ## `golden.json`
 
@@ -121,9 +124,11 @@ Each scenario has:
   hash aren't listed. `known_to_server: false` marks a test the baseline doesn't have, and
   `exists_at_checkout: false` one the checkout deleted. For `fallback`, `run_targets` are the targets that run whole.
   `no_selection_call` means hash pruning skipped every target, so the CLI never asks the server.
-- `variants.xcodeproj`: fields that differ for the plain project.
+- `variants.xcodeproj`: fields that differ for the project with file references. The
+  `synchronized` variant has no entries: adding, removing or renaming a file doesn't touch its
+  `project.pbxproj`, so it matches the generated variant in every scenario.
 
-The hash stage was measured on the generated variant. The top-level `assumptions` list the
+The hash stage was measured on the generated variant; `tuist hash selective-testing` can't load a plain project. The top-level `assumptions` list the
 readings of the design the decisions depend on, such as what target-level evidence includes.
 When a later step settles one differently, update the decisions and the assumption together.
 
@@ -143,5 +148,7 @@ When a later step settles one differently, update the decisions and the assumpti
 
 Edits to `common/` change evidence and hashes. Re-measure `baseline_evidence` on a full run,
 update the affected scenarios, re-measure the hash stage with `tuist hash selective-testing` at each checkout, and
-run `scenarios.sh check` on a fresh build. Regenerate `xcodeproj/Shop.xcodeproj` when targets
-change, and keep both variants' `Package.resolved` on the same TestCoverageAttribution version.
+run `scenarios.sh check` on a fresh build. When targets change, update `generated/Project.swift` and
+`authoring/Project.swift`, then run `scenarios.sh project xcodeproj` and `scenarios.sh project
+synchronized` with `tuist` on the `PATH`. Keep every variant's `Package.resolved` on the same
+TestCoverageAttribution version.
