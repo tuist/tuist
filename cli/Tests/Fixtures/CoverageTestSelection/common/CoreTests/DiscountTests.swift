@@ -7,6 +7,6 @@ final class DiscountTests: XCTestCase {
     }
 
     func testZeroPercentKeepsPrice() {
-        XCTAssertEqual(Discount.apply(percent: 0, to: Money(cents: 1000)), Money(cents: 1000))
+        XCTAssertEqual(Discount.apply(percent: 0, to: Prices.tenDollars()), Prices.tenDollars())
     }
 }

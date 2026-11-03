@@ -99,6 +99,12 @@ public enum Featured {
 EOF
 }
 
+# Plain Xcode projects list every file in project.pbxproj, so removing one edits it too.
+remove_from_project() {
+  grep -vF "/* $1" Shop.xcodeproj/project.pbxproj >Shop.xcodeproj/project.pbxproj.new
+  mv Shop.xcodeproj/project.pbxproj.new Shop.xcodeproj/project.pbxproj
+}
+
 replace_in() {
   local file=$1 from=$2 to=$3
   FROM=$from TO=$to perl -0pi -e 's/\Q$ENV{FROM}\E/$ENV{TO}/' "$file"
@@ -116,6 +122,7 @@ build() {
     exit 1
   fi
   mkdir -p "$output"
+  output=$(cd "$output" && pwd)
   local excludes=(--exclude .DS_Store --exclude xcuserdata --exclude Derived --exclude .build
     --exclude 'Shop.xcworkspace')
   if [ "$variant" = generated ]; then excludes+=(--exclude 'Shop.xcodeproj'); fi
@@ -126,6 +133,7 @@ build() {
   git init -q -b main
   git config core.autocrlf false
   git config core.fileMode true
+  git config core.excludesFile /dev/null
 
   commit_all "Shop: baseline"
   git tag baseline
@@ -254,6 +262,38 @@ build() {
   commit_all "Refactor the discount calculation on main"
   git tag checkout/default-branch
 
+  branch_from_baseline feature/receipt-change
+  replace_in App/Sources/Receipt.swift 'var lines = items.map' 'var lines: [String] = items.map'
+  commit_all "Spell out the receipt lines' type"
+  git tag checkout/receipt-change
+
+  branch_from_baseline feature/test-helper-change
+  replace_in CoreTests/Support/Prices.swift 'cents(1000)' 'cents(10 * 100)'
+  commit_all "Write ten dollars in cents"
+  git tag checkout/test-helper-change
+
+  branch_from_baseline feature/ui-test-base-class-change
+  replace_in AppUITests/ShopUITestCase.swift '        app.terminate()
+        super.tearDown()' '        app?.terminate()
+        super.tearDown()'
+  commit_all "Tolerate a test that never launched the app"
+  git tag checkout/ui-test-base-class-change
+
+  branch_from_baseline feature/deleted-test-file
+  git rm -q CoreTests/MoneyTests.swift
+  if [ "$variant" = xcodeproj ]; then remove_from_project MoneyTests.swift; fi
+  commit_all "Remove the Money tests"
+  git tag checkout/deleted-test-file
+
+  branch_from_baseline feature/renamed-source
+  git mv Core/Sources/Discount.swift Core/Sources/PercentDiscount.swift
+  if [ "$variant" = xcodeproj ]; then
+    sed -i.bak 's/Discount\.swift/PercentDiscount.swift/g' Shop.xcodeproj/project.pbxproj
+    rm Shop.xcodeproj/project.pbxproj.bak
+  fi
+  commit_all "Rename Discount.swift to PercentDiscount.swift"
+  git tag checkout/renamed-source
+
   git checkout -q main
   refs "$output"
 }
@@ -263,14 +303,14 @@ scenario_branch() {
     default-branch) echo main ;;
     local-merge) echo "" ;;
     window-at-cap | window-over-cap | window-unmeasured) echo feature/evidence-window ;;
-    no-baseline) echo feature/source-change ;;
+    no-baseline | stale-base | coverage-targets-subset) echo feature/source-change ;;
     *) echo "feature/$1" ;;
   esac
 }
 
 scenario_ref() {
   case "$1" in
-    no-baseline) echo checkout/source-change ;;
+    no-baseline | stale-base | coverage-targets-subset) echo checkout/source-change ;;
     *) echo "checkout/$1" ;;
   esac
 }
@@ -305,14 +345,8 @@ refs() {
 
 # Fails when golden.json names a scenario, ref or branch the built history doesn't have.
 check() {
-  local repo=$1 kind value ref
-  while read -r kind value ref; do
-    case "$kind" in
-      scenario) [ "$(scenario_ref "${value//_/-}")" = "$ref" ] || { echo "scenarios.sh doesn't check out $value at $ref" >&2; exit 1; } ;;
-      ref) git -C "$repo" rev-parse -q --verify "refs/tags/$value" >/dev/null || { echo "Missing tag $value" >&2; exit 1; } ;;
-      branch) git -C "$repo" rev-parse -q --verify "refs/heads/$value" >/dev/null || { echo "Missing branch $value" >&2; exit 1; } ;;
-    esac
-  done < <(python3 -I - "$fixture/golden.json" <<'PY'
+  local repo=$1 kind value ref entries
+  entries=$(python3 -I - "$fixture/golden.json" <<'PY'
 import json, sys
 for s in json.load(open(sys.argv[1]))["scenarios"]:
     checkout = s["checkout"]
@@ -324,6 +358,13 @@ for s in json.load(open(sys.argv[1]))["scenarios"]:
             print("branch", branch)
 PY
   )
+  while read -r kind value ref; do
+    case "$kind" in
+      scenario) [ "$(scenario_ref "${value//_/-}")" = "$ref" ] || { echo "scenarios.sh doesn't check out $value at $ref" >&2; exit 1; } ;;
+      ref) git -C "$repo" rev-parse -q --verify "refs/tags/$value" >/dev/null || { echo "Missing tag $value" >&2; exit 1; } ;;
+      branch) git -C "$repo" rev-parse -q --verify "refs/heads/$value" >/dev/null || { echo "Missing branch $value" >&2; exit 1; } ;;
+    esac
+  done <<<"$entries"
   echo "golden.json matches $repo"
 }
 
