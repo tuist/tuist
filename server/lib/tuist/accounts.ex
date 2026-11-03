@@ -2119,8 +2119,8 @@ defmodule Tuist.Accounts do
   @doc """
   Generates a session token.
   """
-  def generate_user_session_token(user) do
-    {token, user_token} = UserToken.build_session_token(user)
+  def generate_user_session_token(user, auth \\ %{}) do
+    {token, user_token} = UserToken.build_session_token(user, auth)
     Repo.insert!(user_token)
     token
   end
@@ -2155,12 +2155,46 @@ defmodule Tuist.Accounts do
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
-    {:ok, query} = UserToken.verify_session_token_query(token)
+    case get_user_session(token, opts) do
+      nil -> nil
+      session -> session.user
+    end
+  end
 
-    case query |> Repo.one() |> Repo.preload(preload) do
-      %User{active: false} -> nil
-      user -> user
+  @doc """
+  Loads authoritative browser-session state. Only user-initiated requests
+  and LiveView events touch activity; checks, heartbeats and async work do not.
+  """
+  def get_user_session(token, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    session =
+      Repo.one(
+        from session in UserToken.valid_session_query(token),
+          join: user in assoc(session, :user),
+          where: user.active,
+          preload: [user: user]
+      )
+
+    case session do
+      nil -> nil
+      session -> session |> Repo.preload(user: preload) |> maybe_touch_user_session(opts)
+    end
+  end
+
+  defp maybe_touch_user_session(session, opts) do
+    now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+    if Keyword.get(opts, :touch, false) and
+         (is_nil(session.last_active_at) or DateTime.diff(now, session.last_active_at) >= 60) do
+      # Recheck both deadlines in the write: a concurrent request must never
+      # resurrect an expired/revoked session. Throttle writes, not validation.
+      case Repo.update_all(UserToken.valid_session_query(session.token), set: [last_active_at: now]) do
+        {1, _} -> %{session | last_active_at: now}
+        {0, _} -> nil
+      end
+    else
+      session
     end
   end
 

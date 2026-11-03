@@ -1,11 +1,14 @@
 defmodule TuistWeb.AuthenticationTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase
 
+  import Phoenix.LiveViewTest
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Phoenix.LiveView
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.UserToken
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
@@ -174,7 +177,7 @@ defmodule TuistWeb.AuthenticationTest do
 
       assert %{value: signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert signed_token != get_session(conn, :user_token)
-      assert max_age == 5_184_000
+      assert max_age == 28_800
     end
   end
 
@@ -813,7 +816,7 @@ defmodule TuistWeb.AuthenticationTest do
       assert redirected_to(conn) == "/users/auth/okta?organization_id=#{organization.id}"
     end
 
-    test "does not redirect when session auth provider matches org SSO provider",
+    test "does not redirect when the current session proves the configured Workspace",
          %{conn: conn, user: user} do
       organization =
         AccountsFixtures.organization_fixture(
@@ -824,10 +827,11 @@ defmodule TuistWeb.AuthenticationTest do
         )
 
       Accounts.update_organization(organization, %{sso_enforced: true})
+      token = Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
 
       conn =
         conn
-        |> put_session(:auth_method, :google)
+        |> assign(:current_user_session, Accounts.get_user_session(token))
         |> Map.put(:params, %{"account_handle" => organization.account.name})
         |> assign(:current_user, user)
         |> Authentication.require_sso_authentication([])
@@ -857,6 +861,186 @@ defmodule TuistWeb.AuthenticationTest do
          %{conn: conn} do
       conn = Authentication.require_sso_authentication(conn, [])
       refute conn.halted
+    end
+  end
+
+  describe "organization SSO on connected navigation" do
+    test "the correct Workspace proof does not grant membership to a nonmember", %{conn: conn} do
+      organization = organization_fixture(sso_provider: :google, sso_organization_id: "customer.example")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      outsider = user_fixture()
+      refute Accounts.belongs_to_organization?(outsider, organization)
+
+      token =
+        Accounts.generate_user_session_token(outsider, %{
+          auth_method: :google,
+          provider_organization_id: "customer.example"
+        })
+
+      conn = put_session(conn, :user_token, token)
+      assert_error_sent 404, fn -> get(conn, ~p"/#{organization.account.name}/projects") end
+    end
+
+    test "an authorized account-bound support grant retains its HTTP and connected exception", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      organization = organization_fixture(sso_provider: :google, sso_organization_id: "customer.example")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      operator = user_fixture(email: "operator-proof@tuist.dev")
+      oauth2_identity_fixture(user: operator, provider: :google, provider_organization_id: "tuist.dev")
+      refute Accounts.belongs_to_organization?(operator, organization)
+
+      grant = %{
+        tier: :read,
+        account_id: organization.account.id,
+        account_handle: organization.account.name,
+        sub: operator.email,
+        jti: "local-support-proof",
+        exp: System.system_time(:second) + 600
+      }
+
+      conn = conn |> log_in_user(operator) |> put_session(:operator_grants, %{organization.account.name => grant})
+      protected_path = ~p"/#{organization.account.name}/projects"
+      assert conn |> get(protected_path) |> html_response(200)
+      assert {:ok, _, _} = live(conn, protected_path)
+    end
+
+    for scope <- [:public_account, :account, :project] do
+      @tag :sso_boundary
+      test "enforces the HTTP SSO requirement in the #{scope} live session", %{conn: conn, user: user} do
+        organization =
+          organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+
+        {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+        personal_project = ProjectsFixtures.project_fixture(account: user.account)
+        organization_project = ProjectsFixtures.project_fixture(account: organization.account)
+
+        {allowed_path, protected_path} =
+          case unquote(scope) do
+            :public_account ->
+              {~p"/#{user.account.name}/projects", ~p"/#{organization.account.name}/projects"}
+
+            :account ->
+              {~p"/#{user.account.name}/settings", ~p"/#{organization.account.name}/settings"}
+
+            :project ->
+              {~p"/#{user.account.name}/#{personal_project.name}/settings",
+               ~p"/#{organization.account.name}/#{organization_project.name}/settings"}
+          end
+
+        conn = log_in_user(conn, user)
+        assert conn |> get(protected_path) |> redirected_to() == ~p"/users/auth/google"
+
+        {:ok, view, _} = live(conn, allowed_path)
+
+        assert {:error, {:redirect, %{to: "/users/auth/google"}}} = live_redirect(view, to: protected_path)
+
+        sso_conn =
+          put_session(
+            conn,
+            :user_token,
+            Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+          )
+
+        assert {:ok, _, _} = live(sso_conn, protected_path)
+      end
+    end
+
+    @tag :sso_boundary
+    test "a connected join rechecks proof after its initial HTTP render", %{conn: conn, user: user} do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      token = Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+      protected_path = ~p"/#{organization.account.name}/projects"
+      rendered = conn |> put_session(:user_token, token) |> get(protected_path)
+      assert html_response(rendered, 200)
+      Repo.update_all(UserToken, set: [auth_provider: nil, auth_provider_organization_id: nil])
+      assert {:error, {:redirect, %{to: "/users/auth/google"}}} = live(rendered)
+    end
+
+    @tag :sso_boundary
+    test "a provider cookie and historical identity do not upgrade a legacy session", %{conn: conn, user: user} do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      oauth2_identity_fixture(user: user, provider_organization_id: "example.com")
+
+      conn = conn |> log_in_user(user) |> put_session(:auth_method, :google)
+      Repo.update_all(UserToken, set: [auth_provider: nil, auth_provider_organization_id: nil, last_active_at: nil])
+      protected_path = ~p"/#{organization.account.name}/projects"
+      assert conn |> get(protected_path) |> redirected_to() == ~p"/users/auth/google"
+
+      {:ok, view, _} = live(conn, ~p"/#{user.account.name}/projects")
+      assert {:error, {:redirect, %{to: "/users/auth/google"}}} = live_redirect(view, to: protected_path)
+    end
+
+    @tag :sso_boundary
+    test "checks changed SSO configuration before an already-open socket mutates a project", %{conn: conn, user: user} do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+        )
+
+      {:ok, view, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_organization_id: "new.example.com"})
+
+      render_hook(view, "rename_project", %{"project" => %{"name" => "must-not-change"}})
+      assert_redirect(view, ~p"/users/auth/google")
+      assert Tuist.Projects.get_project_by_id(project.id).name == project.name
+    end
+  end
+
+  describe "browser session expiry" do
+    @tag :browser_session
+    test "a remember-me cookie retains proof but cannot revive an idle or absolutely expired session", %{
+      conn: conn,
+      user: user
+    } do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+
+      logged_in =
+        conn
+        |> fetch_cookies()
+        |> Authentication.log_in_user(user, %{
+          "remember_me" => "true",
+          :auth_method => :google,
+          :provider_organization_id => "example.com"
+        })
+
+      %{value: cookie} = logged_in.resp_cookies[@remember_me_cookie]
+      remembered = put_req_cookie(conn, @remember_me_cookie, cookie)
+      assert remembered |> get(~p"/#{organization.account.name}/projects") |> html_response(200)
+
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -900)])
+      expired = Authentication.fetch_current_user(remembered, [])
+      refute expired.assigns.current_user
+      refute get_session(expired, :user_token)
+      assert %{max_age: 0} = expired.resp_cookies[@remember_me_cookie]
+
+      Repo.update_all(UserToken,
+        set: [inserted_at: now |> DateTime.add(-28_800) |> DateTime.to_naive(), last_active_at: now]
+      )
+
+      refute Authentication.fetch_current_user(remembered, []).assigns.current_user
+    end
+
+    @tag :browser_session
+    test "an expired connected session cannot submit a project mutation", %{conn: conn, user: user} do
+      project = ProjectsFixtures.project_fixture(account: user.account)
+      conn = log_in_user(conn, user)
+      {:ok, view, _} = live(conn, ~p"/#{user.account.name}/#{project.name}/settings")
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -900)])
+
+      render_hook(view, "rename_project", %{"project" => %{"name" => "must-not-change"}})
+      assert_redirect(view, ~p"/users/log_in")
+      assert Tuist.Projects.get_project_by_id(project.id).name == project.name
     end
   end
 
