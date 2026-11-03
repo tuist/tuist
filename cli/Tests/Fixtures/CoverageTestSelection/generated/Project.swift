@@ -5,6 +5,20 @@ let testSettings: Settings = .settings(base: [
     "OTHER_LDFLAGS": ["$(inherited)", "-ObjC"],
 ])
 
+func shopScheme(name: String, coverageTargets: [TargetReference]) -> Scheme {
+    .scheme(
+        name: name,
+        buildAction: .buildAction(targets: ["App"]),
+        testAction: .targets(
+            ["CoreTests", "CatalogTests", "AppTests", "CheckoutTests", "AppUITests"].map {
+                .testableTarget(target: .target($0), parallelization: .enabled)
+            },
+            options: .options(coverage: true, codeCoverageTargets: coverageTargets)
+        ),
+        runAction: .runAction(executable: "App")
+    )
+}
+
 let project = Project(
     name: "Shop",
     options: .options(
@@ -88,6 +102,19 @@ let project = Project(
             settings: testSettings
         ),
         .target(
+            name: "CheckoutTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.testbed.CheckoutTests",
+            deploymentTargets: .iOS("17.0"),
+            sources: ["CheckoutTests/**/*.swift"],
+            dependencies: [
+                .target(name: "App"),
+                .external(name: "TestCoverageAttribution"),
+            ],
+            settings: testSettings
+        ),
+        .target(
             name: "AppUITests",
             destinations: .iOS,
             product: .uiTests,
@@ -102,19 +129,8 @@ let project = Project(
         ),
     ],
     schemes: [
-        .scheme(
-            name: "Shop",
-            buildAction: .buildAction(targets: ["App"]),
-            testAction: .targets(
-                [
-                    .testableTarget(target: "CoreTests", parallelization: .enabled),
-                    .testableTarget(target: "CatalogTests", parallelization: .enabled),
-                    .testableTarget(target: "AppTests", parallelization: .enabled),
-                    .testableTarget(target: "AppUITests", parallelization: .enabled),
-                ],
-                options: .options(coverage: true)
-            ),
-            runAction: .runAction(executable: "App")
-        ),
+        shopScheme(name: "Shop", coverageTargets: []),
+        // Measures only the app's own modules, the way some teams scope coverage.
+        shopScheme(name: "ShopAppCoverage", coverageTargets: ["App", "Catalog"]),
     ]
 )
