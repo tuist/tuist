@@ -76,6 +76,10 @@ struct TestImpactSelectorTests {
                 limits: .any
             )
             .called(1)
+        verify(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .value("merge"), parentSHAs: .value(["main-tip", "head"]),
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).called(1)
         verify(createRunService).createTestImpactRun(
             fullHandle: .value("acme/shop"),
             serverURL: .value(serverURL),
@@ -208,7 +212,13 @@ struct TestImpactSelectorTests {
         verify(createRunService).createTestImpactRun(
             fullHandle: .any,
             serverURL: .any,
-            request: .matching { $0.basis == .fallback(.excludedBranch) && $0.commitSHA == nil }
+            request: .matching {
+                $0.basis == .fallback(.excludedBranch) && $0.commitSHA == nil && $0.parentSHAs == ["main-parent"]
+            }
+        ).called(1)
+        verify(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .value("main-tip"), parentSHAs: .value(["main-parent"]),
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).called(1)
     }
 
@@ -239,14 +249,14 @@ struct TestImpactSelectorTests {
             pullRequestNumber: 7
         ))
         given(gitController).checkedOutCommit(workingDirectory: .any)
-            .willReturn(GitCheckedOutCommit(sha: "merge", parentSHAs: ["main-tip", "head"]))
+            .willReturn(GitCheckedOutCommit(sha: "merge", parentSHAs: ["main-tip", "head"], isPullRequestMerge: true))
     }
 
     private func givenDefaultBranchCheckout() {
         given(gitController).gitInfo(workingDirectory: .any)
             .willReturn(.test(ref: "refs/heads/main", branch: "main", sha: "main-tip"))
         given(gitController).checkedOutCommit(workingDirectory: .any)
-            .willReturn(GitCheckedOutCommit(sha: "main-tip", parentSHAs: []))
+            .willReturn(GitCheckedOutCommit(sha: "main-tip", parentSHAs: ["main-parent"]))
         given(getProjectService).getProject(fullHandle: .any, serverURL: .any)
             .willReturn(.test(defaultBranch: "main"))
     }

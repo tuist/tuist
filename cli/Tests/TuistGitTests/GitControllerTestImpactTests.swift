@@ -173,11 +173,15 @@ struct GitControllerTestImpactTests {
 
         let checkedOut = try await GitController(commandRunner: CommandRunner()).checkedOutCommit(workingDirectory: clone)
 
-        #expect(checkedOut == GitCheckedOutCommit(sha: mergeCommit, parentSHAs: [baseTip, pullRequestHead]))
+        #expect(checkedOut == GitCheckedOutCommit(
+            sha: mergeCommit,
+            parentSHAs: [baseTip, pullRequestHead],
+            isPullRequestMerge: true
+        ))
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func checkedOutCommit_has_no_parents_outside_a_pull_request_merge_checkout() async throws {
+    func checkedOutCommit_reads_the_parents_outside_a_pull_request_merge_checkout() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let repository = try await makeRepository(at: path)
         try write("money v1", to: "Core/Money.swift", in: repository)
@@ -188,6 +192,7 @@ struct GitControllerTestImpactTests {
         try git(["checkout", "-q", "main"], in: repository)
         try git(["merge", "-q", "--no-ff", "-m", "merge", "feature"], in: repository)
         let head = try git(["rev-parse", "HEAD"], in: repository)
+        let parents = try git(["rev-parse", "HEAD^1", "HEAD^2"], in: repository).split(separator: "\n").map(String.init)
         // A workflow that checked out another commit than GitHub's merge commit.
         try #require(Environment.mocked).variables = gitEnvironment.merging([
             "GITHUB_REF": "refs/pull/1/merge",
@@ -196,7 +201,22 @@ struct GitControllerTestImpactTests {
 
         let checkedOut = try await GitController(commandRunner: CommandRunner()).checkedOutCommit(workingDirectory: repository)
 
-        #expect(checkedOut == GitCheckedOutCommit(sha: head, parentSHAs: []))
+        #expect(checkedOut == GitCheckedOutCommit(sha: head, parentSHAs: parents))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func checkedOutCommit_reads_a_new_commits_parent() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let repository = try await makeRepository(at: path)
+        try write("money v1", to: "Core/Money.swift", in: repository)
+        let parent = try commit("baseline", in: repository)
+        try write("money v2", to: "Core/Money.swift", in: repository)
+        let head = try commit("change", in: repository)
+        try #require(Environment.mocked).variables = gitEnvironment
+
+        let checkedOut = try await GitController(commandRunner: CommandRunner()).checkedOutCommit(workingDirectory: repository)
+
+        #expect(checkedOut == GitCheckedOutCommit(sha: head, parentSHAs: [parent]))
     }
 
     @Test func parseRawDiff_reads_statuses_and_blobs() {

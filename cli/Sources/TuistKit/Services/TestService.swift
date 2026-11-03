@@ -2663,12 +2663,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
         let destination: XcodeBuildDestination?
         let evidencePlatform: TestCoverageEvidencePlatform?
+        let testPlatform: XcodeGraph.Platform?
 
         if let index = passthroughXcodeBuildArguments.firstIndex(of: "-destination") {
             destination = nil
-            evidencePlatform = passthroughXcodeBuildArguments.indices.contains(index + 1)
-                ? TestCoverageEvidencePlatform(destination: passthroughXcodeBuildArguments[index + 1])
+            let passedDestination = passthroughXcodeBuildArguments.indices.contains(index + 1)
+                ? passthroughXcodeBuildArguments[index + 1]
                 : nil
+            evidencePlatform = passedDestination.flatMap(TestCoverageEvidencePlatform.init(destination:))
+            testPlatform = passedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
         } else {
             let buildPlatform: XcodeGraph.Platform
 
@@ -2697,6 +2700,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             case .iOS: .iOSSimulator
             default: nil
             }
+            testPlatform = buildPlatform
             destination = try await XcodeBuildDestination.find(
                 for: buildableTarget.target,
                 on: buildPlatform,
@@ -2748,6 +2752,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         // What TestCoverageAttribution recorded is reduced, and the run's coverage exported, as
         // soon as the run ends, before a stress pass runs tests over the same derived data and
         // replaces the profile both read.
+        await RunMetadataStorage.current.update(testPlatform: testPlatform)
         let evidenceSession = action == .build ? nil : await testCoverageEvidenceService
             .prepare(platform: evidencePlatform, config: config)
         let runStartedAt = Date()

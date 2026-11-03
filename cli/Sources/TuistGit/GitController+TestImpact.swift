@@ -1,16 +1,18 @@
 import Foundation
 import Path
 
-/// The checked-out commit and, when it's a pull request's merge commit, which exists only in the
-/// checkout, its parents (the base branch's tip and the pull request's head).
+/// The checked-out commit and its parents, which let the server place a commit its history doesn't
+/// have yet: a new commit, or a pull request's merge commit, which exists only in the checkout.
 public struct GitCheckedOutCommit: Equatable, Sendable {
     public let sha: String
-    /// Empty unless the commit is a pull request's merge commit.
+    /// On a pull request's merge commit, the base branch's tip and the pull request's head.
     public let parentSHAs: [String]
+    public let isPullRequestMerge: Bool
 
-    public init(sha: String, parentSHAs: [String]) {
+    public init(sha: String, parentSHAs: [String], isPullRequestMerge: Bool = false) {
         self.sha = sha
         self.parentSHAs = parentSHAs
+        self.isPullRequestMerge = isPullRequestMerge
     }
 }
 
@@ -52,15 +54,14 @@ extension GitController {
     public func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit {
         let head = try await currentCommitSHA(workingDirectory: workingDirectory)
         let environment = await ciEnvironment()
-        guard Self.isPullRequestMergeCheckout(ref: Self.ref(environment: environment), head: head, environment: environment)
-        else { return GitCheckedOutCommit(sha: head, parentSHAs: []) }
-        // A depth-1 checkout grafts the merge commit's parents away; the raw format reads them from
-        // the commit object.
+        // A depth-1 checkout grafts the parents away; the raw format reads them from the commit object.
         let raw = try? await capture(
             arguments: ["git", "-C", workingDirectory.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", head]
         )
         let parents = raw.map(GitHistoryParser.parseRawParents)?[head] ?? []
-        return GitCheckedOutCommit(sha: head, parentSHAs: parents.count > 1 ? parents : [])
+        let isPullRequestMerge = parents.count > 1
+            && Self.isPullRequestMergeCheckout(ref: Self.ref(environment: environment), head: head, environment: environment)
+        return GitCheckedOutCommit(sha: head, parentSHAs: parents, isPullRequestMerge: isPullRequestMerge)
     }
 
     public func changedFiles(

@@ -247,7 +247,7 @@ actor TestImpactSelector {
     /// Whether the run is on the project's default branch, which never selects. Pull requests never
     /// are; otherwise the server's project says which branch is the default.
     private func isDefaultBranch(gitInfo: GitInfo, checkout: GitCheckedOutCommit) async -> Bool {
-        guard let branch = gitInfo.branch, gitInfo.pullRequestNumber == nil, checkout.parentSHAs.isEmpty else { return false }
+        guard let branch = gitInfo.branch, gitInfo.pullRequestNumber == nil, !checkout.isPullRequestMerge else { return false }
         let invocation = invocation
         let getProjectService = getProjectService
         let project = try? await withTestImpactTimeout(timeout) {
