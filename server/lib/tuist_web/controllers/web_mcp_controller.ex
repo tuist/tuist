@@ -8,7 +8,22 @@ defmodule TuistWeb.WebMCPController do
   """
   use TuistWeb, :controller
 
+  alias Tuist.Accounts
   alias Tuist.MCP.WebMCP
+
+  def account(conn, %{"account_handle" => account_handle}) do
+    case Accounts.get_account_by_handle(account_handle) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Account not found: #{account_handle}"})
+
+      account ->
+        conn
+        |> assign(:mcp_account_scope, account)
+        |> handle(WebMCP.account_server())
+    end
+  end
 
   def public(conn, _params), do: handle(conn, WebMCP.public_server())
 
