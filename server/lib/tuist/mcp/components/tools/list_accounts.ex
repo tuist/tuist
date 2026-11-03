@@ -36,14 +36,16 @@ defmodule Tuist.MCP.Components.Tools.ListAccounts do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.MCP.Authorization, as: MCPAuthorization
 
   @impl EMCP.Tool
   def description do
     "List personal and organization account handles available to the authenticated user. Use when the account handle for a project is unknown."
   end
 
-  def execute(%{assigns: %{current_user: user}}, _args) do
+  def execute(%{assigns: %{current_user: user} = assigns}, _args) do
     own_account = Accounts.get_account_from_user(user)
+    scope = MCPAuthorization.account_scope(assigns)
 
     organization_accounts =
       user
@@ -54,6 +56,7 @@ defmodule Tuist.MCP.Components.Tools.ListAccounts do
       [own_account | organization_accounts]
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq_by(& &1.id)
+      |> Enum.filter(&(is_nil(scope) or &1.id == scope.id))
       |> Enum.map(fn account ->
         %{
           id: account.id,

@@ -3,6 +3,7 @@ defmodule TuistWeb.AuthControllerTest do
   use Mimic
 
   import Ecto.Query
+  import Phoenix.LiveViewTest
 
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
@@ -36,6 +37,60 @@ defmodule TuistWeb.AuthControllerTest do
 
       # Then
       assert redirected_to(conn) == "/auth/device_codes/#{device_code}/success?type=cli"
+    end
+  end
+
+  describe "device code approval with SSO enforcement" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
+      %{user: user, organization: enforce_sso(organization, :google)}
+    end
+
+    test "sends a session that did not sign in with the organization's provider to it first", %{
+      conn: conn,
+      user: user
+    } do
+      conn = conn |> log_in_user(user) |> put_session(:auth_method, :password)
+
+      conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
+
+      assert redirected_to(conn) == "/users/auth/google"
+      assert get_session(conn, :oauth_return_to) == "/auth/device_codes/SSO-1234?type=cli"
+    end
+
+    test "approves the device code for a session signed in with the provider", %{conn: conn, user: user} do
+      conn = conn |> log_in_user(user) |> put_session(:auth_method, :google)
+
+      conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
+
+      assert redirected_to(conn) == "/auth/device_codes/SSO-1234/success?type=cli"
+    end
+
+    test "the success page does not approve the device code for a session the route would refuse", %{
+      conn: conn,
+      user: user
+    } do
+      Tuist.Accounts.create_device_code("SSO-5678")
+      conn = conn |> log_in_user(user) |> put_session(:auth_method, :password)
+
+      assert {:error, {:redirect, %{to: "/auth/device_codes/SSO-5678?type=cli"}}} =
+               live(conn, "/auth/device_codes/SSO-5678/success?type=cli")
+
+      refute Tuist.Accounts.get_device_code("SSO-5678").authenticated
+    end
+
+    test "refuses a session that organizations with different providers cannot all accept", %{
+      conn: conn,
+      user: user
+    } do
+      okta = AccountsFixtures.organization_fixture()
+      :ok = Tuist.Accounts.add_user_to_organization(user, okta, role: :user)
+      enforce_sso(okta, :okta)
+      conn = conn |> log_in_user(user) |> put_session(:auth_method, :google)
+
+      assert_error_sent 401, fn -> get(conn, "/auth/device_codes/SSO-1234?type=cli") end
     end
   end
 
@@ -1681,5 +1736,11 @@ defmodule TuistWeb.AuthControllerTest do
       # Then
       assert redirected_to(conn) == "/users/log_in"
     end
+  end
+
+  defp enforce_sso(organization, provider) do
+    # Enabling enforcement through `Accounts` also requires a verified login
+    # email domain, which is not what these tests are about.
+    organization |> Ecto.Changeset.change(sso_enforced: true, sso_provider: provider) |> Tuist.Repo.update!()
   end
 end

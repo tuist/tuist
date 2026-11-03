@@ -169,6 +169,10 @@ defmodule TuistWeb.Endpoint do
   def scrub_sentry_headers(conn) do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
-    |> Map.drop(["x-tuist-actor-id", "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()])
+    |> Map.drop([
+      "x-csrf-token",
+      "x-tuist-actor-id",
+      "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()
+    ])
   end
 end

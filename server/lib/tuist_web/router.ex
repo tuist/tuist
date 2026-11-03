@@ -18,6 +18,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
+  alias TuistWeb.Plugs.MCPRateLimitPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
@@ -328,7 +329,40 @@ defmodule TuistWeb.Router do
     plug :accept_atlas_identity_header
     plug SentryContextPlug
     plug ObservabilityContextPlug
-    plug TuistWeb.Plugs.MCPRateLimitPlug
+    plug MCPRateLimitPlug
+  end
+
+  # WebMCP tools the dashboard registers in the browser run as the signed-in
+  # user, scoped to the account in the path, so the session cookie authenticates
+  # them, CSRF protection applies, and that account's SSO enforcement applies
+  # as it does on its dashboard. Bearer tokens, operator grants and Atlas
+  # identities are not accepted.
+  pipeline :webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_user
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug :require_sso_authentication_for_account_api
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug MCPRateLimitPlug
+  end
+
+  # The documentation tools marketing and docs pages register need no identity.
+  # Those pages are shared-cached, so no session or CSRF token is involved.
+  pipeline :public_webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug MCPRateLimitPlug
+  end
+
+  # Pages that issue credentials acting for the user everywhere, which must not
+  # become a way around an organization's SSO enforcement.
+  pipeline :require_sso_for_credentials do
+    plug :require_sso_authentication_for_credentials
   end
 
   pipeline :authenticated_api do
@@ -732,6 +766,18 @@ defmodule TuistWeb.Router do
     pipe_through [:mcp]
 
     forward "/mcp", Tuist.MCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
+  end
+
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:public_webmcp]
+
+    post "/public", WebMCPController, :public
+  end
+
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:webmcp]
+
+    post "/accounts/:account_handle", WebMCPController, :account
   end
 
   scope "/scim/v2", TuistWeb.SCIM do
@@ -1231,9 +1277,14 @@ defmodule TuistWeb.Router do
   end
 
   scope "/oauth2", TuistWeb.Oauth do
-    pipe_through [:browser_app, :fetch_current_user]
+    pipe_through [:browser_app, :fetch_current_user, :require_sso_for_credentials]
 
     get "/authorize", AuthorizeController, :authorize
+  end
+
+  scope "/oauth2", TuistWeb.Oauth do
+    pipe_through [:browser_app, :fetch_current_user]
+
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
     get "/apple", AuthorizeController, :authorize_with_apple
@@ -1414,6 +1465,10 @@ defmodule TuistWeb.Router do
     get "/sso/link", SSOLinkController, :show
     post "/sso/link", SSOLinkController, :create
     delete "/sso/link", SSOLinkController, :delete
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app, :require_authenticated_user, :require_sso_for_credentials]
 
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated

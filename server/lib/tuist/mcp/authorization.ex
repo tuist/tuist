@@ -24,9 +24,24 @@ defmodule Tuist.MCP.Authorization do
   is allowed to do.
   """
   def authorize_request(assigns, action, resource, category) when is_map(assigns) do
-    authorize(authenticated_subject(assigns), action, resource, category) or
-      associated_user_authorizes?(assigns, action, resource, category) or
-      atlas_operator_authorizes_read?(assigns, action, resource, category)
+    within_account_scope?(assigns, resource) and
+      (authorize(authenticated_subject(assigns), action, resource, category) or
+         associated_user_authorizes?(assigns, action, resource, category) or
+         atlas_operator_authorizes_read?(assigns, action, resource, category))
+  end
+
+  @doc """
+  The account a request is limited to, if any. WebMCP sets it to the account
+  of the dashboard page that registered the tools, so a browser agent only
+  reaches the account the user is looking at.
+  """
+  def account_scope(assigns), do: assigns[:mcp_account_scope]
+
+  defp within_account_scope?(assigns, resource) do
+    case account_scope(assigns) do
+      nil -> true
+      account -> Checks.object_account_id(resource) == account.id
+    end
   end
 
   # `current_user` sits next to an `AuthenticatedAccount` only on the MCP

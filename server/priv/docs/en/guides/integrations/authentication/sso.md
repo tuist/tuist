@@ -53,6 +53,13 @@ Google configurations default to automatic enrollment. New Okta and custom-provi
 
 The **Enforce single sign-on** setting is independent of enrollment. Enforcement prevents existing organization members from using email and password; it does not grant organization membership.
 
+Enforcement applies wherever a member's session reaches the organization:
+
+- **Dashboard**: the organization's pages, and the tools they offer to browser agents through <.localized_link href="/guides/features/agentic-coding/mcp#webmcp">WebMCP</.localized_link>, require a session signed in with the organization's provider.
+- **Tuist CLI, the Tuist app, and MCP clients**: signing them in creates a credential that acts for the member in every organization, so it requires a session signed in with the provider of every organization that enforces single sign-on. Tuist sends a member who signed in another way to the provider first. Credentials issued earlier are not revoked.
+
+A member of several organizations that enforce different providers can't sign in to the CLI, the app, or MCP clients, because one session uses one provider.
+
 ### Choose the role enrolled members get {#choose-the-enrollment-role}
 
 Members who join automatically get the <.localized_link href="/guides/server/accounts-and-projects#roles">role</.localized_link> set under **Role for enrolled members**, which is `user` unless an administrator changes it. Setting it to `viewer` opens sign-in to everyone in the directory without giving everyone the ability to change things.
