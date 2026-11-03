@@ -139,6 +139,9 @@ defmodule Tuist.Runners.CacheVolumes do
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
          {:ok, identity} <- Identity.resolve(job),
+         # A checkout builds from the default branch; an identity GitHub could
+         # not complete has none.
+         true <- is_binary(Map.get(identity, :default_branch)),
          {:ok, allocation} <-
            allocate_for_job(job, identity, %{
              pod_name: pod,

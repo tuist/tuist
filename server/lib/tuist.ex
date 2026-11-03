@@ -344,6 +344,7 @@ defmodule Tuist do
       Runners.Trials,
       Runners.Concurrency,
       Runners.Dispatch,
+      Runners.ExecutionTokens,
       Runners.Workers.CloseDisconnectedInteractiveSessionWorker,
       Runners.Workers.DispatchWorker,
       Runners.Workers.ExpireInteractiveSessionsWorker,

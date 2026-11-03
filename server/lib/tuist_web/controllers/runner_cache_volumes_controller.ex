@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerCacheVolumesController do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.ActionsCache
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.ExecutionTokens
   alias Tuist.Runners.VolumePrefetch
 
   def authorize(conn, params) do
@@ -66,6 +67,17 @@ defmodule TuistWeb.RunnerCacheVolumesController do
 
       _ ->
         conn |> put_status(:forbidden) |> json(%{error: "docker cache unavailable"})
+    end
+  end
+
+  # A job's GitHub Actions OIDC token, forwarded by the node agent from the
+  # job-started hook, binding the pod's session to the job it names.
+  def execution(conn, params) do
+    with :ok <- authenticate(conn),
+         :ok <- ExecutionTokens.prove(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(%{})
+    else
+      _ -> conn |> put_status(:forbidden) |> json(%{error: "execution token rejected"})
     end
   end
 
