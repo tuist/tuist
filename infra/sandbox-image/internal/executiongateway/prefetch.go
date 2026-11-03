@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"io"
 	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -23,6 +26,8 @@ const (
 	prefetchEncoded = 349_528
 	// Upper bound on one entry's protobuf framing around its data.
 	prefetchEntry = 96
+	// More directories than this cannot fit the byte budget anyway.
+	prefetchTreeDirectories = 4096
 )
 
 func (g *Gateway) remember(account, project, url string, leases bool) {
@@ -119,6 +124,18 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 	if !ok || len(blobs) != 1 || proto.Unmarshal(blobs[0], &a) != nil {
 		return ""
 	}
+	if worker.ValidDigest(a.InputRootDigest) && g.treeSupported(url) {
+		// The whole input tree in one call, beside the command.
+		tree := make(chan []*re.Directory, 1)
+		go func() { tree <- g.readTree(ctx, cas, project, url, a.InputRootDigest) }()
+		_, commandRead := read(take(nil, a.CommandDigest, prefetchFile))
+		if dirs := <-tree; dirs != nil {
+			if commandRead {
+				read(seedTree(dirs, a.InputRootDigest, seed, take))
+			}
+			return encode()
+		}
+	}
 	next := take(take(nil, a.CommandDigest, prefetchFile), a.InputRootDigest, prefetchFile)
 	if worker.ValidDigest(a.InputRootDigest) {
 		directories[a.InputRootDigest.Hash] = true
@@ -151,4 +168,68 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 		next = queue
 	}
 	return encode()
+}
+
+// seedTree seeds the directories GetTree returned that the tree references by
+// digest and returns the files to read beside them. GetTree returns decoded
+// directories, so each is encoded again and kept only when that encoding
+// matches a referenced digest; the VM reads any other directory itself.
+func seedTree(dirs []*re.Directory, root *re.Digest, seed *re.BatchUpdateBlobsRequest, take func([]*re.Digest, *re.Digest, int64) []*re.Digest) []*re.Digest {
+	referenced := map[string]int64{root.Hash: root.SizeBytes}
+	for _, dir := range dirs {
+		for _, child := range dir.Directories {
+			if worker.ValidDigest(child.Digest) {
+				referenced[child.Digest.Hash] = child.Digest.SizeBytes
+			}
+		}
+	}
+	var files []*re.Digest
+	for _, dir := range dirs {
+		b, err := proto.MarshalOptions{Deterministic: true}.Marshal(dir)
+		if err != nil {
+			continue
+		}
+		h := sha256.Sum256(b)
+		d := &re.Digest{Hash: hex.EncodeToString(h[:]), SizeBytes: int64(len(b))}
+		if size, ok := referenced[d.Hash]; !ok || size != d.SizeBytes || len(take(nil, d, prefetchFile)) == 0 {
+			continue
+		}
+		seed.Requests = append(seed.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: d, Data: b})
+		for _, f := range dir.Files {
+			files = take(files, f.Digest, prefetchFile)
+		}
+	}
+	return files
+}
+
+// readTree returns the directories under root, or nil when GetTree failed or
+// returned more than a prefetch can use. A cache that does not implement
+// GetTree is not asked again.
+func (g *Gateway) readTree(ctx context.Context, cas re.ContentAddressableStorageClient, project, url string, root *re.Digest) []*re.Directory {
+	stream, err := cas.GetTree(ctx, &re.GetTreeRequest{InstanceName: project, RootDigest: root, DigestFunction: re.DigestFunction_SHA256})
+	var dirs []*re.Directory
+	for err == nil {
+		var page *re.GetTreeResponse
+		if page, err = stream.Recv(); err == nil {
+			dirs = append(dirs, page.Directories...)
+			if len(dirs) > prefetchTreeDirectories {
+				return nil
+			}
+		}
+	}
+	if err == io.EOF {
+		return dirs
+	}
+	if status.Code(err) == codes.Unimplemented {
+		g.mu.Lock()
+		g.noTree[url] = true
+		g.mu.Unlock()
+	}
+	return nil
+}
+
+func (g *Gateway) treeSupported(url string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return !g.noTree[url]
 }

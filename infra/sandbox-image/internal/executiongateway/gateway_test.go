@@ -358,6 +358,34 @@ type blobStore struct {
 	re.UnimplementedContentAddressableStorageServer
 	blobs map[string][]byte
 	auth  atomic.Value
+	// tree serves GetTree; without it the store answers Unimplemented.
+	tree      bool
+	reads     atomic.Int32
+	treeCalls atomic.Int32
+}
+
+func (b *blobStore) GetTree(r *re.GetTreeRequest, s grpc.ServerStreamingServer[re.GetTreeResponse]) error {
+	b.treeCalls.Add(1)
+	if !b.tree {
+		return status.Error(codes.Unimplemented, "GetTree is not supported")
+	}
+	var page re.GetTreeResponse
+	next := []*re.Digest{r.RootDigest}
+	for len(next) > 0 {
+		var level []*re.Digest
+		for _, d := range next {
+			var dir re.Directory
+			if proto.Unmarshal(b.blobs[d.Hash], &dir) != nil {
+				continue
+			}
+			page.Directories = append(page.Directories, &dir)
+			for _, child := range dir.Directories {
+				level = append(level, child.Digest)
+			}
+		}
+		next = level
+	}
+	return s.Send(&page)
 }
 
 func (b *blobStore) put(data []byte) *re.Digest {
@@ -373,6 +401,7 @@ func (b *blobStore) message(m proto.Message) *re.Digest {
 }
 
 func (b *blobStore) BatchReadBlobs(ctx context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
+	b.reads.Add(1)
 	md, _ := metadata.FromIncomingContext(ctx)
 	b.auth.Store(append(md.Get("authorization"), md.Get("x-tuist-account-handle")...))
 	response := &re.BatchReadBlobsResponse{}
@@ -450,5 +479,78 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 	}
 	if auth, _ := store.auth.Load().([]string); len(auth) != 2 || auth[0] != "Bearer secret" || auth[1] != "tuist" {
 		t.Fatalf("credentials: %v", auth)
+	}
+}
+
+// prefetchLab serves a three-level input tree from one store and returns the
+// gateway's encoded seeds for successive executions of the same action.
+func prefetchLab(t *testing.T, store *blobStore) (func() *re.BatchUpdateBlobsRequest, []*re.Digest) {
+	t.Helper()
+	file := store.put([]byte("input"))
+	leaf := store.message(&re.Directory{Files: []*re.FileNode{{Name: "input", Digest: file}}})
+	middle := store.message(&re.Directory{Directories: []*re.DirectoryNode{{Name: "leaf", Digest: leaf}}})
+	root := store.message(&re.Directory{Directories: []*re.DirectoryNode{{Name: "middle", Digest: middle}}})
+	command := store.message(&re.Command{Arguments: []string{"true"}})
+	action := store.message(&re.Action{CommandDigest: command, InputRootDigest: root})
+	l := bufconn.Listen(1 << 20)
+	s := grpc.NewServer()
+	re.RegisterContentAddressableStorageServer(s, store)
+	go s.Serve(l)
+	t.Cleanup(s.Stop)
+	g := New("https://control.example")
+	g.Dial = func(string) (*grpc.ClientConn, error) {
+		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
+	}
+	g.remember("tuist", "app", "grpcs://cache.example", false)
+	prefetch := func() *re.BatchUpdateBlobsRequest {
+		encoded := g.prefetch(authenticated(), "tuist", "app", "Bearer secret", action)
+		b, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var seed re.BatchUpdateBlobsRequest
+		if err := proto.Unmarshal(b, &seed); err != nil {
+			t.Fatal(err)
+		}
+		return &seed
+	}
+	return prefetch, []*re.Digest{action, command, root, middle, leaf, file}
+}
+
+func seeded(seed *re.BatchUpdateBlobsRequest) map[string]bool {
+	got := map[string]bool{}
+	for _, r := range seed.Requests {
+		got[r.Digest.Hash] = true
+	}
+	return got
+}
+
+func TestPrefetchReadsTheInputTreeWithGetTree(t *testing.T) {
+	store := &blobStore{blobs: map[string][]byte{}, tree: true}
+	prefetch, digests := prefetchLab(t, store)
+	got := seeded(prefetch())
+	for _, d := range digests {
+		if !got[d.Hash] {
+			t.Fatalf("missing prefetched blob %s", d.Hash)
+		}
+	}
+	if store.treeCalls.Load() != 1 || store.reads.Load() != 3 {
+		t.Fatalf("GetTree calls %d, batch reads %d; want one tree and three reads", store.treeCalls.Load(), store.reads.Load())
+	}
+}
+
+func TestPrefetchWalksTheTreeWhereGetTreeIsUnsupported(t *testing.T) {
+	store := &blobStore{blobs: map[string][]byte{}}
+	prefetch, digests := prefetchLab(t, store)
+	for range 2 {
+		got := seeded(prefetch())
+		for _, d := range digests {
+			if !got[d.Hash] {
+				t.Fatalf("missing prefetched blob %s", d.Hash)
+			}
+		}
+	}
+	if store.treeCalls.Load() != 1 {
+		t.Fatalf("GetTree calls %d; an unsupported endpoint is asked once", store.treeCalls.Load())
 	}
 }

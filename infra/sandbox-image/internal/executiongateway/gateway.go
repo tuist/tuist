@@ -45,6 +45,8 @@ type Gateway struct {
 	conns        map[string]*grpc.ClientConn
 	// Each project's cache endpoint, learned from capability checks.
 	endpoints map[string]endpoint
+	// Cache endpoints that answered GetTree with Unimplemented.
+	noTree map[string]bool
 	// Direct claims a leased VM's exec on its node; it has no timeout of
 	// its own because the claim lasts as long as the action.
 	Direct         *http.Client
@@ -65,7 +67,7 @@ func New(serverURL string) *Gateway {
 	// Every admitted stream may hold a server connection, including long polls.
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = maxStreams
-	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
+	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
