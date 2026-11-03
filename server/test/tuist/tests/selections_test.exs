@@ -96,7 +96,7 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "list_runs/2" do
-    test "lists the project's impact runs newest first, filtered, with the test run that reported each", %{
+    test "lists the impact runs a test run reported, newest first, filtered, with that test run", %{
       project: project
     } do
       older =
@@ -110,12 +110,18 @@ defmodule Tuist.Tests.SelectionsTest do
           inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
         )
 
-      TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "newer")
+      newer = TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "newer")
+      TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "orphan")
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: older.id)
+      {:ok, newer_test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: newer.id)
 
       {rows, meta} = Selections.list_runs(project.id)
 
-      assert Enum.map(rows, &{&1.commit_sha, &1.test_run_id}) == [{"newer", nil}, {"older", test_run.id}]
+      assert Enum.map(rows, &{&1.commit_sha, &1.test_run_id}) == [
+               {"newer", newer_test_run.id},
+               {"older", test_run.id}
+             ]
+
       assert meta.total_count == 2
       assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, search: "core")
       assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, fallback: true)
@@ -269,9 +275,11 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "analytics/2" do
-    test "adds up the period's impact runs", %{project: project} do
+    test "adds up the period's impact runs that a test run reported", %{project: project} do
       run(project)
-      TestSelectionFixtures.run_fixture(project_id: project.id, outcome: "fallback", reason: "no_baseline")
+      fallback = TestSelectionFixtures.run_fixture(project_id: project.id, outcome: "fallback", reason: "no_baseline")
+      RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback.id)
+      TestSelectionFixtures.run_fixture(project_id: project.id, skipped_count: 5, selected: [%{name: "test_orphan()"}])
 
       now = DateTime.utc_now()
       analytics = Selections.analytics(project.id, {DateTime.add(now, -7, :day), DateTime.add(now, 60, :second)})
