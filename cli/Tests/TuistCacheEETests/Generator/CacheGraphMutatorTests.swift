@@ -1926,8 +1926,8 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
     /// Fifteenth scenario - reproduces https://github.com/tuist/tuist/issues/9594
     /// A unit test target depends on a dynamic framework that transitively depends
-    /// on static libraries. When all are cached, the static dependencies should be
-    /// pruned from the dynamic xcframework's edges to avoid duplicate symbols.
+    /// on static libraries. When all are cached, the static dependencies stay behind the
+    /// dynamic xcframework, and `GraphTraverser.linkableDependencies` doesn't link them again.
     ///
     /// ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
     /// │ SharedCounterTest├──►│ SharedCounter     ├──►│ TCALib (static)  │
@@ -2029,9 +2029,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             keepSourceTargets: false
         )
 
-        // Then: the test target should depend only on the dynamic xcframework.
-        // The static xcframeworks (TCALib, DepLib) should NOT appear as deps of
-        // SharedCounter.xcframework because they are baked into the dynamic binary.
+        // Then: the test target depends only on the dynamic xcframework. The static xcframeworks
+        // stay behind it: they are baked into its binary, so consumers get module visibility
+        // through them without linking them again.
         let testDependencies = got.dependencies[
             .target(name: tests.name, path: testsGraphTarget.path), default: Set()
         ]
@@ -2047,8 +2047,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
         XCTAssertEqual(
             sharedCounterDeps,
-            [],
-            "Dynamic xcframework should not have static deps as edges (they are baked in)"
+            [
+                .testXCFramework(path: tcaLibXCFrameworkPath, linking: .static),
+            ]
         )
 
         // TCALib is a static framework so it does NOT bake in its static deps.
@@ -2267,8 +2268,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
     }
 
-    /// Eighteenth scenario - preserve the current behaviour for cached static target deps that
-    /// are baked into the shared dynamic xcframework but re-added to non-test consumers.
+    /// Eighteenth scenario - cached static target deps baked into a cached dynamic xcframework
+    /// stay behind it when a hostless test shares it with non-test consumers. Re-adding them to
+    /// the app links them into the app a second time.
     ///
     /// ┌─────┐              ┌──────────────────┐   ┌──────────────────┐
     /// │ App ├─────────────►│ Feature          ├──►│ SupportLib       │
@@ -2338,8 +2340,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             keepSourceTargets: false
         )
 
-        // Then: cached static deps remain pruned from the shared dynamic binary
-        // and are re-added only to non-test consumers.
+        // Then
         XCTAssertEqual(
             got.dependencies[
                 .target(name: app.name, path: project.path),
@@ -2347,7 +2348,6 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             ],
             [
                 .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
-                .testXCFramework(path: supportLibXCFrameworkPath, linking: .static),
             ]
         )
         XCTAssertEqual(
@@ -2364,7 +2364,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
                 default: Set()
             ],
-            []
+            [
+                .testXCFramework(path: supportLibXCFrameworkPath, linking: .static),
+            ]
         )
     }
 

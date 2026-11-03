@@ -199,6 +199,7 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.User,
+      Accounts.UserToken,
       Authentication,
       Authentication.UnavailableError,
       Authentication.SubjectCache,
