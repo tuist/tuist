@@ -537,7 +537,7 @@ defmodule Tuist.Projects do
         content_type: content_type
       }
 
-      upload_token = Phoenix.Token.sign(TuistWeb.Endpoint, @logo_upload_salt, payload)
+      upload_token = Phoenix.Token.sign(Tuist.Web.endpoint(), @logo_upload_salt, payload)
 
       expires_at = DateTime.add(DateTime.utc_now(), @logo_upload_ttl_seconds, :second)
 
@@ -568,7 +568,7 @@ defmodule Tuist.Projects do
   end
 
   defp verify_logo_upload_token(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @logo_upload_salt, token, max_age: @logo_upload_ttl_seconds) do
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @logo_upload_salt, token, max_age: @logo_upload_ttl_seconds) do
       {:ok, %{project_id: _, storage_key: _, content_type: _} = payload} -> {:ok, payload}
       {:ok, _} -> {:error, :invalid_logo_upload_token}
       {:error, _reason} -> {:error, :invalid_logo_upload_token}

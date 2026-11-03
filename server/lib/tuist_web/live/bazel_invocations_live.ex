@@ -4,6 +4,7 @@ defmodule TuistWeb.BazelInvocationsLive do
   use Noora
 
   import TuistWeb.BazelAnalyticsHelpers
+  import TuistWeb.Components.BuildStatusFilter, only: [build_status_dropdown: 1]
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
@@ -13,6 +14,7 @@ defmodule TuistWeb.BazelInvocationsLive do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Components.BuildHealth
+  alias TuistWeb.Components.BuildStatusFilter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -52,13 +54,18 @@ defmodule TuistWeb.BazelInvocationsLive do
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
     analytics_environment = analytics_environment_param(params["analytics-environment"])
+    analytics_build_status = BuildStatusFilter.status(params)
 
     filters =
       [%{field: :project_id, op: :==, value: project.id}] ++
         build_flop_filters(active_filters)
 
     filters = maybe_add_environment_filter(filters, analytics_environment, socket.assigns.bazel_show_analytics)
-    analytics_opts = analytics_opts(analytics_period, socket.assigns.bazel_invocation_commands, analytics_environment)
+
+    analytics_opts =
+      analytics_period
+      |> analytics_opts(socket.assigns.bazel_invocation_commands, analytics_environment)
+      |> BuildStatusFilter.put_status(analytics_build_status)
 
     list_opts =
       if socket.assigns.bazel_show_analytics do
@@ -98,6 +105,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_environment_label, environment_label(analytics_environment))
+      |> assign(:analytics_build_status, analytics_build_status)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
       |> assign(:has_any_invocations, has_any_invocations)
       |> assign(:selected_duration_type, params["duration-type"] || "avg")
@@ -110,7 +118,8 @@ defmodule TuistWeb.BazelInvocationsLive do
                project.id,
                analytics_period,
                commands,
-               analytics_environment
+               analytics_environment,
+               analytics_build_status
              ),
            invocation_analytics:
              Bazel.invocation_analytics(
@@ -222,6 +231,11 @@ defmodule TuistWeb.BazelInvocationsLive do
             <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.build_status_dropdown
+          id="bazel-builds-status-dropdown"
+          status={@analytics_build_status}
+          uri={@uri}
+        />
         <.date_picker
           id="bazel-invocations-date-range-picker"
           name="analytics-date-range"
@@ -669,11 +683,17 @@ defmodule TuistWeb.BazelInvocationsLive do
     if numeric(summary.total) == 0, do: nil, else: "#{Float.round(success_rate_value(summary), 1)}%"
   end
 
-  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment) do
-    summary = Bazel.summary(project_id, analytics_opts(period, commands, environment))
+  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment, status) do
+    opts = period |> analytics_opts(commands, environment) |> BuildStatusFilter.put_status(status)
+    summary = Bazel.summary(project_id, opts)
 
-    previous_summary =
-      Bazel.summary(project_id, analytics_opts(previous_period(start_datetime, end_datetime), commands, environment))
+    previous_opts =
+      start_datetime
+      |> previous_period(end_datetime)
+      |> analytics_opts(commands, environment)
+      |> BuildStatusFilter.put_status(status)
+
+    previous_summary = Bazel.summary(project_id, previous_opts)
 
     Map.merge(summary, %{
       total_trend: trend(previous_summary.total, summary.total),

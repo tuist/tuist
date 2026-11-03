@@ -9,7 +9,7 @@ defmodule TuistWeb.CargoBuildLive do
 
   alias Tuist.Cargo
   alias Tuist.Cargo.CacheMetrics
-  alias Tuist.Repo
+  alias Tuist.ReportActor
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.CargoCache
@@ -24,8 +24,9 @@ defmodule TuistWeb.CargoBuildLive do
         {:ok,
          socket
          |> assign(:head_title, "Cargo build · Tuist")
-         |> assign(:build, Repo.preload(build, :ran_by_account))
+         |> assign(:build, ReportActor.preload(build))
          |> assign(:cache_metrics, CacheMetrics.read(build))
+         |> assign(:failure_category, Tuist.BuildMetrics.failure_category(project.id, "cargo", build.id))
          |> assign_async(:compilations, fn ->
            rows = Cargo.compilations(build, @compilation_limit + 1)
            truncated = length(rows) > @compilation_limit

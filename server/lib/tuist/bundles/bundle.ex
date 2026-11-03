@@ -6,6 +6,7 @@ defmodule Tuist.Bundles.Bundle do
   use Ecto.Schema
 
   import Ecto.Changeset
+  import Ecto.Query, only: [from: 2]
 
   alias Tuist.Bundles.Artifact
 
@@ -37,9 +38,19 @@ defmodule Tuist.Bundles.Bundle do
       :install_size,
       :download_size,
       :supported_platforms,
+      :tag,
       :inserted_at
     ],
-    sortable: [:inserted_at, :install_size, :download_size]
+    sortable: [:inserted_at, :install_size, :download_size],
+    adapter_opts: [
+      custom_fields: [
+        tag: [
+          filter: {__MODULE__, :filter_custom_tags, []},
+          ecto_type: {:array, :string},
+          operators: [:contains, :not_contains]
+        ]
+      ]
+    ]
   }
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
@@ -56,6 +67,7 @@ defmodule Tuist.Bundles.Bundle do
     field :type, Ch, type: "LowCardinality(String)"
     field :project_id, Ch, type: "Int64"
     field :uploaded_by_account_id, Ch, type: "Nullable(Int64)"
+    field :custom_tags, {:array, :string}, default: []
 
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
@@ -67,6 +79,15 @@ defmodule Tuist.Bundles.Bundle do
       define_field: false
 
     has_many :artifacts, Artifact, foreign_key: :bundle_id
+  end
+
+  @doc false
+  def filter_custom_tags(query, %Flop.Filter{op: :contains, value: tag}, _opts) do
+    from(b in query, where: fragment("has(?, ?)", b.custom_tags, ^tag))
+  end
+
+  def filter_custom_tags(query, %Flop.Filter{op: :not_contains, value: tag}, _opts) do
+    from(b in query, where: fragment("NOT has(?, ?)", b.custom_tags, ^tag))
   end
 
   @doc """
@@ -114,6 +135,7 @@ defmodule Tuist.Bundles.Bundle do
         :git_commit_sha,
         :git_branch,
         :git_ref,
+        :custom_tags,
         :inserted_at,
         :updated_at
       ])
@@ -129,6 +151,26 @@ defmodule Tuist.Bundles.Bundle do
       ])
       |> validate_inclusion(:type, @type_strings)
       |> validate_supported_platforms()
+      |> validate_custom_tags()
+    end)
+  end
+
+  defp validate_custom_tags(changeset) do
+    changeset
+    |> validate_length(:custom_tags, max: 10, message: "cannot have more than 10 tags")
+    |> validate_change(:custom_tags, fn :custom_tags, tags ->
+      Enum.flat_map(tags, fn tag ->
+        cond do
+          String.length(tag) > 50 ->
+            [custom_tags: "tag exceeds maximum length of 50 characters"]
+
+          not Regex.match?(~r/^[a-zA-Z0-9_-]+$/, tag) ->
+            [custom_tags: "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"]
+
+          true ->
+            []
+        end
+      end)
     end)
   end
 

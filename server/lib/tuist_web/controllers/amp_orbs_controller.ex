@@ -34,6 +34,18 @@ defmodule TuistWeb.AmpOrbsController do
           |> put_resp_header("x-tuist-orb-retry", "admission")
           |> send_resp(:too_many_requests, "Account sandbox CPU or memory limit reached")
 
+        {:error, :sandbox_running_limit} ->
+          conn
+          |> put_resp_header("x-tuist-orb-retry", "admission")
+          |> send_resp(:too_many_requests, "Account running sandbox limit reached")
+
+        # Archiving frees on-node slots only while it is enabled and under its
+        # storage cap, so waiting is not enough; deleting Orbs is.
+        {:error, :sandbox_limit} ->
+          conn
+          |> put_resp_header("x-tuist-orb-refusal", "sandbox-limit")
+          |> send_resp(:too_many_requests, "Account sandbox limit reached")
+
         {:error, reason} when reason in [:locked, :sandbox_account_busy] ->
           conn
           |> put_resp_header("x-tuist-orb-retry", "admission")
@@ -85,16 +97,34 @@ defmodule TuistWeb.AmpOrbsController do
   defp job(orb_id, params) when byte_size(orb_id) in 1..255 do
     operation = params["operation"]
     token = params["orb_token"]
+    snapshot_id = params["snapshot_id"]
 
     if Regex.match?(~r/^[a-zA-Z0-9_-]+$/, orb_id) and operation in ["spawn", "pause", "delete"] and
-         (operation != "spawn" or (is_binary(token) and byte_size(token) in 1..16_384)) do
+         (operation != "spawn" or (is_binary(token) and byte_size(token) in 1..16_384)) and
+         valid_snapshot_id?(snapshot_id) do
       # Managed connections have a server-selected template/shape and Amp origin.
       # Neither workload credentials nor client params grant arbitrary guest exec.
-      {:ok, %{operation: operation, orb_token: token, template: "default", vcpus: 2, memory_mb: 4096, workspace_gb: 10}}
+      {:ok,
+       %{
+         operation: operation,
+         orb_token: token,
+         snapshot_id: snapshot_id,
+         template: "default",
+         vcpus: 2,
+         memory_mb: 4096,
+         workspace_gb: 10
+       }}
     else
       {:error, :invalid_job}
     end
   end
 
   defp job(_, _), do: {:error, :invalid_job}
+
+  defp valid_snapshot_id?(nil), do: true
+
+  defp valid_snapshot_id?(snapshot_id) when is_binary(snapshot_id),
+    do: Regex.match?(~r/^[A-Za-z0-9._:-]{1,255}$/, snapshot_id)
+
+  defp valid_snapshot_id?(_snapshot_id), do: false
 end

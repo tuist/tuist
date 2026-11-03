@@ -12,7 +12,8 @@ protocol BundleListCommandServicing {
         project: String?,
         path: String?,
         gitBranch: String?,
-        json: Bool
+        json: Bool,
+        tags: [String]
     ) async throws
 }
 
@@ -46,7 +47,8 @@ struct BundleListCommandService: BundleListCommandServicing {
         project: String?,
         path: String?,
         gitBranch: String?,
-        json: Bool
+        json: Bool,
+        tags: [String] = []
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
@@ -62,7 +64,8 @@ struct BundleListCommandService: BundleListCommandServicing {
             gitBranch: gitBranch,
             page: nil,
             pageSize: 50,
-            serverURL: serverURL
+            serverURL: serverURL,
+            tags: tags
         )
 
         if json {

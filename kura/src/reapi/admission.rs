@@ -272,6 +272,49 @@ impl GrpcWriteAdmission {
     }
 }
 
+/// Frames a unary message must average for the admission body to keep them
+/// as received. More fragmented messages are copied once instead, so the
+/// retained frame list (and the transport buffers its handles pin) stays
+/// proportional to the message size.
+const MIN_RETAINED_FRAME_BYTES: usize = 4 * 1024;
+
+/// A unary message's bytes, kept until it is complete so its structure can be
+/// inspected before Tonic decodes it.
+enum ValidationPayload {
+    /// The transport frames as received, without a copy.
+    Frames(Vec<Bytes>),
+    /// One fallibly reserved copy of the whole message.
+    Contiguous(Vec<u8>),
+}
+
+impl ValidationPayload {
+    fn retain(&mut self, frame: Bytes, message_bytes: usize) -> Result<(), Status> {
+        let frames = match self {
+            Self::Contiguous(bytes) => {
+                bytes.extend_from_slice(&frame);
+                return Ok(());
+            }
+            Self::Frames(frames) => frames,
+        };
+        if frames.len() < message_bytes.div_ceil(MIN_RETAINED_FRAME_BYTES) + 2 {
+            frames.push(frame);
+            return Ok(());
+        }
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(message_bytes).map_err(|_| {
+            Status::resource_exhausted(
+                "server could not reserve memory to validate the remote-execution write",
+            )
+        })?;
+        for retained in frames.drain(..) {
+            bytes.extend_from_slice(&retained);
+        }
+        bytes.extend_from_slice(&frame);
+        *self = Self::Contiguous(bytes);
+        Ok(())
+    }
+}
+
 pub(super) struct GrpcWriteAdmissionBody {
     inner: axum::body::Body,
     admission: GrpcWriteAdmission,
@@ -280,7 +323,7 @@ pub(super) struct GrpcWriteAdmissionBody {
     header_bytes: usize,
     payload_bytes_remaining: usize,
     validation_message_bytes: usize,
-    validation_payload: Option<Vec<u8>>,
+    validation_payload: Option<ValidationPayload>,
     messages_seen: usize,
     failed: bool,
 }
@@ -317,15 +360,7 @@ impl GrpcWriteAdmissionBody {
         self.validation_message_bytes = encoded_message_bytes;
         self.payload_bytes_remaining = encoded_message_bytes;
         if self.policy.is_unary() {
-            let mut payload = Vec::new();
-            payload
-                .try_reserve_exact(encoded_message_bytes)
-                .map_err(|_| {
-                    Status::resource_exhausted(
-                        "server could not reserve memory to validate the remote-execution write",
-                    )
-                })?;
-            self.validation_payload = Some(payload);
+            self.validation_payload = Some(ValidationPayload::Frames(Vec::new()));
         }
         if encoded_message_bytes == 0 {
             self.finish_message()?;
@@ -337,13 +372,17 @@ impl GrpcWriteAdmissionBody {
         let Some(payload) = self.validation_payload.take() else {
             return Ok(());
         };
+        let frames: Vec<&[u8]> = match &payload {
+            ValidationPayload::Frames(frames) => frames.iter().map(Bytes::as_ref).collect(),
+            ValidationPayload::Contiguous(bytes) => vec![bytes.as_slice()],
+        };
         let shape = match self.policy {
             GrpcWriteShapePolicy::ByteStream | GrpcWriteShapePolicy::BuildEventStream => {
                 DecodeShape::default()
             }
-            GrpcWriteShapePolicy::BatchUpdate => inspect_batch_update_wire(&payload)?,
-            GrpcWriteShapePolicy::ActionUpdate => inspect_action_update_wire(&payload)?,
-            GrpcWriteShapePolicy::Splice => inspect_splice_wire(&payload)?,
+            GrpcWriteShapePolicy::BatchUpdate => inspect_batch_update_wire(Wire::new(&frames))?,
+            GrpcWriteShapePolicy::ActionUpdate => inspect_action_update_wire(Wire::new(&frames))?,
+            GrpcWriteShapePolicy::Splice => inspect_splice_wire(Wire::new(&frames))?,
         };
         self.admission
             .try_grow_decode(self.validation_message_bytes as u64, shape.structural_bytes)?;
@@ -356,7 +395,10 @@ impl GrpcWriteAdmissionBody {
             if self.payload_bytes_remaining > 0 {
                 let consumed = self.payload_bytes_remaining.min(data.len() - offset);
                 if let Some(payload) = &mut self.validation_payload {
-                    payload.extend_from_slice(&data[offset..offset + consumed]);
+                    payload.retain(
+                        data.slice(offset..offset + consumed),
+                        self.validation_message_bytes,
+                    )?;
                 }
                 self.payload_bytes_remaining -= consumed;
                 offset += consumed;
@@ -626,6 +668,36 @@ fn grpc_accounting_route(path: &str) -> Cow<'static, str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unary_validation_keeps_large_frames_and_copies_fragmented_ones_once() {
+        let message: Vec<u8> = (0..64 * 1024).map(|index| index as u8).collect();
+
+        let mut payload = ValidationPayload::Frames(Vec::new());
+        for frame in message.chunks(16 * 1024) {
+            payload
+                .retain(Bytes::copy_from_slice(frame), message.len())
+                .unwrap();
+        }
+        assert!(matches!(&payload, ValidationPayload::Frames(frames) if frames.len() == 4));
+
+        let mut payload = ValidationPayload::Frames(Vec::new());
+        for byte in &message {
+            payload
+                .retain(
+                    Bytes::copy_from_slice(std::slice::from_ref(byte)),
+                    message.len(),
+                )
+                .unwrap();
+            if let ValidationPayload::Frames(frames) = &payload {
+                assert!(frames.len() <= message.len() / MIN_RETAINED_FRAME_BYTES + 2);
+            }
+        }
+        match payload {
+            ValidationPayload::Contiguous(bytes) => assert_eq!(bytes, message),
+            ValidationPayload::Frames(_) => panic!("1-byte frames should be copied"),
+        }
+    }
 
     #[test]
     #[ignore = "performance benchmark run manually"]

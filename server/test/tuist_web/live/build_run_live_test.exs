@@ -56,6 +56,47 @@ defmodule TuistWeb.BuildRunLiveTest do
     refute has_element?(view, "[data-part=build-details] #build-environment")
   end
 
+  @tag :build_environment
+  test "Xcode versions omit duplicates but preserve standalone versions", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    for {cli_version, generator_version, expected_fields} <- [
+          {"4.216.0-canary.26", "4.216.0-canary.26", [{"Tuist CLI version", "4.216.0-canary.26"}]},
+          {nil, "4.100.0", [{"Tuist generator version", "4.100.0"}]},
+          {"", "4.100.0", [{"Tuist generator version", "4.100.0"}]},
+          {"4.200.0", nil, [{"Tuist CLI version", "4.200.0"}]},
+          {nil, nil, []}
+        ] do
+      generation =
+        if generator_version do
+          CommandEventsFixtures.command_event_fixture(project_id: project.id, tuist_version: generator_version)
+        end
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          generation_id: generation && generation.id,
+          tuist_version: cli_version
+        )
+
+      {:ok, view, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+
+      version_fields =
+        view
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.find("#build-environment-grid [data-field^='field:Tuist']")
+        |> Enum.map(fn field ->
+          {field |> Floki.find("dt") |> Floki.text() |> String.trim(),
+           field |> Floki.find("dd") |> Floki.text() |> String.trim()}
+        end)
+
+      assert version_fields == expected_fields
+    end
+  end
+
   test "builds without recorded steps or aligned samples hide Timeline", %{
     conn: conn,
     project: project,

@@ -5,19 +5,19 @@
   "description": "了解如何使用環境變數來動態設定你的專案。"
 }
 ---
-# 動態配置 {#dynamic-configuration}
+# 動態設定 {#dynamic-configuration}
 
-有時你需要在生成項目時進行動態配置。例如，你可能想根據項目生成的環境來更改應用程式名稱、Bundle Identifier 或部署目標。Tuist 透過環境變數支援此功能，你可以從 manifest 檔案中存取這些變數。
+有時你需要在生成項目時動態設定。例如，你可能想根據項目生成的環境來更改應用程式名稱、bundle identifier 或部署目標。Tuist 透過環境變數支援此功能，你可以從 manifest 檔案存取這些變數。
 
-## 透過環境變數進行配置 {#configuration-through-environment-variables}
+## 透過環境變數進行設定 {#configuration-through-environment-variables}
 
-Tuist 允許透過環境變數傳遞配置，這些變數可以從 manifest 檔案中存取。例如：
+Tuist 允許透過環境變數傳遞設定，這些變數可以從 manifest 檔案中存取。例如：
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-如果你想傳遞多個環境變數，只需用空格分隔它們即可。例如：
+如果你想傳遞多個環境變數，只需用空格分隔它們。例如：
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
@@ -25,7 +25,7 @@ TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 
 ## 從 manifests 讀取環境變數 {#reading-the-environment-variables-from-manifests}
 
-你可以使用 [`Environment`](https://projectdescription.tuist.dev/documentation/projectdescription/environment) 類型來存取變數。任何遵循 `TUIST_XXX` 慣例並在環境中定義或在執行命令時傳遞給 Tuist 的變數，都可以透過 `Environment` 類型存取。以下範例顯示如何存取 `TUIST_APP_NAME` 變數：
+可以使用 [`Environment`](https://projectdescription.tuist.dev/documentation/projectdescription/environment) 類型來存取變數。任何遵循 `TUIST_XXX` 慣例並在環境中定義或在執行命令時傳遞給 Tuist 的變數，都可以使用 `Environment` 類型存取。以下範例顯示我們如何存取 `TUIST_APP_NAME` 變數：
 
 ```swift
 func appName() -> String {
@@ -43,7 +43,7 @@ func appName() -> String {
 | --- | --- |
 | `.string(String)` | 當變數代表字串時使用。 |
 
-你也可以使用下面定義的任何輔助方法來檢索字串或布林值 `Environment` 變數，這些方法需要傳遞預設值以確保用戶每次都能獲得一致的結果。這避免了定義上述 appName() 函數的需要。
+你也可以使用下面定義的輔助方法來檢索字串或布林值 `Environment` 變數，這些方法需要傳遞一個預設值，以確保用戶每次都能獲得一致的結果。這避免了需要定義上面提到的 appName() 函數。
 
 ::: code-group
 
@@ -59,9 +59,9 @@ Environment.isCI.getBoolean(default: false)
 
 ## 將額外的環境變數轉發到 manifests {#forwarding-additional-environment-variables-to-manifests}
 
-預設情況下，只有以 `TUIST_` 為前綴的變數，以及 `CI` 和 `DEVELOPER_DIR`，會被轉發到評估 `Project.swift`、`Workspace.swift`、`Package.swift` 和項目描述輔助程式的子進程。這保持了生成的確定性，並防止無關的 shell 或 CI 變數使 manifest 快取失效。
+預設情況下，只有以 `TUIST_` 為前綴的變數，加上 `CI` 和 `DEVELOPER_DIR`，會被轉發到評估 `Project.swift`、`Workspace.swift`、`Package.swift` 和項目描述輔助程式的子進程。這保持了生成的確定性，並防止無關的 shell 或 CI 變數使 manifest 快取失效。
 
-當 manifest 需要讀取不受你控制的變數時（例如，已經讀取 `OPENSWIFTUI_LIBRARY_TYPE` 的第三方 `Package.swift`），請在 `Tuist.swift` 中透過生成選項上的 `manifestEnvironment` 聲明它們。每個條目可以是文字名稱，也可以是以 `*` 結尾的名稱以進行前綴匹配：
+當 manifest 需要讀取不受你控制的變數時（例如，已經讀取 `OPENSWIFTUI_LIBRARY_TYPE` 的第三方 `Package.swift`），請在 `Tuist.swift` 中透過生成選項上的 `manifestEnvironment` 聲明它們。每個條目要么是一個文字名稱，要么是一個以 `*` 結尾的名稱用於前綴匹配：
 
 ```swift
 import ProjectDescription
@@ -78,4 +78,4 @@ let tuist = Tuist(
 )
 ```
 
-列出的變數會參與 manifest 快取哈希，因此它們值的變更會按預期使快取失效。未列出的變數在 manifest 評估期間仍然隱藏。
+列出的變數會參與 manifest 快取的雜湊計算，因此它們值的變化會按預期使快取失效。未列出的變數在 manifest 評估過程中仍然隱藏。

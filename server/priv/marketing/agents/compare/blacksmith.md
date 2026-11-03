@@ -31,6 +31,6 @@ Sources checked on **2026-10-08**: Blacksmith's [Bazel cache](https://docs.black
 
 ## Limitations
 
-Automatic log parsing is not equivalent to complete structured results. Cache trust, architecture, and branch policies must be checked for each backend. Tuist's Bazel cache is not remote execution; selective testing requires generated Xcode projects. Public source and self-hosting terms differ by component. Tuist Runners are invite-only with no public pricing, so no cheapest-runner claim is made.
+Automatic log parsing is not equivalent to complete structured results. Cache trust, architecture, and branch policies must be checked for each backend. Tuist's Bazel cache is not remote execution; selective testing requires generated Xcode projects. Public source and self-hosting terms differ by component. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume. A listed rate is not a quote, and no cheapest-runner claim is made.
 
 Related: [Depot](/marketing-markdown/compare/depot), [WarpBuild](/marketing-markdown/compare/warpbuild), and [all comparisons](/marketing-markdown/compare).

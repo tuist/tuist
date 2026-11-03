@@ -2,23 +2,23 @@
 {
   "title": "Etiquetas de metadatos",
   "titleTemplate": ":title · Proyectos · Funcionalidades · Guías · Tuist",
-  "description": "Aprende a usar etiquetas de metadatos en los targets para organizar y centrarte en partes específicas de tu proyecto"
+  "description": "Aprende a usar las etiquetas de metadatos de destino para organizar y centrarte en partes específicas de tu proyecto"
 }
 ---
 # Etiquetas de metadatos {#metadata-tags}
 
-A medida que los proyectos crecen en tamaño y complejidad, trabajar con toda la base de código a la vez puede volverse ineficiente. Tuist ofrece **etiquetas de metadatos** como una forma de organizar los targets en grupos lógicos y centrarte en partes específicas de tu proyecto durante el desarrollo.
+A medida que los proyectos crecen en tamaño y complejidad, trabajar con todo el código base a la vez puede volverse ineficiente. Tuist ofrece **etiquetas de metadatos** como una forma de organizar los targets en grupos lógicos y centrarse en partes específicas de tu proyecto durante el desarrollo.
 
 ## ¿Qué son las etiquetas de metadatos? {#what-are-metadata-tags}
 
 Las etiquetas de metadatos son cadenas de texto que puedes adjuntar a los targets de tu proyecto. Sirven como marcadores que te permiten:
 
 - **Agrupar targets relacionados**: etiqueta los targets que pertenecen a la misma funcionalidad, equipo o capa arquitectónica
-- **Enfocar tu espacio de trabajo**: genera proyectos que incluyan solo targets con etiquetas específicas
-- **Optimizar tu flujo de trabajo**: trabaja en funcionalidades concretas sin cargar partes no relacionadas de tu base de código
-- **Seleccionar targets para mantener como fuentes**: elige qué grupo de targets quieres mantener como fuentes al usar la caché
+- **Enfocar tu espacio de trabajo**: genera proyectos que incluyan únicamente targets con etiquetas específicas
+- **Optimizar tu flujo de trabajo**: trabaja en funcionalidades concretas sin cargar partes no relacionadas del código base
+- **Seleccionar targets para mantener como fuentes**: elige qué grupo de targets quieres conservar como fuentes al usar la caché
 
-Las etiquetas se definen mediante la propiedad `metadata` en los targets y se almacenan como un array de cadenas.
+Las etiquetas se definen mediante la propiedad `metadata` de los targets y se almacenan como un array de cadenas.
 
 ## Definir etiquetas de metadatos {#defining-metadata-tags}
 
@@ -92,14 +92,14 @@ Cuando te centras en targets:
 
 1. **Targets incluidos**: los targets que coinciden con tu consulta se incluyen en el proyecto generado
 2. **Dependencias**: todas las dependencias de los targets enfocados se incluyen automáticamente
-3. **Targets de test**: se incluyen los targets de test de los targets enfocados
-4. **Exclusión**: todos los demás targets se excluyen del espacio de trabajo
+3. **Targets de tests**: se incluyen los targets de tests de los targets enfocados
+4. **Exclusión**: el resto de targets se excluyen del espacio de trabajo
 
 Esto significa que obtienes un espacio de trabajo más pequeño y manejable, que contiene solo lo necesario para trabajar en tu funcionalidad.
 
 ## Convenciones de nomenclatura de etiquetas {#tag-naming-conventions}
 
-Aunque puedes usar cualquier cadena como etiqueta, seguir una convención de nombres coherente ayuda a mantener tus etiquetas organizadas:
+Aunque puedes usar cualquier cadena como etiqueta, seguir una convención de nombres consistente ayuda a mantener tus etiquetas organizadas:
 
 ```swift
 // Organize by feature
@@ -122,17 +122,17 @@ Usar prefijos como `feature:`, `team:` o `layer:` facilita comprender el propós
 
 ## Etiquetas del sistema {#system-tags}
 
-Tuist usa el prefijo `tuist:` para etiquetas gestionadas por el sistema. Estas etiquetas se aplican automáticamente por Tuist y pueden usarse en perfiles de caché para apuntar a tipos específicos de contenido generado.
+Tuist utiliza el prefijo `tuist:` para las etiquetas gestionadas por el sistema. Estas etiquetas se aplican automáticamente por Tuist y pueden usarse en perfiles de caché para apuntar a tipos específicos de contenido generado.
 
 ### Etiquetas del sistema disponibles
 
 | Etiqueta | Descripción |
 | --- | --- |
-| `tuist:synthesized` | Se aplica a los targets de bundle sintetizados que Tuist crea para gestionar recursos en bibliotecas estáticas y frameworks estáticos. Estos bundles existen por razones históricas para proporcionar APIs de acceso a recursos. |
+| `tuist:synthesized` | Se aplica a los targets de bundles sintetizados que Tuist crea para gestionar recursos en bibliotecas estáticas y frameworks estáticos. Estos bundles existen por razones históricas para proporcionar APIs de acceso a recursos. |
 
-### Usar etiquetas del sistema con perfiles de caché
+### Uso de etiquetas del sistema con perfiles de caché
 
-Puedes usar etiquetas del sistema en perfiles de caché para incluir o excluir targets sintetizados:
+Puedes usar etiquetas del sistema en los perfiles de caché para incluir o excluir targets sintetizados:
 
 ```swift
 import ProjectDescription
@@ -157,10 +157,10 @@ let tuist = Tuist(
 > [!TIP]
 > **Los bundles sintetizados heredan las etiquetas del padre**
 >
-> Los targets de bundle sintetizados heredan todas las etiquetas de su target padre, además de recibir la etiqueta `tuist:synthesized`. Esto significa que si etiquetas una biblioteca estática con `feature:auth`, su bundle de recursos sintetizado tendrá tanto la etiqueta `feature:auth` como la `tuist:synthesized`.
+> Los targets de bundles sintetizados heredan todas las etiquetas de su target padre, además de recibir la etiqueta `tuist:synthesized`. Esto significa que si etiquetas una biblioteca estática con `feature:auth`, su bundle de recursos sintetizado tendrá tanto la etiqueta `feature:auth` como la `tuist:synthesized`.
 
 
-## Usar etiquetas con helpers de descripción de proyecto {#using-tags-with-helpers}
+## Uso de etiquetas con helpers de descripción de proyecto {#using-tags-with-helpers}
 
 Puedes aprovechar los <.localized_link href="/guides/features/projects/code-sharing">helpers de descripción de proyecto</.localized_link> para estandarizar cómo se aplican las etiquetas en todo tu proyecto:
 
@@ -211,18 +211,18 @@ let project = Project(
 
 Al centrarte en partes específicas de tu proyecto, puedes:
 
-- **Reducir el tamaño del proyecto de Xcode**: trabaja con proyectos más pequeños que son más rápidos de abrir y navegar
-- **Acelerar las compilaciones**: compila solo lo que necesitas para tu trabajo actual
+- **Reducir el tamaño del proyecto de Xcode**: trabaja con proyectos más pequeños que se abren y navegan más rápido
+- **Acelerar las compilaciones**: compila solo lo necesario para tu trabajo actual
 - **Mejorar el enfoque**: evita distracciones de código no relacionado
-- **Optimizar la indexación**: Xcode indexa menos código, haciendo que el autocompletado sea más rápido
+- **Optimizar la indexación**: Xcode indexa menos código, lo que hace que el autocompletado sea más rápido
 
 ### Mejor organización del proyecto
 
 Las etiquetas ofrecen una forma flexible de organizar tu base de código:
 
-- **Múltiples dimensiones**: etiqueta targets por funcionalidad, equipo, capa, plataforma o cualquier otra dimensión
+- **Múltiples dimensiones**: etiqueta los targets por funcionalidad, equipo, capa, plataforma o cualquier otra dimensión
 - **Sin cambios estructurales**: añade estructura organizativa sin cambiar la disposición de directorios
-- **Preocupaciones transversales**: un único target puede pertenecer a múltiples grupos lógicos
+- **Preocupaciones transversales**: un único target puede pertenecer a varios grupos lógicos
 
 ### Integración con la caché
 
@@ -238,7 +238,7 @@ tuist generate tag:feature:payment
 
 ## Buenas prácticas {#best-practices}
 
-1. **Empieza simple**: comienza con una única dimensión de etiquetado (por ejemplo, funcionalidades) y amplía según sea necesario
+1. **Empieza sencillo**: comienza con una única dimensión de etiquetado (por ejemplo, funcionalidades) y amplía según sea necesario
 2. **Sé consistente**: usa las mismas convenciones de nomenclatura en todos tus manifiestos
 3. **Documenta tus etiquetas**: mantén una lista de las etiquetas disponibles y sus significados en la documentación de tu proyecto
 4. **Usa helpers**: aprovecha los helpers de descripción de proyecto para estandarizar la aplicación de etiquetas

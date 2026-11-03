@@ -74,6 +74,13 @@ func (s Signals) Load() int32 {
 	return s.CurrentOccupancy() + s.Queued + s.BlockedDemand()
 }
 
+// InUse reports whether the pool has load now or held a runner session in
+// the last hour. A pool with only a learned floor is not in use: the floor
+// keeps it warm for a burst that may come, not for one that is under way.
+func (s Signals) InUse() bool {
+	return s.Load() > 0 || s.P95ConcurrentLastHour > 0
+}
+
 // PolicyKnobs are the per-pool autoscaling parameters from the
 // RunnerPool CRD's `spec.autoscaling` block.
 type PolicyKnobs struct {

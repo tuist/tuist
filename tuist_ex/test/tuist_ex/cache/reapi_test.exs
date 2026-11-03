@@ -933,6 +933,31 @@ defmodule TuistEx.Cache.ReapiTest do
     end
   end
 
+  test "a read-only cache token still reads but never uploads", %{port: port, store: store} do
+    {server_url, requests} = serve_responses([%{token: "read-only-cache-token", writable: false}])
+    project = "acme/" <> (store |> :erlang.pid_to_list() |> List.to_string())
+
+    options = [
+      url: server_url,
+      project: project,
+      environment: fn
+        "TUIST_TOKEN" -> "api-token"
+        "TUIST_CACHE_ENDPOINT" -> "http://127.1:#{port}"
+        _ -> nil
+      end
+    ]
+
+    assert {:ok, session} = Reapi.open([], "read-only-build", options)
+    on_exit(fn -> Reapi.close(session) end)
+    assert [_request] = Task.await(requests)
+
+    key = Key.build(:read_only)
+    assert :miss = Reapi.get(session, key, :jason)
+    assert {:error, :read_only} = Reapi.put(session, key, :jason, "artifact")
+    assert Agent.get(store, & &1.actions) == %{}
+    assert :miss = Reapi.get(session, key, :jason)
+  end
+
   test "discovery cannot opt a non-localhost endpoint into plaintext", %{store: store} do
     {server_url, requests} =
       serve_responses([

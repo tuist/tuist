@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Restarts the guest's logd when it wedges (see logd-watchdog.sh). A
+  LaunchDaemon so it runs as root from boot: killing logd needs root, and
+  sudo blocks once logging does. Restarted if it dies, but not after it
+  exits cleanly, which it does once it has reported a logd that did not
+  come back.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.tuist.logd-watchdog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/opt/tuist/logd-watchdog.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/tuist-runner/logd-watchdog.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/tuist-runner/logd-watchdog.log</string>
+</dict>
+</plist>

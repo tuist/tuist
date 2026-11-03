@@ -11,7 +11,7 @@ use sha2::{Digest as _, Sha256};
 
 use super::{
     chunking::{PresenceBudget, is_presence_budget_error, manifest_presence_keys},
-    protobuf_shape::inspect_action_result_wire,
+    protobuf_shape::{Wire, inspect_action_result_wire},
     service::read_manifest_bytes,
 };
 use crate::{artifact::manifest::ArtifactManifest, state::SharedState, utils::blob_key};
@@ -989,7 +989,7 @@ pub(super) async fn reconcile_snapshot_index(
                 let Some(bytes) = bytes else {
                     return (hash, version, manifest, None, false);
                 };
-                let Ok(shape) = inspect_action_result_wire(&bytes) else {
+                let Ok(shape) = inspect_action_result_wire(Wire::new(&[&bytes])) else {
                     return (hash, version, manifest, None, false);
                 };
                 let decoded_bytes = shape.estimated_decoded_bytes();

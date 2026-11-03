@@ -1,0 +1,138 @@
+name: rules_tuist Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - bazel/**
+      - LICENSE.md
+      - .github/workflows/bazel*.yml
+      - .github/scripts/bazel*.py
+  schedule:
+    - cron: "0 6 * * 1" # Promote, then cut the next RC; aligned with CLI/Kura.
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release operation (rc-new cuts from main)
+        type: choice
+        options: [rc-new, rc, promote]
+        default: rc-new
+        required: true
+      branch:
+        description: Existing releases/rules-tuist-X.Y.x branch for rc or promote
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rules-tuist-publish
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      plans: ${{ steps.plan.outputs.plans }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Resolve using only trusted main control code
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          CHANNEL: ${{ inputs.channel }}
+          BRANCH: ${{ inputs.branch }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            push) plans=$(python3 bazel/release/release.py plan canary --sha "$SOURCE_SHA") ;;
+            schedule) plans=$(python3 bazel/release/release.py plan weekly) ;;
+            workflow_dispatch) plans=$(python3 bazel/release/release.py plan "$CHANNEL" --branch "$BRANCH") ;;
+            *) exit 1 ;;
+          esac
+          echo "plans=$plans" >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: plan
+    if: needs.plan.outputs.plans != '[]'
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ${{ fromJSON(needs.plan.outputs.plans) }}
+    env:
+      USE_BAZEL_VERSION: 9.3.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Release-source execution must not write shared default-branch caches.
+      - uses: bazelbuild/setup-bazelisk@v3
+      - name: Release automation regressions
+        working-directory: control
+        run: python3 .github/scripts/bazel-release.test.py
+      - name: Package exact source with trusted control code
+        working-directory: control
+        env:
+          SOURCE_SHA: ${{ matrix.release.sha }}
+          VERSION: ${{ matrix.release.version }}
+        run: python3 bazel/release/release.py package "$SOURCE_SHA" "$VERSION" "$RUNNER_TEMP/assets"
+      - name: Validate the stamped source archive without release credentials
+        env:
+          VERSION: ${{ matrix.release.version }}
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/module"
+          tar -xzf "$RUNNER_TEMP/assets/rules_tuist-$VERSION.tar.gz" -C "$RUNNER_TEMP/module" --strip-components=1
+          cd "$RUNNER_TEMP/module"
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          python3 tests/runtime/runtime_test.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rules-tuist-${{ matrix.release.version }}
+          path: ${{ runner.temp }}/assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [plan, validate]
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rules-tuist-*
+          path: ${{ runner.temp }}/assets
+          merge-multiple: true
+      - name: Recheck refs, publish promotion first, then the next RC
+        env:
+          PLANS: ${{ needs.plan.outputs.plans }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 bazel/release/release.py publish "$PLANS" "$RUNNER_TEMP/assets"

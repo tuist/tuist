@@ -2,7 +2,7 @@
 {
   "title": "Proyecto de Xcode generado",
   "titleTemplate": ":title · Tests inestables · Análisis de tests · Funcionalidades · Guías · Tuist",
-  "description": "Detecta, gestiona y aísla tests inestables en un proyecto de Xcode generado con Tuist."
+  "description": "Detecta, gestiona y aísla los tests inestables en un proyecto de Xcode generado por Tuist."
 }
 ---
 # Proyecto de Xcode generado {#generated-xcode-project-flaky-tests}
@@ -34,39 +34,39 @@ tuist test --scheme MyScheme -- -retry-tests-on-failure -test-iterations 3
 
 ### Detección entre ejecuciones {#cross-run-detection}
 
-Incluso sin reintentos de tests, Tuist puede detectar tests inestables comparando resultados entre distintas ejecuciones de CI en el mismo commit y el mismo esquema. Si un test tiene éxito en una ejecución de CI pero falla en otra para el mismo commit y esquema, ambas ejecuciones se marcan como inestables.
+Incluso sin reintentos de tests, Tuist puede detectar tests inestables comparando resultados entre distintas ejecuciones de CI sobre el mismo commit y el mismo esquema. Si un test tiene éxito en una ejecución de CI pero falla en otra para el mismo commit y esquema, ambas ejecuciones se marcan como inestables.
 
-El esquema forma parte de la clave de comparación porque el mismo test puede comportarse de forma determinista diferente según el esquema — por ejemplo, un test de instantáneas que solo es válido para un destino de simulador específico, o un target de test compilado con flags distintos. Dos ejecuciones del mismo commit en esquemas diferentes se tratan como variantes de ejecución separadas y no se marcan mutuamente como inestables.
+El esquema forma parte de la clave de comparación porque el mismo test puede comportarse de forma determinista diferente según el esquema — por ejemplo, un test de instantáneas que solo es válido frente a un destino de simulador específico, o un target de test compilado con flags distintos. Dos ejecuciones del mismo commit en esquemas diferentes se tratan como variantes de ejecución separadas y no se marcarán mutuamente como inestables.
 
-Esto es especialmente útil para detectar tests inestables que no fallan con la suficiente consistencia como para ser capturados por los reintentos, pero aun así provocan fallos intermitentes en CI.
+Esto es especialmente útil para captar tests inestables que no fallan con la suficiente consistencia como para ser detectados por los reintentos, pero aun así provocan fallos intermitentes en CI.
 
 ## Gestión de tests inestables {#managing-flaky-tests}
 
 ### Limpieza automática
 
-La detección y la limpieza se ejecutan mediante una **alerta de automatización** en el proyecto. Cada proyecto recibe una automatización predeterminada "Detección de tests inestables" cuyo *disparador* marca un test como inestable y cuya *recuperación* borra la marca una vez que el test ha transcurrido la ventana de recuperación configurada (por defecto **14 días**) sin volver a dispararse. Edítala en **Configuración → Automatizaciones** para cambiar la ventana de recuperación, intercambiar las acciones de recuperación (por ejemplo, también quitar de cuarentena) o desactivar la recuperación por completo, de modo que los tests permanezcan marcados como inestables hasta que los limpies manualmente.
+La detección y la limpieza se ejecutan mediante una **alerta de automatización** en el proyecto. Cada proyecto recibe una automatización predeterminada «Detección de tests inestables» cuyo *desencadenante* marca un test como inestable y cuya *recuperación* elimina la marca una vez que el test ha transcurrido la ventana de recuperación configurada (por defecto **14 días**) sin volver a desencadenarse. Edítala en **Ajustes → Automatizaciones** para cambiar la ventana de recuperación, intercambiar las acciones de recuperación (p. ej., también quitar de cuarentena) o desactivar la recuperación por completo para que los tests permanezcan marcados como inestables hasta que los limpies manualmente.
 
 ### Gestión manual
 
-También puedes marcar o desmarcar manualmente los tests como inestables desde la página de detalle del caso de test. Esto es útil cuando:
-- Quieres reconocer un test inestable conocido mientras trabajas en una solución
+También puedes marcar o desmarcar manualmente los tests como inestables desde la página de detalle del caso de test. Esto resulta útil cuando:
+- Quieres reconocer un test inestable conocido mientras trabajas en su corrección
 - Un test se marcó incorrectamente debido a problemas de infraestructura
 
 ## Poner en cuarentena los tests inestables {#quarantining}
 
-La cuarentena aísla un test inestable para que no bloquee la CI mientras lo solucionas. Por defecto es una **acción manual** — pones en cuarentena, quitas de cuarentena y cambias de modo desde la página de detalle del caso de test en el dashboard —, pero también puedes vincularlo a una **alerta de automatización** en **Configuración → Automatizaciones** para que un test se silencie automáticamente (o se omita) cuando supere un umbral de inestabilidad, y se quite de cuarentena cuando se recupere. Cada transición, manual o automatizada, queda registrada en el registro de auditoría del caso de test.
+La cuarentena aísla un test inestable para que no bloquee la CI mientras lo corriges. Por defecto es una **acción manual** — pones en cuarentena, quitas de cuarentena y cambias de modo desde la página de detalle del caso de test en el dashboard —, pero también puedes integrarlo en una **alerta de automatización** en **Ajustes → Automatizaciones** para que un test se silencie automáticamente (o se omita) cuando supere un umbral de inestabilidad y se quite de cuarentena cuando se recupere. Cada transición, manual o automatizada, queda registrada en el registro de auditoría del caso de test.
 
 Un test en cuarentena está en uno de estos dos modos:
 
 - **Silenciado**: el test sigue ejecutándose, pero `tuist test` oculta el fallo. Los fallos siguen alimentando el detector de tests inestables, así que puedes seguir observando el test sin romper la compilación. Elige este modo para un test que estés investigando activamente.
-- **Omitido**: xcodebuild recibe `-skip-testing <identifier>`, por lo que el test nunca se inicia. No genera nuevos resultados y desaparece del dashboard de tests inestables hasta que lo vuelvas a habilitar. Elige este modo cuando el test esté roto, sea lento o tan persistentemente inestable que ejecutarlo solo suponga minutos de CI desperdiciados.
+- **Omitido**: xcodebuild recibe `-skip-testing <identifier>`, por lo que el test nunca se inicia. No genera nuevos resultados y desaparece del dashboard de tests inestables hasta que lo vuelvas a habilitar. Elige este modo cuando el test esté roto, sea lento o tan persistentemente inestable que ejecutarlo solo desperdicie minutos de CI.
 
 ### Por qué los tests en cuarentena pueden aparecer como exitosos {#quarantined-passing}
 
-- Los **tests silenciados** siguen ejecutándose. Un test silenciado que falla se registra como **fallido** en la ejecución del caso de test y se marca como inestable — el estado por test no se reescribe. Lo que se sobrescribe es la **ejecución de tests completa**: si todos los casos de test fallidos en la ejecución están silenciados, la ejecución en su conjunto se informa como exitosa, de modo que los fallos silenciados no rompen la CI.
-- Los **tests omitidos** no se ejecutan en absoluto, por lo que el dashboard sigue mostrando el estado de la última ejecución real del test — esa instantánea puede tener semanas de antigüedad.
+- **Tests silenciados** siguen ejecutándose. Un test silenciado que falla se registra como **fallido** en la ejecución del caso de test y se marca como inestable — el estado por test no se reescribe. Lo que se sobrescribe es la **ejecución de tests completa**: si todos los casos de test fallidos en la ejecución están silenciados, la ejecución en su conjunto se informa como exitosa, de modo que los fallos silenciados no rompen la CI.
+- **Tests omitidos** no se ejecutan en absoluto, por lo que el dashboard sigue mostrando el estado de la última ejecución real del test — esa instantánea puede tener semanas de antigüedad.
 
-### Ejecutar tests {#running-tests}
+### Ejecución de tests {#running-tests}
 
 `tuist test` respeta ambos modos automáticamente:
 
@@ -86,20 +86,20 @@ tuist test --skip-quarantine
 
 La puerta de estrés vuelve a ejecutar los casos de test que añade tu rama, varias veces cada uno en un proceso nuevo, e informa de los que resultan inestables. Verás un nuevo test inestable en la pull request que lo introdujo, no semanas después.
 
-Un caso de test se considera nuevo cuando no se ha ejecutado en CI en los últimos 90 días en la rama predeterminada del proyecto, o en un commit que desde entonces se haya incorporado a ella. Con una cola de merge, un caso de test ejecutado por la cola se conoce una vez que el commit de la cola se incorpora, y permanece como nuevo si la cola lo descarta. Los commits se emparejan a través del <.localized_link href="/guides/features/test-insights/xcode#git-history">historial de Git</.localized_link> que Tuist recopila en CI.
+Un caso de test se considera nuevo cuando no se ha ejecutado en CI en los últimos 90 días en la rama predeterminada del proyecto, o en un commit que ya se haya integrado en ella. Con una cola de merge, un caso de test que la cola ejecutó se conoce una vez que el commit de la cola se integra, y permanece como nuevo si la cola lo descarta. Los commits se emparejan a través del <.localized_link href="/guides/features/test-insights/xcode#git-history">historial de Git</.localized_link> que Tuist recopila en CI.
 
-### Habilitarlo
+### Habilitación
 
 La puerta está desactivada por defecto. Establece un modo:
 
-- **`report`**: avisa sobre cada caso de test inestable. La ejecución sigue finalizando con su propio resultado.
+- **`report`**: advierte sobre cada caso de test inestable. La ejecución finaliza según su propio resultado.
 - **`enforce`**: un caso de test inestable hace fallar la ejecución, con el mismo código de salida que un test fallido.
 
-En ambos modos, <.localized_link href="/guides/features/selective-testing/generated-xcode-project">los tests selectivos</.localized_link> no omiten un destino de test con un nuevo caso de test inestable en la siguiente ejecución. El destino se ejecuta de nuevo y la puerta somete a estrés el caso de test otra vez, hasta que supere todas sus reejecuciones.
+En ambos modos, <.localized_link href="/guides/features/selective-testing/generated-xcode-project">los tests selectivos</.localized_link> no omiten un target de test con un nuevo caso de test inestable en la siguiente ejecución. El target se vuelve a ejecutar y la puerta somete el caso de test a estrés de nuevo, hasta que supera todas sus reejecuciones.
 
 Comienza con `report` durante un par de semanas para ver qué habría bloqueado `enforce`.
 
-Pásalo antes de los argumentos de paso directo, o establece `TUIST_TEST_STRESS_NEW_TESTS` para variar el modo por canal de CI:
+Pásalo antes de los argumentos de paso, o establece `TUIST_TEST_STRESS_NEW_TESTS` para variar el modo por canal de CI:
 
 ```sh
 tuist test --stress-new-tests report
@@ -117,19 +117,19 @@ Depende de cuánto tardó el caso de test en la primera pasada:
 | Hasta 5 min | 2 |
 | Más de 5 min | No se reejecuta |
 
-Las reejecuciones reutilizan lo que construyó la primera pasada. La pasada se detiene al llegar a 200 casos de test o 10 minutos, lo que ocurra primero, e indica qué límite alcanzó.
+Las reejecuciones reutilizan lo construido en la primera pasada. La pasada se detiene al alcanzar 200 casos de test o 10 minutos, lo que ocurra primero, e indica qué límite alcanzó.
 
 ### Cuándo no se ejecuta la puerta
 
 - La primera pasada ya falló. Corrige esos tests primero.
-- El proyecto no tiene rama predeterminada, o nada se ha ejecutado aún en CI en ella.
-- Más del 30 % de los casos de test del proyecto parecen nuevos. Volver a ejecutar tantos llevaría más tiempo del que vale la pena. Es de esperar en un proyecto que acaba de empezar a reportar a Tuist, o tras un cambio de nombre que mueve muchos tests a la vez.
+- El proyecto no tiene rama predeterminada, o aún no se ha ejecutado nada en CI sobre ella.
+- Más del 30 % de los casos de test del proyecto parecen nuevos. Volver a ejecutar tantos llevaría más tiempo del que vale la pena. Esto es habitual en un proyecto que acaba de empezar a reportar a Tuist, o tras un renombrado que mueve muchos tests a la vez.
 
 ## Notificaciones de Slack {#slack-notifications}
 
 Recibe notificaciones al instante cuando un test se vuelve inestable configurando <.localized_link href="/guides/integrations/slack#flaky-test-alerts">alertas de tests inestables</.localized_link> en tu integración de Slack.
 
-## Consultar el estado de inestabilidad y cuarentena {#querying}
+## Consulta del estado inestable y en cuarentena {#querying}
 
 ### CLI
 
@@ -148,4 +148,4 @@ Todos ellos aceptan `--json` para scripting.
 
 ### API REST
 
-Los mismos datos están disponibles mediante HTTP: consulta los [endpoints de casos de test](https://tuist.dev/api/docs#tag/test-cases) en la referencia de la API para la lista completa de rutas, filtros y campos de respuesta. Para cambiar el estado de un caso de test (marcar o desmarcar como inestable, silenciar, omitir), envía `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` con `is_flaky` o `state`. El mismo cambio está disponible como `tuist test case update` y como la herramienta `update_test_case` del Model Context Protocol.
+Los mismos datos están disponibles mediante HTTP; consulta los [endpoints de casos de test](https://tuist.dev/api/docs#tag/test-cases) en la referencia de la API para ver la lista completa de rutas, filtros y campos de respuesta. Para cambiar el estado de un caso de test (marcar o desmarcar como inestable, silenciar, omitir), envía `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` con `is_flaky` o `state`. El mismo cambio está disponible como `tuist test case update` y como la herramienta `update_test_case` del Model Context Protocol.

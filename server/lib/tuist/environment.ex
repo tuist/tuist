@@ -1843,17 +1843,7 @@ defmodule Tuist.Environment do
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
-    route_info = get_route_info(path)
-
-    default_route_type = Keyword.get(opts, :route_type)
-
-    type =
-      cond do
-        not is_nil(default_route_type) -> default_route_type
-        is_nil(route_info) -> :static_asset
-        Map.get(route_info, :type) == :marketing -> :marketing
-        true -> :app
-      end
+    type = Keyword.get_lazy(opts, :route_type, fn -> route_type(path) end)
 
     if type == :marketing and not Tuist.Environment.tuist_hosted?() do
       # When it's a marketing URL available presented somewhere in an
@@ -1872,10 +1862,11 @@ defmodule Tuist.Environment do
     end
   end
 
-  defp get_route_info(path) do
-    case Phoenix.Router.route_info(TuistWeb.Router, "GET", path, "") do
-      :error -> nil
-      route_info -> route_info
+  defp route_type(path) do
+    case Phoenix.Router.route_info(Tuist.Web.router(), "GET", path, "") do
+      :error -> :static_asset
+      %{type: :marketing} -> :marketing
+      _route_info -> :app
     end
   end
 
@@ -1986,6 +1977,21 @@ defmodule Tuist.Environment do
 
   def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
+  def atlas_url(secrets \\ secrets()) do
+    get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
+  end
+
+  @doc """
+  Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
+  the server presents to Atlas' support ingest, where agent feedback reported
+  through the MCP server is published. Atlas verifies it against this cluster's
+  pinned JWKS, so there is no shared secret. The kubelet rotates the file in
+  place, and the `report_feedback` tool is only offered while it exists.
+  """
+  def atlas_support_ingest_token_path do
+    System.get_env("TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH")
+  end
+
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
@@ -2029,6 +2035,19 @@ defmodule Tuist.Environment do
   """
   def sandboxes_namespace do
     System.get_env("TUIST_SANDBOXES_NAMESPACE", "tuist-sandboxes")
+  end
+
+  @doc """
+  Hours an Amp Orb stays paused on its node before its disks are archived
+  to object storage and the node copy is deleted
+  (`Tuist.Sandboxes.Archives`). Unset or `0` keeps paused Orbs on their
+  nodes.
+  """
+  def sandbox_archive_after_hours do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_AFTER_HOURS", "")) do
+      {hours, ""} when hours > 0 -> hours
+      _ -> nil
+    end
   end
 
   def amp_provider_config do

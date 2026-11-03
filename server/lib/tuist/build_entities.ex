@@ -501,6 +501,7 @@ defmodule Tuist.BuildEntities do
   end
 
   defp parent_source(:gradle, "task"), do: :gradle_build
+  defp parent_source(:cargo, "crate"), do: :cargo_build
   defp parent_source(:mix, _kind), do: :mix_build
   defp parent_source(:xcode, "module"), do: :xcode_module
   defp parent_source(:once, "action"), do: :once_run
@@ -554,6 +555,20 @@ defmodule Tuist.BuildEntities do
     )
     |> Enum.map(fn [id, account_id, root_project_name, tags, actor_id, claim, submission] ->
       record = %{label: blank_to_nil(root_project_name), tags: tags || []}
+      {id, parent_actor(record, account_actor(account_id), actor_id, claim, submission)}
+    end)
+  end
+
+  defp parent_records(project_id, :cargo_build, uuids) do
+    project_id
+    |> latest_parent_rows(
+      "cargo_builds",
+      "account_id, command, actor_account_id, claimed_actor_id, submission_auth",
+      "inserted_at",
+      uuids
+    )
+    |> Enum.map(fn [id, account_id, command, actor_id, claim, submission] ->
+      record = %{label: if(command not in [nil, ""], do: "cargo #{command}")}
       {id, parent_actor(record, account_actor(account_id), actor_id, claim, submission)}
     end)
   end

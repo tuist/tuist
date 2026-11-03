@@ -2,12 +2,12 @@
 {
   "title": "Gradle 測試分片",
   "titleTemplate": ":title · 測試分片 · 功能 · 指南 · Tuist",
-  "description": "透過 Tuist 測試分片，將 Gradle 測試分散到多個 CI 執行器上執行。"
+  "description": "使用 Tuist Test Sharding 將 Gradle 測試分散到多個 CI runner。"
 }
 ---
 # Gradle 測試分片 {#gradle-test-sharding}
 
-Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務過往 CI 執行中記錄的測試套件來規劃分片，並利用 Tuist 伺服器根據歷史計時數據建立均衡的分片計劃。
+Tuist Gradle 插件內建支援測試分片。它會根據 Tuist 在你專案的測試任務於過往 CI 執行中記錄的測試套件來規劃，並利用 Tuist 伺服器根據歷史計時數據建立均衡的分片計劃。
 
 > [!IMPORTANT] REQUIREMENTS
 > - 必須設定<.localized_link href="/guides/features/test-insights/gradle">測試洞察</.localized_link>
@@ -16,7 +16,7 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 測試分片採用兩階段工作流程：
 
-1. **建構階段：** Tuist 會根據為你專案記錄的測試套件，在伺服器上建立**分片計劃**。伺服器會使用過去 30 天的歷史測試計時數據，將測試分配到各個分片，使每個分片的耗時大致相同。建構階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
+1. **建構階段：** Tuist 會根據為你專案記錄的測試套件，在伺服器上建立**分片計劃**。伺服器會使用過去 30 天的歷史測試計時數據，將測試分配至各個分片，使每個分片的耗時大致相同。建構階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
 2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並只執行指派給該分片的測試。最後一個分片也會執行所有未指派給其他分片的測試套件。
 
 ## 建構階段 {#build-phase}
@@ -30,7 +30,7 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 此任務會：
 1. 找出包含待分片測試任務的專案，而無需編譯它們
-2. 根據過去 30 天為這些專案記錄的測試套件和計時數據，在 Tuist 伺服器上建立分片計劃
+2. 根據過去 30 天為這些專案記錄的測試套件與計時數據，在 Tuist 伺服器上建立分片計劃
 3. 為你的 CI 系統輸出分片矩陣
 
 當尚未記錄任何測試套件時（例如首次執行），計劃會包含單一分片，執行所有測試。
@@ -58,9 +58,9 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 ## 測試階段 {#test-phase}
 
-每個分片執行器會使用標準的 `test` 任務執行其指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片分配，並過濾測試執行，只包含指派的測試套件。沒有測試套件指派給該分片的專案，其測試任務會被略過。
+每個分片執行器會使用標準的 `test` 任務執行其指派的測試。當設定 `TUIST_SHARD_INDEX` 時，插件會自動從伺服器取得分片指派，並過濾測試執行，只包含指派的測試套件。沒有測試套件指派給該分片的專案，其測試任務會被略過。
 
-最後一個分片會執行所有測試任務，並排除指派給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
+最後一個分片會執行每個測試任務，並排除指派給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
@@ -70,7 +70,7 @@ TUIST_SHARD_INDEX=0 ./gradlew test
 
 ## 持續整合 {#continuous-integration}
 
-Tuist 會自動偵測以下 CI 供應商：
+Tuist 會自動偵測下列 CI 提供者：
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)
@@ -79,7 +79,7 @@ Tuist 會自動偵測以下 CI 供應商：
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-對於其他供應商，請參閱 `.tuist-shard-matrix.json` 檔案以設定平行作業。
+對於其他提供者，請參閱 `.tuist-shard-matrix.json` 檔案以設定平行工作。
 
 ### GitHub Actions {#github-actions}
 
@@ -129,7 +129,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可以將其作為 [子管線](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines) 觸發。定義一個 `.tuist-shard` 範本作業，讓產生的分片作業繼承：
+Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可以將其作為 [子流水線](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines) 觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
 
 ```yaml
 # .gitlab-ci.yml
@@ -156,7 +156,7 @@ test-shards:
     strategy: depend
 ```
 
-子管線需要 `.tuist-shard` 作業範本：
+子流水線需要一個 `.tuist-shard` 工作範本：
 
 ```yaml
 # .gitlab/shard-template.yml
@@ -168,7 +168,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist 會產生帶有 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 參數的 `.tuist-shard-continuation.json`：
+Tuist 會產生包含 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 參數的 `.tuist-shard-continuation.json`：
 
 ```yaml
 # .circleci/config.yml
@@ -261,7 +261,7 @@ tuist auth login
 
 ### Codemagic {#codemagic}
 
-Codemagic 不支援動態矩陣作業，因此請為每個分片定義單獨的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，以便在每個工作流程中使用：
+Codemagic 不支援動態矩陣工作，因此請為每個分片定義獨立的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，以便在各個工作流程中使用：
 
 ```yaml
 # codemagic.yaml
@@ -325,7 +325,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json` 寫入 `BITRISE_DEPLOY_DIR`，使其可用作下游管線階段的建構產物。使用具有預定義平行工作流程的 Bitrise Pipelines：
+在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json` 寫入 `BITRISE_DEPLOY_DIR`，使其可作為建構產物供下游流水線階段使用。使用具有預定義平行工作流程的 Bitrise Pipelines：
 
 ```yaml
 # bitrise.yml
@@ -386,4 +386,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise 不支援在執行階段動態建立平行作業。在你的管線階段中定義固定數量的分片工作流程——階段內的工作流程會自動平行執行。
+> Bitrise 不支援在執行期間動態建立平行工作。請在你的流水線階段中定義固定數量的分片工作流程 — 同一階段內的工作流程會自動平行執行。

@@ -7,7 +7,7 @@
 ---
 # Xcode 패키지 통합으로 생성된 프로젝트 {#generated-project-with-xcode-based-integration}
 
-Tuist Projects에서 패키지에 <.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode의 기본 통합</.localized_link>을 사용하는 경우, 패키지를 추가할 때 URL 대신 레지스트리 식별자를 사용해야 합니다:
+Tuist Projects에서 패키지를 사용할 때 <.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode의 기본 통합</.localized_link>을 사용하는 경우, 패키지를 추가할 때 URL 대신 레지스트리 식별자를 사용해야 합니다:
 ```swift
 import ProjectDescription
 
@@ -33,4 +33,4 @@ let project = Project(
 ```
 
 > [!TIP]
-> 모든 패키지를 레지스트리 식별자로 추가할 필요는 없습니다. 프로젝트가 생성된 후 `tuist registry setup`를 실행하면 Xcode가 소스 제어 URL로 선언된 패키지를 레지스트리에서 해결하도록 구성되며, 이는 `registryEnabled`만으로는 수행되지 않습니다. 자세한 내용은 <.localized_link href="/guides/features/package-registries/swift/xcode-project#resolving-source-control-packages">소스 제어 패키지 해결</.localized_link>을 참조하세요.
+> 모든 패키지를 레지스트리 식별자로 추가할 필요는 없습니다. 프로젝트가 생성된 후 `tuist registry setup`를 실행하면 소스 제어 URL로 선언된 패키지를 레지스트리에서 해결하도록 Xcode를 추가로 구성하며, 이는 `registryEnabled`만으로는 수행되지 않습니다. 자세한 내용은 <.localized_link href="/guides/features/package-registries/swift/xcode-project#resolving-source-control-packages">소스 제어 패키지 해결</.localized_link>을 참조하세요.
