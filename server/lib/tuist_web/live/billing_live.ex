@@ -216,8 +216,14 @@ defmodule TuistWeb.BillingLive do
     now = DateTime.utc_now()
     {period_start, _period_end} = usage_period(billing_period, now)
 
-    total_ms =
-      RunnerBilling.compute_milliseconds(account.id, period_start, now)
+    by_platform =
+      account.id
+      |> RunnerBilling.compute_units_by_platform(period_start, now)
+      |> Map.new(&{&1.platform, &1.total_units})
+
+    macos_ms = Map.get(by_platform, :macos, 0)
+    linux_ms = Map.get(by_platform, :linux, 0)
+    total_ms = macos_ms + linux_ms
 
     # Truncated to whole minutes, matching how the Stripe Price rounds,
     # so this figure is the quantity that would be invoiced rather than
@@ -226,17 +232,27 @@ defmodule TuistWeb.BillingLive do
     free_ms = free_minutes * 60_000
 
     # Costed per millisecond rather than per whole minute, because the
-    # runner Price charges that way: its tiers are in raw meter units and
+    # runner Prices charge that way: their tiers are in raw meter units and
     # Stripe rounds none of it. Costing minutes would show nothing at all
-    # for an account that has run less than one.
-    accrued = Prepaid.on_demand_cost_for_milliseconds(total_ms)
-    chargeable = Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0))
+    # for an account that has run less than one. Only the macOS Price has
+    # a free tier; Linux is charged from its first minute.
+    accrued =
+      Money.add(
+        Prepaid.on_demand_cost_for_milliseconds(:macos, macos_ms),
+        Prepaid.on_demand_cost_for_milliseconds(:linux, linux_ms)
+      )
+
+    chargeable =
+      Money.add(
+        Prepaid.on_demand_cost_for_milliseconds(:macos, max(macos_ms - free_ms, 0)),
+        Prepaid.on_demand_cost_for_milliseconds(:linux, linux_ms)
+      )
 
     {billed, not_billed_because} =
       cond do
         Trials.on_trial?(account) -> {Money.new(0, :USD), :trial}
         is_nil(subscription) -> {Money.new(0, :USD), :no_subscription}
-        total_ms <= free_ms -> {Money.new(0, :USD), :within_allowance}
+        macos_ms <= free_ms and linux_ms == 0 -> {Money.new(0, :USD), :within_allowance}
         true -> {chargeable, nil}
       end
 
