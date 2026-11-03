@@ -135,12 +135,13 @@ pulso:
       cpu: 250m
       memory: 512Mi
     limits:
-      memory: 1Gi
-  # At a 1Gi limit, admit at most 16 concurrent ingest requests (Alloy retries
-  # the 429s), and coalesce unkeyed requests for 50 ms so fewer segments land
-  # in the manifest.
+      memory: 1536Mi
+  # Each ingest request waits ~0.5 s on its Tigris write, so concurrency caps
+  # throughput (32 slots ≈ 50 req/s against ~6 req/s steady). Staging ran at
+  # ~390Mi with 16 slots saturated, so 32 fits in 1.5Gi. Coalesce unkeyed
+  # requests for 50 ms so fewer segments land in the manifest.
   ingestBatching:
-    maxConcurrentRequests: 16
+    maxConcurrentRequests: 32
     flushIntervalMs: 50
   # Atlas (atlas-production cluster) queries this Pulso over MCP only; see the
   # path allowlist in values.yaml. Each environment has its own token audience,
