@@ -121,6 +121,7 @@ pub struct MetricsInner {
     sync_forward_cursor_lag_seconds: Family<SyncPeerLabels, Gauge>,
     sync_forward_fell_behind: Family<SyncReasonLabels, Counter>,
     sync_forward_drain_timeout: Counter,
+    relaxed_durability_sync_failures: Counter,
     sync_pull_links: Family<SyncLinkLabels, Gauge>,
     region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
@@ -724,6 +725,7 @@ impl Metrics {
         let sync_forward_cursor_lag_seconds = Family::<SyncPeerLabels, Gauge>::default();
         let sync_forward_fell_behind = Family::<SyncReasonLabels, Counter>::default();
         let sync_forward_drain_timeout = Counter::default();
+        let relaxed_durability_sync_failures = Counter::default();
         let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
         let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
@@ -1325,6 +1327,11 @@ impl Metrics {
             "kura_sync_forward_drain_timeout_total",
             "Shutdowns that exited before the sibling's cursor reached the head",
             sync_forward_drain_timeout.clone(),
+        );
+        registry.register(
+            "kura_relaxed_durability_sync_failures_total",
+            "Periodic relaxed-durability syncs that failed",
+            relaxed_durability_sync_failures.clone(),
         );
         registry.register(
             "kura_sync_pull_links",
@@ -2033,6 +2040,7 @@ impl Metrics {
                 sync_forward_cursor_lag_seconds,
                 sync_forward_fell_behind,
                 sync_forward_drain_timeout,
+                relaxed_durability_sync_failures,
                 sync_pull_links,
                 region_sync_last_success_age_seconds,
                 region_watermark_age_seconds,
@@ -2815,6 +2823,10 @@ impl Metrics {
 
     pub fn record_sync_forward_drain_timeout(&self) {
         self.sync_forward_drain_timeout.inc();
+    }
+
+    pub fn record_relaxed_durability_sync_failure(&self) {
+        self.relaxed_durability_sync_failures.inc();
     }
 
     pub fn update_sync_pull_links(&self, link: &str, count: usize) {

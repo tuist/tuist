@@ -22,16 +22,22 @@ public struct SelectiveTestingGraph: Codable {
     /// Nil for bundles produced before target tags were persisted.
     public let testTargetTags: [String: Set<String>]?
 
+    /// The test targets the products hold once selective testing dropped the ones it skipped. Nil for
+    /// bundles produced before these were persisted.
+    public let builtTestTargetNames: [String]?
+
     public init(
         testTargetHashes: [String: String],
         attemptedTestPlans: [String] = [],
         requestedTestIdentifiers: [String] = [],
-        testTargetTags: [String: Set<String>]? = nil
+        testTargetTags: [String: Set<String>]? = nil,
+        builtTestTargetNames: [String]? = nil
     ) {
         self.testTargetHashes = testTargetHashes
         self.attemptedTestPlans = attemptedTestPlans
         self.requestedTestIdentifiers = requestedTestIdentifiers
         self.testTargetTags = testTargetTags
+        self.builtTestTargetNames = builtTestTargetNames
     }
 
     public static let fileName = "selective-testing-graph.json"
@@ -44,5 +50,6 @@ public struct SelectiveTestingGraph: Codable {
         requestedTestIdentifiers =
             try container.decodeIfPresent([String].self, forKey: .requestedTestIdentifiers) ?? []
         testTargetTags = try container.decodeIfPresent([String: Set<String>].self, forKey: .testTargetTags)
+        builtTestTargetNames = try container.decodeIfPresent([String].self, forKey: .builtTestTargetNames)
     }
 }

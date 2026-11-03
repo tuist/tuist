@@ -49,12 +49,12 @@ msgstr "აირჩიეთ რეპოზიტორია კავში�
 msgid "Connect any of your GitHub repositories to a project"
 msgstr "დააკავშირეთ თქვენი GitHub-ის ნებისმიერი რეპოზიტორია პროექტთან"
 
-#: lib/tuist_web/live/integrations_live.ex:699
+#: lib/tuist_web/live/integrations_live.ex:840
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr "დაკავშირებულია %{time_ago}"
 
-#: lib/tuist_web/live/integrations_live.ex:701
+#: lib/tuist_web/live/integrations_live.ex:842
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr "დაკავშირებულია %{time_ago} მომხმარებლის მიერ: %{name}"
@@ -75,12 +75,12 @@ msgstr "GitHub"
 msgid "Install GitHub App"
 msgstr "GitHub App-ის ინსტალაცია"
 
-#: lib/tuist_web/live/integrations_live.ex:78
+#: lib/tuist_web/live/integrations_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "ინტეგრაციები"
 
-#: lib/tuist_web/live/integrations_live.ex:555
+#: lib/tuist_web/live/integrations_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr "მართვა"
@@ -91,13 +91,13 @@ msgstr "მართვა"
 msgid "Manage integration"
 msgstr "ინტეგრაციის მართვა"
 
-#: lib/tuist_web/live/integrations_live.ex:558
+#: lib/tuist_web/live/integrations_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr "კავშირის წაშლა"
 
-#: lib/tuist_web/live/integrations_live.ex:26
-#: lib/tuist_web/live/integrations_live.ex:349
+#: lib/tuist_web/live/integrations_live.ex:30
+#: lib/tuist_web/live/integrations_live.ex:490
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr "ამ მოქმედების შესრულების უფლება არ გაქვთ."
@@ -107,14 +107,14 @@ msgstr "ამ მოქმედების შესრულების უ
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr "რეპოზიტორიებზე წვდომა დამოკიდებულია GitHub-თან და Tuist-ის ინტეგრაციის კონფიგურაციაზე."
 
-#: lib/tuist_web/live/integrations_live.ex:361
-#: lib/tuist_web/live/integrations_live.ex:759
-#: lib/tuist_web/live/integrations_live.ex:780
+#: lib/tuist_web/live/integrations_live.ex:502
+#: lib/tuist_web/live/integrations_live.ex:900
+#: lib/tuist_web/live/integrations_live.ex:921
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr "არასწორი URL"
 
-#: lib/tuist_web/live/integrations_live.ex:795
+#: lib/tuist_web/live/integrations_live.ex:936
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr "არასწორი ორგანიზაცია"
@@ -145,13 +145,13 @@ msgstr "მიმართვა GitHub Enterprise Server-ზე"
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr "მიმართვა GitHub Enterprise Server-ზე Tuist აპლიკაციის რეგისტრაციისთვის…"
 
-#: lib/tuist_web/live/integrations_live.ex:746
+#: lib/tuist_web/live/integrations_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr "სავალდებულოა"
 
-#: lib/tuist_web/live/integrations_live.ex:735
-#: lib/tuist_web/live/integrations_live.ex:767
+#: lib/tuist_web/live/integrations_live.ex:876
+#: lib/tuist_web/live/integrations_live.ex:908
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
 msgstr "გამოიყენეთ GitHub Enterprise Server-ის URL"
@@ -171,7 +171,7 @@ msgstr "იხილეთ დაყენების სახელმძღ�
 msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
 msgstr "ამ Tuist სერვერს github.com-ზე საკუთარი GitHub App სჭირდება, რათა მისი ინსტალაცია შესაძლებელი იყოს. დაარეგისტრირეთ აპლიკაცია, შემდეგ დააყენეთ TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET და TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 და გადატვირთეთ სერვერი."
 
-#: lib/tuist_web/live/integrations_live.ex:834
+#: lib/tuist_web/live/integrations_live.ex:975
 #, elixir-autogen, elixir-format
 msgid "Buildkite"
 msgstr "Buildkite"
@@ -188,6 +188,8 @@ msgstr "კლასტერის აგენტის ტოკენი"
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
 #: lib/tuist_web/live/integrations_live.html.heex:802
+#: lib/tuist_web/live/integrations_live.html.heex:855
+#: lib/tuist_web/live/integrations_live.html.heex:903
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr "დაკავშირება"
@@ -207,6 +209,7 @@ msgstr "შექმენით აგენტის ტოკენი Buildk
 #: lib/tuist_web/components/amp_integration.ex:281
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
+#: lib/tuist_web/live/integrations_live.html.heex:831
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr "გათიშვა"
@@ -216,7 +219,7 @@ msgstr "გათიშვა"
 msgid "Organization slug"
 msgstr "ორგანიზაციის სლაგი"
 
-#: lib/tuist_web/live/integrations_live.ex:836
+#: lib/tuist_web/live/integrations_live.ex:977
 #, elixir-autogen, elixir-format
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr "გაუშვით Buildkite-ის სამუშაოები Tuist-ის გამშვებებზე. Tuist აკვირდება თქვენს კლასტერში არსებულ თვითმასპინძელ რიგებს და ასრულებს იქ ნაპოვნ სამუშაოებს."
@@ -232,7 +235,7 @@ msgstr "ინახება დაშიფრული და მეტჯე
 msgid "Organization"
 msgstr "ორგანიზაცია"
 
-#: lib/tuist_web/live/integrations_live.ex:292
+#: lib/tuist_web/live/integrations_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "Buildkite connection saved."
 msgstr "Buildkite-თან კავშირი შენახულია."
@@ -271,7 +274,7 @@ msgstr "GitLab-ის URL"
 msgid "Runner authentication token"
 msgstr "რანერის ავტორიზაციის ტოკენი"
 
-#: lib/tuist_web/live/integrations_live.ex:201
+#: lib/tuist_web/live/integrations_live.ex:213
 #, elixir-autogen, elixir-format
 msgid "Check the GitLab URL and runner authentication token."
 msgstr "შეამოწმეთ GitLab-ის URL და რანერის ავტორიზაციის ტოკენი."
@@ -286,22 +289,22 @@ msgstr "შექმენით GitLab რანერი თქვენი Tu
 msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
 msgstr "გიტლაბის CI-ს ჯობების გაშვება Tuist-ის რანერებზე. აირჩიეთ მანქანა თითოეული ჯობისთვის პაიპლაინის ტეგების გამოყენებით."
 
-#: lib/tuist_web/live/integrations_live.ex:464
+#: lib/tuist_web/live/integrations_live.ex:605
 #, elixir-autogen, elixir-format
 msgid "The selected repository is not accessible to this account's GitHub App installation."
 msgstr "არჩეული რეპოზიტორია არ არის ხელმისაწვდომი ამ ანგარიშის GitHub App-ის ინსტალაციისთვის."
 
-#: lib/tuist_web/live/integrations_live.ex:457
+#: lib/tuist_web/live/integrations_live.ex:598
 #, elixir-autogen, elixir-format
 msgid "The project connection could not be created."
 msgstr "პროექტთან კავშირის შექმნა ვერ მოხერხდა."
 
-#: lib/tuist_web/live/integrations_live.ex:358
+#: lib/tuist_web/live/integrations_live.ex:499
 #, elixir-autogen, elixir-format
 msgid "GitHub API URL updated."
 msgstr "GitHub API-ის URL განახლდა."
 
-#: lib/tuist_web/live/integrations_live.ex:365
+#: lib/tuist_web/live/integrations_live.ex:506
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise integration not found."
 msgstr "GitHub Enterprise-ის ინტეგრაცია ვერ მოიძებნა."
@@ -333,7 +336,7 @@ msgstr "GitHub Enterprise Server"
 msgid "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
 msgstr "REST API-ის საბაზისო URL, რომელსაც Tuist სერვერები წვდებიან, /api/v3-ის ჩათვლით. დატოვეთ ცარიელი, თუ გსურთ სერვერის URL-ის შემდეგ ავტომატურად დაემატოს /api/v3."
 
-#: lib/tuist_web/live/integrations_live.ex:170
+#: lib/tuist_web/live/integrations_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Could not connect this Origin repository. Check the installation's access and choose an unconnected project."
 msgstr "ამ Origin რეპოზიტორიასთან დაკავშირება ვერ მოხერხდა. შეამოწეთ ინსტალაციის წვდომა და აირჩიეთ დაუკავშირებელი პროექტი."
@@ -353,12 +356,12 @@ msgstr "დარეგისტრირეთ Origin აპლიკაცი�
 msgid "Choose a native Origin repository available to your connected account. GitHub mirrors use the GitHub integration."
 msgstr "აირჩიეთ თქვენს მიერთებულ ანგარიშზე ხელმისაწვდომი ნატიური Origin რეპოზიტორია. GitHub სარკეებისთვის გამოიყენეთ GitHub ინტეგრაცია."
 
-#: lib/tuist_web/live/integrations_live.ex:587
+#: lib/tuist_web/live/integrations_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Could not load Origin repositories"
 msgstr "Origin რეპოზიტორიების ჩატვირთვა ვერ მოხერხდა"
 
-#: lib/tuist_web/live/integrations_live.ex:580
+#: lib/tuist_web/live/integrations_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Loading repositories..."
 msgstr "რეპოზიტორიების ჩატვირთვა..."
@@ -373,18 +376,18 @@ msgstr "მართეთ ინტეგრაცია, რათა მი�
 msgid "No native Origin repositories available"
 msgstr "ნეიტიური Origin-ის რეპოზიტორიები არ არის ხელმისაწვდომი"
 
-#: lib/tuist_web/live/integrations_live.ex:652
+#: lib/tuist_web/live/integrations_live.ex:793
 #, elixir-autogen, elixir-format
 msgid "Origin account"
 msgstr "Origin-ის ანგარიში"
 
-#: lib/tuist_web/live/integrations_live.ex:597
+#: lib/tuist_web/live/integrations_live.ex:738
 #: lib/tuist_web/live/integrations_live.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Retry"
 msgstr "ხელახლა ცდა"
 
-#: lib/tuist_web/live/integrations_live.ex:589
+#: lib/tuist_web/live/integrations_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Try again or manage the integration to check its repository access."
 msgstr "სცადეთ ხელახლა ან მართეთ ინტეგრაცია, რათა შეამოწმოთ მისი წვდომა რეპოზიტორიებზე."
@@ -456,3 +459,179 @@ msgstr "Tuist-მა ვერ მოახდინა პროვაიდე
 #, elixir-autogen, elixir-format
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
 msgstr "ეს აჩერებს ახალ სამუშაოებს და აჩერებს ამ ინტეგრაციის მიმდინარე Orbs-ებს. შენახული დისკები რჩება მანამ, სანამ არ წაშლით მათ. Tuist-ში შენახული ტოკენი წაიშლება."
+
+#: lib/tuist_web/live/integrations_live.html.heex:894
+#: lib/tuist_web/live/integrations_live.html.heex:1010
+#, elixir-autogen, elixir-format
+msgid "API token"
+msgstr "API ტოკენი"
+
+#: lib/tuist_web/live/integrations_live.ex:1040
+#: lib/tuist_web/live/integrations_live.ex:1053
+#: lib/tuist_web/live/integrations_live.html.heex:945
+#, elixir-autogen, elixir-format
+msgid "Add pool"
+msgstr "პულის დამატება"
+
+#: lib/tuist_web/live/integrations_live.html.heex:817
+#, elixir-autogen, elixir-format
+msgid "Bitrise"
+msgstr "Bitrise"
+
+#: lib/tuist_web/live/integrations_live.html.heex:843
+#, elixir-autogen, elixir-format
+msgid "Connect Bitrise"
+msgstr "Bitrise-ის დაკავშირება"
+
+#: lib/tuist_web/live/integrations_live.ex:1117
+#, elixir-autogen, elixir-format
+msgid "Pool token"
+msgstr "პულის ტოკენი"
+
+#: lib/tuist_web/live/integrations_live.html.heex:935
+#, elixir-autogen, elixir-format
+msgid "Runner pools"
+msgstr "გამშვების პულები"
+
+#: lib/tuist_web/live/integrations_live.ex:1085
+#, elixir-autogen, elixir-format
+msgid "Stack ID"
+msgstr "სტეკის ID"
+
+#: lib/tuist_web/live/integrations_live.html.heex:936
+#, elixir-autogen, elixir-format
+msgid "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
+msgstr "აწყობა Tuist-ზე მაშინ გაეშვება, როცა მისი სამუშაო პროცესი Bitrise-ის „Stacks & Machines“ განყოფილებაში ამ პულის სტეკს აირჩევს."
+
+#: lib/tuist_web/live/integrations_live.ex:279
+#, elixir-autogen, elixir-format
+msgid "Bitrise API token updated."
+msgstr "Bitrise-ის API ტოკენი განახლდა."
+
+#: lib/tuist_web/live/integrations_live.ex:1176
+#, elixir-autogen, elixir-format
+msgid "Bitrise rejected this API token."
+msgstr "Bitrise-მა ეს API ტოკენი უარყო."
+
+#: lib/tuist_web/live/integrations_live.ex:1119
+#, elixir-autogen, elixir-format
+msgid "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
+msgstr "Bitrise პულის ტოკენს მხოლოდ ერთხელ აჩვენებს, როცა პულს ქმნით. თუ არ შეინახეთ, თავიდან შექმენით პული."
+
+#: lib/tuist_web/live/integrations_live.ex:325
+#, elixir-autogen, elixir-format
+msgid "Choose a runner pool and paste its pool token."
+msgstr "აირჩიეთ რანერების პული და ჩასვით მისი პულის ტოკენი."
+
+#: lib/tuist_web/live/integrations_live.ex:320
+#, elixir-autogen, elixir-format
+msgid "Choose one of your Tuist profiles."
+msgstr "აირჩიეთ თქვენი Tuist-ის პროფილი."
+
+#: lib/tuist_web/live/integrations_live.html.heex:822
+#, elixir-autogen, elixir-format
+msgid "Connected to %{workspace}. Pair each runner pool with a Tuist profile to run its builds on Tuist runners."
+msgstr "მიერთებულია %{workspace}-თან. თითოეული რანერების პული მიამაგრეთ Tuist-ის პროფილს, რომ ბილდები Tuist-ის რანერებზე გაუშვათ."
+
+#: lib/tuist_web/live/integrations_live.html.heex:845
+#, elixir-autogen, elixir-format
+msgid "In Bitrise, open Workspace settings, then Security, and create a workspace API token with the Viewer role and Tester/QA access to Bitrise CI. Tuist only uses it to read your builds."
+msgstr "Bitrise-ში გახსენით Workspace settings, შემდეგ Security და შექმენით workspace API ტოკენი Viewer როლით და Bitrise CI-ზე Tester/QA წვდომით. Tuist მას მხოლოდ თქვენი ბილდების წასაკითხად იყენებს."
+
+#: lib/tuist_web/live/integrations_live.html.heex:989
+#, elixir-autogen, elixir-format
+msgid "Loading runner pools from Bitrise…"
+msgstr "რანერების პულების ჩატვირთვა Bitrise-დან…"
+
+#: lib/tuist_web/live/integrations_live.ex:1000
+#, elixir-autogen, elixir-format
+msgid "Reload pools"
+msgstr "პულების განახლება"
+
+#: lib/tuist_web/live/integrations_live.html.heex:818
+#, elixir-autogen, elixir-format
+msgid "Run builds of your self-hosted Bitrise runner pools on Tuist runners. Your workflows stay on Bitrise; only the machines change."
+msgstr "გაუშვით თქვენი საკუთარ სერვერზე განლაგებული Bitrise-ის პულების ბილდები Tuist-ის რანერებზე. თქვენი სამუშაო პროცესები რჩება Bitrise-ზე; იცვლება მხოლოდ მანქანები."
+
+#: lib/tuist_web/live/integrations_live.ex:1070
+#: lib/tuist_web/live/integrations_live.ex:1074
+#, elixir-autogen, elixir-format
+msgid "Runner pool"
+msgstr "რანერების პული"
+
+#: lib/tuist_web/live/integrations_live.ex:1179
+#, elixir-autogen, elixir-format
+msgid "This API token can't see any Bitrise workspace."
+msgstr "ამ API ტოკენს არ აქვს წვდომა Bitrise-ის რომელიმე სამუშაო სივრცეზე."
+
+#: lib/tuist_web/live/integrations_live.ex:1183
+#, elixir-autogen, elixir-format
+msgid "This API token can't see the connected workspace. Disconnect first to switch workspaces."
+msgstr "ამ API ტოკენს არ აქვს წვდომა მიერთებულ სამუშაო სივრცეზე. ჯერ გააუქმეთ მიერთება, რათა შეცვალოთ სამუშაო სივრცე."
+
+#: lib/tuist_web/live/integrations_live.html.heex:875
+#, elixir-autogen, elixir-format
+msgid "This token can see several workspaces. Choose the one whose runner pools Tuist should serve."
+msgstr "ამ ტოკენს აქვს წვდომა რამდენიმე სამუშაო სივრცეზე. აირჩიეთ ის, რომლის რანერების პულებსაც Tuist უნდა ემსახუროს."
+
+#: lib/tuist_web/live/integrations_live.ex:993
+#, elixir-autogen, elixir-format
+msgid "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
+msgstr "ამ სამუშაო სივრცეს ჯერ არ აქვს საკუთარ სერვერზე განლაგებული რანერების პულები. შექმენით ერთი Bitrise-ში, Workspace settings > Infrastructure განყოფილებაში."
+
+#: lib/tuist_web/live/integrations_live.ex:1087
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
+msgstr "Tuist-მა ვერ ჩატვირთა თქვენი რანერების პულები Bitrise-დან. შეიყვანეთ პულის stack ID, რომელიც იწყება agent-pool- პრეფიქსით."
+
+#: lib/tuist_web/live/integrations_live.ex:1189
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't reach Bitrise. Try again in a moment."
+msgstr "Tuist-მა Bitrise-თან ვერ დაამყარა კავშირი. სცადეთ ხელახლა მოგვიანებით."
+
+#: lib/tuist_web/live/integrations_live.ex:1098
+#: lib/tuist_web/live/integrations_live.ex:1106
+#, elixir-autogen, elixir-format
+msgid "Tuist profile"
+msgstr "Tuist პროფილი"
+
+#: lib/tuist_web/live/integrations_live.html.heex:873
+#, elixir-autogen, elixir-format
+msgid "Workspace"
+msgstr "სამუშაო სივრცე"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1012
+#, elixir-autogen, elixir-format
+msgid "Paste a new token to replace the stored one. It must belong to the same workspace."
+msgstr "ჩასვით ახალი ტოკენი შენახულის შესაცვლელად. ის იმავე სამუშაო სივრცეს უნდა ეკუთვნოდეს."
+
+#: lib/tuist_web/live/integrations_live.html.heex:1025
+#, elixir-autogen, elixir-format
+msgid "Update token"
+msgstr "ტოკენის განახლება"
+
+#: lib/tuist_web/live/integrations_live.ex:1100
+#, elixir-autogen, elixir-format
+msgid "The machine this pool's builds run on."
+msgstr "მანქანა, რომელზეც ამ პულის ბილდები გადის."
+
+#: lib/tuist_web/live/integrations_live.ex:1028
+#, elixir-autogen, elixir-format
+msgid "Add a runner pool"
+msgstr "პულსის დამატება"
+
+#: lib/tuist_web/live/integrations_live.ex:1012
+#: lib/tuist_web/live/integrations_live.html.heex:994
+#, elixir-autogen, elixir-format
+msgid "No runner pools are paired yet."
+msgstr "ჯერ არცერთი პული არ არის მიბმული."
+
+#: lib/tuist_web/live/integrations_live.ex:1030
+#, elixir-autogen, elixir-format
+msgid "Pair a Bitrise runner pool with the Tuist profile its builds should run on."
+msgstr "დაუკავშირეთ Bitrise-ის გამშვების პული Tuist-ის პროფილს, რომელზეც მისი ბილდები უნდა გაეშვას."
+
+#: lib/tuist_web/live/integrations_live.html.heex:979
+#, elixir-autogen, elixir-format
+msgid "Remove pool"
+msgstr "პულის წაშლა"

@@ -725,6 +725,37 @@ defmodule TuistEx.DependencyCacheTest do
              Enum.map(second["dependency_cache"], & &1["key"])
   end
 
+  test "portable keys follow rebar3's bytes rather than its install path", %{
+    project: project,
+    dir: dir
+  } do
+    rebar_fixture!(project, dir)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false", "remote: false, portable: true")
+    )
+
+    {rebar, _args} = Mix.Rebar.rebar_args(:rebar3, [])
+
+    install = fn home ->
+      path = Path.join([dir, home, "rebar3"])
+      File.mkdir_p!(Path.dirname(path))
+      File.cp!(rebar, path)
+      path
+    end
+
+    first = run!(project, [{"MIX_REBAR3", install.("runner")}])
+    assert Enum.all?(first["dependency_cache"], &(&1["outcome"] == "miss"))
+    File.rm_rf!(Path.join(project, "_build"))
+    second = run!(project, [{"MIX_REBAR3", install.("user")}])
+    assert Enum.all?(second["dependency_cache"], &(&1["outcome"] == "local_hit"))
+
+    assert Enum.map(first["dependency_cache"], & &1["key"]) ==
+             Enum.map(second["dependency_cache"], & &1["key"])
+  end
+
   test "rebar bare builds accept packaged app metadata, inert Makefiles and evaluated config scripts",
        %{project: project, dir: dir} do
     rebar_fixture!(project, dir)
@@ -1228,6 +1259,23 @@ defmodule TuistEx.DependencyCacheTest do
     assert second["value"] == 2
   end
 
+  test "the project's own configuration does not change dependency keys", %{project: project} do
+    config = fn pool_size ->
+      File.write!(Path.join(project, "config/config.exs"), """
+      import Config
+      config :dep_probe, value: 1
+      config :cache_fixture, pool_size: #{pool_size}
+      """)
+    end
+
+    config.(8)
+    assert [%{"outcome" => "miss", "key" => key}] = run!(project)["dependency_cache"]
+    File.rm_rf!(Path.join(project, "_build"))
+    config.(4)
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] = run!(project)["dependency_cache"]
+  end
+
   test "unselected fetched dependencies retain Mix's OS-worker batching", %{
     project: project,
     dir: dir
@@ -1622,6 +1670,40 @@ defmodule TuistEx.DependencyCacheTest do
 
     assert [%{"outcome" => "local_hit", "key" => ^key}] =
              run!(relocated)["dependency_cache"]
+  end
+
+  test "portable keys follow archive contents rather than the archive directory", %{
+    project: project,
+    dir: dir
+  } do
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false", "remote: false, portable: true")
+    )
+
+    archives = fn home, contents ->
+      path = Path.join([dir, home, ".mix/archives"])
+      File.mkdir_p!(Path.join(path, "hex-2.6.0/ebin"))
+      File.write!(Path.join(path, "hex-2.6.0/ebin/hex.app"), contents)
+      path
+    end
+
+    assert [%{"outcome" => "miss", "key" => key}] =
+             run!(project, [{"MIX_ARCHIVES", archives.("runner", "hex")}])["dependency_cache"]
+
+    File.rm_rf!(Path.join(project, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(project, [{"MIX_ARCHIVES", archives.("user", "hex")}])["dependency_cache"]
+
+    File.rm_rf!(Path.join(project, "_build"))
+
+    assert [%{"outcome" => "miss", "key" => changed}] =
+             run!(project, [{"MIX_ARCHIVES", archives.("other", "hex 2")}])["dependency_cache"]
+
+    assert changed != key
   end
 
   test "scheduler counts do not change the key", %{project: project} do

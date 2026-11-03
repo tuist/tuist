@@ -11,8 +11,8 @@
 msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist/billing.ex:66
-#: lib/tuist_web/live/billing_live.ex:391
+#: lib/tuist/billing.ex:72
+#: lib/tuist_web/live/billing_live.ex:397
 #, elixir-autogen, elixir-format
 msgid "$0"
 msgstr "$0"
@@ -22,7 +22,7 @@ msgstr "$0"
 msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr "%{inviter}-მა მოგიწვიათ %{organization} ორგანიზაციაში გაწევრიანებისთვის"
 
-#: lib/tuist_web/live/billing_live.html.heex:362
+#: lib/tuist_web/live/billing_live.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "%{month}/%{year}"
 msgstr "%{month}/%{year}"
@@ -33,7 +33,7 @@ msgstr "%{month}/%{year}"
 msgid "Accept invitation"
 msgstr "მიიღეთ მიწვევა"
 
-#: lib/tuist_web/live/billing_live.html.heex:347
+#: lib/tuist_web/live/billing_live.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Add payment method"
 msgstr "დაამატეთ გადახდის მეთოდი"
@@ -44,15 +44,15 @@ msgstr "დაამატეთ გადახდის მეთოდი"
 msgid "Admin"
 msgstr "ადმინისტრატორი"
 
-#: lib/tuist/billing.ex:44
-#: lib/tuist_web/live/billing_live.ex:361
-#: lib/tuist_web/live/billing_live.html.heex:131
+#: lib/tuist/billing.ex:50
+#: lib/tuist_web/live/billing_live.ex:367
+#: lib/tuist_web/live/billing_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
-#: lib/tuist/billing.ex:53
-#: lib/tuist_web/live/billing_live.ex:366
+#: lib/tuist/billing.ex:59
+#: lib/tuist_web/live/billing_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
 msgstr "ყველა ფუნქცია, საკრედიტო ბარათის გარეშე"
@@ -84,7 +84,7 @@ msgstr "დარწმუნებული ხართ, რომ გსუ�
 msgid "Billing"
 msgstr "გადახდა"
 
-#: lib/tuist_web/live/billing_live.html.heex:405
+#: lib/tuist_web/live/billing_live.html.heex:431
 #, elixir-autogen, elixir-format
 msgid "Billing email"
 msgstr "გადარიცხვის ელფოსტა"
@@ -111,12 +111,12 @@ msgstr "გადარიცხვის ელფოსტა"
 msgid "Cancel"
 msgstr "გაუქმება"
 
-#: lib/tuist_web/live/billing_live.html.heex:229
+#: lib/tuist_web/live/billing_live.html.heex:255
 #, elixir-autogen, elixir-format
 msgid "Change subscription plan"
 msgstr "გამოწერის გეგმის შეცვლა"
 
-#: lib/tuist_web/live/billing_live.html.heex:227
+#: lib/tuist_web/live/billing_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Change your subscription to fit your needs."
 msgstr "შეცვალეთ თქვენი გამოწერა თქვენს საჭიროებებზე მორგებით."
@@ -126,22 +126,22 @@ msgstr "შეცვალეთ თქვენი გამოწერა თ
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr "აირჩიეთ, სად ინახება თქვენი არტიფაქტები (მაგალითად, მოდულის კეშის ბინარული ფაილები) იურიდიულ შესაბამისობაში."
 
-#: lib/tuist/billing.ex:54
+#: lib/tuist/billing.ex:60
 #, elixir-autogen, elixir-format
 msgid "Community support"
 msgstr "საზოგადოების მხარდაჭერა"
 
-#: lib/tuist_web/live/billing_live.ex:367
+#: lib/tuist_web/live/billing_live.ex:373
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
 msgstr "საზოგადოების მხარდაჭერა ფორუმის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:184
+#: lib/tuist_web/live/billing_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Community support: Support via community forum"
 msgstr "საზოგადოების მხარდაჭერა: დახმარება საზოგადოების ფორუმის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:220
+#: lib/tuist_web/live/billing_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Completely free for open source projects"
 msgstr "სრულიად უფასო ღია კოდის პროექტებისთვის"
@@ -156,8 +156,8 @@ msgstr "დაადასტურეთ თქვენი ელფოსტ�
 msgid "Confirmation instructions"
 msgstr "დადასტურების ინსტრუქციები"
 
-#: lib/tuist/billing.ex:86
-#: lib/tuist_web/live/billing_live.ex:428
+#: lib/tuist/billing.ex:92
+#: lib/tuist_web/live/billing_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr "დაუკავშირდით გაყიდვების გუნდს"
@@ -167,39 +167,39 @@ msgstr "დაუკავშირდით გაყიდვების გ�
 msgid "Create organization"
 msgstr "ორგანიზაციის შექმნა"
 
-#: lib/tuist_web/live/billing_live.ex:418
+#: lib/tuist_web/live/billing_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
 msgstr "შექმენით თქვენი გეგმა ან განათავსეთ ინსტანცია საკუთარ სერვერზე"
 
-#: lib/tuist/billing.ex:84
-#: lib/tuist_web/live/billing_live.html.heex:161
+#: lib/tuist/billing.ex:90
+#: lib/tuist_web/live/billing_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
 msgstr "შექმენით თქვენი გეგმა ან განათავსეთ ინსტანცია საკუთარ სერვერზე."
 
-#: lib/tuist_web/live/billing_live.ex:373
-#: lib/tuist_web/live/billing_live.ex:402
-#: lib/tuist_web/live/billing_live.html.heex:38
+#: lib/tuist_web/live/billing_live.ex:379
+#: lib/tuist_web/live/billing_live.ex:408
+#: lib/tuist_web/live/billing_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Current plan"
 msgstr "მიმდინარე გეგმა"
 
-#: lib/tuist/billing.ex:85
-#: lib/tuist_web/live/billing_live.ex:419
-#: lib/tuist_web/live/billing_live.html.heex:143
+#: lib/tuist/billing.ex:91
+#: lib/tuist_web/live/billing_live.ex:425
+#: lib/tuist_web/live/billing_live.html.heex:169
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "მორგებული"
 
-#: lib/tuist/billing.ex:88
-#: lib/tuist_web/live/billing_live.ex:421
+#: lib/tuist/billing.ex:94
+#: lib/tuist_web/live/billing_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
 msgstr "მორგებული პირობები"
 
-#: lib/tuist_web/live/billing_live.html.heex:206
+#: lib/tuist_web/live/billing_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr "მორგებული პირობები: თქვენს სპეციფიკურ საჭიროებებზე მორგებული შეთანხმებები"
@@ -315,7 +315,7 @@ msgstr "თქვენი ანგარიშის წაშლა ასე
 msgid "Did you request to reset your password?"
 msgstr "მოითხოვეთ პაროლის აღდგენა?"
 
-#: lib/tuist_web/live/billing_live.ex:379
+#: lib/tuist_web/live/billing_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
 msgstr "დაწევა"
@@ -345,9 +345,9 @@ msgstr "შეიყვანეთ ამ ორგანიზაციის 
 msgid "Enter your username to confirm"
 msgstr "შეიყვანეთ თქვენი მომხმარებლის სახელი დასადასტურებლად"
 
-#: lib/tuist/billing.ex:82
-#: lib/tuist_web/live/billing_live.ex:417
-#: lib/tuist_web/live/billing_live.html.heex:134
+#: lib/tuist/billing.ex:88
+#: lib/tuist_web/live/billing_live.ex:423
+#: lib/tuist_web/live/billing_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
 msgstr "Enterprise"
@@ -357,57 +357,57 @@ msgstr "Enterprise"
 msgid "Europe"
 msgstr "ევროპა"
 
-#: lib/tuist/billing.ex:47
-#: lib/tuist_web/live/billing_live.ex:363
-#: lib/tuist_web/live/billing_live.html.heex:140
-#: lib/tuist_web/live/billing_live.html.heex:141
+#: lib/tuist/billing.ex:53
+#: lib/tuist_web/live/billing_live.ex:369
+#: lib/tuist_web/live/billing_live.html.heex:166
+#: lib/tuist_web/live/billing_live.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "უფასო"
 
-#: lib/tuist_web/live/billing_live.html.heex:52
+#: lib/tuist_web/live/billing_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Free tier exceeded"
 msgstr "უფასო ლიმიტი გადაჭარბებულია"
 
-#: lib/tuist_web/live/billing_live.ex:365
+#: lib/tuist_web/live/billing_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
 msgstr "უფასო, ლიმიტის ფარგლებში"
 
-#: lib/tuist/billing.ex:70
+#: lib/tuist/billing.ex:76
 #, elixir-autogen, elixir-format
 msgid "Generous base price"
 msgstr "მოქნილი საბაზო ფასი"
 
-#: lib/tuist_web/live/billing_live.html.heex:189
+#: lib/tuist_web/live/billing_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr "მოქნილი საბაზო ფასი: არ გადაიხადოთ არაფერი, თუ უფასო პაკეტის ლიმიტებში რჩებით"
 
-#: lib/tuist/billing.ex:50
+#: lib/tuist/billing.ex:56
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
 msgstr "უფასო ყოველთვიური პაკეტი"
 
-#: lib/tuist_web/live/billing_live.html.heex:172
+#: lib/tuist_web/live/billing_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier: Usage capped at free tier limits"
 msgstr "უფასო ყოველთვიური პაკეტი: მოხმარება შეზღუდულია უფასო პაკეტის ლიმიტებით"
 
-#: lib/tuist/billing.ex:48
-#: lib/tuist/billing.ex:68
+#: lib/tuist/billing.ex:54
+#: lib/tuist/billing.ex:74
 #, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr "დაიწყეთ"
 
-#: lib/tuist_web/live/billing_live.ex:362
+#: lib/tuist_web/live/billing_live.ex:368
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr "დაიწყეთ საკრედიტო ბარათის გარეშე"
 
-#: lib/tuist/billing.ex:46
-#: lib/tuist_web/live/billing_live.html.heex:152
+#: lib/tuist/billing.ex:52
+#: lib/tuist_web/live/billing_live.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
 msgstr "დაიწყეთ საკრედიტო ბარათის გარეშე – სცადეთ ვალდებულებების გარეშე."
@@ -458,12 +458,12 @@ msgstr "მონაწილეების მიწვევა"
 msgid "Invite members to your organization"
 msgstr "მიიწვიეთ მონაწილეები თქვენს ორგანიზაციაში"
 
-#: lib/tuist/billing.ex:52
+#: lib/tuist/billing.ex:58
 #, elixir-autogen, elixir-format
 msgid "Like, totally free"
 msgstr "სრულიად უფასო"
 
-#: lib/tuist_web/live/billing_live.html.heex:178
+#: lib/tuist_web/live/billing_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Like, totally free: All features, no credit card required"
 msgstr "სრულიად უფასო: ყველა ფუნქცია, საკრედიტო ბარათის გარეშე"
@@ -485,7 +485,7 @@ msgstr "წევრი"
 msgid "Members"
 msgstr "წევრები"
 
-#: lib/tuist_web/live/billing_live.ex:323
+#: lib/tuist_web/live/billing_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr "ყველაზე პოპულარული"
@@ -503,7 +503,7 @@ msgstr "ყველაზე პოპულარული"
 msgid "Name"
 msgstr "სახელი"
 
-#: lib/tuist/billing.ex:58
+#: lib/tuist/billing.ex:64
 #, elixir-autogen, elixir-format
 msgid "No credit card required"
 msgstr "საკრედიტო ბარათი არ არის საჭირო"
@@ -518,18 +518,18 @@ msgstr "მოწვევები არ შექმნილა"
 msgid "No members found"
 msgstr "წევრები ვერ მოიძებნა"
 
-#: lib/tuist/billing.ex:90
-#: lib/tuist_web/live/billing_live.ex:422
+#: lib/tuist/billing.ex:96
+#: lib/tuist_web/live/billing_live.ex:428
 #, elixir-autogen, elixir-format
 msgid "On-premise"
 msgstr "ადგილობრივი განლაგება"
 
-#: lib/tuist_web/live/billing_live.html.heex:212
+#: lib/tuist_web/live/billing_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "On-premise: Self-host your instance of Tuist"
 msgstr "ადგილობრივი განლაგება: Tuist-ის საკუთარი ინსტანციის დახოსტვა"
 
-#: lib/tuist_web/live/billing_live.html.heex:132
+#: lib/tuist_web/live/billing_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Open source"
 msgstr "ღია კოდი"
@@ -545,24 +545,24 @@ msgstr "ორგანიზაციის სახელი"
 msgid "Passwords don't match"
 msgstr "პაროლები არ ემთხვევა"
 
-#: lib/tuist/billing.ex:71
-#: lib/tuist_web/live/billing_live.ex:394
+#: lib/tuist/billing.ex:77
+#: lib/tuist_web/live/billing_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr "არ გადაიხდით, თუ უფასო ლიმიტებს არ გადააჭარბეთ"
 
-#: lib/tuist/billing.ex:73
-#: lib/tuist_web/live/billing_live.ex:395
+#: lib/tuist/billing.ex:79
+#: lib/tuist_web/live/billing_live.ex:401
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
 msgstr "გადაიხადეთ მხოლოდ იმისთვის, რასაც თითოეული ფუნქციის მიხედვით იყენებთ"
 
-#: lib/tuist_web/live/billing_live.html.heex:311
+#: lib/tuist_web/live/billing_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "Payment method"
 msgstr "გადახდის მეთოდი"
 
-#: lib/tuist_web/live/billing_live.html.heex:314
+#: lib/tuist_web/live/billing_live.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Payments for your subscription are made using the default card."
 msgstr "თქვენი გამოწერის გადახდა ხორციელდება ნაგულისხმევი ბარათით."
@@ -572,34 +572,34 @@ msgstr "თქვენი გამოწერის გადახდა ხ
 msgid "Pending"
 msgstr "მოლოდინში"
 
-#: lib/tuist_web/live/billing_live.html.heex:299
+#: lib/tuist_web/live/billing_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Price"
 msgstr "ფასი"
 
-#: lib/tuist_web/live/billing_live.html.heex:245
+#: lib/tuist_web/live/billing_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Pricing details"
 msgstr "ფასების დეტალები"
 
-#: lib/tuist/billing.ex:92
+#: lib/tuist/billing.ex:98
 #, elixir-autogen, elixir-format
 msgid "Priority support"
 msgstr "პრიორიტეტული მხარდაჭერა"
 
-#: lib/tuist_web/live/billing_live.ex:423
+#: lib/tuist_web/live/billing_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
 msgstr "პრიორიტეტული მხარდაჭერა საერთო Slack-არხის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:215
+#: lib/tuist_web/live/billing_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Priority support: Via shared Slack channel"
 msgstr "პრიორიტეტული მხარდაჭერა: საერთო Slack-ის არხის მეშვეობით"
 
-#: lib/tuist/billing.ex:63
-#: lib/tuist_web/live/billing_live.ex:389
-#: lib/tuist_web/live/billing_live.html.heex:133
+#: lib/tuist/billing.ex:69
+#: lib/tuist_web/live/billing_live.ex:395
+#: lib/tuist_web/live/billing_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Pro"
 msgstr "Pro"
@@ -688,7 +688,7 @@ msgstr "წევრების ძებნა..."
 msgid "Select region"
 msgstr "რეგიონის არჩევა"
 
-#: lib/tuist/billing.ex:91
+#: lib/tuist/billing.ex:97
 #, elixir-autogen, elixir-format
 msgid "Self-host your instance of Tuist"
 msgstr "Tuist-ის ინსტანციის საკუთარ სერვერზე განთავსება"
@@ -702,17 +702,17 @@ msgstr "Tuist-ის ინსტანციის საკუთარ სე
 msgid "Settings"
 msgstr "პარამეტრები"
 
-#: lib/tuist/billing.ex:74
+#: lib/tuist/billing.ex:80
 #, elixir-autogen, elixir-format
 msgid "Standard support"
 msgstr "სტანდარტული მხარდაჭერა"
 
-#: lib/tuist_web/live/billing_live.ex:396
+#: lib/tuist_web/live/billing_live.ex:402
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
 msgstr "სტანდარტული მხარდაჭერა Slack-ისა და ელფოსტის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:201
+#: lib/tuist_web/live/billing_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Standard support: Via Slack and email"
 msgstr "სტანდარტული მხარდაჭერა: Slack-ისა და ელფოსტის მეშვეობით"
@@ -731,12 +731,12 @@ msgstr "სტატუსი"
 msgid "Storage region"
 msgstr "მონაცემთა შენახვის რეგიონი"
 
-#: lib/tuist/billing.ex:55
+#: lib/tuist/billing.ex:61
 #, elixir-autogen, elixir-format
 msgid "Support via community forum"
 msgstr "მხარდაჭერა საზოგადოების ფორუმის მეშვეობით"
 
-#: lib/tuist/billing.ex:89
+#: lib/tuist/billing.ex:95
 #, elixir-autogen, elixir-format
 msgid "Tailored agreements to meet your specific needs"
 msgstr "ინდივიდუალური შეთანხმებები თქვენი სპეციფიკური საჭიროებების დასაკმაყოფილებლად"
@@ -752,7 +752,7 @@ msgstr "ამ მოქმედების გაუქმება შეუ
 msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr "Tuist-ის გამოსაყენებლად, დაადასტურეთ ელფოსტა და მზად ხართ:"
 
-#: lib/tuist_web/live/billing_live.html.heex:302
+#: lib/tuist_web/live/billing_live.html.heex:328
 #: lib/tuist_web/live/webhook_live.html.heex:138
 #: lib/tuist_web/live/webhook_live.html.heex:206
 #, elixir-autogen, elixir-format
@@ -776,18 +776,18 @@ msgstr "Tuist-ის ლოგო"
 msgid "United States"
 msgstr "აშშ"
 
-#: lib/tuist/vcs.ex:890
+#: lib/tuist/vcs.ex:897
 #: lib/tuist_web/live/account_token_helpers.ex:96
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "უცნობი"
 
-#: lib/tuist/billing.ex:77
+#: lib/tuist/billing.ex:83
 #, elixir-autogen, elixir-format
 msgid "Unlimited projects"
 msgstr "შეზღუდვების გარეშე პროექტები"
 
-#: lib/tuist_web/live/billing_live.html.heex:325
+#: lib/tuist_web/live/billing_live.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Update payment method"
 msgstr "გადახდის მეთოდის განახლება"
@@ -808,59 +808,59 @@ msgstr "განაახლოთ მომხმარებლის სა�
 msgid "Updating your username can have unintended consequences."
 msgstr "მომხმარებლის სახელის განახლებას შეიძლება ჰქონდეს გაუთვალისწინებელი შედეგები."
 
-#: lib/tuist_web/live/billing_live.ex:408
+#: lib/tuist_web/live/billing_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
 msgstr "განახლება"
 
-#: lib/tuist_web/live/billing_live.html.heex:235
+#: lib/tuist_web/live/billing_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Upgrade plan"
 msgstr "პაკეტის განახლება"
 
-#: lib/tuist_web/live/billing_live.html.heex:279
-#: lib/tuist_web/live/billing_live.html.heex:289
+#: lib/tuist_web/live/billing_live.html.heex:305
+#: lib/tuist_web/live/billing_live.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "გამოყენება"
 
-#: lib/tuist/billing.ex:51
+#: lib/tuist/billing.ex:57
 #, elixir-autogen, elixir-format
 msgid "Usage capped at free tier limits"
 msgstr "გამოყენება შეზღუდულია უფასო პაკეტის ლიმიტებით"
 
-#: lib/tuist_web/live/billing_live.html.heex:49
+#: lib/tuist_web/live/billing_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Usage details"
 msgstr "გამოყენების დეტალები"
 
-#: lib/tuist_web/live/billing_live.html.heex:142
+#: lib/tuist_web/live/billing_live.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "Usage-based"
 msgstr "გამოყენებაზე დაფუძნებული"
 
-#: lib/tuist/billing.ex:72
+#: lib/tuist/billing.ex:78
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing"
 msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა"
 
-#: lib/tuist_web/live/billing_live.ex:390
+#: lib/tuist_web/live/billing_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
 msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა უფასო პაკეტის შემდეგ"
 
-#: lib/tuist/billing.ex:65
-#: lib/tuist_web/live/billing_live.html.heex:158
+#: lib/tuist/billing.ex:71
+#: lib/tuist_web/live/billing_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
 msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა უფასო პაკეტის შემდეგ."
 
-#: lib/tuist_web/live/billing_live.html.heex:195
+#: lib/tuist_web/live/billing_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing: Pay only for what you use per feature"
 msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა: გადაიხადეთ მხოლოდ იმისთვის, რასაც თითოეული ფუნქციისთვის იყენებთ"
 
-#: lib/tuist_web/live/billing_live.html.heex:164
+#: lib/tuist_web/live/billing_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Use all Tuist features as long as you stay open source."
 msgstr "გამოიყენეთ Tuist-ის ყველა ფუნქცია, სანამ თქვენი პროექტი ღია კოდით იქნება."
@@ -878,12 +878,12 @@ msgstr "მომხმარებელი"
 msgid "Username"
 msgstr "მომხმარებლის სახელი"
 
-#: lib/tuist/billing.ex:74
+#: lib/tuist/billing.ex:80
 #, elixir-autogen, elixir-format
 msgid "Via Slack and email"
 msgstr "Slack-ისა და ელფოსტის საშუალებით"
 
-#: lib/tuist/billing.ex:92
+#: lib/tuist/billing.ex:98
 #, elixir-autogen, elixir-format
 msgid "Via shared Slack channel"
 msgstr "საერთო Slack-ის არხის საშუალებით"
@@ -929,28 +929,28 @@ msgstr "%{inviter_email}-მა მიგიწვიათ %{organization_name}
 msgid "You're Almost Set!"
 msgstr "თითქმის მზად ხართ!"
 
-#: lib/tuist_web/live/billing_live.html.heex:283
+#: lib/tuist_web/live/billing_live.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
 msgstr "გადააჭარბეთ უფასო პაკეტის ლიმიტს და დამატებითი გამოყენებისთვის გადახდა დაგეკისრებათ."
 
-#: lib/tuist/billing.ex:67
-#: lib/tuist_web/live/billing_live.ex:392
+#: lib/tuist/billing.ex:73
+#: lib/tuist_web/live/billing_live.ex:398
 #, elixir-autogen, elixir-format
 msgid "and up"
 msgstr "და მეტი"
 
-#: lib/tuist_web/live/billing_live.ex:201
+#: lib/tuist_web/live/billing_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "charged /per month"
 msgstr "/თვეში"
 
-#: lib/tuist_web/live/billing_live.ex:196
+#: lib/tuist_web/live/billing_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "charged on %{next_charge_date}"
 msgstr "ჩარიცხვა %{next_charge_date} თარიღში"
 
-#: lib/tuist_web/live/billing_live.html.heex:369
+#: lib/tuist_web/live/billing_live.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
@@ -2346,17 +2346,17 @@ msgstr "პროექტის ყველა სკოუპის არჩ
 msgid "Revoke account token?"
 msgstr "ანგარიშის ტოკენის გაუქმება?"
 
-#: lib/tuist_web/live/billing_live.html.heex:382
+#: lib/tuist_web/live/billing_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Billing details"
 msgstr "გადახდის დეტალები"
 
-#: lib/tuist_web/live/billing_live.html.heex:396
+#: lib/tuist_web/live/billing_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Update billing details"
 msgstr "გადახდის დეტალების განახლება"
 
-#: lib/tuist_web/live/billing_live.html.heex:385
+#: lib/tuist_web/live/billing_live.html.heex:411
 #, elixir-autogen, elixir-format
 msgid "Update the company name, billing address, tax number, and email shown on your invoices."
 msgstr "განაახლეთ კომპანიის სახელი, გადახდის მისამართი, საგადასახადო ნომერი და ელფოსტა, რომლებიც თქვენს ინვოისებზე ჩანს."
@@ -2497,45 +2497,45 @@ msgstr "თქვენი Entra აპლიკაციის დირექ�
 msgid "Under API permissions, grant the delegated openid, profile, and email permissions"
 msgstr "API permissions-ში მიანიჭეთ delegated openid, profile და email ნებართვები"
 
-#: lib/tuist_web/live/billing_live.ex:270
+#: lib/tuist_web/live/billing_live.ex:276
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
 msgstr[0] "%{count} წუთი"
 
-#: lib/tuist_web/live/billing_live.ex:266
+#: lib/tuist_web/live/billing_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "%{count} second"
 msgid_plural "%{count} seconds"
 msgstr[0] "%{count} წამი"
 
-#: lib/tuist_web/live/billing_live.ex:289
+#: lib/tuist_web/live/billing_live.ex:295
 #, elixir-autogen, elixir-format
 msgid "free during your trial"
 msgstr "უფასო საცდელი პერიოდის განმავლობაში"
 
-#: lib/tuist_web/live/billing_live.ex:291
+#: lib/tuist_web/live/billing_live.ex:297
 #, elixir-autogen, elixir-format
 msgid "no paid plan to bill against"
 msgstr "გასახდელი გადახდილი გეგმა არ არის"
 
-#: lib/tuist_web/live/billing_live.ex:293
+#: lib/tuist_web/live/billing_live.ex:299
 #, elixir-autogen, elixir-format
 msgid "on your next invoice"
 msgstr "შემდეგ ანგარიშ-ფაქტურაზე"
 
-#: lib/tuist_web/live/billing_live.ex:287
+#: lib/tuist_web/live/billing_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "within your %{count} free minutes"
 msgstr "თქვენი %{count} უფასო წუთის ფარგლებში"
 
-#: lib/tuist_web/live/billing_live.html.heex:93
+#: lib/tuist_web/live/billing_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Runner minutes:"
 msgstr "გამშვების წუთები:"
 
-#: lib/tuist_web/live/billing_live.html.heex:99
-#: lib/tuist_web/live/billing_live.html.heex:116
+#: lib/tuist_web/live/billing_live.html.heex:125
+#: lib/tuist_web/live/billing_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "See the breakdown"
 msgstr "დეტალური ინფორმაცია"
@@ -2670,48 +2670,48 @@ msgstr "განაახლეთ თქვენი ელფოსტა"
 msgid "terms of service"
 msgstr "მომსახურების პირობები"
 
-#: lib/tuist_web/live/billing_live.html.heex:293
+#: lib/tuist_web/live/billing_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "%{quantity} above free tier"
 msgstr "%{quantity} უფასო ლიმიტზე მეტი"
 
-#: lib/tuist_web/live/billing_live.ex:178
+#: lib/tuist_web/live/billing_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "Cache requests"
 msgstr "ქეშის მოთხოვნები"
 
-#: lib/tuist_web/live/billing_live.html.heex:76
+#: lib/tuist_web/live/billing_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Cache requests:"
 msgstr "ქეშის მოთხოვნები:"
 
-#: lib/tuist_web/live/billing_live.ex:185
+#: lib/tuist_web/live/billing_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Passing test cases"
 msgstr "წარმატებული ტესტ-ქეისები"
 
-#: lib/tuist_web/live/billing_live.html.heex:84
+#: lib/tuist_web/live/billing_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Passing test cases:"
 msgstr "წარმატებული ტესტ-ქეისები:"
 
-#: lib/tuist_web/live/billing_live.ex:171
+#: lib/tuist_web/live/billing_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Cache egress"
 msgstr "ქეშიდან გადმოწერილი მონაცემები"
 
-#: lib/tuist_web/live/billing_live.html.heex:68
+#: lib/tuist_web/live/billing_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache egress:"
 msgstr "კეშიდან გადმოტვირთვა:"
 
-#: lib/tuist_web/live/billing_live.ex:277
-#: lib/tuist_web/live/billing_live.html.heex:122
+#: lib/tuist_web/live/billing_live.ex:283
+#: lib/tuist_web/live/billing_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "of your usage"
 msgstr "თქვენი გამოყენებიდან"
 
-#: lib/tuist_web/live/billing_live.ex:281
+#: lib/tuist_web/live/billing_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)"
 msgstr "თქვენი გამოყენებიდან (%{free} უფასო რანერის წუთი პლუს %{prepaid} წინასწარ გადახდილი)"
@@ -3061,3 +3061,18 @@ msgstr "ნდობით აღჭურვილია ინსტანც�
 #, elixir-autogen, elixir-format
 msgid "When enabled, users from the login email domain trusted by this instance can join this organization automatically. Other users need an invitation."
 msgstr "როდესაც ჩართულია, მომხმარებლებს, რომელთა შესვლის ელფოსტის დომენიც ნდობით აღჭურვილია ამ ინსტანციის მიერ, შეუძლიათ ამ ორგანიზაციაში ავტომატურად გაწევრიანება. სხვა მომხმარებლებს სჭირდებათ მიწვევა."
+
+#: lib/tuist_web/live/billing_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "Keep Pro"
+msgstr "Pro-ს შენარჩუნება"
+
+#: lib/tuist_web/live/billing_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "You keep Pro until then, and the usage until then is billed as usual."
+msgstr "ამ დრომდე ინარჩუნებთ Pro-ს, ხოლო ამ პერიოდის გამოყენება ჩვეულებრივად იბეგრება."
+
+#: lib/tuist_web/live/billing_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Your plan switches to Air on %{date}"
+msgstr "%{date}-დან თქვენი გეგმა Air-ზე გადადის"

@@ -11,6 +11,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistExtension
 import TuistGit
 import TuistLoader
 import TuistLogging
@@ -37,6 +38,8 @@ public enum TestServiceError: FatalError, Equatable {
     case shardIndexRequiresWithoutBuilding
     case shardingRequiresFullHandle
     case requestedTestsNotInProducts(requested: [String], built: [String])
+    case cacheDestinationConflict(destination: CacheDestination, argument: String)
+    case deviceCacheDestinationRequiresXcodebuildDestination
 
     // Error description
 
@@ -91,7 +94,13 @@ public enum TestServiceError: FatalError, Equatable {
                 "Test sharding requires a Tuist account. The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
         case let .requestedTestsNotInProducts(requested, built):
             return
-                "None of the test identifiers passed to --test-targets (\(requested.joined(separator: ", "))) can run against these test products, which were built for \(built.joined(separator: ", "))."
+                "None of the requested test identifiers (\(requested.joined(separator: ", "))) can run against these test products, which were built for \(built.joined(separator: ", "))."
+        case let .cacheDestinationConflict(destination, argument):
+            return
+                "--destination \(destination.rawValue) restricts the project to \(destination.rawValue) and native macOS destinations, so it can't test with \(argument). Pass a matching --destination, or --destination all."
+        case .deviceCacheDestinationRequiresXcodebuildDestination:
+            return
+                "--destination device requires a device destination after the terminator, for example: tuist test --destination device -- -destination 'platform=iOS,id=<device-udid>'. Without one, Tuist tests on a simulator."
         }
     }
 
@@ -103,7 +112,8 @@ public enum TestServiceError: FatalError, Equatable {
              .testIdentifierInvalid, .duplicatedTestTargets, .requestedTestsNotInProducts,
              .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform,
              .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding,
-             .shardingRequiresFullHandle:
+             .shardingRequiresFullHandle, .cacheDestinationConflict,
+             .deviceCacheDestinationRequiresXcodebuildDestination:
             return .abort
         }
     }
@@ -238,6 +248,47 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
+    static func validate(
+        cacheDestination: CacheDestination,
+        deviceName: String?,
+        passthroughXcodeBuildArguments: [String]
+    ) throws {
+        guard cacheDestination != .all else { return }
+        if cacheDestination == .device, let deviceName {
+            throw TestServiceError.cacheDestinationConflict(destination: cacheDestination, argument: "--device \(deviceName)")
+        }
+        let xcodebuildDestinations = passthroughXcodeBuildArguments.indices.compactMap { index -> String? in
+            guard passthroughXcodeBuildArguments[index] == "-destination",
+                  passthroughXcodeBuildArguments.indices.contains(index + 1)
+            else { return nil }
+            return passthroughXcodeBuildArguments[index + 1]
+        }
+        if cacheDestination == .device, xcodebuildDestinations.isEmpty {
+            throw TestServiceError.deviceCacheDestinationRequiresXcodebuildDestination
+        }
+        for xcodebuildDestination in xcodebuildDestinations {
+            var parameters: [String: String] = [:]
+            for component in xcodebuildDestination.split(separator: ",") {
+                let pair = component.split(separator: "=", maxSplits: 1)
+                    .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+                guard pair.count == 2 else { continue }
+                parameters[pair[0].replacingOccurrences(of: "generic/", with: "")] = pair[1]
+            }
+            guard let platform = parameters["platform"] else { continue }
+            let isCompatible = if platform == "macos" {
+                parameters["variant"].map { $0 == "macos" } ?? true
+            } else {
+                platform.hasSuffix("simulator") == (cacheDestination == .simulator)
+            }
+            if !isCompatible {
+                throw TestServiceError.cacheDestinationConflict(
+                    destination: cacheDestination,
+                    argument: "-destination '\(xcodebuildDestination)'"
+                )
+            }
+        }
+    }
+
     // swiftlint:disable:next function_body_length
     public func run(
         runId: String,
@@ -276,8 +327,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil,
-        stressNewTests: StressNewTestsMode? = nil
+        stressNewTests: StressNewTestsMode? = nil,
+        cacheDestination: CacheDestination = .all
     ) async throws {
+        try Self.validate(
+            cacheDestination: cacheDestination,
+            deviceName: deviceName,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
         if validateTestTargetsParameters {
             try Self.validateParameters(
                 testTargets: testTargets,
@@ -390,7 +447,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             cacheStorage: cacheStorage,
             destination: destination,
             schemeName: schemeName,
-            coverage: .resolved(config: config)
+            coverage: .resolved(config: config),
+            sdkSelection: cacheDestination.sdkSelection
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
@@ -874,16 +932,21 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
-        // A shard run is restricted from three directions, and all three would otherwise go out as
+        // A shard run is restricted from four directions, and all four would otherwise go out as
         // `-only-testing`, which xcodebuild runs the union of: a shard scoped to a whole module
         // would run it whole however narrow the request was. The build job's restriction has to be
         // restored from the products, since this runner is usually a separate job that repeats
         // neither it nor anything else from the build command.
-        let restrictions = [
-            shard.testIdentifiers,
+        let passthroughOnlyTestIdentifiers = XcodeBuildTestCommandService.testIdentifiers(
+            for: "-only-testing",
+            in: passthroughXcodeBuildArguments
+        )
+        let requestRestrictions = [
             shard.selectiveTestingGraph?.requestedTestIdentifiers ?? [],
             testTargets.map(\.description),
+            passthroughOnlyTestIdentifiers,
         ]
+        let restrictions = [shard.testIdentifiers] + requestRestrictions
         let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
         if onlyTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
             Logger.current.notice(
@@ -907,7 +970,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: Self.removingOnlyTesting(passthroughXcodeBuildArguments)
         )
 
         var testError: Error?
@@ -966,12 +1029,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
         await removeOwnedDerivedData(ownedDerivedDataPath)
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
+            // The other shards run the rest of a target this one holds part of, so only the request
+            // narrowing a target keeps its hash back.
+            let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(requestRestrictions)
+            let passingNames = await passingTargetNames(
+                resultBundlePath: resultBundlePath,
+                withholding: stressResult
+            )
             try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: await passingTargetNames(
-                    resultBundlePath: resultBundlePath,
-                    withholding: stressResult
-                ),
+                passingTargetNames: requestedTestIdentifiers.isEmpty
+                    ? passingNames
+                    : passingNames.intersection(Self.fullyRunTestTargetNames(requestedTestIdentifiers)),
                 cacheStorage: hashUploadStorage
             )
         }
@@ -1173,17 +1242,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
         // This job did not build the products and usually repeats nothing from the build command, so
         // the restriction the build ran under is restored from the bundle and narrowed by whatever
         // this job asked for on top.
+        let passthroughOnlyTestIdentifiers = XcodeBuildTestCommandService.testIdentifiers(
+            for: "-only-testing",
+            in: passthroughXcodeBuildArguments
+        )
         let restrictions = [
             selectiveTestingGraph.requestedTestIdentifiers,
             testTargets.map(\.description),
+            passthroughOnlyTestIdentifiers,
         ]
-        let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
-        if onlyTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
+        let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
+        if requestedTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
             throw TestServiceError.requestedTestsNotInProducts(
-                requested: testTargets.map(\.description),
+                requested: testTargets.map(\.description) + passthroughOnlyTestIdentifiers,
                 built: selectiveTestingGraph.requestedTestIdentifiers
             )
         }
+        let onlyTestIdentifiers = selectiveTestingGraph.builtTestTargetNames.map { builtTestTargetNames in
+            requestedTestIdentifiers.filter { builtTestTargetNames.contains(Self.testTargetName(of: $0)) }
+        } ?? requestedTestIdentifiers
 
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: testProductsPath,
@@ -1197,30 +1274,36 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: Self.removingOnlyTesting(passthroughXcodeBuildArguments)
         )
 
         let requestedTestPlan = testPlanConfiguration?.testPlan
         let requestedTestPlanOrScheme = requestedTestPlan ?? schemeName
-        if let requestedTestPlanOrScheme,
-           selectiveTestingGraph.attemptedTestPlans.contains(requestedTestPlanOrScheme),
-           try await !bundleHasXCTestRun(
-               for: requestedTestPlanOrScheme,
-               isTestPlan: requestedTestPlan != nil,
-               in: testProductsPath
-           )
+        var selectiveTestingSkippedEverySelectedTest = !requestedTestIdentifiers.isEmpty && onlyTestIdentifiers.isEmpty
+        if !selectiveTestingSkippedEverySelectedTest,
+           let requestedTestPlanOrScheme,
+           selectiveTestingGraph.attemptedTestPlans.contains(requestedTestPlanOrScheme)
         {
-            let timer = clock.startTimer()
-            try await uploadSkippedTestSummary(
-                schemeName: requestedTestPlanOrScheme,
-                config: config,
-                timer: timer,
-                coverageEnabled: Self.coverageEnabled(
-                    testAction: nil,
-                    xcodebuildArguments: passthroughXcodeBuildArguments,
-                    config: config
-                )
+            selectiveTestingSkippedEverySelectedTest = try await !bundleHasXCTestRun(
+                for: requestedTestPlanOrScheme,
+                isTestPlan: requestedTestPlan != nil,
+                in: testProductsPath
             )
+        }
+        if selectiveTestingSkippedEverySelectedTest {
+            if let requestedTestPlanOrScheme {
+                let timer = clock.startTimer()
+                try await uploadSkippedTestSummary(
+                    schemeName: requestedTestPlanOrScheme,
+                    config: config,
+                    timer: timer,
+                    coverageEnabled: Self.coverageEnabled(
+                        testAction: nil,
+                        xcodebuildArguments: passthroughXcodeBuildArguments,
+                        config: config
+                    )
+                )
+            }
             AlertController.current.success(
                 .alert("All selected tests matched previously successful hashes, skipping execution")
             )
@@ -1276,12 +1359,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
         await removeOwnedDerivedData(ownedDerivedDataPath)
 
+        let passingNames = await passingTargetNames(
+            resultBundlePath: resultBundlePath,
+            withholding: stressResult
+        )
         try await storeSuccessfulTestHashesFromGraph(
             selectiveTestingGraph: selectiveTestingGraph,
-            passingTargetNames: await passingTargetNames(
-                resultBundlePath: resultBundlePath,
-                withholding: stressResult
-            ),
+            passingTargetNames: onlyTestIdentifiers.isEmpty
+                ? passingNames
+                : passingNames.intersection(Self.fullyRunTestTargetNames(onlyTestIdentifiers)),
             cacheStorage: hashUploadStorage
         )
 
@@ -1508,6 +1594,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         requestedTestIdentifiers: [TestIdentifier]
     ) -> SelectiveTestingGraph {
         let targetTags = testTargetTags(in: mapperEnvironment.initialGraph ?? graph)
+        let builtTestTargetNames = Set(
+            schemes.flatMap {
+                testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration, action: .build)
+            }
+            .map(\.name)
+        ).sorted()
         guard let initialGraph = mapperEnvironment.initialGraph else {
             let attemptedTestPlans = attemptedTestPlans(
                 schemes: schemes,
@@ -1517,7 +1609,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testTargetHashes: [:],
                 attemptedTestPlans: attemptedTestPlans,
                 requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
-                testTargetTags: targetTags
+                testTargetTags: targetTags,
+                builtTestTargetNames: builtTestTargetNames
             )
         }
 
@@ -1550,7 +1643,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testTargetHashes: testTargetHashes,
             attemptedTestPlans: attemptedTestPlans,
             requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
-            testTargetTags: targetTags
+            testTargetTags: targetTags,
+            builtTestTargetNames: builtTestTargetNames
         )
     }
 
@@ -2674,6 +2768,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
         "-only-testing",
         "-skip-testing",
     ]
+
+    private static func removingOnlyTesting(_ arguments: [String]) -> [String] {
+        var result: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == "-only-testing" {
+                _ = iterator.next()
+            } else if !argument.hasPrefix("-only-testing:") {
+                result.append(argument)
+            }
+        }
+        return result
+    }
+
+    private static func testTargetName(of testIdentifier: String) -> String {
+        testIdentifier.split(separator: "/", maxSplits: 1).first.map(String.init) ?? testIdentifier
+    }
+
+    /// The targets `-only-testing` selects whole, without another identifier narrowing them.
+    private static func fullyRunTestTargetNames(_ onlyTestIdentifiers: [String]) -> Set<String> {
+        let narrowedTargetNames = Set(onlyTestIdentifiers.filter { $0.contains("/") }.map(testTargetName(of:)))
+        return Set(onlyTestIdentifiers.filter { !$0.contains("/") }).subtracting(narrowedTargetNames)
+    }
 
     /// The caller's passthrough arguments minus the ones the stress pass sets itself.
     static func stressPassthroughArguments(_ arguments: [String]) -> [String] {

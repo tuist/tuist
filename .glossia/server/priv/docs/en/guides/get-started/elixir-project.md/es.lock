@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d13c479079f956f2a53080a0b3071d18f4a42d761e19abbb1fc7b3ff70658cca",
+  "hash": "d42173b5ccc7fd9ebff30419deb6aca66a959554ac68e160af36fe2182657626",
   "hash_tree": {
     "root": {
       "children": [
@@ -134,7 +134,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -147,21 +147,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -277,21 +277,21 @@
             }
           ],
           "details": {},
-          "hash": "5dfe88bdf799efc8e661c5cd49890214b99ceee627f87a762795f93c65213957",
+          "hash": "25683ae3e3ba4bbceab55083b4099354c7d2e66a6866a8e55221b17f09077138",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "d13c479079f956f2a53080a0b3071d18f4a42d761e19abbb1fc7b3ff70658cca",
+      "hash": "d42173b5ccc7fd9ebff30419deb6aca66a959554ac68e160af36fe2182657626",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started/elixir-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3b538c20421cb0acef2a73db4edb2fe869bbec08088ce307a623ac9437a346de",
+  "output_hash": "4f49cbf5f1bd4d1523de829042c235dfc8d44f98cbdd8e9065931dd047bf0576",
   "output_path": "server/priv/docs/es/guides/get-started/elixir-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -317,8 +317,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
+  "source_commit_sha": "b733764844499811e416b12ea58c83090dabc0f6",
   "source_path": "server/priv/docs/en/guides/get-started/elixir-project.md",
-  "translated_at": "2026-10-29T16:17:28.494927Z",
-  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
+  "translated_at": "2026-11-02T15:21:30.468796Z",
+  "translation_session_id": "01a19cd5-7349-71ea-bf79-3b644843be50"
 }

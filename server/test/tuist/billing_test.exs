@@ -962,57 +962,6 @@ defmodule Tuist.BillingTest do
       assert params.proration_behavior == "none"
     end
 
-    test "removes the standing prepaid item when a trial starts", %{account: account} do
-      # A trial carries no runner items, so its usage is never invoiced and
-      # credit bought through the prepaid item would have nothing to pay
-      # for. Leaving the item would keep charging for it every renewal.
-      stub(Environment, :stripe_prices, fn ->
-        %{
-          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
-          "runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos"},
-          "runner_prepaid_minutes" => "runner.prepaid"
-        }
-      end)
-
-      BillingFixtures.subscription_fixture(
-        account_id: account.id,
-        subscription_id: "sub_starting_trial",
-        plan: :pro,
-        status: "active"
-      )
-
-      stub(Stripe.Subscription, :retrieve, fn "sub_starting_trial" ->
-        {:ok,
-         %Stripe.Subscription{
-           items: %{
-             data: [
-               %{id: "si_pro_flat", price: %{id: "pro.flat.monthly"}},
-               %{id: "si_runner_macos", price: %{id: "runner.macos"}},
-               %{id: "si_prepaid", price: %{id: "runner.prepaid"}, quantity: 6_000}
-             ]
-           }
-         }}
-      end)
-
-      parent = self()
-
-      stub(Stripe.Subscription, :update, fn "sub_starting_trial", %{items: items} ->
-        send(parent, {:items, items})
-        {:ok, %{}}
-      end)
-
-      on_trial = %{account | runner_trial_started_at: DateTime.utc_now(), runner_trial_ended_at: nil}
-
-      assert {:ok, _} = Billing.sync_runner_subscription_items(on_trial)
-
-      assert_received {:items, items}
-
-      assert Enum.sort_by(items, & &1.id) == [
-               %{id: "si_prepaid", deleted: true},
-               %{id: "si_runner_macos", deleted: true}
-             ]
-    end
-
     test "keeps an existing runner item instead of deleting and re-adding it", %{account: account} do
       # Given a subscription that already carries the Linux runner item, so
       # its accrued usage would be lost if the plan change deleted it.
@@ -1057,67 +1006,6 @@ defmodule Tuist.BillingTest do
                %{id: "si_air_flat", deleted: true},
                %{price: "pro.usage"},
                %{price: "runner.macos"},
-               %{price: "pro.flat.monthly", quantity: 1}
-             ]
-    end
-
-    test "keeps the standing prepaid item and its quantity across a plan change", %{account: account} do
-      # The prepaid item is independent of the plan, like the runner items.
-      # Deleting it would silently end a recurring prepaid arrangement.
-      stub(Environment, :stripe_prices, fn ->
-        %{
-          "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
-          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
-          "enterprise" => %{"usage" => ["enterprise.usage"], "flat_monthly" => ["enterprise.flat.monthly"]},
-          "runners" => %{
-            "runner_linux_compute_unit_milliseconds" => "runner.linux",
-            "runner_macos_compute_unit_milliseconds" => "runner.macos"
-          },
-          "runner_prepaid_minutes" => "runner.prepaid"
-        }
-      end)
-
-      stub(Stripe.Subscription, :retrieve, fn "sub_prepaid" ->
-        {:ok,
-         %Stripe.Subscription{
-           items: %{
-             data: [
-               %{id: "si_air_usage", price: %{id: "air.usage"}},
-               %{id: "si_air_flat", price: %{id: "air.flat.monthly"}},
-               %{id: "si_runner_linux", price: %{id: "runner.linux"}},
-               %{id: "si_runner_macos", price: %{id: "runner.macos"}},
-               %{id: "si_prepaid", price: %{id: "runner.prepaid"}, quantity: 6_000}
-             ]
-           }
-         }}
-      end)
-
-      parent = self()
-
-      stub(Stripe.Subscription, :update, fn "sub_prepaid", %{items: items} ->
-        send(parent, {:items, items})
-        {:ok, %{}}
-      end)
-
-      Billing.on_subscription_change(%{
-        id: "sub_prepaid",
-        status: "active",
-        customer: "customer_id",
-        default_payment_method: "pm_some-id",
-        items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]}
-      })
-
-      # When
-      assert :ok = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
-
-      # Then the prepaid item is absent from the payload, so it keeps its id
-      # and its quantity.
-      assert_received {:items, items}
-
-      assert items == [
-               %{id: "si_air_usage", deleted: true},
-               %{id: "si_air_flat", deleted: true},
-               %{price: "pro.usage"},
                %{price: "pro.flat.monthly", quantity: 1}
              ]
     end
@@ -1218,6 +1106,198 @@ defmodule Tuist.BillingTest do
                %{price: "enterprise.usage"},
                %{price: "enterprise.flat.monthly", quantity: 0}
              ]
+    end
+  end
+
+  describe "retired runner Prices" do
+    setup do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos.new"
+          },
+          "retired_runners" => %{"runner_macos_compute_unit_milliseconds" => ["runner.macos.old"]}
+        }
+      end)
+
+      %{account: AccountsFixtures.user_fixture(customer_id: "customer_id", preload: [:account]).account}
+    end
+
+    test "a plan change keeps an item on a retired Price and adds no second item for its meter", %{account: account} do
+      # Given
+      stub(Stripe.Subscription, :retrieve, fn "sub_retired" ->
+        {:ok, stripe_subscription("active", ["air.usage", "air.flat.monthly", "runner.macos.old"])}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_retired", %{items: items} ->
+        send(parent, {:items, items})
+        {:ok, %{}}
+      end)
+
+      Billing.on_subscription_change(%{
+        id: "sub_retired",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]}
+      })
+
+      # When
+      assert :ok = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then
+      assert_received {:items, items}
+
+      assert items == [
+               %{id: "si_air.usage", deleted: true},
+               %{id: "si_air.flat.monthly", deleted: true},
+               %{price: "pro.usage"},
+               %{price: "pro.flat.monthly", quantity: 1}
+             ]
+    end
+
+    test "an account off trial on a retired Price is not given the current one too", %{account: account} do
+      # Given
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_retired", status: "active")
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_retired" ->
+        {:ok, stripe_subscription("active", ["pro.usage", "pro.flat.monthly", "runner.macos.old"])}
+      end)
+
+      reject(&Stripe.Subscription.update/2)
+
+      # When / Then
+      assert {:ok, :unchanged} = Billing.sync_runner_subscription_items(account)
+    end
+
+    test "an account starting a trial loses its item on a retired Price", %{account: account} do
+      # Given
+      account = account |> Ecto.Changeset.change(runner_trial_started_at: DateTime.utc_now(:second)) |> Repo.update!()
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_retired", status: "active")
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_retired" ->
+        {:ok, stripe_subscription("active", ["pro.usage", "pro.flat.monthly", "runner.macos.old"])}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_retired", %{items: items} ->
+        send(parent, {:items, items})
+        {:ok, %{}}
+      end)
+
+      # When
+      assert {:ok, _} = Billing.sync_runner_subscription_items(account)
+
+      # Then
+      assert_received {:items, [%{id: "si_runner.macos.old", deleted: true}]}
+    end
+  end
+
+  describe "migrate_retired_runner_prices/1" do
+    setup do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos.new"},
+          "retired_runners" => %{"runner_macos_compute_unit_milliseconds" => ["runner.macos.old"]}
+        }
+      end)
+
+      accounts =
+        Map.new(["sub_idle", "sub_busy", "sub_scheduled", "sub_migrated"], fn subscription_id ->
+          account = AccountsFixtures.user_fixture(preload: [:account]).account
+          BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: subscription_id, status: "active")
+          {subscription_id, account.id}
+        end)
+
+      period_start = DateTime.utc_now() |> DateTime.add(-10, :day) |> DateTime.to_unix()
+      retired = ["pro.usage", "pro.flat.monthly", "runner.macos.old"]
+
+      stub(Stripe.Subscription, :retrieve, fn
+        "sub_idle" -> {:ok, %{stripe_subscription("active", retired) | current_period_start: period_start}}
+        "sub_busy" -> {:ok, %{stripe_subscription("active", retired) | current_period_start: period_start}}
+        "sub_scheduled" -> {:ok, %{stripe_subscription("active", retired) | schedule: "sub_sched_1"}}
+        "sub_migrated" -> {:ok, stripe_subscription("active", ["pro.usage", "pro.flat.monthly", "runner.macos.new"])}
+      end)
+
+      busy_account_id = accounts["sub_busy"]
+
+      stub(RunnerBilling, :compute_milliseconds, fn
+        ^busy_account_id, _since, _now -> 60_000
+        _account_id, _since, _now -> 0
+      end)
+
+      %{accounts: accounts}
+    end
+
+    test "only reports what it would do by default" do
+      # Given
+      reject(&Stripe.Subscription.update/2)
+
+      # When
+      got = Billing.migrate_retired_runner_prices()
+
+      # Then
+      assert Map.new(got, &{&1.subscription_id, {&1.action, &1.result}}) == %{
+               "sub_idle" => {{:swap, [%{id: "si_runner.macos.old", price: "runner.macos.new"}]}, :dry_run},
+               "sub_busy" => {{:skip, :runner_usage}, :skipped},
+               "sub_scheduled" => {{:skip, :scheduled}, :skipped}
+             }
+    end
+
+    test "moves only the subscriptions with no runner usage at stake", %{accounts: accounts} do
+      # Given
+      expect(Stripe.Subscription, :update, fn "sub_idle", params ->
+        assert params == %{
+                 items: [%{id: "si_runner.macos.old", price: "runner.macos.new"}],
+                 proration_behavior: "none"
+               }
+
+        {:ok, %Stripe.Subscription{}}
+      end)
+
+      # When
+      got = Billing.migrate_retired_runner_prices(dry_run: false)
+
+      # Then
+      assert Enum.find(got, &(&1.subscription_id == "sub_idle")) == %{
+               subscription_id: "sub_idle",
+               account_id: accounts["sub_idle"],
+               action: {:swap, [%{id: "si_runner.macos.old", price: "runner.macos.new"}]},
+               result: :ok
+             }
+    end
+
+    test "looks back past the start of a period that has only just begun" do
+      # Given
+      period_start = DateTime.add(DateTime.utc_now(), -1, :hour)
+      parent = self()
+
+      stub(Stripe.Subscription, :retrieve, fn _subscription_id ->
+        {:ok,
+         %{
+           stripe_subscription("active", ["runner.macos.old"])
+           | current_period_start: DateTime.to_unix(period_start)
+         }}
+      end)
+
+      stub(RunnerBilling, :compute_milliseconds, fn _account_id, since, _now ->
+        send(parent, {:since, since})
+        0
+      end)
+
+      # When
+      Billing.migrate_retired_runner_prices()
+
+      # Then
+      assert_received {:since, since}
+      assert DateTime.diff(period_start, since, :day) >= 3
     end
   end
 

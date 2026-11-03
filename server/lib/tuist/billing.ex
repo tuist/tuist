@@ -32,6 +32,9 @@ defmodule Tuist.Billing do
   # that ended without one, so neither carries a plan either.
   @live_subscription_statuses ~w(active trialing past_due)
 
+  # Stripe's longest invoice finalization grace period is 72 hours.
+  @runner_price_swap_lookback_days 4
+
   # The statuses whose subscription has an invoice the customer still owes.
   # Opening a new Checkout for such an account would create a second
   # subscription beside the one that owes, so it is sent to settle instead.
@@ -476,64 +479,58 @@ defmodule Tuist.Billing do
   # usually unchanged by the plan change, deleting and re-adding them would
   # silently discard the runner usage already accrued this cycle.
   #
-  # The standing prepaid minutes item belongs to the account rather than the
-  # plan too, and deleting it would end a recurring prepaid arrangement.
-  #
-  # So: keep every existing item whose Price is a configured runner Price or
-  # the prepaid Price, delete the rest, and add only the runner Prices that
-  # aren't on the subscription yet. Kept items keep their Stripe item IDs,
-  # their accrued usage, and their quantity across the change.
+  # So: keep every existing item whose Price is a runner Price, current or
+  # retired, delete the rest, and add only the runner Prices whose meter no
+  # kept item bills yet. Kept items keep their Stripe item IDs and their
+  # accrued usage across the change, and an item still on a retired Price
+  # is not joined by a second item billing the same meter.
   defp reconcile_subscription_items(stripe_subscription, subscription_items) do
-    kept_price_ids = plan_independent_price_ids()
+    meters = runner_price_meters()
 
     {retained, replaced} =
       Enum.split_with(stripe_subscription.items.data, fn item ->
-        MapSet.member?(kept_price_ids, subscription_item_price_id(item))
+        Map.has_key?(meters, subscription_item_price_id(item))
       end)
 
-    retained_price_ids = MapSet.new(retained, &subscription_item_price_id/1)
+    retained_meters = MapSet.new(retained, &Map.fetch!(meters, subscription_item_price_id(&1)))
 
     deletions = Enum.map(replaced, &%{id: &1.id, deleted: true})
 
     additions =
       Enum.reject(subscription_items, fn item ->
-        MapSet.member?(retained_price_ids, Map.get(item, :price))
+        MapSet.member?(retained_meters, Map.get(meters, Map.get(item, :price)))
       end)
 
     deletions ++ additions
   end
 
-  defp plan_independent_price_ids do
-    case runner_prepaid_price_id() do
-      nil -> configured_runner_price_ids()
-      price_id -> MapSet.put(configured_runner_price_ids(), price_id)
-    end
-  end
-
   defp subscription_item_price_id(%{price: %{id: price_id}}) when is_binary(price_id), do: price_id
   defp subscription_item_price_id(_item), do: nil
 
-  @doc """
-  The Price the standing prepaid minutes item is billed on, or `nil` until
-  one is configured for the environment.
-
-  Kept apart from the `runners` map on purpose. Every entry there is a
-  metered runner Price attached to every subscription, while the prepaid
-  item is licensed and carried only by accounts that buy it.
-  """
-  def runner_prepaid_price_id do
-    case Map.get(Tuist.Environment.stripe_prices() || %{}, "runner_prepaid_minutes") do
-      price_id when is_binary(price_id) and price_id != "" -> price_id
-      _ -> nil
-    end
+  defp configured_runner_price_ids do
+    runner_price_meters() |> Map.keys() |> MapSet.new()
   end
 
-  defp configured_runner_price_ids do
-    (Tuist.Environment.stripe_prices() || %{})
-    |> Map.get("runners", %{})
-    |> Map.values()
-    |> Enum.filter(&(is_binary(&1) and &1 != ""))
-    |> MapSet.new()
+  # Every runner Price a subscription item can carry, current or retired,
+  # mapped to the meter it bills. A Price is retired by moving its id from
+  # `stripe.prices.runners` to the list under its meter in
+  # `stripe.prices.retired_runners` when a new Price replaces it. Items on
+  # it stay runner items until `migrate_retired_runner_prices/1` moves
+  # them, so nothing deletes one mid-period or adds a second item for the
+  # same meter beside it, which would bill that meter twice.
+  defp runner_price_meters do
+    prices = Tuist.Environment.stripe_prices() || %{}
+
+    retired =
+      for {meter, price_ids} <- Map.get(prices, "retired_runners", %{}),
+          price_id <- List.wrap(price_ids),
+          do: {price_id, meter}
+
+    current = Enum.map(Map.get(prices, "runners", %{}), fn {meter, price_id} -> {price_id, meter} end)
+
+    (retired ++ current)
+    |> Enum.filter(fn {price_id, _meter} -> is_binary(price_id) and price_id != "" end)
+    |> Map.new()
   end
 
   defp get_subscription_items(plan, account) do
@@ -768,23 +765,19 @@ defmodule Tuist.Billing do
   end
 
   defp apply_runner_item_changes(subscription_id, stripe_subscription, account) do
-    runner_price_ids = configured_runner_price_ids()
+    meters = runner_price_meters()
 
-    present =
-      Enum.filter(stripe_subscription.items.data, &MapSet.member?(runner_price_ids, subscription_item_price_id(&1)))
+    present = Enum.filter(stripe_subscription.items.data, &Map.has_key?(meters, subscription_item_price_id(&1)))
 
     changes =
       if Trials.on_trial?(account) do
-        # The standing prepaid item goes with the runner items. With no
-        # runner usage invoiced, the credit it buys would have nothing to
-        # pay for.
-        Enum.map(present ++ prepaid_items(stripe_subscription), &%{id: &1.id, deleted: true})
+        Enum.map(present, &%{id: &1.id, deleted: true})
       else
-        present_price_ids = MapSet.new(present, &subscription_item_price_id/1)
+        present_meters = MapSet.new(present, &Map.fetch!(meters, subscription_item_price_id(&1)))
 
         (Tuist.Environment.stripe_prices() || %{})
         |> configured_runner_prices()
-        |> Enum.reject(&MapSet.member?(present_price_ids, &1.price))
+        |> Enum.reject(&MapSet.member?(present_meters, Map.get(meters, &1.price)))
       end
 
     case changes do
@@ -798,13 +791,6 @@ defmodule Tuist.Billing do
         # invoice usage the account ran while it had no runner item at
         # all, which is precisely the usage the trial covered.
         Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
-    end
-  end
-
-  defp prepaid_items(stripe_subscription) do
-    case runner_prepaid_price_id() do
-      nil -> []
-      price_id -> Enum.filter(stripe_subscription.items.data, &(subscription_item_price_id(&1) == price_id))
     end
   end
 
@@ -998,6 +984,125 @@ defmodule Tuist.Billing do
       {:ok, %{data: []}} -> {:ok, nil}
       {:error, error} -> {:error, error}
     end
+  end
+
+  @doc """
+  Moves live subscriptions off retired runner Prices onto the Price that
+  replaced each one under `stripe.prices.runners`.
+
+  The change is made in place, mid-period, which on these classic-mode
+  subscriptions drops runner usage already reported on the item: Stripe
+  bills only usage reported after it, and no longer adds usage reported
+  during the finalization grace period of the invoice that closes the
+  period. So a subscription is only changed here when it has no runner
+  usage at stake, none in its current period and none in the last
+  #{@runner_price_swap_lookback_days} days, which covers usage still being
+  reported onto the invoice that closed its previous period. What a
+  changed subscription can still lose is runner time on the final day of
+  the current period, reported after the period has closed.
+
+  A subscription with runner usage, or with a subscription schedule, is
+  skipped and reported. It moves at its next renewal through a schedule
+  phase instead, whose transition invoice does pick up grace-period usage.
+
+  Dry run by default. Run it from a remote console:
+
+      Tuist.Billing.migrate_retired_runner_prices()
+      Tuist.Billing.migrate_retired_runner_prices(dry_run: false)
+
+  Returns one entry per subscription still carrying a retired Price, with
+  its `action` and its `result`.
+  """
+  def migrate_retired_runner_prices(opts \\ []) do
+    dry_run = Keyword.get(opts, :dry_run, true)
+
+    case runner_price_replacements() do
+      replacements when map_size(replacements) == 0 -> []
+      replacements -> migrate_retired_runner_prices(replacements, dry_run)
+    end
+  end
+
+  defp migrate_retired_runner_prices(replacements, dry_run) do
+    from(s in Subscription,
+      where: s.status in ^@live_subscription_statuses,
+      order_by: [asc: s.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.flat_map(fn %Subscription{subscription_id: subscription_id} = subscription ->
+      case runner_price_migration_action(subscription, replacements) do
+        :up_to_date ->
+          []
+
+        action ->
+          result =
+            case action do
+              {:swap, _items} when dry_run -> :dry_run
+              {:swap, items} -> swap_runner_prices(subscription_id, items)
+              _skip -> :skipped
+            end
+
+          [%{subscription_id: subscription_id, account_id: subscription.account_id, action: action, result: result}]
+      end
+    end)
+  end
+
+  defp runner_price_migration_action(%Subscription{subscription_id: subscription_id} = subscription, replacements) do
+    case Stripe.Subscription.retrieve(subscription_id) do
+      {:ok, stripe_subscription} ->
+        retired =
+          Enum.filter(stripe_subscription.items.data, &Map.has_key?(replacements, subscription_item_price_id(&1)))
+
+        cond do
+          retired == [] ->
+            :up_to_date
+
+          not is_nil(Map.get(stripe_subscription, :schedule)) ->
+            {:skip, :scheduled}
+
+          runner_usage_at_stake?(subscription.account_id, stripe_subscription) ->
+            {:skip, :runner_usage}
+
+          true ->
+            {:swap, Enum.map(retired, &%{id: &1.id, price: Map.fetch!(replacements, subscription_item_price_id(&1))})}
+        end
+
+      {:error, error} ->
+        {:skip, {:error, error}}
+    end
+  end
+
+  defp runner_usage_at_stake?(account_id, stripe_subscription) do
+    case Map.get(stripe_subscription, :current_period_start) do
+      period_start when is_integer(period_start) ->
+        now = DateTime.utc_now()
+        lookback = DateTime.add(now, -@runner_price_swap_lookback_days, :day)
+        since = Enum.min([DateTime.from_unix!(period_start), lookback], DateTime)
+
+        RunnerBilling.compute_milliseconds(account_id, since, now) > 0
+
+      _ ->
+        true
+    end
+  end
+
+  defp swap_runner_prices(subscription_id, items) do
+    subscription_id
+    |> Stripe.Subscription.update(%{items: items, proration_behavior: "none"})
+    |> cleanup_result()
+  end
+
+  # Each retired runner Price id mapped to the current Price for its meter.
+  # A meter with no current Price has nothing to move its items to.
+  defp runner_price_replacements do
+    prices = Tuist.Environment.stripe_prices() || %{}
+    current = Map.get(prices, "runners", %{})
+
+    for {meter, price_ids} <- Map.get(prices, "retired_runners", %{}),
+        replacement = Map.get(current, meter),
+        is_binary(replacement) and replacement != "",
+        price_id <- List.wrap(price_ids),
+        into: %{},
+        do: {price_id, replacement}
   end
 
   @doc """

@@ -2,12 +2,12 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · Funcionalidades · Guías · Tuist",
-  "description": "Usa Docker en los runners de Tuist: compila y ejecuta contenedores, trabajos en contenedores, contenedores de servicio y registros privados."
+  "description": "Usa Docker en los Runners de Tuist: compila y ejecuta contenedores, trabajos en contenedores, contenedores de servicio y registros privados."
 }
 ---
 # Docker {#docker}
 
-Los runners de Linux vienen con Docker listo para usar. Cada trabajo obtiene su propio daemon de Docker dentro de la máquina virtual del trabajo, y la CLI de `docker`, Buildx y Compose están preinstaladas. No necesitas una acción de configuración ni `sudo`.
+Los runners de Linux vienen con Docker listo para usar. Cada trabajo obtiene su propio demonio de Docker dentro de la máquina virtual del trabajo, y el CLI `docker`, Buildx y Compose están preinstalados. No necesitas una acción de configuración ni `sudo`.
 
 ```yaml
 jobs:
@@ -22,7 +22,7 @@ jobs:
 > [!NOTE]
 > **Solo en Linux**
 >
-> Los runners de macOS no proporcionan un daemon de Docker. Usa un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Linux para los trabajos que lo necesiten.
+> Los runners de macOS no proporcionan un demonio de Docker. Usa un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Linux para los trabajos que lo necesiten.
 
 ## Ejecutar un trabajo en un contenedor {#running-a-job-in-a-container}
 
@@ -44,7 +44,7 @@ jobs:
 
 ## Contenedores de servicio {#service-containers}
 
-`services` funciona igual que en los runners alojados en GitHub. Los servicios son accesibles en `localhost` en sus puertos mapeados:
+`services` funciona igual que en los runners alojados por GitHub. Los servicios son accesibles en `localhost` en sus puertos mapeados:
 
 ```yaml
 jobs:
@@ -79,9 +79,9 @@ Para un `container` a nivel de trabajo, pasa las mismas credenciales a través d
 
 ## Descargas de imágenes {#image-pulls}
 
-Las descargas desde Docker Hub se sirven a través de una caché pull-through operada por Tuist, por lo que los trabajos no consumen el límite de tasa anónimo de Docker Hub. Las imágenes de otros registros se descargan directamente.
+Las descargas desde Docker Hub se sirven a través de una caché pull-through operada por Tuist, por lo que los trabajos no consumen el límite anónimo de tasa de Docker Hub. Las imágenes de otros registros se descargan directamente.
 
-Cada trabajo comienza con un almacén de imágenes vacío, por lo que una imagen que usa tu flujo de trabajo se descarga una vez por trabajo en lugar de reutilizarse entre trabajos. Si un trabajo descarga una imagen personalizada grande, mantén la imagen pequeña o constrúyela en el flujo de trabajo con un constructor Buildx con caché:
+Cada trabajo comienza con un almacén de imágenes vacío, por lo que una imagen que usa tu flujo de trabajo se descarga una vez por trabajo en lugar de reutilizarse entre trabajos. Si un trabajo descarga una imagen personalizada grande, mantén la imagen pequeña o constrúyela en el flujo de trabajo con un builder de Buildx con caché:
 
 ```yaml
       - uses: docker/setup-buildx-action@v3

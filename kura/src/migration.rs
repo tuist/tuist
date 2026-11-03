@@ -793,7 +793,9 @@ pub async fn verify(
         .verifications
         .fetch_add(1, Ordering::Relaxed);
     for expected in &request.records {
-        verify_record(&state, expected).await.map_err(conflict)?;
+        verify_record(&state, expected)
+            .await
+            .map_err(|error| conflict(error.to_string()))?;
     }
     #[cfg(test)]
     state
