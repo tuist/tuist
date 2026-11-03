@@ -802,8 +802,8 @@ defmodule Tuist.Kura.Regions do
   # `tuist.dev/kura-disk` (`ceiling-backed-v1`), so a floor never sizes them.
   def shared_disk?(%__MODULE__{provisioner_config: config} = region),
     do:
-      config[:shared_disk] == true and config[:storage_governed] == true and
-        disk_resource(region) == "ephemeral-storage" and not thin_volumes?(region)
+      config[:shared_disk] == true and config[:storage_governed] == true and disk_resource(region) == "ephemeral-storage" and
+        not thin_volumes?(region)
 
   def shared_disk?(_), do: false
 
