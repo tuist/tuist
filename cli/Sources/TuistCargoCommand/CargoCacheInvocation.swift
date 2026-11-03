@@ -266,12 +266,15 @@ struct CargoCacheInvocation: CargoCacheAction {
         inputs.append(relocation.remapArguments.map(relocation.relative).joined(separator: " "))
         let encoded = try JSONEncoder().encode(inputs.map(relocation.relative))
         let digest = REAPI.digest(encoded)
-        // Like blaze's `BLAZE_KEY_TRACE`: every key's inputs, so two builds' misses can be diffed.
-        if let trace = environment["TUIST_CARGO_KEY_TRACE"], !trace.isEmpty {
-            try? FileManager.default.createDirectory(atPath: trace, withIntermediateDirectories: true)
-            try? encoded.write(to: URL(fileURLWithPath: trace).appendingPathComponent("\(name)-\(digest.hash.prefix(12)).json"))
-        }
+        Self.trace(encoded, name: name, digest: digest, environment: environment)
         return digest
+    }
+
+    /// Like blaze's `BLAZE_KEY_TRACE`: every key's inputs, so two builds' misses can be diffed.
+    static func trace(_ encoded: Data, name: String, digest: REAPI.Digest, environment: [String: String]) {
+        guard let trace = environment["TUIST_CARGO_KEY_TRACE"], !trace.isEmpty else { return }
+        try? FileManager.default.createDirectory(atPath: trace, withIntermediateDirectories: true)
+        try? encoded.write(to: URL(fileURLWithPath: trace).appendingPathComponent("\(name)-\(digest.hash.prefix(12)).json"))
     }
 
     var remapArguments: [String] { relocation.remapArguments }

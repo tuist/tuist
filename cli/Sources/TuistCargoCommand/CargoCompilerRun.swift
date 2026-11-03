@@ -130,8 +130,17 @@ final class CargoCompilerRun: CargoHookRun {
         }
         // Recorded outputs are never certified, so the whole publication can wait.
         return { [self] in
-            guard let recorded, let log, let measurement, let finished = recorded.recorded(log: log, started: started),
-                  let reads = finished.reads, let index = finished.index else { return }
+            guard let recorded, let log, let measurement else { return }
+            guard let finished = recorded.recorded(log: log, started: started), let reads = finished.reads,
+                  let index = finished.index
+            else {
+                if hookEnvironment["TUIST_DEBUG"] == "1" {
+                    FileHandle.standardError
+                        .write(Data("Tuist Cargo cache: \(recorded.name) was not stored: its reads were not fully recorded\n"
+                                .utf8))
+                }
+                return
+            }
             await index.put(reads, remote: remote, environment: hookEnvironment)
             try? await CargoCompilationCache(
                 invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement

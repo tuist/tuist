@@ -136,7 +136,9 @@ struct CargoRecordedInvocation: CargoCacheAction {
             }
         }
         inputs += relocation.remapArguments
-        let declared = REAPI.digest(try JSONEncoder().encode(inputs.map(relocation.relative)))
+        let encoded = try JSONEncoder().encode(inputs.map(relocation.relative))
+        let declared = REAPI.digest(encoded)
+        CargoCacheInvocation.trace(encoded, name: "\(name)-declared", digest: declared, environment: environment)
         return CargoRecordedInvocation(
             arguments: arguments, environment: environment, directory: directory,
             output: URL(fileURLWithPath: out, relativeTo: base).standardizedFileURL, name: name, files: files,
@@ -168,7 +170,10 @@ struct CargoRecordedInvocation: CargoCacheAction {
             relocation: relocation, environment: environment, hasher: inputHasher,
             volatileEnvironment: Self.isVolatile
         )
-        return REAPI.digest(try JSONEncoder().encode([declared.hash] + state))
+        let encoded = try JSONEncoder().encode([declared.hash] + state)
+        let digest = REAPI.digest(encoded)
+        CargoCacheInvocation.trace(encoded, name: "\(name)-recorded", digest: digest, environment: environment)
+        return digest
     }
 
     /// Takes a recorded set as this invocation's inputs. `nil` when its inputs cannot be read now.

@@ -132,27 +132,40 @@ struct CargoCompilationCache {
 
     /// Stores an admitted compilation's outputs, which must still match the key once copied.
     func publish(stdout: Data, stderr: Data) async throws {
-        guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else { return }
+        guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else {
+            return refuse("its output is not only rustc's messages")
+        }
         // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them.
         let widthMarker = messages.diagnostics ? Self.widthMarker(invocation.arguments) : Data()
-        guard let storedStderr = invocation.storedOutput(widthMarker + stderr) else { return }
+        guard let storedStderr = invocation.storedOutput(widthMarker + stderr) else {
+            return refuse("its messages name a path outside the known roots")
+        }
         var result = REAPI.ActionResult()
         result.stdoutRaw = stdout
         result.stderrRaw = storedStderr
         let relocated = root.appendingPathComponent("staging/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: relocated) }
         var blobs: [REAPI.Digest: URL] = [:]
-        var budget: Int64 = 250_000_000
+        var budget = Self.maximumBytes
         for name in try invocation.outputFiles() {
             let file = invocation.output.appendingPathComponent(name)
             let properties = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
-                  let size = properties.fileSize, size <= 100_000_000, size <= budget else { return }
+                  let size = properties.fileSize, size <= budget
+            else { return refuse("\(name) is not a regular file within the size budget") }
             budget -= Int64(size)
             var content = file
-            if !name.hasSuffix(".d"), !invocation.unkeyedRoots(in: try Data(contentsOf: file)).isEmpty { return }
+            if !name.hasSuffix(".d") {
+                let unkeyed = invocation.unkeyedRoots(in: try Data(contentsOf: file))
+                guard unkeyed.isEmpty else {
+                    let roots = unkeyed.joined(separator: ", ")
+                    return refuse("\(name) names \(roots), which its key does not")
+                }
+            }
             if name.hasSuffix(".d") {
-                guard let stored = invocation.storedOutput(try Data(contentsOf: file)) else { return }
+                guard let stored = invocation.storedOutput(try Data(contentsOf: file)) else {
+                    return refuse("\(name) names a path outside the known roots")
+                }
                 try FileManager.default.createDirectory(at: relocated, withIntermediateDirectories: true)
                 content = relocated.appendingPathComponent(name)
                 try stored.write(to: content)
@@ -164,7 +177,7 @@ struct CargoCompilationCache {
             })
             measurement.reference(digest)
         }
-        guard try invocation.fingerprint() == invocation.key else { return }
+        guard try invocation.fingerprint() == invocation.key else { return refuse("an input changed while it was stored") }
         try Task.checkCancellation()
         let localStarted = Date()
         try write(try result.serializedData(), to: index)
@@ -234,6 +247,8 @@ struct CargoCompilationCache {
     }
 
     static let widthMessage = "tuist-diagnostic-width"
+    /// Matches the unit cache: debug rlibs of large crates (aws-sdk-s3, mise) pass 100 MB, and blobs stream over ByteStream.
+    static let maximumBytes: Int64 = 4_000_000_000
 
     static func diagnosticWidth(_ arguments: [String]) -> String {
         var width = ""
@@ -250,6 +265,12 @@ struct CargoCompilationCache {
             "width": diagnosticWidth(arguments),
         ])
         return (line ?? Data()) + Data([10])
+    }
+
+    private func refuse(_ reason: String) {
+        if invocation.environment["TUIST_DEBUG"] == "1" {
+            FileHandle.standardError.write(Data("Tuist Cargo cache: \(invocation.name) was not stored: \(reason)\n".utf8))
+        }
     }
 
     private func debug(_ error: any Error) {
@@ -271,13 +292,13 @@ struct CargoCompilationCache {
               result.outputFiles.allSatisfy({ invocation.acceptsOutput($0.path) })
         else { return false }
         var missing: [REAPI.Digest: URL] = [:]
-        var budget: Int64 = 250_000_000
+        var budget = Self.maximumBytes
         let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: staging) }
         for file in result.outputFiles {
             try REAPI.validate(file.digest)
-            guard file.isExecutable == (file.path == invocation.executableOutput), file.digest.sizeBytes <= 100_000_000,
+            guard file.isExecutable == (file.path == invocation.executableOutput),
                   file.digest.sizeBytes <= budget else { return false }
             budget -= file.digest.sizeBytes
             // Not hashed here: materialization hashes the copy it restores, so each hit reads a blob once.

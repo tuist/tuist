@@ -304,7 +304,13 @@ enum CargoBuildScript {
                 relocation: relocation, environment: environment, hasher: hasher,
                 volatileEnvironment: { CargoRecordedInvocation.isVolatile($0) || $0 == "RUSTC_WRAPPER" }
             )
-            return REAPI.digest(try JSONEncoder().encode([declared.hash] + state))
+            let encoded = try JSONEncoder().encode([declared.hash] + state)
+            let digest = REAPI.digest(encoded)
+            CargoCacheInvocation.trace(
+                encoded, name: outDirectory.deletingLastPathComponent().lastPathComponent + "-run", digest: digest,
+                environment: environment
+            )
+            return digest
         }
 
         private func actionDigest(_ key: REAPI.Digest) -> (command: Data, action: Data, digest: REAPI.Digest)? {
