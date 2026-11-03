@@ -185,7 +185,7 @@ enum CargoBuildScript {
             environment: CargoReadRecorder.environment(
                 environment, library: context.recorder, log: log, toolchain: context.relocation.roots
                     .first(where: { $0.placeholder == "@@TUIST_SYSROOT@@" })?.path ?? ""
-            ),
+            ).merging([CargoReadRecorder.scriptLogVariable: log.path]) { $1 },
             context: context, log: log, remote: remote
         ))
     }
@@ -407,11 +407,13 @@ enum CargoBuildScript {
                 log: log, relocation: relocation, excludedRoots: [session.path, root.path],
                 targetDirectory: environment["TUIST_CARGO_TARGET_DIR"].map { URL(fileURLWithPath: $0).standardizedFileURL.path },
                 allowedWrites: [outDirectory.path] + temporary,
-                keyedEnvironment: Self.isKeyed
-            ) else {
-                debug("build-script run is not cacheable: its reads were not fully recorded")
-                return
-            }
+                keyedEnvironment: Self.isKeyed,
+                explain: { [outDirectory] in
+                    debug(
+                        "build-script run \(outDirectory.deletingLastPathComponent().lastPathComponent) is not cacheable: it \($0)"
+                    )
+                }
+            ) else { return }
             guard reads.unchanged(since: started, relocation: relocation) else {
                 debug("build-script run is not cacheable: an input changed while it ran")
                 return

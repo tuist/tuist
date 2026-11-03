@@ -124,7 +124,8 @@ extension CargoClangInvocation {
                 exec -a cc -- "$@"
               ' -- "${BASH_ENV+x}" "${BASH_ENV-}" "${SHLVL-0}" "$TUIST_CARGO_CC_COMPILER" "$@"
             fi
-            if [ -n "${TUIST_CARGO_CACHE_REMOTE_URL:-}" ]; then
+            # A recorded build script's compiler must reach the hook, which records it too.
+            if [ -n "${TUIST_CARGO_CACHE_REMOTE_URL:-}" ] && [ -z "${TUIST_CARGO_READ_SCRIPT:-}" ]; then
               for TUIST_CARGO_CC_INPUT do
                 case "$TUIST_CARGO_CC_INPUT" in
                   *.c)

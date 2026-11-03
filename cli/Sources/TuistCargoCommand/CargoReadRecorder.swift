@@ -52,6 +52,10 @@ enum CargoReadRecorder {
         #endif
     }
 
+    /// The log of the build-script run being recorded, so the `cc` its compilers start through the `/bin/sh` shim joins
+    /// it; a recorded compilation inside the script has a log of its own.
+    static let scriptLogVariable = "TUIST_CARGO_READ_SCRIPT"
+
     /// The environment a recorded run starts with.
     static func environment(
         _ environment: [String: String], library: String, log: URL, toolchain: String
@@ -136,6 +140,9 @@ enum CargoReadRecorder {
         char executable[MAXPATHLEN];
         uint32_t size = sizeof executable;
         emit('P', _NSGetExecutablePath(executable, &size) == 0 ? executable : "?");
+        char parent[32];
+        snprintf(parent, sizeof parent, "%d", getppid());
+        emit('p', parent);
         ready = 1;
         depth--;
     }
@@ -251,6 +258,137 @@ enum CargoReadRecorder {
         depth--;
     }
 
+    /* Queries such as `git describe` and tools such as `codesign` run from protected programs the recorder cannot
+       load into. A spawn of one is logged with the program `posix_spawnp` found, its working directory and arguments
+       (`Q`), so the key can hold what a query prints, re-run at lookup, or what a tool reads, instead of their reads.
+       Queries qualify only when the spawn hands over this process's own, unchanged environment; neither may start
+       in a directory the spawn changes. */
+    static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
+    static const void *chdir_actions[64];
+    static int queries_unknown = 0;
+
+    static void mark_chdir(const void *actions, int changes) {
+        pthread_mutex_lock(&query_lock);
+        int stored = !changes;
+        for (int index = 0; index < 64; index++) {
+            if (chdir_actions[index] == actions) { chdir_actions[index] = changes ? actions : NULL; stored = 1; break; }
+        }
+        for (int index = 0; index < 64 && !stored; index++) {
+            if (chdir_actions[index] == NULL) { chdir_actions[index] = actions; stored = 1; }
+        }
+        if (!stored) queries_unknown = 1;
+        pthread_mutex_unlock(&query_lock);
+    }
+
+    static int changes_directory(const void *actions) {
+        if (actions == NULL) return 0;
+        pthread_mutex_lock(&query_lock);
+        int found = 0;
+        for (int index = 0; index < 64; index++) if (chdir_actions[index] == actions) found = 1;
+        pthread_mutex_unlock(&query_lock);
+        return found;
+    }
+
+    static int my_addchdir(posix_spawn_file_actions_t *actions, const char *path) {
+        mark_chdir(actions, 1);
+        return posix_spawn_file_actions_addchdir_np(actions, path);
+    }
+    INTERPOSE(my_addchdir, posix_spawn_file_actions_addchdir_np)
+    static int my_addfchdir(posix_spawn_file_actions_t *actions, int directory) {
+        mark_chdir(actions, 1);
+        return posix_spawn_file_actions_addfchdir_np(actions, directory);
+    }
+    INTERPOSE(my_addfchdir, posix_spawn_file_actions_addfchdir_np)
+    #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
+    static int my_addchdir_posix(posix_spawn_file_actions_t *actions, const char *path) {
+        mark_chdir(actions, 1);
+        return posix_spawn_file_actions_addchdir(actions, path);
+    }
+    INTERPOSE(my_addchdir_posix, posix_spawn_file_actions_addchdir)
+    static int my_addfchdir_posix(posix_spawn_file_actions_t *actions, int directory) {
+        mark_chdir(actions, 1);
+        return posix_spawn_file_actions_addfchdir(actions, directory);
+    }
+    INTERPOSE(my_addfchdir_posix, posix_spawn_file_actions_addfchdir)
+    #endif
+    static int my_actions_destroy(posix_spawn_file_actions_t *actions) {
+        mark_chdir(actions, 0);
+        return posix_spawn_file_actions_destroy(actions);
+    }
+    INTERPOSE(my_actions_destroy, posix_spawn_file_actions_destroy)
+
+    /* A process that edits its own environment hands queries a different one than the key re-runs them with. */
+    static int my_setenv(const char *name, const char *value, int overwrite) { queries_unknown = 1; return setenv(name, value, overwrite); }
+    INTERPOSE(my_setenv, setenv)
+    static int my_putenv(char *string) { queries_unknown = 1; return putenv(string); }
+    INTERPOSE(my_putenv, putenv)
+    static int my_unsetenv(const char *name) { queries_unknown = 1; return unsetenv(name); }
+    INTERPOSE(my_unsetenv, unsetenv)
+
+    static int representable(const char *text) {
+        return text != NULL && strpbrk(text, "\n\t\x1f") == NULL;
+    }
+
+    static int log_query(const char *path, const posix_spawn_file_actions_t *actions, char *const arguments[], int inherited) {
+        const char *name = strrchr(path, '/');
+        name = name == NULL ? path : name + 1;
+        const char *programs[] = { "git", "sw_vers", "uname", "xcode-select", "xcrun", "codesign", "swiftc", "ar", "ranlib" };
+        int known = 0;
+        for (size_t index = 0; index < sizeof programs / sizeof *programs; index++) {
+            if (strcmp(name, programs[index]) == 0) known = 1;
+        }
+        if (!known || changes_directory(actions)) return 0;
+        char directory[MAXPATHLEN];
+        if (getcwd(directory, sizeof directory) == NULL || !representable(directory)) return 0;
+        /* The program as `posix_spawnp` found it: the key names what ran, not what a PATH elsewhere would find. */
+        char resolved[MAXPATHLEN];
+        if (strchr(path, '/') != NULL) {
+            if (path[0] == '/') strlcpy(resolved, path, sizeof resolved);
+            else snprintf(resolved, sizeof resolved, "%s/%s", directory, path);
+        } else {
+            const char *search = getenv("PATH");
+            if (search == NULL) search = "/usr/bin:/bin:/usr/sbin:/sbin";
+            resolved[0] = 0;
+            while (resolved[0] == 0 && search != NULL) {
+                const char *end = strchr(search, ':');
+                size_t length = end == NULL ? strlen(search) : (size_t)(end - search);
+                char candidate[MAXPATHLEN];
+                if (length == 0) snprintf(candidate, sizeof candidate, "%s/%s", directory, path);
+                else if (search[0] == '/') snprintf(candidate, sizeof candidate, "%.*s/%s", (int)length, search, path);
+                else snprintf(candidate, sizeof candidate, "%s/%.*s/%s", directory, (int)length, search, path);
+                struct stat value;
+                if (stat(candidate, &value) == 0 && S_ISREG(value.st_mode) && access(candidate, X_OK) == 0) {
+                    strlcpy(resolved, candidate, sizeof resolved);
+                }
+                search = end == NULL ? NULL : end + 1;
+            }
+            if (resolved[0] == 0) return 0;
+        }
+        if (!representable(resolved)) return 0;
+        char line[16384];
+        /* `q`: with an environment of its own, which only tools that rewrite files the run wrote may have. */
+        int length = snprintf(line, sizeof line, "%d\t%c\t%s\x1f%s", getpid(), inherited ? 'Q' : 'q', resolved, directory);
+        for (int index = 0; arguments != NULL && arguments[index] != NULL; index++) {
+            if (length <= 0 || (size_t)length >= sizeof line || !representable(arguments[index])) return 0;
+            length += snprintf(line + length, sizeof line - (size_t)length, "\x1f%s", arguments[index]);
+        }
+        if (length <= 0 || (size_t)length + 1 >= sizeof line) return 0;
+        line[length++] = '\n';
+        write(log_fd, line, (size_t)length);
+        if (inherited) emit('x', "*");
+        return 1;
+    }
+
+    static int queried(const char *path, const posix_spawn_file_actions_t *actions, char *const arguments[],
+                       char *const environment[]) {
+        if (!ready || depth != 0 || log_fd < 0) return 0;
+        int inherited = !queries_unknown && environment == *_NSGetEnviron();
+        depth++;
+        int logged = log_query(path, actions, arguments, inherited);
+        depth--;
+        return logged;
+    }
+
     /* A successful exec does not return, so it is logged before; `Y` withdraws an attempt that failed, such as
        each PATH directory `execvp` tries before the one that holds the program. */
     static int my_execve(const char *path, char *const arguments[], char *const environment[]) {
@@ -279,7 +417,7 @@ enum CargoReadRecorder {
         int result = posix_spawn(pid, path, actions, attributes, arguments, environment);
         depth--;
         if (replaces && result != 0) { depth++; emit('Y', path); depth--; }
-        if (logged && !replaces && result == 0) spawned(path, environment);
+        if (logged && !replaces && result == 0 && !queried(path, actions, arguments, environment)) spawned(path, environment);
         return result;
     }
     INTERPOSE(my_posix_spawn, posix_spawn)
@@ -292,7 +430,7 @@ enum CargoReadRecorder {
         int result = posix_spawnp(pid, file, actions, attributes, arguments, environment);
         depth--;
         if (replaces && result != 0) { depth++; emit('Y', file); depth--; }
-        if (logged && !replaces && result == 0) spawned(file, environment);
+        if (logged && !replaces && result == 0 && !queried(file, actions, arguments, environment)) spawned(file, environment);
         return result;
     }
     INTERPOSE(my_posix_spawnp, posix_spawnp)

@@ -59,6 +59,27 @@ struct CargoCompilerObserver {
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, native: Bool = false
     ) async throws -> Decision {
         guard let compiler = arguments.first else { throw CargoReportError(message: "Missing compiler executable.") }
+        // A build script being recorded runs `cc` through the protected `/bin/sh` shim, which drops the recorder: the
+        // compiler starts recorded again, as the script's child, so everything it reads or finds missing joins the
+        // script's reads and the run is cached as a whole, not compilation by compilation. `/usr/bin/cc` is a
+        // protected `xcrun` shim as well, so this starts the clang it selects, with the SDK it would set.
+        if native, let log = environment["TUIST_CARGO_READ_LOG"],
+           environment[CargoReadRecorder.scriptLogVariable] == log,
+           let recorder = environment["TUIST_CARGO_RECORDER"],
+           compiler == "/usr/bin/cc", let clang = environment["TUIST_CARGO_CACHE_CLANG"],
+           let sdk = try? await CargoToolchainIdentity.linker(
+               environment: environment, directory: directory, process: CargoProcess(runner: runner)
+           ).first?.trimmingCharacters(in: .whitespacesAndNewlines), sdk.hasPrefix("/")
+        {
+            var recorded = environment
+            recorded["DYLD_INSERT_LIBRARIES"] = recorder
+            if recorded["SDKROOT"] == nil { recorded["SDKROOT"] = sdk }
+            return .compile(CargoCompilerRun(
+                command: [clang] + arguments.dropFirst(), environment: recorded, arguments: arguments,
+                hookEnvironment: environment, directory: directory, native: true, runner: runner, invocation: nil,
+                recorded: nil, cache: nil, measurement: nil, remote: nil, log: nil, strict: false
+            ))
+        }
         var invocation: (any CargoCacheAction)?
         var recorded: CargoRecordedInvocation?
         var remote: (any REAPICacheStoring)?

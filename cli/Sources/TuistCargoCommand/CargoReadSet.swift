@@ -22,9 +22,10 @@ struct CargoReadSet: Codable, Equatable {
     static func parse(
         log: URL, relocation: CargoRelocation, excludedRoots: [String], targetDirectory: String?,
         keepsLinkedLibraries: Bool = false, allowedWrites: [String], allowedSpawn: (String) -> Bool = { _ in false },
-        keyedEnvironment: (String) -> Bool
+        keyedEnvironment: (String) -> Bool, explain: (String) -> Void = { _ in }
     ) -> CargoReadSet? {
         guard let text = try? String(contentsOf: log, encoding: .utf8) else { return nil }
+        var unrecorded: [String] = []
         var processes = 0
         var spawns = 0
         var environReads: [String: Int] = [:]
@@ -35,30 +36,74 @@ struct CargoReadSet: Codable, Equatable {
         func within(_ path: String, _ roots: [String]) -> Bool {
             roots.contains { path == $0 || path.hasPrefix($0 + "/") }
         }
+        var commands: Set<Entry> = []
+        // Processes of query programs and tools that loaded the recorder, such as a Homebrew `git` or swiftly's
+        // `swiftc`, and their children: what they print or produce is keyed, so their own events are not the run's.
+        var queryProcesses: Set<String> = []
+        var counted: Set<String> = []
         for line in text.split(separator: "\n") {
             let fields = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
-            guard fields.count == 3, let kind = fields[1].first, fields[1].count == 1 else { return nil }
+            guard fields.count == 3, let kind = fields[1].first, fields[1].count == 1 else {
+                explain("unparsable event")
+                return nil
+            }
             let pid = String(fields[0])
             let value = String(fields[2])
+            if queryProcesses.contains(pid) {
+                if "XQq".contains(kind) { spawns += 1; unrecorded.append(value) }
+                continue
+            }
             switch kind {
             // An allowed program that loaded the recorder must not stand in for a child that did not.
-            case "P": if !allowedSpawn(value) { processes += 1 }
-            case "X": if !allowedSpawn(value) { spawns += 1 }
+            case "P":
+                if CargoQuery.programs.union(CargoTool.programs).contains(URL(fileURLWithPath: value).lastPathComponent) {
+                    queryProcesses.insert(pid)
+                } else if !allowedSpawn(value) { processes += 1; counted.insert(pid) }
+            case "p":
+                if queryProcesses.contains(value) {
+                    queryProcesses.insert(pid)
+                    if counted.remove(pid) != nil { processes -= 1 }
+                }
+            case "Q", "q":
+                let parts = value.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
+                if allowedSpawn(parts[0]) { break }
+                if kind == "Q", let query = CargoQuery(parts) {
+                    commands.insert(Entry(kind: "command", name: query.relocated(relocation)))
+                } else if let tool = CargoTool(
+                    parts, inheritsEnvironment: kind == "Q", writable: { within($0, allowedWrites) },
+                    written: { path in written.contains { $0 == path || $0.hasPrefix(path + "/") } }
+                ) {
+                    commands.insert(Entry(kind: "tool", name: relocation.relative(tool.name)))
+                    observed += tool.inputs.map { ("R", $0) }
+                    written.formUnion(tool.outputs)
+                } else { spawns += 1; unrecorded.append(parts.dropFirst(2).joined(separator: " ")) }
+            case "X": if !allowedSpawn(value) { spawns += 1; unrecorded.append(value) }
             case "Y": if !allowedSpawn(value) { spawns -= 1 }
             case "x": passedThrough[pid, default: 0] += 1
             case "e": environReads[pid, default: 0] += 1
             case "E": variables.insert(value)
             case "W":
                 let path = standardized(value)
-                guard within(path, allowedWrites) || path.hasPrefix("/dev/") else { return nil }
+                guard within(path, allowedWrites) || path.hasPrefix("/dev/") else {
+                    explain("wrote \(path)")
+                    return nil
+                }
                 written.insert(path)
             case "R", "S", "A", "D": observed.append((kind, standardized(value)))
-            default: return nil
+            default:
+                explain(kind == "N" ? "connected to the network" : "event \(kind) \(value)")
+                return nil
             }
         }
         // Every process started must have loaded the recorder, the first one included.
-        guard processes >= 1, processes >= spawns + 1 else { return nil }
-        var entries: Set<Entry> = []
+        guard processes >= 1, processes >= spawns + 1 else {
+            explain(
+                "started \(spawns) programs but \(processes - 1) recorded processes, among: "
+                    + unrecorded.prefix(8).joined(separator: "; ")
+            )
+            return nil
+        }
+        var entries = commands
         for (pid, count) in environReads where count > passedThrough[pid, default: 0] {
             entries.insert(Entry(kind: "environment", name: "*"))
         }
@@ -93,7 +138,10 @@ struct CargoReadSet: Codable, Equatable {
             }
             entries.insert(Entry(kind: kind == "D" ? "listing" : "path", name: relocation.relative(path)))
         }
-        guard entries.count <= maximumEntries else { return nil }
+        guard entries.count <= maximumEntries else {
+            explain("read more than \(maximumEntries) inputs")
+            return nil
+        }
         return CargoReadSet(entries: entries.sorted { ($0.kind, $0.name) < ($1.kind, $1.name) })
     }
 
@@ -151,6 +199,13 @@ struct CargoReadSet: Codable, Equatable {
             case "path", "listing":
                 guard let path = relocation.absolute(entry.name) else { throw CargoCacheInvocation.CacheError.unsupported }
                 result += [entry.kind, entry.name, try state(of: path, listing: entry.kind == "listing", hasher: hasher)]
+            case "tool":
+                guard let name = relocation.absolute(entry.name) else { throw CargoCacheInvocation.CacheError.unsupported }
+                result += ["tool", entry.name, try CargoTool.identity(name, environment: environment, relocation: relocation)]
+            case "command":
+                guard let query = CargoQuery(relocated: entry.name, relocation: relocation)
+                else { throw CargoCacheInvocation.CacheError.unsupported }
+                result += ["command", entry.name, try query.output(environment: environment, relocation: relocation)]
             default:
                 throw CargoCacheInvocation.CacheError.unsupported
             }
