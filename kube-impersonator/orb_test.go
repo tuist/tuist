@@ -13,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -21,6 +22,7 @@ const (
 	testWorkspace = "8e5f0d8f-a1a5-429d-843d-6096a60fa0a1"
 	testAudience  = "https://kube-orb-prod.tuist.dev"
 	testThread    = "T-01a1a59e-55fb-744b-9415-b85a337f24d2"
+	testProject   = "1e345004-78e8-4e1d-bb72-27bb1a22d450"
 )
 
 type orbFixture struct {
@@ -28,6 +30,7 @@ type orbFixture struct {
 	issuer    string
 	policyHit chan http.Header
 	apiHit    chan http.Header
+	jwksHits  atomic.Int32
 	server    *httptest.Server
 }
 
@@ -40,6 +43,7 @@ func newOrbFixture(t *testing.T) *orbFixture {
 	f := &orbFixture{key: key, policyHit: make(chan http.Header, 1), apiHit: make(chan http.Header, 1)}
 
 	jwks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		f.jwksHits.Add(1)
 		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
 			"kty": "RSA", "kid": "k1",
 			"n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
@@ -68,7 +72,7 @@ func newOrbFixture(t *testing.T) *orbFixture {
 	tokens := &tokenStore{token: "pod-sa-token"}
 	proxy := &httputil.ReverseProxy{Director: rewriteToApiserver(apiURL, tokens)}
 	verifier := newOrbVerifier(orbConfig{
-		issuer: f.issuer, jwksURL: jwks.URL, audience: testAudience, workspaceID: testWorkspace,
+		issuer: f.issuer, jwksURL: jwks.URL, audience: testAudience, workspaceID: testWorkspace, projectID: testProject,
 	}, http.DefaultClient)
 
 	f.server = httptest.NewServer(orbHandler(verifier, http.DefaultClient, policy.URL, proxy))
@@ -84,7 +88,7 @@ func (f *orbFixture) claims() map[string]any {
 		"iat": now.Unix(), "exp": now.Add(10 * time.Minute).Unix(),
 		"email": "marek@tuist.dev", "email_verified": true, "token_use": "exchanged",
 		"user_id": "user_01M5Y6GCBK8FBV5R1PD1H36AZ8", "thread_id": testThread,
-		"workspace_id": testWorkspace, "project_id": "1e345004-78e8-4e1d-bb72-27bb1a22d450",
+		"workspace_id": testWorkspace, "project_id": testProject,
 	}
 }
 
@@ -105,8 +109,13 @@ func sign(t *testing.T, key *rsa.PrivateKey, header, claims map[string]any) stri
 
 func (f *orbFixture) do(t *testing.T, token string, extra http.Header) int {
 	t.Helper()
+	return f.doHost(t, "kube-orb-prod.tuist.dev", token, extra)
+}
+
+func (f *orbFixture) doHost(t *testing.T, host, token string, extra http.Header) int {
+	t.Helper()
 	req, _ := http.NewRequest(http.MethodGet, f.server.URL+"/api/v1/namespaces/tuist/pods", nil)
-	req.Host = "kube-orb-prod.tuist.dev"
+	req.Host = host
 	for k, v := range extra {
 		req.Header[k] = v
 	}
@@ -169,6 +178,11 @@ func TestOrbRejectsTokensWithoutCallingPolicy(t *testing.T) {
 			c["workspace_id"] = "00000000-0000-0000-0000-000000000000"
 			return sign(t, f.key, rs256, c)
 		},
+		"other project": func() string {
+			c := f.claims()
+			c["project_id"] = "00000000-0000-0000-0000-000000000000"
+			return sign(t, f.key, rs256, c)
+		},
 		"other audience": func() string {
 			c := f.claims()
 			c["aud"] = "https://kube-orb-canary.tuist.dev"
@@ -187,7 +201,7 @@ func TestOrbRejectsTokensWithoutCallingPolicy(t *testing.T) {
 		},
 		"lifetime over an hour": func() string {
 			c := f.claims()
-			c["exp"] = time.Now().Add(2 * time.Hour).Unix()
+			c["exp"] = time.Now().Add(30 * time.Minute).Unix()
 			return sign(t, f.key, rs256, c)
 		},
 		"project setup token": func() string {
@@ -242,4 +256,38 @@ func TestPomeriumListenerForwardsOnlyPomeriumIdentity(t *testing.T) {
 	if got.Get("X-Pomerium-Claim-Email") != "marek@tuist.dev" || got.Get("X-Tuist-Amp-Email") != "" || got.Get("X-Tuist-Amp-Thread-Id") != "" {
 		t.Fatalf("human policy headers = %v", got)
 	}
+}
+
+func TestOrbEnvComesFromVerifiedAudienceNotHost(t *testing.T) {
+	f := newOrbFixture(t)
+
+	// An in-cluster caller holding a valid prod token picks another Host.
+	if got := f.doHost(t, "kube-orb-staging.tuist.dev", sign(t, f.key, rs256, f.claims()), nil); got != http.StatusTeapot {
+		t.Fatalf("status = %d", got)
+	}
+	<-f.apiHit
+	if host := (<-f.policyHit).Get("Host"); host != "kube-orb-prod.tuist.dev" {
+		t.Fatalf("policy Host = %q, want the verified audience's host", host)
+	}
+}
+
+func TestOrbUnknownKidFloodFetchesJWKSOnce(t *testing.T) {
+	f := newOrbFixture(t)
+	forged := sign(t, f.key, map[string]any{"alg": "RS256", "kid": "forged"}, f.claims())
+
+	for range 20 {
+		if got := f.do(t, forged, nil); got != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401", got)
+		}
+	}
+	if hits := f.jwksHits.Load(); hits != 1 {
+		t.Fatalf("JWKS fetched %d times for 20 forged kids, want 1", hits)
+	}
+
+	// Real tokens still verify from the cache the forged kids filled.
+	if got := f.do(t, sign(t, f.key, rs256, f.claims()), nil); got != http.StatusTeapot {
+		t.Fatalf("valid token status = %d", got)
+	}
+	<-f.policyHit
+	<-f.apiHit
 }

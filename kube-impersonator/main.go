@@ -188,9 +188,11 @@ func main() {
 			Addr:              orbCfg.listenAddr,
 			Handler:           orbMux,
 			ReadHeaderTimeout: 10 * time.Second,
+			// In-cluster clients can hold keep-alive connections open.
+			IdleTimeout: 2 * time.Minute,
 		}
-		log.Printf("kube-impersonator: orb=%s issuer=%s audience=%s workspace=%s",
-			orbCfg.listenAddr, orbCfg.issuer, orbCfg.audience, orbCfg.workspaceID)
+		log.Printf("kube-impersonator: orb=%s issuer=%s audience=%s workspace=%s project=%s",
+			orbCfg.listenAddr, orbCfg.issuer, orbCfg.audience, orbCfg.workspaceID, orbCfg.projectID)
 		go func() { errs <- fmt.Errorf("orb listener: %w", orbSrv.ListenAndServe()) }()
 	}
 	log.Fatal(<-errs)

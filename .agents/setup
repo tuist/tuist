@@ -202,7 +202,8 @@ other_guidance=""
   `kube-orb-<env>.tuist.dev` with this thread's Amp identity: read access everywhere and
   staging writes. For a canary/production write, ask the human to run
   `/elevate <env> --thread $AMP_CURRENT_THREAD_ID [duration] <intent>` in Slack and approve it.
-  Never run `/elevate` or approve it yourself. Follow infra/AGENTS.md "Cluster access for agents".
+  Never run `/elevate` or approve it yourself, and never run `infra/k8s/orb-kube-credential`
+  directly (its output is a bearer token). Follow infra/AGENTS.md "Cluster access for agents".
 EOF
 } >"$guidance.tmp"
 mv "$guidance.tmp" "$guidance"

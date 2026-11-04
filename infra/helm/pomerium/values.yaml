@@ -96,6 +96,10 @@ orbAccess:
   # Tuist's Amp workspace. Not a secret, but it is the trust boundary:
   # every Amp orb in every workspace can mint a token for our audience.
   workspaceID: 8e5f0d8f-a1a5-429d-843d-6096a60fa0a1
+  # The Amp project (tuist/tuist) whose threads get access. Any orb in
+  # the workspace can mint a token, including orbs for personal projects
+  # and untrusted repositories, so the workspace alone is too wide.
+  projectID: 1e345004-78e8-4e1d-bb72-27bb1a22d450
   issuer: https://ampcode.com/api/workload-identity
   port: 8083
 

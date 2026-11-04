@@ -508,7 +508,12 @@ defmodule TuistOpsWeb.SlackController do
         {:error, :missing_intent}
 
       _ ->
-        {:ok, nil, text}
+        # A flag anywhere else, or one Slack turned into an em or en
+        # dash, would otherwise fall through to a personal elevation of
+        # the requester with the flag buried in the intent.
+        if Regex.match?(~r/(--|\x{2014}|\x{2013})thread/iu, text),
+          do: {:error, :misplaced_thread_flag},
+          else: {:ok, nil, text}
     end
   end
 
@@ -581,6 +586,10 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error({:always_write_env, env}),
     do:
       "`#{env}` is writable for everyone on the tailnet — no elevation needed. Just run `kubectl --context tuist-k8s-#{env} ...`."
+
+  defp human_error(:misplaced_thread_flag),
+    do:
+      "Put `--thread <T-…>` right after the env, typed with two hyphens: `/elevate <env> --thread <T-…> [duration] <intent>`."
 
   defp human_error({:invalid_thread_id, thread_id}),
     do: "`#{thread_id}` isn't an Amp thread ID (expected `T-<uuid>`)."

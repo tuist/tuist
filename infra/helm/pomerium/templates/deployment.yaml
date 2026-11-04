@@ -131,6 +131,8 @@ spec:
               value: {{ printf "https://%s" .Values.orbAccess.hostname | quote }}
             - name: ORB_WORKSPACE_ID
               value: {{ required "orbAccess.workspaceID is required" .Values.orbAccess.workspaceID | quote }}
+            - name: ORB_PROJECT_ID
+              value: {{ required "orbAccess.projectID is required" .Values.orbAccess.projectID | quote }}
             {{- end }}
           ports:
             - name: imp-health

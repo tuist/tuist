@@ -154,7 +154,11 @@ defmodule TuistOpsWeb.SlackControllerTest do
       for text <- [
             "canary --thread T-nope fix it now",
             "canary --thread",
-            "staging --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 fix it"
+            "staging --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 fix it",
+            # A misplaced or smart-dashed flag must not become a personal elevation.
+            "prod 30m --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 restart pod",
+            "prod —thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 restart pod",
+            "prod --Thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 restart pod"
           ] do
         conn =
           TuistOpsWeb.SlackController.slash(build_conn(), %{

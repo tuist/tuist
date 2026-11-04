@@ -36,13 +36,16 @@ import (
 
 const (
 	defaultOrbIssuer = "https://ampcode.com/api/workload-identity"
-	// Amp mints tokens for 60 s to 1 h.
-	orbMaxTokenLifetime = time.Hour
+	// Amp mints tokens for 60 s to 1 h; orb-kube-credential asks for
+	// ten minutes. A longer token is a longer-lived bearer if it leaks.
+	orbMaxTokenLifetime = 15 * time.Minute
 	orbClockSkew        = 60 * time.Second
-	// A token signed with an unknown key triggers a refetch, at most
-	// this often, so a flood of forged kids cannot hammer Amp.
+	// A token signed with an unknown key, or a cache past its age,
+	// triggers a refetch at most this often, so a flood of forged kids
+	// cannot hammer Amp or the cache lock.
 	jwksMinRefetch = time.Minute
 	jwksMaxAge     = time.Hour
+	jwksTimeout    = 10 * time.Second
 )
 
 var threadIDPattern = regexp.MustCompile(`^T-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
@@ -53,6 +56,7 @@ type orbConfig struct {
 	jwksURL     string
 	audience    string
 	workspaceID string
+	projectID   string
 }
 
 func orbConfigFromEnv() (orbConfig, error) {
@@ -61,13 +65,14 @@ func orbConfigFromEnv() (orbConfig, error) {
 		issuer:      envOr("ORB_ISSUER", defaultOrbIssuer),
 		audience:    envOr("ORB_AUDIENCE", ""),
 		workspaceID: envOr("ORB_WORKSPACE_ID", ""),
+		projectID:   envOr("ORB_PROJECT_ID", ""),
 	}
 	cfg.jwksURL = envOr("ORB_JWKS_URL", cfg.issuer+"/jwks.json")
 	if cfg.listenAddr == "" {
 		return cfg, nil
 	}
-	if cfg.audience == "" || cfg.workspaceID == "" {
-		return cfg, errors.New("ORB_LISTEN_ADDR requires ORB_AUDIENCE and ORB_WORKSPACE_ID")
+	if cfg.audience == "" || cfg.workspaceID == "" || cfg.projectID == "" {
+		return cfg, errors.New("ORB_LISTEN_ADDR requires ORB_AUDIENCE, ORB_WORKSPACE_ID and ORB_PROJECT_ID")
 	}
 	return cfg, nil
 }
@@ -87,6 +92,7 @@ type orbClaims struct {
 	Nbf           int64           `json:"nbf"`
 	TokenUse      string          `json:"token_use"`
 	WorkspaceID   string          `json:"workspace_id"`
+	ProjectID     string          `json:"project_id"`
 	UserID        string          `json:"user_id"`
 	ThreadID      string          `json:"thread_id"`
 	Email         string          `json:"email"`
@@ -167,6 +173,11 @@ func (v *orbVerifier) checkClaims(c orbClaims) (orbIdentity, error) {
 	// mint a token for it. The workspace is what makes it ours.
 	case c.WorkspaceID != v.cfg.workspaceID:
 		return orbIdentity{}, fmt.Errorf("workspace %q", c.WorkspaceID)
+	// Every orb in the workspace can mint this token, including orbs
+	// for personal projects and untrusted repositories. Only threads of
+	// the pinned project (tuist/tuist) get cluster access.
+	case c.ProjectID != v.cfg.projectID:
+		return orbIdentity{}, fmt.Errorf("project %q", c.ProjectID)
 	case c.TokenUse != "exchanged":
 		return orbIdentity{}, fmt.Errorf("token_use %q", c.TokenUse)
 	// Project-setup tokens carry no user or thread; they identify a
@@ -177,6 +188,12 @@ func (v *orbVerifier) checkClaims(c orbClaims) (orbIdentity, error) {
 		return orbIdentity{}, errors.New("no verified email")
 	}
 	return orbIdentity{email: c.Email, userID: c.UserID, threadID: c.ThreadID}, nil
+}
+
+// policyHost is the gateway host the verified audience names, which is
+// what tuist-ops derives the env and door from.
+func (v *orbVerifier) policyHost() string {
+	return strings.TrimPrefix(v.cfg.audience, "https://")
 }
 
 func audienceContains(raw json.RawMessage, want string) bool {
@@ -212,26 +229,40 @@ type jwksCache struct {
 	keys        map[string]*rsa.PublicKey
 	fetchedAt   time.Time
 	lastAttempt time.Time
+	fetching    bool
 }
 
-func (c *jwksCache) get(ctx context.Context, kid string, now time.Time) (*rsa.PublicKey, error) {
+// get returns the key for kid. A miss or a stale cache starts at most
+// one fetch per jwksMinRefetch, outside the lock and on its own
+// context: a caller that disconnects cannot abort it, and requests with
+// cached keys are never queued behind it. A request that arrives while
+// a fetch runs answers from the cache it finds rather than waiting.
+func (c *jwksCache) get(_ context.Context, kid string, now time.Time) (*rsa.PublicKey, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	key, ok := c.keys[kid]
 	stale := now.Sub(c.fetchedAt) > jwksMaxAge
-	if ok && !stale {
-		return key, nil
+	shouldFetch := (!ok || stale) && !c.fetching && now.Sub(c.lastAttempt) >= jwksMinRefetch
+	if shouldFetch {
+		c.fetching, c.lastAttempt = true, now
 	}
-	if now.Sub(c.lastAttempt) >= jwksMinRefetch || stale {
-		c.lastAttempt = now
-		if keys, err := fetchJWKS(ctx, c.client, c.url); err != nil {
+	c.mu.Unlock()
+
+	if shouldFetch {
+		ctx, cancel := context.WithTimeout(context.Background(), jwksTimeout)
+		keys, err := fetchJWKS(ctx, c.client, c.url)
+		cancel()
+
+		c.mu.Lock()
+		c.fetching = false
+		if err != nil {
 			log.Printf("orb: JWKS fetch failed (keeping %d cached keys): %v", len(c.keys), err)
 		} else {
 			c.keys, c.fetchedAt = keys, now
 		}
+		key, ok = c.keys[kid]
+		c.mu.Unlock()
 	}
-	if key, ok := c.keys[kid]; ok {
+	if ok {
 		return key, nil
 	}
 	return nil, fmt.Errorf("unknown signing key %q", kid)
@@ -298,12 +329,15 @@ func orbHandler(v *orbVerifier, client *http.Client, policyURL string, proxy *ht
 		}
 		orb, err := v.verify(r.Context(), strings.TrimSpace(token))
 		if err != nil {
-			log.Printf("orb: rejected token for %s %s: %v", r.Method, r.URL.Path, err)
+			log.Printf("orb: rejected token for %s %q: %v", r.Method, r.URL.Path, err)
 			http.Error(w, "invalid Amp workload identity token", http.StatusUnauthorized)
 			return
 		}
 
-		id, err := callPolicy(r.Context(), client, policyURL, r.Host, http.Header{
+		// The env comes from the audience the token was verified for,
+		// never from the request's Host: the listener is reachable
+		// in-cluster, where a caller picks its own Host.
+		id, err := callPolicy(r.Context(), client, policyURL, v.policyHost(), http.Header{
 			"X-Tuist-Amp-Email":     {orb.email},
 			"X-Tuist-Amp-User-Id":   {orb.userID},
 			"X-Tuist-Amp-Thread-Id": {orb.threadID},
@@ -316,7 +350,7 @@ func orbHandler(v *orbVerifier, client *http.Client, policyURL string, proxy *ht
 
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		proxy.ServeHTTP(rec, r.WithContext(context.WithValue(r.Context(), identityKey, id)))
-		log.Printf("orb: email=%s thread=%s user=%s groups=%s method=%s path=%s status=%d",
+		log.Printf("orb: email=%s thread=%s user=%s groups=%s method=%s path=%q status=%d",
 			orb.email, orb.threadID, id.user, strings.Join(id.groups, ","), r.Method, r.URL.Path, rec.status)
 	})
 }
