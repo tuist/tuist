@@ -98,7 +98,7 @@ final class CargoHookServer: @unchecked Sendable {
             raw.copyBytes(from: bytes)
             raw[bytes.count] = 0
         }
-        #if canImport(Darwin)
+        #if canImport(Darwin) || canImport(Musl)
             let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         #else
             let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
