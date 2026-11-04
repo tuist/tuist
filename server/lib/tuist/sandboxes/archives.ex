@@ -14,6 +14,9 @@ defmodule Tuist.Sandboxes.Archives do
   it on any node with room (`Tuist.Sandboxes` creates it `from_archive`)
   and it cold boots: files survive, processes do not.
 
+  Any paused sandbox can also be archived on request (`request/1`, the
+  dashboard's Archive button), whatever its source or pause age.
+
   The archive object is the only copy of an archived Orb, so nothing here
   deletes it until a restore is running on a node, the sandbox is deleted,
   or its account is. The upload runs without the sandbox's lock: the lock
