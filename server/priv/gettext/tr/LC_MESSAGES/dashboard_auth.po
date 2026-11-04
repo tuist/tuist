@@ -112,7 +112,7 @@ msgid "Continue"
 msgstr "Devam et"
 
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:57
+#: lib/tuist_web/live/device_codes_success_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr "Panel"
@@ -271,14 +271,14 @@ msgstr "Tuist'e kayıt ol"
 msgid "This username has already been taken"
 msgstr "Bu kullanıcı adı zaten alınmış"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:37
+#: lib/tuist_web/live/device_codes_success_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr "Tuist CLI bağlı!"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:26
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -291,7 +291,7 @@ msgstr "Tuist CLI bağlı!"
 msgid "Tuist Logo"
 msgstr "Tuist Logosu"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:35
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr "Tuist uygulaması bağlı!"
@@ -308,7 +308,7 @@ msgstr "Tuist kontrol paneli"
 msgid "Tuist documentation"
 msgstr "Tuist belgeleri"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:39
+#: lib/tuist_web/live/device_codes_success_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr "Tuist bağlı!"
@@ -350,17 +350,17 @@ msgstr "Tekrar hoş geldiniz! Devam etmek için lütfen giriş yapın"
 msgid "Welcome! Create an account to continue"
 msgstr "Hoş geldiniz! Devam etmek için bir hesap oluşturun"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:49
+#: lib/tuist_web/live/device_codes_success_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr "Sekmeyi kapatıp devam edebilirsiniz"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:45
+#: lib/tuist_web/live/device_codes_success_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr "Sekmeyi kapatıp uygulamada devam edebilirsiniz"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:47
+#: lib/tuist_web/live/device_codes_success_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr "Sekmeyi kapatıp terminalde devam edebilirsiniz"
@@ -893,3 +893,8 @@ msgstr "Erişim anahtarı doğrulanamadı. Tekrar deneyin."
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
 msgstr "Bu erişim anahtarı zaten kayıtlı."
+
+#: lib/tuist_web/authentication.ex:698
+#, elixir-autogen, elixir-format
+msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
+msgstr "Kuruluşlarınızın her biri kendi tek oturum açma (SSO) yapılandırmasını gerektirdiğinden, bu oturumla Tuist CLI, uygulama veya MCP istemcilerinde oturum açılamaz. Yardım için kuruluş yöneticisine başvurun."
