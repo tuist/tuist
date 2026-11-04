@@ -53,7 +53,7 @@ import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
 import { initAnalytics } from "../shared/js/analytics.js";
-import { registerWebMCPTools } from "../shared/js/webmcp.mjs";
+import { registerNavigationTools, registerWebMCPTools } from "../shared/js/webmcp.mjs";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -149,6 +149,7 @@ setupQueryMemory();
 initAnalytics();
 
 registerWebMCPTools();
+registerNavigationTools();
 
 // Replace the browser URL without triggering handle_params (which push_patch would do),
 // avoiding unnecessary assign_async re-fetches when switching widgets.
