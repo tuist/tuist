@@ -27,6 +27,11 @@ func TestKubeletConfigContentParses(t *testing.T) {
 	if got := parsed["clusterDNS"]; got == nil {
 		t.Fatal("clusterDNS must survive rendering; a node without it falls back to host DNS")
 	}
+	// Without an age limit the kubelet only collects images at the same 85% at
+	// which imagefs eviction starts, so released runner images pile up.
+	if got := parsed["imageMaximumGCAge"]; got != "24h" {
+		t.Fatalf("imageMaximumGCAge = %v, want 24h", got)
+	}
 }
 
 // memory.high is derived as requests + factor*(limits-requests) and triggers on
