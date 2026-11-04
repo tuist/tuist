@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { registerWebMCPTools } from "./webmcp.mjs";
+import { registerNavigationTools, registerWebMCPTools } from "./webmcp.mjs";
 
 const listProjects = {
   name: "list_projects",
@@ -221,4 +221,113 @@ test("an aborted call rejects with the abort", async () => {
   const { tool } = await registeredTool(new DOMException("The operation was aborted.", "AbortError"));
 
   await assert.rejects(tool.execute({}), { name: "AbortError" });
+});
+
+// A dashboard page with the elements the navigation tools read, keyed by the
+// selectors they use.
+function fakeDashboard({ endpoint = accountEndpoint } = {}) {
+  const clicks = [];
+  const link = (href, label, { live = true, group } = {}) => ({
+    href,
+    label,
+    getAttribute: (name) => ({ href, "data-label": label })[name] ?? null,
+    hasAttribute: (name) => name === "data-phx-link" && live,
+    querySelector: (selector) => (selector === "[data-part='label']" ? { textContent: ` ${label} ` } : null),
+    closest: (selector) => (selector === "[data-part='collapsible-group']" ? (group ?? null) : null),
+    click: () => clicks.push(href),
+  });
+  const buildsHeader = link("/acme/app/builds", "Builds");
+  const builds = { querySelector: () => buildsHeader };
+  Object.assign(buildsHeader, link("/acme/app/builds", "Builds", { group: builds }));
+
+  const sidebar = [
+    link("/acme/app", "Overview"),
+    buildsHeader,
+    link("/acme/app/builds/build-runs", "Build Runs", { group: builds }),
+  ];
+  const breadcrumb = (items) => ({
+    querySelectorAll: (selector) => (selector === "[data-part='items'] a[href^='/']" ? items : []),
+  });
+  const headerbar = {
+    querySelectorAll: (selector) =>
+      selector === ".noora-breadcrumb"
+        ? [
+            breadcrumb([
+              link("/acme/projects", "acme", { live: false }),
+              link("/other/projects", "other", { live: false }),
+            ]),
+            breadcrumb([link("/acme/app", "app", { live: false }), link("/acme/web", "web", { live: false })]),
+          ]
+        : [],
+  };
+  const document = {
+    querySelector: (selector) => (selector === "header[data-webmcp-endpoint]" && endpoint ? headerbar : null),
+    querySelectorAll: (selector) => (selector === ".layout .noora-sidebar a[href^='/']" ? sidebar : []),
+  };
+  return { document, clicks };
+}
+
+async function navigationTools(options = {}) {
+  const modelContext = fakeModelContext();
+  const { document, clicks } = fakeDashboard(options);
+  const target = new EventTarget();
+  const location = { pathname: "/acme/app/builds/build-runs", search: "" };
+  const names = await registerNavigationTools({ modelContext, document, location, target, timeout: 50, ...options });
+  return { names, tools: modelContext.tools, clicks, target, location };
+}
+
+test("registers navigation tools only on signed-in dashboard pages", async () => {
+  assert.deepEqual((await navigationTools()).names, ["list_dashboard_pages", "navigate_to_dashboard_page"]);
+  assert.deepEqual((await navigationTools({ endpoint: null })).names, []);
+  assert.deepEqual(await registerNavigationTools({ modelContext: undefined }), []);
+});
+
+test("lists the sidebar's pages and the breadcrumbs' accounts and projects once each", async () => {
+  const { tools } = await navigationTools();
+  const { pages } = await tools.get("list_dashboard_pages").execute({});
+
+  assert.deepEqual(pages, [
+    { path: "/acme/app", title: "Overview", description: "Overview", current: false },
+    { path: "/acme/app/builds", title: "Builds", description: "Builds", current: false },
+    { path: "/acme/app/builds/build-runs", title: "Build Runs", description: "Builds › Build Runs", current: true },
+    { path: "/acme/projects", title: "acme", description: "The acme account", current: false },
+    { path: "/other/projects", title: "other", description: "The other account", current: false },
+    // The current project's breadcrumb entry is the Overview link above.
+    { path: "/acme/web", title: "web", description: "The web project", current: false },
+  ]);
+});
+
+test("navigates only to listed pages, and resolves once a live navigation has rendered", async () => {
+  const { tools, clicks, target, location } = await navigationTools();
+  const navigate = tools.get("navigate_to_dashboard_page");
+
+  assert.deepEqual(await navigate.execute({ path: "/acme/app/settings/tokens" }), {
+    isError: true,
+    error: "/acme/app/settings/tokens is not a page list_dashboard_pages offers from here.",
+  });
+  assert.deepEqual(clicks, []);
+
+  let resolved = false;
+  const navigation = navigate.execute({ path: "/acme/app" }).then((result) => {
+    resolved = true;
+    return result;
+  });
+  assert.deepEqual(clicks, ["/acme/app"]);
+
+  // The redirect's own stop comes before the new view renders.
+  target.dispatchEvent(new CustomEvent("phx:page-loading-stop", { detail: { kind: "redirect" } }));
+  await settle();
+  assert.equal(resolved, false);
+
+  location.pathname = "/acme/app";
+  target.dispatchEvent(new CustomEvent("phx:page-loading-stop", { detail: { kind: "initial" } }));
+  assert.deepEqual(await navigation, { path: "/acme/app", title: "Overview" });
+
+  // A link that loads a new document does not wait for LiveView.
+  assert.deepEqual(await navigate.execute({ path: "/other/projects" }), {
+    path: "/other/projects",
+    title: "other",
+    reloading: true,
+  });
+  assert.deepEqual(clicks, ["/acme/app", "/other/projects"]);
 });
