@@ -73,7 +73,8 @@ changing CI limits. Creating, resuming and running rows count, including detache
 Amp processes; paused rows retain disk but release compute quota. The account
 row serializes admission and reservation across replicas before node commands
 are sent. Lowering a limit blocks new starts/resumes without stopping running
-work. The existing five-live-sandbox count (including paused disks) also applies.
+work. There is no running-sandbox count; the thirty-sandbox on-node cap
+(paused disks included) bounds disk, not compute.
 
 A host reservation or unhealthy node revokes admission and reclaims eligible idle
 sandboxes. Reclaim page cache and request a shrink, but do not spend the released

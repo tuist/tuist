@@ -48,13 +48,12 @@ defmodule Tuist.Sandboxes do
   # belongs to a caller that died mid-operation (a web pod stopped during a
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
-  # Running sandboxes hold CPU and memory; the account CPU and memory quota
-  # bounds those as well. Paused sandboxes hold only disk on their node, so
-  # they count toward the larger on-node cap instead, and Amp Orbs past
-  # `Archives.max_paused_on_node_per_account/0` move to object storage.
-  @max_running_sandboxes_per_account 5
+  # Running sandboxes are bounded by the account CPU and memory quota
+  # (`Concurrency`), not by a count. Sandboxes on a node, paused ones
+  # included, hold disk there, so they count toward the on-node cap, and Amp
+  # Orbs past `Archives.max_paused_on_node_per_account/0` move to object
+  # storage.
   @max_on_node_sandboxes_per_account 30
-  @running_states [:creating, :running, :resuming]
   @on_node_states [:creating, :running, :resuming, :paused]
   # A running Amp Orb whose guest has used under 2% of one vCPU for this
   # long is paused, in case Amp's own pause never arrives.
@@ -224,22 +223,13 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  def max_running_sandboxes_per_account, do: @max_running_sandboxes_per_account
   def max_on_node_sandboxes_per_account, do: @max_on_node_sandboxes_per_account
 
   # Admits one more sandbox onto a node: a create or a restore.
   defp check_sandbox_limit(account_id) do
-    with :ok <- check_running_limit(account_id) do
-      if count_in_states(account_id, @on_node_states) < @max_on_node_sandboxes_per_account,
-        do: :ok,
-        else: {:error, :sandbox_limit}
-    end
-  end
-
-  defp check_running_limit(account_id) do
-    if count_in_states(account_id, @running_states) < @max_running_sandboxes_per_account,
+    if count_in_states(account_id, @on_node_states) < @max_on_node_sandboxes_per_account,
       do: :ok,
-      else: {:error, :sandbox_running_limit}
+      else: {:error, :sandbox_limit}
   end
 
   defp count_in_states(account_id, states) do
@@ -436,8 +426,7 @@ defmodule Tuist.Sandboxes do
   defp running_or_resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
 
   defp do_resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
-    with :ok <- check_running_limit(sandbox.account_id),
-         {:ok, sandbox} <- Capacity.admit(sandbox) do
+    with {:ok, sandbox} <- Capacity.admit(sandbox) do
       case Nodes.call(node_name, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
         {:ok, data} ->
           Logger.info("sandboxes: sandbox resumed",
