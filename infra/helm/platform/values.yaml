@@ -476,6 +476,11 @@ external-secrets:
   installCRDs: true
   webhook:
     port: 9443
+  # Keep off. It lets an ExternalSecret render into a ConfigMap, which the
+  # view tier reads, and the JIT write tier may patch ExternalSecrets
+  # (`tuist-write-externalsecrets` in infra/helm/pomerium).
+  genericTargets:
+    enabled: false
 
 # Backs the pods.metrics.k8s.io API the HPA reads. Without it, HPAs report
 # `FailedGetResourceMetric` and refuse to scale.
