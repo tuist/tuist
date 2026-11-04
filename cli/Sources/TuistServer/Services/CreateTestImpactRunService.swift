@@ -87,6 +87,7 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
             modules: request.modules,
             parent_shas: request.parentSHAs.isEmpty ? nil : request.parentSHAs,
             platform: request.platform,
+            skipped_modules: request.skippedModules,
             xcode: hasScope ? .init(destination: request.destination, scheme: request.scheme, test_plan: request.testPlan) : nil
         )
     }

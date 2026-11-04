@@ -14898,7 +14898,7 @@ components:
           x-struct:
           x-validate:
         modules:
-          description: 'The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.'
+          description: 'The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`.'
           items:
             type: string
             x-struct:
@@ -14918,6 +14918,15 @@ components:
         platform:
           description: The platform the tests run on. Absent where the build system has none.
           type: string
+          x-struct:
+          x-validate:
+        skipped_modules:
+          description: The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         xcode:
@@ -44750,7 +44759,7 @@ paths:
                   x-struct:
                   x-validate:
                 modules:
-                  description: 'The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.'
+                  description: 'The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`.'
                   items:
                     type: string
                     x-struct:
@@ -44770,6 +44779,15 @@ paths:
                 platform:
                   description: The platform the tests run on. Absent where the build system has none.
                   type: string
+                  x-struct:
+                  x-validate:
+                skipped_modules:
+                  description: The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 xcode:

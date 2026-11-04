@@ -25649,7 +25649,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/head_sha`.
             public var head_sha: Swift.String
-            /// The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+            /// The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modules`.
             public var modules: [Swift.String]?
@@ -25661,6 +25661,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/platform`.
             public var platform: Swift.String?
+            /// The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/skipped_modules`.
+            public var skipped_modules: [Swift.String]?
             /// Xcode only: the scope the invocation tests.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode`.
@@ -25715,9 +25719,10 @@ public enum Components {
             ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///   - git_branch: The git branch, shown on the overview.
             ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
-            ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+            ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`.
             ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
             ///   - platform: The platform the tests run on. Absent where the build system has none.
+            ///   - skipped_modules: The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
                 ancestor_shas: [Swift.String]? = nil,
@@ -25733,6 +25738,7 @@ public enum Components {
                 modules: [Swift.String]? = nil,
                 parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
+                skipped_modules: [Swift.String]? = nil,
                 xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload? = nil
             ) {
                 self.ancestor_shas = ancestor_shas
@@ -25748,6 +25754,7 @@ public enum Components {
                 self.modules = modules
                 self.parent_shas = parent_shas
                 self.platform = platform
+                self.skipped_modules = skipped_modules
                 self.xcode = xcode
             }
             public enum CodingKeys: String, CodingKey {
@@ -25764,6 +25771,7 @@ public enum Components {
                 case modules
                 case parent_shas
                 case platform
+                case skipped_modules
                 case xcode
             }
         }
@@ -108823,7 +108831,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/head_sha`.
                     public var head_sha: Swift.String
-                    /// The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+                    /// The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modules`.
                     public var modules: [Swift.String]?
@@ -108835,6 +108843,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/platform`.
                     public var platform: Swift.String?
+                    /// The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/skipped_modules`.
+                    public var skipped_modules: [Swift.String]?
                     /// Xcode only: the scope the invocation tests.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode`.
@@ -108889,9 +108901,10 @@ public enum Operations {
                     ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///   - git_branch: The git branch, shown on the overview.
                     ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
-                    ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
+                    ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`.
                     ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
                     ///   - platform: The platform the tests run on. Absent where the build system has none.
+                    ///   - skipped_modules: The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
                         ancestor_shas: [Swift.String]? = nil,
@@ -108907,6 +108920,7 @@ public enum Operations {
                         modules: [Swift.String]? = nil,
                         parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
+                        skipped_modules: [Swift.String]? = nil,
                         xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload? = nil
                     ) {
                         self.ancestor_shas = ancestor_shas
@@ -108922,6 +108936,7 @@ public enum Operations {
                         self.modules = modules
                         self.parent_shas = parent_shas
                         self.platform = platform
+                        self.skipped_modules = skipped_modules
                         self.xcode = xcode
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -108938,6 +108953,7 @@ public enum Operations {
                         case modules
                         case parent_shas
                         case platform
+                        case skipped_modules
                         case xcode
                     }
                 }

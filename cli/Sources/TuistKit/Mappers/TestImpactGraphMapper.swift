@@ -9,8 +9,8 @@ import XcodeGraph
 ///
 /// It asks `TestImpactSelector.current` about the test targets in scope that hashing left. Modules none
 /// of whose tests was selected are tagged prunable like hash hits, so they aren't built. When selection
-/// says every test runs (the default branch, or a fallback that makes the commit a baseline), the
-/// targets hashing tagged are kept. Without a selector, the graph is unchanged.
+/// says every test runs (a fallback that makes the commit a baseline), the targets hashing tagged are
+/// kept. Without a selector, the graph is unchanged.
 struct TestImpactGraphMapper: GraphMapping {
     private static let prunableTag = "tuist:prunable"
 
@@ -29,10 +29,21 @@ struct TestImpactGraphMapper: GraphMapping {
 
         let inScope = testTargetsInScope(graph: graph)
         let left = inScope.filter { !$0.target.metadata.tags.contains(Self.prunableTag) }
+        // `initialGraph` is the graph before hashing tagged anything, so a target prunable there
+        // was tagged for another reason (such as `--skip-ui-tests`) and stays so.
+        let prunableBefore = Set(
+            (environment.initialGraph.map(GraphTraverser.init)?.allTargets() ?? [])
+                .filter { $0.target.metadata.tags.contains(Self.prunableTag) }
+                .map(Self.reference)
+        )
+        let hashSkipped = inScope.filter {
+            $0.target.metadata.tags.contains(Self.prunableTag) && !prunableBefore.contains(Self.reference($0))
+        }
         let invocation = await selector.invocation
         let affectedModules = TestImpactAffectedModules(graph: graph)
         let decision = await selector.decide(
             modules: Set(left.map(\.target.name)).sorted(),
+            skippedModules: Set(hashSkipped.map(\.target.name)).sorted(),
             platform: (invocation.platform ?? Self.sharedPlatform(of: left.isEmpty ? inScope : left))?.rawValue,
             affectedModules: { affectedModules.affectedModules(path: $0) }
         )
@@ -46,18 +57,7 @@ struct TestImpactGraphMapper: GraphMapping {
                 if pruned.contains(reference) { target.metadata.tags.insert(Self.prunableTag) }
             }, [], environment)
         case .runAll:
-            // `initialGraph` is the graph before hashing tagged anything, so a target prunable there
-            // was tagged for another reason (such as `--skip-ui-tests`) and stays so.
-            let prunableBefore = Set(
-                (environment.initialGraph.map(GraphTraverser.init)?.allTargets() ?? [])
-                    .filter { $0.target.metadata.tags.contains(Self.prunableTag) }
-                    .map(Self.reference)
-            )
-            let kept = Set(
-                inScope
-                    .filter { $0.target.metadata.tags.contains(Self.prunableTag) }
-                    .map(Self.reference)
-            ).subtracting(prunableBefore)
+            let kept = Set(hashSkipped.map(Self.reference))
             var environment = environment
             for target in kept {
                 environment.targetTestCacheItems[target.projectPath]?[target.name] = nil

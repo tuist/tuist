@@ -19,6 +19,7 @@ struct CreateTestImpactRunServiceTests {
             ancestorSHAs: ancestorSHAs,
             basis: basis,
             modules: ["CoreTests"],
+            skippedModules: ["CachedTests"],
             platform: "ios",
             gitBranch: "feature/discount",
             scheme: "Shop",
@@ -50,6 +51,7 @@ struct CreateTestImpactRunServiceTests {
         #expect(body.parent_shas == ["base", "head"])
         #expect(body.build_system == "xcode")
         #expect(body.modules == ["CoreTests"])
+        #expect(body.skipped_modules == ["CachedTests"])
         #expect(body.platform == "ios")
         #expect(body.git_branch == "feature/discount")
         #expect(body.xcode == .init(destination: nil, scheme: "Shop", test_plan: nil))
