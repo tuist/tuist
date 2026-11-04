@@ -143,6 +143,11 @@ pulso:
   ingestBatching:
     maxConcurrentRequests: 32
     flushIntervalMs: 20
+  # Merge small log segments (one per Alloy push) so LogQL panels and alert
+  # rules read tens of objects instead of thousands. Single writer, so every
+  # reader/writer/compactor runs the same version.
+  logCompaction:
+    enabled: true
   # Atlas (atlas-production cluster) queries this Pulso over MCP only; see the
   # path allowlist in values.yaml. Each environment has its own token audience,
   # so a token sent to one Pulso is never accepted by another.
