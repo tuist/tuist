@@ -178,6 +178,91 @@ export function registerNavigationTools({
   );
 }
 
+// Registers a tool that opens a documentation page in the tab, so an agent
+// that found one with `search_tuist` can show it to the user. Other tools on
+// the docs pages already read the content; this one only navigates.
+export function registerDocsNavigationTool({
+  modelContext = globalThis.document?.modelContext,
+  liveSocket = globalThis.liveSocket,
+  document = globalThis.document,
+  location = globalThis.location,
+  fetch = globalThis.fetch,
+  target = globalThis,
+  timeout = 10_000,
+} = {}) {
+  if (!modelContext?.registerTool || !liveSocket) return Promise.resolve([]);
+
+  const tool = {
+    name: "navigate_to_docs_page",
+    title: "Navigate to Docs Page",
+    description:
+      "Opens a page of the Tuist documentation in this tab, so the user can read it. Find pages with search_tuist and pass a result's URL, or a documentation path such as /en/docs/guides/features/cache. Only documentation pages on this site can be opened. Resolves once the page has rendered, with its path and title.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "A documentation URL or path, for example from search_tuist." },
+      },
+      required: ["path"],
+    },
+    // Navigating changes what the tab shows, not any data.
+    annotations: { readOnlyHint: true },
+    async execute({ path } = {}) {
+      const url = docsURL(path, location);
+      if (!url) {
+        return { isError: true, error: `${path} is not a Tuist documentation page on ${location.origin}.` };
+      }
+
+      // The page may not exist, or the site may redirect an untranslated page
+      // to its English source; open where the site would end up.
+      let response;
+      try {
+        response = await fetch(url.href, { method: "HEAD" });
+      } catch (error) {
+        return { isError: true, error: `Could not reach Tuist: ${error?.message ?? error}` };
+      }
+      const destination = response.ok && docsURL(response.url || url.href, location);
+      if (!destination) return { isError: true, error: `There is no documentation page at ${url.pathname}.` };
+      const href = `${destination.pathname}${destination.search}${url.hash}`;
+
+      // Each locale's docs are their own LiveView session: pages within the
+      // current locale patch like the sidebar's links, and another locale's
+      // load as a new document, which ends this one.
+      if (docsLocale(destination.pathname) !== docsLocale(location.pathname)) {
+        liveSocket.js().navigate(href);
+        return { path: href, reloading: true };
+      }
+      const loaded = pageLoaded(target, timeout);
+      liveSocket.js().patch(href);
+      await loaded;
+      // LiveView updates the document's title after the content, so name the
+      // page by its heading.
+      const heading = document?.querySelector?.("#docs-content h1")?.textContent.trim();
+      return { path: `${location.pathname}${location.hash}`, title: heading || document?.title };
+    },
+  };
+
+  // A browser that refuses the tool may throw as well as reject.
+  return Promise.resolve()
+    .then(() => modelContext.registerTool(tool))
+    .then(
+      () => [tool.name],
+      () => [],
+    );
+}
+
+// The same-origin documentation URL `path` names, or null.
+function docsURL(path, location) {
+  let url;
+  try {
+    url = new URL(path, location.origin);
+  } catch {
+    return null;
+  }
+  return url.origin === location.origin && docsLocale(url.pathname) ? url : null;
+}
+
+const docsLocale = (pathname) => pathname.match(/^\/([^/]+)\/docs(?:\/|$)/)?.[1];
+
 const dashboardHeaderbar = (document) => document?.querySelector("header[data-webmcp-endpoint]");
 
 // The sidebar's pages, then the breadcrumbs' accounts and projects; only links
