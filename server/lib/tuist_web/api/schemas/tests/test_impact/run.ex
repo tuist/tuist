@@ -27,7 +27,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
       reason: %Schema{
         type: :string,
         description:
-          "Why the run fell back, such as `excluded_branch`, `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
+          "Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
       },
       matched_path: %Schema{
         type: :string,

@@ -140,9 +140,8 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert selected(project, run) == []
     end
 
-    test "falls back on the default branch", %{project: project} do
-      assert {:ok, %{run: %{outcome: "fallback", reason: "excluded_branch"}}} =
-               Runs.create(project, params(%{git_branch: project.default_branch}))
+    test "selects on the default branch like on any other", %{project: project} do
+      assert {:ok, %{run: %{outcome: "selected"}}} = Runs.create(project, params(%{git_branch: project.default_branch}))
     end
 
     test "falls back when the diff is over 5,000 files", %{project: project} do
