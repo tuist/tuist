@@ -377,7 +377,8 @@ struct CargoCompilationCache {
             }
         }
         try invocation.certifyOutputs(metadataOnly: false)
-        try write(try result.serializedData(), to: index)
+        // A remote entry is kept locally; a local one, read from the index just now, renews its use like a blob.
+        if downloadMissing { try write(try result.serializedData(), to: index) } else { CargoBlobStore.markUsed(index.path) }
         CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
         replay(result.stdoutRaw, restoredStderr)
         return true

@@ -362,10 +362,9 @@ struct CargoCacheInvocation: CargoCacheAction {
 
     private func certify(metadataOnly: Bool) throws {
         for name in metadataOnly ? [files[1]] : Array(files.prefix(2)) {
-            let digest = try inputHasher.digest(output.appendingPathComponent(name), shared: true)
-            guard let proof = CargoCacheInputs.proofPath(digest, environment: environment) else { continue }
-            try FileManager.default.createDirectory(at: proof.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(Self.keyVersion.utf8).write(to: proof, options: .atomic)
+            try CargoCacheInputs.certify(
+                inputHasher.digest(output.appendingPathComponent(name), shared: true), environment: environment
+            )
         }
     }
 

@@ -256,7 +256,7 @@ extension CargoUnitCache {
         }
         guard !missing.isEmpty else {
             debug("all \(manifest.units.count) dependency units are present")
-            return Restored(previous: manifest.units, files: manifest.files ?? [])
+            return Restored(manifest: manifest)
         }
         // A target directory without this profile takes the whole selection at once, from a snapshot an earlier
         // restoration left: one directory clone instead of creating, cloning and verifying every file.
@@ -265,7 +265,7 @@ extension CargoUnitCache {
             debug("restored \(missing.count) of \(manifest.units.count) dependency units from a snapshot")
             return Restored(
                 units: Dictionary(missing.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }), at: at,
-                previous: manifest.units, files: manifest.files ?? []
+                manifest: manifest
             )
         }
         var needed: [REAPI.Digest: URL] = [:]
@@ -279,7 +279,7 @@ extension CargoUnitCache {
         if !needed.isEmpty {
             guard let remote else {
                 debug("\(needed.count) unit blobs are missing locally and there is no remote")
-                return Restored(previous: manifest.units, files: manifest.files ?? [])
+                return Restored(manifest: manifest)
             }
             do {
                 try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
@@ -307,19 +307,19 @@ extension CargoUnitCache {
             if let snapshot, restored.count == missing.count { saveSnapshot(snapshot, units: missing, at: restoredAt) }
             return Restored(
                 units: Dictionary(restored.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }), at: restoredAt,
-                previous: manifest.units, files: manifest.files ?? []
+                manifest: manifest
             )
-        } ?? Restored(previous: manifest.units, files: manifest.files ?? [])
+        } ?? Restored(manifest: manifest)
     }
 
     struct Restored {
         var units: [String: Unit] = [:]
         var at = Date.distantPast
         /// The manifest restoration read. Publication keeps its units this build did not see, so other lockfiles and
-        /// feature sets keep theirs.
-        var previous: [Unit] = []
-        /// The manifest's per-crate cache entries, which publication keeps behind the ones this build used.
-        var files: [IndexFile] = []
+        /// feature sets keep theirs, and its per-crate cache entries behind the ones this build used.
+        var manifest: Manifest?
+        var previous: [Unit] { manifest?.units ?? [] }
+        var files: [IndexFile] { manifest?.files ?? [] }
     }
 
     /// Whether a listed entry is an action whose outputs a unit carries, judged from the local copy when there is one.
@@ -405,7 +405,8 @@ extension CargoUnitCache {
 
     func manifest() async -> Manifest? {
         let index = root.appendingPathComponent("unit-actions/" + actionDigest.hash)
-        var result = (try? Data(contentsOf: index)).flatMap { try? REAPI.ActionResult(serializedBytes: $0) }
+        let local = (try? Data(contentsOf: index)).flatMap { try? REAPI.ActionResult(serializedBytes: $0) }
+        var result = local
         if result == nil, let remote {
             do { result = try await remote.actionResult(for: actionDigest) } catch {
                 debug("unit manifest lookup failed: \(REAPI.describe(error))")
@@ -427,7 +428,10 @@ extension CargoUnitCache {
               REAPI.digest(data) == output.digest,
               let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
         else { return nil }
-        try? write(result.serializedData(), to: index)
+        // Pruning goes by modification time: a local entry renews its use like a blob, instead of being rewritten on
+        // every build, and publication skips a manifest that did not change.
+        if local == nil { try? write(result.serializedData(), to: index) } else { CargoBlobStore.markUsed(index.path) }
+        blobStore.markUsed(output.digest)
         return manifest
     }
 
@@ -471,9 +475,7 @@ extension CargoUnitCache {
                 guard chmod(destination, file.executable ? 0o755 : 0o644) == 0,
                       utimensat(AT_FDCWD, destination, &times, 0) == 0
                 else { throw CocoaError(.fileWriteUnknown) }
-                if file.certified == true, let proof = CargoCacheInputs.proofPath(file.digest, environment: environment) {
-                    Self.writeProof(proof)
-                }
+                if file.certified == true { try? CargoCacheInputs.certify(file.digest, environment: environment) }
             }
             remember(unit.files, at: date)
             return true
@@ -492,24 +494,10 @@ extension CargoUnitCache {
               CargoInputHasher.isServing(session: session) else { return }
         let hasher = CargoInputHasher(sessionDirectory: session)
         let seconds = String(Int(date.timeIntervalSince1970))
-        for file in files where !file.path.hasPrefix(".fingerprint/") {
-            hasher.remember(profile.appendingPathComponent(file.path, isDirectory: false), digest: file.digest) {
-                $0.fields[2] == String(file.size) && $0.fields[4] == seconds && $0.fields[5] == "0"
-            }
+        let base = profile.path + "/"
+        hasher.remember(files.filter { !$0.path.hasPrefix(".fingerprint/") }.map { (base + $0.path, $0.digest) }) {
+            $0.fields[2] == String($1.sizeBytes) && $0.fields[4] == seconds && $0.fields[5] == "0"
         }
-    }
-
-    /// Records a proof once. Proofs are written whole by `open(O_EXCL)` and `write`, then never change: a reader
-    /// that sees a partial one only declines to trust the artifact.
-    private static func writeProof(_ proof: URL) {
-        var descriptor = open(proof.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o644)
-        if descriptor < 0, errno == ENOENT {
-            try? FileManager.default.createDirectory(at: proof.deletingLastPathComponent(), withIntermediateDirectories: true)
-            descriptor = open(proof.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o644)
-        }
-        guard descriptor >= 0 else { return }
-        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-        try? handle.write(contentsOf: Data(CargoCacheInvocation.keyVersion.utf8))
     }
 
     /// Clones `source` to an absent `destination`. Returns false when the destination exists or the file system cannot
@@ -565,7 +553,7 @@ extension CargoUnitCache {
                 return nil
             }
             for file in units.flatMap(\.files) where file.certified == true {
-                if let proof = CargoCacheInputs.proofPath(file.digest, environment: environment) { Self.writeProof(proof) }
+                try? CargoCacheInputs.certify(file.digest, environment: environment)
             }
             remember(units.flatMap(\.files), at: Date(timeIntervalSince1970: record.at))
             // Use marks are renewed hourly, like a blob's; the snapshot's blobs stay recent with it, since restoring
@@ -728,6 +716,9 @@ extension CargoUnitCache {
         let rustcInfo = (try? Data(contentsOf: targetDirectory.appendingPathComponent(".rustc_info.json")))
             .flatMap { $0.count <= 1_000_000 ? String(data: $0, encoding: .utf8) : nil }
         let manifest = Manifest(units: Array(units), files: files.isEmpty ? nil : Array(files), rustcInfo: rustcInfo)
+        // The manifest restoration read is stored here already (`manifest()` renewed its use), and published wherever
+        // it came from: a warm build that changed nothing has nothing to encode, hash or write.
+        guard manifest != restored.manifest else { return }
         // Sorted keys, so an unchanged build encodes the same manifest and publishes nothing new.
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
@@ -810,8 +801,18 @@ extension CargoUnitCache {
             }
         }
         let reusedNames = Set(reused.map(\.name))
+        func package(_ name: String) -> String { String(name.dropLast(17)) }
+        // Only units this command created are published, so only their packages are classified: a warm build that
+        // reused every dependency does not read the dep-info of the workspace's own units.
+        let fresh = candidates.filter { name in
+            guard !reusedNames.contains(name),
+                  let created = (try? fingerprints.appendingPathComponent(name).resourceValues(forKeys: [.creationDateKey]))?
+                  .creationDate else { return false }
+            return created >= sessionStarted.addingTimeInterval(-1)
+        }
+        let freshPackages = Set(fresh.map(package))
         var classified: [String: Bool] = [:]
-        for name in candidates where !reusedNames.contains(name) {
+        for name in candidates where !reusedNames.contains(name) && freshPackages.contains(package(name)) {
             let hash = String(name.suffix(16))
             let depInfo = deps.filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("deps/" + $0) }
                 + ((try? FileManager.default.contentsOfDirectory(atPath: profile.appendingPathComponent("build/" + name).path))
@@ -819,16 +820,12 @@ extension CargoUnitCache {
             guard !depInfo.isEmpty else { continue }
             classified[name] = depInfo.allSatisfy(isDependencySource)
         }
-        func package(_ name: String) -> String { String(name.dropLast(17)) }
         var packages: [String: Bool] = [:]
         for (name, dependency) in classified {
             packages[package(name), default: true] = packages[package(name), default: true] && dependency
         }
-        let created = candidates.filter { name in
-            guard !reusedNames.contains(name),
-                  let created = (try? fingerprints.appendingPathComponent(name).resourceValues(forKeys: [.creationDateKey]))?
-                  .creationDate, created >= sessionStarted.addingTimeInterval(-1) else { return false }
-            return classified[name] ?? (packages[package(name)] == true && runBinding(name) != nil)
+        let created = fresh.filter { name in
+            classified[name] ?? (packages[package(name)] == true && runBinding(name) != nil)
         }
         let collected = Self.concurrentMap(Array(created)) { collect($0, deps: deps) }.compactMap { $0 }
         var budget: Int64 = 8_000_000_000
@@ -976,8 +973,7 @@ extension CargoUnitCache {
                 guard let data = try? Data(contentsOf: file) else { return nil }
                 bound.formUnion(relocation.boundRoots(in: data).map(\.path))
             }
-            let certified = CargoCacheInputs.proofPath(digest, environment: environment)
-                .map { FileManager.default.fileExists(atPath: $0.path) } == true
+            let certified = CargoCacheInputs.isCertified(digest, environment: environment)
             files.append(File(
                 path: path,
                 hash: digest.hash,

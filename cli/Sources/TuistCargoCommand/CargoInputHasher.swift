@@ -74,9 +74,11 @@ final class CargoInputHasher {
             return files[memo.path]
         }
 
-        func setFile(_ memo: URL, _ entry: Entry) {
+        func setFile(_ memo: URL, _ entry: Entry) { setFile(memo.path, entry) }
+
+        func setFile(_ memo: String, _ entry: Entry) {
             lock.lock()
-            files[memo.path] = entry
+            files[memo] = entry
             lock.unlock()
         }
 
@@ -189,6 +191,27 @@ final class CargoInputHasher {
             try? data.write(to: memo, options: .atomic)
         }
         Self.processRecords.setFile(memo, entry)
+    }
+
+    /// `remember` for files by path, such as the hundreds a unit restoration writes: the served check once for all of
+    /// them, and no URL per file. Their identities come from `lstat`, as `identity(_:)` takes them.
+    func remember(_ files: [(path: String, digest: REAPI.Digest)], when accepts: (Identity, REAPI.Digest) -> Bool) {
+        guard let sharedDirectory else { return }
+        let directory = sharedDirectory.path
+        let inMemory = inMemory
+        for (path, digest) in files {
+            var value = stat()
+            guard lstat(path, &value) == 0, value.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else { continue }
+            let identity = Self.identity(value)
+            guard identity.precise, accepts(identity, digest) else { continue }
+            let entry = Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes)
+            let memo = directory + "/" + REAPI.digest(Data(path.utf8)).hash
+            if !inMemory, let data = try? JSONEncoder().encode(entry) {
+                try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
+                try? data.write(to: URL(fileURLWithPath: memo, isDirectory: false), options: .atomic)
+            }
+            Self.processRecords.setFile(memo, entry)
+        }
     }
 
     private func readEntry(_ file: URL) throws -> Entry {
