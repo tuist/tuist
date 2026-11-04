@@ -13,12 +13,14 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserToken
   alias Tuist.Analytics
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
 
   @current_user_key :current_user
   @current_project_key :current_project
@@ -171,7 +173,35 @@ defmodule TuistWeb.Authentication do
   if you are not using LiveView.
   """
   def log_in_user(conn, user, params \\ %{}) do
-    token = Accounts.generate_user_session_token(user, params)
+    # An enrolled factor always means a challenge: a verified session is only
+    # issued by UserMFA.complete_challenge/2 and bound by log_in_user_session/3.
+    if UserMFA.enabled?(user) do
+      challenge = UserMFA.create_challenge(user, params)
+
+      conn
+      |> configure_session(renew: true)
+      |> delete_session(:user_token)
+      |> delete_session(:live_socket_id)
+      |> delete_session(:auth_method)
+      |> delete_resp_cookie(@remember_me_cookie)
+      |> put_session(:pending_mfa, challenge)
+      |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
+      |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
+      |> redirect(to: ~p"/users/mfa")
+      |> halt()
+    else
+      token = Accounts.generate_user_session_token(user, params)
+      complete_user_login(conn, user, token, params)
+    end
+  end
+
+  # MFA issues the credential atomically with proof consumption. Binding its
+  # existing token to the cookie must not mint a replacement after revocation.
+  def log_in_user_session(conn, %UserToken{context: "session"} = session, params) do
+    complete_user_login(conn, session.user, session.token, params)
+  end
+
+  defp complete_user_login(conn, user, token, params) do
     user_return_to = get_session(conn, :user_return_to)
     auth_method = Map.get(params, :auth_method, :password)
 
@@ -255,6 +285,7 @@ defmodule TuistWeb.Authentication do
   def log_out_user(conn, opts \\ []) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
+    if challenge = get_session(conn, :pending_mfa), do: UserMFA.delete_challenge(challenge)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       TuistWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
@@ -587,10 +618,7 @@ defmodule TuistWeb.Authentication do
         conn
 
       organization ->
-        conn
-        |> put_session(:oauth_return_to, current_path(conn))
-        |> redirect(to: sso_provider_path(organization))
-        |> halt()
+        redirect_to_sso_sign_in(conn, organization)
     end
   end
 
@@ -646,6 +674,59 @@ defmodule TuistWeb.Authentication do
   end
 
   defp sso_applies_to?(_assigns, _organization), do: true
+
+  @doc """
+  The dashboard's per-account SSO check for JSON endpoints that act on the
+  account in the path, such as WebMCP: refuses the request instead of
+  redirecting to the provider.
+  """
+  def require_sso_authentication_for_account_api(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    case required_sso_organization(conn, account_handle, conn.assigns[:current_user_session]) do
+      nil ->
+        conn
+
+      _organization ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "Sign in with this organization's single sign-on provider to use its Tuist tools."})
+        |> halt()
+    end
+  end
+
+  @doc """
+  Guards pages that issue credentials acting for the user in every account
+  they can reach, such as OAuth authorizations and CLI device codes, so the
+  credential cannot be used to sidestep an organization's SSO enforcement.
+  """
+  def require_sso_authentication_for_credentials(conn, _opts) do
+    case current_user(conn) do
+      nil ->
+        conn
+
+      user ->
+        case Accounts.sso_requirement(user, conn.assigns[:current_user_session]) do
+          :ok ->
+            conn
+
+          {:sign_in_with, organization} ->
+            redirect_to_sso_sign_in(conn, organization)
+
+          {:error, :conflicting_requirements} ->
+            raise UnauthorizedError,
+                  dgettext(
+                    "dashboard_auth",
+                    "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
+                  )
+        end
+    end
+  end
+
+  defp redirect_to_sso_sign_in(conn, organization) do
+    conn
+    |> put_session(:oauth_return_to, current_path(conn))
+    |> redirect(to: sso_provider_path(organization))
+    |> halt()
+  end
 
   defp anonymous_public_account?(subject, account_handle) do
     if authenticated?(subject.assigns) do

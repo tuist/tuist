@@ -44,10 +44,20 @@ import (
 //go:embed vultr_convert.sh
 var vultrConvertScript string
 
+//go:embed vultr_convert_lvm.sh
+var vultrConvertLVMScript string
+
+func renderVultrConversionScript(lvm bool) string {
+	if lvm {
+		return kuraLVMSetupScript + "\n" + vultrConvertLVMScript
+	}
+	return vultrConvertScript
+}
+
 // vultrConvertResult parses the machine-readable tail the conversion prints, so
 // status records what the box actually ended up with rather than what was asked
 // for.
-var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+)`)
+var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+)(?: vg=(\S+))?`)
 
 const (
 	// VultrMachineFinalizer guards the CR until the node identity is cleaned up
@@ -431,7 +441,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 		known = creds.HostFingerprint
 	}
 	hk := bootstrap.NewHostKeyState(known)
-	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, vultrConvertScript, hk)
+	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, renderVultrConversionScript(kuraLVMRequested(machine.Annotations)), hk)
 	if observed := hk.Observed(); observed != "" && observed != known {
 		if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, observed); perr != nil {
 			logger.Error(perr, "persist host fingerprint; will retry")
@@ -446,7 +456,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 	}
 
 	m := vultrConvertResult.FindStringSubmatch(out)
-	if m == nil {
+	if m == nil || m[2] != "xfs" || m[3] != "true" || (kuraLVMRequested(machine.Annotations) && m[4] != "kura-volumes") {
 		// The script exits non-zero when the gates fail, so a zero exit without a
 		// result line means it is not the script we think it is.
 		status.Attempts++
@@ -465,6 +475,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 func (r *VultrMachineReconciler) hostOptions(machine *infrav1.VultrMachine) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
 		NodeName:      machine.Name,
+		KuraLVM:       kuraLVMRequested(machine.Annotations),
 		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
 		Taints:        machine.Spec.NodeTaints,
 		BootstrapUser: vultrBootstrapUser,

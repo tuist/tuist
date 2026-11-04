@@ -69,6 +69,27 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to Kura data volumes encrypted at rest
+  (`kura-encrypted-nvme`) in regions on the node-local NVMe class.
+  """
+  def kura_encrypted_volumes_enabled?(account) do
+    FunWithFlags.enabled?(:kura_encrypted_volumes, for: account)
+  end
+
+  @doc """
+  Default-off account opt-in to thin encrypted Kura volumes
+  (`kura-thin-encrypted-nvme`). It applies only in regions listed in
+  `TUIST_KURA_THIN_REGIONS` (`Tuist.Kura.Regions.thin_volumes?/2`).
+  """
+  def kura_thin_volumes_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :kura_thin_volumes,
+      account,
+      flag_enabled?(:kura_thin_volumes, account, flags)
+    )
+  end
+
+  @doc """
   Whether legacy endpoint discovery may hand out the stable hostname. Canary
   enables this automatically; other environments use the account/global flag.
   DNS publication is independent because new CLIs derive that hostname locally.
@@ -124,6 +145,17 @@ defmodule Tuist.FeatureFlags do
   """
   def runner_docker_cache_enabled?(account) do
     Environment.env() != :prod or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+  end
+
+  @doc """
+  Whether a verified GitHub Actions OIDC token binds the account's runner
+  session to the job it names (`Tuist.Runners.ExecutionTokens.prove/1`).
+  Production requires the `:runner_oidc_execution` flag for the account during
+  the rollout; without it the server only logs the job a token names.
+  Other environments default to enabled.
+  """
+  def runner_oidc_execution_enabled?(account) do
+    Environment.env() != :prod or FunWithFlags.enabled?(:runner_oidc_execution, for: account)
   end
 
   @doc """

@@ -242,6 +242,12 @@ defmodule TuistWeb.CoverageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-analytics']")
+
+      assert has_element?(
+               lv,
+               "[data-part='empty-analytics'] a[href='https://tuist.dev/en/docs/guides/features/test-code-coverage']"
+             )
+
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
 
       stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)

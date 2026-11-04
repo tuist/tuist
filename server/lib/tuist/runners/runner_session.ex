@@ -36,6 +36,10 @@ defmodule Tuist.Runners.RunnerSession do
     # from the `in_progress` / `completed` webhook. Durable ground
     # truth that outlives the pod; NULL until GitHub proves it.
     field :executed_workflow_job_id, :integer
+    # What the GitHub OIDC token that bound `executed_workflow_job_id` claimed
+    # about the job (repository, ref, trigger, run), recorded only when the
+    # token bound it (`Tuist.Runners.ExecutionTokens`). Never the token.
+    field :execution_identity, :map
     field :repository, :string, default: ""
     field :workflow_name, :string, default: ""
     field :started_at, :utc_datetime_usec

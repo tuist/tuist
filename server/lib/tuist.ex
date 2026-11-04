@@ -95,6 +95,7 @@ defmodule Tuist do
       Kura.Identity,
       Kura.Registrations,
       Kura.RegisteredEndpoint,
+      Kura.VolumeKeys,
       Gradle,
       Gradle.Analytics,
       Gradle.Metrics,
@@ -185,6 +186,7 @@ defmodule Tuist do
       Shards.ShardPlanTestSuite,
       Shards.ShardRun,
       MCP.Server,
+      MCP.WebMCP,
       MCP.Transport.StreamableHTTP,
       # App
       # -----
@@ -198,6 +200,8 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.User,
+      Accounts.UserMFA,
+      Accounts.UserPasskey,
       Accounts.UserToken,
       Authentication,
       Authentication.UnavailableError,
@@ -341,6 +345,7 @@ defmodule Tuist do
       Runners.Trials,
       Runners.Concurrency,
       Runners.Dispatch,
+      Runners.ExecutionTokens,
       Runners.Workers.CloseDisconnectedInteractiveSessionWorker,
       Runners.Workers.DispatchWorker,
       Runners.Workers.ExpireInteractiveSessionsWorker,

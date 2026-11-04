@@ -36,6 +36,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     gate(:runners, :boolean, nil, true)
     gate(:runners, :actor, "account:#{excluded.id}", false)
     gate(:runner_site_cache, :actor, "account:#{included.id}", true)
+    gate(:kura_thin_volumes, :actor, "account:#{included.id}", true)
     reject(FunWithFlags, :enabled?, 1)
     reject(FunWithFlags, :enabled?, 2)
 
@@ -47,10 +48,12 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     refute Enum.any?(result.evaluations, &(&1.actor_type == "project"))
     refute enabled?(result, "runners")
     refute enabled?(result, "runner_site_cache")
+    refute enabled?(result, "kura_thin_volumes")
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => included.id})
     assert enabled?(result, "runners")
     assert enabled?(result, "runner_site_cache")
+    assert enabled?(result, "kura_thin_volumes")
   end
 
   test "the persisted batch excludes other actors and flags outside the catalog" do

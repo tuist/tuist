@@ -43,6 +43,87 @@ defmodule TuistWeb.AuthControllerTest do
     end
   end
 
+  describe "device code approval with SSO enforcement" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      %{user: user, organization: enforce_sso(organization, :google, "example.com")}
+    end
+
+    test "sends a session that did not sign in with the organization's provider to it first", %{
+      conn: conn,
+      user: user
+    } do
+      conn = log_in_user(conn, user)
+
+      conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
+
+      assert redirected_to(conn) == "/users/auth/google"
+      assert get_session(conn, :oauth_return_to) == "/auth/device_codes/SSO-1234?type=cli"
+    end
+
+    test "approves the device code for a session signed in with the provider", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> put_session(
+          :user_token,
+          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+        )
+
+      conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
+
+      assert redirected_to(conn) == "/auth/device_codes/SSO-1234/success?type=cli"
+    end
+
+    test "the success page records the SSO sign-in that approved the device code", %{conn: conn, user: user} do
+      Accounts.create_device_code("SSO-9012")
+
+      token =
+        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+
+      conn = conn |> init_test_session(%{}) |> put_session(:user_token, token)
+
+      assert {:ok, _view, _html} = live(conn, "/auth/device_codes/SSO-9012/success?type=cli")
+
+      assert %{authenticated: true, auth_provider: "google", auth_provider_organization_id: "example.com"} =
+               Accounts.get_device_code("SSO-9012")
+    end
+
+    test "the success page does not approve the device code for a session the route would refuse", %{
+      conn: conn,
+      user: user
+    } do
+      Accounts.create_device_code("SSO-5678")
+      conn = log_in_user(conn, user)
+
+      assert {:error, {:redirect, %{to: "/auth/device_codes/SSO-5678?type=cli"}}} =
+               live(conn, "/auth/device_codes/SSO-5678/success?type=cli")
+
+      refute Accounts.get_device_code("SSO-5678").authenticated
+    end
+
+    test "refuses a session that several SSO-enforcing organizations cannot all accept", %{
+      conn: conn,
+      user: user
+    } do
+      okta = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, okta, role: :user)
+      enforce_sso(okta, :okta, "https://okta.example.com")
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> put_session(
+          :user_token,
+          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+        )
+
+      assert_error_sent 401, fn -> get(conn, "/auth/device_codes/SSO-1234?type=cli") end
+    end
+  end
+
   describe "GET /auth/device_codes/:device_code" do
     test "redirects to log in when the user is not logged in", %{conn: conn} do
       # Given
@@ -1164,6 +1245,27 @@ defmodule TuistWeb.AuthControllerTest do
       stub_sso_userinfo("linked-user", user.email)
       correct_conn = sso_callback(build_conn(), target)
       assert {:ok, _, _} = live(recycle(correct_conn), protected_path)
+
+      session = Accounts.get_user_session(get_session(correct_conn, :user_token))
+      {:ok, factor} = Accounts.UserMFA.begin_enrollment(user, session)
+      code = NimbleTOTP.verification_code(factor.secret, time: Tuist.Time.utc_now())
+      {:ok, %{recovery_codes: [other_code, target_code | _]}} = Accounts.UserMFA.confirm_enrollment(user, session, code)
+
+      for {organization, recovery} <- [{other, other_code}, {target, target_code}] do
+        stub_sso_userinfo("linked-user", user.email)
+        pending = sso_callback(build_conn(), organization)
+        assert redirected_to(pending) == ~p"/users/mfa"
+        refute get_session(pending, :user_token)
+        verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => recovery})
+
+        if organization.id == target.id do
+          assert {:ok, _, _} = live(recycle(verified), protected_path)
+        else
+          assert verified |> recycle() |> get(protected_path) |> redirected_to() == expected
+          {:ok, view, _} = live(recycle(verified), ~p"/#{other.account.name}/projects")
+          assert {:error, {:redirect, %{to: ^expected}}} = live_redirect(view, to: protected_path)
+        end
+      end
     end
   end
 
@@ -1730,5 +1832,13 @@ defmodule TuistWeb.AuthControllerTest do
       # Then
       assert redirected_to(conn) == "/users/log_in"
     end
+  end
+
+  defp enforce_sso(organization, provider, provider_organization_id) do
+    # Enabling enforcement through `Accounts` also requires a verified login
+    # email domain, which is not what these tests are about.
+    organization
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: provider, sso_organization_id: provider_organization_id)
+    |> Repo.update!()
   end
 end
