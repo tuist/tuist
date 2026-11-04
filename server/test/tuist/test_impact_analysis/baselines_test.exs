@@ -110,6 +110,63 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
       assert {:ok, %{sha: "c1", distance: 1}} = Baselines.resolve(project, scope("f2"))
     end
 
+    test "walks from the known ancestors sent, counting the window as a walk of the whole graph", %{
+      account: account,
+      project: project
+    } do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 5, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c1")
+      for i <- 2..5, do: measured(project, repository_id, "c#{i}")
+      ancestors = %{parent_shas: ["x2"], ancestor_shas: ["x2", "x1", "c5", "c4", "c3"]}
+
+      assert {:ok, %{sha: "c1", distance: 5}} = Baselines.resolve(project, scope("x3", ancestors))
+
+      GitHistory.record_commits(repository_id, "sha1", chain("x", 3, "c5", 10))
+      assert {:ok, %{sha: "c1", distance: 5}} = Baselines.resolve(project, scope("x3"))
+    end
+
+    test "answers history_unknown when none of the ancestors sent is known", %{account: account, project: project} do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c1")
+
+      assert Baselines.resolve(project, scope("x3", %{parent_shas: ["x2"], ancestor_shas: ["x2", "x1"]})) ==
+               {:error, :history_unknown}
+    end
+
+    test "reads only the first 200 ancestors sent", %{account: account, project: project} do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c1")
+      unknown = for i <- 1..199, do: "u#{i}"
+
+      assert {:ok, %{sha: "c1"}} = Baselines.resolve(project, scope("x", %{ancestor_shas: unknown ++ ["c2"]}))
+
+      assert Baselines.resolve(project, scope("x", %{ancestor_shas: unknown ++ ["u200", "c2"]})) ==
+               {:error, :history_unknown}
+    end
+
+    test "takes a known ancestor's position as its distance, which is approximate across merges", %{
+      account: account,
+      project: project
+    } do
+      # a1 → a2 → a3 and a1 → b1, merged by the unknown m into the unknown x.
+      commits = chain("a", 3, nil) ++ [CoverageFixtures.commit("b1", ["a1"], 5)]
+      repository_id = CoverageFixtures.seed_history(account, commits)
+      CoverageFixtures.commit_coverage(project, repository_id, "a1")
+      for sha <- ["a2", "a3", "b1"], do: measured(project, repository_id, sha)
+
+      # The list puts b1 a commit further back than a3, though both are two
+      # back, so a1 is counted 4th instead of 3rd.
+      assert {:ok, %{sha: "a1", distance: 4}} =
+               Baselines.resolve(project, scope("x", %{parent_shas: ["m"], ancestor_shas: ["m", "a3", "b1"]}))
+
+      GitHistory.record_commits(repository_id, "sha1", [
+        CoverageFixtures.commit("m", ["a3", "b1"], 10),
+        CoverageFixtures.commit("x", ["m"], 11)
+      ])
+
+      assert {:ok, %{sha: "a1", distance: 3}} = Baselines.resolve(project, scope("x"))
+    end
+
     test "answers no_baseline when the project has no coverage to walk from", %{account: account, project: project} do
       CoverageFixtures.seed_history(account, chain("c", 2, nil))
 

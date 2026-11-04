@@ -86,6 +86,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     scope = %{
       commit_sha: commit_sha,
       parent_shas: Map.get(params, :parent_shas) || [],
+      ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
       scheme: get_in(params, [:xcode, :scheme])
     }

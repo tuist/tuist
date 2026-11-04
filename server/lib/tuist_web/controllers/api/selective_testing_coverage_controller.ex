@@ -74,6 +74,12 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description:
                "The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both."
            },
+           ancestor_shas: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges."
+           },
            platform: %Schema{
              type: :string,
              description:
@@ -107,6 +113,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     scope = %{
       commit_sha: commit_sha,
       parent_shas: Map.get(params, :parent_shas) || [],
+      ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
       scheme: get_in(params, [:xcode, :scheme])
     }
@@ -154,6 +161,12 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              items: %Schema{type: :string},
              description:
                "The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again."
+           },
+           ancestor_shas: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again."
            },
            baseline_sha: %Schema{
              type: :string,
