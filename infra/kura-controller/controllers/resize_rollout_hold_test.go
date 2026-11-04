@@ -209,8 +209,8 @@ func TestReconcileRecreatesAReTemplatedStatefulSetHeld(t *testing.T) {
 		).Build(),
 		Scheme: scheme,
 		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{
-			instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
-			instance.Name + "-1": {Ready: true, State: "serving", RingMembers: 2},
+			instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: backfillCycleComplete},
+			instance.Name + "-1": {Ready: true, State: "serving", RingMembers: 2, BackfillInitialCycle: backfillCycleComplete},
 		}},
 	}
 	request := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}

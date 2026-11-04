@@ -99,7 +99,10 @@ server:
   config:
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
-      enabled: false # Enable only after this environment's wrapping-key prerequisite is ready.
+      enabled: true
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
+      enabled: true
     originAppKey:
       enabled: true
     atlasEmail:
@@ -146,10 +149,14 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # Linux stays reporting-only: its Meter exists and receives usage,
-      # but with no agreed rate there is no Price to point at, and an
-      # empty id means no subscription can carry a Linux runner item, so
-      # nothing can be charged for it.
+      # The Linux Price is graduated the same way: 150000000 compute-unit
+      # milliseconds (2,500 minutes on the 2 vCPU / 8 GB baseline, worth the
+      # same $6 as the macOS allowance) are free, and beyond that each
+      # millisecond costs 0.000004 cents, which is $0.0024 per baseline
+      # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
+      # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES,
+      # which this env leaves to the 2,500-minute default, and the rate with
+      # `@on_demand_rates` in `Tuist.Runners.Prepaid`.
       #
       # An account is only actually billed once it is off a runner trial.
       # Run `Tuist.Runners.Trials.backfill_runner_trials/0` before this id
@@ -164,7 +171,7 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: ""
+        runner_linux_compute_unit_milliseconds: "price_1UXkpzLWue9IBlPSCGV7NlAg"
         runner_macos_compute_unit_milliseconds: "price_1UXO5iLWue9IBlPSX793RSDB"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
@@ -513,7 +520,11 @@ egressTreeAgent:
 # CSI installation and upgrades are separate from tenant enrollment. Routine
 # server deployments preserve its installed image; upgrades require an explicit digest.
 kuraVolumesCSI:
-  enabled: false # Separate infrastructure opt-in; tenant enrollment stays independent.
+  # Installs only through a deploy dispatched with kura_volumes_csi_image_digest;
+  # tenant enrollment stays independent.
+  enabled: true
+  # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: PCj63J/Ahkzb6ST6Pve32eQARfY0L7zB/EhR+MjwmVw=
   thinRegions: []
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
@@ -1140,10 +1151,11 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    # Three boxes: two Advance-1-2024 plus ns3128245 (Advance-1-2026, 2026-10-19).
-    # At two the region reserved 1228 GiB against an admission line of 1267, so
-    # Admission refused every storage claim growth for the accounts it hosts.
-    replicas: 3
+    # Four boxes: three Advance-1-2024 (ns3263234 added 2026-11-03) plus ns3128245
+    # (Advance-1-2026, 2026-10-19). At three the region's admission headroom was
+    # down to 4 GiB, so placement expansions and claim growths for the accounts it
+    # hosts were refused.
+    replicas: 4
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -2164,6 +2176,11 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
+    "27.3-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 16
     "27.2":
       autoscaling:
         enabled: true
@@ -2301,6 +2318,7 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 32
   diskGiB: 100
+  archiveAfterHours: 24
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true

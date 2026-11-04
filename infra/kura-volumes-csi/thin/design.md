@@ -1,7 +1,7 @@
 # Thin encrypted Kura volumes
 
 This document describes the existing thin candidate, not a settled rollout
-decision. #14152 remains responsible for per-tenant encryption and OpenBao;
+decision. #14152 remains responsible for per-tenant encryption and key custody;
 #14825 owns capacity-sharing policy. The thin candidate's full-ceiling backing
 and measured regressions have not established a practical shared-capacity path.
 The final encryption layout must preserve safe, efficient reclamation and
@@ -329,7 +329,7 @@ not a substitute for exercising the final CSI code. Required gates include:
   benchmarks from representative hosted NVMe results.
 - Staged migration on staging using the new layout, including thick-to-thin,
   replica catch-up, endpoint handoff and old allocation release. Existing
-  thick-volume/OpenBao rehearsals remain historical evidence only.
+  thick-volume rehearsals remain historical evidence only.
 
 Recalculate #14825's regional capacity gains using final pool geometry, floor
 conversion, workspace/metadata reserves, retained charges and placement. Rerun

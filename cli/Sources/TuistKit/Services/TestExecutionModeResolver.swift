@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConfig
 import TuistEnvironment
 import TuistLogging
 import TuistServer
@@ -22,7 +23,7 @@ import XCResultParser
 /// scheme's testable references or of the test plan it runs, and for `tuist test` the generated
 /// scheme itself. A target with no explicit setting runs its Swift Testing tests in parallel, so
 /// it counts as parallel. Without any of those the mode stays unknown: nothing is guessed.
-/// Behind the `COVERAGE` client flag with the rest of coverage and test selection.
+/// Only recorded when the run uploads coverage (`UploadResultBundleService.uploadsCoverage`).
 @Mockable
 public protocol TestExecutionModeResolving {
     /// Resolves the modes and writes them into the bundle. `schemeTargets` are the modes the
@@ -33,7 +34,8 @@ public protocol TestExecutionModeResolving {
         resultBundlePath: AbsolutePath?,
         xcodebuildArguments: [String],
         derivedDataPath: AbsolutePath?,
-        schemeTargets: [String: String]
+        schemeTargets: [String: String],
+        config: Tuist
     ) async -> TestExecutionModes?
 }
 
@@ -48,9 +50,10 @@ public struct TestExecutionModeResolver: TestExecutionModeResolving {
         resultBundlePath: AbsolutePath?,
         xcodebuildArguments: [String],
         derivedDataPath: AbsolutePath?,
-        schemeTargets: [String: String]
+        schemeTargets: [String: String],
+        config: Tuist
     ) async -> TestExecutionModes? {
-        guard ClientFeatureFlags.contains("COVERAGE") else { return nil }
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return nil }
         do {
             var targets = schemeTargets
             targets.merge(try await schemeFileTargets(xcodebuildArguments: xcodebuildArguments)) { _, new in new }

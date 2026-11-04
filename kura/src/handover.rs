@@ -3409,6 +3409,13 @@ mod tests {
         async fn new() -> Self {
             let source = fenced_context("source").await;
             let target = fenced_context("destination").await;
+            // Peer requests use the runtime's idle read timeout, not the test
+            // client's total cap, so a slow peer batch under load still completes.
+            for state in [&source.state, &target.state] {
+                state
+                    .client
+                    .store(Arc::new(state.peer_client_factory.build().unwrap()));
+            }
             source.state.store.sync_feed_activate().await.unwrap();
             let (source_url, source_requests) = serve_counting(source.state.clone()).await;
             let (target_url, target_requests) = serve_counting(target.state.clone()).await;
@@ -3621,10 +3628,33 @@ mod tests {
     async fn overlapping_descriptor_batches_still_verify_every_record_in_order() {
         let pair = ContentPair::new().await;
         let batches = DESCRIPTOR_BATCHES_IN_FLIGHT + 1;
-        for index in 0..DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 8 {
-            pair.seed(&format!("record-{index}"), &index.to_be_bytes())
-                .await;
-        }
+        let seeded = DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 8;
+        // Both peers already hold the corpus at the same versions, so live
+        // preparation verifies it without first repairing it record by record.
+        let oldest = crate::utils::now_ms() - seeded as u64;
+        let states = [pair.source.state.clone(), pair.target.state.clone()];
+        futures_util::stream::iter(
+            (0..seeded).flat_map(|index| states.clone().map(move |state| (state, index))),
+        )
+        .map(|(state, index)| {
+            tokio::spawn(async move {
+                state
+                    .store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ios",
+                        &format!("record-{index}"),
+                        "application/octet-stream",
+                        &index.to_be_bytes(),
+                        oldest + index as u64,
+                    )
+                    .await
+                    .unwrap();
+            })
+        })
+        .buffer_unordered(64)
+        .for_each(|applied| async { applied.unwrap() })
+        .await;
         pair.catch_up_cursor();
         let renew = pair.keep_granted("Serving");
         pair.prepare_while_serving().await.unwrap();
@@ -3633,10 +3663,7 @@ mod tests {
 
         let receipt = pair.freeze().await.unwrap();
 
-        assert_eq!(
-            receipt.records as usize,
-            DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 9
-        );
+        assert_eq!(receipt.records as usize, seeded + 1);
         assert_eq!(
             pair.requests("/_internal/handover/verify-descriptors"),
             batches
@@ -3709,12 +3736,9 @@ mod tests {
         assert!(walk.missing_bytes >= 96 * 1024, "{}", walk.missing_bytes);
         require_room_for_barrier(&pair.target.state, &walk).unwrap();
 
-        walk.missing_bytes = pair
-            .target
-            .state
-            .store
-            .handover_admissible_bytes(walk.frontier_ms.unwrap())
-            + 1;
+        // Admissible bytes track the host's free disk, which concurrent tests
+        // change between readings.
+        walk.missing_bytes = u64::MAX;
         let error = require_room_for_barrier(&pair.target.state, &walk).unwrap_err();
         assert!(error.contains("cannot hold the retained corpus"), "{error}");
     }
