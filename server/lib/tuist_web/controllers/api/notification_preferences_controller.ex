@@ -3,7 +3,7 @@ defmodule TuistWeb.API.NotificationPreferencesController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Push
+  alias Tuist.Notifications
   alias TuistWeb.API.Schemas.Error
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -11,7 +11,7 @@ defmodule TuistWeb.API.NotificationPreferencesController do
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.PushAppSessionPlug
+  plug TuistWeb.Plugs.AppSessionPlug
 
   tags ["Notification preferences"]
 
@@ -25,7 +25,7 @@ defmodule TuistWeb.API.NotificationPreferencesController do
   @preferences %Schema{
     title: "NotificationPreferences",
     description:
-      "The signed-in user's own choices for one notification kind, per account (their personal account and organizations) with project overrides.",
+      "The signed-in user's own choices for one notification kind, per account (their personal account and organizations) with project overrides. The choices apply to every delivery channel.",
     type: :object,
     properties: %{
       kind: %Schema{type: :string},
@@ -80,7 +80,7 @@ defmodule TuistWeb.API.NotificationPreferencesController do
   )
 
   def show(%{path_params: %{"kind" => kind}} = conn, _params) do
-    case preferences(conn.assigns.push_user, kind) do
+    case preferences(conn.assigns.app_user, kind) do
       {:ok, preferences} -> json(conn, preferences_json(kind, preferences))
       :error -> not_found(conn)
     end
@@ -105,12 +105,12 @@ defmodule TuistWeb.API.NotificationPreferencesController do
   )
 
   def update_account(%{path_params: %{"kind" => kind, "account_handle" => handle}, body_params: body} = conn, _params) do
-    user = conn.assigns.push_user
+    user = conn.assigns.app_user
 
     with {:ok, preferences} <- preferences(user, kind),
          %{account: account} <- Enum.find(preferences, &(&1.account.name == handle)),
-         :ok <- Push.update_account_preference(user, kind, account.id, body.enabled) do
-      json(conn, preferences_json(kind, Push.preferences(user, kind)))
+         :ok <- Notifications.update_account_preference(user, kind, account.id, body.enabled) do
+      json(conn, preferences_json(kind, Notifications.preferences(user, kind)))
     else
       # Includes access removed between the lookup and the update.
       _ -> not_found(conn)
@@ -149,19 +149,19 @@ defmodule TuistWeb.API.NotificationPreferencesController do
         } = conn,
         _params
       ) do
-    user = conn.assigns.push_user
+    user = conn.assigns.app_user
 
     with {:ok, preferences} <- preferences(user, kind),
          %{project: project} <- find_project(preferences, account_handle, project_handle),
-         :ok <- Push.update_project_preference(user, kind, project.id, override(body.setting)) do
-      json(conn, preferences_json(kind, Push.preferences(user, kind)))
+         :ok <- Notifications.update_project_preference(user, kind, project.id, override(body.setting)) do
+      json(conn, preferences_json(kind, Notifications.preferences(user, kind)))
     else
       _ -> not_found(conn)
     end
   end
 
   defp preferences(user, kind) do
-    if kind in Push.preference_kinds(), do: {:ok, Push.preferences(user, kind)}, else: :error
+    if kind in Notifications.kinds(), do: {:ok, Notifications.preferences(user, kind)}, else: :error
   end
 
   defp find_project(preferences, account_handle, project_handle) do

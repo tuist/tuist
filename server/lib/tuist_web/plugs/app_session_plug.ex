@@ -1,8 +1,8 @@
-defmodule TuistWeb.Plugs.PushAppSessionPlug do
+defmodule TuistWeb.Plugs.AppSessionPlug do
   @moduledoc """
   Admits only requests from a signed-in Tuist app (see `Tuist.Push.oauth_session/2`)
   to the `/api/me` push device and notification preference endpoints. It assigns
-  `:push_user` and `:push_session`, and marks responses `no-store`. Other OAuth
+  `:app_user` and `:app_session`, and marks responses `no-store`. Other OAuth
   clients, account tokens and agent credentials get a 403, whatever their scopes.
   """
   @behaviour Plug
@@ -24,7 +24,7 @@ defmodule TuistWeb.Plugs.PushAppSessionPlug do
     with %User{} = user <- user(Authentication.authenticated_subject(conn)),
          ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
          {:ok, session} <- Push.oauth_session(bearer, user) do
-      conn |> assign(:push_user, user) |> assign(:push_session, session)
+      conn |> assign(:app_user, user) |> assign(:app_session, session)
     else
       _ ->
         conn

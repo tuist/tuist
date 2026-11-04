@@ -1,6 +1,8 @@
 defmodule Tuist.Push do
   @moduledoc """
   Associates native app installations (and their push tokens) with users.
+  Which notifications a user wants is up to `Tuist.Notifications`; this module
+  only knows which of their devices can receive them.
 
   Ported from Atlas's `Atlas.Push` registry, with one difference: hosted Tuist
   apps share a single OAuth client, so a registration is bound to the user's
@@ -33,16 +35,11 @@ defmodule Tuist.Push do
 
   import Ecto.Query
 
-  alias Tuist.Accounts
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.MCP.Events.OAuthGrants
   alias Tuist.OAuth.Clients
-  alias Tuist.Projects
-  alias Tuist.Projects.Project
   alias Tuist.Push.Installation
-  alias Tuist.Push.Preference
-  alias Tuist.Push.ProjectPreference
   alias Tuist.Repo
 
   @max_live_per_user 10
@@ -53,9 +50,6 @@ defmodule Tuist.Push do
   @apns_token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
   @android_token ~r/\A[\x21-\x7E]{16,4096}\z/
   @max_device_name_length 64
-  @preference_kinds ["new_preview"]
-
-  def preference_kinds, do: @preference_kinds
 
   @doc """
   Resolves the OAuth grant behind `bearer` for `user`. Only sign-ins through the
@@ -165,167 +159,6 @@ defmodule Tuist.Push do
     |> Enum.filter(fn installation ->
       session_active?(installation) or retire_session_ended(installation)
     end)
-  end
-
-  @doc """
-  `user`'s own `kind` choices for every account they belong to (their personal
-  account and their organizations), sorted by name:
-
-      [%{account: account, enabled: boolean,
-         projects: [%{project: project, override: nil | boolean, enabled: boolean}]}]
-
-  An account is enabled unless the user turned it off. A project's `override`
-  is nil when it follows its account; `enabled` is the effective choice.
-  """
-  def preferences(%User{id: user_id} = user, kind) when kind in @preference_kinds do
-    account_choices =
-      Preference
-      |> where([p], p.user_id == ^user_id and p.kind == ^kind)
-      |> select([p], {p.account_id, p.enabled})
-      |> Repo.all()
-      |> Map.new()
-
-    overrides =
-      ProjectPreference
-      |> where([p], p.user_id == ^user_id and p.kind == ^kind)
-      |> select([p], {p.project_id, p.enabled})
-      |> Repo.all()
-      |> Map.new()
-
-    projects = user |> Projects.list_accessible_projects(preload: [:account]) |> Enum.group_by(& &1.account_id)
-
-    user
-    |> accessible_accounts()
-    |> Enum.map(fn account ->
-      enabled = Map.get(account_choices, account.id, true)
-
-      %{
-        account: account,
-        enabled: enabled,
-        projects:
-          projects
-          |> Map.get(account.id, [])
-          |> Enum.sort_by(& &1.name)
-          |> Enum.map(fn project ->
-            override = Map.get(overrides, project.id)
-            %{project: project, override: override, enabled: if(is_nil(override), do: enabled, else: override)}
-          end)
-      }
-    end)
-    |> Enum.sort_by(& &1.account.name)
-  end
-
-  @doc """
-  `user`'s `kind` choice for one project, as
-  `%{override: nil | boolean, account_enabled: boolean, enabled: boolean}`,
-  or nil when the project is outside the user's accounts (for example a public
-  project they only browse).
-  """
-  def project_preference(%User{id: user_id} = user, kind, %Project{id: project_id, account_id: account_id})
-      when kind in @preference_kinds do
-    if account_id in accessible_account_ids(user) do
-      override =
-        ProjectPreference
-        |> where([p], p.user_id == ^user_id and p.project_id == ^project_id and p.kind == ^kind)
-        |> select([p], p.enabled)
-        |> Repo.one()
-
-      account_enabled =
-        Preference
-        |> where([p], p.user_id == ^user_id and p.account_id == ^account_id and p.kind == ^kind)
-        |> select([p], p.enabled)
-        |> Repo.one()
-        |> Kernel.!=(false)
-
-      %{
-        override: override,
-        account_enabled: account_enabled,
-        enabled: if(is_nil(override), do: account_enabled, else: override)
-      }
-    end
-  end
-
-  def project_preference(_user, _kind, _project), do: nil
-
-  @doc """
-  Turns `kind` on or off for the projects of `account_id`, which must be the
-  user's personal account or one of their organizations. Project overrides
-  are kept. Returns `:ok` or `{:error, :invalid}`.
-  """
-  def update_account_preference(%User{id: user_id} = user, kind, account_id, enabled)
-      when kind in @preference_kinds and is_integer(account_id) and is_boolean(enabled) do
-    if account_id in accessible_account_ids(user) do
-      Repo.insert!(%Preference{user_id: user_id, account_id: account_id, kind: kind, enabled: enabled},
-        on_conflict: [set: [enabled: enabled, updated_at: now()]],
-        conflict_target: [:user_id, :account_id, :kind]
-      )
-
-      :ok
-    else
-      {:error, :invalid}
-    end
-  end
-
-  def update_account_preference(_user, _kind, _account_id, _enabled), do: {:error, :invalid}
-
-  @doc """
-  Overrides `kind` for one project the user can access: `true` or `false`, or
-  `nil` to follow the project's account again. Returns `:ok` or
-  `{:error, :invalid}`.
-  """
-  def update_project_preference(%User{id: user_id} = user, kind, project_id, override)
-      when kind in @preference_kinds and is_integer(project_id) and (is_boolean(override) or is_nil(override)) do
-    case Repo.get(Project, project_id) do
-      %Project{account_id: account_id} ->
-        if account_id in accessible_account_ids(user) do
-          save_project_override(user_id, kind, project_id, override)
-        else
-          {:error, :invalid}
-        end
-
-      nil ->
-        {:error, :invalid}
-    end
-  end
-
-  def update_project_preference(_user, _kind, _project_id, _override), do: {:error, :invalid}
-
-  defp save_project_override(user_id, kind, project_id, nil) do
-    ProjectPreference
-    |> where([p], p.user_id == ^user_id and p.project_id == ^project_id and p.kind == ^kind)
-    |> Repo.delete_all()
-
-    :ok
-  end
-
-  defp save_project_override(user_id, kind, project_id, enabled) do
-    Repo.insert!(%ProjectPreference{user_id: user_id, project_id: project_id, kind: kind, enabled: enabled},
-      on_conflict: [set: [enabled: enabled, updated_at: now()]],
-      conflict_target: [:user_id, :project_id, :kind]
-    )
-
-    :ok
-  end
-
-  defp accessible_accounts(user) do
-    [Accounts.get_account_from_user(user) | Enum.map(Accounts.get_user_organization_accounts(user), & &1.account)]
-  end
-
-  defp accessible_account_ids(user), do: user |> accessible_accounts() |> Enum.map(& &1.id)
-
-  @doc """
-  Whether `user_id` wants `kind` notifications about `project_id`: their
-  project override, else their choice for the project's account, else yes.
-  Callers still have to check that the user can access the project at send time.
-  """
-  def notify?(user_id, kind, project_id) when kind in @preference_kinds do
-    Project
-    |> where([p], p.id == ^project_id)
-    |> join(:left, [p], o in ProjectPreference, on: o.project_id == p.id and o.user_id == ^user_id and o.kind == ^kind)
-    |> join(:left, [p], a in Preference, on: a.account_id == p.account_id and a.user_id == ^user_id and a.kind == ^kind)
-    |> select([_p, o, a], coalesce(o.enabled, coalesce(a.enabled, true)))
-    |> Repo.one()
-    |> Kernel.==(true)
   end
 
   def prune_batch_size, do: @prune_batch_size

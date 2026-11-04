@@ -5,6 +5,7 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
   alias Boruta.Ecto.Token
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.Notifications
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias Tuist.Push
@@ -108,7 +109,7 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
              |> put("#{base}/projects/#{handle}/ios-app", %{setting: "on"})
              |> json_response(200)
 
-    assert Push.notify?(user.id, "new_preview", project.id)
+    assert Notifications.notify?(user.id, "new_preview", project.id)
 
     foreign = ProjectsFixtures.project_fixture(preload: [:account])
 
@@ -158,6 +159,6 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
     end
 
     assert Push.live_installations(user.id) == []
-    assert [%{enabled: true}] = Push.preferences(user, "new_preview")
+    assert [%{enabled: true}] = Notifications.preferences(user, "new_preview")
   end
 end

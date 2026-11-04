@@ -11,7 +11,7 @@ defmodule TuistWeb.API.PushDevicesController do
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.PushAppSessionPlug
+  plug TuistWeb.Plugs.AppSessionPlug
 
   tags ["Push devices"]
 
@@ -115,7 +115,7 @@ defmodule TuistWeb.API.PushDevicesController do
 
   def index(conn, _params) do
     devices =
-      conn.assigns.push_user.id
+      conn.assigns.app_user.id
       |> Push.live_installations()
       |> Enum.map(fn installation ->
         %{
@@ -132,7 +132,7 @@ defmodule TuistWeb.API.PushDevicesController do
   end
 
   def update(%{path_params: %{"installation_id" => installation_id}, body_params: device} = conn, _params) do
-    case Push.register(conn.assigns.push_user, conn.assigns.push_session, installation_id, device) do
+    case Push.register(conn.assigns.app_user, conn.assigns.app_session, installation_id, device) do
       {:ok, installation} -> json(conn, %{registration_id: installation.id})
       {:error, reason} -> error(conn, reason)
     end
@@ -153,7 +153,7 @@ defmodule TuistWeb.API.PushDevicesController do
   )
 
   def delete(%{path_params: %{"installation_id" => installation_id}} = conn, _params) do
-    case Push.unregister(conn.assigns.push_user, installation_id) do
+    case Push.unregister(conn.assigns.app_user, installation_id) do
       :ok -> send_resp(conn, :no_content, "")
       {:error, reason} -> error(conn, reason)
     end
@@ -175,7 +175,7 @@ defmodule TuistWeb.API.PushDevicesController do
   )
 
   def remove(%{path_params: %{"registration_id" => registration_id}} = conn, _params) do
-    :ok = Push.remove_device(conn.assigns.push_user, registration_id)
+    :ok = Push.remove_device(conn.assigns.app_user, registration_id)
     send_resp(conn, :no_content, "")
   end
 

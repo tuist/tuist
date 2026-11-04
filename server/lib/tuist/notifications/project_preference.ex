@@ -1,4 +1,4 @@
-defmodule Tuist.Push.ProjectPreference do
+defmodule Tuist.Notifications.ProjectPreference do
   @moduledoc """
   A user's override of their account choice for one project and notification
   kind. A missing row means the project follows its account.
@@ -8,7 +8,7 @@ defmodule Tuist.Push.ProjectPreference do
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
-  schema "push_project_preferences" do
+  schema "notification_project_preferences" do
     belongs_to :user, User
     belongs_to :project, Project
     field :kind, :string

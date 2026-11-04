@@ -66,9 +66,10 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
              check: "platform IS DISTINCT FROM 'android' OR environment = 'production'"
            )
 
-    # A user's own choice per notification kind for an account (their personal
-    # account or an organization). A missing row means enabled.
-    create table(:push_preferences) do
+    # Notification preferences (`Tuist.Notifications`) apply to every delivery
+    # channel. A user's own choice per notification kind for an account (their
+    # personal account or an organization). A missing row means enabled.
+    create table(:notification_account_preferences) do
       add :user_id, references(:users, on_delete: :delete_all), null: false
       add :account_id, references(:accounts, on_delete: :delete_all), null: false
       add :kind, :string, null: false
@@ -77,14 +78,14 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
     end
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create unique_index(:push_preferences, [:user_id, :account_id, :kind])
+    create unique_index(:notification_account_preferences, [:user_id, :account_id, :kind])
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:push_preferences, [:account_id])
+    create index(:notification_account_preferences, [:account_id])
 
     # A user's override for one project, taking precedence over their account
     # choice. A missing row means the project follows its account.
-    create table(:push_project_preferences) do
+    create table(:notification_project_preferences) do
       add :user_id, references(:users, on_delete: :delete_all), null: false
       add :project_id, references(:projects, on_delete: :delete_all), null: false
       add :kind, :string, null: false
@@ -93,9 +94,9 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
     end
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create unique_index(:push_project_preferences, [:user_id, :project_id, :kind])
+    create unique_index(:notification_project_preferences, [:user_id, :project_id, :kind])
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:push_project_preferences, [:project_id])
+    create index(:notification_project_preferences, [:project_id])
   end
 end
