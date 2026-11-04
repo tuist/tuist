@@ -413,18 +413,18 @@ off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
 from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
 CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
-a pull request the unit and app tests run selectively, acceptance as before, and
-`coverage-complete` runs `tuist coverage complete` once the unit and app tests
-finished, whatever their result (not on drafts or forks). On a push to main the
+a pull request the unit, app and acceptance tests run selectively, and
+`coverage-complete` runs `tuist coverage complete` once all three finished,
+whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
 and the CLI session logs when it fails, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
-follows when both passed. The unit and app tests record per-target evidence on both,
+follows when both passed and the selective acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
 which the CLI reads from Xcode's raw profiles (the targets don't link
 TestCoverageAttribution, so there is no per-test evidence): the server carries
-targets selective testing skipped only from runs that recorded evidence, main's
-full runs for every selective run and a pull request's own runs for its later
-pushes. Targets are carried only whole: a skipped target no run recorded
+targets selective testing skipped only from runs that recorded evidence under
+the same hash: main's runs (full for unit and app, selective for acceptance)
+for every selective run and a pull request's own runs for its later pushes. Targets are carried only whole: a skipped target no run recorded
 under the same hash (or whose source run fails the server's checks) has no
 per-test fallback, and neither do tests skipped by identifier
 (`--skip-test-targets`, `-skip-testing`), so both stay gaps (`not_linked`).
