@@ -241,6 +241,22 @@ defmodule Tuist.FeatureFlags do
   def coverage_enabled?(account, _project, flags), do: xcode_coverage_enabled?(account, flags)
 
   @doc """
+  Whether coverage-based test selection (test impact analysis) runs for a
+  project: the project needs coverage (`coverage_enabled?/3`) and its account
+  the `:test_impact_analysis` flag. Like `:xcode_coverage`, canary and
+  production require an explicit toggle while development, test, and staging
+  default to enabled.
+  """
+  def test_impact_analysis_enabled?(account, project, flags \\ nil) do
+    coverage_enabled?(account, project, flags) and
+      Observability.feature_flag_evaluated(
+        :test_impact_analysis,
+        account,
+        Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags)
+      )
+  end
+
+  @doc """
   Whether code coverage is ingested, processed and shown for the account's
   projects other than Mix ones (see `coverage_enabled?/3`). Canary and
   production require an explicit `:xcode_coverage` FunWithFlags toggle for the
@@ -257,6 +273,16 @@ defmodule Tuist.FeatureFlags do
       account,
       Environment.env() not in [:can, :prod] or flag_enabled?(:xcode_coverage, account, flags)
     )
+  end
+
+  @doc """
+  The account's side of `test_impact_analysis_enabled?/3`, without a project:
+  its `:test_impact_analysis` toggle and Xcode coverage. It's what
+  `Tuist.Ops.FeatureFlags`, whose evaluations are per account, reports.
+  """
+  def test_impact_analysis_account_enabled?(account, flags \\ nil) do
+    xcode_coverage_enabled?(account, flags) and
+      (Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags))
   end
 
   @doc """
