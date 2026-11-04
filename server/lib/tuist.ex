@@ -228,6 +228,8 @@ defmodule Tuist do
       Artifacts,
       Artifacts.Package,
       Projects,
+      Push,
+      Notifications,
       Projects.Project,
       Accounts.OIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,

@@ -67,20 +67,18 @@ defmodule TuistWeb.AmpOrbsControllerTest do
              "Account sandbox CPU or memory limit reached"
   end
 
-  test "marks the account's on-node cap, which paused Orbs count toward, as a non-retryable refusal", %{
+  test "marks the account's disk limit, which paused Orbs count toward, as final when nothing can be archived", %{
     conn: conn,
     integration: integration,
     user: user
   } do
     identity(integration)
-
-    for _ <- 1..Tuist.Sandboxes.max_on_node_sandboxes_per_account() do
-      SandboxesFixtures.sandbox_fixture(account: user.account, state: :paused)
-    end
+    {:ok, _} = Concurrency.update_limits(user.account, %{sandbox_disk_gb_limit: 14})
+    SandboxesFixtures.sandbox_fixture(account: user.account, state: :paused)
 
     result = request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture"})
 
-    assert response(result, 429) == "Account sandbox limit reached"
+    assert response(result, 429) == "Account sandbox disk limit reached"
     assert get_resp_header(result, "x-tuist-orb-refusal") == ["sandbox-limit"]
     assert get_resp_header(result, "x-tuist-orb-retry") == []
   end
@@ -96,7 +94,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     for {reason, status, hint} <- [
           {:no_capacity, 503, ["admission"]},
           {:sandbox_concurrency_limit, 429, ["admission"]},
-          {:sandbox_running_limit, 429, ["admission"]},
+          {:sandbox_disk_limit, 429, ["admission"]},
           {:sandbox_limit, 429, []},
           {:sandbox_account_busy, 409, ["admission"]},
           {:locked, 409, ["admission"]},
