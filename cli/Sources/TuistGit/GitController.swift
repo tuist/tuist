@@ -104,17 +104,27 @@ public protocol GitControlling {
     /// for a pull request, which exists only in the checkout.
     func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit
 
+    /// Fetches `GitController.testImpactDeepenCommits` more commits into a shallow clone through
+    /// `refs`, without blobs, within the limits' budget. Returns false when the checkout isn't a
+    /// shallow clone, the limits allow no fetch, or the fetch failed.
+    func deepenShallowClone(workingDirectory: AbsolutePath, refs: [String], limits: GitHistoryLimits) async -> Bool
+
+    /// Up to `limit` ancestors of the checked-out commit that the checkout has, nearest first, the
+    /// commit itself left out. Empty when they can't be read.
+    func ancestorSHAs(workingDirectory: AbsolutePath, limit: Int) async -> [String]
+
     /// The files that differ between `baselineSHA` and the working tree: what the checked-out commit
     /// changed since the baseline, plus dirty and untracked files. A shallow clone that lacks the
-    /// baseline is deepened through `refs` within the limits' budget, and comes back as
-    /// `.historyUnavailable` when that doesn't reach it. Only trees are read, never blobs, except the
+    /// baseline is deepened once by `GitController.testImpactDeepenCommits` through `refs` within the
+    /// limits' budget, and comes back as `.historyUnavailable` when that doesn't reach it. Only trees are read, never blobs,
+    /// except the
     /// working tree's files, which are hashed.
     /// - Parameters:
     ///   - workingDirectory: The repository's top level.
     ///   - baselineSHA: The commit to compare against.
     ///   - refs: The remote refs whose history leads to the baseline, such as the checked-out pull
-    ///     request ref and the base branch.
-    ///   - limits: The deepening budget and how deep deepening may go.
+    ///     request ref and the base branch. Empty never reaches the remote.
+    ///   - limits: The deepening budget.
     func changedFiles(
         workingDirectory: AbsolutePath,
         since baselineSHA: String,

@@ -51,6 +51,22 @@ public enum GitChangedFilesResult: Equatable, Sendable {
 }
 
 extension GitController {
+    /// How many commits coverage-based test selection deepens a shallow clone by. It deepens at most
+    /// once per invocation, so this is as far back as it looks beyond the checkout.
+    public static let testImpactDeepenCommits = 100
+
+    public func deepenShallowClone(workingDirectory: AbsolutePath, refs: [String], limits: GitHistoryLimits) async -> Bool {
+        await deepenOnce(git: ["git", "-C", workingDirectory.pathString], refs: refs, limits: limits) == .deepened
+    }
+
+    public func ancestorSHAs(workingDirectory: AbsolutePath, limit: Int) async -> [String] {
+        guard limit > 0 else { return [] }
+        let output = try? await capture(
+            arguments: ["git", "-C", workingDirectory.pathString, "rev-list", "--topo-order", "--max-count=\(limit + 1)", "HEAD"]
+        )
+        return Array((output ?? "").split(whereSeparator: \.isNewline).map(String.init).dropFirst())
+    }
+
     public func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit {
         let head = try await currentCommitSHA(workingDirectory: workingDirectory)
         let environment = await ciEnvironment()
@@ -156,32 +172,46 @@ extension GitController {
             nil
     }
 
-    /// Deepens a shallow clone through `refs` in growing steps until it has the commit, the budget runs
-    /// out, or the history window is reached. Returns why the commit wasn't reached, nil when it was.
+    /// Deepens a shallow clone once through `refs` to reach the commit. Returns why the commit wasn't
+    /// reached, nil when it was.
     private func deepen(git: [String], toReach sha: String, refs: [String], limits: GitHistoryLimits) async -> String? {
         let baseline = sha.prefix(12)
+        switch await deepenOnce(git: git, refs: refs, limits: limits) {
+        case .notShallow:
+            return "the baseline \(baseline) is not in the checkout's history"
+        case .notAllowed:
+            return "shallow clone: the baseline \(baseline) is not in the checkout"
+        case .failed:
+            return "shallow clone: the baseline \(baseline) is not in the checkout and deepening failed"
+        case .timedOut:
+            return "shallow clone: the baseline \(baseline) was not reached within \(limits.deepenBudgetSeconds)s"
+        case .deepened:
+            return await hasCommit(git: git, sha: sha)
+                ? nil
+                : "shallow clone: the baseline \(baseline) is more than \(Self.testImpactDeepenCommits) commits beyond the checkout"
+        }
+    }
+
+    private enum DeepenOutcome {
+        case deepened, notShallow, notAllowed, failed, timedOut
+    }
+
+    /// Fetches `testImpactDeepenCommits` more commits into a shallow clone through `refs`.
+    private func deepenOnce(git: [String], refs: [String], limits: GitHistoryLimits) async -> DeepenOutcome {
         let shallow = (try? await capture(arguments: git + ["rev-parse", "--is-shallow-repository"]))?
             .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
-        guard shallow else { return "the baseline \(baseline) is not in the checkout's history" }
-        guard limits.remoteAccess == .history, !refs.isEmpty else {
-            return "shallow clone: the baseline \(baseline) is not in the checkout"
-        }
-
+        guard shallow else { return .notShallow }
+        guard limits.remoteAccess == .history, !refs.isEmpty else { return .notAllowed }
         // Blobs are most of what a fetch carries, and the diff reads only trees. Named refs keep
         // the fetch from bringing every branch the checkout's config lists.
         let deadline = Date().addingTimeInterval(TimeInterval(limits.deepenBudgetSeconds))
-        let maxDepth = max(limits.windowCommits, 50)
-        var depth = 0
-        var step = 50
-        while Date() < deadline, depth < maxDepth {
-            step = min(step, maxDepth - depth)
-            let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(step)", "origin"] + refs
-            guard await fetch(arguments: deepen, deadline: deadline) == .succeeded else { break }
-            if await hasCommit(git: git, sha: sha) { return nil }
-            depth += step
-            step *= 2
+        let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(Self.testImpactDeepenCommits)", "origin"]
+            + refs
+        switch await fetch(arguments: deepen, deadline: deadline) {
+        case .succeeded: return .deepened
+        case .failed: return .failed
+        case .timedOut: return .timedOut
         }
-        return "shallow clone: the baseline \(baseline) was not reached within \(limits.deepenBudgetSeconds)s"
     }
 
     /// The blob ids of the working tree's files, batched so a large change set never exceeds the

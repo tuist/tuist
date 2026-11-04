@@ -21,6 +21,9 @@ public struct TestImpactFallbackReason: RawRepresentable, Hashable, Sendable, Cu
     public static let baselineTooOld = TestImpactFallbackReason(rawValue: "baseline_too_old")
     /// The baseline uploaded no test-scoped evidence.
     public static let noBaselineEvidence = TestImpactFallbackReason(rawValue: "no_baseline_evidence")
+    /// The server's history has neither the checked-out commit nor its parents, so the walk to a
+    /// baseline can't start.
+    public static let historyUnknown = TestImpactFallbackReason(rawValue: "history_unknown")
     /// Deepening the checkout didn't reach the baseline within its budget.
     public static let historyUnavailable = TestImpactFallbackReason(rawValue: "history_unavailable")
     /// A file whose change can affect any test without showing up in coverage changed.
@@ -30,7 +33,9 @@ public struct TestImpactFallbackReason: RawRepresentable, Hashable, Sendable, Cu
 
     /// The reasons the baseline request returns that still create an impact run, so the server
     /// records the fallback.
-    static let recordedBaselineReasons: Set<TestImpactFallbackReason> = [.noBaseline, .baselineTooOld, .noBaselineEvidence]
+    static let recordedBaselineReasons: Set<TestImpactFallbackReason> = [
+        .noBaseline, .baselineTooOld, .noBaselineEvidence, .historyUnknown,
+    ]
 }
 
 /// What the baseline request decided.
@@ -84,9 +89,10 @@ public struct TestImpactRunRequest: Equatable, Sendable {
     public let headSHA: String
     /// The commit the diff ran against, such as GitHub's synthetic merge commit, when it isn't the head.
     public let commitSHA: String?
-    /// The checked-out commit's parents when it's a pull request's merge commit, as sent to the
+    /// The checked-out commit's parents and, after `history_unknown`, its ancestors, as sent to the
     /// baseline request, so the server resolves the same baseline.
     public let parentSHAs: [String]
+    public let ancestorSHAs: [String]
     public let basis: Basis
     /// The test modules left to decide, nil when nothing narrowed the scope.
     public let modules: [String]?
@@ -101,6 +107,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         headSHA: String,
         commitSHA: String?,
         parentSHAs: [String] = [],
+        ancestorSHAs: [String] = [],
         basis: Basis,
         modules: [String]?,
         platform: String?,
@@ -113,6 +120,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         self.headSHA = headSHA
         self.commitSHA = commitSHA
         self.parentSHAs = parentSHAs
+        self.ancestorSHAs = ancestorSHAs
         self.basis = basis
         self.modules = modules
         self.platform = platform

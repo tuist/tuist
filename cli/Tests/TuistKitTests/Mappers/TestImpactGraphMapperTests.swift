@@ -52,7 +52,7 @@ struct TestImpactGraphMapperTests {
     @Test func prunes_the_modules_with_no_selected_test() async throws {
         let (graph, environment) = graphs(hashMatched: ["AppTests"])
         given(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).willReturn(.baseline(sha: "baseline", diffCached: true))
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
@@ -82,7 +82,7 @@ struct TestImpactGraphMapperTests {
     @Test func keeps_the_targets_hashing_skipped_when_every_test_runs() async throws {
         let (graph, environment) = graphs(hashMatched: ["AppTests"])
         given(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).willReturn(.unavailable(.noBaseline))
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)

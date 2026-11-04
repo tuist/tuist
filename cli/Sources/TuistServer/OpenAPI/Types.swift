@@ -19102,7 +19102,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/diff_cached`.
             public var diff_cached: Swift.Bool?
-            /// Why there's no baseline: `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
+            /// Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/reason`.
             public var reason: Swift.String?
@@ -19111,7 +19111,7 @@ public enum Components {
             /// - Parameters:
             ///   - baseline_sha: The baseline commit. Null when there's none, and `reason` says why.
             ///   - diff_cached: Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
-            ///   - reason: Why there's no baseline: `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
+            ///   - reason: Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
             public init(
                 baseline_sha: Swift.String? = nil,
                 diff_cached: Swift.Bool? = nil,
@@ -19544,6 +19544,10 @@ public enum Components {
         public typealias BuildsIndexPage = Swift.Int
         /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams`.
         public struct ResolveTestImpactBaselineParams: Codable, Hashable, Sendable {
+            /// The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/ancestor_shas`.
+            public var ancestor_shas: [Swift.String]?
             /// The build system, `xcode` first. A plain string so new build systems don't need a new client.
             ///
             /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/build_system`.
@@ -19604,18 +19608,21 @@ public enum Components {
             /// Creates a new `ResolveTestImpactBaselineParams`.
             ///
             /// - Parameters:
+            ///   - ancestor_shas: The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
             ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
             ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
             ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
             ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
+                ancestor_shas: [Swift.String]? = nil,
                 build_system: Swift.String,
                 commit_sha: Swift.String,
                 parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
                 xcode: Components.Schemas.ResolveTestImpactBaselineParams.xcodePayload? = nil
             ) {
+                self.ancestor_shas = ancestor_shas
                 self.build_system = build_system
                 self.commit_sha = commit_sha
                 self.parent_shas = parent_shas
@@ -19623,6 +19630,7 @@ public enum Components {
                 self.xcode = xcode
             }
             public enum CodingKeys: String, CodingKey {
+                case ancestor_shas
                 case build_system
                 case commit_sha
                 case parent_shas
@@ -22138,7 +22146,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/outcome`.
             public var outcome: Swift.String
-            /// Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            /// Why the run fell back, such as `excluded_branch`, `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/reason`.
             public var reason: Swift.String?
@@ -22153,7 +22161,7 @@ public enum Components {
             ///   - id: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
             ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
             ///   - outcome: `selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
-            ///   - reason: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            ///   - reason: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
             ///   - skipped_tests: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
             public init(
                 counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
@@ -25554,6 +25562,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams`.
         public struct CreateTestImpactRunParams: Codable, Hashable, Sendable {
+            /// The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/ancestor_shas`.
+            public var ancestor_shas: [Swift.String]?
             /// The baseline the baseline request returned. When absent, `fallback_reason` says why.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/baseline_sha`.
@@ -25693,6 +25705,7 @@ public enum Components {
             /// Creates a new `CreateTestImpactRunParams`.
             ///
             /// - Parameters:
+            ///   - ancestor_shas: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
             ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
             ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
             ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
@@ -25707,6 +25720,7 @@ public enum Components {
             ///   - platform: The platform the tests run on. Absent where the build system has none.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
+                ancestor_shas: [Swift.String]? = nil,
                 baseline_sha: Swift.String? = nil,
                 build_system: Swift.String,
                 changed_files: Components.Schemas.CreateTestImpactRunParams.changed_filesPayload? = nil,
@@ -25721,6 +25735,7 @@ public enum Components {
                 platform: Swift.String? = nil,
                 xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload? = nil
             ) {
+                self.ancestor_shas = ancestor_shas
                 self.baseline_sha = baseline_sha
                 self.build_system = build_system
                 self.changed_files = changed_files
@@ -25736,6 +25751,7 @@ public enum Components {
                 self.xcode = xcode
             }
             public enum CodingKeys: String, CodingKey {
+                case ancestor_shas
                 case baseline_sha
                 case build_system
                 case changed_files
@@ -88034,6 +88050,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/ancestor_shas`.
+                    public var ancestor_shas: [Swift.String]?
                     /// The build system, `xcode` first. A plain string so new build systems don't need a new client.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/build_system`.
@@ -88094,18 +88114,21 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - ancestor_shas: The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
                     ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
                     ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
                     ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
                     ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
+                        ancestor_shas: [Swift.String]? = nil,
                         build_system: Swift.String,
                         commit_sha: Swift.String,
                         parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
                         xcode: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.xcodePayload? = nil
                     ) {
+                        self.ancestor_shas = ancestor_shas
                         self.build_system = build_system
                         self.commit_sha = commit_sha
                         self.parent_shas = parent_shas
@@ -88113,6 +88136,7 @@ public enum Operations {
                         self.xcode = xcode
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case ancestor_shas
                         case build_system
                         case commit_sha
                         case parent_shas
@@ -108712,6 +108736,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/ancestor_shas`.
+                    public var ancestor_shas: [Swift.String]?
                     /// The baseline the baseline request returned. When absent, `fallback_reason` says why.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/baseline_sha`.
@@ -108851,6 +108879,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - ancestor_shas: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
                     ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
                     ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
                     ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
@@ -108865,6 +108894,7 @@ public enum Operations {
                     ///   - platform: The platform the tests run on. Absent where the build system has none.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
+                        ancestor_shas: [Swift.String]? = nil,
                         baseline_sha: Swift.String? = nil,
                         build_system: Swift.String,
                         changed_files: Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayload? = nil,
@@ -108879,6 +108909,7 @@ public enum Operations {
                         platform: Swift.String? = nil,
                         xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload? = nil
                     ) {
+                        self.ancestor_shas = ancestor_shas
                         self.baseline_sha = baseline_sha
                         self.build_system = build_system
                         self.changed_files = changed_files
@@ -108894,6 +108925,7 @@ public enum Operations {
                         self.xcode = xcode
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case ancestor_shas
                         case baseline_sha
                         case build_system
                         case changed_files
