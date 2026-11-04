@@ -198,6 +198,8 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "h1", "orb-details")
       assert has_element?(lv, "#sandbox-error", "jail died")
       assert has_element?(lv, "#sandbox-amp-managed")
+      assert has_element?(lv, ~s([data-part="back-button"][href="/#{account.name}/sandboxes/instances"]), "Instances")
+      assert has_element?(lv, ~s(#sidebar-sandboxes a[href="/#{account.name}/sandboxes/instances"] [data-selected]))
     end
 
     test "does not show another account's sandbox", %{conn: conn, account: account} do
@@ -235,7 +237,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       lv |> element("#sandbox-delete") |> render_click()
       render_click(lv, "delete", %{})
 
-      assert_redirect(lv, ~p"/#{account.name}/sandboxes", 5_000)
+      assert_redirect(lv, ~p"/#{account.name}/sandboxes/instances", 5_000)
       refute Repo.get(Sandbox, sandbox.id)
     end
 

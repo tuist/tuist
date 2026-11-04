@@ -533,11 +533,7 @@ defmodule TuistWeb.AppLayoutComponents do
         label={dgettext("dashboard_sandboxes", "Sandboxes")}
         icon="devices_code"
         navigate={sandboxes_path}
-        selected={
-          @current_path == sandboxes_path or
-            (String.starts_with?(@current_path, sandboxes_path <> "/") and
-               not String.starts_with?(@current_path, sandbox_instances_path))
-        }
+        selected={@current_path == sandboxes_path}
         default_open={String.starts_with?(@current_path, sandboxes_path)}
         phx-update="ignore"
       >
@@ -545,7 +541,7 @@ defmodule TuistWeb.AppLayoutComponents do
           label={dgettext("dashboard_sandboxes", "Instances")}
           icon="stack_2"
           navigate={sandbox_instances_path}
-          selected={String.starts_with?(@current_path, sandbox_instances_path)}
+          selected={String.starts_with?(@current_path, sandboxes_path <> "/")}
         />
       </.sidebar_group>
       <.sidebar_item

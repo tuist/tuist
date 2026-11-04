@@ -76,7 +76,7 @@ defmodule TuistWeb.SandboxLive do
     {:noreply,
      socket
      |> put_flash(:info, dgettext("dashboard_sandboxes", "Sandbox deleted."))
-     |> push_navigate(to: ~p"/#{socket.assigns.selected_account.name}/sandboxes")}
+     |> push_navigate(to: ~p"/#{socket.assigns.selected_account.name}/sandboxes/instances")}
   end
 
   def handle_async(:action, {:ok, {:pause, {:ok, :skipped}}}, socket) do
@@ -141,7 +141,7 @@ defmodule TuistWeb.SandboxLive do
       {:error, :not_found} ->
         socket
         |> put_flash(:info, dgettext("dashboard_sandboxes", "This sandbox was deleted."))
-        |> push_navigate(to: ~p"/#{account.name}/sandboxes")
+        |> push_navigate(to: ~p"/#{account.name}/sandboxes/instances")
     end
   end
 
