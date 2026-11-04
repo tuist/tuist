@@ -1260,6 +1260,15 @@ defmodule Tuist.Environment do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
 
+  @doc """
+  OAuth client ID for personal ChatGPT connections
+  (`Tuist.Accounts.AISubscriptions.ChatGPT`). The client must have OpenAI's
+  device authorization enabled; without it, ChatGPT sign-in stays unavailable.
+  """
+  def chatgpt_client_id(secrets \\ secrets()) do
+    get([:chatgpt, :client_id], secrets)
+  end
+
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end
@@ -1441,6 +1450,27 @@ defmodule Tuist.Environment do
   def apple_oauth_configured?(secrets \\ secrets()) do
     apple_service_client_id(secrets) != nil and apple_team_id(secrets) != nil and
       apple_private_key_id(secrets) != nil and apple_private_key(secrets) != nil
+  end
+
+  def apns_key_id(secrets \\ secrets()) do
+    get([:apns, :key_id], secrets)
+  end
+
+  def apns_team_id(secrets \\ secrets()) do
+    get([:apns, :team_id], secrets)
+  end
+
+  def apns_topic(secrets \\ secrets()) do
+    get([:apns, :topic], secrets)
+  end
+
+  def apns_private_key(secrets \\ secrets()) do
+    get([:apns, :private_key], secrets)
+  end
+
+  def apns_configured?(secrets \\ secrets()) do
+    apns_key_id(secrets) != nil and apns_team_id(secrets) != nil and apns_topic(secrets) != nil and
+      apns_private_key(secrets) != nil
   end
 
   def mailgun_api_key(secrets \\ secrets()) do

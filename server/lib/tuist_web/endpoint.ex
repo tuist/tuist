@@ -170,12 +170,22 @@ defmodule TuistWeb.Endpoint do
   plug TuistWeb.Router
 
   # Sentry only scrubs password, passwd and secret parameters by default.
-  # Authenticator and single-use recovery codes are second-factor credentials.
+  # Authenticator and single-use recovery codes are second-factor credentials,
+  # `token` carries credentials such as Claude subscription tokens, and MCP tool
+  # `arguments` can carry them at any depth of a JSON-RPC body.
+  @sentry_scrubbed_body_keys ["mfa_code", "token", "arguments"]
+
   def scrub_sentry_body(conn) do
     conn
     |> Sentry.PlugContext.default_body_scrubber()
-    |> Map.delete("mfa_code")
+    |> drop_sentry_body_keys()
   end
+
+  defp drop_sentry_body_keys(%{} = map) when not is_struct(map),
+    do: map |> Map.drop(@sentry_scrubbed_body_keys) |> Map.new(fn {key, value} -> {key, drop_sentry_body_keys(value)} end)
+
+  defp drop_sentry_body_keys(list) when is_list(list), do: Enum.map(list, &drop_sentry_body_keys/1)
+  defp drop_sentry_body_keys(value), do: value
 
   # Sentry only scrubs authorization, authentication and cookie by default.
   def scrub_sentry_headers(conn) do
