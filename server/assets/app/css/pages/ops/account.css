@@ -250,6 +250,8 @@
     font-size: 12px;
     line-height: 1.5;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    direction: ltr;
+    unicode-bidi: isolate;
 
     & [data-part="line"] {
       white-space: pre-wrap;

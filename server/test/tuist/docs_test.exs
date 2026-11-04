@@ -282,8 +282,8 @@ defmodule Tuist.DocsTest do
 
       guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
       assert guide =~ "{#cache-measurements}"
-      assert guide =~ "registry leaf libraries"
-      assert guide =~ "absolute paths"
+      assert guide =~ "qualified on Apple silicon Macs"
+      assert guide =~ "a checkout at another path on the same machine"
       refute guide =~ "compatible cache runtime"
       refute guide =~ "verification detects"
     end

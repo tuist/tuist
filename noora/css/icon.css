@@ -59,3 +59,10 @@
     transition: none;
   }
 }
+
+/* Directional icons (see `Noora.Icon.rtl_mirrored?/1`) point the other way in
+   right-to-left documents. The independent `scale` property composes with any
+   `transform: rotate(...)` used by disclosure animations instead of replacing it. */
+[dir="rtl"] [data-rtl-mirror] {
+  scale: -1 1;
+}

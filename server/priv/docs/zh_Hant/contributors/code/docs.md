@@ -11,7 +11,7 @@
 
 ## 用途 {#what-it-is-for}
 
-此文件網站託管 Tuist 的產品與貢獻者文件。它以 VitePress 建構。
+此文件網站託管 Tuist 的產品與貢獻者文件，並以 VitePress 建置。
 
 ## 如何貢獻 {#how-to-contribute}
 
@@ -29,6 +29,6 @@ mise run dev
 
 - CLI 參考資料：`mise run generate-cli-docs`
 
-這些為選擇性項目。文件可在沒有它們的情況下呈現，因此僅在需要重新整理產生內容時才執行。
+這些為選擇性項目。文件可在沒有這些資料的情況下呈現，因此僅在需要重新整理產生內容時執行。
 
 ProjectDescription API 參考文件以 DocC 網站的形式獨立託管於 [projectdescription.tuist.dev](https://projectdescription.tuist.dev)。若要在本機建置，請從儲存庫根目錄執行 `mise run docs:project-description`。

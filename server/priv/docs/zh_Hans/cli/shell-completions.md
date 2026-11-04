@@ -12,12 +12,12 @@
 > [!WARNING]
 > **什么是全局安装**
 >
-> 全局安装是指安装在你的 Shell `$PATH` 环境变量中的安装方式。这意味着你可以在终端的任何目录下运行 `tuist`。这是 Homebrew 的默认安装方式。
+> 全局安装是指在你的 Shell 的 `$PATH` 环境变量中可用的安装。这意味着你可以在终端的任何目录下运行 `tuist`。这是 Homebrew 的默认安装方式。
 
 
 #### Zsh {#zsh}
 
-如果你已安装 [oh-my-zsh](https://ohmyz.sh/)，你已经拥有一个会自动加载补全脚本的目录——`.oh-my-zsh/completions`。将新生成的补全脚本复制到该目录中名为 `_tuist` 的文件：
+如果你已安装 [oh-my-zsh](https://ohmyz.sh/)，你 already 拥有一个会自动加载补全脚本的目录 — `.oh-my-zsh/completions`。将新生成的补全脚本复制到该目录中名为 `_tuist` 的新文件：
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
@@ -31,7 +31,7 @@ autoload -U compinit
 compinit
 ```
 
-接下来，在 `~/.zsh/completion` 创建一个目录，并将补全脚本复制到新目录中，同样保存为名为 `_tuist` 的文件。
+接下来，在 `~/.zsh/completion` 处创建一个目录，并将补全脚本复制到新目录中，同样保存为名为 `_tuist` 的文件。
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist

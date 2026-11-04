@@ -213,11 +213,11 @@ html[data-theme="dark"] {
     display: none;
     position: absolute;
     top: var(--noora-spacing-4);
-    right: var(--noora-spacing-5);
-    left: var(--noora-spacing-5);
     flex-direction: column;
     gap: var(--noora-spacing-5);
     z-index: var(--noora-z-index-2);
+    inset-inline-end: var(--noora-spacing-5);
+    inset-inline-start: var(--noora-spacing-5);
     box-shadow: var(--noora-light-border-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);

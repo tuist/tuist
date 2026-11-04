@@ -47,7 +47,7 @@
       @media (max-width: 720px) {
         align-items: flex-start;
         padding: var(--noora-spacing-14) var(--noora-spacing-7) var(--noora-spacing-8);
-        text-align: left;
+        text-align: start;
       }
 
       & > [data-part="eyebrow"] {

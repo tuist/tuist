@@ -184,6 +184,8 @@
           padding: var(--noora-spacing-5);
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          direction: ltr;
+          unicode-bidi: isolate;
           white-space: pre-wrap;
           word-break: break-word;
         }
@@ -238,6 +240,8 @@
           & > [data-part="command"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
           }
 
           & > [data-part="value"] {
@@ -284,6 +288,8 @@
           & > [data-part="command"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
           }
         }
       }
@@ -411,14 +417,14 @@
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
-            right: var(--noora-spacing-4);
             bottom: 9px;
-            left: var(--noora-spacing-4);
+            inset-inline-end: var(--noora-spacing-4);
+            inset-inline-start: var(--noora-spacing-4);
           }
           &[data-index="two"] {
-            right: var(--noora-spacing-7);
             bottom: 0;
-            left: var(--noora-spacing-7);
+            inset-inline-end: var(--noora-spacing-7);
+            inset-inline-start: var(--noora-spacing-7);
           }
         }
       }
@@ -497,6 +503,8 @@
         padding: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        direction: ltr;
+        unicode-bidi: isolate;
         white-space: pre-wrap;
         word-break: break-word;
       }
@@ -560,14 +568,14 @@
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
-            right: var(--noora-spacing-4);
             bottom: 9px;
-            left: var(--noora-spacing-4);
+            inset-inline-end: var(--noora-spacing-4);
+            inset-inline-start: var(--noora-spacing-4);
           }
           &[data-index="two"] {
-            right: var(--noora-spacing-7);
             bottom: 0;
-            left: var(--noora-spacing-7);
+            inset-inline-end: var(--noora-spacing-7);
+            inset-inline-start: var(--noora-spacing-7);
           }
         }
       }
@@ -717,7 +725,7 @@
                 flex-direction: row;
                 align-items: center;
                 gap: var(--noora-spacing-5);
-                margin-left: auto;
+                margin-inline-start: auto;
 
                 & [data-part="branch-info"] {
                   display: flex;
@@ -811,6 +819,8 @@
               padding: var(--noora-spacing-5);
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+              direction: ltr;
+              unicode-bidi: isolate;
               white-space: pre-wrap;
               word-break: break-word;
             }
@@ -1083,6 +1093,8 @@
             padding: var(--noora-spacing-5);
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
             white-space: pre-wrap;
             word-break: break-word;
           }
@@ -1156,6 +1168,8 @@
           padding: var(--noora-spacing-5);
           overflow-x: auto;
           font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          direction: ltr;
+          unicode-bidi: isolate;
 
           & > [data-part="frame-line"] {
             display: grid;
@@ -1168,7 +1182,7 @@
             }
 
             & > [data-part="frame-index"] {
-              text-align: right;
+              text-align: end;
             }
 
             & > [data-part="frame-symbol"] {
@@ -1219,6 +1233,8 @@
           padding: var(--noora-spacing-5);
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          direction: ltr;
+          unicode-bidi: isolate;
           white-space: pre-wrap;
           word-break: break-word;
         }

@@ -2,7 +2,7 @@
 {
   "title": "CLI",
   "titleTemplate": ":title · Tuist",
-  "description": "Интерфейс командной строки Tuist, его команды и настройка под ваш рабочий процесс."
+  "description": "Интерфейс командной строки Tuist, его команды и способы настройки под ваш рабочий процесс."
 }
 ---
 # CLI {#cli}
@@ -21,8 +21,8 @@ tuist --help
 
 ## Конфигурация {#configuration}
 
-Поведение CLI можно настроить через файл `tuist.toml`. См. <.localized_link href="/references/tuist-toml">справочник по tuist.toml</.localized_link> для всех доступных опций.
+Поведение CLI можно настроить через файл `tuist.toml`. См. <.localized_link href="/references/tuist-toml">справочник по tuist.toml</.localized_link> со всеми доступными опциями.
 
 ## Устранение неполадок {#troubleshooting}
 
-Если возникли проблемы, обратитесь к <.localized_link href="/cli/debugging">руководству по отладке</.localized_link> за инструментами диагностики, включая журналы сессий и сетевые записи.
+Если возникнут проблемы, обратитесь к <.localized_link href="/cli/debugging">руководству по отладке</.localized_link>, где описаны инструменты для диагностики, включая логи сессий и сетевые дампы.
