@@ -8,7 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -34,6 +35,9 @@ func TestSASCReconciler_MarksControlPlaneInitializedOnParentCluster(t *testing.T
 	if err := clusterv1.AddToScheme(scheme); err != nil {
 		t.Fatalf("add cluster-api scheme: %v", err)
 	}
+	if err := clusterv2.AddToScheme(scheme); err != nil {
+		t.Fatalf("add cluster-api v1beta2 scheme: %v", err)
+	}
 
 	infraCluster := &infrav1.TuistCluster{
 		ObjectMeta: metav1.ObjectMeta{
@@ -49,19 +53,11 @@ func TestSASCReconciler_MarksControlPlaneInitializedOnParentCluster(t *testing.T
 			},
 		},
 	}
-	cluster := &clusterv1.Cluster{
+	cluster := &clusterv2.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "tuist-tuist-capi",
 			Namespace: "tuist-staging",
 			UID:       "00000000-0000-0000-0000-000000000001",
-		},
-		Spec: clusterv1.ClusterSpec{
-			InfrastructureRef: &corev1.ObjectReference{
-				APIVersion: infrav1.GroupVersion.String(),
-				Kind:       "TuistCluster",
-				Name:       "tuist-tuist-capi",
-				Namespace:  "tuist-staging",
-			},
 		},
 	}
 
@@ -97,14 +93,14 @@ func TestSASCReconciler_MarksControlPlaneInitializedOnParentCluster(t *testing.T
 		t.Errorf("SASC.Status.Ready: got false, want true")
 	}
 
-	gotCluster := &clusterv1.Cluster{}
+	gotCluster := &clusterv2.Cluster{}
 	if err := cl.Get(context.Background(), types.NamespacedName{
 		Namespace: "tuist-staging",
 		Name:      "tuist-tuist-capi",
 	}, gotCluster); err != nil {
 		t.Fatalf("get Cluster after reconcile: %v", err)
 	}
-	if !conditions.IsTrue(gotCluster, clusterv1.ControlPlaneInitializedCondition) {
+	if !conditions.IsTrue(gotCluster, clusterv2.ClusterControlPlaneInitializedCondition) {
 		t.Errorf("Cluster.ControlPlaneInitialized: got false/unknown, want true. Conditions: %+v", gotCluster.Status.Conditions)
 	}
 }

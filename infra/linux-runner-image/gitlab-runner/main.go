@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -178,7 +179,7 @@ func execute(job assignment, buildsDir, resultFile string) error {
 		trace.Finish()
 		return nil
 	}
-	err = build.Run(common.NewConfig(), trace)
+	err = build.Run(context.Background(), common.NewConfig(), trace)
 	var buildError *common.BuildError
 	if errors.As(err, &buildError) {
 		// Job outcomes are already reported. Reserve non-zero runner exits
@@ -268,7 +269,7 @@ func reportLog(job assignment, file *os.File) error {
 }
 
 func main() {
-	common.AppVersion.Version = "18.11.1"
+	common.AppVersion.Version = "19.5.2"
 	app := cli.NewApp()
 	app.Name = "tuist-gitlab-runner"
 	app.Version = common.AppVersion.ShortLine()

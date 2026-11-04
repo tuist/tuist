@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,9 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -326,7 +326,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) scalewayOSUpdateLock(ctx context
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) scalewayOSRemediation(ctx context.Context, m *infrav1.ScalewayAppleSiliconMachine, hold bool) error {
-	owner, err := util.GetOwnerMachine(ctx, r.Client, m.ObjectMeta)
+	owner, err := shared.OwnerMachine(ctx, r.Client, m.ObjectMeta)
 	if err != nil || owner == nil {
 		return err
 	}
