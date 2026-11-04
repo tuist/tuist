@@ -328,7 +328,7 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
 
             // Row 2: display name (bold)
             Text(
-                text = preview.displayName ?: "Preview",
+                text = preview.displayName ?: stringResource(R.string.preview_default_name),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -399,20 +399,19 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
     }
 }
 
+@Composable
 private fun formatRelativeTime(isoTimestamp: String): String {
-    return try {
-        val dateTime = OffsetDateTime.parse(isoTimestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        val now = OffsetDateTime.now()
-        val duration = Duration.between(dateTime, now)
-
-        when {
-            duration.toMinutes() < 1 -> "Just now"
-            duration.toMinutes() < 60 -> "${duration.toMinutes()}m ago"
-            duration.toHours() < 24 -> "${duration.toHours()}h ago"
-            duration.toDays() < 30 -> "${duration.toDays()}d ago"
-            else -> "${duration.toDays() / 30}mo ago"
-        }
+    val duration = try {
+        Duration.between(OffsetDateTime.parse(isoTimestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME), OffsetDateTime.now())
     } catch (_: Exception) {
-        isoTimestamp
+        return isoTimestamp
+    }
+
+    return when {
+        duration.toMinutes() < 1 -> stringResource(R.string.relative_time_just_now)
+        duration.toMinutes() < 60 -> stringResource(R.string.relative_time_minutes, duration.toMinutes())
+        duration.toHours() < 24 -> stringResource(R.string.relative_time_hours, duration.toHours())
+        duration.toDays() < 30 -> stringResource(R.string.relative_time_days, duration.toDays())
+        else -> stringResource(R.string.relative_time_months, duration.toDays() / 30)
     }
 }
