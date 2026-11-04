@@ -862,8 +862,8 @@ defmodule TuistWeb.Router do
             :show_delivery_attempt
       end
 
-      # The literal agent-environments and agent-sessions routes must
-      # precede `/:sandbox_id`.
+      # The literal analytics, agent-environments and agent-sessions routes
+      # must precede `/:sandbox_id`.
       scope "/sandboxes" do
         post "/amp-orbs/:orb_id", SandboxesController, :dispatch_amp_orb
         post "/agent-environments", SandboxesController, :create_agent_environment
@@ -876,12 +876,14 @@ defmodule TuistWeb.Router do
         post "/agent-sessions/:agent_session_id/messages", AgentSessionsController, :create_message
         get "/agent-sessions/:agent_session_id/events", AgentSessionsController, :index_events
         post "/agent-sessions/:agent_session_id/archive", AgentSessionsController, :archive
+        get "/analytics", SandboxesController, :analytics
         get "/", SandboxesController, :index
         post "/", SandboxesController, :create
         get "/:sandbox_id", SandboxesController, :show
         post "/:sandbox_id/exec", SandboxesController, :exec
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
+        post "/:sandbox_id/archive", SandboxesController, :archive
         delete "/:sandbox_id", SandboxesController, :delete
       end
     end

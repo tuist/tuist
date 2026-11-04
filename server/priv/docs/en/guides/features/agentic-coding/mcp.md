@@ -188,7 +188,7 @@ If your agent supports `auth.md`, it can start anonymously without opening a bro
 In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
 
 - **Website and documentation pages** register the documentation and source tools (`search_tuist`, `search_tuist_code`, `list_tuist_files` and `read_tuist_file`). They don't need you to sign in.
-- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. Each page registers only the tools for what it shows, for the project's build system: a Gradle project's builds page gets the Gradle build tools, its test pages the test and coverage tools, and the runners pages the runner tools. Your personal account's AI subscriptions settings page gets `list_ai_subscriptions`, which only answers on your own account. Every page also gets the documentation tools, `list_projects` and `get_project`. The tools run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another page or account, the tools are replaced with that page's.
+- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. Each page registers only the tools for what it shows, for the project's build system: a Gradle project's builds page gets the Gradle build tools, its test pages the test and coverage tools, the runners pages the runner tools, and the sandboxes pages the sandbox tools. Your personal account's AI subscriptions settings page gets `list_ai_subscriptions`, which only answers on your own account. Every page also gets the documentation tools, `list_projects` and `get_project`. The tools run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another page or account, the tools are replaced with that page's.
 
 Tools that create, change, or delete data are not available through WebMCP, because a browser agent receives the tools without you adding them and reads content that builds and tests produce. Connect an MCP client to the `/mcp` endpoint to use those tools.
 
@@ -320,6 +320,20 @@ Lists accept `page` and `page_size` (up to 100). Volume inventory also accepts
 `name` and `repository` (exact matches, combined with AND), `sort_by` (`volume`, `repository`, `used_space`, `capacity`, `last_used`)
 and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
 `null`. Cache status describes whether volume changes were saved, not job success.
+
+#### Sandboxes
+
+Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandboxes run arbitrary commands, so every tool, including the read-only ones, requires account administration, and the account needs sandboxes enabled. The dashboard's sandbox pages register the read-only tools.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_sandboxes` | Paginate sandboxes with their status, shape and timestamps. Optional `search` (text in the sandbox, Amp Orb or Anthropic session ID), `status`, `vcpus`, `sort_by` (`created`, `last_active`, `name`) and `sort_order`. | `account_handle` |
+| `get_sandbox` | A sandbox's status, shape, node, archive and timestamps. | `account_handle`, `sandbox_id` |
+| `get_sandbox_analytics` | vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, with trends. Optional `start` and `end` (ISO 8601); defaults to 30 days, maximum 90. | `account_handle` |
+| `pause_sandbox` | Snapshot a running sandbox to its node's disk. | `account_handle`, `sandbox_id` |
+| `resume_sandbox` | Resume a paused or archived sandbox. | `account_handle`, `sandbox_id` |
+| `archive_sandbox` | Queue moving a paused sandbox's disks to object storage. | `account_handle`, `sandbox_id` |
+| `delete_sandbox` | Delete a sandbox and its disks, after user confirmation. | `account_handle`, `sandbox_id` |
 
 #### Webhooks
 
