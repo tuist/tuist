@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "86a7222114e7f6e730ca9e1aefffa8f1c2ee0906ebe6213fe118535ec99b2957",
+  "hash": "8f19b7fdf3c6275da74da76e4fa767fe4a0bd996f5992c629701cb4cc33263d2",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "96302518cb6aab6e284be7e1c6aaf4f3f04705337f8ed8283a121e57b36a5b5c"
                 },
                 "## WebMCP": {
-                  "content_hash": "3b0cfa243bed4f0b8ec49ad164319ccbac3807f6c13011e84148b579cc388de4"
+                  "content_hash": "d3a4a55253232cabe098f020ba256cce6ab1b89f3500bf76de86ea4babb81a29"
                 },
                 "### Events": {
                   "content_hash": "c772e92fa6f357d052340fdf7a6cb956a73d6916a74b9a1bb04a4b7c46477068"
@@ -36,6 +36,9 @@
                 },
                 "### Tools": {
                   "content_hash": "375339b6975176eee068df783423d82cdfaf6465103fb1231e720c2ba17c59e2"
+                },
+                "#### AI subscriptions": {
+                  "content_hash": "f37899ab8f5b51dcb2a08f3eae173a5f3560ea6def090d0e99ce450323045e1f"
                 },
                 "#### Account tokens": {
                   "content_hash": "5ff48a86344ab02ec828d42b5ebb2c762123c70a74db57e9b5c66bf0fb6398d2"
@@ -113,11 +116,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "be551fa26581b530d2f2d93518fb6f77245ffdb479e9e00e44a940f6c812d7fb",
+          "hash": "afc91f876a207b5971b7bf25c6b76a01d213877e3e1e1d2786f9e1bee9958983",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "acd9fc1d5a1bacb68468ae5d3d2e7cb82e885d966dbb7446b764f1441567fc2f"
+            "content_hash": "1e9fbb4a3e2af71d29dd5670cbe450a4cd3b06db4428a009c9bfc752f4ab36b8"
           }
         },
         {
@@ -178,7 +181,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -197,7 +200,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -226,11 +229,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -343,21 +346,21 @@
             }
           ],
           "details": {},
-          "hash": "dd6b30f72ec16a21587d90c81efb79db0fcb66e35cb490e37809f836bad45ced",
+          "hash": "45eddedcfaf027619492989f8f6a0f52be50ac237089de8ef689c69043e59d46",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "86a7222114e7f6e730ca9e1aefffa8f1c2ee0906ebe6213fe118535ec99b2957",
+      "hash": "8f19b7fdf3c6275da74da76e4fa767fe4a0bd996f5992c629701cb4cc33263d2",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "0c05696675b203c0c00c28e091d786f884d81647ec81773f52cb90915a549cf1",
+  "output_hash": "e044169f13e4d11beb0c5d53459eefce2eb9d2d8481d6b21d82a31416500cc52",
   "output_path": "server/priv/docs/ko/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -382,8 +385,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4ef84f1314e1857bd5b687b73b204c146d1d4397",
+  "source_commit_sha": "2017e11a52a243a90fa52f99cb31519e00156761",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-04T07:51:46.588121Z",
-  "translation_session_id": "01a1a584-ca8e-7d7d-946a-125a57437e5f"
+  "translated_at": "2026-11-04T18:25:29.918664Z",
+  "translation_session_id": "01a1a7cd-3c01-7e3c-b8df-5daa4edcec2e"
 }
