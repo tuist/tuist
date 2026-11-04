@@ -1,0 +1,311 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "محاكي %@";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "رمز الوصول أو رمز التحديث مفقود من الاستجابة";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "الكل";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "جميع المسارات";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "جهاز أندرويد";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "محاكي أندرويد";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "محاكيات أندرويد";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "التطبيق";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "إصدار التطبيق";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "فشل تسجيل الدخول باستخدام Apple";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "التطبيقات في";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "هل أنت متأكد من رغبتك في حذف هذه المعاينة؟ لا يمكن التراجع عن هذا الإجراء.";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "هل أنت متأكد من رغبتك في حذف حسابك؟ لا يمكن التراجع عن هذا الإجراء.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "لم يتم العثور على رمز التفويض";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "الفرع";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "معرف الحزمة";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "إلغاء";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "التحقق من وجود تحديثات";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "SHA الالتزام";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "متصل";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "نسخ المعرّف";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "نسخ الاسم";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "لم يتم العثور على ملف APK في الأرشيف الذي تم تنزيله";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "لم يتم العثور على حزمة التطبيق في الأرشيف الذي تم تنزيله";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "لم يتمكّن من تثبيت التطبيق لـ %@ لأنه لا يتضمن أي بنى تطبيق صالحة.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "لم يتمكّن من تثبيت التطبيق لـ %@. منصة %@ هي %@ والتطبيق يتضمن فقط المنصات التالية: %@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "تم الإنشاء في";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "تم الإنشاء بواسطة";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "حذف";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "حذف الحساب";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "حذف المعاينة";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "حذف الحساب";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "حذف المعاينة";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "التفاصيل";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "الأجهزة";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "غير متصل";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "البريد الإلكتروني";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "أدخل عنوان URL صالحًا لخادم HTTPS دون بيانات اعتماد أو استعلام أو جزء.";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "خطأ";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "تم الانتهاء";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "الحصول على المساعدة";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "تثبيت أحدث المعاينات بنقرة واحدة.";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "فشل التثبيت";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "تم تثبيت %@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "تم تثبيت %@@%@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "جارٍ تثبيت المعاينة";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "تم استلام عنوان URL غير صالح للرد";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "تنسيق الاستجابة غير صالح";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "تشغيل";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "جارٍ تشغيل المعاينة";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "تسجيل الخروج";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "تم تسجيل الخروج";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "بيانات اعتماد Apple مفقودة من التفويض";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "لا توجد معاينات";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "لم يتم العثور على مشاريع Tuist";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "لم يتم العثور على معاينات";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "لا تتطابق أي معاينات مع عوامل التصفية الخاصة بك";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "موافق";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "أجهزة أخرى";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "تثبيت";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "المعاينات";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "المعاينات: %lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "سياسة الخصوصية";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "الملف الشخصي";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "اسحب للأسفل لتحديث المعاينات.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "اسحب للأسفل لتحديث مشاريعك.";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "إنهاء Tuist";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "جاهز";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "ملاحظات الإصدار";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "تشغيل";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "بحث";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "مستضاف ذاتيًا";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "خادم مستضاف ذاتيًا";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "مشاركة السجلات";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "تسجيل الدخول";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "سجّل الدخول للوصول إلى مشاريعك\nوالتعاون مع فريقك";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "سجّل الدخول لتشغيل المعاينات";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "تسجيل الدخول باستخدام Apple";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "تسجيل الدخول باستخدام GitHub";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "تسجيل الدخول باستخدام Google";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "تسجيل الدخول باستخدام Tuist";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "تسجيل الخروج";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "المحاكيات";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "المنصات المدعومة";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "شروط الخدمة";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "لم يتم العثور على معاينة التطبيق %@.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "لم يتم العثور على أحدث معاينة لـ %@. هل تم نشر أي معاينة؟";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "لا تحتوي المعاينة %@ على اسم حزمة معين.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "رابط التعميق للمعاينة %@ غير صالح.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "أعاد الخادم صفحة معاينة لم تتقدم. حدّث خادمك أو حاول مرة أخرى.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "لا يدعم هذا الخادم تصفية المعاينات حسب المسار. حدّث خادم Tuist المستضاف ذاتياً، أو اختر جميع المسارات.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "لا يدعم هذا الخادم البحث في المعاينات. حدّث خادم Tuist المستضاف ذاتياً، أو امسح البحث.";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "لا يدعم هذا الخادم تسجيل الدخول من تطبيق Tuist. اطلب من المسؤول تحديثه.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "لتشغيل معاينة، يجب أن يكون لديك محاكي محدّد.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "فشل تبادل الرمز المميز برمز الحالة: %lld";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "المسار";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "المسارات";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "جرّب بحثًا مختلفًا أو اختر مسارًا آخر.";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "غير معروف";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "إلغاء التثبيت";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "حدّث خادم Tuist المستضاف ذاتيًا لتحديد مسار.";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "استخدم العنوان الجذري لخادم Tuist الخاص بك";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "مرحبًا بك في Tuist";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "أو";
