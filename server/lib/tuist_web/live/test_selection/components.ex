@@ -106,7 +106,6 @@ defmodule TuistWeb.TestSelection.Components do
   def reason_description(reason, _path), do: reason
 
   @doc "Why an impact run fell back to default selective testing."
-  def fallback_label("excluded_branch"), do: dgettext("dashboard_tests", "Default branch")
   def fallback_label("no_baseline"), do: dgettext("dashboard_tests", "No baseline")
   def fallback_label("baseline_too_old"), do: dgettext("dashboard_tests", "Baseline too far back")
   def fallback_label("no_baseline_evidence"), do: dgettext("dashboard_tests", "No baseline evidence")
@@ -116,9 +115,6 @@ defmodule TuistWeb.TestSelection.Components do
   def fallback_label("diff_unavailable"), do: dgettext("dashboard_tests", "Diff unavailable")
   def fallback_label("history_unknown"), do: dgettext("dashboard_tests", "Commit unknown")
   def fallback_label(reason), do: reason
-
-  def fallback_description("excluded_branch"),
-    do: dgettext("dashboard_tests", "Runs on the default branch run every test, so later runs have a full baseline.")
 
   def fallback_description("no_baseline"),
     do:
