@@ -6,7 +6,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateSandboxEvents do
   A `started` row of a boot carries what it booted from (`boot_source`) and
   how long the boot took (`duration_ms`); a `setup` row carries how long
   setup ran.
-  The dashboard derives counts, run sessions (`started` up to the next stop)
+  The dashboard derives counts, run sessions (`started` up to the next stop),
+  the disk held on nodes (`created` up to `archived`, `failed` or `deleted`)
   and concurrency from it, since sandbox rows themselves are deleted.
   """
   use Ecto.Migration
@@ -28,6 +29,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateSandboxEvents do
       source LowCardinality(String),
       vcpus UInt16,
       memory_mb UInt32,
+      workspace_gb UInt16 DEFAULT 0,
       boot_source LowCardinality(String) DEFAULT '',
       duration_ms UInt32 DEFAULT 0,
       inserted_at DateTime64(6)

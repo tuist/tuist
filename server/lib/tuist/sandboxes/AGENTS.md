@@ -311,7 +311,10 @@ socket, the poller and the caller share a replica:
   `sandbox_events`, which `Events` writes on every state change: through
   `update_sandbox/3`, and explicitly where a state is written another way
   (create, delete, `mark_error`, `Archives`). A new state write must record
-  its event too, or sessions and concurrency drift. `boot/2` times each
+  its event too, or sessions and concurrency drift. Peak disk follows
+  `Concurrency`'s disk charge: a sandbox holds its workspace and memory image
+  from `created` (or a restore's `started`) until `archived`, `failed` or
+  `deleted`, paused or not. `boot/2` times each
   boot (create or restore) and tags its `started` event with what it booted
   from. Before every Amp pause, `AmpOrbs` reads the birth and modification
   times of Amp's `setup.log` in the guest (`Sandboxes.exec_running/3`, which

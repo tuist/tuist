@@ -568,6 +568,7 @@ defmodule TuistWeb.UsageLiveTest do
             source: "amp",
             vcpus: 4,
             memory_mb: 8192,
+            workspace_gb: 10,
             boot_source: "",
             duration_ms: 0,
             inserted_at: at

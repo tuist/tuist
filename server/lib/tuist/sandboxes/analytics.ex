@@ -5,8 +5,13 @@ defmodule Tuist.Sandboxes.Analytics do
 
   Counts come straight from `created` events. Run sessions pair each
   `started` event with the sandbox's next stop event; a session with no stop
-  yet runs until now. Compute, session durations and concurrency are derived
-  from those sessions.
+  yet runs until now. Compute, session durations and peak vCPUs and memory
+  are derived from those sessions.
+
+  Disk is held for longer: a sandbox keeps its workspace and memory image on
+  its node from `created` (or the `started` of a restore) until it is
+  archived, fails or is deleted, paused or not, as `Concurrency` charges it.
+  Peak disk is derived from those holds.
 
   Setup and time to start come straight from the durations events carry: a
   `setup` event's is how long an Orb's `.agents/setup` ran, and a
@@ -46,6 +51,7 @@ defmodule Tuist.Sandboxes.Analytics do
 
     by_sandbox = account_id |> lifecycle_events(prev_start_dt, query_end_dt) |> Enum.chunk_by(& &1.sandbox_id)
     sessions = sessions(by_sandbox, query_end_dt)
+    holds = holds(by_sandbox, query_end_dt)
     events = List.flatten(by_sandbox)
     durations = &event_durations(events, &1, buckets, prev_start_dt, start_dt, query_end_dt)
 
@@ -55,7 +61,7 @@ defmodule Tuist.Sandboxes.Analytics do
       session_duration: session_duration(sessions, buckets, prev_start_dt, start_dt, end_dt),
       setup: durations.(&(&1.event == "setup")),
       time_to_start: durations.(&(&1.event == "started" and &1.boot_source != "")),
-      concurrency: concurrency(clip(sessions, start_dt, end_dt), buckets)
+      concurrency: concurrency(clip(sessions, start_dt, end_dt), clip(holds, start_dt, end_dt), buckets)
     }
   end
 
@@ -196,48 +202,47 @@ defmodule Tuist.Sandboxes.Analytics do
     duration_summary(current, previous, buckets, & &1.at, & &1.ms, nil)
   end
 
-  # Peak vCPUs and memory in use within each bucket, from a sweep
-  # over session starts and ends.
-  defp concurrency(sessions, buckets) do
+  # Peak vCPUs and memory in use, and disk held on nodes, within each bucket.
+  defp concurrency(sessions, holds, buckets) do
+    %{
+      dates: Enum.map(buckets, & &1.date),
+      vcpus: peaks(sessions, buckets, & &1.vcpus),
+      memory_gb: sessions |> peaks(buckets, & &1.memory_mb) |> Enum.map(&gigabytes/1),
+      disk_gb: holds |> peaks(buckets, & &1.disk_mb) |> Enum.map(&gigabytes/1)
+    }
+  end
+
+  defp gigabytes(mb), do: Float.round(mb / 1024, 1)
+
+  # The highest sum of `amount` over the intervals overlapping at any one time
+  # in each bucket, from a sweep over their starts and ends.
+  defp peaks(intervals, buckets, amount) do
     changes =
-      sessions
-      |> Enum.flat_map(fn session ->
-        [
-          {session.started_at, 1, session.vcpus, session.memory_mb},
-          {session.ended_at, 0, -session.vcpus, -session.memory_mb}
-        ]
+      intervals
+      |> Enum.flat_map(fn interval ->
+        [{interval.started_at, 1, amount.(interval)}, {interval.ended_at, 0, -amount.(interval)}]
       end)
-      |> Enum.sort_by(fn {at, order, _vcpus, _memory_mb} -> {DateTime.to_unix(at, :microsecond), order} end)
+      |> Enum.sort_by(fn {at, order, _delta} -> {DateTime.to_unix(at, :microsecond), order} end)
 
     {peaks, _changes, _level} =
-      Enum.reduce(buckets, {[], changes, {0, 0}}, fn bucket, {peaks, changes, level} ->
-        # A session that ends as the bucket starts never ran in it.
+      Enum.reduce(buckets, {[], changes, 0}, fn bucket, {peaks, changes, level} ->
+        # An interval that ends as the bucket starts never overlapped it.
         {ending, changes} =
-          Enum.split_while(changes, fn {at, order, _, _} -> order == 0 and not DateTime.after?(at, bucket.start) end)
+          Enum.split_while(changes, fn {at, order, _} -> order == 0 and not DateTime.after?(at, bucket.start) end)
 
-        level = Enum.reduce(ending, level, &apply_change(&2, &1))
-        {inside, rest} = Enum.split_while(changes, fn {at, _, _, _} -> DateTime.before?(at, bucket.end) end)
+        level = level + Enum.sum_by(ending, &elem(&1, 2))
+        {inside, rest} = Enum.split_while(changes, fn {at, _, _} -> DateTime.before?(at, bucket.end) end)
 
         {level, peak} =
-          Enum.reduce(inside, {level, level}, fn change, {level, {pv, pm}} ->
-            {v, m} = level = apply_change(level, change)
-            {level, {max(pv, v), max(pm, m)}}
+          Enum.reduce(inside, {level, level}, fn {_at, _order, delta}, {level, peak} ->
+            {level + delta, max(peak, level + delta)}
           end)
 
         {[peak | peaks], rest, level}
       end)
 
-    peaks = Enum.reverse(peaks)
-
-    %{
-      dates: Enum.map(buckets, & &1.date),
-      vcpus: Enum.map(peaks, &elem(&1, 0)),
-      memory_gb: Enum.map(peaks, &(&1 |> elem(1) |> Kernel./(1024) |> Float.round(1)))
-    }
+    Enum.reverse(peaks)
   end
-
-  defp apply_change({vcpus, memory_mb}, {_at, _order, vcpus_delta, memory_mb_delta}),
-    do: {vcpus + vcpus_delta, memory_mb + memory_mb_delta}
 
   defp lifecycle_events(account_id, from_dt, end_dt) do
     lookback_dt = DateTime.add(from_dt, -@session_lookback_days, :day)
@@ -245,7 +250,7 @@ defmodule Tuist.Sandboxes.Analytics do
     ClickHouseRepo.all(
       from(e in SandboxEvent,
         where:
-          e.account_id == ^account_id and e.event in ^["started", "setup" | Events.stop_events()] and
+          e.account_id == ^account_id and e.event in ^["created", "started", "setup" | Events.stop_events()] and
             e.inserted_at >= ^lookback_dt and e.inserted_at < ^end_dt,
         order_by: [e.sandbox_id, e.inserted_at],
         select: %{
@@ -256,6 +261,7 @@ defmodule Tuist.Sandboxes.Analytics do
           duration_ms: e.duration_ms,
           vcpus: e.vcpus,
           memory_mb: e.memory_mb,
+          workspace_gb: e.workspace_gb,
           inserted_at: e.inserted_at
         }
       )
@@ -263,12 +269,47 @@ defmodule Tuist.Sandboxes.Analytics do
   end
 
   defp sessions(by_sandbox, end_dt) do
-    now = DateTime.utc_now()
-    open_until = if DateTime.before?(now, end_dt), do: now, else: end_dt
+    open_until = open_until(end_dt)
 
     Enum.flat_map(by_sandbox, fn events ->
-      events |> Enum.reject(&(&1.event == "setup")) |> pair_sessions(open_until)
+      events |> Enum.filter(&(&1.event in ["started" | Events.stop_events()])) |> pair_sessions(open_until)
     end)
+  end
+
+  # Each sandbox's stretches on a node, holding its workspace and memory
+  # image: from `created`, or a `started` while off any node (a restore),
+  # until it is archived, fails or is deleted. One still on a node holds
+  # until now.
+  defp holds(by_sandbox, end_dt) do
+    open_until = open_until(end_dt)
+
+    Enum.flat_map(by_sandbox, fn events ->
+      {holds, open} =
+        Enum.reduce(events, {[], nil}, fn event, {holds, open} ->
+          at = to_utc(event.inserted_at)
+
+          cond do
+            is_nil(open) and event.event in ["created", "started"] ->
+              {holds, %{started_at: at, ended_at: nil, disk_mb: event.workspace_gb * 1024 + event.memory_mb}}
+
+            open && event.event in ["archived", "failed", "deleted"] ->
+              {[%{open | ended_at: at} | holds], nil}
+
+            true ->
+              {holds, open}
+          end
+        end)
+
+      case open do
+        nil -> holds
+        open -> [%{open | ended_at: Enum.max([open.started_at, open_until], DateTime)} | holds]
+      end
+    end)
+  end
+
+  defp open_until(end_dt) do
+    now = DateTime.utc_now()
+    if DateTime.before?(now, end_dt), do: now, else: end_dt
   end
 
   defp pair_sessions(events, open_until) do

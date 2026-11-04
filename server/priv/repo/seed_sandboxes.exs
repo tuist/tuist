@@ -251,6 +251,7 @@ events =
       source: "amp",
       vcpus: sandbox.vcpus,
       memory_mb: sandbox.memory_mb,
+      workspace_gb: 50,
       boot_source: Map.get(extra, :boot_source, ""),
       duration_ms: Map.get(extra, :duration_ms, 0),
       inserted_at: %{DateTime.to_naive(at) | microsecond: {elem(at.microsecond, 0), 6}}

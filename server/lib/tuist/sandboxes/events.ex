@@ -28,6 +28,7 @@ defmodule Tuist.Sandboxes.Events do
       source: source(sandbox),
       vcpus: sandbox.vcpus,
       memory_mb: sandbox.memory_mb,
+      workspace_gb: sandbox.workspace_gb || 0,
       boot_source: Map.get(extra, :boot_source, ""),
       duration_ms: Map.get(extra, :duration_ms, 0),
       inserted_at: Map.get_lazy(extra, :inserted_at, &NaiveDateTime.utc_now/0)

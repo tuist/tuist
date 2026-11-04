@@ -38,6 +38,7 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
           source: source,
           vcpus: vcpus,
           memory_mb: vcpus * 2048,
+          workspace_gb: 10,
           boot_source: boot_source,
           duration_ms: duration_ms,
           inserted_at: NaiveDateTime.from_iso8601!(at <> ".000000")
@@ -139,6 +140,14 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
 
     assert result.concurrency.vcpus == [6, 2, 0]
     assert result.concurrency.memory_gb == [12.0, 4.0, 0.0]
+  end
+
+  # Disk stays held while paused: the sandbox paused on 30 September still
+  # holds it, and the restored one holds it from its first start.
+  test "reports the peak disk held on nodes per day, until archive, failure or deletion", %{account: account} do
+    result = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
+
+    assert result.concurrency.disk_gb == [46.0, 28.0, 0.0]
   end
 
   test "buckets a short window by hour, leaving a session out of the hour it ended at", %{account: account} do

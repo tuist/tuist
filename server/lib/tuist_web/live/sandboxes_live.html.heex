@@ -338,7 +338,7 @@
             concurrency_charts(
               if(ready?,
                 do: @analytics.result.concurrency,
-                else: %{vcpus: [], memory_gb: []}
+                else: %{vcpus: [], memory_gb: [], disk_gb: []}
               ),
               @usage,
               @selected_account
