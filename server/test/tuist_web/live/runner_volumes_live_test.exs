@@ -648,7 +648,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert {:noreply, socket} = RunnerVolumesLive.handle_event("confirm", %{}, socket)
     assert socket.assigns.pending_action == nil
     assert socket.assigns.flash["info"] == "Volume deleted. Running jobs can finish."
-    assert {:live, :patch, %{to: "/acme/runners/volumes"}} = socket.redirected
+    assert {:live, :redirect, %{to: "/acme/runners/volumes"}} = socket.redirected
   end
 
   test "requesting another account's volume never opens confirmation" do

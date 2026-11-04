@@ -148,7 +148,7 @@ defmodule TuistWeb.RunnerVolumesLive do
              :info,
              dgettext("dashboard_runners", "Volume deleted. Running jobs can finish.")
            )
-           |> push_patch(to: ~p"/#{account.name}/runners/volumes")}
+           |> push_navigate(to: ~p"/#{account.name}/runners/volumes")}
 
         _ ->
           {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "Could not update volume. Please retry."))}
