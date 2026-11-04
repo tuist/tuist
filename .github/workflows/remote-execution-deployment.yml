@@ -1,0 +1,133 @@
+name: Remote Execution Deployment
+
+# Installs or upgrades the opt-in remote-execution release (execution
+# gateways and reserved Firecracker workers) into an environment's sandbox
+# namespace. Dispatch only: accounts pin the template tag in their settings,
+# so changing images is an operator decision (see
+# infra/sandbox-image/remote-execution.md). Workers roll out OnDelete; an
+# upgrade replaces gateways and never kills running VMs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options: [staging, canary, production]
+      commit_sha:
+        description: Commit to build images from (defaults to the dispatched ref)
+        required: false
+        type: string
+      template_image_tag:
+        description: Published sandbox template and gateway tag; omit to build from the commit
+        required: false
+        type: string
+      sandboxd_image_tag:
+        description: Published sandboxd tag; omit to build from the commit
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: remote-execution-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  HELM_CHART_PATH: infra/helm/remote-execution
+  HELM_RELEASE_NAME: remote-execution
+  NAMESPACE: tuist-sandboxes
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+
+jobs:
+  guard:
+    name: Guard production source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require main for production
+        if: inputs.environment == 'production' && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Production deploys must run from refs/heads/main. Current ref: ${{ github.ref }}"
+          exit 1
+
+  build-template:
+    name: Publish sandbox template and gateway
+    needs: guard
+    if: inputs.template_image_tag == ''
+    uses: ./.github/workflows/sandbox-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+
+  build-sandboxd:
+    name: Publish sandboxd
+    needs: guard
+    if: inputs.sandboxd_image_tag == ''
+    uses: ./.github/workflows/sandboxd-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    needs: [guard, build-template, build-sandboxd]
+    if: always() && needs.guard.result == 'success' && (needs.build-template.result == 'success' || needs.build-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      TEMPLATE_IMAGE_TAG: ${{ inputs.template_image_tag || needs.build-template.outputs.image_tag }}
+      SANDBOXD_IMAGE_TAG: ${{ inputs.sandboxd_image_tag || needs.build-sandboxd.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - name: Validate image tags
+        run: |
+          set -euo pipefail
+          for tag in "$TEMPLATE_IMAGE_TAG" "$SANDBOXD_IMAGE_TAG"; do
+            if [[ ! "$tag" =~ ^sha-[a-f0-9]{12,40}$ ]]; then
+              echo "::error::Image tags must be immutable sha-<commit> tags, got '$tag'"
+              exit 1
+            fi
+          done
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Require the sandbox namespace
+        # The server release owns the namespace and its policies.
+        run: kubectl get namespace "$NAMESPACE" >/dev/null
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            --set gateway.tag="$TEMPLATE_IMAGE_TAG" \
+            --set workers.templateTag="$TEMPLATE_IMAGE_TAG" \
+            --set workers.tag="$SANDBOXD_IMAGE_TAG" \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10
+          kubectl -n "$NAMESPACE" get deploy,ds,svc,ingress,pods -l tuist.dev/remote-execution=true -o wide
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -60

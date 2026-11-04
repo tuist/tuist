@@ -225,23 +225,19 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
 ## Build and rollout
 
 1. Run the PostgreSQL migration and deploy the server with the flag off.
-2. Build sandboxd with its existing image workflow. The sandbox-image workflow
-   validates the guest template and execution gateway builds on pull requests.
-   To build the gateway locally:
-
-   ```sh
-   docker build --platform linux/amd64 --target execution-gateway \
-     -t ghcr.io/tuist/tuist-remote-execution:sha-<commit> infra/sandbox-image
-   ```
-
-3. Install the standalone chart into the **existing** sandbox namespace configured
-   on the server. Pin gateway, sandboxd and template images. Set `serverURL` to
-   the in-cluster server URL. Configure TLS/HTTP2 ingress for its gateway Service
-   using the environment's existing gateway; do not expose plaintext gRPC
-   publicly. Ensure its idle/request timeouts allow a 15-minute execution stream.
-   The gateway must reach the accounts' Kura endpoints to publish action-cache
-   entries. The chart is disabled by default and does not alter managed
-   environments.
+2. Provision reserved hosts as described above and confirm the environment's
+   `values-managed-<env>.yaml` in the [chart](../helm/remote-execution/) names
+   the right server namespace and gateway host. Set `enabled: true` there.
+3. Run **Remote Execution Deployment** (`.github/workflows/remote-execution-deployment.yml`)
+   for the environment. It publishes the guest template and the execution gateway
+   (`ghcr.io/tuist/tuist-remote-execution`, both under the sandbox image's
+   source-derived tag) and sandboxd, or takes published tags, then installs the
+   release into `tuist-sandboxes`. The gateway's Ingress uses the dedicated
+   `nginx-grpc` controller with TLS and a 16-minute proxy timeout, DNS-only like
+   the other gRPC hosts. The gateway must reach the accounts' Kura endpoints to
+   publish action-cache entries. Upgrades replace gateways; workers roll out
+   `OnDelete` (see Rollback). The server's network policy admits pods labelled
+   `tuist.dev/remote-execution` from the sandbox namespace.
 4. Confirm hosts report `execution_deadlines: true`, `execution_slots > 0`, and a
    ready `bazel` template with the pinned tag. Confirm fixed CPU/memory requests,
    disk headroom, and the dedicated host taint before allowing any account.
@@ -279,6 +275,20 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    properties there: Bazel only uses default properties for platforms without
    their own. Re-running setup without the execution options opts the workspace
    out.
+
+## Observability
+
+The **Tuist Remote Execution** dashboard (`infra/grafana-dashboards/remote-execution.json`)
+reads three sources, none labelled by account or project:
+
+- Gateways export `reapi_gateway_*` on port 9090: Execute calls by path (`lease`
+  or `server`) and final status, Execute latency, how inputs were prefetched,
+  action-cache publication outcomes and admitted streams.
+- The server exports `tuist_remote_execution_*` through PromEx: submissions
+  (accepted, deduplicated, `queue_full`), operation outcomes, duration and queue
+  time, VM preparation time by outcome, and lease outcomes. Leased executions
+  bypass the scheduler, so they appear only in the gateway metrics.
+- Worker daemons export the existing `sandboxd_*` metrics on port 9090.
 
 ## Rollback
 

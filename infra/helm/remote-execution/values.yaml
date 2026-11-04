@@ -10,6 +10,17 @@ gateway:
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: "1", memory: 512Mi}
+  # gRPC ingress for Bazel clients. The gateway speaks plaintext HTTP/2, so
+  # TLS ends at the dedicated gRPC controller; execution streams last up to
+  # 15 minutes.
+  ingress:
+    enabled: false
+    host: ""
+    className: nginx-grpc
+    tlsSecretName: remote-execution-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 workers:
   image: ghcr.io/tuist/tuist-sandboxd
   tag: ""

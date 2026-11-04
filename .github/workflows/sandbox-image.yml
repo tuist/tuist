@@ -1,6 +1,7 @@
 name: Sandbox Template Image
 
-# PR validation and the reusable publisher used by server deployments.
+# PR validation and the reusable publisher used by server deployments. It
+# publishes the guest template and the remote execution gateway under one tag.
 # The source-derived immutable tag is reused across unrelated server changes.
 # The production cascade builds once and promotes it through canary/production;
 # staging builds through server-deployment.yml. Manual dispatch remains available.
@@ -38,6 +39,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist-sandbox-template
+  GATEWAY_IMAGE_NAME: tuist/tuist-remote-execution
 
 jobs:
   test:
@@ -155,6 +157,24 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}
+      - name: Reuse published execution gateway
+        id: existing-gateway
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          exists=$(bash .github/scripts/sandbox-image-exists.sh "$REGISTRY/$GATEWAY_IMAGE_NAME:$IMAGE_TAG")
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      - name: Publish execution gateway
+        if: steps.existing-gateway.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          target: execution-gateway
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.GATEWAY_IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}
       - name: Reuse published provider
         id: existing-provider
         env:

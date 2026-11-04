@@ -31,7 +31,11 @@ spec:
     matchLabels: {app: "{{ .Release.Name }}-gateway"}
   template:
     metadata:
-      labels: {app: "{{ .Release.Name }}-gateway"}
+      labels: {app: "{{ .Release.Name }}-gateway", tuist.dev/remote-execution: "true"}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: /metrics
     spec:
       automountServiceAccountToken: false
       {{- with .Values.imagePullSecrets }}
@@ -40,9 +44,10 @@ spec:
       containers:
         - name: gateway
           image: "{{ .Values.gateway.image }}:{{ .Values.gateway.tag }}"
-          ports: [{name: grpc, containerPort: 50051}]
+          ports: [{name: grpc, containerPort: 50051}, {name: metrics, containerPort: 9090}]
           env:
             - {name: TUIST_URL, value: {{ $server | quote }}}
+            - {name: METRICS_ADDR, value: ":9090"}
           readinessProbe:
             grpc: {port: 50051}
           livenessProbe:
@@ -74,7 +79,11 @@ spec:
     matchLabels: {app: "{{ .Release.Name }}-workers"}
   template:
     metadata:
-      labels: {app: "{{ .Release.Name }}-workers"}
+      labels: {app: "{{ .Release.Name }}-workers", tuist.dev/remote-execution: "true"}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: /metrics
     spec:
       serviceAccountName: {{ .Release.Name }}-workers
       automountServiceAccountToken: false

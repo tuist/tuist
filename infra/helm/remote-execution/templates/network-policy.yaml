@@ -13,6 +13,10 @@ spec:
         - podSelector:
             matchLabels: {app: "{{ .Release.Name }}-gateway"}
       ports: [{protocol: TCP, port: 7071}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+      ports: [{protocol: TCP, port: 9090}]
   egress:
     - to:
         - namespaceSelector:
