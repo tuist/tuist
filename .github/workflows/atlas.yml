@@ -192,6 +192,7 @@ jobs:
 
   credo:
     name: Credo
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     needs: build
     defaults:
@@ -359,6 +360,7 @@ jobs:
 
   inbox-worker:
     name: Inbox Worker
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     defaults:
       run:
