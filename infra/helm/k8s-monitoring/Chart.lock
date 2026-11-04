@@ -4,6 +4,6 @@ dependencies:
   version: 4.0.3
 - name: pulso
   repository: oci://ghcr.io/tuist/charts
-  version: 1.29.1
-digest: sha256:478e7f40c34ed49ff613846c91ae887a64edc9a65dad6b9afd513d29ecc954b7
-generated: "2026-11-04T12:47:24.878616+01:00"
+  version: 1.29.3
+digest: sha256:09d4ad26ea5c84430d46b95e0d77fdd617600dc8341bef1f19d30a589fb9cbdb
+generated: "2026-11-04T13:50:10.309451+01:00"
