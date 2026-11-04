@@ -822,6 +822,14 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Public OAuth client ID for linking ChatGPT subscriptions
+    # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
+    # Enable only after the item exists in the environment's vault: a missing
+    # item fails the pre-upgrade ExternalSecret and blocks the deploy.
+    chatgptClient:
+      enabled: false
+      item: CHATGPT_OAUTH
+      field: client_id
     # Origin app identity. Enable only after the registered App ID and its
     # signing key exist together in the environment's vault.
     originAppKey:

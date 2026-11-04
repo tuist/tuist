@@ -199,6 +199,7 @@ defmodule Tuist do
       Accounts.Organization,
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
+      Accounts.AISubscriptions,
       Accounts.User,
       Accounts.UserMFA,
       Accounts.UserPasskey,
