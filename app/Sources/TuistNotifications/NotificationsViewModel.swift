@@ -23,6 +23,8 @@ final class NotificationsViewModel {
     /// Set when changes overlap or one fails, so the last one to finish reloads instead of adopting a response that
     /// may not include the others.
     private var needsReload = false
+    /// The latest preferences the server returned, including responses that weren't adopted, for when a reload fails.
+    private var serverPreferences: ServerNotificationPreferences?
 
     let pushNotifications: PushNotifications
     private let listPushDevicesService: ListPushDevicesServicing
@@ -85,8 +87,9 @@ final class NotificationsViewModel {
         async let devices = listPushDevicesService.listPushDevices(serverURL: serverURL)
         do {
             newPreviews = try await preferences
-            self.devices = try await devices
+            serverPreferences = newPreviews
             didLoad = true
+            self.devices = try await devices
         } catch GetNotificationPreferencesServiceError.unsupported, ListPushDevicesServiceError.unsupported {
             isSupported = false
         } catch GetNotificationPreferencesServiceError.forbidden, ListPushDevicesServiceError.forbidden {
@@ -104,7 +107,12 @@ final class NotificationsViewModel {
         pendingOptIn = isEnabled
         defer { pendingOptIn = nil }
         try await pushNotifications.setEnabledOnThisDevice(isEnabled)
-        devices = try await listPushDevicesService.listPushDevices(serverURL: serverEnvironmentService.url())
+        if isEnabled, !didLoad {
+            // The screen may have opened offline; the preferences appear now, so they need to be there.
+            try await load()
+        } else {
+            devices = try await listPushDevicesService.listPushDevices(serverURL: serverEnvironmentService.url())
+        }
     }
 
     func setAccountEnabled(_ enabled: Bool, accountHandle: String) async throws {
@@ -168,19 +176,25 @@ final class NotificationsViewModel {
         var preferences: ServerNotificationPreferences?
         do {
             preferences = try await send(newPreviews.kind, serverURL)
+            serverPreferences = preferences
         } catch {
             failure = error
             needsReload = true
         }
-        if changesInFlight == [key] {
-            if needsReload {
-                needsReload = false
-                newPreviews = (try? await getNotificationPreferencesService.getNotificationPreferences(
-                    kind: newPreviews.kind,
-                    serverURL: serverURL
-                )) ?? preferences ?? previous
-            } else if let preferences {
-                newPreviews = preferences
+        if changesInFlight == [key], !needsReload, let preferences {
+            newPreviews = preferences
+        }
+        // A change that starts during a reload sets `needsReload` again: if it's still in flight it reloads when it
+        // finishes, and if it already finished, this reloads again so its result isn't lost.
+        while needsReload, changesInFlight == [key] {
+            needsReload = false
+            let reloaded = try? await getNotificationPreferencesService.getNotificationPreferences(
+                kind: newPreviews.kind,
+                serverURL: serverURL
+            )
+            if let reloaded { serverPreferences = reloaded }
+            if !needsReload, changesInFlight == [key] {
+                newPreviews = reloaded ?? serverPreferences ?? previous
             }
         }
         if let failure { throw failure }

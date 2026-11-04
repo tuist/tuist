@@ -25,18 +25,29 @@ import TuistServer
         ]
     )
 
-    private func loadedSubject() async throws -> NotificationsViewModel {
+    private func loadedSubject(
+        updateAccountService: UpdateAccountNotificationServicing? = nil,
+        reloadFails: Bool = false
+    ) async throws -> NotificationsViewModel {
         given(environmentService).url().willReturn(serverURL)
         given(listPushDevicesService).listPushDevices(serverURL: .any).willReturn([])
-        given(getPreferencesService)
+        let getPreferences = given(getPreferencesService)
             .getNotificationPreferences(kind: .value(ServerNotificationPreferences.newPreviewKind), serverURL: .value(serverURL))
             .willReturn(loaded)
+        if reloadFails {
+            getPreferences
+                .getNotificationPreferences(
+                    kind: .value(ServerNotificationPreferences.newPreviewKind),
+                    serverURL: .value(serverURL)
+                )
+                .willThrow(URLError(.notConnectedToInternet))
+        }
         let subject = NotificationsViewModel(
             pushNotifications: PushNotifications(previewPermission: .authorized),
             listPushDevicesService: listPushDevicesService,
             removePushDeviceService: MockRemovePushDeviceServicing(),
             getNotificationPreferencesService: getPreferencesService,
-            updateAccountNotificationService: updateAccountService,
+            updateAccountNotificationService: updateAccountService ?? self.updateAccountService,
             updateProjectNotificationService: updateProjectService,
             serverEnvironmentService: environmentService
         )
@@ -49,6 +60,8 @@ import TuistServer
         var returned = loaded
         returned.accounts[1].enabled = false
         returned.accounts[1].projects[0].enabled = false
+        // A project created meanwhile, which only the server's response knows about.
+        returned.accounts[1].projects.append(.init(handle: "docs", setting: .default, enabled: false))
         given(updateAccountService)
             .updateAccountNotificationPreference(
                 kind: .value(ServerNotificationPreferences.newPreviewKind),
@@ -80,6 +93,8 @@ import TuistServer
         var returned = loaded
         returned.accounts[1].projects[0].setting = .off
         returned.accounts[1].projects[0].enabled = false
+        // A project created meanwhile, which only the server's response knows about.
+        returned.accounts[1].projects.append(.init(handle: "docs", setting: .default, enabled: true))
         given(updateProjectService)
             .updateProjectNotificationPreference(
                 kind: .value(ServerNotificationPreferences.newPreviewKind),
@@ -128,6 +143,28 @@ import TuistServer
             .called(1)
     }
 
+    @Test func a_failed_change_keeps_a_change_that_was_saved_while_it_was_in_flight() async throws {
+        let accountUpdate = SuspendedAccountUpdate()
+        let subject = try await loadedSubject(updateAccountService: accountUpdate, reloadFails: true)
+        var savedProject = loaded
+        savedProject.accounts[1].projects[1].setting = .off
+        savedProject.accounts[1].projects[1].enabled = false
+        given(updateProjectService)
+            .updateProjectNotificationPreference(
+                kind: .any, accountHandle: .value("tuist"), projectHandle: .value("web"), setting: .any, serverURL: .any
+            )
+            .willReturn(savedProject)
+
+        let accountChange = Task { try await subject.setAccountEnabled(false, accountHandle: "tuist") }
+        await accountUpdate.waitUntilStarted()
+        try await subject.setProjectEnabled(false, accountHandle: "tuist", projectHandle: "web")
+        accountUpdate.fail()
+        await #expect(throws: URLError.self) { try await accountChange.value }
+
+        // The account change failed and so did the reload, so the screen shows the last state the server confirmed.
+        #expect(subject.newPreviews == savedProject)
+    }
+
     @Test func hides_accounts_without_projects() async throws {
         let subject = try await loadedSubject()
 
@@ -155,5 +192,34 @@ import TuistServer
         try await subject.load()
 
         #expect(subject.isSupported == false)
+    }
+}
+
+/// Holds an account change in flight until the test fails it.
+private final class SuspendedAccountUpdate: UpdateAccountNotificationServicing, @unchecked Sendable {
+    private let started = AsyncStream<Void>.makeStream()
+    private let failed = AsyncStream<Void>.makeStream()
+
+    func waitUntilStarted() async {
+        for await _ in started.stream {
+            return
+        }
+    }
+
+    func fail() {
+        failed.continuation.yield()
+    }
+
+    func updateAccountNotificationPreference(
+        kind _: String,
+        accountHandle _: String,
+        enabled _: Bool,
+        serverURL _: URL
+    ) async throws -> ServerNotificationPreferences {
+        started.continuation.yield()
+        for await _ in failed.stream {
+            break
+        }
+        throw URLError(.notConnectedToInternet)
     }
 }

@@ -52,6 +52,13 @@ public struct NotificationsView: View {
                 errorHandling.handle(error: error)
             }
         }
+        .refreshable {
+            do {
+                try await viewModel.load()
+            } catch {
+                errorHandling.handle(error: error)
+            }
+        }
         .onChange(of: viewModel.pushNotifications.installationID) {
             // This device appears in the list once its registration finishes, after turning notifications on.
             Task { try? await viewModel.reloadDevices() }
@@ -238,7 +245,11 @@ struct AccountNotificationsSections: View {
                         )
                     }
                 )
-                .disabled(viewModel.changesInFlight.contains("\(account.handle)/\(project.handle)"))
+                // Also disabled while All Projects changes, since whether the project overrides it depends on its value.
+                .disabled(
+                    viewModel.changesInFlight.contains(account.handle) ||
+                        viewModel.changesInFlight.contains("\(account.handle)/\(project.handle)")
+                )
             }
         }
     }

@@ -36,7 +36,10 @@
             let services = DemoNotificationServices(oneAccount: state == .oneAccount)
             let viewModel = NotificationsViewModel(
                 pushNotifications: PushNotifications(
-                    registrationService: PushRegistrationService(appStorage: appStorage),
+                    registrationService: PushRegistrationService(
+                        unregisterPushDeviceService: services,
+                        appStorage: appStorage
+                    ),
                     appStorage: appStorage,
                     previewPermission: permission
                 ),
@@ -88,7 +91,7 @@
 
     private actor DemoNotificationServices: ListPushDevicesServicing, RemovePushDeviceServicing,
         GetNotificationPreferencesServicing, UpdateAccountNotificationServicing,
-        UpdateProjectNotificationServicing
+        UpdateProjectNotificationServicing, UnregisterPushDeviceServicing
     {
         private var preferences: ServerNotificationPreferences
 
@@ -153,6 +156,8 @@
         }
 
         func removePushDevice(registrationID _: String, serverURL _: URL) async throws {}
+
+        func unregisterPushDevice(installationID _: String, serverURL _: URL) async throws {}
 
         func getNotificationPreferences(kind _: String, serverURL _: URL) async throws -> ServerNotificationPreferences {
             preferences

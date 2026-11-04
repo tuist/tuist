@@ -55,6 +55,8 @@ import TuistServer
         try await subject.load(fullHandle: "tuist/app")
         var returned = loaded
         returned.accounts[0].projects[0] = .init(handle: "app", setting: .on, enabled: true)
+        // A project created meanwhile, which only the server's response knows about.
+        returned.accounts[0].projects.append(.init(handle: "docs", setting: .default, enabled: false))
         given(updateProjectService)
             .updateProjectNotificationPreference(
                 kind: .value(ServerNotificationPreferences.newPreviewKind),

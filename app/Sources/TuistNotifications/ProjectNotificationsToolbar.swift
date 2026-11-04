@@ -36,9 +36,13 @@ final class ProjectNotificationsViewModel {
     }
 
     func load(fullHandle: String) async throws {
-        preferences = nil
         let components = fullHandle.split(separator: "/", maxSplits: 1).map(String.init)
-        guard components.count == 2 else { return }
+        guard components.count == 2 else {
+            preferences = nil
+            return
+        }
+        // Keeps the bell while reloading the same project, so it doesn't flicker when the screen reappears.
+        if components != [accountHandle, projectHandle] { preferences = nil }
         accountHandle = components[0]
         projectHandle = components[1]
         preferences = try await getNotificationPreferencesService.getNotificationPreferences(
@@ -114,6 +118,8 @@ struct ProjectNotificationsToolbar: ViewModifier {
             // Also reloads when the tab reappears and when notifications are turned on, since Profile can change
             // the same preferences.
             .task(id: "\(fullHandle) \(pushNotifications.isEnabledOnThisDevice)") {
+                // The bell is hidden while notifications are off, so there's nothing to load.
+                guard pushNotifications.isEnabledOnThisDevice else { return }
                 do {
                     try await viewModel.load(fullHandle: fullHandle)
                 } catch {
