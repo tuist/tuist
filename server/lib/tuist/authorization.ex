@@ -379,9 +379,6 @@ defmodule Tuist.Authorization do
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
 
-      desc("Allows the authenticated project to read itself, such as its default branch.")
-      allow([:authenticated_as_project, :projects_match])
-
       desc("Allows an account token with project:admin:read or project:admin:write scope to read projects.")
       allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
       allow([:authenticated_as_account, scopes_permit: "project:admin:write"])
