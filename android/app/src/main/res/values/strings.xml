@@ -20,11 +20,6 @@
     <string name="load_previews_failed">"Failed to load previews"</string>
     <string name="load_more_previews_failed">"Failed to load more previews"</string>
     <string name="refresh_previews_failed">"Failed to refresh previews"</string>
-    <string name="relative_time_just_now">"Just now"</string>
-    <string name="relative_time_minutes">"%1$dm ago"</string>
-    <string name="relative_time_hours">"%1$dh ago"</string>
-    <string name="relative_time_days">"%1$dd ago"</string>
-    <string name="relative_time_months">"%1$dmo ago"</string>
     <string name="profile_title">"Profile"</string>
     <string name="profile_email">"Email"</string>
     <string name="profile_terms">"Terms of Service"</string>

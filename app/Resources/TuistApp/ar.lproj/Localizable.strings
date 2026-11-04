@@ -26,7 +26,7 @@
 "App version" = "إصدار التطبيق";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Apple Sign In failed" = "فشل تسجيل الدخول باستخدام Apple";
+"Apple Sign In failed" = "فشل تسجيل الدخول عبر Apple";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Apps in" = "التطبيقات في";
@@ -50,7 +50,7 @@
 "Cancel" = "إلغاء";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
-"Check for updates" = "التحقق من وجود تحديثات";
+"Check for updates" = "التحقق من التحديثات";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Commit SHA" = "SHA الالتزام";
@@ -65,19 +65,19 @@
 "Copy name" = "نسخ الاسم";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find APK file in the downloaded archive" = "لم يتم العثور على ملف APK في الأرشيف الذي تم تنزيله";
+"Could not find APK file in the downloaded archive" = "تعذر العثور على ملف APK في الأرشيف الذي تم تنزيله";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "لم يتم العثور على حزمة التطبيق في الأرشيف الذي تم تنزيله";
+"Could not find app bundle in the downloaded archive" = "تعذر العثور على حزمة التطبيق في الأرشيف الذي تم تنزيله";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "لم يتمكّن من تثبيت التطبيق لـ %@ لأنه لا يتضمن أي بنى تطبيق صالحة.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "لم يتمكّن من تثبيت التطبيق لـ %@ لأنه لا يتضمن أي إصدارات تطبيق صالحة.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "لم يتمكّن من تثبيت التطبيق لـ %@. منصة %@ هي %@ والتطبيق يتضمن فقط المنصات التالية: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Created at" = "تم الإنشاء في";
+"Created at" = "تاريخ الإنشاء";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created by" = "تم الإنشاء بواسطة";
@@ -119,10 +119,10 @@
 "Finished" = "تم الانتهاء";
 
 /* TuistProfile/ProfileView.swift */
-"Get help" = "الحصول على المساعدة";
+"Get help" = "احصل على المساعدة";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "تثبيت أحدث المعاينات بنقرة واحدة.";
+"Install latest previews with one click." = "ثبّت أحدث النسخ التجريبية بنقرة واحدة.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "فشل التثبيت";
@@ -134,10 +134,10 @@
 "Installed %@@%@" = "تم تثبيت %@@%@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "جارٍ تثبيت المعاينة";
+"Installing preview" = "جارٍ تثبيت النسخة التجريبية";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid callback URL received" = "تم استلام عنوان URL غير صالح للرد";
+"Invalid callback URL received" = "تم استلام عنوان URL غير صالح لرد الاتصال";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid response format" = "تنسيق الاستجابة غير صالح";
@@ -167,7 +167,7 @@
 "No previews found" = "لم يتم العثور على معاينات";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "لا تتطابق أي معاينات مع عوامل التصفية الخاصة بك";
+"No previews match your filters" = "لا تتطابق أي معاينات مع الفلاتر المحددة";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "موافق";
@@ -191,10 +191,10 @@
 "Profile" = "الملف الشخصي";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "اسحب للأسفل لتحديث المعاينات.";
+"Pull down to refresh your previews." = "اسحب لأسفل لتحديث المعاينات.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "اسحب للأسفل لتحديث مشاريعك.";
+"Pull down to refresh your projects." = "اسحب لأسفل لتحديث مشاريعك.";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "إنهاء Tuist";
@@ -260,7 +260,7 @@
 "The latest preview for %@ was not found. Has any preview been published?" = "لم يتم العثور على أحدث معاينة لـ %@. هل تم نشر أي معاينة؟";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"The preview %@ does not have a package name set." = "لا تحتوي المعاينة %@ على اسم حزمة معين.";
+"The preview %@ does not have a package name set." = "لا تحتوي المعاينة %@ على اسم حزمة مُعيّن.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "The preview deeplink %@ is invalid." = "رابط التعميق للمعاينة %@ غير صالح.";

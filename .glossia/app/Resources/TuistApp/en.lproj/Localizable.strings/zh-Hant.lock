@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a6052ce2755f9eab090abcf2dd454f9532d3ad060737ff6cc5ec826f61a907b8",
+  "hash": "3ff1b2e557a16ddc0a10eed87043a754d81e159647f3ff9deaf7a7509a8ff7ad",
   "hash_tree": {
     "root": {
       "children": [
@@ -82,7 +82,7 @@
                     "sections_omitted": 0
                   },
                   "app/L10N.md": {
-                    "content_hash": "a826e12cbaf47465a73e706c1bb297458ee49c48aa747ade7bd1fc89f142a129",
+                    "content_hash": "f31ac836d2b96f8f3bc223e652ba03a86755397b62b34dee86a55b4958eab932",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist App Translation Context": {
@@ -92,18 +92,21 @@
                         "content_hash": "2330fd6218d0ecf421194d985486089b117e6e732c52fe090d57ef79f39b6cce"
                       },
                       "## Meaning": {
-                        "content_hash": "790b8a7ed8362c3499a88522063da567bf11a1a7e562feabbe37fb51d57eae57"
+                        "content_hash": "2422fc860ffcccbcc1e6659c513d8d9b97fdd4528406334f94fccbed5c8b9d6f"
+                      },
+                      "## Right-to-left locales": {
+                        "content_hash": "e1f80528eab38427d4202a8dd11d8b3c1ad72e1de85dadbf6f4cd3622267a8ae"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "dfc4a5014031a9ede4f05c8e455eaf69c544a25e80554f23c6c301d3836e2ce5",
+              "hash": "25c07ffa9eb0a51d431a25ae113804149c0366826b4535a092883124362c2f49",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2ba498a7838a24af9ec6503f9145a84044ee33b7e45fa5ec3484e5f227c66fca"
+                "content_hash": "3c9fc1c5a3b51a471908d2bb1e497a22698316adc4463be1190d4789d9569cb7"
               }
             },
             {
@@ -154,21 +157,21 @@
             }
           ],
           "details": {},
-          "hash": "02f223060d5609907b808b2f0bd1bff858e34e974ec33798e60f078e3becc52c",
+          "hash": "9a67abbfbb7c889970248af64cc737c5cc131ca1d808b1bc8c0b46fd5fc955ad",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a6052ce2755f9eab090abcf2dd454f9532d3ad060737ff6cc5ec826f61a907b8",
+      "hash": "3ff1b2e557a16ddc0a10eed87043a754d81e159647f3ff9deaf7a7509a8ff7ad",
       "kind": "translation_input",
       "label": "app/Resources/TuistApp/en.lproj/Localizable.strings",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "94db2bda560186aab0dcf6d21eab1df7568476704a5bfe43123624e03c32fc73",
+  "output_hash": "4b11ea610ebc276804282b67be79de20f6f2ca4e6d6f009f2572cd8c398f1bed",
   "output_path": "app/Resources/TuistApp/zh-Hant.lproj/Localizable.strings",
   "protection_state": "recorded",
   "provider": "",
@@ -186,8 +189,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "dee3bdaec2f6f1311d8f7e4bf77d5aa1e848d137",
+  "source_commit_sha": "fcb773cb8b07cd2f372e3cdc6b36efbf7ceb9975",
   "source_path": "app/Resources/TuistApp/en.lproj/Localizable.strings",
-  "translated_at": "2026-11-04T14:55:43.750169Z",
-  "translation_session_id": "01a1a70b-099b-7036-8778-73b4105cbed4"
+  "translated_at": "2026-11-04T15:58:14.179578Z",
+  "translation_session_id": "01a1a744-5d58-74c0-a6e0-fb4f905dd7fc"
 }

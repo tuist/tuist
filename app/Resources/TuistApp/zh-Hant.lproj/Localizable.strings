@@ -8,7 +8,7 @@
 "All" = "全部";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All tracks" = "所有追蹤管道";
+"All tracks" = "所有追蹤頻道";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
 "Android Device" = "Android 裝置";
@@ -44,7 +44,7 @@
 "Branch" = "分支";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Bundle identifier" = "Bundle ID";
+"Bundle identifier" = "Bundle Identifier";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "取消";
@@ -56,7 +56,7 @@
 "Commit SHA" = "Commit SHA";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Connected" = "已連線";
+"Connected" = "已連接";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "複製識別碼";
@@ -65,13 +65,13 @@
 "Copy name" = "複製名稱";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find APK file in the downloaded archive" = "在下載的封存檔中找不到 APK 檔案";
+"Could not find APK file in the downloaded archive" = "在下載的壓縮檔中找不到 APK 檔案";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "在下載的封存檔中找不到 App Bundle";
+"Could not find app bundle in the downloaded archive" = "在下載的壓縮檔中找不到 App Bundle";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "無法為 %@ 安裝應用程式，因為它不包含任何有效的應用程式構建版本。";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "無法為 %@ 安裝應用程式，因為它不包含任何有效的應用程式組建。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "無法為 %@ 安裝應用程式。%@ 的平台為 %@，而該應用程式僅包含以下平台：%@";
@@ -104,7 +104,7 @@
 "Devices" = "裝置";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Disconnected" = "已中斷連線";
+"Disconnected" = "已斷開連線";
 
 /* TuistProfile/ProfileView.swift */
 "Email" = "電子郵件";
@@ -158,7 +158,7 @@
 "Missing Apple credentials from authorization" = "授權中缺少 Apple 憑證";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"No Previews" = "無預覽版";
+"No Previews" = "沒有預覽版";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No Tuist projects found" = "未找到 Tuist 專案";
@@ -167,7 +167,7 @@
 "No previews found" = "未找到預覽版";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "沒有符合篩選條件的預覽版本";
+"No previews match your filters" = "沒有符合篩選條件的預覽版";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "確定";
@@ -179,10 +179,10 @@
 "Pin" = "釘選";
 
 /* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews" = "預覽版本";
+"Previews" = "預覽版";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews: %lld" = "預覽版本：%lld";
+"Previews: %lld" = "預覽版：%lld";
 
 /* TuistProfile/ProfileView.swift */
 "Privacy Policy" = "隱私權政策";
@@ -191,19 +191,19 @@
 "Profile" = "個人檔案";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "下拉以重新整理預覽";
+"Pull down to refresh your previews." = "下拉以重新整理你的預覽。";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "下拉以重新整理專案";
+"Pull down to refresh your projects." = "下拉以重新整理你的專案。";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "結束 Tuist";
 
 /* TuistMenuBar/StatusView.swift */
-"Ready" = "準備就緒";
+"Ready" = "就緒";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Release notes" = "版本說明";
+"Release notes" = "版本資訊";
 
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "執行";
@@ -212,19 +212,19 @@
 "Search" = "搜尋";
 
 /* TuistOnboarding/SelfHostedServerAlert.swift */
-"Self-hosted" = "自架主機";
+"Self-hosted" = "自行託管";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "Self-hosted server" = "自託管伺服器";
 
 /* TuistErrorHandling/ErrorHandling.swift */
-"Share logs" = "分享記錄檔";
+"Share logs" = "分享日誌";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Sign in" = "登入";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "登入以存取你的專案並與團隊協作";
+"Sign in to access your projects and\ncollaborate with your team" = "登入以存取你的專案並\n與團隊協作";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "登入以執行預覽版";
@@ -275,10 +275,10 @@
 "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此伺服器不支援搜尋預覽。請更新您自行託管的 Tuist 伺服器，或清除搜尋條件。";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此伺服器不支援從 Tuist App 登入。請要求您的管理員進行更新。";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此伺服器不支援從 Tuist App 登入。請聯絡管理員進行更新。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "要執行預覽，您必須已選取模擬器。";
+"To run a preview, you must have a simulator selected." = "要執行預覽，您必須選取一個模擬器。";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Token exchange failed with status code: %lld" = "權杖交換失敗，狀態碼：%lld";
@@ -287,10 +287,10 @@
 "Track" = "軌道";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Tracks" = "軌道";
+"Tracks" = "追蹤";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "嘗試其他搜尋條件或選擇另一個軌道。";
+"Try a different search or select another track." = "嘗試其他搜尋或選擇另一個追蹤。";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "未知";
@@ -299,7 +299,7 @@
 "Unpin" = "取消釘選";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "更新您自行託管的 Tuist 伺服器以選擇軌道。";
+"Update your self-hosted Tuist server to select a track." = "更新您的自架 Tuist 伺服器以選擇追蹤。";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "使用您的 Tuist 伺服器的根位址";
