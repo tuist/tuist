@@ -197,6 +197,24 @@ defmodule Tuist.TestImpactAnalysis.Input do
   `%{test_case_id, module_name, suite_name, name}`, narrowed to `modules`
   unless nil.
   """
+  @doc """
+  How many distinct tests the baseline runs `run_ids` ran in `modules`.
+  """
+  def baseline_test_count(_project_id, [], _modules), do: 0
+  def baseline_test_count(_project_id, _run_ids, []), do: 0
+
+  def baseline_test_count(project_id, run_ids, modules) do
+    ClickHouseRepo.one(
+      from(r in TestCaseRun,
+        where:
+          r.project_id == ^project_id and r.test_run_id in ^run_ids and not is_nil(r.test_case_id) and
+            r.module_name in ^modules,
+        select: fragment("uniqExact(?)", r.test_case_id)
+      ),
+      settings: [select_sequential_consistency: 1]
+    )
+  end
+
   def baseline_tests(_project_id, [], _modules), do: []
 
   def baseline_tests(project_id, run_ids, modules) do
