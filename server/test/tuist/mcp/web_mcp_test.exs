@@ -6,7 +6,7 @@ defmodule Tuist.MCP.WebMCPTest do
   alias Tuist.MCP.Server
   alias Tuist.MCP.WebMCP
 
-  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks account-tokens organization)
+  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks account-tokens organization ai-subscriptions)
   @build_systems ~w(xcode gradle bazel cargo mix once)
 
   setup do
@@ -30,8 +30,23 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/settings/tokens/1", user, nil) == "account-tokens"
     assert WebMCP.dashboard_page("/acme/settings", organization, nil) == "organization"
     assert WebMCP.dashboard_page("/acme/settings", user, nil) == nil
+    assert WebMCP.dashboard_page("/acme/settings/ai-subscriptions", user, nil) == "ai-subscriptions"
+    assert WebMCP.dashboard_page("/acme/settings/ai-subscriptions", organization, nil) == nil
     assert WebMCP.dashboard_page("/acme", user, nil) == "projects"
     assert WebMCP.dashboard_page("/acme/cache", organization, nil) == nil
+  end
+
+  test "the AI subscriptions page offers only the read-only list, and no other page does" do
+    assert "list_ai_subscriptions" in Map.keys(WebMCP.account_server("ai-subscriptions", nil).tools)
+
+    write_tools =
+      ~w(connect_claude_subscription start_chatgpt_subscription_login poll_chatgpt_subscription_login cancel_chatgpt_subscription_login disconnect_ai_subscription)
+
+    for page <- @pages, build_system <- [nil | @build_systems] do
+      names = Map.keys(WebMCP.account_server(page, build_system).tools)
+      assert names -- write_tools == names
+      if page != "ai-subscriptions", do: refute("list_ai_subscriptions" in names)
+    end
   end
 
   test "every read-only tool is offered on some page, and no page offers more than 40 tools" do

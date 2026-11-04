@@ -107,6 +107,17 @@ defmodule Tuist.FeatureFlags do
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
+  Whether the user may use AI features, such as threads, and the Claude and
+  ChatGPT subscriptions they connect in their personal settings to run them
+  (`Tuist.Accounts.AISubscriptions`). Canary and production require an
+  explicit `:ai` FunWithFlags toggle for the user. Development, test,
+  and staging default to enabled.
+  """
+  def ai_enabled?(user) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:ai, for: user)
+  end
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and

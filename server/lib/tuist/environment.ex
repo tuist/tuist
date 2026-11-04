@@ -1260,6 +1260,15 @@ defmodule Tuist.Environment do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
 
+  @doc """
+  OAuth client ID for personal ChatGPT connections
+  (`Tuist.Accounts.AISubscriptions.ChatGPT`). The client must have OpenAI's
+  device authorization enabled; without it, ChatGPT sign-in stays unavailable.
+  """
+  def chatgpt_client_id(secrets \\ secrets()) do
+    get([:chatgpt, :client_id], secrets)
+  end
+
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end
