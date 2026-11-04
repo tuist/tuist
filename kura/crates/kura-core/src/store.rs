@@ -188,6 +188,10 @@ pub struct Store {
     // Published by the blocking eviction commit while holding handover_hold.
     // A repair walk must revisit rows checked before a later eviction.
     pub handover_eviction_generation: Arc<AtomicU64>,
+    // Retained records staged without a feed row, such as sibling pulls. A
+    // handover barrier that relies on the feed for what arrived after its
+    // content walk must see this unchanged since the walk began.
+    pub records_without_feed_rows: AtomicU64,
     // A named handover sets the oldest version its source retains. Every
     // capacity or pressure eviction of a segment that may hold a record at or
     // after it is counted: it may have dropped data the barrier requires.
@@ -1616,6 +1620,7 @@ impl Store {
             sync_feed: Arc::new(sync_feed),
             handover_hold: Arc::new(StdMutex::new(None)),
             handover_eviction_generation: Arc::new(AtomicU64::new(0)),
+            records_without_feed_rows: AtomicU64::new(0),
             retained_loss_frontier_ms: AtomicU64::new(u64::MAX),
             retained_loss_evictions: AtomicU64::new(0),
             handover_enabled: config.serving_authority.is_some(),
@@ -2141,6 +2146,7 @@ impl Store {
     ) -> Result<ArtifactManifest, String> {
         let mut batch = WriteBatch::default();
         let mut feed = Vec::new();
+        let unfed_from = self.records_without_feed_rows.load(Ordering::Acquire);
         let manifest = self.stage_segment_manifest(
             &mut batch,
             spec,
@@ -2158,6 +2164,7 @@ impl Store {
         )
         .await?;
         commit_sync_feed_tickets(feed);
+        self.note_records_without_feed_rows(unfed_from);
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
         Ok(manifest)
@@ -2281,6 +2288,9 @@ impl Store {
                 Some(manifest.size),
             );
             feed.push(ticket);
+        } else {
+            self.records_without_feed_rows
+                .fetch_add(1, Ordering::AcqRel);
         }
 
         Ok(manifest)
@@ -3440,6 +3450,7 @@ impl Store {
 
         let mut batch = WriteBatch::default();
         let mut feed = Vec::new();
+        let unfed_from = self.records_without_feed_rows.load(Ordering::Acquire);
         let (manifest, wrote_action_cache_index) = self.stage_inline_manifest(
             &mut batch,
             &spec,
@@ -3470,6 +3481,7 @@ impl Store {
             self.ensure_wal_durable(durability_seq).await?;
         }
         commit_sync_feed_tickets(feed);
+        self.note_records_without_feed_rows(unfed_from);
 
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
             .await?;
@@ -3650,6 +3662,9 @@ impl Store {
                 Some(manifest.size),
             );
             feed.push(ticket);
+        } else {
+            self.records_without_feed_rows
+                .fetch_add(1, Ordering::AcqRel);
         }
 
         Ok((manifest, wrote_action_cache_index))
@@ -6836,6 +6851,7 @@ impl Store {
                     .await?;
                 let mut batch = WriteBatch::default();
                 let mut feed = Vec::new();
+                let unfed_from = self.records_without_feed_rows.load(Ordering::Acquire);
                 let mut manifests = Vec::with_capacity(pending.len());
                 for record in &pending {
                     manifests.push(self.stage_segment_manifest(
@@ -6859,6 +6875,7 @@ impl Store {
                 )
                 .await?;
                 commit_sync_feed_tickets(feed);
+                self.note_records_without_feed_rows(unfed_from);
                 let committed: Vec<(&ArtifactManifest, &str)> = manifests
                     .iter()
                     .zip(&pending)
@@ -7464,6 +7481,7 @@ impl Store {
 
         let mut batch = WriteBatch::default();
         let mut feed = Vec::new();
+        let unfed_from = self.records_without_feed_rows.load(Ordering::Acquire);
         let mut committed = Vec::with_capacity(group.len());
         for record in group {
             match record {
@@ -7539,6 +7557,7 @@ impl Store {
         )
         .await?;
         commit_sync_feed_tickets(feed);
+        self.note_records_without_feed_rows(unfed_from);
         for record in committed {
             match record {
                 CommittedGroupRecord::Segmented {
@@ -7798,6 +7817,7 @@ impl Store {
         );
 
         let mut feed = Vec::new();
+        let unfed_from = self.records_without_feed_rows.load(Ordering::Acquire);
         if !delete_everything {
             // INV-8: `delete_everything` stays node-local and earns no row.
             if let Some(ticket) = ticket
@@ -7813,6 +7833,9 @@ impl Store {
                     None,
                 );
                 feed.push(ticket);
+            } else {
+                self.records_without_feed_rows
+                    .fetch_add(1, Ordering::AcqRel);
             }
         }
 
@@ -7823,6 +7846,7 @@ impl Store {
         )
         .await?;
         commit_sync_feed_tickets(feed);
+        self.note_records_without_feed_rows(unfed_from);
         self.remove_manifest_cache_keys(&removed_artifact_ids);
         if !delete_everything {
             self.note_listed_version(None, version_ms);
@@ -9970,6 +9994,18 @@ impl Store {
     /// `None` when the feed is off. Separate from the row write because a
     /// server-generated record takes its `version_ms` from the stamp, and so
     /// has to hold the ticket before its manifest is built (D-24).
+    /// Counts a committed batch that staged a retained record without a feed
+    /// row: staging counts it once, and this counts it again once it is
+    /// visible, so a walk that read the count before the commit sees it move.
+    /// A concurrent stage can add a spurious count, which only costs a later
+    /// handover its delta barrier.
+    fn note_records_without_feed_rows(&self, staged_from: u64) {
+        if self.records_without_feed_rows.load(Ordering::Acquire) != staged_from {
+            self.records_without_feed_rows
+                .fetch_add(1, Ordering::AcqRel);
+        }
+    }
+
     fn allocate_sync_feed_ticket(&self, wanted: bool) -> Option<SyncFeedTicket> {
         (wanted && self.sync_feed.enabled()).then(|| self.sync_feed.allocate())
     }

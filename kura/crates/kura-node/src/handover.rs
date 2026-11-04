@@ -160,6 +160,9 @@ pub struct VerifyRequest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     records: Vec<Record>,
     receipt: Option<Receipt>,
+    // Sent by the frozen source with begin; older sources omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    records_without_feed_rows: Option<u64>,
 }
 
 fn verification_context(request: &VerifyRequest) -> String {
@@ -375,19 +378,29 @@ async fn verify_inner(
             // every record it confirmed is still held, so only the records it
             // found missing need repair; the full-corpus verification still
             // checks every retained record before any receipt.
-            let (losses_at, delta, feed_from) = authority
+            let (losses_at, delta, feed_from, unfed_unchanged) = authority
                 .verified_content
                 .lock()
                 .map_err(|_| "verified content poisoned")?
                 .as_ref()
                 .filter(|verified| verified.intent_id == request.intent.id)
                 .filter(|verified| verified.frontier_ms.is_some())
-                .map_or((None, None, None), |verified| {
-                    let delta = verified
-                        .complete
+                .map_or((None, None, None, None), |verified| {
+                    // Whether the source committed a record without a feed
+                    // row since the walk began; unknown with an older source.
+                    let unfed_unchanged = verified
+                        .records_without_feed_rows
+                        .zip(request.records_without_feed_rows)
+                        .map(|(walked, frozen)| walked == frozen);
+                    let delta = (verified.complete && unfed_unchanged != Some(false))
                         .then(|| verified.missing.clone())
                         .flatten();
-                    (Some(verified.losses_at), delta, verified.feed_from)
+                    (
+                        Some(verified.losses_at),
+                        delta,
+                        verified.feed_from,
+                        unfed_unchanged,
+                    )
                 });
             // Records the source added after the walk began, whether or not
             // the forward link kept them, join the repair; without the whole
@@ -485,20 +498,35 @@ async fn verify_inner(
                 *hold = Some(request.intent.id.clone());
                 break;
             }
+            // Every record the source retains is one the walk confirmed and
+            // this destination still holds, or one it repaired from this
+            // delta: the source verifies only those inside the barrier.
+            if let Some(verified) = authority
+                .verified_content
+                .lock()
+                .map_err(|_| "verified content poisoned")?
+                .as_mut()
+                .filter(|verified| verified.intent_id == request.intent.id)
+            {
+                verified.barrier_delta = delta.filter(|_| unfed_unchanged == Some(true));
+            }
         }
         // An idempotent begin still has to belong to the current intent.
         require_current_destination(state, &request)?;
-        let preverified = authority
+        let (preverified, barrier_delta) = authority
             .verified_content
             .lock()
             .map_err(|_| "verified content poisoned")?
             .as_ref()
             .filter(|verified| verified.intent_id == request.intent.id)
-            .map_or(0, |verified| verified.keys.len());
+            .map_or((0, None), |verified| {
+                (verified.keys.len(), verified.barrier_delta.clone())
+            });
         return Ok(serde_json::json!({
             "destination": authority.identity(),
             "max_batch_records": MAX_BATCH_RECORDS,
             "preverified_records": preverified,
+            "barrier_delta": barrier_delta,
         }));
     }
     if state
@@ -677,6 +705,7 @@ async fn prepare_live_destination(
         record: None,
         records: Vec::new(),
         receipt: None,
+        records_without_feed_rows: None,
     };
     let _preparation = state.runtime.authority.handover_preparation.lock().await;
     require_current_preparation(state, &request, preparation.epoch)?;
@@ -780,8 +809,14 @@ pub struct VerifiedContent {
     // What the walk found missing, or None past the repair bound.
     missing: Option<Vec<BackfillEntry>>,
     // This destination's feed cursor on the source when the walk began: every
-    // record the source added since is a feed row after it.
+    // record the source added since with a feed row is after it.
     feed_from: Option<SyncPosition>,
+    // The source's count of records committed without a feed row when the
+    // walk began; older sources omit it.
+    records_without_feed_rows: Option<u64>,
+    // What the frozen source verifies in full once this destination holds
+    // the corpus, or None for the whole corpus.
+    barrier_delta: Option<Vec<BackfillEntry>>,
 }
 
 fn content_key(kind: &str, id: &str, version: u64) -> u128 {
@@ -812,6 +847,12 @@ pub struct DescriptorPage {
     // Sent on the first page only; older sources omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     oldest_version_ms: Option<u64>,
+    // Sent on the first page only, read before any page; older sources omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    records_without_feed_rows: Option<u64>,
+    // Listed records this page could not hash; older sources omit them.
+    #[serde(default)]
+    unhashed: u64,
 }
 
 /// One page of the serving source's retained content descriptors, hashed from
@@ -846,6 +887,12 @@ async fn descriptor_page(
         .map(hex::decode)
         .transpose()
         .map_err(|_| "invalid descriptor cursor")?;
+    let records_without_feed_rows = after.is_none().then(|| {
+        state
+            .store
+            .records_without_feed_rows
+            .load(Ordering::Acquire)
+    });
     let oldest_version_ms = if after.is_none() {
         state.store.backfill_index_oldest_version_ms()?
     } else {
@@ -856,6 +903,7 @@ async fn descriptor_page(
         .backfill_index_page(after.as_deref(), DESCRIPTOR_PAGE_RECORDS)?;
     let mut records = Vec::new();
     let mut body_bytes = 0u64;
+    let mut unhashed = 0u64;
     let mut hashed = std::pin::pin!(records_in_order(
         state,
         page.entries
@@ -865,10 +913,15 @@ async fn descriptor_page(
     ));
     for row in &page.entries {
         // Live writes and eviction can retire a row between listing and
-        // hashing; the frozen barrier verifies whatever this pass missed.
-        if let Some(Ok(Some(record))) = hashed.next().await {
-            body_bytes = body_bytes.saturating_add(record.size);
-            records.push(record);
+        // hashing; a row that fails to hash is counted, so the destination
+        // leaves the whole corpus to the frozen barrier.
+        match hashed.next().await {
+            Some(Ok(Some(record))) => {
+                body_bytes = body_bytes.saturating_add(record.size);
+                records.push(record);
+            }
+            Some(Ok(None)) => {}
+            _ => unhashed += 1,
         }
         if body_bytes >= DESCRIPTOR_PAGE_BODY_BYTES {
             let cursor = crate::utils::backfill_index_key(row.version_ms, row.kind, &row.record_id);
@@ -876,6 +929,8 @@ async fn descriptor_page(
                 records,
                 next_after: Some(hex::encode(cursor)),
                 oldest_version_ms,
+                records_without_feed_rows,
+                unhashed,
             });
         }
     }
@@ -883,6 +938,8 @@ async fn descriptor_page(
         records,
         next_after: page.next_after.map(hex::encode),
         oldest_version_ms,
+        records_without_feed_rows,
+        unhashed,
     })
 }
 
@@ -908,6 +965,7 @@ struct CheckedPage {
     held: Vec<Option<Record>>,
     frontier_ms: Option<u64>,
     next: Option<DescriptorRange>,
+    unhashed: u64,
 }
 
 async fn source_descriptor_page(
@@ -989,6 +1047,7 @@ async fn checked_range_page(
     watch: bool,
 ) -> Result<CheckedPage, PageFailure> {
     let page = source_descriptor_page(state, request, range.after).await?;
+    let unhashed = page.unhashed;
     let (records, next) = within_range(page, range.stop);
     let (kinds, held, frontier_ms) = held_records(state, &records, watch).await?;
     Ok(CheckedPage {
@@ -997,6 +1056,7 @@ async fn checked_range_page(
         held,
         frontier_ms,
         next,
+        unhashed,
     })
 }
 
@@ -1088,6 +1148,8 @@ async fn verify_content_while_serving(
         complete: false,
         missing: Some(Vec::new()),
         feed_from: None,
+        records_without_feed_rows: None,
+        barrier_delta: None,
     };
     let mut walk = ContentWalk {
         frontier_ms: None,
@@ -1132,6 +1194,8 @@ async fn verify_content_while_serving(
             walk.frontier_ms = Some(frontier);
             verified.feed_from = state.store.sync_cursor(&request.intent.source_url)?;
         }
+        verified.records_without_feed_rows = first.records_without_feed_rows;
+        let mut unhashed = first.unhashed;
         let watch = walk.frontier_ms.is_some();
         // The first page starts the first range; every cut starts another.
         let (records, first_range) = within_range(first, cuts.first().copied());
@@ -1190,6 +1254,7 @@ async fn verify_content_while_serving(
             if let Some(frontier) = page.frontier_ms {
                 walk.frontier_ms = Some(walk.frontier_ms.map_or(frontier, |at| at.min(frontier)));
             }
+            unhashed += page.unhashed;
             apply_checked_records(
                 &mut verified,
                 &mut walk,
@@ -1205,6 +1270,11 @@ async fn verify_content_while_serving(
             }
         }
         verified.complete = finished;
+        // A retained row the source could not hash is neither confirmed nor
+        // known missing, so the frozen source verifies the whole corpus.
+        if unhashed > 0 {
+            verified.records_without_feed_rows = None;
+        }
     }
     tracing::info!(event.name = "kura.handover.content_verified", id = %request.intent.id,
         verified = verified.keys.len(), unverified, missing = walk.missing_records,
@@ -1328,6 +1398,7 @@ fn descriptor_answer(
         record: None,
         records: Vec::new(),
         receipt: None,
+        records_without_feed_rows: None,
     };
     require_current_destination(state, &request)?;
     if state
@@ -1593,6 +1664,7 @@ async fn send_records(
         record: if batched { None } else { records.pop() },
         records,
         receipt: None,
+        records_without_feed_rows: None,
     };
     let answer = send(state, intent, &request).await?;
     check_destination(&answer, intent)?;
@@ -1627,6 +1699,10 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     feed.settle().await;
     let (head, frontier_ms, commits) = feed.barrier_position();
     let floor = feed.floor();
+    let unfed = state
+        .store
+        .records_without_feed_rows
+        .load(Ordering::Acquire);
     let mut receipt = Receipt {
         id: intent.id.clone(),
         source: authority.identity().clone(),
@@ -1649,6 +1725,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
+            records_without_feed_rows: Some(unfed),
         },
     )
     .await?;
@@ -1660,7 +1737,65 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     let preverified = answer["preverified_records"].as_u64().unwrap_or(0);
     let started = std::time::Instant::now();
     let mut content_verified = 0u64;
-    if preverified > 0 {
+    let barrier_delta: Option<Vec<BackfillEntry>> = match &answer["barrier_delta"] {
+        serde_json::Value::Null => None,
+        delta => Some(serde_json::from_value(delta.clone()).map_err(|e| e.to_string())?),
+    };
+    let delta_barrier = barrier_delta.is_some();
+    if let Some(delta) = barrier_delta {
+        // The destination confirmed every other retained record while this
+        // source served and still holds it: verify only what it repaired.
+        let mut seen = HashSet::new();
+        let mut batch = Vec::with_capacity(batch_size);
+        let mut body_bytes = 0u64;
+        for entry in delta {
+            let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .ok_or("unknown retained record kind")?;
+            if !seen.insert(content_key(
+                &entry.record_kind,
+                &entry.record_id,
+                entry.version_ms,
+            )) {
+                continue;
+            }
+            // Superseded or removed since: not a retained record.
+            let Some(value) = record(state, kind, &entry.record_id, entry.version_ms).await? else {
+                continue;
+            };
+            if !batch.is_empty() && body_bytes.saturating_add(value.size) > MAX_BATCH_BODY_BYTES {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+            }
+            let encoded = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+            digest.update((encoded.len() as u64).to_be_bytes());
+            digest.update(encoded);
+            body_bytes = body_bytes.saturating_add(value.size);
+            batch.push(value);
+            receipt.records += 1;
+            content_verified += 1;
+            if batch.len() == batch_size {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+            }
+        }
+        if !batch.is_empty() {
+            send_records(state, intent, &receipt.source, batch, batch_size > 1).await?;
+        }
+    } else if preverified > 0 {
         // Metadata answers overlap; records named for full verification are
         // still sent one batch at a time, in corpus order.
         let source = receipt.source.clone();
@@ -1778,13 +1913,17 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
         }
     }
     tracing::info!(event.name = "kura.handover.verified", id = %intent.id, records = receipt.records,
-        preverified, content_verified, elapsed_ms = started.elapsed().as_millis() as u64,
+        preverified, content_verified, delta_barrier, elapsed_ms = started.elapsed().as_millis() as u64,
         "Verified the retained corpus inside the barrier");
     let (final_commits, final_floor, mutations) =
         (feed.commits(), feed.floor(), authority.mutations());
-    if final_commits != commits || final_floor != floor || mutations != 0 {
+    let final_unfed = state
+        .store
+        .records_without_feed_rows
+        .load(Ordering::Acquire);
+    if final_commits != commits || final_floor != floor || mutations != 0 || final_unfed != unfed {
         return Err(format!(
-            "source changed or feed trimmed during barrier: commits={commits}->{final_commits} floor={floor}->{final_floor} mutations={mutations} head={head}->{}",
+            "source changed or feed trimmed during barrier: commits={commits}->{final_commits} floor={floor}->{final_floor} mutations={mutations} unfed={unfed}->{final_unfed} head={head}->{}",
             feed.head()
         ));
     }
@@ -1799,6 +1938,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
+            records_without_feed_rows: None,
         },
     )
     .await?;
@@ -1983,6 +2123,7 @@ mod tests {
             source,
             records: Vec::new(),
             record: None,
+            records_without_feed_rows: None,
         }
     }
 
@@ -3195,6 +3336,7 @@ mod tests {
                 digest: "expected-digest".into(),
             }),
             receipt: None,
+            records_without_feed_rows: None,
         };
         let error = send(&ctx.state, &intent, &request).await.unwrap_err();
         server.abort();
@@ -3309,6 +3451,7 @@ mod tests {
             records: Vec::new(),
             record,
             receipt,
+            records_without_feed_rows: None,
         };
         assert!(
             verify_inner(state, request(true, None, Some(receipt.clone())))
@@ -3916,13 +4059,55 @@ mod tests {
 
         let receipt = pair.freeze().await.unwrap();
 
-        assert_eq!(receipt.records, 2);
+        assert_eq!(
+            receipt.records, 1,
+            "only the late record is verified in the barrier"
+        );
         assert_eq!(
             pair.source_requests("/_internal/backfill/entries"),
             listings,
             "the frozen repair never lists the source's whole index"
         );
         assert_eq!(pair.source_requests("/_internal/sync/forward"), 1);
+        assert_eq!(
+            pair.requests("/_internal/handover/verify-descriptors"),
+            0,
+            "the frozen source never walks its whole index"
+        );
+        assert_eq!(
+            pair.requests("/_internal/handover/verify"),
+            3,
+            "begin, the late record in full, and the receipt"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_record_the_source_gains_without_a_feed_row_after_the_walk_is_still_repaired() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        // A sibling pull lands on the source without a feed row.
+        pair.source
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "sibling",
+                "application/octet-stream",
+                &[3; 16 * 1024],
+                crate::utils::now_ms(),
+            )
+            .await
+            .unwrap();
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(
+            receipt.records, 2,
+            "the destination holds and verified the whole corpus"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3960,7 +4145,20 @@ mod tests {
         let renew = pair.keep_granted("Serving");
         pair.prepare_while_serving().await.unwrap();
         renew.abort();
-        pair.seed("late", &vec![2; 32 * 1024]).await;
+        // Arrives without a feed row, so the barrier walks the whole corpus.
+        pair.source
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "late",
+                "application/octet-stream",
+                &[2; 32 * 1024],
+                crate::utils::now_ms(),
+            )
+            .await
+            .unwrap();
 
         let receipt = pair.freeze().await.unwrap();
 
@@ -4010,6 +4208,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         }
     }
 
@@ -4184,6 +4383,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         };
 
         let walk = verify_content_while_serving(&pair.target.state, &request, 1)
@@ -4231,6 +4431,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         };
 
         let walk = verify_content_while_serving(&pair.target.state, &request, 1)
@@ -4321,6 +4522,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         };
 
         let walk = verify_content_while_serving(&pair.target.state, &request, 1)
