@@ -77,6 +77,13 @@ if [[ ! -x "$mise_bin" ]] || [[ "$("$mise_bin" --version 2>/dev/null)" != "$mise
 fi
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 export MISE_YES=1
+# mise/utilities/dev_instance_env.sh compiles Mix dependencies in 4 OS
+# processes unless this is set. On a 2-vCPU orb they oversubscribe the CPUs:
+# a clean test-env compile took 144-179 s with 2 processes and 173-244 s with 4.
+cpu_count="$(nproc)"
+if ((cpu_count < 4)); then
+  export MIX_OS_DEPS_COMPILE_PARTITION_COUNT="$cpu_count"
+fi
 
 profile_marker="# tuist: mise toolchain"
 if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
