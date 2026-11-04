@@ -187,6 +187,7 @@ defmodule Tuist.Marketing.MDExConverter do
     highlighted_html =
       "```#{info}\n#{literal}```"
       |> MDEx.to_html!(@mdex_options)
+      |> close_tokens_before_line_breaks()
       |> protect_highlight_whitespace()
 
     copy_source = literal |> String.trim() |> Markdown.html_escape()
@@ -205,6 +206,13 @@ defmodule Tuist.Marketing.MDExConverter do
       </div>
       """
     }
+  end
+
+  # The highlighter can end a token (a Rust `///` doc comment, for example)
+  # after the newline, so the token's `</span>` lands inside the next line's
+  # wrapper. Browsers tolerate it, but HEEx rejects the markup in live posts.
+  defp close_tokens_before_line_breaks(html) do
+    String.replace(html, ~r/\n(<\/div><div class="l-line"[^>]*>)<\/span>/, "</span>\n\\1")
   end
 
   defp protect_highlight_whitespace(html) do
