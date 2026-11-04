@@ -1,5 +1,5 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"%@ simulator" = "симулятор %@";
+"%@ simulator" = "Симулятор %@";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "В ответе отсутствует токен доступа или токен обновления";
@@ -47,13 +47,13 @@
 "Bundle identifier" = "Идентификатор пакета";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
-"Cancel" = "Отмена";
+"Cancel" = "Отменить";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Check for updates" = "Проверить обновления";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Commit SHA" = "SHA коммита";
+"Commit SHA" = "Хеш коммита (SHA)";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "Подключено";
@@ -71,13 +71,13 @@
 "Could not find app bundle in the downloaded archive" = "Не удалось найти пакет приложения в загруженном архиве";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Не удалось установить приложение для %@, так как оно не содержит допустимых сборок.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Не удалось установить приложение для %@, так как оно не содержит допустимых сборок приложения.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Не удалось установить приложение для %@. Платформа %@ — %@, а приложение поддерживает только следующие платформы: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Не удалось установить приложение для %@. Платформа %@ — это %@, а приложение включает только следующие платформы: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Created at" = "Дата создания";
+"Created at" = "Создано";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created by" = "Автор";
@@ -137,16 +137,16 @@
 "Installing preview" = "Установка превью";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid callback URL received" = "Получен неверный URL обратного вызова";
+"Invalid callback URL received" = "Получен недопустимый URL обратного вызова";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid response format" = "Неверный формат ответа";
+"Invalid response format" = "Недопустимый формат ответа";
 
 /* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Launch" = "Запустить";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Launching preview" = "Запуск превью";
+"Launching preview" = "Запуск предварительной сборки";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Log out" = "Выйти";
@@ -158,13 +158,13 @@
 "Missing Apple credentials from authorization" = "Отсутствуют учетные данные Apple для авторизации";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"No Previews" = "Нет превью";
+"No Previews" = "Нет предварительных сборок";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No Tuist projects found" = "Проекты Tuist не найдены";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "Превью не найдены";
+"No previews found" = "Предварительные сборки не найдены";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No previews match your filters" = "Нет предварительных сборок, соответствующих вашим фильтрам";
@@ -215,7 +215,7 @@
 "Self-hosted" = "Self-hosted";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Self-hosted server" = "Собственный сервер";
+"Self-hosted server" = "Самостоятельно размещаемый сервер";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Share logs" = "Поделиться журналами";
@@ -227,7 +227,7 @@
 "Sign in to access your projects and\ncollaborate with your team" = "Войдите, чтобы получить доступ к своим проектам и\nсотрудничать с командой";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
-"Sign in to run previews" = "Войдите для запуска превью";
+"Sign in to run previews" = "Войдите, чтобы запускать превью";
 
 /* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
 "Sign in with Apple" = "Войти через Apple";
@@ -257,40 +257,40 @@
 "The app preview %@ was not found." = "Предпросмотр приложения %@ не найден.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The latest preview for %@ was not found. Has any preview been published?" = "Последний предпросмотр для %@ не найден. Был ли опубликован хотя бы один предпросмотр?";
+"The latest preview for %@ was not found. Has any preview been published?" = "Последний предпросмотр для %@ не найден. Был ли опубликован какой-либо предпросмотр?";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "The preview %@ does not have a package name set." = "Для предпросмотра %@ не указано имя пакета.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "Ссылка для перехода к превью %@ недействительна.";
+"The preview deeplink %@ is invalid." = "Ссылка на предварительную сборку %@ недействительна.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "Сервер вернул страницу превью, которая не обновилась. Обновите ваш сервер или попробуйте снова.";
+"The server returned a preview page that did not advance. Update your server or try again." = "Сервер вернул страницу предварительной сборки, которая не обновилась. Обновите ваш сервер или попробуйте снова.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Этот сервер не поддерживает фильтрацию превью по трекам. Обновите ваш self-hosted сервер Tuist или выберите «Все треки».";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Этот сервер не поддерживает фильтрацию предварительных сборок по каналу. Обновите ваш самостоятельно размещенный сервер Tuist или выберите «Все каналы».";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Этот сервер не поддерживает поиск превью. Обновите ваш self-hosted сервер Tuist или очистите поиск.";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Этот сервер не поддерживает поиск предварительных сборок. Обновите ваш самостоятельно размещенный сервер Tuist или очистите поиск.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Этот сервер не поддерживает вход через приложение Tuist. Попросите администратора обновить его.";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Этот сервер не поддерживает вход через приложение Tuist. Попросите вашего администратора обновить его.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "Чтобы запустить превью, необходимо выбрать симулятор.";
+"To run a preview, you must have a simulator selected." = "Чтобы запустить предварительную сборку, необходимо выбрать симулятор.";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Token exchange failed with status code: %lld" = "Обмен токена завершился с кодом состояния: %lld";
+"Token exchange failed with status code: %lld" = "Обмен токена завершился ошибкой со статусом: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Track" = "Трек";
+"Track" = "Канал";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Tracks" = "Каналы";
+"Tracks" = "Треки";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "Попробуйте изменить поисковый запрос или выберите другой канал.";
+"Try a different search or select another track." = "Попробуйте другой поисковый запрос или выберите другой трек.";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "Неизвестно";
@@ -299,7 +299,7 @@
 "Unpin" = "Открепить";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "Обновите ваш сервер Tuist на собственном хостинге, чтобы выбрать канал.";
+"Update your self-hosted Tuist server to select a track." = "Обновите ваш self-hosted сервер Tuist, чтобы выбрать трек.";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "Используйте корневой адрес вашего сервера Tuist";

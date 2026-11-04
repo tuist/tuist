@@ -20,14 +20,9 @@
     <string name="load_previews_failed">"Error al cargar las previsualizaciones"</string>
     <string name="load_more_previews_failed">"Error al cargar más previsualizaciones"</string>
     <string name="refresh_previews_failed">"Error al actualizar las previsualizaciones"</string>
-    <string name="relative_time_just_now">"Ahora mismo"</string>
-    <string name="relative_time_minutes">"Hace %1$dm"</string>
-    <string name="relative_time_hours">"Hace %1$dh"</string>
-    <string name="relative_time_days">"Hace %1$dd"</string>
-    <string name="relative_time_months">"Hace %1$dmo"</string>
     <string name="profile_title">"Perfil"</string>
     <string name="profile_email">"Correo electrónico"</string>
-    <string name="profile_terms">"Términos del servicio"</string>
+    <string name="profile_terms">"Términos de servicio"</string>
     <string name="profile_privacy">"Política de privacidad"</string>
     <string name="profile_get_help">"Obtener ayuda"</string>
     <string name="profile_app_version">"Versión de la app"</string>
@@ -43,7 +38,7 @@
     <string name="preview_supported_platforms">"Plataformas compatibles"</string>
     <string name="preview_details">"Detalles"</string>
     <string name="preview_created_by">"Creado por"</string>
-    <string name="preview_created_at">"Fecha de creación"</string>
+    <string name="preview_created_at">"Creado el"</string>
     <string name="preview_bundle_id">"Identificador del bundle"</string>
     <string name="preview_branch">"Rama"</string>
     <string name="preview_commit_sha">"SHA del commit"</string>

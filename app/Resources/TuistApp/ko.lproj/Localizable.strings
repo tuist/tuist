@@ -2,10 +2,10 @@
 "%@ simulator" = "%@ 시뮬레이터";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Access token or refresh token missing from response" = "응답에 액세스 토큰 또는 리프레시 토큰이 없습니다";
+"Access token or refresh token missing from response" = "응답에 액세스 토큰 또는 새로 고침 토큰이 없습니다";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All" = "모두";
+"All" = "전체";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "All tracks" = "모든 트랙";
@@ -29,7 +29,7 @@
 "Apple Sign In failed" = "Apple 로그인 실패";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "앱 위치";
+"Apps in" = "다음의 앱";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Are you sure you want to delete this preview? This action cannot be undone." = "이 프리뷰를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.";
@@ -71,10 +71,10 @@
 "Could not find app bundle in the downloaded archive" = "다운로드한 아카이브에서 앱 번들을 찾을 수 없습니다";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@에 대한 앱을 설치할 수 없습니다. 유효한 앱 빌드가 포함되어 있지 않습니다.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@의 앱을 설치할 수 없습니다. 유효한 앱 빌드가 포함되어 있지 않습니다.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@에 대한 앱을 설치할 수 없습니다. %@의 플랫폼은 %@이며, 앱에는 다음 플랫폼만 포함되어 있습니다: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@의 앱을 설치할 수 없습니다. %@의 플랫폼은 %@이며, 앱에는 다음 플랫폼만 포함되어 있습니다: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "생성일";
@@ -110,19 +110,19 @@
 "Email" = "이메일";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "인증 정보, 쿼리 또는 프래그먼트 없이 유효한 HTTPS 서버 URL을 입력하세요.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "인증 정보, 쿼리 또는 프래그먼트가 없는 유효한 HTTPS 서버 URL을 입력하세요.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "오류";
 
 /* TuistMenuBar/StatusView.swift */
-"Finished" = "완료";
+"Finished" = "완료됨";
 
 /* TuistProfile/ProfileView.swift */
 "Get help" = "도움 받기";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "한 번의 클릭으로 최신 프리뷰를 설치하세요.";
+"Install latest previews with one click." = "최신 프리뷰를 한 번의 클릭으로 설치하세요.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "설치 실패";
@@ -155,7 +155,7 @@
 "Logged out" = "로그아웃됨";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "인증에 Apple 자격 증명이 누락됨";
+"Missing Apple credentials from authorization" = "인증에 Apple 자격 증명이 누락되었습니다";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "프리뷰 없음";
@@ -173,7 +173,7 @@
 "Ok" = "확인";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Other devices" = "기타 기기";
+"Other devices" = "다른 기기";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Pin" = "고정";
@@ -185,7 +185,7 @@
 "Previews: %lld" = "미리보기: %lld";
 
 /* TuistProfile/ProfileView.swift */
-"Privacy Policy" = "개인정보 처리방침";
+"Privacy Policy" = "개인정보 보호정책";
 
 /* TuistApp/TuistApp.swift */
 "Profile" = "프로필";
@@ -224,7 +224,7 @@
 "Sign in" = "로그인";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "프로젝트에 액세스하고 팀과 협업하려면\n로그인하세요";
+"Sign in to access your projects and\ncollaborate with your team" = "프로젝트에 접근하고 팀과 협업하려면\n로그인하세요";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "프리뷰를 실행하려면 로그인하세요";
@@ -248,13 +248,13 @@
 "Simulators" = "시뮬레이터";
 
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
-"Supported platforms" = "지원 플랫폼";
+"Supported platforms" = "지원되는 플랫폼";
 
 /* TuistProfile/ProfileView.swift */
 "Terms of Service" = "서비스 약관";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"The app preview %@ was not found." = "앱 미리보기 %@을 찾을 수 없습니다.";
+"The app preview %@ was not found." = "앱 미리보기 %@를 찾을 수 없습니다.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
 "The latest preview for %@ was not found. Has any preview been published?" = "%@의 최신 미리보기를 찾을 수 없습니다. 게시된 미리보기가 있나요?";
@@ -263,16 +263,16 @@
 "The preview %@ does not have a package name set." = "미리보기 %@에 패키지 이름이 설정되어 있지 않습니다.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "미리보기 딥 링크 %@가 잘못되었습니다.";
+"The preview deeplink %@ is invalid." = "미리보기 딥링크 %@이(가) 유효하지 않습니다.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "서버에서 진행되지 않은 미리보기 페이지를 반환했습니다. 서버를 업데이트하거나 다시 시도하세요.";
+"The server returned a preview page that did not advance. Update your server or try again." = "서버에서 진행되지 않는 미리보기 페이지를 반환했습니다. 서버를 업데이트하거나 다시 시도하세요.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "이 서버는 트랙별로 미리보기를 필터링하는 기능을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 모든 트랙을 선택하세요.";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "이 서버는 트랙별로 미리보기를 필터링하는 것을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 모든 트랙을 선택하세요.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "이 서버는 미리보기 검색 기능을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 검색어를 지우세요.";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "이 서버는 미리보기 검색을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 검색어를 지우세요.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "이 서버는 Tuist 앱에서의 로그인을 지원하지 않습니다. 관리자에게 서버 업데이트를 요청하세요.";

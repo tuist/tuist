@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">"Tuist"</string>
     <string name="login_title">"欢迎使用 Tuist"</string>
-    <string name="login_subtitle">"登录以访问您的项目并\n与团队协作"</string>
+    <string name="login_subtitle">"登录以访问您的项目并与团队协作"</string>
     <string name="sign_in_tuist">"使用 Tuist 登录"</string>
     <string name="sign_in_apple">"使用 Apple 登录"</string>
     <string name="sign_in_google">"使用 Google 登录"</string>
@@ -20,13 +20,8 @@
     <string name="load_previews_failed">"加载预览失败"</string>
     <string name="load_more_previews_failed">"加载更多预览失败"</string>
     <string name="refresh_previews_failed">"刷新预览失败"</string>
-    <string name="relative_time_just_now">"刚刚"</string>
-    <string name="relative_time_minutes">"%1$d分钟前"</string>
-    <string name="relative_time_hours">"%1$d小时前"</string>
-    <string name="relative_time_days">"%1$d天前"</string>
-    <string name="relative_time_months">"%1$dmo 前"</string>
     <string name="profile_title">"个人资料"</string>
-    <string name="profile_email">"电子邮件"</string>
+    <string name="profile_email">"邮箱"</string>
     <string name="profile_terms">"服务条款"</string>
     <string name="profile_privacy">"隐私政策"</string>
     <string name="profile_get_help">"获取帮助"</string>
@@ -49,9 +44,9 @@
     <string name="preview_commit_sha">"Commit SHA"</string>
     <string name="preview_unknown">"未知"</string>
     <string name="preview_run">"运行"</string>
-    <string name="preview_delete">"删除预览"</string>
-    <string name="load_preview_failed">"加载预览失败"</string>
-    <string name="delete_preview_failed">"删除预览失败"</string>
-    <string name="delete_preview_title">"删除预览"</string>
+    <string name="preview_delete">"删除预览版"</string>
+    <string name="load_preview_failed">"加载预览版失败"</string>
+    <string name="delete_preview_failed">"删除预览版失败"</string>
+    <string name="delete_preview_title">"删除预览版"</string>
     <string name="delete_preview_message">"确定要删除此预览吗？此操作无法撤销。"</string>
 </resources>
