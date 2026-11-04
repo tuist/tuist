@@ -5,6 +5,7 @@ tags: ["engineering", "architecture", "rust", "swiftui", "jetpack-compose", "kot
 excerpt: "Seven principles for native apps that share a headless core: what goes in the core, how the edges call it, how to make every screen addressable, and how to shape the build graph. Includes a sample app for iOS, Android, and the terminal."
 author: pepicrft
 cta_title: "Fast native builds for every edge."
+live: true
 ---
 
 For a long time, building a client for each platform meant writing every screen and fixing every bug once per platform. You either had a team for each platform or picked which ones to leave out. The industry came up with ways to live with that cost.
@@ -324,9 +325,15 @@ Edges need different things from the core. A CLI doesn't need code that only a w
 
 The way you do it matters for caching. A build system caches each target under a hash of its inputs, and the flags it's compiled with are part of those inputs. If the iOS app builds the core with one set of [Cargo features](https://doc.rust-lang.org/cargo/reference/features.html) and the CLI builds it with another, the core gets two hashes. As far as the cache is concerned, that's two different cores. Each one has to be built, cached, and kept warm on its own, and a change to the core invalidates both. Do that for every edge and you end up with one graph per edge instead of one graph for the whole app.
 
-So we prefer to make the choice in the graph, not inside the targets. Split the core into targets along real boundaries, like routing, storage, networking, and the agent, and let each edge pick the ones it depends on. Every target is built the same way no matter which edge asks for it, so it keeps one hash, and adding, removing, or copying an edge doesn't change the hash of anything it uses. A widget that only shows the latest conversation could depend on the storage target and never build or link the networking one.
+So we prefer to make the choice in the graph, not inside the targets. Split the core into targets along real boundaries, like routing, storage, networking, and the agent, and let each edge pick the ones it depends on. Every target is built the same way no matter which edge asks for it, so it keeps one hash. A target's hash comes from its own sources and the targets it depends on, never from the targets that depend on it. The core doesn't know which edges exist, so adding, removing, or copying an edge doesn't change the hash of anything it uses. A widget that only shows the latest conversation could depend on the storage target alone and never build or link the agent or the networking code.
 
-The sample does this at a small scale. The iOS app depends on the Swift bindings, and the Android app on the Kotlin bindings and [JNA](https://github.com/java-native-access/jna), which the bindings use to load the core. The CLI depends on neither. Platform differences are the one place where we use [conditional compilation](https://doc.rust-lang.org/reference/conditional-compilation.html), like `#[cfg(target_os = "android")]`, because the core is already built once per platform and that doesn't add any variants. Per-edge flags aren't forbidden, and sometimes they're the simplest option. Just count each new combination as one more copy of that part of the graph to build and keep warm in the cache.
+Try both approaches below. Add the widget, remove the CLI, or edit a file in the storage target, and see which nodes get a new hash and have to be built.
+
+<.live_component module={TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab} id="edge-graph-lab" />
+
+When you choose in the graph, an edge you add costs one build: the edge itself. Editing storage rebuilds storage, the agent that depends on it, and the edges above them. With flags per edge, every new edge brings its own copy of the core, and the same edit rebuilds every copy.
+
+The sample does this at a small scale. The iOS app depends on the Swift bindings, and the Android app on the Kotlin bindings and [JNA](https://github.com/java-native-access/jna), which the bindings use to load the core. The CLI depends on neither. Platform differences are the one place where we use [conditional compilation](https://doc.rust-lang.org/reference/conditional-compilation.html), like `#[cfg(target_os = "android")]`, because the core is already built once per platform and that doesn't add any variants. If you only need to drop unused code from the final binary, let the linker do it with dead-code stripping (`-dead_strip` on Apple platforms, `--gc-sections` elsewhere). That happens when each edge links, after the core is compiled and cached, so it doesn't change any hash. Per-edge flags aren't forbidden, and sometimes they're the simplest option. Just count each new combination as one more copy of that part of the graph to build and keep warm in the cache.
 
 ## Adopting native edges
 
