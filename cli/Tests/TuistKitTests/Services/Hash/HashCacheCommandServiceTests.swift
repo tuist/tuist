@@ -96,7 +96,6 @@ import XcodeGraph
             ]
         )
         func run_hashesTheResolvedVariant(variable: String?, option: Bool, expected: BinaryCacheCoverage) async throws {
-            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
             Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = variable
             let path = try AbsolutePath(validating: "/project")
             let config = Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: option)))))

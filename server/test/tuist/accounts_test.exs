@@ -2732,6 +2732,58 @@ defmodule Tuist.AccountsTest do
       {1, nil} = Repo.update_all(UserToken, set: [inserted_at: ~N[2020-01-01 00:00:00]])
       refute Accounts.get_user_by_session_token(token)
     end
+
+    @tag :browser_session
+    test "expires at fifteen minutes idle without activity from validity checks", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -899)])
+      assert Accounts.get_user_by_session_token(token)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "activity cannot extend the eight-hour absolute deadline", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [inserted_at: now |> DateTime.add(-28_799) |> DateTime.to_naive(), last_active_at: now]
+      )
+
+      assert Accounts.get_user_session(token, touch: true)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
+      refute Accounts.get_user_session(token, touch: true)
+    end
+
+    @tag :browser_session
+    test "user activity extends only the idle deadline and only for that session", %{token: token, user: user} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      other_token = Accounts.generate_user_session_token(user)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 840) end)
+      assert Accounts.get_user_session(token, touch: true)
+
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1680) end)
+      assert Accounts.get_user_by_session_token(token)
+      refute Accounts.get_user_by_session_token(other_token)
+    end
+
+    @tag :browser_session
+    test "legacy tokens are not renewed from migration or first-use time", %{token: token} do
+      now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+      Repo.update_all(UserToken,
+        set: [
+          inserted_at: now |> DateTime.add(-900) |> DateTime.to_naive(),
+          last_active_at: nil,
+          auth_provider: nil,
+          auth_provider_organization_id: nil
+        ]
+      )
+
+      refute Accounts.get_user_session(token, touch: true)
+    end
   end
 
   describe "delete_user_session_token/1" do
@@ -6545,6 +6597,88 @@ defmodule Tuist.AccountsTest do
       |> Repo.update()
 
     org
+  end
+
+  describe "sso_requirement/2" do
+    setup do
+      %{user: AccountsFixtures.user_fixture()}
+    end
+
+    test "is satisfied when no organization of the user enforces single sign-on", %{user: user} do
+      assert Accounts.sso_requirement(user, nil) == :ok
+
+      member_of(user, sso_enforced: false, sso_provider: :google, sso_organization_id: "example.com")
+      member_of(user, sso_enforced: true, sso_provider: nil)
+
+      assert Accounts.sso_requirement(user, session(user, %{auth_method: :password})) == :ok
+    end
+
+    test "asks for a sign-in through the organization that enforces it", %{user: user} do
+      organization = member_of(user, sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+      organization_id = organization.id
+
+      assert Accounts.sso_requirement(
+               user,
+               session(user, %{auth_method: :google, provider_organization_id: "example.com"})
+             ) ==
+               :ok
+
+      # Signing in with the same provider for another tenant does not count.
+      assert {:sign_in_with, %{id: ^organization_id}} =
+               Accounts.sso_requirement(
+                 user,
+                 session(user, %{auth_method: :google, provider_organization_id: "other.com"})
+               )
+
+      assert {:sign_in_with, %{id: ^organization_id}} =
+               Accounts.sso_requirement(user, session(user, %{auth_method: :password}))
+
+      # Clients without a browser session, such as password API sign-ins.
+      assert {:sign_in_with, %{id: ^organization_id}} = Accounts.sso_requirement(user, nil)
+    end
+
+    test "cannot be satisfied when several organizations enforce it", %{user: user} do
+      google = member_of(user, sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+      other_google = member_of(user, sso_enforced: true, sso_provider: :google, sso_organization_id: "other.com")
+      okta = member_of(user, sso_enforced: true, sso_provider: :okta, sso_organization_id: "https://okta.example.com")
+
+      # Signing in through any of them must not send the session to another
+      # one, which would then send it back.
+      for organization <- [google, other_google, okta] do
+        assert Accounts.sso_requirement(user, session(user, sso_auth(organization))) ==
+                 {:error, :conflicting_requirements}
+      end
+    end
+
+    test "ignores organizations the user does not belong to", %{user: user} do
+      member_of(AccountsFixtures.user_fixture(),
+        sso_enforced: true,
+        sso_provider: :google,
+        sso_organization_id: "example.com"
+      )
+
+      assert Accounts.sso_requirement(user, nil) == :ok
+    end
+
+    defp session(user, auth) do
+      user |> Accounts.generate_user_session_token(auth) |> Accounts.get_user_session()
+    end
+
+    defp sso_auth(organization) do
+      %{
+        auth_method: organization.sso_provider,
+        provider_organization_id: organization.sso_organization_id,
+        sso_organization_id: organization.id
+      }
+    end
+
+    defp member_of(user, attrs) do
+      organization = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      # Enabling enforcement through `Accounts` also requires a verified login
+      # email domain, which is not what these tests are about.
+      organization |> Ecto.Changeset.change(attrs) |> Repo.update!()
+    end
   end
 
   describe "sso_enforced_for_email?/1" do

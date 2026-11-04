@@ -4,3 +4,7 @@ authenticateHostname: authenticate.kube-canary.tuist.dev
 
 ingress:
   tlsSecretName: pomerium-canary-tls
+
+orbAccess:
+  enabled: true
+  hostname: kube-orb-canary.tuist.dev

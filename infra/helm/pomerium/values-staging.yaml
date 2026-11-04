@@ -4,3 +4,7 @@ authenticateHostname: authenticate.kube-staging.tuist.dev
 
 ingress:
   tlsSecretName: pomerium-staging-tls
+
+orbAccess:
+  enabled: true
+  hostname: kube-orb-staging.tuist.dev

@@ -473,7 +473,9 @@ address nobody answers for and whose gateway does (`busybox arping`).
 
 **A preinstalled box earns its install with its TPM.** The vendor's acceptance
 report carries the box's SMBIOS UUID and its TPM check code from the unit
-sheet. Declaring the box takes both:
+sheet, or from `sudo rack-node check-code` (the internet boot server serves
+`/tools/rack-node`) on any Linux the box boots; neither shows a code
+without a key. Declaring the box takes both:
 
 ```yaml
 - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
@@ -610,9 +612,11 @@ its largest disk for cache volumes, the shape the rented cache fleets take
 | 1 | 1 GiB | FAT32 | `/boot/efi` |
 | 2 | 2 GiB | ext4 | `/boot` |
 | 3 | 64 GiB | ext4 | `/` |
-| 4 | the rest | XFS, `prjquota` | `/data` |
+| 4 | the rest | LVM PV, VG `kura-volumes` | — |
+| data LV | 128 GiB | XFS, `prjquota` | `/data` |
 
-A cache volume is a local-path directory with an XFS project quota, and XFS
+Kura claims use individual encrypted LVs after regional LVM enrollment. Auxiliary
+local-path volumes still use directories on the bounded data LV. XFS
 takes `prjquota` only when it mounts, so `/data` carries it in fstab from the
 install. The install also bind-mounts `/data/kubelet` onto `/var/lib/kubelet`,
 `/data/containerd` onto `/var/lib/containerd` and `/data/local-path-provisioner`
@@ -956,7 +960,9 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
    namespace, which step 3 created, so the production edge and one still
    running staging's pod accept each other's adverts instead of both holding
    the addresses. The Helm labels and annotations come along, so the rack-edge
-   release adopts it and keeps the password:
+   release adopts it and keeps the password. No elevation reaches Secrets, so
+   run it with each env's admin kubeconfig (`op document get "kubeconfig:
+   tuist-<env>"`) in place of `$S` and `$P`:
 
    ```
    kubectl $S -n omada get secret rack-edge-ber1-vrrp -o json |
@@ -1048,7 +1054,8 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 
 10. **Copy the hosts' AMT Secrets** (remote) from `tuist-staging` to `tuist`.
     AMT keeps the admin password staging generated, and production can drive
-    a host's AMT only with it:
+    a host's AMT only with it. Like step 5, this needs the admin kubeconfigs
+    in place of `$S` and `$P`:
 
     ```
     for uuid in $EDGE_A $EDGE_B $STORE_A; do
@@ -1300,8 +1307,9 @@ How it works is "A host lent to another env" in
 [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
 **Once per borrowing env** (remote, by a person: it writes a credential into
-1Password). The borrowing env's values set `rackFleet.borrow.enabled` (staging
-and canary do), which renders the `rack-lender` identity production's operator
+1Password and reads a Secret, so `C` is the borrowing env's admin kubeconfig
+context rather than its gateway). The borrowing env's values set
+`rackFleet.borrow.enabled` (staging and canary do), which renders the `rack-lender` identity production's operator
 writes that env's leases with. With `C` the borrowing cluster's context, `N`
 its namespace and `E` its name. Every variable is quoted, since zsh does not
 word-split an unquoted one, and each step runs only if the one before it
@@ -1421,3 +1429,25 @@ seed, the iPXE script and the install lifecycle are Go tests in the operator
 `controllers/linux/racklinuxhost_install_test.go`). `mise -C infra run
 helm:rack-independence` checks that deploys do not wait on rack nodes (see
 "Deploys and the rack's health"); it runs in the Helm workflow.
+
+### Kura volume encryption
+
+The independently deployed `rack-nodes` release owns both CSI node plugins:
+`kura-volumes-csi-rack`, selected by `kuraVolumesCSI.rackPools`, and the rented
+`kura-volumes-csi-node` on the other cache pools. The main waited release owns
+the CSI identity, RBAC, admission and StorageClasses. Both plugins use the same
+identity and mount/key contract; their DaemonSets never overlap. Neither an
+offline rack nor a broken rented node can hold the main Helm upgrade. Set the
+pinned CSI image on both releases. Keep them installed while claims exist.
+
+Fresh storage installs create `kura-volumes` directly through curtin, including
+resident-installer layouts. Existing hosts require an explicit spare-host
+migration and reinstall; neither a deploy nor Machine reconciliation converts
+populated disks. Verify the VG and plugin before enrolling `ber1-runners` in
+`kuraVolumesCSI.lvmRegions`. Enrollment makes encryption the default. Account
+flags cannot move an unenrolled rack onto loop files. Enrollment renders at
+least two replicas so the current one-replica rack region gets a standby and
+complete backfill before its original claim is replaced. Both replicas need
+prepared capacity; an in-place reinstall of the only storage host is an outage.
+Reserve the 128 GiB data LV for images/system/auxiliary volumes (including any
+image cache); grow it before enabling auxiliary claims that exceed that budget.

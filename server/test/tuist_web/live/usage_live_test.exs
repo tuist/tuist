@@ -53,7 +53,7 @@ defmodule TuistWeb.UsageLiveTest do
       period_end: ~D[2026-09-24],
       usage_through: ~D[2026-08-25],
       minutes: 1_000,
-      free_minutes: 100,
+      free_minutes: %{macos: 100, linux: 2_500},
       gross: Money.new(7_500, :USD),
       trial_covered: Money.new(7_500, :USD),
       billed: Money.new(0, :USD),
@@ -84,7 +84,7 @@ defmodule TuistWeb.UsageLiveTest do
       period_end: ~D[2026-09-24],
       usage_through: ~D[2026-08-25],
       minutes: 1_000,
-      free_minutes: 100,
+      free_minutes: %{macos: 100, linux: 2_500},
       gross: Money.new(7_500, :USD),
       trial_covered: Money.new(0, :USD),
       billed: Money.new(6_750, :USD),
@@ -344,10 +344,9 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "−75.00"
     end
 
-    test "does not deduct from a platform that has no rate yet", %{conn: conn, account: account} do
-      # Linux has no agreed rate, so its value reads as a dash. Taking a
-      # dash off a dash rendered "−—", which is not a number and not an
-      # explanation.
+    test "shows a Linux receipt billed past its own free minutes", %{conn: conn, account: account} do
+      # 2,590 minutes are 90 past the 2,500 free Linux ones: $6.22 of
+      # usage, $6.00 of it included and 22 cents billed.
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       breakdown = %{
@@ -356,13 +355,13 @@ defmodule TuistWeb.UsageLiveTest do
             %{
               id: "linux",
               platform: :linux,
-              minutes: 90,
-              projected_minutes: 90,
-              included_minutes: nil,
+              minutes: 2_590,
+              projected_minutes: 2_590,
+              included_minutes: 2_500,
               previous_minutes: 0,
-              gross: nil,
-              trial_covered: nil,
-              billed: nil
+              gross: Money.new(622, :USD),
+              trial_covered: Money.new(0, :USD),
+              billed: Money.new(22, :USD)
             }
           ]
       }
@@ -374,8 +373,10 @@ defmodule TuistWeb.UsageLiveTest do
 
       html = render(lv)
 
-      assert html =~ "90 minutes run"
-      refute html =~ "−—"
+      assert html =~ "2,590 minutes run"
+      assert html =~ "2,500 minutes included"
+      assert html =~ "−6.00"
+      assert html =~ "0.22"
       refute html =~ "Covered by your trial"
     end
 
@@ -682,11 +683,11 @@ defmodule TuistWeb.UsageLiveTest do
       # The projection has to share the axis and the stack with the
       # repositories, otherwise the days ahead land on their own bars
       # and the period reads as though it restarted.
-      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000}]
 
       projected = [
-        %{date: ~D[2026-08-22], total_ms: 600_000},
-        %{date: ~D[2026-08-23], total_ms: 600_000}
+        %{date: ~D[2026-08-22], platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-23], platform: :macos, total_ms: 600_000}
       ]
 
       assert [spent, projection] = UsageLive.runner_chart_series(by_repository, projected)
@@ -711,8 +712,11 @@ defmodule TuistWeb.UsageLiveTest do
       # alone it stopped at today, so a period with days still ahead was
       # labelled as though it ended this morning.
       breakdown = %{
-        by_repository: [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}],
-        projected_days: [%{date: ~D[2026-08-22], total_ms: 600_000}, %{date: ~D[2026-08-23], total_ms: 600_000}]
+        by_repository: [%{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000}],
+        projected_days: [
+          %{date: ~D[2026-08-22], platform: :macos, total_ms: 600_000},
+          %{date: ~D[2026-08-23], platform: :macos, total_ms: 600_000}
+        ]
       }
 
       options = breakdown |> UsageLive.runner_chart_dates() |> UsageLive.runner_chart_options()
@@ -721,10 +725,37 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "has no projected series for a period that is over" do
-      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000}]
 
       assert [only] = UsageLive.runner_chart_series(by_repository, [])
       refute only.name == "Projected"
+    end
+
+    test "values each platform's rows at its own rate" do
+      # Ten macOS minutes are $0.60 and a thousand Linux baseline minutes
+      # $2.40, so a day running both comes to $3.00 rather than either
+      # rate applied to the sum.
+      by_repository = [
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :linux, total_ms: 60_000_000}
+      ]
+
+      assert [only] = UsageLive.runner_chart_series(by_repository, [])
+      assert only.data == [[~D[2026-08-21], 3.0]]
+    end
+
+    test "splits the spend by platform across repositories" do
+      # Two repositories on both platforms: by platform, the bars carry one
+      # series per platform, each summing its rows from every repository.
+      by_repository = [
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/other", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :linux, total_ms: 60_000_000}
+      ]
+
+      assert [linux, macos] = UsageLive.runner_chart_series(by_repository, [], "platform")
+      assert {linux.name, linux.data} == {"Linux", [[~D[2026-08-21], 2.4]]}
+      assert {macos.name, macos.data} == {"macOS", [[~D[2026-08-21], 1.2]]}
     end
   end
 end

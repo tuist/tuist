@@ -504,7 +504,7 @@
       <p>
         {dgettext(
           "dashboard",
-          "Sandbox CPU and memory limits are independent of CI. Creating, resuming and running sandboxes count toward these limits; paused sandboxes do not."
+          "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
         )}
       </p>
       <.form
@@ -525,6 +525,14 @@
           input_type="number"
           min={1}
           label={dgettext("dashboard", "Memory limit (GB)")}
+          required
+          show_required
+        />
+        <.text_input
+          field={@sandbox_concurrency_form[:sandbox_disk_gb_limit]}
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "Disk limit (GB)")}
           required
           show_required
         />

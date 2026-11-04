@@ -34,11 +34,33 @@
     icon="server"
     data-part="runner-usage-card"
   >
+    <:actions :if={TuistWeb.UsageLive.runner_usage?(@runner_breakdown)}>
+      <.dropdown
+        id="runner-group-by-dropdown"
+        label={
+          Enum.find_value(
+            TuistWeb.UsageLive.runner_group_by_options(),
+            &(&1.value == @runner_group_by && &1.label)
+          )
+        }
+        secondary_text={dgettext("dashboard_usage", "Group by:")}
+      >
+        <.dropdown_item
+          :for={option <- TuistWeb.UsageLive.runner_group_by_options()}
+          value={option.value}
+          label={option.label}
+          patch={TuistWeb.UsageLive.runner_group_by_patch(@uri, option.value)}
+          data-selected={option.value == @runner_group_by}
+        >
+          <:right_icon :if={option.value == @runner_group_by}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+    </:actions>
     <.card_section data-part="usage-summary-section">
       <span data-part="info-label">
         {dgettext(
           "dashboard_usage",
-          "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs.",
+          "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs.",
           from: Timex.format!(@runner_breakdown.period_start, "{Mshort} {D}"),
           to: Timex.format!(@runner_breakdown.period_end, "{Mshort} {D}, {YYYY}")
         )}
@@ -48,8 +70,11 @@
           id="widget-runner-minutes"
           title={dgettext("dashboard_usage", "Runner minutes")}
           description={
-            dgettext("dashboard_usage", "%{count} free each month",
-              count: CldrHelpers.format_number(@runner_breakdown.free_minutes)
+            dgettext(
+              "dashboard_usage",
+              "%{macos} free macOS and %{linux} free Linux minutes each month",
+              macos: CldrHelpers.format_number(@runner_breakdown.free_minutes.macos),
+              linux: CldrHelpers.format_number(@runner_breakdown.free_minutes.linux)
             )
           }
           value={CldrHelpers.format_number(@runner_breakdown.minutes)}
@@ -87,7 +112,8 @@
           series={
             TuistWeb.UsageLive.runner_chart_series(
               @runner_breakdown.by_repository,
-              @runner_breakdown.projected_days
+              @runner_breakdown.projected_days,
+              @runner_group_by
             )
           }
           y_axis_min={0}

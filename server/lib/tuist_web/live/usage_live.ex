@@ -15,6 +15,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
+  alias TuistWeb.Utilities.Query
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
@@ -63,6 +64,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:uri, URI.parse(uri))
      |> assign(:selected_period, period)
      |> assign(:runner_breakdown, runner_breakdown)
+     |> assign(:runner_group_by, runner_group_by_param(params["runner-group-by"]))
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
      |> assign_async(:usage_pricing, fn ->
        {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
@@ -172,7 +174,7 @@ defmodule TuistWeb.UsageLive do
   and each segment has to be comparable against the others in the same
   day.
   """
-  def runner_chart_series(by_repository, projected_days \\ []) do
+  def runner_chart_series(by_repository, projected_days \\ [], group_by \\ "repository") do
     dates =
       (by_repository ++ projected_days)
       |> Enum.map(& &1.date)
@@ -180,16 +182,16 @@ defmodule TuistWeb.UsageLive do
       |> Enum.sort(Date)
 
     by_repository
-    |> Enum.group_by(& &1.repository)
-    |> Enum.sort_by(fn {_repository, rows} -> -Enum.sum(Enum.map(rows, & &1.total_ms)) end)
+    |> Enum.group_by(&runner_group_key(&1, group_by))
+    |> Enum.sort_by(fn {_key, rows} -> -(rows |> Enum.map(&row_dollars/1) |> Enum.sum()) end)
     |> Enum.with_index()
-    |> Enum.map(fn {{repository, rows}, index} ->
-      per_day = Map.new(rows, &{&1.date, &1.total_ms})
+    |> Enum.map(fn {{key, rows}, index} ->
+      per_day = dollars_per_day(rows)
 
       %{
         color: "var:noora-chart-#{Enum.at(@repository_colors, rem(index, length(@repository_colors)))}",
-        data: Enum.map(dates, fn date -> [date, dollars(Map.get(per_day, date, 0))] end),
-        name: repository_label(repository),
+        data: Enum.map(dates, fn date -> [date, per_day |> Map.get(date, 0.0) |> Float.round(2)] end),
+        name: runner_group_label(key, group_by),
         type: "bar",
         stack: "spend"
       }
@@ -203,12 +205,12 @@ defmodule TuistWeb.UsageLive do
   defp projected_series([], _dates), do: []
 
   defp projected_series(projected_days, dates) do
-    per_day = Map.new(projected_days, &{&1.date, &1.total_ms})
+    per_day = dollars_per_day(projected_days)
 
     [
       %{
         color: "var:noora-chart-lines",
-        data: Enum.map(dates, fn date -> [date, dollars(Map.get(per_day, date, 0))] end),
+        data: Enum.map(dates, fn date -> [date, per_day |> Map.get(date, 0.0) |> Float.round(2)] end),
         name: dgettext("dashboard_usage", "Projected"),
         type: "bar",
         stack: "spend"
@@ -216,15 +218,43 @@ defmodule TuistWeb.UsageLive do
     ]
   end
 
+  @runner_group_by_values ["repository", "platform"]
+
+  @doc """
+  The dimensions the runner chart can split its spend by, in the order
+  the Group by dropdown lists them.
+  """
+  def runner_group_by_options do
+    [
+      %{value: "repository", label: dgettext("dashboard_usage", "Repository")},
+      %{value: "platform", label: dgettext("dashboard_usage", "Platform")}
+    ]
+  end
+
+  def runner_group_by_param(value) when value in @runner_group_by_values, do: value
+  def runner_group_by_param(_value), do: "repository"
+
+  def runner_group_by_patch(uri, value), do: "#{uri.path}?#{Query.put(uri.query, "runner-group-by", value)}"
+
+  defp runner_group_key(row, "platform"), do: row.platform
+  defp runner_group_key(row, _repository), do: row.repository
+
+  defp runner_group_label(platform, "platform"), do: platform_label(platform)
+  defp runner_group_label(repository, _repository), do: repository_label(repository)
+
   def repository_label(nil), do: dgettext("dashboard_usage", "Unknown")
   def repository_label(""), do: dgettext("dashboard_usage", "Unknown")
   def repository_label(repository), do: repository
 
   # The chart has no currency formatter for its data, only its labels,
-  # so values arrive already in dollars.
-  defp dollars(total_ms) do
-    total_ms |> Prepaid.on_demand_cost_for_milliseconds() |> Map.get(:amount) |> Kernel./(100) |> Float.round(2)
+  # so values arrive already in dollars. Each row is valued at its own
+  # platform's rate before a day's rows are summed, and rounded only
+  # once summed.
+  defp dollars_per_day(rows) do
+    Enum.reduce(rows, %{}, fn row, acc -> Map.update(acc, row.date, row_dollars(row), &(&1 + row_dollars(row))) end)
   end
+
+  defp row_dollars(%{platform: platform, total_ms: total_ms}), do: Prepaid.on_demand_dollars(platform, total_ms)
 
   @doc """
   How much of this period's runner charge the account's prepaid credit

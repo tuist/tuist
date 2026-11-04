@@ -11,6 +11,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistExtension
 import TuistGit
 import TuistLoader
 import TuistLogging
@@ -37,6 +38,8 @@ public enum TestServiceError: FatalError, Equatable {
     case shardIndexRequiresWithoutBuilding
     case shardingRequiresFullHandle
     case requestedTestsNotInProducts(requested: [String], built: [String])
+    case cacheDestinationConflict(destination: CacheDestination, argument: String)
+    case deviceCacheDestinationRequiresXcodebuildDestination
 
     // Error description
 
@@ -92,6 +95,12 @@ public enum TestServiceError: FatalError, Equatable {
         case let .requestedTestsNotInProducts(requested, built):
             return
                 "None of the requested test identifiers (\(requested.joined(separator: ", "))) can run against these test products, which were built for \(built.joined(separator: ", "))."
+        case let .cacheDestinationConflict(destination, argument):
+            return
+                "--destination \(destination.rawValue) restricts the project to \(destination.rawValue) and native macOS destinations, so it can't test with \(argument). Pass a matching --destination, or --destination all."
+        case .deviceCacheDestinationRequiresXcodebuildDestination:
+            return
+                "--destination device requires a device destination after the terminator, for example: tuist test --destination device -- -destination 'platform=iOS,id=<device-udid>'. Without one, Tuist tests on a simulator."
         }
     }
 
@@ -103,7 +112,8 @@ public enum TestServiceError: FatalError, Equatable {
              .testIdentifierInvalid, .duplicatedTestTargets, .requestedTestsNotInProducts,
              .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform,
              .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding,
-             .shardingRequiresFullHandle:
+             .shardingRequiresFullHandle, .cacheDestinationConflict,
+             .deviceCacheDestinationRequiresXcodebuildDestination:
             return .abort
         }
     }
@@ -238,6 +248,47 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
+    static func validate(
+        cacheDestination: CacheDestination,
+        deviceName: String?,
+        passthroughXcodeBuildArguments: [String]
+    ) throws {
+        guard cacheDestination != .all else { return }
+        if cacheDestination == .device, let deviceName {
+            throw TestServiceError.cacheDestinationConflict(destination: cacheDestination, argument: "--device \(deviceName)")
+        }
+        let xcodebuildDestinations = passthroughXcodeBuildArguments.indices.compactMap { index -> String? in
+            guard passthroughXcodeBuildArguments[index] == "-destination",
+                  passthroughXcodeBuildArguments.indices.contains(index + 1)
+            else { return nil }
+            return passthroughXcodeBuildArguments[index + 1]
+        }
+        if cacheDestination == .device, xcodebuildDestinations.isEmpty {
+            throw TestServiceError.deviceCacheDestinationRequiresXcodebuildDestination
+        }
+        for xcodebuildDestination in xcodebuildDestinations {
+            var parameters: [String: String] = [:]
+            for component in xcodebuildDestination.split(separator: ",") {
+                let pair = component.split(separator: "=", maxSplits: 1)
+                    .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+                guard pair.count == 2 else { continue }
+                parameters[pair[0].replacingOccurrences(of: "generic/", with: "")] = pair[1]
+            }
+            guard let platform = parameters["platform"] else { continue }
+            let isCompatible = if platform == "macos" {
+                parameters["variant"].map { $0 == "macos" } ?? true
+            } else {
+                platform.hasSuffix("simulator") == (cacheDestination == .simulator)
+            }
+            if !isCompatible {
+                throw TestServiceError.cacheDestinationConflict(
+                    destination: cacheDestination,
+                    argument: "-destination '\(xcodebuildDestination)'"
+                )
+            }
+        }
+    }
+
     // swiftlint:disable:next function_body_length
     public func run(
         runId: String,
@@ -276,8 +327,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil,
-        stressNewTests: StressNewTestsMode? = nil
+        stressNewTests: StressNewTestsMode? = nil,
+        cacheDestination: CacheDestination = .all
     ) async throws {
+        try Self.validate(
+            cacheDestination: cacheDestination,
+            deviceName: deviceName,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
         if validateTestTargetsParameters {
             try Self.validateParameters(
                 testTargets: testTargets,
@@ -390,7 +447,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             cacheStorage: cacheStorage,
             destination: destination,
             schemeName: schemeName,
-            coverage: .resolved(config: config)
+            coverage: .resolved(config: config),
+            sdkSelection: cacheDestination.sdkSelection
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
@@ -874,16 +932,21 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
-        // A shard run is restricted from three directions, and all three would otherwise go out as
+        // A shard run is restricted from four directions, and all four would otherwise go out as
         // `-only-testing`, which xcodebuild runs the union of: a shard scoped to a whole module
         // would run it whole however narrow the request was. The build job's restriction has to be
         // restored from the products, since this runner is usually a separate job that repeats
         // neither it nor anything else from the build command.
-        let restrictions = [
-            shard.testIdentifiers,
+        let passthroughOnlyTestIdentifiers = XcodeBuildTestCommandService.testIdentifiers(
+            for: "-only-testing",
+            in: passthroughXcodeBuildArguments
+        )
+        let requestRestrictions = [
             shard.selectiveTestingGraph?.requestedTestIdentifiers ?? [],
             testTargets.map(\.description),
+            passthroughOnlyTestIdentifiers,
         ]
+        let restrictions = [shard.testIdentifiers] + requestRestrictions
         let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
         if onlyTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
             Logger.current.notice(
@@ -907,7 +970,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: Self.removingOnlyTesting(passthroughXcodeBuildArguments)
         )
 
         var testError: Error?
@@ -966,12 +1029,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
         await removeOwnedDerivedData(ownedDerivedDataPath)
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
+            // The other shards run the rest of a target this one holds part of, so only the request
+            // narrowing a target keeps its hash back.
+            let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(requestRestrictions)
+            let passingNames = await passingTargetNames(
+                resultBundlePath: resultBundlePath,
+                withholding: stressResult
+            )
             try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: await passingTargetNames(
-                    resultBundlePath: resultBundlePath,
-                    withholding: stressResult
-                ),
+                passingTargetNames: requestedTestIdentifiers.isEmpty
+                    ? passingNames
+                    : passingNames.intersection(Self.fullyRunTestTargetNames(requestedTestIdentifiers)),
                 cacheStorage: hashUploadStorage
             )
         }
@@ -2684,6 +2753,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             firstPassFailed: firstPassFailed,
             fullHandle: fullHandle,
             serverURL: serverURL,
+            coverage: UploadResultBundleService.uploadsCoverage(config: config),
             mutedTests: mutedTests,
             resultBundleDirectory: try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests"),
             stressPass: stressPass
@@ -2919,7 +2989,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath,
             xcodebuildArguments: xcodebuildArguments,
             derivedDataPath: projectDerivedDataDirectory,
-            schemeTargets: schemeTargets
+            schemeTargets: schemeTargets,
+            config: config
         )
 
         do {
@@ -3054,7 +3125,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: UploadResultBundleService.uploadsCoverage(config: config)
         )
 
         let test = try await createTestService.createTest(
@@ -3092,7 +3164,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             gitHistory,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: UploadResultBundleService.uploadsCoverage(config: config)
         )
     }
 

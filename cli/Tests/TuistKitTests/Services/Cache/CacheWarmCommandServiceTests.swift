@@ -1003,7 +1003,6 @@
                 ? Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: true)))))
                 : config
             if coverageVariable != nil || coverageOption {
-                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
                 Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = coverageVariable
                 given(gitController).isInGitRepository(workingDirectory: .any).willReturn(false)
                 given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)

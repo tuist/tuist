@@ -54,7 +54,8 @@ defmodule TuistOps.JIT.Approvals do
   `:ttl_seconds` (default #{div(@default_ttl_seconds, 60)} min,
   capped at #{div(@max_ttl_seconds, 60)} min). GitHub admin requests
   also need `:github_login`, which must be an active organization
-  member that is not already an admin.
+  member that is not already an admin. `:orb_thread_id` aims a
+  cluster elevation at one Amp orb thread instead of the requester.
   """
   def request_elevation(attrs) when is_map(attrs) do
     ttl = attrs |> Map.get(:ttl_seconds, @default_ttl_seconds) |> clamp_ttl()
@@ -219,6 +220,7 @@ defmodule TuistOps.JIT.Approvals do
         requester_email: req.requester_email,
         target_group: req.target_group,
         github_login: req.github_login,
+        orb_thread_id: req.orb_thread_id,
         expires_at: elev_expires_at
       }
       |> Elevation.create_changeset()

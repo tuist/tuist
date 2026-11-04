@@ -181,7 +181,7 @@ defmodule Tuist.Runners.Dispatch do
         # out, which looks exactly like a capacity shortage from their
         # side. This line is the only way to tell the two apart.
         Logger.info(
-          "runners: free runner allowance of #{Allowance.free_monthly_minutes()} minutes exhausted, " <>
+          "runners: free runner allowance of #{Allowance.free_monthly_minutes(:macos)} macOS minutes exhausted, " <>
             "not dispatching; job will stay queued on GitHub until it times out",
           owner: owner,
           repo: full_name,

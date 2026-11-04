@@ -112,6 +112,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: true,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [],
             stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
         )
@@ -135,8 +136,14 @@ struct StressNewTestsServiceTests {
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(root)
         given(gitController).gitInfo(workingDirectory: .value(root)).willReturn(gitInfo)
         given(gitHistoryService)
-            .publish(gitInfo: .value(gitInfo), workingDirectory: .value(root), fullHandle: .value("tuist/app"), serverURL: .any)
-            .willProduce { _, _, _, _ in
+            .publish(
+                gitInfo: .value(gitInfo),
+                workingDirectory: .value(root),
+                fullHandle: .value("tuist/app"),
+                serverURL: .any,
+                coverage: .any
+            )
+            .willProduce { _, _, _, _, _ in
                 events.append("publish")
                 return nil
             }
@@ -161,6 +168,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [],
             stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
         )
@@ -194,6 +202,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [],
             stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
         )
@@ -217,6 +226,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [],
             stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
         )
@@ -276,6 +286,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [],
             stressPass: { identifiers, repetitions, _ in
                 await passes.record(identifiers: identifiers, repetitions: repetitions)
@@ -325,6 +336,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [identifier("testMuted()")],
             stressPass: { _, _, _ in }
         ))
@@ -351,6 +363,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [],
             stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
         )
@@ -371,6 +384,7 @@ struct StressNewTestsServiceTests {
             firstPassFailed: false,
             fullHandle: "tuist/app",
             serverURL: serverURL,
+            coverage: false,
             mutedTests: [],
             stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
         ))
