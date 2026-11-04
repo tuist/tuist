@@ -457,7 +457,7 @@ defmodule Tuist.Kubernetes.Client do
   """
   def resize_sandbox_daemon(namespace, name, memory_bytes, cpu_milli, opts \\ [])
       when is_binary(namespace) and is_binary(name) and is_integer(memory_bytes) and memory_bytes > 0 and
-             is_integer(cpu_milli) and cpu_milli > 0 do
+             is_integer(cpu_milli) do
     memory = Integer.to_string(memory_bytes)
     resources = %{requests: %{memory: memory, cpu: "#{cpu_milli}m"}, limits: %{memory: memory}}
     path = "/api/v1/namespaces/#{namespace}/pods/#{name}"
