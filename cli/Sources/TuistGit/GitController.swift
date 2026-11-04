@@ -99,6 +99,38 @@ public protocol GitControlling {
     /// working tree has changed, and untracked files Git does not ignore, are hashed from the
     /// working tree, so each id describes the contents a build would compile.
     func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String]
+
+    /// The checked-out commit with its parents, and whether it's the merge commit a CI provider made
+    /// for a pull request, which exists only in the checkout.
+    func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit
+
+    /// Fetches `GitController.testImpactDeepenCommits` more commits into a shallow clone through
+    /// `refs`, without blobs, within the limits' budget. Returns false when the checkout isn't a
+    /// shallow clone, the limits allow no fetch, or the fetch failed.
+    func deepenShallowClone(workingDirectory: AbsolutePath, refs: [String], limits: GitHistoryLimits) async -> Bool
+
+    /// Up to `limit` ancestors of the checked-out commit that the checkout has, nearest first, the
+    /// commit itself left out. Empty when they can't be read.
+    func ancestorSHAs(workingDirectory: AbsolutePath, limit: Int) async -> [String]
+
+    /// The files that differ between `baselineSHA` and the working tree: what the checked-out commit
+    /// changed since the baseline, plus dirty and untracked files. A shallow clone that lacks the
+    /// baseline is deepened once by `GitController.testImpactDeepenCommits` through `refs` within the
+    /// limits' budget, and comes back as `.historyUnavailable` when that doesn't reach it. Only trees are read, never blobs,
+    /// except the
+    /// working tree's files, which are hashed.
+    /// - Parameters:
+    ///   - workingDirectory: The repository's top level.
+    ///   - baselineSHA: The commit to compare against.
+    ///   - refs: The remote refs whose history leads to the baseline, such as the checked-out pull
+    ///     request ref and the base branch. Empty never reaches the remote.
+    ///   - limits: The deepening budget.
+    func changedFiles(
+        workingDirectory: AbsolutePath,
+        since baselineSHA: String,
+        deepening refs: [String],
+        limits: GitHistoryLimits
+    ) async throws -> GitChangedFilesResult
 }
 
 /// An implementation of `GitControlling`.
@@ -312,30 +344,40 @@ public struct GitController: GitControlling {
         return name
     }
 
-    public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
-        let environment = await CIBuildParameters.read(environment: environment.variables)
+    /// The process environment with the build parameters of providers that pass them in files.
+    func ciEnvironment() async -> [String: String] {
+        await CIBuildParameters.read(environment: environment.variables)
             .merging(environment.variables) { _, variable in variable }
+    }
 
-        // Ref
-        let gitRef: String?
+    /// The ref the CI provider checked out, a pull request's merge ref (`refs/pull/<n>/merge`) for
+    /// providers that only name the pull request.
+    static func ref(environment: [String: String]) -> String? {
         if let githubRef = environment["GITHUB_REF"] {
-            gitRef = githubRef
+            return githubRef
         } else if let circleCIRef = environment["CIRCLE_PULL_REQUEST"] {
-            if let url = URL(string: circleCIRef),
-               let pullRequestID = url.pathComponents.last
-            {
-                gitRef = "refs/pull/\(pullRequestID)/merge"
-            } else {
-                gitRef = nil
-            }
-        } else if let pullRequestID = Self.pullRequestIDEnvironmentVariables
+            guard let url = URL(string: circleCIRef), let pullRequestID = url.pathComponents.last else { return nil }
+            return "refs/pull/\(pullRequestID)/merge"
+        } else if let pullRequestID = pullRequestIDEnvironmentVariables
             .compactMap({ environment[$0] })
             .first(where: { !$0.isEmpty })
         {
-            gitRef = "refs/pull/\(pullRequestID)/merge"
-        } else {
-            gitRef = nil
+            return "refs/pull/\(pullRequestID)/merge"
         }
+        return nil
+    }
+
+    /// Whether HEAD is the merge commit a CI provider made for a pull request, which exists only in
+    /// the checkout. On GitHub Actions, `GITHUB_SHA` is that merge commit: a workflow that checked
+    /// out another commit, such as the pull request's head, is not on one.
+    static func isPullRequestMergeCheckout(ref: String?, head: String?, environment: [String: String]) -> Bool {
+        let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
+        return ref?.hasPrefix("refs/pull/") == true && (mergeCommit == nil || mergeCommit == head)
+    }
+
+    public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
+        let environment = await ciEnvironment()
+        let gitRef = Self.ref(environment: environment)
 
         // The base branch and pull request number, from the CI provider only: a checkout does not
         // know what its commit will merge into.
@@ -394,10 +436,7 @@ public struct GitController: GitControlling {
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
-            let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
-            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
-                && (mergeCommit == nil || mergeCommit == head)
-            if isPullRequestMergeCheckout,
+            if Self.isPullRequestMergeCheckout(ref: gitRef, head: head, environment: environment),
                let secondParent = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
                ).trimmingCharacters(in: .whitespacesAndNewlines),
@@ -454,8 +493,11 @@ public struct GitController: GitControlling {
         try await capture(arguments: command)
     }
 
-    func capture(arguments: [String]) async throws -> String {
-        try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
+    func capture(arguments: [String], environment overrides: [String: String] = [:]) async throws -> String {
+        try await commandRunner.capture(
+            arguments: arguments,
+            environment: hardenedEnvironment().merging(overrides) { _, override in override }
+        )
     }
 
     func runInOwnProcessGroup(arguments: [String]) -> AsyncThrowingStream<ProcessEvent, any Error> {

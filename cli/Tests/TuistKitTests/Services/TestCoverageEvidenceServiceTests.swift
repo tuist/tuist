@@ -5,6 +5,7 @@ import Testing
 import TuistConfig
 import TuistEnvironment
 import TuistTesting
+import XcodeGraph
 import XCResultParser
 @testable import TuistKit
 
@@ -169,6 +170,18 @@ struct TestCoverageEvidenceServiceTests {
             productsDirectories: productsDirectories
         ) ==
             nil)
+    }
+
+    @Test func readsThePlatformOffAnXcodebuildDestination() {
+        #expect(Platform(xcodebuildDestination: "platform=iOS Simulator,id=ABC") == .iOS)
+        #expect(Platform(xcodebuildDestination: "generic/platform=iOS") == .iOS)
+        #expect(Platform(xcodebuildDestination: "platform=macOS,arch=arm64") == .macOS)
+        #expect(Platform(xcodebuildDestination: "platform=OS X") == .macOS)
+        #expect(Platform(xcodebuildDestination: "platform=tvOS Simulator,name=Apple TV") == .tvOS)
+        #expect(Platform(xcodebuildDestination: "platform=watchOS Simulator") == .watchOS)
+        #expect(Platform(xcodebuildDestination: "platform=visionOS Simulator") == .visionOS)
+        #expect(Platform(xcodebuildDestination: "id=ABC") == nil)
+        #expect(Platform(xcodebuildDestination: "platform=DriverKit") == nil)
     }
 
     @Test func namesATestModuleAfterItsBundle() {
