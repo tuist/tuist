@@ -1933,6 +1933,10 @@ targets.append(
             "Mockable": .staticFramework,
             "Subprocess": .staticFramework,
             "_NIOFileSystem": .staticFramework,
+            // Dynamic, so the observer registers when a test bundle loads even when the bundle
+            // references nothing in it; a static framework would be dropped by the linker.
+            "TestCoverageAttribution": .framework,
+            "TestCoverageAttributionObserver": .framework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -2109,6 +2113,8 @@ let package = Package(
             .upToNextMajor(from: "1.1.0")
         ),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
+        // Per-test coverage evidence for the unit test targets (Module.swift); not in the registry.
+        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.3.0")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
         .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),

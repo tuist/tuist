@@ -420,14 +420,16 @@ finished, whatever their result (not on drafts or forks). On a push to main the
 and the CLI session logs when it fails, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
 follows when both passed. The unit and app tests record per-target evidence on both,
-which the CLI reads from Xcode's raw profiles (the targets don't link
-TestCoverageAttribution, so there is no per-test evidence): the server carries
+which the CLI reads from Xcode's raw profiles: the server carries
 targets selective testing skipped only from runs that recorded evidence, main's
 full runs for every selective run and a pull request's own runs for its later
-pushes. Targets are carried only whole: a skipped target no run recorded
-under the same hash (or whose source run fails the server's checks) has no
-per-test fallback, and neither do tests skipped by identifier
-(`--skip-test-targets`, `-skip-testing`), so both stay gaps (`not_linked`).
+pushes. The CLI's unit test targets also link TestCoverageAttribution (as a
+dynamic framework), so their XCTest tests record per-test evidence: when a
+skipped target has no such same-hash run (or it fails the server's checks),
+those tests still carry one by one from the latest run whose executed files
+match, and so do tests skipped by identifier (`--skip-test-targets`,
+`-skip-testing`). Swift Testing tests and the app's targets have no per-test
+evidence, so in those cases they stay gaps (`not_linked`).
 Quarantined tests are outside the figure either way. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
