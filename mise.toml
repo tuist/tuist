@@ -25,6 +25,8 @@
     caddy = "2.11.4"
     kubectl = "1.36.1"
     helm = "4.2.0"
+    # Matches go.work; mise tasks such as baremetal:prep-ovh `go run` from the root.
+    go = "1.26.10"
     # Management cluster Hetzner resources (infra/k8s/mgmt/talos/hetzner.yaml).
     hcloud = "1.70.1"
     # pomerium-cli is the kubeconfig exec credential plugin that does
