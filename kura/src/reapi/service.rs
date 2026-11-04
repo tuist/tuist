@@ -79,6 +79,9 @@ const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejec
 const GET_TREE_PAGE_DIRECTORIES: usize = 1_000;
 const GET_TREE_PAGE_BYTES: usize = 1024 * 1024;
 const GET_TREE_MAX_DIRECTORIES: usize = 100_000;
+/// Asks a `BatchReadBlobs` of one Action to also return the Action's command,
+/// input directories and input files, as `<total bytes>,<bytes per input>`.
+const ACTION_INPUTS_HEADER: &str = "x-tuist-action-inputs";
 
 fn retain_response_permit<T>(
     response: &mut Response<T>,
@@ -463,6 +466,82 @@ impl ReapiService {
     // bandwidth reaches `kura_usage_events` on parity with the HTTP path. A no-op
     // when usage reporting is disabled. Call only on success arms, mirroring how
     // the HTTP handlers record on the `"ok"` metric arm.
+    /// Reads what executing an encoded Action needs beside it, in the order a
+    /// client walking its tree level by level would: the command and input
+    /// root, then each level's files followed by its directories. A blob is
+    /// included while it fits `max_input_bytes` and what is left of
+    /// `remaining`; one missing from the CAS or failing to read is left out
+    /// with its subtree. The reads' memory permits go to `permits`.
+    async fn read_action_inputs(
+        &self,
+        namespace_id: &str,
+        action: &[u8],
+        mut remaining: u64,
+        max_input_bytes: u64,
+        permits: &mut Vec<crate::memory::MemoryPermit>,
+    ) -> Vec<(reapi::Digest, Vec<u8>, Duration)> {
+        let Ok(action) = reapi::Action::decode(action) else {
+            return Vec::new();
+        };
+        let mut seen = HashSet::new();
+        let mut directories = HashSet::new();
+        let mut level = Vec::new();
+        let mut admit = |digest: Option<&reapi::Digest>, queue: &mut Vec<reapi::Digest>| {
+            let Some(digest) = digest else { return false };
+            let Ok(size) = u64::try_from(digest.size_bytes) else {
+                return false;
+            };
+            if size > max_input_bytes
+                || size > remaining
+                || digest_key(digest).is_err()
+                || !seen.insert(digest.hash.clone())
+            {
+                return false;
+            }
+            remaining -= size;
+            queue.push(digest.clone());
+            true
+        };
+        admit(action.command_digest.as_ref(), &mut level);
+        if let Some(root) = &action.input_root_digest
+            && admit(Some(root), &mut level)
+        {
+            directories.insert(root.hash.clone());
+        }
+        let mut inputs = Vec::new();
+        while !level.is_empty() {
+            let level_bytes = level.iter().map(|digest| digest.size_bytes as u64).sum();
+            let Ok(mut budget) =
+                AtomicMaterializationBudget::reserve(&self.state, level_bytes).await
+            else {
+                break;
+            };
+            let reads = batch_read_many_atomic(&self.state, namespace_id, &level, &budget).await;
+            permits.extend(budget.take_permit());
+            let mut next = Vec::new();
+            for (digest, (read, duration)) in level.into_iter().zip(reads) {
+                let Ok(Some(data)) = read else { continue };
+                if directories.contains(&digest.hash)
+                    && let Ok(directory) = reapi::Directory::decode(data.as_slice())
+                {
+                    for file in &directory.files {
+                        admit(file.digest.as_ref(), &mut next);
+                    }
+                    for child in &directory.directories {
+                        if let Some(digest) = &child.digest
+                            && admit(Some(digest), &mut next)
+                        {
+                            directories.insert(digest.hash.clone());
+                        }
+                    }
+                }
+                inputs.push((digest, data, duration));
+            }
+            level = next;
+        }
+        inputs
+    }
+
     fn record_reapi_download(
         &self,
         metadata: &tonic::metadata::MetadataMap,
@@ -2491,6 +2570,14 @@ impl ContentAddressableStorage for ReapiService {
         let compress_with_zstd = message
             .acceptable_compressors
             .contains(&(reapi::compressor::Value::Zstd as i32));
+        let action_inputs = if digests.len() == 1 && !compress_with_zstd {
+            action_inputs_limits(
+                &metadata,
+                self.state.memory.reapi_response_budget_bytes() as u64,
+            )
+        } else {
+            None
+        };
         // Reserve the whole batch's response memory once, before any blob is
         // read, waiting for a momentarily full pool. The client's digests carry
         // the sizes, so the request can be admitted as a unit; claiming per blob
@@ -2575,6 +2662,43 @@ impl ContentAddressableStorage for ReapiService {
 
             responses.push(response);
         }
+        let mut permits: Vec<_> = budget.take_permit().into_iter().collect();
+        if let Some((max_bytes, max_input_bytes)) = action_inputs
+            && let Some(action) = responses.first()
+            && action
+                .status
+                .as_ref()
+                .is_some_and(|status| status.code == 0)
+        {
+            let remaining = max_bytes.saturating_sub(action.data.len() as u64);
+            let inputs = self
+                .read_action_inputs(
+                    namespace_id,
+                    &action.data,
+                    remaining,
+                    max_input_bytes,
+                    &mut permits,
+                )
+                .await;
+            for (digest, data, duration) in inputs {
+                self.record_reapi_cache_event_with_context(
+                    analytics_context.as_ref(),
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome: "hit",
+                        digest: &digest.hash,
+                        size: data.len() as u64,
+                        duration,
+                    },
+                );
+                responses.push(reapi::batch_read_blobs_response::Response {
+                    digest: Some(digest),
+                    data,
+                    compressor: 0,
+                    status: Some(rpc_status(0, "")),
+                });
+            }
+        }
         // Sum the uncompressed bytes served so the whole batch books a single
         // download usage request, matching how ByteStream/HTTP count one
         // request per call. A successful read carries gRPC status code 0; its
@@ -2604,13 +2728,12 @@ impl ContentAddressableStorage for ReapiService {
         });
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
-        // The single up-front reservation rides with the response, so the bytes
-        // stay admitted for as long as the client is reading them.
-        let response_memory = budget.take_permit().map(|permit| {
-            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit])
-        });
-        if let Some(response_memory) = response_memory {
-            response.extensions_mut().insert(response_memory);
+        // The up-front reservations ride with the response, so the bytes stay
+        // admitted for as long as the client is reading them.
+        if !permits.is_empty() {
+            response.extensions_mut().insert(
+                crate::memory::ResponseTransportGuard::from_materialization_permits(permits),
+            );
         }
         if served_any {
             self.record_reapi_download(&metadata, namespace_id, served_bytes);
@@ -5059,6 +5182,23 @@ pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
     }
     Err(Status::invalid_argument(
         "only SHA256 digests are supported",
+    ))
+}
+
+/// The limits a request sent in `ACTION_INPUTS_HEADER`, its total held to one
+/// response's budget.
+fn action_inputs_limits(
+    metadata: &tonic::metadata::MetadataMap,
+    response_budget: u64,
+) -> Option<(u64, u64)> {
+    let (total, input) = metadata
+        .get(ACTION_INPUTS_HEADER)?
+        .to_str()
+        .ok()?
+        .split_once(',')?;
+    Some((
+        total.trim().parse::<u64>().ok()?.min(response_budget),
+        input.trim().parse().ok()?,
     ))
 }
 
@@ -11585,6 +11725,180 @@ mod tests {
             .err()
             .expect("an oversized tree should be refused");
         assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+    }
+
+    async fn persist_blob(context: &TestContext, bytes: &[u8]) -> reapi::Digest {
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("blob should persist");
+        digest
+    }
+
+    async fn batch_read_with_inputs(
+        service: &ReapiService,
+        action: &reapi::Digest,
+        limits: Option<&str>,
+    ) -> Vec<(reapi::Digest, Vec<u8>)> {
+        let mut request = Request::new(reapi::BatchReadBlobsRequest {
+            instance_name: DEFAULT_INSTANCE_NAME.into(),
+            digests: vec![action.clone()],
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        if let Some(limits) = limits {
+            request.metadata_mut().insert(
+                ACTION_INPUTS_HEADER,
+                tonic::metadata::MetadataValue::try_from(limits).expect("limits should be ASCII"),
+            );
+        }
+        service
+            .batch_read_blobs(request)
+            .await
+            .expect("batch read should succeed")
+            .into_inner()
+            .responses
+            .into_iter()
+            .map(|response| {
+                assert_eq!(response.status.expect("status").code, 0);
+                (response.digest.expect("digest"), response.data)
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn batch_read_of_an_action_returns_its_inputs_when_asked() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let input = persist_blob(&context, b"input").await;
+        let leaf = reapi::Directory {
+            files: vec![reapi::FileNode {
+                name: "input".into(),
+                digest: Some(input.clone()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let leaf_digest = persist_directory(&context, &leaf).await;
+        let root = reapi::Directory {
+            directories: vec![directory_node("leaf", &leaf_digest)],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+        let command = reapi::Command {
+            arguments: vec!["/bin/true".into()],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let command_digest = persist_blob(&context, &command).await;
+        let action = reapi::Action {
+            command_digest: Some(command_digest.clone()),
+            input_root_digest: Some(root_digest.clone()),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let action_digest = persist_blob(&context, &action).await;
+
+        let blobs = batch_read_with_inputs(&service, &action_digest, Some("262144,65536")).await;
+
+        assert_eq!(
+            blobs,
+            vec![
+                (action_digest.clone(), action.clone()),
+                (command_digest, command),
+                (root_digest, root.encode_to_vec()),
+                (leaf_digest, leaf.encode_to_vec()),
+                (input, b"input".to_vec()),
+            ]
+        );
+        assert_eq!(
+            batch_read_with_inputs(&service, &action_digest, None).await,
+            vec![(action_digest, action)]
+        );
+    }
+
+    #[tokio::test]
+    async fn batch_read_of_action_inputs_stays_within_the_requested_limits() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let small = persist_blob(&context, b"tiny").await;
+        let large = persist_blob(&context, &[7_u8; 1024]).await;
+        let missing = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"missing input")),
+            size_bytes: 13,
+        };
+        let root = reapi::Directory {
+            files: vec![
+                reapi::FileNode {
+                    name: "large".into(),
+                    digest: Some(large),
+                    ..Default::default()
+                },
+                reapi::FileNode {
+                    name: "missing".into(),
+                    digest: Some(missing),
+                    ..Default::default()
+                },
+                reapi::FileNode {
+                    name: "small".into(),
+                    digest: Some(small.clone()),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+        let action = reapi::Action {
+            input_root_digest: Some(root_digest.clone()),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let action_digest = persist_blob(&context, &action).await;
+
+        let blobs = batch_read_with_inputs(&service, &action_digest, Some("4096,512")).await;
+        assert_eq!(
+            blobs,
+            vec![
+                (action_digest.clone(), action.clone()),
+                (root_digest.clone(), root.encode_to_vec()),
+                (small, b"tiny".to_vec()),
+            ]
+        );
+
+        let root_size = root.encoded_len();
+        let only_root = format!("{},4096", action.len() + root_size);
+        assert_eq!(
+            batch_read_with_inputs(&service, &action_digest, Some(&only_root)).await,
+            vec![
+                (action_digest.clone(), action.clone()),
+                (root_digest, root.encode_to_vec()),
+            ]
+        );
+
+        let not_an_action = persist_blob(&context, b"\x0a\x10").await;
+        assert_eq!(
+            batch_read_with_inputs(&service, &not_an_action, Some("4096,4096")).await,
+            vec![(not_an_action, b"\x0a\x10".to_vec())]
+        );
     }
 
     #[tokio::test]
