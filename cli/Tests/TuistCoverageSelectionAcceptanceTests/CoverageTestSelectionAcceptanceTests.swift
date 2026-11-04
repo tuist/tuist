@@ -235,21 +235,26 @@ private struct Shop {
         return Shop(directory: directory, git: git, fullHandle: fullHandle, serverURL: serverURL)
     }
 
-    /// Runs every test on `main`, where nothing is selected, and waits until the server can use the
-    /// run as a baseline.
+    /// Runs every test on `main` with `--no-selective-testing`, as a default branch's CI does, and
+    /// waits until the server can use the run as a baseline.
     func recordBaseline(sharded: Bool = false) async throws {
-        _ = try await test(sharded: sharded)
+        _ = try await test(sharded: sharded, selectiveTesting: false)
         try await waitForBaseline(at: try git.head())
     }
 
     /// Runs `tuist test`. Sharded, it plans two shards with `--build-only` and runs each with
     /// `--without-building` from the plan's test products, the way a sharded CI workflow does.
-    func test(environment: [String: String] = [:], sharded: Bool = false) async throws -> Run {
+    func test(
+        environment: [String: String] = [:],
+        sharded: Bool = false,
+        selectiveTesting: Bool = true
+    ) async throws -> Run {
         let mockedEnvironment = try XCTUnwrap(Environment.mocked)
         let previous = mockedEnvironment.variables
         defer { mockedEnvironment.variables = previous }
         mockedEnvironment.variables.merge(environment) { _, new in new }
 
+        let passthrough = (selectiveTesting ? [] : ["--no-selective-testing"]) + self.passthrough
         Logger.testingLogHandler.flush()
         if sharded {
             let reference = "acceptance-\(UUID().uuidString.prefix(8))"
