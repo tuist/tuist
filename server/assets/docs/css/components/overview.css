@@ -252,6 +252,9 @@
     border-radius: var(--noora-radius-4);
     background: var(--noora-neutral-dark-1100);
     padding: var(--noora-spacing-6) var(--noora-spacing-5);
+    /* Commands read left to right in every locale. */
+    direction: ltr;
+    unicode-bidi: isolate;
     user-select: text;
 
     &::after {
