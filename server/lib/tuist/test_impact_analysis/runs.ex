@@ -8,6 +8,13 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   (`Tuist.TestImpactAnalysis.run/1`) and records the run with its selected
   tests. Without one, or when selection can't happen, it records a fallback
   with the reason, after which the client runs default selective testing.
+  When hashing left no module to decide (`modules: []`), it records a
+  selection of nothing, without a diff or the rules, so a run never runs
+  more than hashing left.
+
+  Every run counts the baseline's tests in the modules the client skipped
+  because their hash matched (`skipped_modules`) as `module_skipped_count`,
+  once its baseline is confirmed; runs that end before that record 0.
 
   Skipped tests are never stored. A skip list is the baseline's tests in
   scope less the selected ones: `skip_entries/2` for an unsharded run, and
@@ -38,6 +45,13 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     attrs = run_attrs(project, params, commit_sha)
 
     case decide(project, params, commit_sha) do
+      {:nothing_left, extra} ->
+        attrs = attrs |> Map.put(:outcome, "selected") |> Map.merge(extra)
+
+        with {:ok, run} <- Storage.create_run(attrs) do
+          {:ok, %{run: run, skipped_tests: []}}
+        end
+
       {:fallback, reason, extra} ->
         attrs = attrs |> Map.merge(%{outcome: "fallback", reason: to_string(reason)}) |> Map.merge(extra)
 
@@ -45,8 +59,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           {:ok, %{run: run, skipped_tests: nil}}
         end
 
-      {:selected, input, result, baseline} ->
-        record_selection(attrs, input, result, baseline)
+      {:selected, input, result, baseline, module_skipped} ->
+        record_selection(Map.merge(attrs, module_skipped), input, result, baseline)
     end
   end
 
@@ -70,25 +84,52 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   defp decide(project, params, commit_sha) do
     baseline_sha = Map.get(params, :baseline_sha)
 
-    if is_nil(baseline_sha) do
-      {:fallback, Map.get(params, :fallback_reason) || :no_baseline, %{}}
-    else
-      select(project, params, commit_sha, baseline_sha)
+    cond do
+      Map.get(params, :modules) == [] ->
+        {:nothing_left, nothing_left_attrs(project, params, commit_sha, baseline_sha)}
+
+      is_nil(baseline_sha) ->
+        {:fallback, Map.get(params, :fallback_reason) || :no_baseline, %{}}
+
+      true ->
+        select(project, params, commit_sha, baseline_sha)
     end
   end
 
-  defp select(project, params, commit_sha, baseline_sha) do
-    scope = %{
+  # Nothing to decide, so no diff and no rules: only the count of what hashing
+  # skipped, when the baseline is confirmed.
+  defp nothing_left_attrs(_project, _params, _commit_sha, nil), do: %{}
+
+  defp nothing_left_attrs(project, params, commit_sha, baseline_sha) do
+    case resolve(project, scope(params, commit_sha), baseline_sha) do
+      {:ok, baseline} ->
+        %{baseline_run_ids: baseline.run_ids, module_skipped_count: module_skipped_count(project, params, baseline)}
+
+      {:fallback, _reason, _extra} ->
+        %{baseline_sha: nil}
+    end
+  end
+
+  defp module_skipped_count(project, params, baseline) do
+    Input.baseline_test_count(project.id, baseline.run_ids, Map.get(params, :skipped_modules) || [])
+  end
+
+  defp scope(params, commit_sha) do
+    %{
       commit_sha: commit_sha,
       parent_shas: Map.get(params, :parent_shas) || [],
       ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
       scheme: get_in(params, [:xcode, :scheme])
     }
+  end
 
+  defp select(project, params, commit_sha, baseline_sha) do
     with {:ok, changed_files, changed_files_count} <- changed_files(project, params, commit_sha, baseline_sha),
          :ok <- within_diff_limit(changed_files_count),
-         {:ok, baseline} <- resolve(project, scope, baseline_sha) do
+         {:ok, baseline} <- resolve(project, scope(params, commit_sha), baseline_sha) do
+      module_skipped = %{module_skipped_count: module_skipped_count(project, params, baseline)}
+
       input =
         Input.load(project,
           repository_id: baseline.repository_id,
@@ -101,10 +142,13 @@ defmodule Tuist.TestImpactAnalysis.Runs do
 
       case TestImpactAnalysis.run(input) do
         %{outcome: :fallback} = result ->
-          {:fallback, result.reason, Map.put(trace_attrs(result), :matched_path, result.matched_path || "")}
+          extra =
+            result |> trace_attrs() |> Map.put(:matched_path, result.matched_path || "") |> Map.merge(module_skipped)
+
+          {:fallback, result.reason, extra}
 
         result ->
-          {:selected, input, result, baseline}
+          {:selected, input, result, baseline, module_skipped}
       end
     end
   end
