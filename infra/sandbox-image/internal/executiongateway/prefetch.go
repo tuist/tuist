@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"time"
 
@@ -28,7 +29,12 @@ const (
 	prefetchEntry = 96
 	// More directories than this cannot fit the byte budget anyway.
 	prefetchTreeDirectories = 4096
+	// Asks Kura to return an action's command, directories and files with it.
+	actionInputsHeader = "x-tuist-action-inputs"
 )
+
+// The prefetch's total and per-blob budgets, as the header carries them.
+var actionInputsLimits = fmt.Sprintf("%d,%d", prefetchBytes, prefetchFile)
 
 func (g *Gateway) remember(account, project, url string, leases bool) {
 	if url == "" {
@@ -60,10 +66,10 @@ func (g *Gateway) endpoint(account, project string) string {
 }
 
 // prefetch reads the action, its command and its input tree's directories and
-// small files with the client's credential, a few round trips from here instead
-// of one per blob from inside a fresh VM. The VM verifies every blob against
-// its digest. It is best-effort: it stops at the byte budget, and any failure
-// leaves the VM to read from the cache itself.
+// small files with the client's credential, one to a few round trips from here
+// instead of one per blob from inside a fresh VM. The VM verifies every blob
+// against its digest. It is best-effort: it stops at the byte budget, and any
+// failure leaves the VM to read from the cache itself.
 func (g *Gateway) prefetch(parent context.Context, account, project, auth string, action *re.Digest) string {
 	url := g.endpoint(account, project)
 	if url == "" {
@@ -90,8 +96,7 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 				return nil, false
 			}
 			for i, item := range response.Responses {
-				h := sha256.Sum256(item.Data)
-				if item.GetStatus().GetCode() != 0 || item.GetDigest().GetHash() != batch[i].Hash || hex.EncodeToString(h[:]) != batch[i].Hash {
+				if !matches(item, batch[i]) {
 					return nil, false
 				}
 				out = append(out, item.Data)
@@ -119,10 +124,26 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 		}
 		return base64.StdEncoding.EncodeToString(b)
 	}
-	blobs, ok := read(take(nil, action, prefetchFile))
-	var a re.Action
-	if !ok || len(blobs) != 1 || proto.Unmarshal(blobs[0], &a) != nil {
+	// Kura answers the header with the action's inputs after the action; each
+	// is kept when it fits the budget and its bytes match its digest. Any other
+	// cache returns the action alone, and the tree is read below.
+	first := take(nil, action, prefetchFile)
+	if len(first) == 0 {
 		return ""
+	}
+	response, err := cas.BatchReadBlobs(metadata.AppendToOutgoingContext(ctx, actionInputsHeader, actionInputsLimits), &re.BatchReadBlobsRequest{InstanceName: project, Digests: first, DigestFunction: re.DigestFunction_SHA256})
+	var a re.Action
+	if err != nil || len(response.Responses) == 0 || !matches(response.Responses[0], action) || proto.Unmarshal(response.Responses[0].Data, &a) != nil {
+		return ""
+	}
+	seed.Requests = append(seed.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: action, Data: response.Responses[0].Data})
+	if inputs := response.Responses[1:]; len(inputs) > 0 {
+		for _, item := range inputs {
+			if matches(item, item.GetDigest()) && len(take(nil, item.GetDigest(), prefetchFile)) == 1 {
+				seed.Requests = append(seed.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: item.Digest, Data: item.Data})
+			}
+		}
+		return encode()
 	}
 	if worker.ValidDigest(a.InputRootDigest) && g.treeSupported(url) {
 		// The whole input tree in one call, beside the command.
@@ -232,4 +253,11 @@ func (g *Gateway) treeSupported(url string) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return !g.noTree[url]
+}
+
+// matches reports whether a read item holds d's bytes.
+func matches(item *re.BatchReadBlobsResponse_Response, d *re.Digest) bool {
+	h := sha256.Sum256(item.GetData())
+	return item.GetStatus().GetCode() == 0 && worker.ValidDigest(d) && item.GetDigest().GetHash() == d.Hash &&
+		int64(len(item.GetData())) == d.SizeBytes && hex.EncodeToString(h[:]) == d.Hash
 }

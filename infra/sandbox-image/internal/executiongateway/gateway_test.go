@@ -359,9 +359,12 @@ type blobStore struct {
 	blobs map[string][]byte
 	auth  atomic.Value
 	// tree serves GetTree; without it the store answers Unimplemented.
-	tree      bool
-	reads     atomic.Int32
-	treeCalls atomic.Int32
+	tree bool
+	// inputs answers a read of one action that asks for its inputs with them
+	// too, as Kura does; tamper corrupts the last input it returns.
+	inputs, tamper bool
+	reads          atomic.Int32
+	treeCalls      atomic.Int32
 }
 
 func (b *blobStore) GetTree(r *re.GetTreeRequest, s grpc.ServerStreamingServer[re.GetTreeResponse]) error {
@@ -414,7 +417,48 @@ func (b *blobStore) BatchReadBlobs(ctx context.Context, r *re.BatchReadBlobsRequ
 		}
 		response.Responses = append(response.Responses, item)
 	}
+	if b.inputs && len(r.Digests) == 1 && len(md.Get(actionInputsHeader)) == 1 {
+		response.Responses = append(response.Responses, b.actionInputs(r.Digests[0])...)
+	}
 	return response, nil
+}
+
+// actionInputs returns the blobs an action needs in the order Kura sends them:
+// the command and input root, then each level's files and directories.
+func (b *blobStore) actionInputs(action *re.Digest) []*re.BatchReadBlobsResponse_Response {
+	var a re.Action
+	if proto.Unmarshal(b.blobs[action.Hash], &a) != nil {
+		return nil
+	}
+	var out []*re.BatchReadBlobsResponse_Response
+	directories := map[string]bool{a.InputRootDigest.GetHash(): true}
+	for next := []*re.Digest{a.CommandDigest, a.InputRootDigest}; len(next) > 0; {
+		var level []*re.Digest
+		for _, d := range next {
+			data, ok := b.blobs[d.GetHash()]
+			if !ok {
+				continue
+			}
+			out = append(out, &re.BatchReadBlobsResponse_Response{Digest: d, Data: data, Status: &rpc.Status{}})
+			var dir re.Directory
+			if !directories[d.Hash] || proto.Unmarshal(data, &dir) != nil {
+				continue
+			}
+			for _, f := range dir.Files {
+				level = append(level, f.Digest)
+			}
+			for _, child := range dir.Directories {
+				directories[child.Digest.Hash] = true
+				level = append(level, child.Digest)
+			}
+		}
+		next = level
+	}
+	if b.tamper && len(out) > 0 {
+		last := out[len(out)-1]
+		last.Data = append([]byte("tampered "), last.Data...)
+	}
+	return out
 }
 
 func TestExecuteSendsPrefetchedInputs(t *testing.T) {
@@ -552,5 +596,34 @@ func TestPrefetchWalksTheTreeWhereGetTreeIsUnsupported(t *testing.T) {
 	}
 	if store.treeCalls.Load() != 1 {
 		t.Fatalf("GetTree calls %d; an unsupported endpoint is asked once", store.treeCalls.Load())
+	}
+}
+
+func TestPrefetchReadsTheActionWithItsInputsInOneCall(t *testing.T) {
+	store := &blobStore{blobs: map[string][]byte{}, tree: true, inputs: true}
+	prefetch, digests := prefetchLab(t, store)
+	got := seeded(prefetch())
+	for _, d := range digests {
+		if !got[d.Hash] {
+			t.Fatalf("missing prefetched blob %s", d.Hash)
+		}
+	}
+	if store.reads.Load() != 1 || store.treeCalls.Load() != 0 {
+		t.Fatalf("batch reads %d, GetTree calls %d; want one read and no tree", store.reads.Load(), store.treeCalls.Load())
+	}
+}
+
+func TestPrefetchSeedsOnlyInputsThatMatchTheirDigests(t *testing.T) {
+	store := &blobStore{blobs: map[string][]byte{}, inputs: true, tamper: true}
+	prefetch, digests := prefetchLab(t, store)
+	got := seeded(prefetch())
+	file := digests[len(digests)-1]
+	for _, d := range digests[:len(digests)-1] {
+		if !got[d.Hash] {
+			t.Fatalf("missing prefetched blob %s", d.Hash)
+		}
+	}
+	if got[file.Hash] {
+		t.Fatal("seeded an input whose bytes do not match its digest")
 	}
 }

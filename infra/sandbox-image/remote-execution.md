@@ -20,9 +20,10 @@ metadata header selects a scope; it does not authenticate it.
 
 Before submitting, the gateway reads the action, its command, the input tree and
 small files from Kura with the client's credential, within 50 ms and 255 KiB. It
-reads the whole input tree with one `GetTree` call beside the command, so the
-prefetch takes three round trips; a cache without `GetTree` is walked one level
-per round trip instead. The
+asks for all of them with the action in one `BatchReadBlobs`, through Kura's
+`x-tuist-action-inputs` header. A cache that returns the action alone gets the
+input tree read with one `GetTree` call beside the command (three round trips),
+and one without `GetTree` is walked one level per round trip. The
 server passes those blobs to the action's VM, which uses only the ones that match
 their digests and reads anything else from Kura itself. A failed or partial read
 only means the VM fetches more. Operations queued behind the account's
