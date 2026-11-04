@@ -193,11 +193,6 @@ defmodule Tuist.TestImpactAnalysis.Input do
   end
 
   @doc """
-  The tests the baseline's runs executed, one per test case, as
-  `%{test_case_id, module_name, suite_name, name}`, narrowed to `modules`
-  unless nil.
-  """
-  @doc """
   How many distinct tests the baseline runs `run_ids` ran in `modules`.
   """
   def baseline_test_count(_project_id, [], _modules), do: 0
@@ -215,6 +210,11 @@ defmodule Tuist.TestImpactAnalysis.Input do
     )
   end
 
+  @doc """
+  The tests the baseline's runs executed, one per test case, as
+  `%{test_case_id, module_name, suite_name, name}`, narrowed to `modules`
+  unless nil.
+  """
   def baseline_tests(_project_id, [], _modules), do: []
 
   def baseline_tests(project_id, run_ids, modules) do
