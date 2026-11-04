@@ -49,9 +49,11 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   ancestors down to the baseline's depth) and how many commits with coverage
   it sits back (`distance`). Otherwise `{:error, reason}`:
 
+  - `:history_unknown`: the history doesn't have the checked-out commit or
+    any of the parents sent, so the walk can't start. The client deepens its
+    checkout, uploads that commit graph and asks again;
   - `:no_baseline`: no full run on the platform is an ancestor within the
-    history window, or the history doesn't have the checked-out commit or
-    its parents;
+    history window, or the project has no coverage to walk from;
   - `:baseline_too_old`: the nearest full run is more than #{@window_measured_commits}
     commits with coverage back;
   - `:no_baseline_evidence`: a run within the window would be the baseline,
@@ -69,8 +71,8 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     scope = %{platform: Map.get(scope, :platform) || "", scheme: Map.get(scope, :scheme)}
 
     case starts(project, commit_sha, parent_shas) do
-      nil ->
-        {:error, :no_baseline}
+      {:error, reason} ->
+        {:error, reason}
 
       {repository_id, starts} ->
         max_depth = GitHistory.settings(project).window_commits
@@ -83,20 +85,30 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   # checked-out commit, or else its parents.
   defp starts(project, commit_sha, parent_shas) do
     repositories =
-      from(c in CoverageCommit,
-        where: c.project_id == ^project.id and not is_nil(c.repository_id),
-        distinct: true,
-        select: c.repository_id
+      Repo.all(
+        from(c in CoverageCommit,
+          where: c.project_id == ^project.id and not is_nil(c.repository_id),
+          distinct: true,
+          select: c.repository_id
+        )
       )
 
     known =
       Repo.all(
         from(c in Commit,
-          where: c.repository_id in subquery(repositories) and c.sha in ^[commit_sha | parent_shas],
+          where: c.repository_id in ^repositories and c.sha in ^[commit_sha | parent_shas],
           select: {c.repository_id, c.sha}
         )
       )
 
+    cond do
+      repositories == [] -> {:error, :no_baseline}
+      known == [] -> {:error, :history_unknown}
+      true -> start(known, commit_sha)
+    end
+  end
+
+  defp start(known, commit_sha) do
     case Enum.find(known, &(elem(&1, 1) == commit_sha)) do
       {repository_id, _sha} ->
         {repository_id, [{commit_sha, 0}]}
@@ -104,11 +116,8 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
       nil ->
         known
         |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-        |> Enum.max_by(fn {repository_id, shas} -> {length(shas), repository_id} end, fn -> nil end)
-        |> case do
-          nil -> nil
-          {repository_id, shas} -> {repository_id, Enum.map(shas, &{&1, 1})}
-        end
+        |> Enum.max_by(fn {repository_id, shas} -> {length(shas), repository_id} end)
+        |> then(fn {repository_id, shas} -> {repository_id, Enum.map(shas, &{&1, 1})} end)
     end
   end
 
