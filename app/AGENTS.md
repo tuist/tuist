@@ -44,5 +44,5 @@ xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp
 ## Localization
 
 - User-facing copy lives in `Resources/TuistApp/en.lproj/Localizable.strings`, keyed by the English text. Pass literals to SwiftUI APIs or `LocalizedStringKey` parameters, use `String(localized:)` for `String` values, and `Text(verbatim:)` for user or server content. `.strings` has no plural rules, so avoid count-dependent wording.
-- After changing copy, build the `TuistApp` scheme for iOS Simulator and macOS into the same fresh derived data directory with `SWIFT_EMIT_LOC_STRINGS=YES`, then run `node extract-localizations.mjs <derived-data>`.
-- The Glossia GitHub App owns the other `.lproj` catalogs; never edit them. `L10N.md` configures it, and `validate-localizations.mjs` checks its output.
+- When you add or change user-facing copy, update the English catalog in the same change: add each new key with the English text as its value, and remove keys the code no longer uses. A key missing from the catalog still renders in English but is never translated.
+- The Glossia GitHub App owns the other `.lproj` catalogs; never edit them. `L10N.md` configures it.
