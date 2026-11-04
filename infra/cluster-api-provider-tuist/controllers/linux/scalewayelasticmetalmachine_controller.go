@@ -19,10 +19,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 
 	"golang.org/x/crypto/ssh"
@@ -147,12 +146,12 @@ func (r *ScalewayElasticMetalMachineReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
 
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}

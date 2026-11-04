@@ -1,0 +1,311 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "%@ სიმულატორი";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "პასუხში არ არის წვდომის ან განახლების ტოკენი";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "ყველა";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "ყველა ტრეკი";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "Android მოწყობილობა";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "Android ემულატორი";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "Android ემულატორები";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "აპლიკაცია";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "აპლიკაციის ვერსია";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "Apple-ით შესვლა ვერ მოხერხდა";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "აპლიკაციები";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "დარწმუნებული ხართ, რომ გსურთ ამ პრევიუს წაშლა? ეს ქმედება შეუქცევადია.";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "დარწმუნებული ხართ, რომ გსურთ თქვენი ანგარიშის წაშლა? ეს ქმედება შეუქცევადია.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "ავტორიზაციის კოდი ვერ მოიძებნა";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "ბრენჩი";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "Bundle იდენტიფიკატორი";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "გაუქმება";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "განახლებების შემოწმება";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "Commit SHA";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "დაკავშირებულია";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "იდენტიფიკატორის კოპირება";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "სახელის კოპირება";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "ჩამოტვირთულ არქივში APK ფაილი ვერ მოიძებნა";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "ჩამოტვირთულ არქივში აპლიკაციის ბანდლი ვერ მოიძებნა";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@-ის აპლიკაციის ინსტალაცია შეუძლებელია, რადგან ის არ შეიცავს ვალიდურ აპლიკაციის ბილდებს.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@-ის აპლიკაციის ინსტალაცია შეუძლებელია. %@-ის პლატფორმა არის %@, ხოლო აპლიკაცია მოიცავს მხოლოდ შემდეგ პლატფორმებს: %@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "შექმნის თარიღი";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "შექმნა";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "წაშლა";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "ანგარიშის წაშლა";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "პრევიუს წაშლა";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "ანგარიშის წაშლა";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "პრევიუს წაშლა";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "დეტალები";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "მოწყობილობები";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "გათიშულია";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "ელფოსტა";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "შეიყვანეთ მოქმედი HTTPS სერვერის URL მონაცემების, შეკითხვის ან ფრაგმენტის გარეშე.";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "შეცდომა";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "დასრულებულია";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "დახმარების მიღება";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "ბოლო პრევიუების დაყენება ერთი კლიკით.";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "დაყენება ვერ მოხერხდა";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "დაყენებულია %@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "დაყენებულია %@@%@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "პრევიუს დაყენება";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "მიღებულია არასწორი callback URL";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "პასუხის არასწორი ფორმატი";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "გაშვება";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "პრევიუს გაშვება";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "გასვლა";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "გამოსული ხართ";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "ავტორიზაციისთვის საჭირო Apple-ის მონაცემები არ არის";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "პრევიუები არ არის";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "Tuist-ის პროექტები ვერ მოიძებნა";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "პრევიუები ვერ მოიძებნა";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "ფილტრებს არ შეესაბამება წინასწარი ნახვები";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "კარგი";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "სხვა მოწყობილობები";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "მიმაგრება";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "წინასწარი ნახვები";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "წინასწარი ნახვები: %lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "კონფიდენციალურობის პოლიტიკა";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "პროფილი";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "გადაიტანეთ ქვემოთ, რომ განაახლოთ თქვენი პრევიუები.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "გადაიტანეთ ქვემოთ, რომ განაახლოთ თქვენი პროექტები.";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "Tuist-ის დახურვა";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "მზად არის";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "გამოშვების შენიშვნები";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "გაშვება";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "ძიება";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "თავად განთავსებული";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "თვითმასპინძელი სერვერი";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "ჟურნალების გაზიარება";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "შესვლა";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "შედი, რათა მიუწვდებოდე შენს პროექტებს და\nითანამშრომლო გუნდთან";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "შედი პრევიუების გასაშვებად";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "Apple-ით შესვლა";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "GitHub-ით შესვლა";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "Google-ით შესვლა";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "Tuist-ით შესვლა";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "გასვლა";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "სიმულატორები";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "მხარდაჭერილი პლატფორმები";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "მომსახურების პირობები";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "აპის პრევიუ %@ ვერ მოიძებნა.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "%@-ის უახლესი პრევიუ ვერ მოიძებნა. გამოქვეყნებულია თუ არა რაიმე პრევიუ?";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "პრევიუს %@ არ აქვს მითითებული პაკეტის სახელი.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "წინასწარი ნახვის ღრმა ბმული %@ არასწორია.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "სერვერმა დააბრუნა წინასწარი ნახვის გვერდი, რომელიც არ განახლდა. განაახლეთ თქვენი სერვერი ან სცადეთ ხელახლა.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "ამ სერვერს არ აქვს წინასწარი ნახვების ტრეკის მიხედვით ფილტრაციის მხარდაჭერა. განაახლეთ თქვენი self-hosted Tuist სერვერი, ან აირჩიეთ ყველა ტრეკი.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "ამ სერვერს არ აქვს წინასწარი ნახვების ძებნის მხარდაჭერა. განაახლეთ თქვენი self-hosted Tuist სერვერი, ან გაასუფთავეთ ძებნა.";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "ამ სერვერს არ აქვს Tuist აპლიკაციიდან შესვლის მხარდაჭერა. სთხოვეთ თქვენს ადმინისტრატორს განაახლოს ის.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "წინასწარი ნახვის გასაშვებად, უნდა იყოს არჩეული სიმულატორი.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "ტოკენის გაცვლა ვერ მოხდა სტატუსის კოდით: %lld";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "ტრეკი";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "ტრეკები";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "სცადეთ სხვა საძიებო ფრაზა ან აირჩიეთ სხვა ტრეკი.";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "უცნობი";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "მოხსნა პინისგან";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "ტრეკის არჩევისთვის განაახლეთ თქვენი self-hosted Tuist სერვერი.";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "გამოიყენეთ თქვენი Tuist სერვერის root მისამართი";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "მოგესალმებით Tuist-ში";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "ან";

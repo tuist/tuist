@@ -45,8 +45,14 @@ defmodule TuistWeb.Plugs.AppSessionPlug do
            window: to_timeout(minute: 1),
            failure_policy: :local
          ) do
-      {:allow, _count} -> conn
-      {:deny, _retry_after} -> halt_with(conn, :too_many_requests, "Too many changes. Try again in a minute.")
+      {:allow, _count} ->
+        conn
+
+      # The header lets clients wait instead of replaying the write straight into the limit.
+      {:deny, retry_after_ms} ->
+        conn
+        |> put_resp_header("retry-after", Integer.to_string(max(1, div(retry_after_ms + 999, 1000))))
+        |> halt_with(:too_many_requests, "Too many changes. Try again in a minute.")
     end
   end
 

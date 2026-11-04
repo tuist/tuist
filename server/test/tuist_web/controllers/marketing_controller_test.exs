@@ -494,7 +494,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "8 vCPU · 24 GB"
       assert html =~ "16 vCPU · 48 GB"
       assert html =~ "See every machine and rate"
-      assert html =~ "+ from $0.06/min on macOS and $0.001/min on Linux"
+      assert html =~ "+ from $0.05/min on macOS and $0.001/min on Linux"
       refute html =~ "$0.075"
       assert html =~ "16 vCPU · 64 GB"
       assert html =~ "$0.0192"

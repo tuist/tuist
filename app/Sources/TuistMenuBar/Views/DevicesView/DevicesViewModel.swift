@@ -19,7 +19,7 @@ enum SimulatorsViewModelError: FatalError, Equatable {
     var description: String {
         switch self {
         case .noSelectedSimulator:
-            return "To run a preview, you must have a simulator selected."
+            return String(localized: "To run a preview, you must have a simulator selected.")
         case let .appNotFound(device, destinations):
             let name: String
             let platform: String
@@ -39,18 +39,21 @@ enum SimulatorsViewModelError: FatalError, Equatable {
                 case let .device(platform):
                     return platform.caseValue
                 case let .simulator(platform):
-                    return "\(platform.caseValue) simulator"
+                    return String(localized: "\(platform.caseValue) simulator")
                 case .android:
                     return "Android"
                 }
             }
             if platforms.isEmpty {
-                return "Couldn't install the app for \(name) as it doesn't include any valid app builds."
+                return String(localized: "Couldn't install the app for \(name) as it doesn't include any valid app builds.")
             } else {
-                return "Couldn't install the app for \(name). The \(name)'s platform is \(platform) and the app includes only the following platforms: \(platforms.joined(separator: ", "))"
+                let supportedPlatforms = platforms.joined(separator: ", ")
+                return String(
+                    localized: "Couldn't install the app for \(name). The \(name)'s platform is \(platform) and the app includes only the following platforms: \(supportedPlatforms)"
+                )
             }
         case let .invalidDeeplink(deeplink):
-            return "The preview deeplink \(deeplink) is invalid."
+            return String(localized: "The preview deeplink \(deeplink) is invalid.")
         }
     }
 

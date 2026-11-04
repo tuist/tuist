@@ -303,6 +303,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "TestCoverageAttribution"),
             ]
         ),
     ],
@@ -345,5 +346,7 @@ let project = Project(
                 )
             )
         ),
-    ]
+    ],
+    // Strings are looked up by English key; generated accessors collide on case-only differences.
+    resourceSynthesizers: [.assets(), .plists(), .fonts()]
 )

@@ -659,7 +659,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
     socket
     |> assign(
       :page_title,
-      gettext("%{profile} · Inference · Atlas", profile: profile.name)
+      gettext("%{profile} · Inference", profile: profile.name)
     )
     |> assign(:profile, profile)
     |> assign(:tokens, profile.tokens)

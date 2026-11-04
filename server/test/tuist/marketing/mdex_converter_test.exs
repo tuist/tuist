@@ -52,6 +52,22 @@ defmodule Tuist.Marketing.MDExConverterTest do
       assert html =~ "Authorization"
     end
 
+    test "renders code blocks with Rust doc comments" do
+      markdown = """
+      ```rust
+      pub enum CoreError {
+          /// No session, or it expired.
+          Unauthorized,
+      }
+      ```
+      """
+
+      html = render_live(markdown)
+
+      assert html =~ "No session, or it expired."
+      assert html =~ "Unauthorized"
+    end
+
     test "renders mermaid diagrams whose content contains curly braces" do
       markdown = """
       ```mermaid

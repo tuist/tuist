@@ -8471,22 +8471,22 @@ struct PackageInfoMapperTests {
             target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
                 "$(inherited)",
                 "-I",
-                prebuiltPath.appending(component: "Modules").pathString,
+                "$(SRCROOT)/../.build/prebuilts/swift-syntax/Modules",
                 "-I",
-                checkoutPath.appending(try RelativePath(validating: "Sources/_SwiftSyntaxCShims/include")).pathString,
+                "$(SRCROOT)/../.build/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include",
             ])
         )
         #expect(target.settings?.base["SWIFT_PACKAGE_NAME"] == .string("Package"))
         #expect(
             target.settings?.base["LIBRARY_SEARCH_PATHS"] == .array([
                 "$(inherited)",
-                prebuiltPath.appending(component: "lib").pathString,
+                "$(SRCROOT)/../.build/prebuilts/swift-syntax/lib",
             ])
         )
         #expect(
             target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
                 "$(inherited)",
-                prebuiltPath.appending(component: "lib").pathString,
+                "$(SRCROOT)/../.build/prebuilts/swift-syntax/lib",
             ])
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
@@ -8820,22 +8820,22 @@ struct PackageInfoMapperTests {
             target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
                 "$(inherited)",
                 "-I",
-                prebuiltPath.appending(component: "Modules").pathString,
+                "$(SRCROOT)/../.build/prebuilts/swift-syntax/Modules",
                 "-I",
-                prebuiltPath.appending(components: "include", "_SwiftSyntaxCShims").pathString,
+                "$(SRCROOT)/../.build/prebuilts/swift-syntax/include/_SwiftSyntaxCShims",
             ])
         )
         #expect(target.settings?.base["SWIFT_PACKAGE_NAME"] == .string("Package"))
         #expect(
             target.settings?.base["LIBRARY_SEARCH_PATHS"] == .array([
                 "$(inherited)",
-                prebuiltPath.appending(component: "lib").pathString,
+                "$(SRCROOT)/../.build/prebuilts/swift-syntax/lib",
             ])
         )
         #expect(
             target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
                 "$(inherited)",
-                prebuiltPath.appending(component: "lib").pathString,
+                "$(SRCROOT)/../.build/prebuilts/swift-syntax/lib",
             ])
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
