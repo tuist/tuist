@@ -418,7 +418,7 @@ defmodule TuistWeb.SandboxesLive do
       </:col>
       <:empty_state>
         <.table_empty_state
-          icon="devices_code"
+          icon="box_model_2"
           title={dgettext("dashboard_sandboxes", "No sandboxes found")}
           subtitle={dgettext("dashboard_sandboxes", "Try a different search or filter.")}
         />

@@ -531,7 +531,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
         id="sidebar-sandboxes"
         label={dgettext("dashboard_sandboxes", "Sandboxes")}
-        icon="devices_code"
+        icon="box_model_2"
         navigate={sandboxes_path}
         selected={@current_path == sandboxes_path}
         default_open={String.starts_with?(@current_path, sandboxes_path)}
