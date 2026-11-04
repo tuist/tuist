@@ -5,6 +5,15 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
+  @doc "Default-off account opt-in to Linux Bazel remote execution in every environment."
+  def bazel_remote_execution_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :bazel_remote_execution,
+      account,
+      flag_enabled?(:bazel_remote_execution, account, flags)
+    )
+  end
+
   @doc "Default-off account enrollment in runner-local shard artifact storage."
   def runner_shard_storage_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
