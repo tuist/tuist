@@ -135,6 +135,9 @@ build() {
   git config core.autocrlf false
   git config core.fileMode true
   git config core.excludesFile /dev/null
+  # Background repacks during the build race the commits after them and lose objects.
+  git config maintenance.auto false
+  git config gc.auto 0
 
   commit_all "Shop: baseline"
   git tag baseline
@@ -362,8 +365,8 @@ PY
   while read -r kind value ref; do
     case "$kind" in
       scenario) [ "$(scenario_ref "${value//_/-}")" = "$ref" ] || { echo "scenarios.sh doesn't check out $value at $ref" >&2; exit 1; } ;;
-      ref) git -C "$repo" rev-parse -q --verify "refs/tags/$value" >/dev/null || { echo "Missing tag $value" >&2; exit 1; } ;;
-      branch) git -C "$repo" rev-parse -q --verify "refs/heads/$value" >/dev/null || { echo "Missing branch $value" >&2; exit 1; } ;;
+      ref) git -C "$repo" rev-parse -q --verify "refs/tags/$value^{commit}" >/dev/null || { echo "Missing tag $value" >&2; exit 1; } ;;
+      branch) git -C "$repo" rev-parse -q --verify "refs/heads/$value^{commit}" >/dev/null || { echo "Missing branch $value" >&2; exit 1; } ;;
     esac
   done <<<"$entries"
   echo "golden.json matches $repo"
