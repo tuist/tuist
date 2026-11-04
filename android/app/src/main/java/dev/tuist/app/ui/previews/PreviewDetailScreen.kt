@@ -204,7 +204,7 @@ private fun PreviewDetailContent(
             Spacer(Modifier.width(NooraSpacing.Spacing5))
             Column {
                 Text(
-                    text = preview.displayName ?: "App",
+                    text = preview.displayName ?: stringResource(R.string.preview_default_app_name),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                 )

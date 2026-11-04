@@ -104,7 +104,7 @@ func TestKataHostConfigRevisionCoversVirtiofs(t *testing.T) {
 
 func TestKataHostConfigRepairInstallsVirtiofs(t *testing.T) {
 	script := renderKataHostConfigRepairScript(linuxCloudInitOptions{BootstrapUser: "ubuntu"})
-	for _, want := range []string{kataVirtiofsSysctl, kataVirtiofsDropIn} {
+	for _, want := range []string{kataVirtiofsSysctl, kataVirtiofsDropIn, kataSandboxCgroupDropIn} {
 		if !strings.Contains(script, want) {
 			t.Errorf("repair script is missing %q", want)
 		}

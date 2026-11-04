@@ -24,7 +24,7 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
     else
       {:ok,
        socket
-       |> assign(:page_title, gettext("Inference providers · Atlas"))
+       |> assign(:page_title, gettext("Inference providers"))
        |> assign_provider_form(Inference.change_provider(%Provider{}, %{timeout: 300_000}))
        |> assign_providers()}
     end

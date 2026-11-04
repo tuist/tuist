@@ -67,6 +67,21 @@ defmodule Atlas.MCP.Tools.ManageAccountConnections do
     end
   end
 
+  @doc "Caller-facing message for a personal connection that cannot serve a tool call."
+  def connection_error(provider, reason) do
+    settings = AtlasWeb.Endpoint.url() <> "/settings/connections"
+
+    case reason do
+      :not_connected -> "Connect your #{provider} account at #{settings} first."
+      :insufficient_scope -> "Grant #{provider} access at #{settings} first."
+      :needs_authorization -> "Your #{provider} connection expired. Reconnect it at #{settings}."
+      :connection_changed -> "Your #{provider} connection changed. Reconnect it at #{settings}."
+      :not_found -> "#{provider} could not find that item."
+      :rate_limited -> "#{provider} is rate limiting requests. Try again shortly."
+      _ -> "#{provider} is unavailable. Try again shortly."
+    end
+  end
+
   defp perform(_user, %{"action" => "list"}), do: :ok
 
   defp perform(user, %{"action" => "disconnect", "provider" => provider}) when provider in ~w(github slack google) do

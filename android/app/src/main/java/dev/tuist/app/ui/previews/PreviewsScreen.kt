@@ -1,6 +1,9 @@
 package dev.tuist.app.ui.previews
 
 import android.content.Intent
+import android.icu.text.DisplayContext
+import android.icu.text.RelativeDateTimeFormatter
+import android.icu.util.ULocale
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -328,7 +332,7 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
 
             // Row 2: display name (bold)
             Text(
-                text = preview.displayName ?: "Preview",
+                text = preview.displayName ?: stringResource(R.string.preview_default_name),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -399,20 +403,29 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
     }
 }
 
+@Composable
 private fun formatRelativeTime(isoTimestamp: String): String {
-    return try {
-        val dateTime = OffsetDateTime.parse(isoTimestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        val now = OffsetDateTime.now()
-        val duration = Duration.between(dateTime, now)
-
-        when {
-            duration.toMinutes() < 1 -> "Just now"
-            duration.toMinutes() < 60 -> "${duration.toMinutes()}m ago"
-            duration.toHours() < 24 -> "${duration.toHours()}h ago"
-            duration.toDays() < 30 -> "${duration.toDays()}d ago"
-            else -> "${duration.toDays() / 30}mo ago"
-        }
+    val duration = try {
+        Duration.between(OffsetDateTime.parse(isoTimestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME), OffsetDateTime.now())
     } catch (_: Exception) {
-        isoTimestamp
+        return isoTimestamp
+    }
+
+    // ICU applies each locale's plural rules, digits, and unit names, which translated format strings can't express.
+    val formatter = RelativeDateTimeFormatter.getInstance(
+        ULocale.forLocale(LocalConfiguration.current.locales[0]),
+        null,
+        RelativeDateTimeFormatter.Style.SHORT,
+        DisplayContext.CAPITALIZATION_FOR_BEGINNING_OF_SENTENCE,
+    )
+    fun ago(amount: Long, unit: RelativeDateTimeFormatter.RelativeUnit) =
+        formatter.format(amount.toDouble(), RelativeDateTimeFormatter.Direction.LAST, unit)
+
+    return when {
+        duration.toMinutes() < 1 -> formatter.format(RelativeDateTimeFormatter.Direction.PLAIN, RelativeDateTimeFormatter.AbsoluteUnit.NOW)
+        duration.toMinutes() < 60 -> ago(duration.toMinutes(), RelativeDateTimeFormatter.RelativeUnit.MINUTES)
+        duration.toHours() < 24 -> ago(duration.toHours(), RelativeDateTimeFormatter.RelativeUnit.HOURS)
+        duration.toDays() < 30 -> ago(duration.toDays(), RelativeDateTimeFormatter.RelativeUnit.DAYS)
+        else -> ago(duration.toDays() / 30, RelativeDateTimeFormatter.RelativeUnit.MONTHS)
     }
 }

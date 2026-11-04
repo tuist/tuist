@@ -51,7 +51,8 @@ for (const environment of ['canary', 'production']) {
   }
 }
 
-for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 9], ['production', 'tuist-linux', 3]]) {
+// Production has no macOS probe while the BER1 one is paused; restore 3 with it.
+for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 9], ['production', 'tuist-linux', 2]]) {
   test(`${environment} plans native and container Linux probes in the watchdog count`, () => {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-plan-'));
     try {
