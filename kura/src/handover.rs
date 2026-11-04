@@ -57,6 +57,7 @@ pub struct Preparation {
     pub source: Holder,
     pub epoch: u64,
     pub complete: bool,
+    pub content_verified: bool,
     pub error: Option<String>,
 }
 
@@ -651,6 +652,13 @@ async fn prepare_live_destination(
     require_current_preparation(state, &request, preparation.epoch)?;
     reconcile_retained_corpus(state, &request, Some(preparation.epoch), None, None).await?;
     let walk = verify_content_while_serving(state, &request, preparation.epoch).await?;
+    // Content left unverified would be hashed under the frozen source, which
+    // cannot finish within the barrier deadline on a large corpus.
+    if !walk.complete {
+        return Err(
+            "content walk did not finish while the source served; refusing to freeze it".into(),
+        );
+    }
     // A live cache may evict on every walk. Waiting for an eviction-free pass
     // can starve until the deadline while the source keeps accepting writes.
     // Quiescing still repairs, atomically freezes and verifies the full corpus.
@@ -843,9 +851,8 @@ async fn descriptor_page(
 
 /// Confirms, while the source still serves, that this destination holds the
 /// same content as the source for each retained record version, so the frozen
-/// barrier only has to recheck metadata. Stops short of the intent deadline and
-/// keeps what it confirmed; a source that predates this route verifies
-/// everything inside the barrier as before.
+/// barrier only has to recheck metadata. Stops short of the intent deadline;
+/// preparation fails unless the walk reached the end of the source's index.
 async fn verify_content_while_serving(
     state: &SharedState,
     request: &VerifyRequest,
@@ -866,6 +873,7 @@ async fn verify_content_while_serving(
         losses_at: 0,
         missing_records: 0,
         missing_bytes: 0,
+        complete: false,
     };
     let (mut unverified, mut after) = (0u64, None::<String>);
     loop {
@@ -893,8 +901,7 @@ async fn verify_content_while_serving(
             .send()
             .await;
         // A source that predates the route, refuses it or cannot be reached
-        // leaves the remaining records to the frozen barrier's full
-        // verification; it never fails preparation.
+        // ends the walk incomplete, which fails preparation.
         let page = match response {
             Ok(response) if response.status().is_success() => response
                 .json::<DescriptorPage>()
@@ -908,7 +915,7 @@ async fn verify_content_while_serving(
             Err(error) => {
                 tracing::warn!(event.name = "kura.handover.content_unverified", id = %request.intent.id,
                     error = %bounded_detail(&error),
-                    "Stopped verifying content while serving; the barrier verifies the rest");
+                    "Stopped verifying content while serving; preparation fails");
                 break;
             }
         };
@@ -994,6 +1001,7 @@ async fn verify_content_while_serving(
         missing_bytes = walk.missing_bytes, frontier_ms = ?walk.frontier_ms,
         complete = verified.complete, elapsed_ms = started.elapsed().as_millis() as u64,
         "Verified retained content while the source serves");
+    walk.complete = verified.complete;
     verified.frontier_ms = walk.frontier_ms;
     verified.losses_at = walk.losses_at;
     *state
@@ -1012,6 +1020,7 @@ struct ContentWalk {
     losses_at: u64,
     missing_records: u64,
     missing_bytes: u64,
+    complete: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1556,6 +1565,7 @@ pub fn spawn(state: SharedState) {
                     source: grant.holder,
                     epoch: grant.epoch,
                     complete: false,
+                    content_verified: false,
                     error: None,
                 };
                 {
@@ -1582,7 +1592,9 @@ pub fn spawn(state: SharedState) {
                 )
                 .await
                 {
-                    Ok(Ok(())) => preparation.complete = true,
+                    Ok(Ok(())) => {
+                        (preparation.complete, preparation.content_verified) = (true, true)
+                    }
                     Ok(Err(error)) => preparation.error = Some(bounded_detail(&error)),
                     Err(_) => preparation.error = Some("live preparation deadline exceeded".into()),
                 }
@@ -1753,11 +1765,15 @@ mod tests {
             source: request.source.clone(),
             epoch: grant.epoch,
             complete: false,
+            content_verified: false,
             error: None,
         };
-        prepare_live_destination(&target.state, &preparation)
+        // This source serves no descriptors for the intent, so preparation
+        // copies what it lacks and then refuses to report itself complete.
+        let error = prepare_live_destination(&target.state, &preparation)
             .await
-            .unwrap();
+            .unwrap_err();
+        assert!(error.contains("content walk did not finish"), "{error}");
         let expected = record(
             &source.state,
             BackfillRecordKind::SegmentArtifact,
@@ -1857,6 +1873,7 @@ mod tests {
                 source: request.source,
                 epoch: grant.epoch,
                 complete: false,
+                content_verified: false,
                 error: None,
             };
             let state = target.state.clone();
@@ -2483,15 +2500,17 @@ mod tests {
             source: request.source.clone(),
             epoch: grant.epoch,
             complete: false,
+            content_verified: false,
             error: None,
         };
-        tokio::time::timeout(
+        let error = tokio::time::timeout(
             Duration::from_secs(3),
             prepare_live_destination(&target.state, &preparation),
         )
         .await
         .expect("live preparation must finish despite concurrent eviction")
-        .unwrap();
+        .unwrap_err();
+        assert!(error.contains("content walk did not finish"), "{error}");
         assert!(walks.load(Ordering::SeqCst) > 0);
         assert!(target.state.store.handover_hold.lock().unwrap().is_none());
         assert!(
@@ -3507,6 +3526,7 @@ mod tests {
                     source: self.source.state.runtime.authority.identity().clone(),
                     epoch: 1,
                     complete: false,
+                    content_verified: false,
                     error: None,
                 },
             )
@@ -3850,7 +3870,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_source_without_content_descriptors_keeps_full_barrier_verification() {
+    async fn a_content_walk_that_does_not_reach_the_end_fails_preparation_before_any_pause() {
+        let pair = ContentPair::new().await;
+        pair.seed("segment", &vec![42; 128 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.install("Serving");
+        // The source never published this intent, so it refuses descriptors
+        // and the walk stops before the end of its index.
+        let other = Grant {
+            epoch: 1,
+            holder: pair.source.state.runtime.authority.identity().clone(),
+            phase: "Serving".into(),
+            expires_ms: crate::utils::now_ms() + 14_500,
+            handover: None,
+            barrier: None,
+            resume_epoch: None,
+            exit_resume: None,
+        };
+        pair.source.state.runtime.authority.install(other).unwrap();
+
+        let error = prepare_live_destination(
+            &pair.target.state,
+            &Preparation {
+                intent: pair.intent.clone(),
+                source: pair.source.state.runtime.authority.identity().clone(),
+                epoch: 1,
+                complete: false,
+                content_verified: false,
+                error: None,
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.contains("content walk did not finish"), "{error}");
+        assert_eq!(pair.verified(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_source_without_content_descriptors_leaves_the_walk_incomplete() {
         let pair = ContentPair::new().await;
         pair.seed("segment", &vec![42; 128 * 1024]).await;
         // The source never published this intent, so it refuses descriptors.
@@ -3875,10 +3933,11 @@ mod tests {
             receipt: None,
         };
 
-        verify_content_while_serving(&pair.target.state, &request, 1)
+        let walk = verify_content_while_serving(&pair.target.state, &request, 1)
             .await
             .unwrap();
 
+        assert!(!walk.complete);
         assert_eq!(pair.verified(), 0);
     }
 }

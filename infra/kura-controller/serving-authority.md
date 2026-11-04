@@ -127,7 +127,11 @@ timeout clears the pending intent without pausing the primary; a new request ID 
 required to retry. Source expiry still requires positive fencing.
 
 Only a fresh completion report matching the exact intent, source epoch and both
-identities starts `Quiescing` with its original 300-second deadline. Preparation
+identities, with `content_verified` set, starts `Quiescing` with its original
+300-second deadline. A completed report without it (a destination whose content
+walk did not reach the end of the source's index, or one that predates the
+field) ends the attempt while the source serves, because the unverified content
+would be hashed under the frozen source past that deadline. Preparation
 is not a retained-data receipt: live writes and eviction can change either corpus,
 so every existing barrier and revocation check still runs. A destination that
 holds a strictly newer version of a retained record, such as a cross-region
