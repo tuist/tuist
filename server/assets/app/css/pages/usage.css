@@ -46,6 +46,12 @@
       flex: 1;
     }
 
+    /* Usage widgets show a value without a trend, so they do not reserve
+       the trend widgets' minimum height. */
+    & .tuist-widget {
+      min-height: unset;
+    }
+
     @media (max-width: 768px) {
       & {
         flex-direction: column;
