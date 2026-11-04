@@ -49,8 +49,7 @@ defmodule Tuist.Sandboxes do
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
   # Sandboxes are bounded by the account's CPU, memory and disk quota
-  # (`Concurrency`), not by a count. Amp Orbs past
-  # `Archives.max_paused_on_node_per_account/0` move to object storage.
+  # (`Concurrency`), not by a count.
   # A running Amp Orb whose guest has used under 2% of one vCPU for this
   # long is paused, in case Amp's own pause never arrives.
   @orb_idle_pause_after_seconds 600
