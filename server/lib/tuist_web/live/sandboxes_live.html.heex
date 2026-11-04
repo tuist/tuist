@@ -370,67 +370,20 @@
 
   <.card
     :if={@total > 0}
-    title={dgettext("dashboard_sandboxes", "Sandboxes")}
+    title={dgettext("dashboard_sandboxes", "Recent sandboxes")}
     icon="devices_code"
-    id="sandboxes-list"
+    id="sandboxes-recent"
   >
-    <.card_section data-part="table-section">
-      <div data-part="table-toolbar">
-        <.dropdown
-          id="sandboxes-status-dropdown"
-          label={"#{filter_label(@filter)} (#{filter_count(@counts, @filter)})"}
-          secondary_text={dgettext("dashboard_sandboxes", "Status:")}
-        >
-          <.dropdown_item
-            :for={{filter, label} <- filter_options()}
-            value={filter}
-            label={"#{label} (#{filter_count(@counts, filter)})"}
-            patch={status_patch(@selected_account, @uri, filter)}
-            data-selected={@filter == filter}
-          >
-            <:right_icon :if={@filter == filter}><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-      </div>
-      <.table
-        id="sandboxes-table"
-        rows={@sandboxes}
-        row_key={fn sandbox -> "sandbox-#{sandbox.id}" end}
-        row_navigate={fn sandbox -> ~p"/#{@selected_account.name}/sandboxes/#{sandbox.id}" end}
-      >
-        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Name")}>
-          <.text_cell label={display_name(sandbox)} sublabel={short_id(sandbox.id)} />
-        </:col>
-        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Source")}>
-          <.badge_cell label={source_label(sandbox)} color="neutral" style="light-fill" />
-        </:col>
-        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Status")}>
-          <% status = status(sandbox) %>
-          <.status_badge_cell label={status.label} status={status.status} />
-        </:col>
-        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Resources")}>
-          <.text_cell label={resources(sandbox)} />
-        </:col>
-        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Last active")}>
-          <.text_cell
-            label={relative_time(last_active_at(sandbox))}
-            title={time(last_active_at(sandbox))}
-          />
-        </:col>
-        <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Created")}>
-          <.text_cell
-            label={relative_time(sandbox.inserted_at)}
-            title={time(sandbox.inserted_at)}
-          />
-        </:col>
-        <:empty_state>
-          <.table_empty_state
-            icon="devices_code"
-            title={dgettext("dashboard_sandboxes", "No sandboxes with this status")}
-            subtitle={dgettext("dashboard_sandboxes", "Choose a different status to see more.")}
-          />
-        </:empty_state>
-      </.table>
+    <:actions>
+      <.button
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_sandboxes", "View more")}
+        navigate={~p"/#{@selected_account.name}/sandboxes/all"}
+      />
+    </:actions>
+    <.card_section>
+      <.sandboxes_table id="sandboxes-table" sandboxes={@sandboxes} account={@selected_account} />
     </.card_section>
   </.card>
 

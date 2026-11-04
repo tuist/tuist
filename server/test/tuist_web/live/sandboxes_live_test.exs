@@ -3,6 +3,7 @@ defmodule TuistWeb.SandboxesLiveTest do
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -38,7 +39,11 @@ defmodule TuistWeb.SandboxesLiveTest do
     test "the pages do not exist while the flag is off", %{conn: conn, account: account} do
       stub(FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
 
-      for path <- ["/#{account.name}/sandboxes", "/#{account.name}/sandboxes/snapshots"] do
+      for path <- [
+            "/#{account.name}/sandboxes",
+            "/#{account.name}/sandboxes/all",
+            "/#{account.name}/sandboxes/snapshots"
+          ] do
         assert_raise NotFoundError, fn -> live(conn, path) end
       end
     end
@@ -80,21 +85,18 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute has_element?(lv, ~s([data-provider="amp"] a))
     end
 
-    test "lists the account's sandboxes with their usage", %{conn: conn, account: account} do
-      active = sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
-      paused = sandbox_fixture(account: account, amp_orb_id: "orb-paused", state: :paused, vcpus: 4, memory_mb: 8192)
-      archived = sandbox_fixture(account: account, amp_orb_id: "orb-archived", state: :archived, node_name: nil)
-      other = sandbox_fixture(amp_orb_id: "orb-of-another-account")
+    test "shows the most recent sandboxes and current usage", %{conn: conn, account: account} do
+      oldest = sandbox_fixture(account: account, amp_orb_id: "orb-oldest", state: :paused)
+      recent = for i <- 1..4, do: sandbox_fixture(account: account, amp_orb_id: "orb-recent-#{i}", state: :paused)
+      sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
+      Repo.update_all(from(s in Sandbox, where: s.id == ^oldest.id), set: [inserted_at: ~U[2026-01-01 00:00:00Z]])
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
 
-      assert has_element?(lv, "#sandbox-#{active.id}", "orb-active")
-      assert has_element?(lv, "#sandbox-#{active.id}", "Active")
-      assert has_element?(lv, "#sandbox-#{active.id}", "Amp Orb")
-      assert has_element?(lv, "#sandbox-#{paused.id}", "Paused")
-      assert has_element?(lv, "#sandbox-#{paused.id}", "4 vCPU · 8 GB RAM · 10 GB disk")
-      assert has_element?(lv, "#sandbox-#{archived.id}", "Archived")
-      refute has_element?(lv, "#sandbox-#{other.id}")
+      assert has_element?(lv, "#sandboxes-recent a[href='/#{account.name}/sandboxes/all']", "View more")
+      assert has_element?(lv, "#sandboxes-recent tbody tr", "orb-active")
+      refute has_element?(lv, "#sandbox-#{oldest.id}")
+      assert Enum.all?(recent, &has_element?(lv, "#sandbox-#{&1.id}"))
       assert has_element?(lv, "#sandboxes-concurrency-sandboxes", "1 of 5 running now")
       assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
     end
@@ -120,15 +122,71 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert_patch(lv, ~p"/#{account.name}/sandboxes?widget=time_to_start")
       assert has_element?(lv, "#sandboxes-time-to-start-chart")
     end
+  end
+
+  describe "all sandboxes" do
+    test "lists the account's sandboxes", %{conn: conn, account: account} do
+      active = sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
+      paused = sandbox_fixture(account: account, amp_orb_id: "orb-paused", state: :paused, vcpus: 4, memory_mb: 8192)
+      archived = sandbox_fixture(account: account, amp_orb_id: "orb-archived", state: :archived, node_name: nil)
+      other = sandbox_fixture(amp_orb_id: "orb-of-another-account")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/all")
+
+      assert has_element?(lv, "#sandbox-#{active.id}", "orb-active")
+      assert has_element?(lv, "#sandbox-#{active.id}", "Active")
+      assert has_element?(lv, "#sandbox-#{active.id}", "Amp Orb")
+      assert has_element?(lv, "#sandbox-#{paused.id}", "Paused")
+      assert has_element?(lv, "#sandbox-#{paused.id}", "4 vCPU · 8 GB RAM · 10 GB disk")
+      assert has_element?(lv, "#sandbox-#{archived.id}", "Archived")
+      refute has_element?(lv, "#sandbox-#{other.id}")
+      refute has_element?(lv, "[data-part='pagination']")
+    end
 
     test "filters sandboxes by status", %{conn: conn, account: account} do
       running = sandbox_fixture(account: account, amp_orb_id: "orb-running")
       failed = sandbox_fixture(account: account, amp_orb_id: "orb-failed", state: :error, error_message: "boom")
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes?status=error")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/all?status=error")
 
       assert has_element?(lv, "#sandbox-#{failed.id}", "Failed")
       refute has_element?(lv, "#sandbox-#{running.id}")
+    end
+
+    test "pages through the sandboxes of a status", %{conn: conn, account: account} do
+      start = ~U[2026-01-01 00:00:00Z]
+
+      paused =
+        for i <- 1..22 do
+          sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-paused-#{i}", state: :paused)
+          inserted_at = DateTime.add(start, i, :minute)
+          Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [inserted_at: inserted_at])
+          sandbox
+        end
+
+      running = sandbox_fixture(account: account, amp_orb_id: "orb-running")
+      [oldest, second_oldest | _] = paused
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/all?status=paused")
+
+      assert has_element?(lv, "[data-part='pagination']", "Page 1 of 2")
+      assert has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
+      refute has_element?(lv, "#sandbox-#{second_oldest.id}")
+      refute has_element?(lv, "#sandbox-#{running.id}")
+
+      lv |> element("[data-part='pagination'] a", "Next") |> render_click()
+
+      assert_patch(lv, ~p"/#{account.name}/sandboxes/all?page=2&status=paused")
+      assert has_element?(lv, "#sandbox-#{oldest.id}")
+      assert has_element?(lv, "#sandbox-#{second_oldest.id}")
+      refute has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
+
+      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/all" data-phx-link="patch")
+      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/all?status=running")
+
+      render_patch(lv, ~p"/#{account.name}/sandboxes/all")
+      assert has_element?(lv, "#sandbox-#{running.id}")
+      assert has_element?(lv, "[data-part='pagination']", "Page 1 of 2")
     end
   end
 

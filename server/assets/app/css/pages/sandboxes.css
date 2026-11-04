@@ -1,6 +1,7 @@
 #sandboxes,
 #sandbox,
-#sandbox-snapshots {
+#sandbox-snapshots,
+#sandbox-list {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-7);
@@ -83,6 +84,18 @@
 
   & [data-part="table-section"] {
     gap: var(--noora-spacing-8);
+  }
+
+  & [data-part="pagination"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="page-indicator"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
   }
 
   & [data-part="table-toolbar"] {

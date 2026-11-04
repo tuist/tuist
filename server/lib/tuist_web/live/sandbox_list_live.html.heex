@@ -1,0 +1,59 @@
+<div id="sandbox-list">
+  <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_sandboxes", "All sandboxes")}</h1>
+    <span data-part="subtitle">
+      {dgettext("dashboard_sandboxes", "Every sandbox in the account, newest first.")}
+    </span>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_sandboxes", "Sandboxes")}
+    icon="devices_code"
+    id="sandboxes-list"
+  >
+    <.card_section data-part="table-section">
+      <div data-part="table-toolbar">
+        <.dropdown
+          id="sandboxes-status-dropdown"
+          label={"#{filter_label(@filter)} (#{filter_count(@counts, @filter)})"}
+          secondary_text={dgettext("dashboard_sandboxes", "Status:")}
+        >
+          <.dropdown_item
+            :for={{filter, label} <- filter_options()}
+            value={filter}
+            label={"#{label} (#{filter_count(@counts, filter)})"}
+            patch={list_patch(@selected_account, @uri, "status", filter)}
+            data-selected={@filter == filter}
+          >
+            <:right_icon :if={@filter == filter}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <.sandboxes_table id="sandboxes-table" sandboxes={@sandboxes} account={@selected_account} />
+      <div :if={@total_pages > 1} data-part="pagination">
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard_sandboxes", "Prev")}
+          disabled={@page <= 1}
+          patch={list_patch(@selected_account, @uri, "page", Integer.to_string(@page - 1))}
+        >
+          <:icon_left><.chevron_left /></:icon_left>
+        </.button>
+        <span data-part="page-indicator">
+          {dgettext("dashboard_sandboxes", "Page %{page} of %{total}",
+            page: @page,
+            total: @total_pages
+          )}
+        </span>
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard_sandboxes", "Next")}
+          disabled={@page >= @total_pages}
+          patch={list_patch(@selected_account, @uri, "page", Integer.to_string(@page + 1))}
+        >
+          <:icon_right><.chevron_right /></:icon_right>
+        </.button>
+      </div>
+    </.card_section>
+  </.card>
+</div>

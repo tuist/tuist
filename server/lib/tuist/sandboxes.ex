@@ -145,7 +145,7 @@ defmodule Tuist.Sandboxes do
 
   @doc """
   The account's sandboxes, newest first. `states: [...]` keeps only the
-  sandboxes in those states.
+  sandboxes in those states, and `limit:` with `offset:` reads one page.
   """
   def list_sandboxes(%Account{id: account_id}, opts \\ []) do
     query =
@@ -157,6 +157,12 @@ defmodule Tuist.Sandboxes do
       case Keyword.get(opts, :states) do
         nil -> query
         states -> where(query, [s], s.state in ^states)
+      end
+
+    query =
+      case Keyword.get(opts, :limit) do
+        nil -> query
+        limit -> query |> limit(^limit) |> offset(^Keyword.get(opts, :offset, 0))
       end
 
     Repo.all(query)

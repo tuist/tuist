@@ -20,7 +20,7 @@ defmodule TuistWeb.SandboxesLive do
   alias TuistWeb.Utilities.Query
 
   @refresh_interval 5_000
-  @filters ["all", "running", "paused", "error"]
+  @recent_count 5
   @widgets ["created", "session_duration", "setup", "time_to_start"]
 
   @impl true
@@ -32,15 +32,12 @@ defmodule TuistWeb.SandboxesLive do
     {:ok,
      assign(socket,
        head_title: "#{dgettext("dashboard_sandboxes", "Sandboxes")} · #{account.name} · Tuist",
-       can_manage_integrations: Authorization.authorize(:account_update, user, account) == :ok,
-       filter: "all"
+       can_manage_integrations: Authorization.authorize(:account_update, user, account) == :ok
      )}
   end
 
   @impl true
   def handle_params(params, uri, %{assigns: %{selected_account: account}} = socket) do
-    filter = if params["status"] in @filters, do: params["status"], else: "all"
-
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
 
@@ -48,7 +45,6 @@ defmodule TuistWeb.SandboxesLive do
      socket
      |> assign(
        uri: URI.parse(uri),
-       filter: filter,
        analytics_preset: preset,
        analytics_period: period,
        analytics_trend_label: trend_label(preset),
@@ -99,14 +95,8 @@ defmodule TuistWeb.SandboxesLive do
   end
 
   defp patch_with_param(socket, key, value) do
-    push_patch(socket, to: status_patch(socket.assigns.selected_account, socket.assigns.uri, key, value))
-  end
-
-  def status_patch(account, uri, key \\ "status", value) do
-    query =
-      if key == "status" and value == "all", do: Query.drop(uri.query, "status"), else: Query.put(uri.query, key, value)
-
-    "/#{account.name}/sandboxes?#{query}"
+    query = Query.put(socket.assigns.uri.query, key, value)
+    push_patch(socket, to: "/#{socket.assigns.selected_account.name}/sandboxes?#{query}")
   end
 
   @impl true
@@ -115,37 +105,17 @@ defmodule TuistWeb.SandboxesLive do
     {:noreply, load(socket)}
   end
 
-  defp load(%{assigns: %{selected_account: account, filter: filter}} = socket) do
+  defp load(%{assigns: %{selected_account: account}} = socket) do
     counts = Sandboxes.count_sandboxes_by_state(account)
 
     assign(socket,
-      sandboxes: Sandboxes.list_sandboxes(account, states: filter_states(filter)),
+      sandboxes: Sandboxes.list_sandboxes(account, limit: @recent_count),
       counts: counts,
       total: counts |> Map.values() |> Enum.sum(),
       usage: Concurrency.usage(account.id),
       amp_integration: account.id |> AmpIntegrations.get() |> AmpIntegrations.public_status()
     )
   end
-
-  defp filter_states("all"), do: nil
-  defp filter_states("running"), do: [:creating, :resuming, :running]
-  defp filter_states("paused"), do: [:paused, :archived]
-  defp filter_states("error"), do: [:error]
-
-  def filter_options do
-    [
-      {"all", dgettext("dashboard_sandboxes", "All")},
-      {"running", dgettext("dashboard_sandboxes", "Running")},
-      {"paused", dgettext("dashboard_sandboxes", "Paused")},
-      {"error", dgettext("dashboard_sandboxes", "Failed")}
-    ]
-  end
-
-  def filter_label(filter), do: filter_options() |> List.keyfind(filter, 0) |> elem(1)
-
-  def filter_count(counts, "all"), do: counts |> Map.values() |> Enum.sum()
-
-  def filter_count(counts, filter), do: filter |> filter_states() |> Enum.map(&Map.get(counts, &1, 0)) |> Enum.sum()
 
   @doc """
   Raises `NotFoundError` unless the account has sandboxes and the user may
@@ -368,7 +338,52 @@ defmodule TuistWeb.SandboxesLive do
     """
   end
 
-  # ----- Presentation shared with SandboxLive and SandboxSnapshotsLive -----
+  # ----- Presentation shared with SandboxLive, SandboxListLive and SandboxSnapshotsLive -----
+
+  attr :id, :string, required: true
+  attr :sandboxes, :list, required: true
+  attr :account, :map, required: true
+
+  def sandboxes_table(assigns) do
+    ~H"""
+    <.table
+      id={@id}
+      rows={@sandboxes}
+      row_key={fn sandbox -> "sandbox-#{sandbox.id}" end}
+      row_navigate={fn sandbox -> ~p"/#{@account.name}/sandboxes/#{sandbox.id}" end}
+    >
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Name")}>
+        <.text_cell label={display_name(sandbox)} sublabel={short_id(sandbox.id)} />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Source")}>
+        <.badge_cell label={source_label(sandbox)} color="neutral" style="light-fill" />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Status")}>
+        <% status = status(sandbox) %>
+        <.status_badge_cell label={status.label} status={status.status} />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Resources")}>
+        <.text_cell label={resources(sandbox)} />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Last active")}>
+        <.text_cell
+          label={relative_time(last_active_at(sandbox))}
+          title={time(last_active_at(sandbox))}
+        />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Created")}>
+        <.text_cell label={relative_time(sandbox.inserted_at)} title={time(sandbox.inserted_at)} />
+      </:col>
+      <:empty_state>
+        <.table_empty_state
+          icon="devices_code"
+          title={dgettext("dashboard_sandboxes", "No sandboxes with this status")}
+          subtitle={dgettext("dashboard_sandboxes", "Choose a different status to see more.")}
+        />
+      </:empty_state>
+    </.table>
+    """
+  end
 
   def display_name(%Sandbox{amp_orb_id: orb_id}) when is_binary(orb_id), do: orb_id
   def display_name(%Sandbox{anthropic_session_id: session_id}) when is_binary(session_id), do: session_id
