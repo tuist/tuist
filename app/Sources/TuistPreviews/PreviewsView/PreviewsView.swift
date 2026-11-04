@@ -32,18 +32,6 @@ public struct PreviewsView: View {
                     .background(Noora.Colors.surfaceBackgroundPrimary)
                 } else {
                     List {
-                        NotificationsPromptView()
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(
-                                EdgeInsets(
-                                    top: Noora.Spacing.spacing4,
-                                    leading: Noora.Spacing.spacing7,
-                                    bottom: 0,
-                                    trailing: Noora.Spacing.spacing7
-                                )
-                            )
-                            .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
-
                         if let selectedProject = viewModel.selectedProject {
                             HStack(spacing: Noora.Spacing.spacing3) {
                                 Text("Apps in")

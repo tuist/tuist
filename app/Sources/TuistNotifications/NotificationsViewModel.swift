@@ -6,12 +6,23 @@ import TuistServer
 @Observable
 final class NotificationsViewModel {
     private(set) var isLoading = true
+    /// Whether the preferences loaded, so an error isn't mistaken for having no projects.
+    private(set) var didLoad = false
+    /// False when the server predates notifications.
+    private(set) var isSupported = true
     private(set) var devices: [ServerPushDevice] = []
     /// The user's choices about new previews, per account and project.
     private(set) var newPreviews = ServerNotificationPreferences(
         kind: ServerNotificationPreferences.newPreviewKind,
         accounts: []
     )
+    /// The opt-in the user just asked for, shown until the change finishes.
+    private(set) var pendingOptIn: Bool?
+    /// Accounts and projects with a change in flight, whose switches stay disabled until it finishes.
+    private(set) var changesInFlight: Set<String> = []
+    /// Set when changes overlap or one fails, so the last one to finish reloads instead of adopting a response that
+    /// may not include the others.
+    private var needsReload = false
 
     let pushNotifications: PushNotifications
     private let listPushDevicesService: ListPushDevicesServicing
@@ -39,6 +50,15 @@ final class NotificationsViewModel {
         self.serverEnvironmentService = serverEnvironmentService
     }
 
+    var isOptedIn: Bool {
+        pendingOptIn ?? pushNotifications.isEnabledOnThisDevice
+    }
+
+    /// Accounts without projects have nothing to choose, so they aren't shown.
+    var accountsWithProjects: [ServerNotificationPreferences.Account] {
+        newPreviews.accounts.filter { !$0.projects.isEmpty }
+    }
+
     /// The signed-in user's devices, with this device first.
     var sortedDevices: [ServerPushDevice] {
         let installationID = pushNotifications.installationID
@@ -63,17 +83,32 @@ final class NotificationsViewModel {
             serverURL: serverURL
         )
         async let devices = listPushDevicesService.listPushDevices(serverURL: serverURL)
-        newPreviews = try await preferences
-        self.devices = try await devices
+        do {
+            newPreviews = try await preferences
+            self.devices = try await devices
+            didLoad = true
+        } catch GetNotificationPreferencesServiceError.unsupported, ListPushDevicesServiceError.unsupported {
+            isSupported = false
+        } catch GetNotificationPreferencesServiceError.forbidden, ListPushDevicesServiceError.forbidden {
+            // Servers only accept these requests from their own Tuist app client, which self-hosted sign-ins aren't.
+            isSupported = false
+        }
+    }
+
+    func reloadDevices() async throws {
+        devices = try await listPushDevicesService.listPushDevices(serverURL: serverEnvironmentService.url())
     }
 
     func setEnabledOnThisDevice(_ isEnabled: Bool) async throws {
+        guard pendingOptIn == nil else { return }
+        pendingOptIn = isEnabled
+        defer { pendingOptIn = nil }
         try await pushNotifications.setEnabledOnThisDevice(isEnabled)
         devices = try await listPushDevicesService.listPushDevices(serverURL: serverEnvironmentService.url())
     }
 
     func setAccountEnabled(_ enabled: Bool, accountHandle: String) async throws {
-        try await update {
+        try await update(key: accountHandle) {
             $0.setAccountEnabled(enabled, accountHandle: accountHandle)
         } send: { [updateAccountNotificationService] kind, serverURL in
             try await updateAccountNotificationService.updateAccountNotificationPreference(
@@ -85,12 +120,11 @@ final class NotificationsViewModel {
         }
     }
 
-    func setProjectSetting(
-        _ setting: ServerNotificationPreferences.ProjectSetting,
-        accountHandle: String,
-        projectHandle: String
-    ) async throws {
-        try await update {
+    /// Turns a project on or off. Matching the account clears the project's override, so it follows the account again.
+    func setProjectEnabled(_ enabled: Bool, accountHandle: String, projectHandle: String) async throws {
+        guard let account = newPreviews.account(accountHandle) else { return }
+        let setting = account.projectSetting(enabled: enabled)
+        try await update(key: "\(accountHandle)/\(projectHandle)") {
             $0.setProjectSetting(setting, accountHandle: accountHandle, projectHandle: projectHandle)
         } send: { [updateProjectNotificationService] kind, serverURL in
             try await updateProjectNotificationService.updateProjectNotificationPreference(
@@ -116,18 +150,39 @@ final class NotificationsViewModel {
         }
     }
 
-    /// Applies the change right away, then adopts the preferences the server returns, or reverts if the request fails.
+    /// Applies the change right away and sends it. A change adopts the server's response only when no other change
+    /// overlapped it; otherwise the last one to finish reloads, so a late response can't undo a newer change.
     private func update(
+        key: String,
         _ change: (inout ServerNotificationPreferences) -> Void,
         send: (String, URL) async throws -> ServerNotificationPreferences
     ) async throws {
+        guard !changesInFlight.contains(key) else { return }
+        if !changesInFlight.isEmpty { needsReload = true }
+        changesInFlight.insert(key)
+        defer { changesInFlight.remove(key) }
         let previous = newPreviews
         change(&newPreviews)
+        let serverURL = serverEnvironmentService.url()
+        var failure: Error?
+        var preferences: ServerNotificationPreferences?
         do {
-            newPreviews = try await send(newPreviews.kind, serverEnvironmentService.url())
+            preferences = try await send(newPreviews.kind, serverURL)
         } catch {
-            newPreviews = previous
-            throw error
+            failure = error
+            needsReload = true
         }
+        if changesInFlight == [key] {
+            if needsReload {
+                needsReload = false
+                newPreviews = (try? await getNotificationPreferencesService.getNotificationPreferences(
+                    kind: newPreviews.kind,
+                    serverURL: serverURL
+                )) ?? preferences ?? previous
+            } else if let preferences {
+                newPreviews = preferences
+            }
+        }
+        if let failure { throw failure }
     }
 }

@@ -10,6 +10,7 @@ final class ProjectNotificationsViewModel {
     private(set) var preferences: ServerNotificationPreferences?
     private(set) var accountHandle = ""
     private(set) var projectHandle = ""
+    private(set) var isUpdating = false
 
     private let getNotificationPreferencesService: GetNotificationPreferencesServicing
     private let updateProjectNotificationService: UpdateProjectNotificationServicing
@@ -46,9 +47,13 @@ final class ProjectNotificationsViewModel {
         )
     }
 
-    /// Applies the change right away, then adopts the preferences the server returns, or reverts if the request fails.
-    func setSetting(_ setting: ServerNotificationPreferences.ProjectSetting) async throws {
-        guard let previous = preferences else { return }
+    /// Turns the project on or off. Matching the account clears the override, so the project follows it again.
+    /// Applies the change right away, then adopts the preferences the server returns, or reloads them if it fails.
+    func setEnabled(_ enabled: Bool) async throws {
+        guard !isUpdating, let previous = preferences, let account else { return }
+        isUpdating = true
+        defer { isUpdating = false }
+        let setting = account.projectSetting(enabled: enabled)
         preferences?.setProjectSetting(setting, accountHandle: accountHandle, projectHandle: projectHandle)
         do {
             preferences = try await updateProjectNotificationService.updateProjectNotificationPreference(
@@ -59,49 +64,46 @@ final class ProjectNotificationsViewModel {
                 serverURL: serverEnvironmentService.url()
             )
         } catch {
-            preferences = previous
+            preferences = (try? await getNotificationPreferencesService.getNotificationPreferences(
+                kind: previous.kind,
+                serverURL: serverEnvironmentService.url()
+            )) ?? previous
             throw error
         }
     }
 }
 
 extension View {
-    /// Adds a bell to the toolbar that changes whether new previews of the project notify the user. It stays hidden
-    /// when the project isn't in the user's accounts.
+    /// Adds a bell to the toolbar that turns new-preview notifications for the project on or off. It stays hidden
+    /// until the user turns on notifications on this device, and when the project isn't in the user's accounts.
     public func projectNotificationsToolbar(fullHandle: String) -> some View {
-        modifier(ProjectNotificationsToolbar(fullHandle: fullHandle, viewModel: ProjectNotificationsViewModel()))
+        modifier(ProjectNotificationsToolbar(
+            fullHandle: fullHandle,
+            pushNotifications: .shared,
+            viewModel: ProjectNotificationsViewModel()
+        ))
     }
 }
 
 struct ProjectNotificationsToolbar: ViewModifier {
     @EnvironmentObject private var errorHandling: ErrorHandling
     let fullHandle: String
+    let pushNotifications: PushNotifications
     @State var viewModel: ProjectNotificationsViewModel
 
     func body(content: Content) -> some View {
         content
             .toolbar {
-                if let account = viewModel.account, let project = viewModel.project {
+                if pushNotifications.isEnabledOnThisDevice, let project = viewModel.project {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            option(
-                                .default,
-                                current: project.setting,
-                                title: "Follow \(account.handle)",
-                                subtitle: "\(account.enabled ? "On" : "Off"), as set in your notification settings"
+                            Toggle(
+                                "Notify Me About New Previews",
+                                isOn: asyncBinding(errorHandling) { project.enabled } set: { enabled in
+                                    try await viewModel.setEnabled(enabled)
+                                }
                             )
-                            option(
-                                .on,
-                                current: project.setting,
-                                title: "Always notify me",
-                                subtitle: "Get a push for every new preview of this project"
-                            )
-                            option(
-                                .off,
-                                current: project.setting,
-                                title: "Never notify me",
-                                subtitle: "No pushes for this project"
-                            )
+                            .disabled(viewModel.isUpdating)
                         } label: {
                             Image(systemName: project.enabled ? "bell" : "bell.slash")
                         }
@@ -109,7 +111,9 @@ struct ProjectNotificationsToolbar: ViewModifier {
                     }
                 }
             }
-            .task(id: fullHandle) {
+            // Also reloads when the tab reappears and when notifications are turned on, since Profile can change
+            // the same preferences.
+            .task(id: "\(fullHandle) \(pushNotifications.isEnabledOnThisDevice)") {
                 do {
                     try await viewModel.load(fullHandle: fullHandle)
                 } catch {
@@ -117,21 +121,5 @@ struct ProjectNotificationsToolbar: ViewModifier {
                     Logger.current.error("Failed to load the project's notification preference: \(error.localizedDescription)")
                 }
             }
-    }
-
-    /// A checkable menu option. Its second text renders as the subtitle.
-    private func option(
-        _ setting: ServerNotificationPreferences.ProjectSetting,
-        current: ServerNotificationPreferences.ProjectSetting,
-        title: String,
-        subtitle: String
-    ) -> some View {
-        Toggle(isOn: asyncBinding(errorHandling) { current == setting } set: { isOn in
-            guard isOn else { return }
-            try await viewModel.setSetting(setting)
-        }) {
-            Text(title)
-            Text(subtitle)
-        }
     }
 }

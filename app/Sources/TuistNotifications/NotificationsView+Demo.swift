@@ -7,9 +7,10 @@
     import TuistServer
 
     public enum NotificationsDemoState: String, CaseIterable {
-        case notDetermined = "not-determined"
+        case off
+        case oneAccount = "one-account"
+        case severalAccounts = "several-accounts"
         case denied
-        case authorized
         case projectBell = "project-bell"
     }
 
@@ -25,14 +26,14 @@
             )
             try? appStorage.set(
                 PushInstallationsKey.self,
-                value: [serverURL.absoluteString: PushInstallation(installationID: "this-installation")]
+                value: [serverURL.absoluteString: PushInstallation(installationID: "this-installation", isEnabled: state != .off)]
             )
             let permission: NotificationPermission = switch state {
-            case .notDetermined: .notDetermined
+            case .off: .notDetermined
             case .denied: .denied
-            case .authorized, .projectBell: .authorized
+            case .oneAccount, .severalAccounts, .projectBell: .authorized
             }
-            let services = DemoNotificationServices()
+            let services = DemoNotificationServices(oneAccount: state == .oneAccount)
             let viewModel = NotificationsViewModel(
                 pushNotifications: PushNotifications(
                     registrationService: PushRegistrationService(appStorage: appStorage),
@@ -57,6 +58,7 @@
                     .navigationTitle("Previews")
                     .modifier(ProjectNotificationsToolbar(
                         fullHandle: "tuist/tuist",
+                        pushNotifications: viewModel.pushNotifications,
                         viewModel: ProjectNotificationsViewModel(
                             getNotificationPreferencesService: services,
                             updateProjectNotificationService: services,
@@ -88,7 +90,27 @@
         GetNotificationPreferencesServicing, UpdateAccountNotificationServicing,
         UpdateProjectNotificationServicing
     {
-        private var preferences = ServerNotificationPreferences(
+        private var preferences: ServerNotificationPreferences
+
+        init(oneAccount: Bool) {
+            preferences = oneAccount ? Self.oneAccount : Self.severalAccounts
+        }
+
+        private static let oneAccount = ServerNotificationPreferences(
+            kind: ServerNotificationPreferences.newPreviewKind,
+            accounts: [
+                .init(handle: "marek", enabled: true, projects: []),
+                .init(handle: "tuist", enabled: true, projects: [
+                    .init(handle: "tuist", setting: .default, enabled: true),
+                    .init(handle: "android-app", setting: .off, enabled: false),
+                    .init(handle: "ios-app", setting: .default, enabled: true),
+                    .init(handle: "registry", setting: .default, enabled: true),
+                    .init(handle: "noora", setting: .default, enabled: true),
+                ]),
+            ]
+        )
+
+        private static let severalAccounts = ServerNotificationPreferences(
             kind: ServerNotificationPreferences.newPreviewKind,
             accounts: [
                 .init(handle: "marek", enabled: true, projects: [
@@ -158,8 +180,9 @@
         }
     }
 
-    #Preview("Not determined") { NotificationsView.demo(.notDetermined) }
+    #Preview("Off") { NotificationsView.demo(.off) }
+    #Preview("One account") { NotificationsView.demo(.oneAccount) }
+    #Preview("Several accounts") { NotificationsView.demo(.severalAccounts) }
     #Preview("Denied") { NotificationsView.demo(.denied) }
-    #Preview("Authorized") { NotificationsView.demo(.authorized) }
     #Preview("Project bell") { NotificationsView.demo(.projectBell) }
 #endif

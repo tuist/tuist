@@ -84,6 +84,7 @@ public final class PushNotifications {
 
     /// Shows the system permission prompt if it hasn't been shown yet.
     public func requestPermission() async {
+        guard !isPreview else { return }
         do {
             _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
         } catch {

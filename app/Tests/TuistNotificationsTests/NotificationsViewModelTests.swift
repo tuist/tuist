@@ -17,6 +17,7 @@ import TuistServer
     private let loaded = ServerNotificationPreferences(
         kind: ServerNotificationPreferences.newPreviewKind,
         accounts: [
+            .init(handle: "marek", enabled: true, projects: []),
             .init(handle: "tuist", enabled: true, projects: [
                 .init(handle: "app", setting: .default, enabled: true),
                 .init(handle: "web", setting: .on, enabled: true),
@@ -46,8 +47,8 @@ import TuistServer
     @Test func turning_an_account_off_adopts_the_returned_preferences() async throws {
         let subject = try await loadedSubject()
         var returned = loaded
-        returned.accounts[0].enabled = false
-        returned.accounts[0].projects[0].enabled = false
+        returned.accounts[1].enabled = false
+        returned.accounts[1].projects[0].enabled = false
         given(updateAccountService)
             .updateAccountNotificationPreference(
                 kind: .value(ServerNotificationPreferences.newPreviewKind),
@@ -77,8 +78,8 @@ import TuistServer
     @Test func a_project_override_adopts_the_returned_preferences() async throws {
         let subject = try await loadedSubject()
         var returned = loaded
-        returned.accounts[0].projects[0].setting = .off
-        returned.accounts[0].projects[0].enabled = false
+        returned.accounts[1].projects[0].setting = .off
+        returned.accounts[1].projects[0].enabled = false
         given(updateProjectService)
             .updateProjectNotificationPreference(
                 kind: .value(ServerNotificationPreferences.newPreviewKind),
@@ -89,7 +90,7 @@ import TuistServer
             )
             .willReturn(returned)
 
-        try await subject.setProjectSetting(.off, accountHandle: "tuist", projectHandle: "app")
+        try await subject.setProjectEnabled(false, accountHandle: "tuist", projectHandle: "app")
 
         #expect(subject.newPreviews.account("tuist")?.projects.first?.setting == .off)
         #expect(subject.newPreviews == returned)
@@ -104,8 +105,55 @@ import TuistServer
             .willThrow(URLError(.timedOut))
 
         await #expect(throws: URLError.self) {
-            try await subject.setProjectSetting(.default, accountHandle: "tuist", projectHandle: "web")
+            try await subject.setProjectEnabled(false, accountHandle: "tuist", projectHandle: "web")
         }
         #expect(subject.newPreviews == loaded)
+    }
+
+    @Test func turning_a_project_to_its_accounts_value_clears_the_override() async throws {
+        let subject = try await loadedSubject()
+        given(updateProjectService)
+            .updateProjectNotificationPreference(
+                kind: .any, accountHandle: .value("tuist"), projectHandle: .value("web"), setting: .value(.default),
+                serverURL: .any
+            )
+            .willReturn(loaded)
+
+        try await subject.setProjectEnabled(true, accountHandle: "tuist", projectHandle: "web")
+
+        verify(updateProjectService)
+            .updateProjectNotificationPreference(
+                kind: .any, accountHandle: .any, projectHandle: .any, setting: .value(.default), serverURL: .any
+            )
+            .called(1)
+    }
+
+    @Test func hides_accounts_without_projects() async throws {
+        let subject = try await loadedSubject()
+
+        #expect(subject.accountsWithProjects.map(\.handle) == ["tuist"])
+    }
+
+    @Test(arguments: [
+        GetNotificationPreferencesServiceError.unsupported,
+        GetNotificationPreferencesServiceError.forbidden("This can only be managed from a signed-in Tuist app."),
+    ])
+    func treats_a_server_that_rejects_notifications_as_unsupported(error: GetNotificationPreferencesServiceError) async throws {
+        given(environmentService).url().willReturn(serverURL)
+        given(listPushDevicesService).listPushDevices(serverURL: .any).willReturn([])
+        given(getPreferencesService).getNotificationPreferences(kind: .any, serverURL: .any).willThrow(error)
+        let subject = NotificationsViewModel(
+            pushNotifications: PushNotifications(previewPermission: .authorized),
+            listPushDevicesService: listPushDevicesService,
+            removePushDeviceService: MockRemovePushDeviceServicing(),
+            getNotificationPreferencesService: getPreferencesService,
+            updateAccountNotificationService: updateAccountService,
+            updateProjectNotificationService: updateProjectService,
+            serverEnvironmentService: environmentService
+        )
+
+        try await subject.load()
+
+        #expect(subject.isSupported == false)
     }
 }

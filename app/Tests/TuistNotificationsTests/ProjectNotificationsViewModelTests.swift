@@ -65,7 +65,7 @@ import TuistServer
             )
             .willReturn(returned)
 
-        try await subject.setSetting(.on)
+        try await subject.setEnabled(true)
 
         #expect(subject.preferences == returned)
         #expect(subject.project?.enabled == true)
@@ -81,18 +81,43 @@ import TuistServer
             .willThrow(URLError(.timedOut))
 
         await #expect(throws: URLError.self) {
-            try await subject.setSetting(.on)
+            try await subject.setEnabled(true)
         }
         #expect(subject.preferences == loaded)
     }
 
-    @Test func changed_projects_are_the_ones_not_following_the_account() {
-        let account = ServerNotificationPreferences.Account(handle: "tuist", enabled: false, projects: [
-            .init(handle: "a", setting: .default, enabled: false),
-            .init(handle: "b", setting: .on, enabled: true),
-            .init(handle: "c", setting: .off, enabled: false),
-        ])
+    @Test func turning_a_project_back_to_its_accounts_value_clears_the_override() async throws {
+        var overridden = loaded
+        overridden.accounts[0].projects[0] = .init(handle: "app", setting: .on, enabled: true)
+        given(environmentService).url().willReturn(serverURL)
+        given(getPreferencesService).getNotificationPreferences(kind: .any, serverURL: .any).willReturn(overridden)
+        let subject = ProjectNotificationsViewModel(
+            getNotificationPreferencesService: getPreferencesService,
+            updateProjectNotificationService: updateProjectService,
+            serverEnvironmentService: environmentService
+        )
+        try await subject.load(fullHandle: "tuist/app")
+        given(updateProjectService)
+            .updateProjectNotificationPreference(
+                kind: .any, accountHandle: .any, projectHandle: .any, setting: .value(.default), serverURL: .any
+            )
+            .willReturn(loaded)
 
-        #expect(account.changedProjects.map(\.handle) == ["b", "c"])
+        try await subject.setEnabled(false)
+
+        #expect(subject.project?.setting == .default)
+        #expect(subject.project?.enabled == false)
+    }
+
+    @Test func summarizes_an_account_by_whether_its_projects_agree() {
+        func account(_ enabled: [Bool]) -> ServerNotificationPreferences.Account {
+            .init(handle: "tuist", enabled: true, projects: enabled.enumerated().map { index, enabled in
+                .init(handle: "p\(index)", setting: enabled ? .default : .off, enabled: enabled)
+            })
+        }
+
+        #expect(account([true, true]).summary == "On")
+        #expect(account([false, false]).summary == "Off")
+        #expect(account([true, false]).summary == "Custom")
     }
 }

@@ -22,9 +22,9 @@ extension ServerNotificationPreferences {
 }
 
 extension ServerNotificationPreferences.Account {
-    /// Projects whose setting overrides the account's choice.
-    var changedProjects: [ServerNotificationPreferences.Project] {
-        projects.filter { $0.setting != .default }
+    /// The setting that makes a project `enabled`: following the account when it agrees, an override otherwise.
+    func projectSetting(enabled: Bool) -> ServerNotificationPreferences.ProjectSetting {
+        enabled == self.enabled ? .default : enabled ? .on : .off
     }
 
     func project(_ handle: String) -> ServerNotificationPreferences.Project? {

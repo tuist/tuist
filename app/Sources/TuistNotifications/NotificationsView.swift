@@ -4,6 +4,7 @@ import TuistNoora
 import TuistServer
 import UIKit
 
+/// Profile › Notifications. Notifications are opt-in: until the user turns them on, the screen only shows the switch.
 public struct NotificationsView: View {
     @EnvironmentObject private var errorHandling: ErrorHandling
     @Environment(\.openURL) private var openURL
@@ -22,55 +23,20 @@ public struct NotificationsView: View {
 
     public var body: some View {
         List {
-            permissionSection
-
-            Section {
-                Toggle(isOn: binding(\.pushNotifications.isActiveOnThisDevice, set: viewModel.setEnabledOnThisDevice)) {
-                    label("Notifications on this device")
+            if viewModel.isSupported {
+                optInSection
+                if viewModel.pushNotifications.permission == .denied {
+                    deniedSection
                 }
-                // Turning it on is the opt-in, and asks for the system permission when it hasn't been asked yet.
-                .disabled([.unknown, .denied].contains(viewModel.pushNotifications.permission))
-            } footer: {
-                Text("Turning this off stops notifications on this device only.")
-            }
-
-            Section {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else if viewModel.newPreviews.accounts.isEmpty {
-                    Text("You don't belong to any accounts yet.")
-                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-                } else {
-                    ForEach(viewModel.newPreviews.accounts) { account in
-                        accountRow(account)
-                        if !account.changedProjects.isEmpty {
-                            exceptionsRow(account)
-                        }
-                    }
+                if viewModel.isOptedIn {
+                    newPreviewsSections
+                        .disabled(viewModel.pushNotifications.permission == .denied)
+                    devicesSection
                 }
-            } header: {
-                Text("New previews")
-            } footer: {
-                Text("These choices apply only to you. To change one project, use the bell on its previews.")
-            }
-
-            Section {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else if viewModel.devices.isEmpty {
-                    Text("No devices receive notifications yet.")
-                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-                } else {
-                    ForEach(viewModel.sortedDevices) { device in
-                        deviceRow(device)
-                    }
+            } else {
+                Section {} footer: {
+                    Text("This server doesn't support notifications yet.")
                 }
-            } header: {
-                Text("Devices")
-            } footer: {
-                Text("Devices signed in to Tuist that can receive notifications. Swipe to remove a device.")
             }
         }
         .listStyle(.insetGrouped)
@@ -86,132 +52,108 @@ public struct NotificationsView: View {
                 errorHandling.handle(error: error)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            Task { await viewModel.pushNotifications.refresh() }
+        .onChange(of: viewModel.pushNotifications.installationID) {
+            // This device appears in the list once its registration finishes, after turning notifications on.
+            Task { try? await viewModel.reloadDevices() }
+        }
+    }
+
+    private var optInSection: some View {
+        Section {
+            Toggle(
+                "Notifications on This Device",
+                isOn: asyncBinding(errorHandling) { viewModel.isOptedIn } set: { isOn in
+                    try await viewModel.setEnabledOnThisDevice(isOn)
+                }
+            )
+            .disabled(viewModel.pushNotifications.permission == .unknown || viewModel.pendingOptIn != nil)
+        } footer: {
+            Text("Get notified on this device when new previews are out.")
+        }
+    }
+
+    private var deniedSection: some View {
+        Section {
+            Button("Turn On in Settings") {
+                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                    openURL(url)
+                }
+            }
+        } footer: {
+            Text("Notifications are turned off for Tuist in iOS Settings.")
         }
     }
 
     @ViewBuilder
-    private var permissionSection: some View {
-        Section {
-            switch viewModel.pushNotifications.permission {
-            case .unknown:
+    private var newPreviewsSections: some View {
+        let accounts = viewModel.accountsWithProjects
+        if viewModel.isLoading {
+            Section("New Previews") {
                 ProgressView()
                     .frame(maxWidth: .infinity)
-            case .notDetermined:
-                VStack(alignment: .leading, spacing: Noora.Spacing.spacing4) {
-                    Text("Allow notifications to hear about new previews of your projects.")
-                        .font(.body)
-                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-                    NooraButton(title: "Allow notifications") {
-                        errorHandling.fireAndHandleError {
-                            try await viewModel.setEnabledOnThisDevice(true)
+            }
+        } else if !viewModel.didLoad {
+            EmptyView()
+        } else if accounts.isEmpty {
+            Section {} header: {
+                Text("New Previews")
+            } footer: {
+                Text("You'll be able to choose notifications once you have a project.")
+            }
+        } else if accounts.count == 1, let account = accounts.first {
+            // Most people belong to one account with projects, so its projects are shown right here.
+            AccountNotificationsSections(viewModel: viewModel, account: account, header: "New Previews")
+        } else {
+            Section("New Previews") {
+                ForEach(accounts) { account in
+                    NavigationLink {
+                        AccountNotificationsView(viewModel: viewModel, accountHandle: account.handle)
+                    } label: {
+                        LabeledContent {
+                            Text(account.summary)
+                        } label: {
+                            Text(account.handle)
+                            Text(account.handle == userHandle ? "Personal" : "Organization")
                         }
                     }
                 }
-                .padding(.vertical, Noora.Spacing.spacing2)
-            case .denied:
-                VStack(alignment: .leading, spacing: Noora.Spacing.spacing4) {
-                    Text("Notifications are turned off for Tuist. Turn them on in Settings to get notified on this device.")
-                        .font(.body)
-                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-                    NooraButton(title: "Open Settings") {
-                        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
-                            openURL(url)
-                        }
-                    }
-                }
-                .padding(.vertical, Noora.Spacing.spacing2)
-            case .authorized:
-                HStack {
-                    label("System permission")
-                    Spacer()
-                    Text("Allowed")
-                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-                }
             }
         }
     }
 
-    private func accountRow(_ account: ServerNotificationPreferences.Account) -> some View {
-        Toggle(isOn: asyncBinding(errorHandling) { account.enabled } set: { enabled in
-            try await viewModel.setAccountEnabled(enabled, accountHandle: account.handle)
-        }) {
-            Text(account.handle)
-            Text(
-                account.handle == userHandle
-                    ? "Previews of your personal projects"
-                    : "Previews of this organization's projects"
-            )
-        }
-    }
-
-    /// The projects that don't follow the account, as chips whose ✕ makes them follow it again.
-    private func exceptionsRow(_ account: ServerNotificationPreferences.Account) -> some View {
-        HStack(spacing: Noora.Spacing.spacing4) {
-            Text("Except")
-                .font(.subheadline)
-                .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-            ScrollView(.horizontal) {
-                HStack(spacing: Noora.Spacing.spacing3) {
-                    ForEach(account.changedProjects) { project in
-                        exceptionChip(project, accountHandle: account.handle)
-                    }
+    private var devicesSection: some View {
+        Section {
+            if viewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+            } else {
+                ForEach(viewModel.sortedDevices) { device in
+                    deviceRow(device)
                 }
-                .padding(.vertical, Noora.Spacing.spacing1)
             }
-            .scrollIndicators(.hidden)
+        } header: {
+            Text("Devices")
+        } footer: {
+            Text("Devices signed in to Tuist that get notifications. Swipe to remove one.")
         }
-        .listRowSeparator(.hidden, edges: .top)
-    }
-
-    private func exceptionChip(_ project: ServerNotificationPreferences.Project, accountHandle: String) -> some View {
-        let title = "\(project.handle) \(project.setting == .on ? "on" : "off")"
-        return HStack(spacing: Noora.Spacing.spacing2) {
-            Text(title)
-                .font(.footnote)
-                .foregroundStyle(Noora.Colors.surfaceLabelPrimary)
-            Button {
-                errorHandling.fireAndHandleError {
-                    try await viewModel.setProjectSetting(.default, accountHandle: accountHandle, projectHandle: project.handle)
-                }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Noora.Colors.surfaceLabelTertiary)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Use account setting for \(project.handle)")
-        }
-        .padding(.leading, Noora.Spacing.spacing4)
-        .padding(.trailing, Noora.Spacing.spacing3)
-        .padding(.vertical, Noora.Spacing.spacing2)
-        .background(Noora.Colors.surfaceBackgroundTertiary, in: Capsule())
-        .overlay(Capsule().strokeBorder(Noora.Colors.neutralGray24Alpha, lineWidth: 0.5))
-        .accessibilityElement(children: .combine)
     }
 
     private func deviceRow(_ device: ServerPushDevice) -> some View {
         let isThisDevice = viewModel.isThisDevice(device)
+        let platform = device.platform == "android" ? "Android" : "iOS"
         return HStack(spacing: Noora.Spacing.spacing5) {
             Image(systemName: deviceSymbol(device))
                 .font(.title3)
                 .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: Noora.Spacing.spacing1) {
-                HStack(spacing: Noora.Spacing.spacing3) {
-                    label(device.name ?? (device.platform == "android" ? "Android device" : "iOS device"))
-                    if isThisDevice {
-                        Text("This device")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Noora.Colors.accent)
-                            .padding(.horizontal, Noora.Spacing.spacing3)
-                            .padding(.vertical, Noora.Spacing.spacing1)
-                            .background(Noora.Colors.buttonEnabledBackground, in: Capsule())
-                    }
-                }
+                Text(device.name ?? "\(platform) device")
+                    .font(.body)
+                    .foregroundStyle(Noora.Colors.surfaceLabelPrimary)
                 Text(
-                    "\(device.platform == "android" ? "Android" : "iOS") · Last seen \(device.lastSeenAt.formatted(.relative(presentation: .named)))"
+                    isThisDevice
+                        ? "This device"
+                        : "\(platform) · Last seen \(device.lastSeenAt.formatted(.relative(presentation: .named)))"
                 )
                 .font(.footnote)
                 .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
@@ -232,25 +174,88 @@ public struct NotificationsView: View {
         if device.platform == "android" { return "smartphone" }
         return device.name?.hasPrefix("iPad") == true ? "ipad" : "iphone"
     }
+}
 
-    private func label(_ title: String) -> some View {
-        Text(title)
-            .font(.body)
-            .foregroundStyle(Noora.Colors.surfaceLabelPrimary)
+/// One account's projects, opened from Notifications when several accounts have projects.
+struct AccountNotificationsView: View {
+    let viewModel: NotificationsViewModel
+    let accountHandle: String
+
+    var body: some View {
+        List {
+            if let account = viewModel.newPreviews.account(accountHandle) {
+                AccountNotificationsSections(viewModel: viewModel, account: account, header: nil)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .tint(Noora.Colors.accent)
+        .background(Noora.Colors.surfaceBackgroundPrimary)
+        .navigationTitle(accountHandle)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// The All Projects switch and a switch per project. A project whose switch differs from All Projects overrides it.
+struct AccountNotificationsSections: View {
+    @EnvironmentObject private var errorHandling: ErrorHandling
+    @State private var searchText = ""
+    let viewModel: NotificationsViewModel
+    let account: ServerNotificationPreferences.Account
+    let header: String?
+
+    /// Long project lists get a search field.
+    private static let searchThreshold = 8
+
+    var body: some View {
+        Section {
+            Toggle(
+                header == nil ? "All Projects" : "All Projects in \(account.handle)",
+                isOn: asyncBinding(errorHandling) { account.enabled } set: { enabled in
+                    try await viewModel.setAccountEnabled(enabled, accountHandle: account.handle)
+                }
+            )
+            .disabled(viewModel.changesInFlight.contains(account.handle))
+        } header: {
+            if let header { Text(header) }
+        } footer: {
+            Text("New projects follow this setting.")
+        }
+
+        Section("Projects") {
+            if account.projects.count > Self.searchThreshold {
+                TextField("Search Projects", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            ForEach(filteredProjects) { project in
+                Toggle(
+                    project.handle,
+                    isOn: asyncBinding(errorHandling) { project.enabled } set: { enabled in
+                        try await viewModel.setProjectEnabled(
+                            enabled,
+                            accountHandle: account.handle,
+                            projectHandle: project.handle
+                        )
+                    }
+                )
+                .disabled(viewModel.changesInFlight.contains("\(account.handle)/\(project.handle)"))
+            }
+        }
     }
 
-    private func binding<Value>(
-        _ keyPath: KeyPath<NotificationsViewModel, Value>,
-        set: @escaping (Value) async throws -> Void
-    ) -> Binding<Value> {
-        Binding(
-            get: { viewModel[keyPath: keyPath] },
-            set: { newValue in
-                errorHandling.fireAndHandleError {
-                    try await set(newValue)
-                }
-            }
-        )
+    private var filteredProjects: [ServerNotificationPreferences.Project] {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return account.projects }
+        return account.projects.filter { $0.handle.localizedCaseInsensitiveContains(query) }
+    }
+}
+
+extension ServerNotificationPreferences.Account {
+    /// "On" or "Off" when every project agrees, "Custom" otherwise.
+    var summary: String {
+        if projects.allSatisfy(\.enabled) { return "On" }
+        if projects.allSatisfy({ !$0.enabled }) { return "Off" }
+        return "Custom"
     }
 }
 
@@ -258,7 +263,7 @@ public struct NotificationsView: View {
 @MainActor
 func asyncBinding<Value>(
     _ errorHandling: ErrorHandling,
-    get: @escaping @Sendable () -> Value,
+    get: @escaping () -> Value,
     set: @escaping (Value) async throws -> Void
 ) -> Binding<Value> {
     Binding(
