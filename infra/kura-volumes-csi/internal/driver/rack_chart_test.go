@@ -17,7 +17,7 @@ import (
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 )
 
-func TestManagedStoragePrerequisitesStayOptIn(t *testing.T) {
+func TestManagedOverlaysShipStoragePrerequisites(t *testing.T) {
 	_, file, _, _ := runtime.Caller(0)
 	chart := filepath.Clean(filepath.Join(filepath.Dir(file), "../../../helm/tuist"))
 	for _, env := range []string{"production", "canary", "staging"} {
@@ -49,12 +49,8 @@ func TestManagedStoragePrerequisitesStayOptIn(t *testing.T) {
 					roots++
 				}
 			}
-			want := 0
-			if env == "staging" {
-				want = 1
-			} // Keep the already-qualified staging dependency.
-			if drivers != want || roots != want {
-				t.Fatalf("drivers=%d roots=%d want=%d", drivers, roots, want)
+			if drivers != 1 || roots != 1 {
+				t.Fatalf("drivers=%d roots=%d want=1", drivers, roots)
 			}
 		})
 	}

@@ -857,23 +857,6 @@ server:
     # pinned one included). Off until the item exists in the environment's vault.
     kuraVolumeTransportKeys:
       enabled: false
-    # OpenBao and legacy roots coexist only during a verified rewrap migration.
-    # Disable root-key sync AFTER all live shares use OpenBao and restart every
-    # consumer of server-config. Retain old roots offline for backup recovery.
-    kuraVolumeOpenBao:
-      enabled: false
-      # Keep OpenBao decrypt access while rewrapping back to legacy roots.
-      # Disable only after all web replicas use this mode and inventory is clear.
-      wrapNewShares: true
-      # HTTPS origin only. Keep stable: stored share IDs pin origin/mount/key.
-      address: ""
-      keyName: "kura-volume-root"
-      transitMount: "transit"
-      authMount: "kubernetes"
-      role: ""
-      decryptKeyNames: []
-      # Optional ConfigMap containing ca.crt for a private OpenBao CA.
-      caConfigMap: ""
     externalSecrets:
       refreshInterval: "1h"
       storeRef:
@@ -2716,8 +2699,8 @@ sandboxes:
   # workspace_gb, memory image), so the server reserves each sandbox's
   # ceiling (template rootfs + workspace + memory) at placement, running or
   # paused, and stops placing on a node whose ceilings would exceed this.
-  # A default 2x4096 sandbox with a 10 GB workspace on an 8 GiB rootfs
-  # reserves about 22 GiB. The server also keeps one memory image plus
+  # A default 2x4096 sandbox with a 10 GB workspace on a 12 GiB rootfs
+  # reserves about 26 GiB. The server also keeps one memory image plus
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200
