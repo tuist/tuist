@@ -194,6 +194,9 @@ struct AccountNotificationsView: View {
                 AccountNotificationsSections(viewModel: viewModel, account: account, header: nil)
             }
         }
+        // The list it was pushed from is disabled too, but that doesn't reach this screen when it's already open
+        // and notifications get turned off in iOS Settings.
+        .disabled(viewModel.pushNotifications.permission == .denied)
         .listStyle(.insetGrouped)
         .tint(Noora.Colors.accent)
         .background(Noora.Colors.surfaceBackgroundPrimary)
