@@ -43,13 +43,18 @@ const kubeletConfigHashAnnotation = "tuist.dev/kubelet-config-hash"
 // config.yaml with a missing clusterDNS); the re-push itself always writes the
 // freshly-discovered clusterDNS, only the drift fingerprint is clusterDNS-
 // independent. The sshd start-limit drop-ins the re-push also writes are folded
-// in, so changing them re-pushes too.
-func desiredKubeletConfigHash(clusterCAPEM []byte) string {
+// in, so changing them re-pushes too. Kata runner hosts (exclusiveCPUs) also
+// fold in the CPU manager setup; every other host hashes exactly as before, so
+// adding it re-pushes nothing outside the runner fleets.
+func desiredKubeletConfigHash(clusterCAPEM []byte, exclusiveCPUs bool) string {
 	h := sha256.New()
-	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath)))
+	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath, exclusiveCPUs)))
 	h.Write(clusterCAPEM)
 	h.Write([]byte(sshServiceDropInContent))
 	h.Write([]byte(sshSocketDropInContent))
+	if exclusiveCPUs {
+		h.Write([]byte(kubeletCPUSetupFor("", linuxCloudInitOptions{ClusterCAPEM: clusterCAPEM, KataRuntime: true})))
+	}
 	return hex.EncodeToString(h.Sum(nil))
 }
 
@@ -76,13 +81,14 @@ func renderKubeletConfigRepushScript(opts linuxCloudInitOptions) string {
 set -euxo pipefail
 %[1]smkdir -p /var/lib/kubelet
 %[2]s%[3]s
-%[4]s%[1]ssystemctl daemon-reload
+%[5]s%[4]s%[1]ssystemctl daemon-reload
 %[1]ssystemctl restart kubelet
 `,
 		sudo,
 		caWrite,
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts))),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime)),
 		sshStartLimitDropIns(sudo, writeFileFunc(sudo)),
+		kubeletCPUSetupFor(sudo, opts),
 	)
 }
 
@@ -138,6 +144,7 @@ func reconcileLinuxKubeletConfigDrift(
 	apiReader client.Reader,
 	cm *credentials.Manager,
 	machineName, fleet, bootstrapUser string,
+	kataRuntime bool,
 	node *corev1.Node,
 ) (requeue bool, err error) {
 	logger := log.FromContext(ctx)
@@ -149,7 +156,7 @@ func reconcileLinuxKubeletConfigDrift(
 	if err != nil {
 		return false, fmt.Errorf("mint node identity for drift check: %w", err)
 	}
-	desired := desiredKubeletConfigHash(identity.CA)
+	desired := desiredKubeletConfigHash(identity.CA, kataRuntime)
 	if node.Annotations[kubeletConfigHashAnnotation] == desired {
 		return false, nil
 	}
@@ -185,6 +192,7 @@ func reconcileLinuxKubeletConfigDrift(
 		ClusterDNS:    clusterDNS,
 		ClusterCAPEM:  identity.CA,
 		BootstrapUser: bootstrapUser,
+		KataRuntime:   kataRuntime,
 	})
 	sshErr := bootstrapOverSSH(ctx, bootstrapUser, host, privateKey, script, hk)
 	// Persist a newly TOFU'd host key before stamping, so a repair that first-
