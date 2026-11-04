@@ -74,7 +74,10 @@ struct TestImpactGraphMapperTests {
         verify(createRunService).createTestImpactRun(
             fullHandle: .any,
             serverURL: .any,
-            request: .matching { $0.modules == ["CatalogTests", "CoreTests"] && $0.platform == "ios" }
+            request: .matching {
+                // `UITests` was prunable before hashing, so it isn't one of the modules hashing skipped.
+                $0.modules == ["CatalogTests", "CoreTests"] && $0.skippedModules == ["AppTests"] && $0.platform == "ios"
+            }
         ).called(1)
     }
 
@@ -96,20 +99,43 @@ struct TestImpactGraphMapperTests {
         #expect(gotEnvironment.targetTestCacheItems[path]?["AppTests"] == nil)
     }
 
+    @Test func records_what_hashing_skipped_and_keeps_the_graph_when_every_target_matched() async throws {
+        let (graph, environment) = graphs(hashMatched: ["AppTests", "CatalogTests", "CoreTests"])
+        given(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).willReturn(.unavailable(.noBaseline))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.fallback(runID: "run", reason: .noBaseline, matchedPath: nil))
+
+        let (gotGraph, _, gotEnvironment) = try await TestImpactSelector.$current.withValue(selector) {
+            try await subject.map(graph: graph, environment: environment)
+        }
+
+        // A fallback that would run every test leaves the hash hits pruned.
+        #expect(gotGraph == graph)
+        #expect(gotEnvironment.targetTestCacheItems == environment.targetTestCacheItems)
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching { $0.modules == [] && $0.skippedModules == ["AppTests", "CatalogTests", "CoreTests"] }
+        ).called(1)
+    }
+
     /// A graph after selective testing tagged `hashMatched`, and the environment it left: the graph
     /// before hashing as `initialGraph`, with `UITests` already prunable, and the hash hits.
     private func graphs(hashMatched: Set<String>) -> (Graph, MapperEnvironment) {
         func project(prunable: Set<String>) -> Project {
             Project.test(path: path, targets: [
                 Target.test(name: "App", destinations: [.iPhone], product: .app),
+            ] + ["AppTests", "CoreTests", "CatalogTests"].map {
                 Target.test(
-                    name: "AppTests",
+                    name: $0,
                     destinations: [.iPhone],
                     product: .unitTests,
-                    metadata: .test(tags: prunable.contains("AppTests") ? ["tuist:prunable"] : [])
-                ),
-                Target.test(name: "CoreTests", destinations: [.iPhone], product: .unitTests),
-                Target.test(name: "CatalogTests", destinations: [.iPhone], product: .unitTests),
+                    metadata: .test(tags: prunable.contains($0) ? ["tuist:prunable"] : [])
+                )
+            } + [
                 Target.test(
                     name: "UITests",
                     destinations: [.iPhone],

@@ -97,19 +97,24 @@ actor TestImpactSelector {
 
     // swiftlint:disable function_body_length
 
-    /// Selects the tests of `modules`, the test targets hashing left.
+    /// Selects the tests of `modules`, the test targets hashing left. When hashing left none, the run
+    /// is still recorded, so the server counts what hashing skipped, and the graph stays unchanged
+    /// whatever the server answers: coverage never runs more than hashing alone.
     /// - Parameters:
     ///   - modules: The test modules left to decide; empty when every target's hash matched.
+    ///   - skippedModules: The test modules hashing skipped.
     ///   - platform: The platform the tests run on, which the baseline must match.
     ///   - affectedModules: The test modules a changed file, by absolute path, can affect: empty when
     ///     no target owns it, nil when it can't be classified.
     func decide(
         modules: [String],
+        skippedModules: [String],
         platform: String?,
         affectedModules: @Sendable (AbsolutePath) -> [String]?
     ) async -> TestImpactGraphDecision {
-        // Every target already passed under its hash: nothing is left to decide.
-        guard outcome == nil, !modules.isEmpty, await gitController.isInGitRepository(workingDirectory: invocation.path) else {
+        guard outcome == nil, !modules.isEmpty || !skippedModules.isEmpty,
+              await gitController.isInGitRepository(workingDirectory: invocation.path)
+        else {
             return .unchanged
         }
         let repository: AbsolutePath
@@ -147,6 +152,9 @@ actor TestImpactSelector {
             return .unchanged
         case let .unavailable(reason):
             basis = .fallback(reason)
+        case let .baseline(sha, _) where modules.isEmpty:
+            // Nothing is left to decide, so there's nothing to diff.
+            basis = .baseline(sha: sha, changedFiles: nil, dirty: false)
         case let .baseline(sha, diffCached):
             basis = await diffBasis(
                 baselineSHA: sha,
@@ -164,21 +172,28 @@ actor TestImpactSelector {
             ancestorSHAs: ancestorSHAs,
             basis: basis,
             modules: modules,
+            skippedModules: skippedModules,
             platform: platform,
             gitBranch: gitInfo.branch,
             scheme: invocation.scheme,
             testPlan: invocation.testPlan,
             destination: invocation.destination
         )
-        switch await createRunService.createTestImpactRun(
+        let result = await createRunService.createTestImpactRun(
             fullHandle: invocation.fullHandle,
             serverURL: invocation.serverURL,
             request: request
-        ) {
+        )
+        // The run only records what hashing skipped: no outcome, so nothing plans shards from it.
+        if modules.isEmpty {
+            if case let .failed(message) = result { warn(message) }
+            return .unchanged
+        }
+        switch result {
         case let .selected(selection):
-            let skippedModules = Set(TestImpactSkipList(selection.skippedTests).modules).intersection(modules)
-            outcome = .selected(selection, skippedModules: skippedModules.sorted())
-            return .prune(skippedModules)
+            let unselectedModules = Set(TestImpactSkipList(selection.skippedTests).modules).intersection(modules)
+            outcome = .selected(selection, skippedModules: unselectedModules.sorted())
+            return .prune(unselectedModules)
         case let .fallback(runID, reason, matchedPath):
             outcome = .fallback(runID: runID, reason: reason, matchedPath: matchedPath)
             return reason.map(Self.runAllReasons.contains) == true ? .runAll : .unchanged

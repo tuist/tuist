@@ -62,7 +62,11 @@ struct TestImpactSelectorTests {
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.selected(selection))
 
-        let decision = await subject.decide(modules: ["CatalogTests", "CoreTests"], platform: "ios") { path in
+        let decision = await subject.decide(
+            modules: ["CatalogTests", "CoreTests"],
+            skippedModules: ["CachedTests"],
+            platform: "ios"
+        ) { path in
             path.basename == "Discount.swift" ? ["CoreTests"] : []
         }
 
@@ -102,6 +106,7 @@ struct TestImpactSelectorTests {
                     dirty: false
                 ),
                 modules: ["CatalogTests", "CoreTests"],
+                skippedModules: ["CachedTests"],
                 platform: "ios",
                 gitBranch: "feature",
                 scheme: "Shop",
@@ -120,7 +125,7 @@ struct TestImpactSelectorTests {
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
 
-        let decision = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
         #expect(await subject.outcome == .fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
@@ -152,7 +157,7 @@ struct TestImpactSelectorTests {
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
 
-        _ = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        _ = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         verify(gitController)
             .deepenShallowClone(workingDirectory: .value(repository), refs: .value(["refs/pull/7/merge", "main"]), limits: .any)
@@ -188,7 +193,7 @@ struct TestImpactSelectorTests {
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.fallback(runID: "run", reason: .historyUnknown, matchedPath: nil))
 
-        _ = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        _ = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(1)
         verify(resolveBaselineService).resolveTestImpactBaseline(
@@ -207,7 +212,7 @@ struct TestImpactSelectorTests {
         givenPullRequestCheckout()
         givenBaseline(.notEnabled)
 
-        let decision = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
         #expect(await subject.outcome == nil)
@@ -221,7 +226,7 @@ struct TestImpactSelectorTests {
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.fallback(runID: "run", reason: .noBaseline, matchedPath: nil))
 
-        let decision = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .runAll)
         verify(createRunService).createTestImpactRun(
@@ -240,7 +245,7 @@ struct TestImpactSelectorTests {
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.fallback(runID: "run", reason: .historyUnavailable, matchedPath: nil))
 
-        let decision = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
         verify(createRunService).createTestImpactRun(
@@ -256,17 +261,16 @@ struct TestImpactSelectorTests {
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.failed("timed out"))
 
-        let decision = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
         #expect(await subject.outcome == nil)
     }
 
-    @Test(arguments: [true, false])
-    func makes_no_call_when_every_target_matched_its_hash(pullRequest: Bool) async throws {
-        if pullRequest { givenPullRequestCheckout() } else { givenBranchCheckout() }
+    @Test func makes_no_call_without_test_modules_in_scope() async throws {
+        givenPullRequestCheckout()
 
-        let decision = await subject.decide(modules: [], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: [], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
         verify(resolveBaselineService).resolveTestImpactBaseline(
@@ -276,13 +280,85 @@ struct TestImpactSelectorTests {
         verify(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any).called(0)
     }
 
+    @Test func records_what_hashing_skipped_without_a_diff_when_every_target_matched() async throws {
+        givenPullRequestCheckout()
+        givenBaseline(.baseline(sha: "baseline", diffCached: false))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.selected(TestImpactSelection(runID: "run", requested: 0, selected: 0, skipped: 0, skippedTests: [])))
+
+        let decision = await subject.decide(modules: [], skippedModules: ["CoreTests"], platform: "ios") { _ in [] }
+
+        #expect(decision == .unchanged)
+        // No outcome, so no shard plan or upload points to the run.
+        #expect(await subject.outcome == nil)
+        verify(gitController).changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any).called(0)
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching {
+                $0.modules == [] && $0.skippedModules == ["CoreTests"]
+                    && $0.basis == .baseline(sha: "baseline", changedFiles: nil, dirty: false)
+            }
+        ).called(1)
+    }
+
+    @Test func runs_nothing_more_than_hashing_on_a_fallback_when_every_target_matched() async throws {
+        givenPullRequestCheckout()
+        givenBaseline(.unavailable(.noBaseline))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.fallback(runID: "run", reason: .noBaseline, matchedPath: nil))
+
+        let decision = await subject.decide(modules: [], skippedModules: ["CoreTests"], platform: "ios") { _ in [] }
+
+        #expect(decision == .unchanged)
+        #expect(await subject.outcome == nil)
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching { $0.basis == .fallback(.noBaseline) && $0.modules == [] && $0.skippedModules == ["CoreTests"] }
+        ).called(1)
+    }
+
+    @Test func deepens_and_asks_again_when_every_target_matched_and_the_server_doesnt_know_the_history() async throws {
+        givenPullRequestCheckout()
+        givenBaseline(.unavailable(.historyUnknown))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.failed("timed out"))
+
+        let decision = await subject.decide(modules: [], skippedModules: ["CoreTests"], platform: "ios") { _ in [] }
+
+        #expect(decision == .unchanged)
+        #expect(await subject.outcome == nil)
+        verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(1)
+        verify(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .value(["parent", "grandparent"]),
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).called(1)
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching { $0.basis == .fallback(.historyUnknown) && $0.modules == [] }
+        ).called(1)
+    }
+
+    @Test func keeps_hashing_alone_when_the_baseline_request_fails_and_every_target_matched() async throws {
+        givenPullRequestCheckout()
+        givenBaseline(.failed("timed out"))
+
+        let decision = await subject.decide(modules: [], skippedModules: ["CoreTests"], platform: "ios") { _ in [] }
+
+        #expect(decision == .unchanged)
+        #expect(await subject.outcome == nil)
+        verify(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any).called(0)
+    }
+
     @Test func selects_on_a_branch_push_and_records_the_branch() async throws {
         givenBranchCheckout()
         givenBaseline(.baseline(sha: "older", diffCached: true))
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
             .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
 
-        let decision = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
         verify(createRunService).createTestImpactRun(
