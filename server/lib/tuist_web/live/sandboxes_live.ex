@@ -341,6 +341,9 @@ defmodule TuistWeb.SandboxesLive do
   attr :id, :string, required: true
   attr :sandboxes, :list, required: true
   attr :account, :map, required: true
+  attr :sort_patch, :any, default: nil, doc: "A function from a column to its sort patch; makes columns sortable."
+  attr :sort_by, :string, default: nil
+  attr :sort_order, :string, default: nil
 
   def sandboxes_table(assigns) do
     ~H"""
@@ -350,11 +353,13 @@ defmodule TuistWeb.SandboxesLive do
       row_key={fn sandbox -> "sandbox-#{sandbox.id}" end}
       row_navigate={fn sandbox -> ~p"/#{@account.name}/sandboxes/#{sandbox.id}" end}
     >
-      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Name")}>
+      <:col
+        :let={sandbox}
+        label={dgettext("dashboard_sandboxes", "Name")}
+        patch={@sort_patch && @sort_patch.("name")}
+        sort_order={@sort_by == "name" && @sort_order}
+      >
         <.text_cell label={display_name(sandbox)} sublabel={short_id(sandbox.id)} />
-      </:col>
-      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Source")}>
-        <.badge_cell label={source_label(sandbox)} color="neutral" style="light-fill" />
       </:col>
       <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Status")}>
         <% status = status(sandbox) %>
@@ -363,20 +368,30 @@ defmodule TuistWeb.SandboxesLive do
       <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Resources")}>
         <.text_cell label={resources(sandbox)} />
       </:col>
-      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Last active")}>
+      <:col
+        :let={sandbox}
+        label={dgettext("dashboard_sandboxes", "Last active")}
+        patch={@sort_patch && @sort_patch.("last_active")}
+        sort_order={@sort_by == "last_active" && @sort_order}
+      >
         <.text_cell
           label={relative_time(last_active_at(sandbox))}
           title={time(last_active_at(sandbox))}
         />
       </:col>
-      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Created")}>
+      <:col
+        :let={sandbox}
+        label={dgettext("dashboard_sandboxes", "Created")}
+        patch={@sort_patch && @sort_patch.("created")}
+        sort_order={@sort_by == "created" && @sort_order}
+      >
         <.text_cell label={relative_time(sandbox.inserted_at)} title={time(sandbox.inserted_at)} />
       </:col>
       <:empty_state>
         <.table_empty_state
           icon="devices_code"
-          title={dgettext("dashboard_sandboxes", "No sandboxes with this status")}
-          subtitle={dgettext("dashboard_sandboxes", "Choose a different status to see more.")}
+          title={dgettext("dashboard_sandboxes", "No sandboxes found")}
+          subtitle={dgettext("dashboard_sandboxes", "Try a different search or filter.")}
         />
       </:empty_state>
     </.table>

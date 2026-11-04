@@ -2,7 +2,7 @@
   <div data-part="page-header">
     <h1 data-part="title">{dgettext("dashboard_sandboxes", "Instances")}</h1>
     <span data-part="subtitle">
-      {dgettext("dashboard_sandboxes", "Every sandbox in the account, newest first.")}
+      {dgettext("dashboard_sandboxes", "Every sandbox in the account.")}
     </span>
   </div>
 
@@ -13,29 +13,57 @@
   >
     <.card_section data-part="table-section">
       <div data-part="table-toolbar">
+        <.form for={%{}} id="sandboxes-search-form" phx-change="search" phx-submit="search">
+          <.text_input
+            type="search"
+            id="sandboxes-search"
+            name="search"
+            placeholder={dgettext("dashboard_sandboxes", "Search by ID...")}
+            show_suffix={false}
+            data-part="search"
+            value={@search}
+            phx-debounce="200"
+          />
+        </.form>
+        <.filter_dropdown
+          id="sandboxes-filter-dropdown"
+          label={dgettext("dashboard_sandboxes", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
         <.dropdown
-          id="sandboxes-status-dropdown"
-          label={"#{filter_label(@filter)} (#{filter_count(@counts, @filter)})"}
-          secondary_text={dgettext("dashboard_sandboxes", "Status:")}
+          id="sandboxes-sort-by-dropdown"
+          label={sort_label(@sort_by)}
+          secondary_text={dgettext("dashboard_sandboxes", "Sort by:")}
         >
           <.dropdown_item
-            :for={{filter, label} <- filter_options()}
-            value={filter}
-            label={"#{label} (#{filter_count(@counts, filter)})"}
-            patch={list_patch(@selected_account, @uri, "status", filter)}
-            data-selected={@filter == filter}
+            :for={{column, label} <- sort_options()}
+            value={column}
+            label={label}
+            patch={sort_patch(assigns, column)}
+            data-selected={@sort_by == column}
           >
-            <:right_icon :if={@filter == filter}><.check /></:right_icon>
+            <:right_icon :if={@sort_by == column}><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
       </div>
-      <.sandboxes_table id="sandboxes-table" sandboxes={@sandboxes} account={@selected_account} />
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <.sandboxes_table
+        id="sandboxes-table"
+        sandboxes={@sandboxes}
+        account={@selected_account}
+        sort_patch={&sort_patch(assigns, &1)}
+        sort_by={@sort_by}
+        sort_order={@sort_order}
+      />
       <div :if={@total_pages > 1} data-part="pagination">
         <.button
           variant="secondary"
           label={dgettext("dashboard_sandboxes", "Prev")}
           disabled={@page <= 1}
-          patch={list_patch(@selected_account, @uri, "page", Integer.to_string(@page - 1))}
+          patch={page_patch(@uri, @page - 1)}
         >
           <:icon_left><.chevron_left /></:icon_left>
         </.button>
@@ -49,7 +77,7 @@
           variant="secondary"
           label={dgettext("dashboard_sandboxes", "Next")}
           disabled={@page >= @total_pages}
-          patch={list_patch(@selected_account, @uri, "page", Integer.to_string(@page + 1))}
+          patch={page_patch(@uri, @page + 1)}
         >
           <:icon_right><.chevron_right /></:icon_right>
         </.button>

@@ -102,6 +102,16 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--noora-spacing-6);
+
+    & [data-part="search"] {
+      width: 280px;
+    }
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
   }
 
   & [data-part="onboarding"] {

@@ -135,25 +135,88 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       assert has_element?(lv, "#sandbox-#{active.id}", "orb-active")
       assert has_element?(lv, "#sandbox-#{active.id}", "Active")
-      assert has_element?(lv, "#sandbox-#{active.id}", "Amp Orb")
       assert has_element?(lv, "#sandbox-#{paused.id}", "Paused")
       assert has_element?(lv, "#sandbox-#{paused.id}", "4 vCPU · 8 GB RAM · 10 GB disk")
       assert has_element?(lv, "#sandbox-#{archived.id}", "Archived")
       refute has_element?(lv, "#sandbox-#{other.id}")
+      refute has_element?(lv, "#sandboxes-table th", "Source")
       refute has_element?(lv, "[data-part='pagination']")
     end
 
-    test "filters sandboxes by status", %{conn: conn, account: account} do
-      running = sandbox_fixture(account: account, amp_orb_id: "orb-running")
-      failed = sandbox_fixture(account: account, amp_orb_id: "orb-failed", state: :error, error_message: "boom")
+    test "searches sandboxes by their id or Orb id", %{conn: conn, account: account} do
+      wanted = sandbox_fixture(account: account, amp_orb_id: "orb-wanted")
+      unwanted = sandbox_fixture(account: account, amp_orb_id: "orb-unwanted")
+      id_part = String.slice(wanted.id, 9, 9)
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?status=error")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances")
+      lv |> form("#sandboxes-search-form") |> render_change(%{"search" => id_part})
 
-      assert has_element?(lv, "#sandbox-#{failed.id}", "Failed")
-      refute has_element?(lv, "#sandbox-#{running.id}")
+      assert_patch(lv, "/#{account.name}/sandboxes/instances?search=#{id_part}")
+      assert has_element?(lv, "#sandbox-#{wanted.id}")
+      refute has_element?(lv, "#sandbox-#{unwanted.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=orb-want")
+      assert has_element?(lv, "#sandbox-#{wanted.id}")
+      refute has_element?(lv, "#sandbox-#{unwanted.id}")
+
+      # LIKE wildcards are matched literally.
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=%")
+      refute has_element?(lv, "#sandbox-#{wanted.id}")
+      assert has_element?(lv, "#sandboxes-table", "No sandboxes found")
     end
 
-    test "pages through the sandboxes of a status", %{conn: conn, account: account} do
+    test "filters sandboxes by status and size", %{conn: conn, account: account} do
+      active = sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
+      idle = sandbox_fixture(account: account, amp_orb_id: "orb-idle")
+      big_idle = sandbox_fixture(account: account, amp_orb_id: "orb-big-idle", vcpus: 8, memory_mb: 16_384)
+      failed = sandbox_fixture(account: account, amp_orb_id: "orb-failed", state: :error, error_message: "boom")
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/sandboxes/instances?#{%{"filter_status_op" => "==", "filter_status_val" => "idle"}}"
+        )
+
+      assert has_element?(lv, "#sandbox-#{idle.id}")
+      assert has_element?(lv, "#sandbox-#{big_idle.id}")
+      refute has_element?(lv, "#sandbox-#{active.id}")
+      refute has_element?(lv, "#sandbox-#{failed.id}")
+
+      params = %{
+        "filter_status_op" => "!=",
+        "filter_status_val" => "failed",
+        "filter_vcpus_op" => "==",
+        "filter_vcpus_val" => "8"
+      }
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?#{params}")
+
+      assert has_element?(lv, "#sandbox-#{big_idle.id}")
+      refute has_element?(lv, "#sandbox-#{idle.id}")
+      refute has_element?(lv, "#sandbox-#{active.id}")
+      assert has_element?(lv, "[data-part='active-filters']", "vCPUs")
+    end
+
+    test "sorts sandboxes by name and last activity", %{conn: conn, account: account} do
+      b = sandbox_fixture(account: account, amp_orb_id: "orb-b", last_active_at: ~U[2026-01-03 00:00:00Z])
+      a = sandbox_fixture(account: account, amp_orb_id: "orb-a", last_active_at: ~U[2026-01-01 00:00:00Z])
+      c = sandbox_fixture(account: account, amp_orb_id: "orb-c", last_active_at: ~U[2026-01-02 00:00:00Z])
+
+      row_ids = fn lv ->
+        lv |> element("#sandboxes-table") |> render() |> Floki.parse_fragment!() |> Floki.attribute("tbody tr", "id")
+      end
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?sort_by=name")
+      assert row_ids.(lv) == Enum.map([a, b, c], &"sandbox-#{&1.id}")
+
+      lv |> element("#sandboxes-table th a", "Name") |> render_click()
+      assert row_ids.(lv) == Enum.map([c, b, a], &"sandbox-#{&1.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?sort_by=last_active")
+      assert row_ids.(lv) == Enum.map([b, c, a], &"sandbox-#{&1.id}")
+    end
+
+    test "pages through filtered sandboxes", %{conn: conn, account: account} do
       start = ~U[2026-01-01 00:00:00Z]
 
       paused =
@@ -166,8 +229,9 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       running = sandbox_fixture(account: account, amp_orb_id: "orb-running")
       [oldest, second_oldest | _] = paused
+      filter = "filter_status_op=%3D%3D&filter_status_val=paused"
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?status=paused")
+      {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/instances?#{filter}")
 
       assert has_element?(lv, "[data-part='pagination']", "Page 1 of 2")
       assert has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
@@ -176,13 +240,10 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       lv |> element("[data-part='pagination'] a", "Next") |> render_click()
 
-      assert_patch(lv, ~p"/#{account.name}/sandboxes/instances?page=2&status=paused")
+      assert_patch(lv, "/#{account.name}/sandboxes/instances?#{filter}&page=2")
       assert has_element?(lv, "#sandbox-#{oldest.id}")
       assert has_element?(lv, "#sandbox-#{second_oldest.id}")
       refute has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
-
-      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/instances" data-phx-link="patch")
-      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/instances?status=running")
 
       render_patch(lv, ~p"/#{account.name}/sandboxes/instances")
       assert has_element?(lv, "#sandbox-#{running.id}")

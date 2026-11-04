@@ -139,20 +139,23 @@ defmodule Tuist.Sandboxes do
   # ----- Sandboxes -----
 
   @doc """
-  The account's sandboxes, newest first. `states: [...]` keeps only the
-  sandboxes in those states, and `limit:` with `offset:` reads one page.
+  The account's sandboxes, newest first unless `sort_by:` (`:created`,
+  `:last_active` or `:name`) and `sort_order:` say otherwise.
+
+  `search:` keeps those whose id or Amp Orb id contains the text,
+  `status: {:== | :!=, status}` filters by the status the dashboard shows
+  (`:active`, `:idle`, `:starting`, `:resuming`, `:paused`, `:archived` or
+  `:failed`), `vcpus: {:== | :!=, vcpus}` by size, and `limit:` with
+  `offset:` reads one page.
   """
-  def list_sandboxes(%Account{id: account_id}, opts \\ []) do
-    query =
-      from s in Sandbox,
-        where: s.account_id == ^account_id and s.state != ^:deleted,
-        order_by: [desc: s.inserted_at, desc: s.id]
+  def list_sandboxes(%Account{} = account, opts \\ []) do
+    sort_by = Keyword.get(opts, :sort_by, :created)
+    direction = Keyword.get(opts, :sort_order, :desc)
 
     query =
-      case Keyword.get(opts, :states) do
-        nil -> query
-        states -> where(query, [s], s.state in ^states)
-      end
+      account
+      |> filtered_sandboxes(opts)
+      |> order_by(^[{direction, sort_field(sort_by)}, {direction, dynamic([s], s.id)}])
 
     query =
       case Keyword.get(opts, :limit) do
@@ -161,6 +164,61 @@ defmodule Tuist.Sandboxes do
       end
 
     Repo.all(query)
+  end
+
+  @doc """
+  How many of the account's sandboxes `list_sandboxes/2` would list with
+  the same filters, across every page.
+  """
+  def count_sandboxes(%Account{} = account, opts \\ []) do
+    account |> filtered_sandboxes(opts) |> Repo.aggregate(:count)
+  end
+
+  defp filtered_sandboxes(%Account{id: account_id}, opts) do
+    from(s in Sandbox, where: s.account_id == ^account_id and s.state != ^:deleted)
+    |> where_search(Keyword.get(opts, :search))
+    |> where_status(Keyword.get(opts, :status))
+    |> where_vcpus(Keyword.get(opts, :vcpus))
+  end
+
+  defp where_search(query, search) when search in [nil, ""], do: query
+
+  defp where_search(query, search) do
+    pattern = "%" <> String.replace(search, ~r/[\\%_]/, "\\\\\\0") <> "%"
+    where(query, [s], ilike(type(s.id, :string), ^pattern) or ilike(s.amp_orb_id, ^pattern))
+  end
+
+  defp where_status(query, nil), do: query
+  defp where_status(query, {:==, status}), do: where(query, ^status_condition(status))
+  defp where_status(query, {:!=, status}), do: where(query, ^dynamic(not (^status_condition(status))))
+
+  defp status_condition(:active), do: dynamic([s], s.state == :running and not is_nil(s.residency_work_id))
+  defp status_condition(:idle), do: dynamic([s], s.state == :running and is_nil(s.residency_work_id))
+  defp status_condition(:starting), do: dynamic([s], s.state == :creating)
+  defp status_condition(:resuming), do: dynamic([s], s.state == :resuming)
+  defp status_condition(:paused), do: dynamic([s], s.state == :paused)
+  defp status_condition(:archived), do: dynamic([s], s.state == :archived)
+  defp status_condition(:failed), do: dynamic([s], s.state == :error)
+
+  defp where_vcpus(query, nil), do: query
+  defp where_vcpus(query, {:==, vcpus}), do: where(query, [s], s.vcpus == ^vcpus)
+  defp where_vcpus(query, {:!=, vcpus}), do: where(query, [s], s.vcpus != ^vcpus)
+
+  defp sort_field(:last_active), do: dynamic([s], coalesce(s.last_active_at, s.inserted_at))
+  defp sort_field(:name), do: dynamic([s], coalesce(s.amp_orb_id, coalesce(s.anthropic_session_id, type(s.id, :string))))
+  defp sort_field(:created), do: dynamic([s], s.inserted_at)
+
+  @doc """
+  The vCPU sizes of the account's sandboxes, for filtering by size.
+  """
+  def sandbox_vcpus(%Account{id: account_id}) do
+    Repo.all(
+      from s in Sandbox,
+        where: s.account_id == ^account_id and s.state != ^:deleted,
+        distinct: true,
+        order_by: s.vcpus,
+        select: s.vcpus
+    )
   end
 
   @doc """
