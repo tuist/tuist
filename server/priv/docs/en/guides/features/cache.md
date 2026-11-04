@@ -39,7 +39,7 @@ Learn the cache workflow that matches your project or deployment model:
 />
   <.home_card
     title="Rust cache (experimental)"
-    details="Reuse supported registry leaf-library outputs locally and through Kura. Learn how to enable caching and inspect cache activity."
+    details="Reuse supported Rust compilation outputs and build-script runs locally and through Kura. Learn how to enable caching and inspect cache activity."
     supported_for="rust"
     link="/guides/features/cache/rust"
 />

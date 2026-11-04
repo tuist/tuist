@@ -24,7 +24,7 @@ msgid "Automatically detect flaky tests that fail without code changes and save 
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:58
-#: lib/tuist_web/docs/layouts/root.html.heex:195
+#: lib/tuist_web/docs/layouts/root.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
 msgstr ""
@@ -110,13 +110,13 @@ msgid "Follow us on Mastodon to stay up to date with our work."
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:47
-#: lib/tuist_web/docs/layouts/root.html.heex:171
+#: lib/tuist_web/docs/layouts/root.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:34
-#: lib/tuist_web/docs/layouts/root.html.heex:119
+#: lib/tuist_web/docs/layouts/root.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Guides"
 msgstr ""
@@ -141,25 +141,25 @@ msgstr ""
 msgid "Learn from videos from the Tuist team and the community."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:110
-#: lib/tuist_web/docs/layouts/root.html.heex:270
+#: lib/tuist_web/docs/layouts/root.html.heex:111
+#: lib/tuist_web/docs/layouts/root.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Main navigation"
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:52
-#: lib/tuist_web/docs/layouts/root.html.heex:179
+#: lib/tuist_web/docs/layouts/root.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:358
+#: lib/tuist_web/docs/layouts/root.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Menu"
 msgstr ""
 
 #: lib/tuist_web/docs/components/toc.html.heex:39
-#: lib/tuist_web/docs/layouts/root.html.heex:368
+#: lib/tuist_web/docs/layouts/root.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "On this page"
 msgstr ""
@@ -170,7 +170,7 @@ msgstr ""
 msgid "Open source and community"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:342
+#: lib/tuist_web/docs/layouts/root.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Page navigation"
 msgstr ""
@@ -182,13 +182,13 @@ msgid "Previews"
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:37
-#: lib/tuist_web/docs/layouts/root.html.heex:135
+#: lib/tuist_web/docs/layouts/root.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "References"
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:40
-#: lib/tuist_web/docs/layouts/root.html.heex:141
+#: lib/tuist_web/docs/layouts/root.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr ""
@@ -198,7 +198,7 @@ msgstr ""
 msgid "Return to top"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:250
+#: lib/tuist_web/docs/layouts/root.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr ""
@@ -221,13 +221,13 @@ msgstr ""
 msgid "Share your ideas, report issues, and discuss with other community members."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:108
+#: lib/tuist_web/docs/layouts/root.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Skip to content"
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:56
-#: lib/tuist_web/docs/layouts/root.html.heex:187
+#: lib/tuist_web/docs/layouts/root.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr ""
@@ -263,7 +263,7 @@ msgid "View this page as plain text"
 msgstr ""
 
 #: lib/tuist_web/docs/layouts.ex:35
-#: lib/tuist_web/docs/layouts/root.html.heex:129
+#: lib/tuist_web/docs/layouts/root.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "CLI"
 msgstr ""
@@ -283,7 +283,7 @@ msgstr ""
 msgid "No search history"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:386
+#: lib/tuist_web/docs/layouts/root.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
@@ -313,9 +313,9 @@ msgstr ""
 msgid "as Markdown"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:211
-#: lib/tuist_web/docs/layouts/root.html.heex:233
-#: lib/tuist_web/docs/layouts/root.html.heex:285
+#: lib/tuist_web/docs/layouts/root.html.heex:212
+#: lib/tuist_web/docs/layouts/root.html.heex:234
+#: lib/tuist_web/docs/layouts/root.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
@@ -326,8 +326,8 @@ msgstr ""
 msgid "Copied"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:208
-#: lib/tuist_web/docs/layouts/root.html.heex:229
+#: lib/tuist_web/docs/layouts/root.html.heex:209
+#: lib/tuist_web/docs/layouts/root.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Toggle theme"
 msgstr ""
@@ -397,17 +397,17 @@ msgstr ""
 msgid "Understand build performance across local and continuous integration environments before slowdowns affect your team."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:301
+#: lib/tuist_web/docs/layouts/root.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Close menu"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:308
+#: lib/tuist_web/docs/layouts/root.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "Documentation sections"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:257
+#: lib/tuist_web/docs/layouts/root.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Open menu"
 msgstr ""

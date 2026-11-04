@@ -1,9 +1,12 @@
 package dev.tuist.app.ui.previews
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.tuist.app.R
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.previews.PreviewsRepository
@@ -24,6 +27,7 @@ class PreviewDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val previewsRepository: PreviewsRepository,
     environmentConfig: EnvironmentConfig,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val previewId: String = checkNotNull(savedStateHandle["previewId"])
@@ -58,7 +62,7 @@ class PreviewDetailViewModel @Inject constructor(
                 )
                 _uiState.value = PreviewDetailUiState.Success(preview)
             } catch (e: Exception) {
-                _uiState.value = PreviewDetailUiState.Error(e.message ?: "Failed to load preview")
+                _uiState.value = PreviewDetailUiState.Error(e.message ?: context.getString(R.string.load_preview_failed))
             }
         }
     }
@@ -75,7 +79,7 @@ class PreviewDetailViewModel @Inject constructor(
                 )
                 onDeleted()
             } catch (e: Exception) {
-                _uiState.value = PreviewDetailUiState.Error(e.message ?: "Failed to delete preview")
+                _uiState.value = PreviewDetailUiState.Error(e.message ?: context.getString(R.string.delete_preview_failed))
             }
             _isDeleting.value = false
         }

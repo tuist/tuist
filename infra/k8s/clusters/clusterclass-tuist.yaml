@@ -823,6 +823,96 @@ spec:
             - op: add
               path: "/spec/template/spec/preKubeadmCommands/-"
               value: systemctl daemon-reexec
+    # Kubernetes minor upgrades, one Cluster at a time. The templates below
+    # pin KUBERNETES_VERSION for apt, and every Cluster shares this class, so
+    # changing that pin would roll every cluster at once. Instead, when CAPI
+    # rolls a control plane or hcloud-worker MachineDeployment to a version
+    # other than the pin, these patches add a script that reinstalls
+    # kubelet, kubeadm and kubectl at that version before kubeadm runs.
+    # CAPI only lets patches append to (or prepend) arrays, which is why
+    # this runs after the pinned install rather than replacing it.
+    #
+    # A template at the pinned version renders without them, so adding the
+    # patches rolls nothing. Once every Cluster is on the new version, move
+    # the pin and the "v1.34.6" in both enabledIfs to it in one change: the
+    # rendered commands differ, so that rolls each cluster once more.
+    # `mise run k8s:lint-version-drift` keeps the pin and the gates aligned.
+    - name: KubeadmControlPlaneKubernetesPackages
+      enabledIf: '{{ if ne .builtin.controlPlane.version "v1.34.6" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/files/-"
+              value: &kubernetesPackagesScript
+                owner: root:root
+                path: /usr/local/sbin/tuist-kubernetes-packages
+                permissions: "0755"
+                content: |
+                  #!/bin/sh
+                  # Usage: tuist-kubernetes-packages <version>, e.g. 1.35.10.
+                  # Reinstalls the Kubernetes packages from that version's
+                  # pkgs.k8s.io channel; see the ClusterClass patch that adds it.
+                  set -eux
+                  version="$1"
+                  minor="$(echo "$version" | awk -F . '{print $1 "." $2}')"
+                  curl -fsSL "https://pkgs.k8s.io/core:/stable:/v$minor/deb/Release.key" | gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+                  echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$minor/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+                  apt-get update
+                  apt-mark unhold kubelet kubeadm kubectl
+                  apt-get install -y --allow-downgrades kubelet="$version-*" kubeadm="$version-*" kubectl="$version-*"
+                  apt-mark hold kubelet kubeadm kubectl
+                  kubeadm config images pull --kubernetes-version "v$version"
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/preKubeadmCommands/-"
+              valueFrom:
+                template: '/usr/local/sbin/tuist-kubernetes-packages {{ trimPrefix "v" .builtin.controlPlane.version }}'
+            # Our kubelet config file is the last --config, so it replaces
+            # kubeadm's, including its rotateCertificates: true. Without
+            # rotation the kubelet bootstraps its client certificate before
+            # it runs static Pods. From 1.35, kubeadm always points that
+            # bootstrap at the joining node's own API server
+            # (ControlPlaneKubeletLocalMode is locked on, so
+            # disableControlPlaneKubeletLocalMode no longer has an effect).
+            # That API server is one of those static Pods, so the join
+            # deadlocks with an unstarted etcd learner. Move this flag into the
+            # kubelet config files when the pin above moves off v1.34.6.
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/initConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              value: &rotateCertificatesArg
+                name: rotate-certificates
+                value: "true"
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              value: *rotateCertificatesArg
+    - name: KubeadmConfigTemplateWorkerKubernetesPackages
+      enabledIf: '{{ if ne .builtin.machineDeployment.version "v1.34.6" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/files/-"
+              value: *kubernetesPackagesScript
+            - op: add
+              path: "/spec/template/spec/preKubeadmCommands/-"
+              valueFrom:
+                template: '/usr/local/sbin/tuist-kubernetes-packages {{ trimPrefix "v" .builtin.machineDeployment.version }}'
+            # Workers bootstrap through the load balancer, so they join
+            # either way. Rotation stops their client certificate from
+            # expiring after a year, matching kubeadm's default.
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              value: *rotateCertificatesArg
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
@@ -1033,8 +1123,10 @@ spec:
           # KUBERNETES_VERSION pins what apt installs
           # (kubelet/kubeadm/kubectl). topology.version on each
           # Cluster CR pins what KCP writes into the static pod
-          # manifests. The two MUST stay aligned — `mise run
-          # k8s:lint-version-drift` checks this at commit time.
+          # manifests. A Cluster running a newer version gets its
+          # packages from the *KubernetesPackages patches; `mise run
+          # k8s:lint-version-drift` checks the pin, those patches and
+          # the Cluster CRs agree.
           - export KUBERNETES_VERSION=1.34.6
           - export TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/^v//' | awk -F . '{print $1 "." $2}')
           - ARCH="$(dpkg --print-architecture)"

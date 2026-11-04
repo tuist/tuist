@@ -188,6 +188,7 @@ test('stops at the admission deadline instead of making another request', async 
   assert.equal(code, 1);
   assert.equal(requests.length, 1);
   assert.match(output, /Timed out waiting for sandbox capacity/);
+  assert.match(output, /archiving a paused Orb/);
 });
 
 test('HTTP time counts against the wait deadline', async () => {
@@ -205,7 +206,7 @@ test('allows disabling waiting and rejects invalid or extended wait budgets', as
   const { code, requests } = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: '0' }, () => admission(429));
   assert.equal(code, 1);
   assert.equal(requests.length, 1);
-  for (const value of ['151', '-1', '1.5', 'forever', '99999999999999999', '08']) {
+  for (const value of ['91', '150', '-1', '1.5', 'forever', '99999999999999999', '08']) {
     const result = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: value });
     assert.equal(result.code, 1);
     assert.equal(result.requests.length, 0);

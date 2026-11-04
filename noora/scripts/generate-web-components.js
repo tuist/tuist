@@ -771,14 +771,37 @@ async function loadIcons() {
     .filter((filename) => filename.endsWith(".svg"))
     .sort();
 
+  const rtlMirrored = await loadRtlMirroredIcons();
+
   return Object.fromEntries(
     await Promise.all(
-      filenames.map(async (filename) => [
-        path.basename(filename, ".svg").replaceAll("-", "_"),
-        await readFile(path.join(iconsDirectory, filename), "utf8"),
-      ]),
+      filenames.map(async (filename) => {
+        const name = path.basename(filename, ".svg").replaceAll("-", "_");
+        const markup = await readFile(
+          path.join(iconsDirectory, filename),
+          "utf8",
+        );
+        return [
+          name,
+          rtlMirrored.has(name)
+            ? markup.replace("<svg", "<svg data-rtl-mirror")
+            : markup,
+        ];
+      }),
     ),
   );
+}
+
+// `Noora.Icon` owns the list of directional icons that mirror in right-to-left documents.
+async function loadRtlMirroredIcons() {
+  const source = await readFile(path.join(root, "lib/noora/icon.ex"), "utf8");
+  const match = source.match(
+    /@rtl_mirrored_icons MapSet\.new\(~w\(([^)]*)\)\)/,
+  );
+  if (!match) {
+    throw new Error("Could not find @rtl_mirrored_icons in lib/noora/icon.ex");
+  }
+  return new Set(match[1].split(/\s+/).filter(Boolean));
 }
 
 function renderIcons(icons) {

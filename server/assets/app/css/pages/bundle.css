@@ -243,11 +243,11 @@
 
         & > #bundle-size-analysis-sunburst {
           flex-grow: 1;
-          margin-left: -40px;
+          margin-inline-start: -40px;
           height: 410px;
           @media (max-width: 768px) {
             & {
-              margin-left: -15px;
+              margin-inline-start: -15px;
             }
           }
         }
@@ -269,7 +269,7 @@
             flex-direction: row;
             align-items: center;
             gap: var(--noora-spacing-5);
-            padding-left: var(--noora-spacing-5);
+            padding-inline-start: var(--noora-spacing-5);
             min-width: 0;
 
             & > [data-part="dot"] {

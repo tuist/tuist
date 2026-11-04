@@ -63,7 +63,7 @@ public struct PreviewsView: View {
 
                                 ScrollView(.horizontal) {
                                     HStack(spacing: Noora.Spacing.spacing3) {
-                                        trackChip("All", track: nil, count: viewModel.totalPreviewCount)
+                                        trackChip(String(localized: "All"), track: nil, count: viewModel.totalPreviewCount)
                                         ForEach(viewModel.trackOptions, id: \.self) { track in
                                             trackChip(track, track: track, count: viewModel.previewCount(for: track))
                                         }
@@ -240,8 +240,8 @@ public struct PreviewsView: View {
             .overlay(Capsule().strokeBorder(Noora.Colors.neutralGray24Alpha, lineWidth: 0.5))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(track ?? "All tracks")
-        .accessibilityValue(count.map { "\($0) previews" } ?? "")
+        .accessibilityLabel(track ?? String(localized: "All tracks"))
+        .accessibilityValue(count.map { String(localized: "Previews: \($0)") } ?? "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier(track.map { "preview-track-\($0)" } ?? "preview-track-all")
     }

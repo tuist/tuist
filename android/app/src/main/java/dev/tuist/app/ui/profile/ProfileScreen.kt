@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -96,7 +97,8 @@ fun ProfileScreen(
                     Spacer(Modifier.height(NooraSpacing.Spacing4))
                     Text(
                         text = "@${acct.handle}",
-                        style = MaterialTheme.typography.bodyLarge,
+                        // Resolve the direction from the handle so the leading "@" stays in front of it in RTL.
+                        style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -75,12 +75,14 @@
     justify-content: flex-end;
     align-items: flex-start;
     gap: var(--noora-spacing-9);
-    padding: 0 var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-4);
+    padding-inline: var(--noora-spacing-4) var(--noora-spacing-13);
+    padding-block: 0 var(--noora-spacing-13);
     height: 600px;
     overflow: hidden;
 
     @media (max-width: 720px) {
-      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+      padding-inline: var(--noora-spacing-4) var(--noora-spacing-10);
+      padding-block: var(--noora-spacing-13) var(--noora-spacing-10);
       height: auto;
     }
 
@@ -222,9 +224,12 @@
              50 makes the ~60ms timeline play in about 3s (before the hook's
              per-bar jitter). */
           --sharding-ms: 50;
-
           height: 450px;
           overflow: hidden;
+
+          /* A chart with fixed comp geometry (gridlines, axis, the hook's
+             lane offsets): keeps its left-to-right time axis in RTL. */
+          direction: ltr;
 
           & > [data-part="scene"] {
             position: relative;
@@ -668,10 +673,13 @@
           height: 400px;
           overflow: hidden;
 
+          /* Test-target identifiers on a looping physical track: kept
+             left-to-right so the translateX loop stays seamless in RTL. */
           & > [data-part="marquee"] {
             flex: none;
             width: 100%;
             overflow: hidden;
+            direction: ltr;
 
             &:hover > [data-part="track"] {
               animation-play-state: paused;
@@ -751,6 +759,8 @@
             width: min(785px, calc(100% - 2 * var(--noora-spacing-5)));
             /* Clip the tint bands and long lines at the rounded border. */
             overflow: hidden;
+            direction: ltr;
+            unicode-bidi: isolate;
 
             & > [data-part="lines"] {
               margin: 0;
