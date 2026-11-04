@@ -69,6 +69,7 @@ defmodule Tuist.Accounts.Account do
     field :custom_cache_endpoints_enabled, :boolean, default: false
     field :sandbox_vcpus_limit, :integer, default: 32
     field :sandbox_memory_gb_limit, :integer, default: 64
+    field :sandbox_disk_gb_limit, :integer, default: 420
     field :runner_trial_started_at, :utc_datetime
     field :runner_trial_ended_at, :utc_datetime
 
