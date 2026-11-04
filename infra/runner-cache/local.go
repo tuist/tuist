@@ -281,6 +281,11 @@ func (b *LocalImages) Probe() error {
 			return err
 		}
 	}
+	// A seal interrupted while comparing a branch with its master leaves copies.
+	leftovers, _ := filepath.Glob(filepath.Join(b.Root, "images", "*.img.compare"))
+	for _, dir := range leftovers {
+		_ = os.RemoveAll(dir)
+	}
 	// Test the actual cache mount, not an assumption about the host's root FS.
 	f, err := os.CreateTemp(b.Root, ".reflink-probe-")
 	if err != nil {

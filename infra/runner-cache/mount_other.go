@@ -2,7 +2,10 @@
 
 package cachevolumes
 
-import "errors"
+import (
+	"errors"
+	"os"
+)
 
 func CheckFilesystem(string, string) error { return errors.New("Image verification requires Linux") }
 
@@ -15,3 +18,5 @@ func FreeBytes(string) (uint64, error) { return 0, errors.New("cache filesystem 
 func FilesystemSpace(string) (uint64, uint64, error) {
 	return 0, 0, errors.New("cache filesystem requires Linux")
 }
+
+func hasXattrs(*os.File) bool { return false }

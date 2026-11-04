@@ -150,10 +150,17 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   were lost, not left in its cache: a stronger guest flush would not help.
 - `LocalImages` (Linux) decides the same on the host, while the volume is still
   mounted and before verification: `ErrFull` from `MeasureFS`, `ErrUnchanged`
-  when the top-level entries match `<image>.entries` and no entry's ctime is
-  newer than the one it recorded. The first attach writes `.entries` after the
-  marker; later attaches of the branch keep it. A missing baseline means changed;
-  a `.verified` or `.checking` branch skips the check.
+  when the top-level entries match `<image>.entries` and every entry whose ctime
+  is newer than the one it recorded is a regular file that still has its
+  master's size, mode, owner and bytes, without xattrs (a touched cache entry, a
+  lock file rewritten with the same bytes). `matchesMaster` dumps those files
+  from the master with `debugfs -c` into `<image>.compare` at seal, never at
+  attach and never mounting the master, up to 1,000 files and 64 MiB. A newer
+  directory or symlink, a branch over that bound, and a cold branch, one cloned
+  from an older generation or one whose master is gone count as changed;
+  `Probe` removes interrupted comparisons. The first attach writes `.entries`
+  after the marker; later attaches of the branch keep it. A missing baseline
+  means changed; a `.verified` or `.checking` branch skips the check.
 - An `ErrUnchanged` branch cloned from its own base (no `.base` or `.cold`) becomes
   that generation's local master when the host no longer holds it, after the
   same verification publication runs (`keepUnchanged`, `keep` observation).

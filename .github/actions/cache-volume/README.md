@@ -133,7 +133,9 @@ Fork pull requests and `pull_request_target` never save. Buildkite and GitLab CI
 jobs follow the same settings. Narrowing these settings or deleting
 the profile revokes pending saves they no longer allow; a deleted profile falls
 back to saving from every branch. Additions apply to new volume attachments. A
-job that doesn't change a volume leaves the saved version in place.
+job that doesn't change a volume leaves the saved version in place. On Linux
+runners, a job whose tools only update files' timestamps, or rewrite files with
+the same contents, doesn't change the volume.
 
 ## Releases
 
