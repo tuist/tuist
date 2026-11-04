@@ -986,26 +986,28 @@ A Node is ready for runner Pods once it carries
 
 ### cgroup leak on kata nodes
 
-kubelet runs `cgroupDriver: systemd`, so the kata-qemu handler must set
-`SystemdCgroup = true` in its own options block. Without it the kata shim
-writes the systemd slice name kubelet hands it as a literal directory at
-the cgroup root
+Kata 3.30 only resolves the systemd cgroup path kubelet hands it when
+`sandbox_cgroup_only = true`. With the default (`false`) the shim writes
+the slice name as a literal directory at the cgroup root
 (`/sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>`)
-instead of nesting it under `kubepods.slice`. Nothing owns those: systemd
-never knew about them and the shim does not remove them, so they
-accumulate one per container start. At exhaustion every cgroup `mkdir`
-returns ENOSPC, and the node keeps reporting `Ready` while failing every
-new Pod sandbox. A busy node reached ~65k of them, against ~70 on a
-freshly booted one. The self-join (`kataSetup`) sets it on the handler
-block it appends.
+holding QEMU, and puts virtiofsd and itself in
+`/sys/fs/cgroup/kata_overhead/<id>`. Both sit outside `kubepods.slice`, so
+the kubelet's Pod limits and cpusets never apply to the VM, and nothing
+removes either directory when the sandbox exits. They accumulate one each
+per sandbox. At exhaustion every cgroup `mkdir` returns ENOSPC, and the
+node keeps reporting `Ready` while failing every new Pod sandbox. A busy
+node reached ~65k of each, against ~70 on a freshly booted one.
+`SystemdCgroup = true` on the handler does not prevent this (a staging
+host with it had 3,351 of each after 8 days).
 
-**There is a second population of the same size:**
-`/sys/fs/cgroup/kata_overhead/*`, one per sandbox, named by container ID.
-Same shape (flat empty leaves), same one-per-container-start growth,
-never reclaimed. Whether `SystemdCgroup = true` also stops it is **not
-established**: the overhead cgroups are created by the shim either way.
-Sweeping only the root population leaves the node at half its leak and
-reads as a stuck reclaim.
+The `50-tuist-sandbox-cgroup.toml` drop-in (`kataSandboxCgroupSetup`)
+turns `sandbox_cgroup_only` on, which puts the shim, virtiofsd and QEMU
+in a systemd scope under the Pod's slice that systemd removes with the
+sandbox. When it lands on an existing host through the Kata host config
+repair, it also sweeps both leaked populations. Sandboxes started before
+it keep their old cgroups, so a host can leak a handful more until they
+exit; sweep those as below. Sweeping only the root population leaves the
+node at half its leak and reads as a stuck reclaim.
 
 Check a host without SSH. The count should be in the hundreds, not
 thousands:

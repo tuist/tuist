@@ -126,13 +126,34 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
     assert build_conn() |> authorized(bearer) |> get("/api/me/notification-preferences/unknown") |> json_response(404)
   end
 
-  test "rejects unknown device fields", %{conn: conn, bearer: bearer} do
+  test "ignores unknown device fields so newer apps can send them", %{conn: conn, user: user, bearer: bearer} do
+    other_user = AccountsFixtures.user_fixture()
+
     conn =
       conn
       |> authorized(bearer)
-      |> put("/api/me/push-devices/#{Ecto.UUID.generate()}", Map.put(device(), :user_id, 1))
+      |> put("/api/me/push-devices/#{Ecto.UUID.generate()}", Map.put(device(), :user_id, other_user.id))
 
-    assert json_response(conn, 422)
+    assert %{"registration_id" => registration_id} = json_response(conn, 200)
+    assert [%{id: ^registration_id}] = Push.live_installations(user.id)
+    assert Push.live_installations(other_user.id) == []
+  end
+
+  test "tells throttled writes when to retry, without limiting reads", %{user: user, bearer: bearer} do
+    key = "app_session:writes:user:#{user.id}"
+
+    stub(TuistWeb.RateLimit, :hit, fn
+      ^key, _opts -> {:deny, 12_001}
+      other_key, opts -> Mimic.call_original(TuistWeb.RateLimit, :hit, [other_key, opts])
+    end)
+
+    conn = build_conn() |> authorized(bearer) |> put("/api/me/push-devices/#{Ecto.UUID.generate()}", device())
+
+    assert json_response(conn, 429)
+    assert get_resp_header(conn, "retry-after") == ["13"]
+    assert Push.live_installations(user.id) == []
+
+    assert build_conn() |> authorized(bearer) |> get("/api/me/push-devices") |> json_response(200)
   end
 
   test "rejects credentials that are not a Tuist app sign-in", %{user: user} do

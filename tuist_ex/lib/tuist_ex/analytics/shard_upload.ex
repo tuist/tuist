@@ -11,7 +11,7 @@ defmodule TuistEx.Analytics.ShardUpload do
     |> Stream.with_index(1)
     |> Task.async_stream(
       fn {chunk, number} ->
-        with {:ok, etag} <- retry(fn -> upload_part.(chunk, number) end, sleep, 1) do
+        with {:ok, etag} <- retry(fn -> upload_part.(chunk, number) end, sleep) do
           {:ok, %{part_number: number, etag: etag}}
         end
       end,
@@ -30,12 +30,16 @@ defmodule TuistEx.Analytics.ShardUpload do
     end
   end
 
-  defp retry(upload, sleep, attempt) do
-    result = upload.()
+  # Runs `request` up to three times, backing off between attempts, while it
+  # fails with a network error or a status worth replaying. Shard builds
+  # download through it too, so a storage blip does not fail a shard.
+  @doc false
+  def retry(request, sleep, attempt \\ 1) do
+    result = request.()
 
     if attempt < 3 and retryable?(result) do
       sleep.(500 * attempt)
-      retry(upload, sleep, attempt + 1)
+      retry(request, sleep, attempt + 1)
     else
       result
     end

@@ -14,6 +14,7 @@ defmodule TuistEx.Analytics.Shards do
 
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Report
+  alias TuistEx.Analytics.ShardUpload
   alias TuistEx.Analytics.TempDir
   alias TuistEx.HTTP, as: RawHTTP
 
@@ -271,7 +272,7 @@ defmodule TuistEx.Analytics.Shards do
   defp upload_parts(archive, reference, upload_id, options) do
     archive
     |> File.stream!(@part_bytes)
-    |> TuistEx.Analytics.ShardUpload.upload(fn chunk, part_number ->
+    |> ShardUpload.upload(fn chunk, part_number ->
       with {:ok, %{"data" => %{"url" => url}}} <-
              HTTP.project_request(
                :post,
@@ -287,15 +288,21 @@ defmodule TuistEx.Analytics.Shards do
   @doc """
   Downloads a plan's build into the build directory. `{:error, :no_build}`
   means the plan has none, which is fine: the shard compiles as usual.
+  Transient failures are retried; each attempt rewrites the archive.
   """
-  def download_build(url, build_path) when is_binary(url) do
+  def download_build(url, build_path, options \\ [])
+
+  def download_build(url, build_path, options) when is_binary(url) do
+    sleep = Keyword.get(options, :sleep, &Process.sleep/1)
     %URI{scheme: scheme, host: host, port: port} = URI.parse(url)
     Report.debug("Downloading the shard build from #{scheme}://#{host}:#{port}")
 
     TempDir.with_dir("tuist-ex-build", fn dir ->
       archive = Path.join(dir, "build.tar.gz")
 
-      case RawHTTP.download(url, archive) do
+      download = fn -> RawHTTP.download(url, archive) end
+
+      case ShardUpload.retry(download, sleep) do
         :ok ->
           File.mkdir_p!(build_path)
           extract(archive, build_path)
@@ -309,7 +316,7 @@ defmodule TuistEx.Analytics.Shards do
     end)
   end
 
-  def download_build(_url, _build_path), do: {:error, :no_build}
+  def download_build(_url, _build_path, _options), do: {:error, :no_build}
 
   @links ".tuist-links"
 

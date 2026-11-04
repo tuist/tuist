@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistConfig
 import TuistCore
 import XcodeGraph
 import XCTest
@@ -2475,6 +2476,103 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 googleMaps,
             ]
         )
+    }
+}
+
+extension CacheGraphMutatorTests {
+    ///    Framework ──► MyMacros (cached .macro) ──► SwiftCompilerPlugin ──► SwiftSyntax
+    ///    Tests ──► MyMacros_Testable ─────────────────────────────────────► SwiftSyntax
+    func test_map_replacesCachedMacro_when_itsDependenciesStayAsSources() async throws {
+        let path = try temporaryPath()
+        let syntax = Target.test(name: "SwiftSyntax", platform: .macOS, product: .staticFramework)
+        let plugin = Target.test(name: "SwiftCompilerPlugin", platform: .macOS, product: .staticFramework)
+        let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+        let testable = Target.test(name: "MyMacros_Testable", platform: .macOS, product: .staticFramework)
+        let tests = Target.test(name: "MyMacrosTests", platform: .macOS, product: .unitTests)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [syntax, plugin, macro, testable, tests, framework])
+        func dependency(_ target: Target) -> GraphDependency { .target(name: target.name, path: project.path) }
+        let graph = Graph.test(projects: [project.path: project], dependencies: [
+            dependency(framework): [dependency(macro)],
+            dependency(macro): [dependency(plugin)],
+            dependency(plugin): [dependency(syntax)],
+            dependency(tests): [dependency(testable)],
+            dependency(testable): [dependency(syntax)],
+            dependency(syntax): [],
+        ])
+        let macroPath = path.appending(components: "Binaries", "MyMacros.macro")
+        artifactLoader.loadStub = { .macro(path: $0) }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: [GraphTarget.test(path: project.path, target: macro, project: project): macroPath],
+            sources: [],
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(got.dependencies[dependency(framework)], [.macro(path: macroPath)])
+        XCTAssertEqual(got.dependencies[.macro(path: macroPath)], [])
+        let prunable = Set(got.projects[project.path]!.targets.values.filter { $0.metadata.tags.contains("tuist:prunable") }
+            .map(\.name))
+        XCTAssertEqual(prunable, ["MyMacros", "SwiftCompilerPlugin"])
+    }
+
+    func test_map_keepsMacroAsSource_when_itNeedsADynamicOrRequestedSourceDependency() async throws {
+        let path = try temporaryPath()
+        for (pluginProduct, sources) in [(Product.framework, Set<TargetQuery>()), (.staticFramework, ["SwiftCompilerPlugin"])] {
+            let plugin = Target.test(name: "SwiftCompilerPlugin", platform: .macOS, product: pluginProduct)
+            let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+            let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+            let project = Project.test(path: path, targets: [plugin, macro, framework])
+            func dependency(_ target: Target) -> GraphDependency { .target(name: target.name, path: project.path) }
+            let graph = Graph.test(projects: [project.path: project], dependencies: [
+                dependency(framework): [dependency(macro)],
+                dependency(macro): [dependency(plugin)],
+                dependency(plugin): [],
+            ])
+            artifactLoader.loadStub = { .macro(path: $0) }
+
+            let got = try await subject.map(
+                graph: graph,
+                precompiledArtifacts: [
+                    GraphTarget.test(path: project.path, target: macro, project: project): path.appending(component: "M.macro"),
+                ],
+                sources: sources,
+                keepSourceTargets: false
+            )
+
+            XCTAssertEqual(got, graph, "\(pluginProduct) with sources \(sources)")
+        }
+    }
+
+    func test_map_tagsMacroDependenciesAsBinarySources_when_keepingSourceTargets() async throws {
+        let path = try temporaryPath()
+        let plugin = Target.test(name: "SwiftCompilerPlugin", platform: .macOS, product: .staticFramework)
+        let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [plugin, macro, framework])
+        func dependency(_ target: Target) -> GraphDependency { .target(name: target.name, path: project.path) }
+        let graph = Graph.test(projects: [project.path: project], dependencies: [
+            dependency(framework): [dependency(macro)],
+            dependency(macro): [dependency(plugin)],
+            dependency(plugin): [],
+        ])
+        let macroPath = path.appending(component: "MyMacros.macro")
+        artifactLoader.loadStub = { .macro(path: $0) }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: [GraphTarget.test(path: project.path, target: macro, project: project): macroPath],
+            sources: [],
+            keepSourceTargets: true
+        )
+
+        XCTAssertEqual(got.dependencies[dependency(framework)], [.macro(path: macroPath)])
+        XCTAssertEqual(got.dependencies[dependency(macro)], [dependency(plugin)])
+        let tagged = Set(got.projects[project.path]!.targets.values.filter { $0.metadata.tags.contains("tuist:binary-sources") }
+            .map(\.name))
+        XCTAssertEqual(tagged, ["MyMacros", "SwiftCompilerPlugin"])
+        XCTAssertTrue(got.projects[project.path]!.targets.values.allSatisfy { !$0.metadata.tags.contains("tuist:prunable") })
     }
 }
 

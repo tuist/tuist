@@ -25,9 +25,11 @@ public enum AppServerConfigurationError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Enter a valid HTTPS server URL without credentials, a query, or a fragment."
+            return String(localized: "Enter a valid HTTPS server URL without credentials, a query, or a fragment.")
         case .unsupportedServer:
-            return "This server doesn't support signing in from the Tuist app. Ask your administrator to update it."
+            return String(
+                localized: "This server doesn't support signing in from the Tuist app. Ask your administrator to update it."
+            )
         }
     }
 }

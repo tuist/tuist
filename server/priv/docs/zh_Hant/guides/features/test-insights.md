@@ -2,27 +2,27 @@
 {
   "title": "測試洞察",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist Test Insights 識別 Xcode、Gradle、Bazel、Elixir 和 Rust 專案中的不穩定與緩慢測試。"
+  "description": "使用 Tuist 測試洞察，找出 Xcode、Gradle、Bazel、Elixir 和 Rust 專案中不穩定與緩慢的測試。"
 }
 ---
 # 測試洞察 {#test-insights}
 
-使用「測試洞察」監控測試套件的健全狀況：找出耗時的測試、追蹤不穩定測試，並快速釐清失敗的 CI 執行。目前支援 Xcode、Gradle、Bazel、Elixir 與 Rust。
+使用「測試洞察」監控測試套件的健全狀況，包括識別緩慢測試、追蹤不穩定測試，以及快速了解失敗的 CI 執行。目前支援 Xcode、Gradle、Bazel、Elixir 與 Rust。若要追蹤測試執行的程式碼，請參閱 <.localized_link href="/guides/features/test-code-coverage">程式碼涵蓋率</.localized_link>。
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="透過 scheme 的 post-actions 與 Tuist CLI 追蹤 Xcode 測試分析資料。"
+    details="透過 scheme post-actions 與 Tuist CLI 追蹤 Xcode 測試分析數據。"
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
     title="Gradle"
-    details="透過 Tuist Gradle 外掛程式追蹤 Gradle 測試分析資料。"
+    details="透過 Tuist Gradle 外掛程式追蹤 Gradle 測試分析數據。"
     link="/guides/features/test-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="透過 tuist bazel test 執行測試來追蹤 Bazel 測試分析資料。"
+    details="透過執行 tuist bazel test 來追蹤 Bazel 測試分析數據。"
     link="/guides/features/test-insights/bazel"
 />
   <.home_card

@@ -27,5 +27,20 @@ defmodule TuistWeb.API.Responses do
     }
   }
 
+  @app_writes_throttled %Response{
+    description: "Too many changes from this user. Retry after the `retry-after` interval.",
+    headers: %{
+      "retry-after" => %Header{
+        description: "Whole seconds to wait before retrying.",
+        schema: %Schema{type: :string}
+      }
+    },
+    content: %{
+      "application/json" => %MediaType{schema: Error}
+    }
+  }
+
   def authorization_throttled, do: @authorization_throttled
+
+  def app_writes_throttled, do: @app_writes_throttled
 end

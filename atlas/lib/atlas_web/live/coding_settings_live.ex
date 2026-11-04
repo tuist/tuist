@@ -101,90 +101,119 @@ defmodule AtlasWeb.CodingSettingsLive do
     <section id="coding-settings" data-part="account-settings-page">
       <div data-part="header">
         <div data-part="text">
-          <h1 data-part="title">Coding</h1>
+          <h1 data-part="title">{gettext("Coding")}</h1>
           <p data-part="description">
-            Choose a GitHub installation and a default repository for new private conversations.
+            {gettext(
+              "Choose a GitHub installation and a default repository for new private conversations."
+            )}
           </p>
         </div>
         <.button
           id="coding-refresh"
-          label="Refresh"
+          label={gettext("Refresh")}
           variant="secondary"
+          size="medium"
           phx-click="refresh"
           disabled={@loading || @saving}
-        />
+        >
+          <:icon_left><.reload /></:icon_left>
+        </.button>
       </div>
-      <.card title="Repositories" icon="brand_github">
-        <.card_section>
+      <div data-part="settings-sections">
+        <.card_section id="coding-repositories" data-part="settings-section">
+          <div data-part="header">
+            <span data-part="title">
+              <span data-part="icon"><.brand_github /></span>
+              {gettext("Default repository")}
+            </span>
+            <span data-part="subtitle">
+              {gettext(
+                "Only repositories accessible to both you and the GitHub App appear here. You can override the repository in each private conversation. This does not clone code or enable a machine."
+              )}
+            </span>
+            <.link_button
+              id="coding-manage-connection"
+              navigate={~p"/settings/connections"}
+              label={gettext("Manage your GitHub connection")}
+              variant="primary"
+              size="medium"
+            />
+          </div>
           <.form
             id="coding-settings-form"
             for={@form}
             phx-change="change"
             phx-submit="save"
-            data-part="coding-settings-form"
+            data-part="content"
           >
-            <label for="coding-installation">GitHub App installation</label>
-            <.select
-              id="coding-installation"
-              field={@form[:installation_id]}
-              label="Choose installation"
-              disabled={@saving || @loading}
-            >
-              <:item value="_none" label="No installation" />
-              <:item
-                :for={installation <- @installations}
-                value={installation.id}
-                label={installation.name}
+            <div data-part="field">
+              <label for="coding-installation">{gettext("GitHub App installation")}</label>
+              <.select
+                id="coding-installation"
+                field={@form[:installation_id]}
+                label={gettext("Choose installation")}
+                disabled={@saving || @loading}
+              >
+                <:item value="_none" label={gettext("No installation")} />
+                <:item
+                  :for={installation <- @installations}
+                  value={installation.id}
+                  label={installation.name}
+                />
+                <:item
+                  :if={
+                    @form[:installation_id].value not in [nil, "", "_none"] &&
+                      !Enum.any?(@installations, &(&1.id == @form[:installation_id].value))
+                  }
+                  value={@form[:installation_id].value}
+                  label={gettext("Saved installation · unavailable")}
+                />
+              </.select>
+            </div>
+            <div data-part="field">
+              <label for="coding-default-repository">{gettext("Default repository")}</label>
+              <.select
+                id="coding-default-repository"
+                field={@form[:default_repository]}
+                label={gettext("Choose repository")}
+                disabled={@saving || @loading || @form[:installation_id].value in [nil, "", "_none"]}
+              >
+                <:item value="_none" label={gettext("No default repository")} />
+                <:item
+                  :for={repository <- @repositories}
+                  value={repository.full_name}
+                  label={repository.full_name}
+                />
+                <:item
+                  :if={
+                    @form[:default_repository].value not in [nil, "", "_none"] &&
+                      !Enum.any?(@repositories, &(&1.full_name == @form[:default_repository].value))
+                  }
+                  value={@form[:default_repository].value}
+                  label={
+                    gettext("%{repository} · not available",
+                      repository: @form[:default_repository].value
+                    )
+                  }
+                />
+              </.select>
+            </div>
+            <p :if={@loading} id="coding-loading" role="status" data-part="hint">
+              {gettext("Loading repositories…")}
+            </p>
+            <p :if={@error} id="coding-error" role="alert" data-part="hint">{@error}</p>
+            <div data-part="actions">
+              <.button
+                id="coding-save"
+                type="submit"
+                size="medium"
+                label={if @saving, do: gettext("Saving…"), else: gettext("Save preferences")}
+                disabled={@loading || @saving}
               />
-              <:item
-                :if={
-                  @form[:installation_id].value not in [nil, "", "_none"] &&
-                    !Enum.any?(@installations, &(&1.id == @form[:installation_id].value))
-                }
-                value={@form[:installation_id].value}
-                label="Saved installation · unavailable"
-              />
-            </.select>
-            <label for="coding-default-repository">Default repository</label>
-            <.select
-              id="coding-default-repository"
-              field={@form[:default_repository]}
-              label="Choose repository"
-              disabled={@saving || @loading || @form[:installation_id].value in [nil, "", "_none"]}
-            >
-              <:item value="_none" label="No default repository" />
-              <:item
-                :for={repository <- @repositories}
-                value={repository.full_name}
-                label={repository.full_name}
-              />
-              <:item
-                :if={
-                  @form[:default_repository].value not in [nil, "", "_none"] &&
-                    !Enum.any?(@repositories, &(&1.full_name == @form[:default_repository].value))
-                }
-                value={@form[:default_repository].value}
-                label={"#{@form[:default_repository].value} · not available"}
-              />
-            </.select>
-            <p :if={@loading} id="coding-loading" role="status">Loading repositories…</p>
-            <p :if={@error} id="coding-error" role="alert">{@error}</p>
-            <.button
-              id="coding-save"
-              type="submit"
-              label={if @saving, do: "Saving…", else: "Save preferences"}
-              disabled={@loading || @saving}
-            />
+            </div>
           </.form>
         </.card_section>
-        <.card_section>
-          <p data-part="description">
-            Only repositories accessible to both you and the GitHub App appear here.
-            You can override the repository in each private conversation. This does not clone code or enable a machine.
-          </p>
-          <.link navigate={~p"/settings/connections"}>Manage your GitHub connection</.link>
-        </.card_section>
-      </.card>
+      </div>
     </section>
     """
   end

@@ -60,35 +60,35 @@ msgstr "المتوسط"
 msgid "Bad request"
 msgstr "طلب غير صالح"
 
-#: lib/tuist_web/components/app_layout_components.ex:550
+#: lib/tuist_web/components/app_layout_components.ex:551
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "الفوترة"
 
-#: lib/tuist_web/components/app_layout_components.ex:71
-#: lib/tuist_web/components/app_layout_components.ex:311
+#: lib/tuist_web/components/app_layout_components.ex:72
+#: lib/tuist_web/components/app_layout_components.ex:312
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr "عمليات تشغيل البناء"
 
-#: lib/tuist_web/components/app_layout_components.ex:60
-#: lib/tuist_web/components/app_layout_components.ex:298
+#: lib/tuist_web/components/app_layout_components.ex:61
+#: lib/tuist_web/components/app_layout_components.ex:299
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "البناءات"
 
-#: lib/tuist_web/components/app_layout_components.ex:439
+#: lib/tuist_web/components/app_layout_components.ex:440
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr "الحزم"
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:54
-#: lib/tuist_web/live/once_runs_live.ex:908
+#: lib/tuist_web/live/once_runs_live.ex:921
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/components/app_layout_components.ex:249
+#: lib/tuist_web/components/app_layout_components.ex:250
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr "عمليات تشغيل ذاكرة التخزين المؤقت"
@@ -104,7 +104,7 @@ msgstr "إنشاء منظمة"
 msgid "Download macOS app"
 msgstr "تنزيل تطبيق macOS"
 
-#: lib/tuist_web/components/app_layout_components.ex:666
+#: lib/tuist_web/components/app_layout_components.ex:667
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "رسائل البريد الإلكتروني"
@@ -116,12 +116,12 @@ msgstr "رسائل البريد الإلكتروني"
 msgid "Error"
 msgstr "خطأ"
 
-#: lib/tuist_web/components/app_layout_components.ex:681
+#: lib/tuist_web/components/app_layout_components.ex:682
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "أخطاء"
 
-#: lib/tuist_web/components/app_layout_components.ex:659
+#: lib/tuist_web/components/app_layout_components.ex:660
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "علامات"
@@ -137,13 +137,13 @@ msgstr "ابدأ الآن"
 msgid "Go to dashboard"
 msgstr "الانتقال إلى لوحة التحكم"
 
-#: lib/tuist_web/components/app_layout_components.ex:689
+#: lib/tuist_web/components/app_layout_components.ex:690
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
-#: lib/tuist_web/components/app_layout_components.ex:596
+#: lib/tuist_web/components/app_layout_components.ex:597
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "التكاملات"
@@ -159,8 +159,8 @@ msgstr "تثبيت تطبيق GitHub غير صالح. يرجى المحاولة 
 msgid "Invalid installation request. Please try again."
 msgstr "طلب تثبيت غير صالح. يرجى المحاولة مرة أخرى."
 
-#: lib/tuist_web/components/app_layout_components.ex:503
-#: lib/tuist_web/components/app_layout_components.ex:653
+#: lib/tuist_web/components/app_layout_components.ex:504
+#: lib/tuist_web/components/app_layout_components.ex:654
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr "المهام"
@@ -170,7 +170,7 @@ msgstr "المهام"
 msgid "Learn more"
 msgstr "اعرف المزيد"
 
-#: lib/tuist_web/components/app_layout_components.ex:647
+#: lib/tuist_web/components/app_layout_components.ex:648
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "لوحة التحكم المباشرة"
@@ -180,12 +180,12 @@ msgstr "لوحة التحكم المباشرة"
 msgid "Log out"
 msgstr "تسجيل الخروج"
 
-#: lib/tuist_web/components/app_layout_components.ex:529
+#: lib/tuist_web/components/app_layout_components.ex:530
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr "الأعضاء"
 
-#: lib/tuist_web/components/app_layout_components.ex:232
+#: lib/tuist_web/components/app_layout_components.ex:233
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "ذاكرة التخزين المؤقت للوحدة"
@@ -243,7 +243,7 @@ msgstr "عذرًا، لم نتمكن من العثور على تلك الصفح�
 msgid "Operations"
 msgstr "العمليات"
 
-#: lib/tuist_web/components/app_layout_components.ex:31
+#: lib/tuist_web/components/app_layout_components.ex:32
 #: lib/tuist_web/live/ops_database_live.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Overview"
@@ -259,17 +259,17 @@ msgstr "يرجى التأكد من أنك تصل إلى المورد الصحي�
 msgid "Prev"
 msgstr "السابق"
 
-#: lib/tuist_web/components/app_layout_components.ex:427
+#: lib/tuist_web/components/app_layout_components.ex:428
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "المعاينات"
 
-#: lib/tuist_web/components/app_layout_components.ex:518
+#: lib/tuist_web/components/app_layout_components.ex:519
 #, elixir-autogen, elixir-format
 msgid "Profiles"
 msgstr "الملفات الشخصية"
 
-#: lib/tuist_web/components/app_layout_components.ex:478
+#: lib/tuist_web/components/app_layout_components.ex:479
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr "المشاريع"
@@ -279,12 +279,12 @@ msgstr "المشاريع"
 msgid "Server error"
 msgstr "خطأ في الخادم"
 
-#: lib/tuist_web/components/app_layout_components.ex:563
+#: lib/tuist_web/components/app_layout_components.ex:564
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "الإعدادات"
 
-#: lib/tuist_web/components/app_layout_components.ex:451
+#: lib/tuist_web/components/app_layout_components.ex:452
 #, elixir-autogen, elixir-format
 msgid "Project Settings"
 msgstr "إعدادات المشروع"
@@ -304,7 +304,7 @@ msgstr "عذرًا، الصفحة التي تبحث عنها غير موجودة
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr "عذرًا، لقد أرسلت عددًا كبيرًا جدًا من الطلبات. يرجى المحاولة مرة أخرى لاحقًا."
 
-#: lib/tuist_web/components/app_layout_components.ex:673
+#: lib/tuist_web/components/app_layout_components.ex:674
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "التخزين"
@@ -314,20 +314,20 @@ msgstr "التخزين"
 msgid "Switch to your preferred theme"
 msgstr "التبديل إلى السمة المفضلة لديك"
 
-#: lib/tuist_web/components/app_layout_components.ex:122
-#: lib/tuist_web/components/app_layout_components.ex:368
+#: lib/tuist_web/components/app_layout_components.ex:123
+#: lib/tuist_web/components/app_layout_components.ex:369
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr "حالات الاختبار"
 
-#: lib/tuist_web/components/app_layout_components.ex:110
-#: lib/tuist_web/components/app_layout_components.ex:353
+#: lib/tuist_web/components/app_layout_components.ex:111
+#: lib/tuist_web/components/app_layout_components.ex:354
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr "عمليات تشغيل الاختبارات"
 
-#: lib/tuist_web/components/app_layout_components.ex:102
-#: lib/tuist_web/components/app_layout_components.ex:340
+#: lib/tuist_web/components/app_layout_components.ex:103
+#: lib/tuist_web/components/app_layout_components.ex:341
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "الاختبارات"
@@ -337,7 +337,7 @@ msgstr "الاختبارات"
 msgid "The account %{account_handle} was not found."
 msgstr "لم يتم العثور على الحساب %{account_handle}."
 
-#: lib/tuist_web/authentication.ex:491
+#: lib/tuist_web/authentication.ex:773
 #: lib/tuist_web/live/layout_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
@@ -392,8 +392,8 @@ msgstr "طلبات كثيرة جداً"
 msgid "Too many requests."
 msgstr "طلبات كثيرة جداً."
 
-#: lib/tuist_web/components/app_layout_components.ex:711
-#: lib/tuist_web/components/app_layout_components.ex:749
+#: lib/tuist_web/components/app_layout_components.ex:729
+#: lib/tuist_web/components/app_layout_components.ex:767
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "أيقونة Tuist"
@@ -418,7 +418,7 @@ msgstr "غير مصرّح"
 msgid "Unknown"
 msgstr "غير معروف"
 
-#: lib/tuist_web/components/app_layout_components.ex:288
+#: lib/tuist_web/components/app_layout_components.ex:289
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "ذاكرة التخزين المؤقت لـ Xcode"
@@ -460,8 +460,8 @@ msgstr "p90"
 msgid "p99"
 msgstr "p99"
 
-#: lib/tuist_web/components/app_layout_components.ex:152
-#: lib/tuist_web/components/app_layout_components.ex:383
+#: lib/tuist_web/components/app_layout_components.ex:153
+#: lib/tuist_web/components/app_layout_components.ex:384
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr "اختبارات غير مستقرة"
@@ -481,18 +481,18 @@ msgstr "تواصل معنا"
 msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr "هذه لوحة تحكم عامة لمشروع %{account_name}/%{project_name}."
 
-#: lib/tuist_web/components/app_layout_components.ex:163
-#: lib/tuist_web/components/app_layout_components.ex:394
+#: lib/tuist_web/components/app_layout_components.ex:164
+#: lib/tuist_web/components/app_layout_components.ex:395
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr "الاختبارات المعزولة"
 
-#: lib/tuist_web/components/app_layout_components.ex:261
+#: lib/tuist_web/components/app_layout_components.ex:262
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr "الأجيال"
 
-#: lib/tuist_web/components/app_layout_components.ex:418
+#: lib/tuist_web/components/app_layout_components.ex:419
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr "ذاكرة التخزين المؤقت لـ Gradle"
@@ -502,8 +502,8 @@ msgstr "ذاكرة التخزين المؤقت لـ Gradle"
 msgid "Create project"
 msgstr "إنشاء مشروع"
 
-#: lib/tuist_web/components/app_layout_components.ex:543
-#: lib/tuist_web/components/app_layout_components.ex:616
+#: lib/tuist_web/components/app_layout_components.ex:544
+#: lib/tuist_web/components/app_layout_components.ex:617
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -525,54 +525,54 @@ msgstr "المقاييس"
 msgid "Authentication failed"
 msgstr "فشل المصادقة"
 
-#: lib/tuist_web/controllers/auth_controller.ex:587
-#: lib/tuist_web/controllers/auth_controller.ex:759
+#: lib/tuist_web/controllers/auth_controller.ex:595
+#: lib/tuist_web/controllers/auth_controller.ex:767
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr "رفض موفر الهوية وصولك. يرجى من مسؤول مؤسستك تعيينك لتطبيق Tuist."
 
-#: lib/tuist_web/components/app_layout_components.ex:178
-#: lib/tuist_web/components/app_layout_components.ex:405
+#: lib/tuist_web/components/app_layout_components.ex:179
+#: lib/tuist_web/components/app_layout_components.ex:406
 #, elixir-autogen, elixir-format
 msgid "Shards"
 msgstr "أجزاء"
 
-#: lib/tuist_web/controllers/auth_controller.ex:596
+#: lib/tuist_web/controllers/auth_controller.ex:604
 #, elixir-autogen, elixir-format
 msgid "Authentication with the identity provider failed. Please try again."
 msgstr "فشلت المصادقة مع موفر الهوية. يرجى المحاولة مرة أخرى."
 
-#: lib/tuist_web/controllers/auth_controller.ex:857
+#: lib/tuist_web/controllers/auth_controller.ex:865
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
 msgstr "فشل في المصادقة مع موفر SSO. يرجى المحاولة مرة أخرى."
 
-#: lib/tuist_web/controllers/auth_controller.ex:738
+#: lib/tuist_web/controllers/auth_controller.ex:746
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
 msgstr "لم يتم تكوين SSO بالكامل لهذه المنظمة. اطلب من مسؤول المنظمة مراجعة إعدادات SSO."
 
-#: lib/tuist_web/controllers/auth_controller.ex:801
+#: lib/tuist_web/controllers/auth_controller.ex:809
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
 msgstr "رمز تفويض SSO غير صالح أو منتهي الصلاحية. يرجى إعادة بدء عملية تسجيل الدخول."
 
-#: lib/tuist_web/controllers/auth_controller.ex:773
+#: lib/tuist_web/controllers/auth_controller.ex:781
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
 msgstr "يفتقد رد اتصال موفر SSO رمز التفويض. يرجى إعادة بدء عملية تسجيل الدخول."
 
-#: lib/tuist_web/controllers/auth_controller.ex:724
+#: lib/tuist_web/controllers/auth_controller.ex:732
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
 msgstr "يفتقد طلب SSO معرّف المنظمة. يرجى بدء عملية تسجيل الدخول مرة أخرى من صفحة تسجيل الدخول."
 
-#: lib/tuist_web/controllers/auth_controller.ex:752
+#: lib/tuist_web/controllers/auth_controller.ex:760
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
 msgstr "لا يمكن التحقق من استجابة SSO لأن حالة الطلب لم تتطابق. يرجى المحاولة مرة أخرى."
 
-#: lib/tuist_web/controllers/auth_controller.ex:780
+#: lib/tuist_web/controllers/auth_controller.ex:788
 #, elixir-autogen, elixir-format
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
 msgstr "نقاط نهاية SSO المُهيأة غير صالحة. اطلب من مسؤول المنظمة مراجعة إعدادات SSO."
@@ -582,52 +582,52 @@ msgstr "نقاط نهاية SSO المُهيأة غير صالحة. اطلب م�
 msgid "Tuist Ops"
 msgstr "عمليات Tuist"
 
-#: lib/tuist_web/controllers/auth_controller.ex:787
+#: lib/tuist_web/controllers/auth_controller.ex:795
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
 msgstr "لم يتمكن Tuist من تبادل رمز التفويض مع موفر الهوية الخاص بك. اطلب من مسؤول المنظمة التحقق من بيانات اعتماد SSO وعنوان URL لرد الاتصال."
 
-#: lib/tuist_web/controllers/auth_controller.ex:794
+#: lib/tuist_web/controllers/auth_controller.ex:802
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
 msgstr "لم يتمكن Tuist من جلب ملفك الشخصي من موفر الهوية الخاص بك. اطلب من مسؤول المؤسسة التحقق من نقطة نهاية معلومات المستخدم والنطاقات المهيأة."
 
-#: lib/tuist_web/controllers/auth_controller.ex:850
+#: lib/tuist_web/controllers/auth_controller.ex:858
 #, elixir-autogen, elixir-format
 msgid "We couldn't complete the SSO callback for this request. Please try again."
 msgstr "لم نتمكن من إكمال رد الاتصال لـ SSO لهذا الطلب. يرجى المحاولة مرة أخرى."
 
-#: lib/tuist_web/controllers/auth_controller.ex:731
+#: lib/tuist_web/controllers/auth_controller.ex:739
 #, elixir-autogen, elixir-format
 msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
 msgstr "لم نتمكن من العثور على المؤسسة الخاصة بطلب SSO هذا. يرجى التحقق من أنك تستخدم رابط SSO الصحيح."
 
-#: lib/tuist_web/controllers/auth_controller.ex:843
+#: lib/tuist_web/controllers/auth_controller.ex:851
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
 msgstr "لم نتمكن من بدء تدفق SSO لهذه المؤسسة. يرجى التحقق من تكوين SSO والمحاولة مرة أخرى."
 
-#: lib/tuist_web/controllers/auth_controller.ex:745
+#: lib/tuist_web/controllers/auth_controller.ex:753
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
 msgstr "انتهت صلاحية جلسة SSO الخاصة بك. يرجى إعادة بدء تدفق تسجيل الدخول من صفحة تسجيل الدخول."
 
-#: lib/tuist_web/controllers/auth_controller.ex:822
+#: lib/tuist_web/controllers/auth_controller.ex:830
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
 msgstr "حساب Tuist الخاص بك موجود بالفعل، لكنه ليس عضواً في هذه المؤسسة. اطلب من مسؤول المؤسسة إضافتك، ثم سجل الدخول باستخدام SSO مرة أخرى."
 
-#: lib/tuist_web/controllers/auth_controller.ex:808
+#: lib/tuist_web/controllers/auth_controller.ex:816
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
 msgstr "استجابة موفر الهوية الخاص بك تفتقد إلى معرّف مستخدم ثابت. اطلب من مسؤول المؤسسة مراجعة مطالبات معلومات المستخدم."
 
-#: lib/tuist_web/controllers/auth_controller.ex:815
+#: lib/tuist_web/controllers/auth_controller.ex:823
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
 msgstr "استجابة موفر الهوية الخاص بك تفتقد إلى عنوان بريد إلكتروني. اطلب من مسؤول المؤسسة تضمين مطالبة البريد الإلكتروني."
 
-#: lib/tuist_web/controllers/auth_controller.ex:766
+#: lib/tuist_web/controllers/auth_controller.ex:774
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
 msgstr "أعاد موفر الهوية خطأ في المصادقة. يرجى المحاولة مرة أخرى أو التواصل مع مسؤول مؤسستك."
@@ -637,7 +637,7 @@ msgstr "أعاد موفر الهوية خطأ في المصادقة. يرجى ا
 msgid "Dashboard"
 msgstr "لوحة التحكم"
 
-#: lib/tuist_web/components/app_layout_components.ex:629
+#: lib/tuist_web/components/app_layout_components.ex:630
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -645,7 +645,7 @@ msgstr "لوحة التحكم"
 msgid "Accounts"
 msgstr "الحسابات"
 
-#: lib/tuist_web/components/app_layout_components.ex:602
+#: lib/tuist_web/components/app_layout_components.ex:603
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "المصادقة"
@@ -685,12 +685,12 @@ msgstr "لم يتم العثور على الحساب."
 msgid "Active"
 msgstr "نشط"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:898
+#: lib/tuist_web/live/ops_account_live.html.heex:906
 #, elixir-autogen, elixir-format
 msgid "Address line 1"
 msgstr "سطر العنوان 1"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:906
+#: lib/tuist_web/live/ops_account_live.html.heex:914
 #, elixir-autogen, elixir-format
 msgid "Address line 2 (optional)"
 msgstr "سطر العنوان 2 (اختياري)"
@@ -720,8 +720,8 @@ msgstr "النمسا"
 msgid "Belgium"
 msgstr "بلجيكا"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:794
-#: lib/tuist_web/live/ops_account_live.html.heex:890
+#: lib/tuist_web/live/ops_account_live.html.heex:802
+#: lib/tuist_web/live/ops_account_live.html.heex:898
 #: lib/tuist_web/live/ops_accounts_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Billing email"
@@ -742,13 +742,13 @@ msgstr "بلغاريا"
 msgid "Canada"
 msgstr "كندا"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:948
+#: lib/tuist_web/live/ops_account_live.html.heex:956
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "إلغاء"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:840
+#: lib/tuist_web/live/ops_account_live.html.heex:848
 #, elixir-autogen, elixir-format
 msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
 msgstr "هل تريد إلغاء اشتراك %{account} في نهاية فترة الفوترة الحالية؟ سيظل الوصول متاحًا حتى ذلك الحين."
@@ -758,7 +758,7 @@ msgstr "هل تريد إلغاء اشتراك %{account} في نهاية فتر�
 msgid "Cancel failed: %{reason}"
 msgstr "فشل الإلغاء: %{reason}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:837
+#: lib/tuist_web/live/ops_account_live.html.heex:845
 #, elixir-autogen, elixir-format
 msgid "Cancel plan"
 msgstr "إلغاء الخطة"
@@ -779,7 +779,7 @@ msgstr "تشيلي"
 msgid "China"
 msgstr "الصين"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:912
+#: lib/tuist_web/live/ops_account_live.html.heex:920
 #, elixir-autogen, elixir-format
 msgid "City"
 msgstr "المدينة"
@@ -789,12 +789,12 @@ msgstr "المدينة"
 msgid "Colombia"
 msgstr "كولومبيا"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:932
+#: lib/tuist_web/live/ops_account_live.html.heex:940
 #, elixir-autogen, elixir-format
 msgid "Country"
 msgstr "البلد"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:860
+#: lib/tuist_web/live/ops_account_live.html.heex:868
 #, elixir-autogen, elixir-format
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
 msgstr "ينشئ عميلًا في Stripe (إذا لم يكن موجودًا)، ويحدد عنوان الفوترة، ويبدأ اشتراك Enterprise المفوتر عبر الفاتورة. يتلقى العميل فاتورة عبر البريد الإلكتروني؛ لا يتم جمع بيانات البطاقة هنا."
@@ -921,7 +921,7 @@ msgstr "إيطاليا"
 msgid "Japan"
 msgstr "اليابان"
 
-#: lib/tuist_web/components/app_layout_components.ex:622
+#: lib/tuist_web/components/app_layout_components.ex:623
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -962,7 +962,7 @@ msgstr "ماليزيا"
 msgid "Malta"
 msgstr "مالطا"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:807
+#: lib/tuist_web/live/ops_account_live.html.heex:815
 #, elixir-autogen, elixir-format
 msgid "Manage on Stripe"
 msgstr "إدارة عبر Stripe"
@@ -979,7 +979,7 @@ msgstr "المكسيك"
 msgid "Name"
 msgstr "الاسم"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:882
+#: lib/tuist_web/live/ops_account_live.html.heex:890
 #, elixir-autogen, elixir-format
 msgid "Name on invoice"
 msgstr "الاسم على الفاتورة"
@@ -1017,7 +1017,7 @@ msgstr "لا يوجد اشتراك نشط للإلغاء."
 #: lib/tuist_web/live/ops_account_live.html.heex:53
 #: lib/tuist_web/live/ops_account_live.html.heex:57
 #: lib/tuist_web/live/ops_account_live.html.heex:63
-#: lib/tuist_web/live/ops_account_live.html.heex:795
+#: lib/tuist_web/live/ops_account_live.html.heex:803
 #: lib/tuist_web/live/ops_accounts_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -1028,7 +1028,7 @@ msgstr "لا شيء"
 msgid "Norway"
 msgstr "النرويج"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:798
+#: lib/tuist_web/live/ops_account_live.html.heex:806
 #: lib/tuist_web/live/ops_accounts_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Not created"
@@ -1055,13 +1055,13 @@ msgstr "قيد الانتظار"
 msgid "Philippines"
 msgstr "الفلبين"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:780
+#: lib/tuist_web/live/ops_account_live.html.heex:788
 #: lib/tuist_web/live/ops_accounts_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Plan"
 msgstr "الخطة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:777
+#: lib/tuist_web/live/ops_account_live.html.heex:785
 #, elixir-autogen, elixir-format
 msgid "Plan & billing"
 msgstr "الخطة والفوترة"
@@ -1076,7 +1076,7 @@ msgstr "بولندا"
 msgid "Portugal"
 msgstr "البرتغال"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:926
+#: lib/tuist_web/live/ops_account_live.html.heex:934
 #, elixir-autogen, elixir-format
 msgid "Postal code"
 msgstr "الرمز البريدي"
@@ -1111,7 +1111,7 @@ msgstr "قيد التشغيل"
 msgid "Search by name"
 msgstr "البحث بالاسم"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:935
+#: lib/tuist_web/live/ops_account_live.html.heex:943
 #, elixir-autogen, elixir-format
 msgid "Select a country"
 msgstr "اختر دولة"
@@ -1151,7 +1151,7 @@ msgstr "إسبانيا"
 msgid "Started"
 msgstr "بدأت"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:920
+#: lib/tuist_web/live/ops_account_live.html.heex:928
 #, elixir-autogen, elixir-format
 msgid "State / region (optional)"
 msgstr "الولاية / المنطقة (اختياري)"
@@ -1160,13 +1160,13 @@ msgstr "الولاية / المنطقة (اختياري)"
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:18
 #: lib/tuist_web/live/ops_account_live.html.heex:31
 #: lib/tuist_web/live/ops_account_live.html.heex:99
-#: lib/tuist_web/live/ops_account_live.html.heex:787
+#: lib/tuist_web/live/ops_account_live.html.heex:795
 #: lib/tuist_web/live/ops_accounts_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "الحالة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:797
+#: lib/tuist_web/live/ops_account_live.html.heex:805
 #: lib/tuist_web/live/ops_accounts_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Stripe customer"
@@ -1238,13 +1238,13 @@ msgstr "المملكة المتحدة"
 msgid "United States"
 msgstr "الولايات المتحدة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:855
+#: lib/tuist_web/live/ops_account_live.html.heex:863
 #, elixir-autogen, elixir-format
 msgid "Upgrade %{account} to Enterprise"
 msgstr "ترقية %{account} إلى Enterprise"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:815
-#: lib/tuist_web/live/ops_account_live.html.heex:956
+#: lib/tuist_web/live/ops_account_live.html.heex:823
+#: lib/tuist_web/live/ops_account_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Upgrade to Enterprise"
 msgstr "الترقية إلى Enterprise"
@@ -1323,22 +1323,22 @@ msgstr "أعاد GitHub Enterprise Server رمز 404 عند تحويل البي�
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
 msgstr "أعاد GitHub Enterprise Server حالة HTTP %{status} عند تحويل البيان. تحقق من سجلات الخادم للحصول على نص الطلب وحاول مرة أخرى."
 
-#: lib/tuist_web/components/app_layout_components.ex:584
+#: lib/tuist_web/components/app_layout_components.ex:585
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "عام"
 
-#: lib/tuist_web/components/app_layout_components.ex:489
+#: lib/tuist_web/components/app_layout_components.ex:490
 #, elixir-autogen, elixir-format
 msgid "Runners"
 msgstr "مشغّلات CI"
 
-#: lib/tuist_web/components/app_layout_components.ex:536
+#: lib/tuist_web/components/app_layout_components.ex:537
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr "الويب هوكس"
 
-#: lib/tuist_web/components/app_layout_components.ex:497
+#: lib/tuist_web/components/app_layout_components.ex:498
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr "سير العمل"
@@ -1431,7 +1431,7 @@ msgstr "نسخ كـ Markdown"
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr "تعذر قراءة موارد النسخ الاحتياطي للعنقود من واجهة برمجة تطبيقات Kubernetes — تحقق من صلاحيات RBAC لحساب خدمة الخادم على postgresql.cnpg.io."
 
-#: lib/tuist_web/components/app_layout_components.ex:641
+#: lib/tuist_web/components/app_layout_components.ex:642
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1812,17 +1812,17 @@ msgstr "أرشيف WAL"
 msgid "Write lag (bytes)"
 msgstr "زمن الكتابة (بالبايت)"
 
-#: lib/tuist_web/components/app_layout_components.ex:556
+#: lib/tuist_web/components/app_layout_components.ex:557
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "الاستخدام"
 
-#: lib/tuist_web/components/app_layout_components.ex:732
+#: lib/tuist_web/components/app_layout_components.ex:750
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "التوثيق"
 
-#: lib/tuist_web/components/app_layout_components.ex:590
+#: lib/tuist_web/components/app_layout_components.ex:591
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "الرموز المميزة"
@@ -1833,7 +1833,7 @@ msgid "Limits apply independently to Linux and macOS. A new runner starts only w
 msgstr "تُطبَّق الحدود بشكل مستقل على Linux وmacOS. لا يبدأ مشغّل جديد إلا عندما تتسع كلٌ من وحدات vCPU والذاكرة ضمن السعة المتبقية لتلك المنصة."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:419
-#: lib/tuist_web/live/ops_account_live.html.heex:671
+#: lib/tuist_web/live/ops_account_live.html.heex:679
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr "Linux"
@@ -1866,7 +1866,7 @@ msgid "Save runner limits"
 msgstr "حفظ حدود المشغّل"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:438
-#: lib/tuist_web/live/ops_account_live.html.heex:670
+#: lib/tuist_web/live/ops_account_live.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr "macOS"
@@ -1878,7 +1878,7 @@ msgstr "macOS"
 msgid "vCPU limit"
 msgstr "حد vCPU"
 
-#: lib/tuist_web/controllers/auth_controller.ex:829
+#: lib/tuist_web/controllers/auth_controller.ex:837
 #, elixir-autogen, elixir-format
 msgid "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
 msgstr "لا تسمح مؤسستك بالتسجيل التلقائي لنطاق البريد الإلكتروني هذا. اطلب من مسؤول المؤسسة دعوتك."
@@ -1898,52 +1898,52 @@ msgstr "%{account} الآن %{visibility}."
 msgid "Account visibility could not be updated."
 msgstr "لم يتمكّن النظام من تحديث إعدادات رؤية الحساب."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:760
+#: lib/tuist_web/live/ops_account_live.html.heex:768
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr "إجراءات"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:742
+#: lib/tuist_web/live/ops_account_live.html.heex:750
 #, elixir-autogen, elixir-format
 msgid "Dashboards"
 msgstr "لوحات المعلومات"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:766
+#: lib/tuist_web/live/ops_account_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "Make private"
 msgstr "اجعلها خاصة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:767
+#: lib/tuist_web/live/ops_account_live.html.heex:775
 #, elixir-autogen, elixir-format
 msgid "Make public"
 msgstr "اجعلها عامة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:757
+#: lib/tuist_web/live/ops_account_live.html.heex:765
 #, elixir-autogen, elixir-format
 msgid "Nothing."
 msgstr "لا شيء."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:746
+#: lib/tuist_web/live/ops_account_live.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "Private"
 msgstr "خاصة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:745
+#: lib/tuist_web/live/ops_account_live.html.heex:753
 #, elixir-autogen, elixir-format
 msgid "Public"
 msgstr "عامة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:753
+#: lib/tuist_web/live/ops_account_live.html.heex:761
 #, elixir-autogen, elixir-format
 msgid "Public projects, runners, and usage. Members, webhooks, cache, billing, and settings stay private."
 msgstr "المشاريع والمشغّلات والاستخدام العامة. الأعضاء والويب هوكس وذاكرة التخزين المؤقت والفوترة والإعدادات تبقى خاصة."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:749
+#: lib/tuist_web/live/ops_account_live.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "Signed-out visitors see"
 msgstr "الزوار غير المسجّلين يرون"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:739
+#: lib/tuist_web/live/ops_account_live.html.heex:747
 #, elixir-autogen, elixir-format
 msgid "Visibility"
 msgstr "الرؤية"
@@ -1990,12 +1990,12 @@ msgstr "%{account} في فترة تجريبية لمشغّلات CI ولن يت�
 msgid "%{account}'s runner trial is over. Runner usage is billable from now on."
 msgstr "انتهت الفترة التجريبية لمشغّلات CI الخاصة بـ %{account}. سيتم فوترة استخدام المشغّل من الآن فصاعدًا."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:574
+#: lib/tuist_web/live/ops_account_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
 msgstr "لا يتم فوتر الحساب في فترة تجريبية لمشغّلات CI مقابل استخدام المشغّل. لا يزال الاستخدام مقاسًا ومبلغًا عنه، لكن الاشتراك لا يحتوي على بند للمشغّل يمكن لـ Stripe إصدار فاتورة به. تستمر الفترة التجريبية حتى يتم إلغاؤها من هنا."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:603
+#: lib/tuist_web/live/ops_account_live.html.heex:611
 #, elixir-autogen, elixir-format
 msgid "Cancel runner trial"
 msgstr "إلغاء الفترة التجريبية لمشغّلات CI"
@@ -2010,7 +2010,7 @@ msgstr "تعذّر إلغاء الفترة التجريبية: %{reason}"
 msgid "Could not start the trial: %{reason}"
 msgstr "تعذّر بدء الفترة التجريبية: %{reason}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:622
+#: lib/tuist_web/live/ops_account_live.html.heex:630
 #, elixir-autogen, elixir-format
 msgid "Expires"
 msgstr "تنتهي الصلاحية"
@@ -2020,22 +2020,22 @@ msgstr "تنتهي الصلاحية"
 msgid "No expiry"
 msgstr "بدون انتهاء صلاحية"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:584
+#: lib/tuist_web/live/ops_account_live.html.heex:592
 #, elixir-autogen, elixir-format
 msgid "On a runner trial"
 msgstr "في فترة تجريبية للمشغّل"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:571
+#: lib/tuist_web/live/ops_account_live.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Runner trial"
 msgstr "فترة تجريبية للمشغّل"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:597
+#: lib/tuist_web/live/ops_account_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Start runner trial"
 msgstr "بدء الفترة التجريبية للمشغّل"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:619
+#: lib/tuist_web/live/ops_account_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Minutes remaining"
 msgstr "الدقائق المتبقية"
@@ -2045,17 +2045,17 @@ msgstr "الدقائق المتبقية"
 msgid "Prepaid"
 msgstr "مدفوع مسبقاً"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:609
+#: lib/tuist_web/live/ops_account_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "Prepaid runner minutes"
 msgstr "دقائق مشغّل مدفوعة مسبقاً"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:616
+#: lib/tuist_web/live/ops_account_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr "المصدر"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:627
+#: lib/tuist_web/live/ops_account_live.html.heex:635
 #, elixir-autogen, elixir-format
 msgid "This account has no prepaid runner minutes."
 msgstr "لا يحتوي هذا الحساب على دقائق مشغّل مدفوعة مسبقاً."
@@ -2065,7 +2065,7 @@ msgstr "لا يحتوي هذا الحساب على دقائق مشغّل مدف�
 msgid "Trial"
 msgstr "تجريبي"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:586
+#: lib/tuist_web/live/ops_account_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
 msgstr "يؤدي الإلغاء إلى إضافة عناصر المشغّل إلى اشتراك هذا الحساب، ما يجعل استخدام المشغّل خاضعاً للفوترة من تلك اللحظة. تبقى الدقائق التي تم تشغيلها خلال الفترة التجريبية مجانية، بما في ذلك تلك المسجّلة بالفعل في فترة الفوترة الحالية."
@@ -2629,12 +2629,12 @@ msgstr "غير متاح مؤقتاً"
 msgid "Temporarily unavailable."
 msgstr "غير متاح مؤقتاً."
 
-#: lib/tuist_web/components/app_layout_components.ex:275
+#: lib/tuist_web/components/app_layout_components.ex:276
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "الوحدات"
 
-#: lib/tuist_web/components/app_layout_components.ex:322
+#: lib/tuist_web/components/app_layout_components.ex:323
 #, elixir-autogen, elixir-format
 msgid "Tasks"
 msgstr "المهام"
@@ -2670,7 +2670,7 @@ msgstr[5] "ظهر في %{count} أيام من أيام القياس (تم تجا
 msgid "Placement proposes moving this account off its first region, %{from}, to %{to}."
 msgstr "تقترح خدمة Placement نقل هذا الحساب من منطقته الأولى، %{from}، إلى %{to}."
 
-#: lib/tuist_web/components/app_layout_components.ex:191
+#: lib/tuist_web/components/app_layout_components.ex:192
 #, elixir-autogen, elixir-format
 msgid "Bazel Cache"
 msgstr "ذاكرة التخزين المؤقت لـ Bazel"
@@ -2680,7 +2680,7 @@ msgstr "ذاكرة التخزين المؤقت لـ Bazel"
 msgid "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month."
 msgstr "تبدأ الخطة المجانية لحساب %{account} من جديد اعتبارًا من الآن. ستحصل على الحصة الكاملة مرة أخرى حتى نهاية الشهر."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:547
+#: lib/tuist_web/live/ops_account_live.html.heex:555
 #, elixir-autogen, elixir-format
 msgid "Cache access blocked"
 msgstr "تم حظر الوصول إلى ذاكرة التخزين المؤقت"
@@ -2690,12 +2690,12 @@ msgstr "تم حظر الوصول إلى ذاكرة التخزين المؤقت"
 msgid "Could not reset the free tier: %{reason}"
 msgstr "تعذر إعادة تعيين الخطة المجانية: %{reason}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:508
+#: lib/tuist_web/live/ops_account_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Free tier"
 msgstr "الخطة المجانية"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:538
+#: lib/tuist_web/live/ops_account_live.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "Last reset"
 msgstr "آخر إعادة تعيين"
@@ -2705,22 +2705,22 @@ msgstr "آخر إعادة تعيين"
 msgid "Never"
 msgstr "أبدًا"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:565
+#: lib/tuist_web/live/ops_account_live.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Reset free tier"
 msgstr "إعادة تعيين الخطة المجانية"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:549
+#: lib/tuist_web/live/ops_account_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "This account is over its free tier and cannot reach the cache until it upgrades or the free tier is reset. Enforcement runs once a day, so an account can read as over the limit for up to a day before it is actually cut off."
 msgstr "هذا الحساب تجاوز حدود الخطة المجانية ولا يمكنه الوصول إلى ذاكرة التخزين المؤقت حتى يقوم بالترقية أو يتم إعادة تعيين الخطة المجانية. يتم تطبيق القيود مرة واحدة يوميًا، لذا قد يظهر الحساب وكأنه تجاوز الحد لمدة تصل إلى يوم قبل أن يتم قطع الوصول فعليًا."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:560
+#: lib/tuist_web/live/ops_account_live.html.heex:568
 #, elixir-autogen, elixir-format
 msgid "Reset this account's free tier? It gets the full allowance again for the rest of the month, and the runs it has already made stop counting."
 msgstr "إعادة تعيين الباقة المجانية لهذا الحساب؟ سيحصل على الحصة الكاملة مرة أخرى لبقية الشهر، ولن تُحتسب عمليات التشغيل التي أجراها بالفعل."
 
-#: lib/tuist_web/authentication.ex:477
+#: lib/tuist_web/authentication.ex:759
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr "المشروع الذي تبحث عنه غير موجود أو تم نقله."
@@ -2777,17 +2777,17 @@ msgstr "يتم ضبط حجم القرص تلقائياً: يزداد الحجم 
 msgid "PR #%{number}"
 msgstr "طلب دمج #%{number}"
 
-#: lib/tuist_web/controllers/auth_controller.ex:836
+#: lib/tuist_web/controllers/auth_controller.ex:844
 #, elixir-autogen, elixir-format
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
 msgstr "لم تتحقق مؤسستك من نطاق بريد إلكتروني لتسجيل الدخول يطابق بريدك الإلكتروني، لذا لا يمكن لتسجيل الدخول الموحد إنشاء حساب Tuist لك. إذا كنت قد تلقيت دعوة، فسجّل باستخدام عنوان البريد الإلكتروني المدعو، واقبل الدعوة، ثم سجّل الدخول عبر تسجيل الدخول الموحد لربط حسابك."
 
-#: lib/tuist_web/components/app_layout_components.ex:141
+#: lib/tuist_web/components/app_layout_components.ex:142
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
 msgstr "تغطية الشيفرة البرمجية"
 
-#: lib/tuist_web/components/app_layout_components.ex:203
+#: lib/tuist_web/components/app_layout_components.ex:204
 #: lib/tuist_web/live/once_cache_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Once Cache"
@@ -2818,17 +2818,17 @@ msgstr "لم يتمكن Tuist من حل %{url}. تحقق مرة أخرى من ص
 msgid "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}."
 msgstr "يمتلك %{account} الآن رصيدًا قدره %{credit} كرصيد لمشغّلات CI، أي ما يعادل حوالي %{minutes} دقيقة أساسية، صالح للاستخدام حتى %{date}."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:647
+#: lib/tuist_web/live/ops_account_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "Amount paid (USD)"
 msgstr "المبلغ المدفوع (دولار أمريكي)"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:702
+#: lib/tuist_web/live/ops_account_live.html.heex:710
 #, elixir-autogen, elixir-format
 msgid "Baseline minutes"
 msgstr "الدقائق الأساسية"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:685
+#: lib/tuist_web/live/ops_account_live.html.heex:693
 #, elixir-autogen, elixir-format
 msgid "Contract's last day"
 msgstr "آخر يوم للعقد"
@@ -2873,22 +2873,22 @@ msgstr "لا يمكن منح الحزمة: يجب أن يكون تاريخ ان�
 msgid "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
 msgstr "لا يمكن منح الحزمة: يجب أن يكون مضاعف الرصيد بين 1.0 و2.0، بأربع منازل عشرية على الأكثر."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:696
+#: lib/tuist_web/live/ops_account_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Credit granted"
 msgstr "تم منح الرصيد"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:654
+#: lib/tuist_web/live/ops_account_live.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Credit multiplier"
 msgstr "مضاعف الرصيد"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:732
+#: lib/tuist_web/live/ops_account_live.html.heex:740
 #, elixir-autogen, elixir-format
 msgid "Grant pool"
 msgstr "مجموعة المنح"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:667
+#: lib/tuist_web/live/ops_account_live.html.heex:675
 #, elixir-autogen, elixir-format
 msgid "Platforms"
 msgstr "المنصات"
@@ -2898,17 +2898,17 @@ msgstr "المنصات"
 msgid "Pool"
 msgstr "المجموعة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:691
+#: lib/tuist_web/live/ops_account_live.html.heex:699
 #, elixir-autogen, elixir-format
 msgid "Stripe invoice (optional)"
 msgstr "فاتورة Stripe (اختياري)"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:669
+#: lib/tuist_web/live/ops_account_live.html.heex:677
 #, elixir-autogen, elixir-format
 msgid "macOS and Linux"
 msgstr "macOS وLinux"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:678
+#: lib/tuist_web/live/ops_account_live.html.heex:686
 #, elixir-autogen, elixir-format
 msgid "Contract's first day"
 msgstr "اليوم الأول للعقد"
@@ -2918,22 +2918,22 @@ msgstr "اليوم الأول للعقد"
 msgid "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
 msgstr "لا يمكن تفعيل المجموعة: يجب أن يبدأ العقد في يوم أو قبل آخر يوم له، وأن يستمر لمدة عام على الأكثر."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:710
+#: lib/tuist_web/live/ops_account_live.html.heex:718
 #, elixir-autogen, elixir-format
 msgid "First invoice paid from the pool"
 msgstr "أول فاتورة مدفوعة من المجموعة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:722
+#: lib/tuist_web/live/ops_account_live.html.heex:730
 #, elixir-autogen, elixir-format
 msgid "Invoices paid from the pool"
 msgstr "الفواتير المدفوعة من المجموعة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:716
+#: lib/tuist_web/live/ops_account_live.html.heex:724
 #, elixir-autogen, elixir-format
 msgid "Last invoice paid from the pool"
 msgstr "آخر فاتورة مدفوعة من المجموعة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:724
+#: lib/tuist_web/live/ops_account_live.html.heex:732
 #, elixir-autogen, elixir-format
 msgid "No subscription to invoice against"
 msgstr "لا يوجد اشتراك لإصدار فاتورة ضده"
@@ -2948,12 +2948,12 @@ msgstr "%{account} لديه بالفعل اشتراك نشط."
 msgid "%{account} is now on the Open Source plan."
 msgstr "%{account} الآن على خطة المصدر المفتوح."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:824
+#: lib/tuist_web/live/ops_account_live.html.heex:832
 #, elixir-autogen, elixir-format
 msgid "Put %{account} on the Open Source plan? Its usage is never invoiced, and Kura does not serve open source accounts."
 msgstr "وضع %{account} على خطة المصادر المفتوحة؟ لن يتم إصدار فواتير لاستخدامها، ولا تخدم Kura حسابات المصادر المفتوحة."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:821
+#: lib/tuist_web/live/ops_account_live.html.heex:829
 #, elixir-autogen, elixir-format
 msgid "Start open source plan"
 msgstr "ابدأ خطة المصادر المفتوحة"
@@ -3011,7 +3011,7 @@ msgstr "آخر 7 أيام"
 msgid "Local"
 msgstr "محلي"
 
-#: lib/tuist_web/components/app_layout_components.ex:224
+#: lib/tuist_web/components/app_layout_components.ex:225
 #: lib/tuist_web/live/toolchain_cache_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "Mix Cache"
@@ -3098,7 +3098,7 @@ msgstr "بايتات رفع CAS الناجحة من العميل وبايتات 
 msgid "This account already has a GitHub App registered for a different GitHub host."
 msgstr "هذا الحساب لديه بالفعل تطبيق GitHub مسجّل لمضيف GitHub مختلف."
 
-#: lib/tuist_web/components/app_layout_components.ex:215
+#: lib/tuist_web/components/app_layout_components.ex:216
 #: lib/tuist_web/live/toolchain_cache_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Cargo Cache"
@@ -3109,31 +3109,26 @@ msgstr "ذاكرة تخزين مؤقت لـ Cargo"
 msgid "Hits"
 msgstr "العثور في ذاكرة التخزين المؤقت"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:522
-#: lib/tuist_web/live/ops_account_live.html.heex:531
+#: lib/tuist_web/live/ops_account_live.html.heex:530
+#: lib/tuist_web/live/ops_account_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit}"
 msgstr "%{usage} من %{limit}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:511
+#: lib/tuist_web/live/ops_account_live.html.heex:519
 #, elixir-autogen, elixir-format
 msgid "An Air account can reach the cache until it uses %{egress} of cache egress or %{requests} cache requests a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary."
 msgstr "يمكن لحساب Air الوصول إلى ذاكرة التخزين المؤقت حتى يستهلك %{egress} من سعة الخروج أو %{requests} طلبات للذاكرة المؤقتة شهريًا. يؤدي إعادة التعيين إلى بدء العد من جديد اعتبارًا من الآن، مما يلغي الحظر عن الحساب ويمنحه السعة الكاملة مرة أخرى لبقية الشهر. هذا ليس إعفاءً: تصبح إعادة التعيين غير فعالة في اليوم الأول من الشهر التالي، عندما يعود العد ليرتبط بحدود الشهر."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:520
+#: lib/tuist_web/live/ops_account_live.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Cache egress this period"
 msgstr "مغادرة الذاكرة المؤقتة هذه الفترة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:529
+#: lib/tuist_web/live/ops_account_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Cache requests this period"
 msgstr "طلبات الذاكرة المؤقتة هذه الفترة"
-
-#: lib/tuist_web/live/ops_account_live.html.heex:471
-#, elixir-autogen, elixir-format
-msgid "Sandbox CPU and memory limits are independent of CI. Creating, resuming and running sandboxes count toward these limits; paused sandboxes do not."
-msgstr "حدود وحدة المعالجة المركزية والذاكرة في البيئات المعزولة مستقلة عن CI. إنشاء واستئناف وتشغيل البيئات المعزولة يُحتسب ضمن هذه الحدود؛ أما البيئات المعزولة المتوقفة فلا تُحتسب."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:468
 #, elixir-autogen, elixir-format
@@ -3145,17 +3140,27 @@ msgstr "التزامن في البيئات المعزولة"
 msgid "Sandbox concurrency limits updated."
 msgstr "تم تحديث حدود التزامن للبيئات المعزولة."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:501
+#: lib/tuist_web/live/ops_account_live.html.heex:509
 #, elixir-autogen, elixir-format
 msgid "Save sandbox limits"
 msgstr "حفظ حدود البيئة المعزولة"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:632
+#: lib/tuist_web/live/ops_account_live.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it."
 msgstr "المجموعة هي رصيد للمشغّلات يُدفع مقدّمًا لعقد مدته تصل إلى عام، عادةً عبر تحويل بنكي. يبقى الرصيد صالحًا طوال مدة العقد بدلًا من انتهاء صلاحيته شهريًا، لذا لا تُلغى الدقائق التي دفعها العميل بالفعل خلال الأشهر الهادئة، ويُفوتّر الاستخدام الزائد عن ذلك عند الطلب. تُحاذاة مدة عقد أقصر من عام مع نهاية عقد سابق. تسدّ المجموعة الفواتير التي تتضمن استخدام تلك المدة، وتظهر أدناه بمجرد إدخال كلا التاريخين. لا يترتب على منح مجموعة أي رسوم: افوتّرها في فاتورة منفصلة، وأدخل معرف تلك الفاتورة هنا ليتم تتبع الرصيد إليها."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:657
+#: lib/tuist_web/live/ops_account_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute."
 msgstr "الرصيد الممنوح مقابل كل دولار مدفوع: سعر الدقيقة عند الطلب مقسومًا على السعر المدفوع مسبقًا للدقيقة ضمن الصفقة."
+
+#: lib/tuist_web/live/ops_account_live.html.heex:501
+#, elixir-autogen, elixir-format
+msgid "Disk limit (GB)"
+msgstr "حد القرص (جيجابايت)"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
+msgstr "حدود بيئة الاختبار مستقلة عن التكامل المستمر. إنشاء واستئناف وتشغيل بيئات الاختبار يُحتسب ضمن حدود وحدة المعالجة المركزية والذاكرة. كل بيئة اختبار على العقدة، بما في ذلك الموقوفة منها، تُحتسب ضمن حد القرص بفضاء العمل وصورة الذاكرة الخاصة بها؛ أما البيئات المؤرشفة فلا تُحتسب."

@@ -112,7 +112,7 @@ msgid "Continue"
 msgstr "متابعة"
 
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:57
+#: lib/tuist_web/live/device_codes_success_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr "لوحة التحكم"
@@ -271,14 +271,14 @@ msgstr "التسجيل في Tuist"
 msgid "This username has already been taken"
 msgstr "اسم المستخدم هذا مُستخدم بالفعل"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:37
+#: lib/tuist_web/live/device_codes_success_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr "تم توصيل Tuist CLI!"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:26
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -291,7 +291,7 @@ msgstr "تم توصيل Tuist CLI!"
 msgid "Tuist Logo"
 msgstr "شعار Tuist"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:35
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr "تم توصيل تطبيق Tuist!"
@@ -308,7 +308,7 @@ msgstr "لوحة تحكم Tuist"
 msgid "Tuist documentation"
 msgstr "وثائق Tuist"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:39
+#: lib/tuist_web/live/device_codes_success_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr "تم الاتصال بـ Tuist!"
@@ -350,17 +350,17 @@ msgstr "مرحبًا بعودتك! يرجى تسجيل الدخول للمتاب
 msgid "Welcome! Create an account to continue"
 msgstr "مرحبًا! أنشئ حسابًا للمتابعة"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:49
+#: lib/tuist_web/live/device_codes_success_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr "يمكنك إغلاق علامة التبويب والمتابعة"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:45
+#: lib/tuist_web/live/device_codes_success_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr "يمكنك إغلاق علامة التبويب والمتابعة في التطبيق"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:47
+#: lib/tuist_web/live/device_codes_success_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr "يمكنك إغلاق علامة التبويب والمتابعة في الطرفية"
@@ -893,3 +893,8 @@ msgstr "تعذر التحقق من مفتاح المرور. حاول مرة أخ
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
 msgstr "مفتاح المرور هذا مسجّل بالفعل."
+
+#: lib/tuist_web/authentication.ex:698
+#, elixir-autogen, elixir-format
+msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
+msgstr "تتطلب كل منظمة من مؤسساتك إعداد تسجيل دخول موحّد خاص بها، لذا لا يمكن لهذه الجلسة تسجيل الدخول إلى واجهة سطر الأوامر في Tuist أو التطبيق أو عملاء MCP. اطلب المساعدة من مسؤول المنظمة."
