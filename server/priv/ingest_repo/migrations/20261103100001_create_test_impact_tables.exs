@@ -8,10 +8,11 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactTables do
     checked-out commit and baseline serves every invocation on that commit, and
     identical concurrent writes collapse.
   - `test_impact_runs`: one row per `tuist test` invocation that asked for a
-    selection: the diff it used, its scope, the outcome and why, the trace of
-    the rules that decided it, and the counts. Fallbacks are recorded too.
-    Ordered for the overview's date-range read; the run page finds a run by id
-    through the bloom filter.
+    selection: the diff it used, the baseline's runs it read its tests from
+    (so every shard's skip list matches the decision), its scope, the outcome
+    and why, the trace of the rules that decided it, and the counts. Fallbacks
+    are recorded too. Ordered for the overview's date-range read; the run page
+    finds a run by id through the bloom filter.
   - `test_impact_run_tests`: the tests a run selected, with the rule that
     selected each one, ordered so a run's tests, or a shard's suites, are one
     prefix read. Skipped tests are never stored: they are derived.
@@ -61,6 +62,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactTables do
       `head_sha` String,
       `commit_sha` String,
       `baseline_sha` Nullable(String),
+      `baseline_run_ids` Array(UUID),
       `git_branch` String,
       `dirty` Bool,
       `strategy` LowCardinality(String),

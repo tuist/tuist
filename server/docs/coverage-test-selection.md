@@ -143,7 +143,7 @@ The decision is made once per invocation, before the build: in the plan job for 
 
 ### The default branch never selects
 
-On the project's default branch, the baseline request still goes out (it's how the client learns whether the project is enabled), and the runs request carries `fallback_reason: excluded_branch`. The server decides the same from `git_branch == project.default_branch`. Either way the client runs every test in scope, including what hashing would skip, so each default-branch commit with a run is a full run with fresh evidence, and a pull request's window usually ends at its merge base.
+Outside pull requests, the baseline request carries the checkout's `git_branch`, and on the project's default branch the server answers `excluded_branch` without resolving a baseline, so the client neither deepens nor diffs. That answer is how the client learns it's on the default branch, so it sends the baseline request there even when every module's hash matched. The runs request then carries `fallback_reason: excluded_branch`, and `Runs` decides the same from `git_branch == project.default_branch`. Either way the client runs every test in scope, including what hashing would skip, so each default-branch commit with a run is a full run with fresh evidence, and a pull request's window usually ends at its merge base.
 
 ### The outcome on the client
 
@@ -161,7 +161,7 @@ Both endpoints are in `TuistWeb.API.SelectiveTestingCoverageController`, under `
 
 | Operation | Request | Response |
 | --- | --- | --- |
-| `POST …/baseline` (`resolveTestImpactBaseline`) | `build_system`, `commit_sha` (required); `parent_shas` (the checked-out commit's parents; on a merge checkout, the base-branch tip and the pull request head), `ancestor_shas` (at most 200, the rest ignored), `platform`, the build system's block (`xcode`) | `TestImpactBaseline`: `baseline_sha` (nullable), `reason` (`history_unknown` asks the client to deepen and repeat the request with `ancestor_shas`), `diff_cached` |
+| `POST …/baseline` (`resolveTestImpactBaseline`) | `build_system`, `commit_sha` (required); `parent_shas` (the checked-out commit's parents; on a merge checkout, the base-branch tip and the pull request head), `ancestor_shas` (at most 200, the rest ignored), `platform`, `git_branch` (outside pull requests), the build system's block (`xcode`) | `TestImpactBaseline`: `baseline_sha` (nullable), `reason` (`history_unknown` asks the client to deepen and repeat the request with `ancestor_shas`; `excluded_branch` on the default branch), `diff_cached` |
 | `POST …/runs` (`createTestImpactRun`) | `build_system`, `head_sha` (required); `commit_sha` (defaults to `head_sha`, keys the diff), `parent_shas` and `ancestor_shas` (as in the baseline request), `baseline_sha` or `fallback_reason`, `changed_files [{path, status, blob?, affected_modules?}]` with `changed_files_count`, `dirty`, `modules`, `platform`, `git_branch`, the build system's block | `TestImpactRun`: `id`, `outcome`; `reason` and `matched_path` on a fallback; `counts {requested, selected, skipped}` and `skipped_tests [SkippedTest]` on `selected` |
 | `POST …/tests/shards` (`createShardPlan`) | gains optional `test_impact_run_id` | unchanged |
 | `GET …/tests/shards/{reference}/{index}` (`getShard`) | unchanged | gains `skipped_tests [SkippedTest]` for a plan that points to an impact run |
@@ -238,7 +238,7 @@ Selection fails open to default selective testing, as the quarantine fetch does.
 
 | Situation | Result |
 | --- | --- |
-| The run is on the default branch | `excluded_branch`: every test in scope runs |
+| The run is on the default branch | `excluded_branch`, from the baseline request: every test in scope runs |
 | No full run in reach, or none on the requested platform | `no_baseline`, from the baseline request: every test in scope runs |
 | The history has none of the checked-out commit, its parents and its ancestors, even after the client deepened by 100 commits and sent `ancestor_shas` | `history_unknown`, from the baseline request: default selective testing |
 | The nearest full run is more than 20 commits with coverage back | `baseline_too_old`, from the baseline request: every test in scope runs |
@@ -350,7 +350,7 @@ Under `.coverage()`, Swift Testing tests keep today's target-based behaviour: th
 
 ### Applying the selection on Xcode
 
-Selection runs inside project generation. `TestsCacheGraphMapper` tags the test targets whose hash already passed as prunable, as today, and `TestImpactGraphMapper` runs right after it, before anything is pruned. It's registered in the binary cache's graph mapper factory, so it needs a CLI built with the cache. Pruning has to happen there because `xcodebuild test -skip-testing:X` still builds X. To send `excluded_branch`, the CLI reads the project's default branch from `GET /api/projects/{handle}` when the run isn't for a pull request.
+Selection runs inside project generation. `TestsCacheGraphMapper` tags the test targets whose hash already passed as prunable, as today, and `TestImpactGraphMapper` runs right after it, before anything is pruned. It's registered in the binary cache's graph mapper factory, so it needs a CLI built with the cache. Pruning has to happen there because `xcodebuild test -skip-testing:X` still builds X. The CLI learns it's on the default branch from the baseline request's `excluded_branch`, so it sends `git_branch` there when the run isn't for a pull request.
 
 What each outcome does to the generated graph (`TestImpactGraphDecision`):
 
