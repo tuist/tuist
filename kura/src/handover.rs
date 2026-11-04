@@ -1136,7 +1136,12 @@ async fn verify_content_while_serving(
         // The first page starts the first range; every cut starts another.
         let (records, first_range) = within_range(first, cuts.first().copied());
         let mut waiting: std::collections::VecDeque<_> = first_range.into_iter().collect();
-        let stops = cuts.iter().skip(1).copied().map(Some).chain(std::iter::once(None));
+        let stops = cuts
+            .iter()
+            .skip(1)
+            .copied()
+            .map(Some)
+            .chain(std::iter::once(None));
         waiting.extend(cuts.iter().zip(stops).map(|(cut, stop)| DescriptorRange {
             after: Some(version_cursor(*cut)),
             stop,
@@ -1148,7 +1153,14 @@ async fn verify_content_while_serving(
         if let Some(frontier) = frontier_ms {
             walk.frontier_ms = Some(frontier);
         }
-        apply_checked_records(&mut verified, &mut walk, &mut unverified, &records, &kinds, held)?;
+        apply_checked_records(
+            &mut verified,
+            &mut walk,
+            &mut unverified,
+            &records,
+            &kinds,
+            held,
+        )?;
         let mut pages = futures_util::stream::FuturesUnordered::new();
         let finished;
         loop {
