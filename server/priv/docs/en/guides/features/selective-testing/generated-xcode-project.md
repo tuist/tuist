@@ -106,9 +106,9 @@ The strategy requires:
 
 - **Coverage uploads.** Tuist selects tests by the coverage that earlier runs uploaded, so `tuist test` fails to load a manifest that sets `.coverage()` with `upload: false`.
 - **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.3.0 or later** linked by your test targets. It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
-- **Test runs on your default branch.** They run every test and become the baseline later runs compare against, so `tuist test` on the default branch never skips anything.
+- **Test runs on your default branch without selection.** Run `tuist test --no-selective-testing` there, and on any other branch where tests shouldn't be skipped. Those runs execute every test and become the baselines later runs compare against.
 
-On every other branch, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run. Swift Testing tests run whenever their target runs.
+With the strategy on, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run. Swift Testing tests run whenever their target runs.
 
 When coverage can't decide, the output says why. Without a recent baseline on the same platform, or when the change touches more than 5,000 files, every test runs so that the commit can become a baseline. When a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`, the run uses the default selective testing. To run every test, pass `--no-selective-testing`.
 

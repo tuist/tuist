@@ -12079,7 +12079,7 @@ components:
           x-struct:
           x-validate:
         reason:
-          description: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+          description: Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
           type: string
           x-struct:
           x-validate:
@@ -14883,7 +14883,7 @@ components:
           x-struct:
           x-validate:
         fallback_reason:
-          description: "The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+          description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
           type: string
           x-struct:
           x-validate:
@@ -44735,7 +44735,7 @@ paths:
                   x-struct:
                   x-validate:
                 fallback_reason:
-                  description: "The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+                  description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
                   type: string
                   x-struct:
                   x-validate:

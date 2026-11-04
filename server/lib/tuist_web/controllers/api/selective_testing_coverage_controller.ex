@@ -175,7 +175,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
            fallback_reason: %Schema{
              type: :string,
              description:
-               "The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+               "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
            },
            changed_files: %Schema{
              type: :array,

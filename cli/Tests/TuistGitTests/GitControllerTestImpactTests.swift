@@ -196,11 +196,7 @@ struct GitControllerTestImpactTests {
 
         let checkedOut = try await GitController(commandRunner: CommandRunner()).checkedOutCommit(workingDirectory: clone)
 
-        #expect(checkedOut == GitCheckedOutCommit(
-            sha: mergeCommit,
-            parentSHAs: [baseTip, pullRequestHead],
-            isPullRequestMerge: true
-        ))
+        #expect(checkedOut == GitCheckedOutCommit(sha: mergeCommit, parentSHAs: [baseTip, pullRequestHead]))
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

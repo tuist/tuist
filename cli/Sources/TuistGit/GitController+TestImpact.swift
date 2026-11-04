@@ -7,12 +7,10 @@ public struct GitCheckedOutCommit: Equatable, Sendable {
     public let sha: String
     /// On a pull request's merge commit, the base branch's tip and the pull request's head.
     public let parentSHAs: [String]
-    public let isPullRequestMerge: Bool
 
-    public init(sha: String, parentSHAs: [String], isPullRequestMerge: Bool = false) {
+    public init(sha: String, parentSHAs: [String]) {
         self.sha = sha
         self.parentSHAs = parentSHAs
-        self.isPullRequestMerge = isPullRequestMerge
     }
 }
 
@@ -69,15 +67,11 @@ extension GitController {
 
     public func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit {
         let head = try await currentCommitSHA(workingDirectory: workingDirectory)
-        let environment = await ciEnvironment()
         // A depth-1 checkout grafts the parents away; the raw format reads them from the commit object.
         let raw = try? await capture(
             arguments: ["git", "-C", workingDirectory.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", head]
         )
-        let parents = raw.map(GitHistoryParser.parseRawParents)?[head] ?? []
-        let isPullRequestMerge = parents.count > 1
-            && Self.isPullRequestMergeCheckout(ref: Self.ref(environment: environment), head: head, environment: environment)
-        return GitCheckedOutCommit(sha: head, parentSHAs: parents, isPullRequestMerge: isPullRequestMerge)
+        return GitCheckedOutCommit(sha: head, parentSHAs: raw.map(GitHistoryParser.parseRawParents)?[head] ?? [])
     }
 
     public func changedFiles(

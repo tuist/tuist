@@ -15,7 +15,7 @@ Coverage is a second strategy for selective testing, chosen per project in the b
 | none (default) | Test modules whose hash already passed | The client, locally | Test module |
 | coverage | What the default skips, then, in the modules left, the tests whose baseline evidence touches no changed file | The client for module hashes, then the server, before the build | Test module, then test case |
 
-- **Coverage runs on top of the default.** The client hashes and prunes test modules as today, and coverage decides the tests in the modules left. What coverage can't decide per test (tests without test-scoped evidence) keeps today's module-level behaviour. When every module's hash matched, nothing is left and no request is made, except on the default branch.
+- **Coverage runs on top of the default.** The client hashes and prunes test modules as today, and coverage decides the tests in the modules left. What coverage can't decide per test (tests without test-scoped evidence) keeps today's module-level behaviour. When every module's hash matched, nothing is left and no request is made.
 - **Hash decisions are reported as today.** Each build system already reports its module hashes and hits with the run, also when selective testing is off, and the run page and coverage carry read them. The runs request doesn't repeat them; it only sends the modules left.
 - **Turning it off** is the switch that already turns selective testing off for a run. There's no new flag or environment variable.
 - **Test-scoped evidence is the prerequisite.** A baseline without it reports `no_baseline_evidence` and the run falls back to the default. Which tests record it is up to each build system.
@@ -141,16 +141,16 @@ The decision is made once per invocation, before the build: in the plan job for 
 8. **Run** with the skip list applied (see [Applying the selection](#applying-the-selection)).
 9. **Upload** as today, plus `test_impact_run_id` on `POST …/tests`, on fallbacks too, sharded or not. It's stored on the test run, which is how the run page finds its impact run.
 
-### The default branch never selects
+### Baselines come from runs without selection
 
-On the project's default branch, the baseline request still goes out (it's how the client learns whether the project is enabled), and the runs request carries `fallback_reason: excluded_branch`. The server decides the same from `git_branch == project.default_branch`. Either way the client runs every test in scope, including what hashing would skip, so each default-branch commit with a run is a full run with fresh evidence, and a pull request's window usually ends at its merge base.
+Selection doesn't treat any branch specially: the default branch selects like any other. Users run `tuist test --no-selective-testing` on the default branch, and on any other branch that shouldn't select, so each of its commits with a run is a full run with fresh evidence, and a pull request's window usually ends at its merge base. Excluded branches the user configures are a later step (see [Known limits](#known-limits)).
 
 ### The outcome on the client
 
 | Outcome | What runs | Why |
 | --- | --- | --- |
 | `selected` | What hashing left, minus the skip list | Modules with nothing selected aren't built at all where the build system can avoid it |
-| `excluded_branch`, `no_baseline`, `baseline_too_old`, `diff_too_large` | Every test in scope, including what hashing would skip | The commit becomes the next baseline |
+| `no_baseline`, `baseline_too_old`, `diff_too_large` | Every test in scope, including what hashing would skip | The commit becomes the next baseline |
 | Any other fallback, `not_enabled`, a failed or timed-out request | What hashing left | Exactly a default run |
 
 What a user excluded explicitly stays excluded in the second row. The client sends the impact run's ID with every test upload of the invocation, and with the shard plan only on `selected`.
@@ -238,7 +238,6 @@ Selection fails open to default selective testing, as the quarantine fetch does.
 
 | Situation | Result |
 | --- | --- |
-| The run is on the default branch | `excluded_branch`: every test in scope runs |
 | No full run in reach, or none on the requested platform | `no_baseline`, from the baseline request: every test in scope runs |
 | The history has none of the checked-out commit, its parents and its ancestors, even after the client deepened by 100 commits and sent `ancestor_shas` | `history_unknown`, from the baseline request: default selective testing |
 | The nearest full run is more than 20 commits with coverage back | `baseline_too_old`, from the baseline request: every test in scope runs |
@@ -270,7 +269,7 @@ There's no separate accuracy measurement. Default-branch runs are the safety net
 
 - Evidence records what ran, so it can't see compile-time dependencies (a changed macro, a constant folded at compile time). Inside modules whose hash changed, rule 6 catches files no evidence includes, but not a file that some test executed and another depends on only at compile time.
 - Inputs outside the project graph and the tracked files (scripts, test data loaded from outside the project, toolchain files) are invisible to both evidence and the graph.
-- The window cap (20 commits with coverage), the excluded branch (only the default branch) and the tracked-file list are fixed. Project-specific settings would go in the project's configuration: tracked files with coverage, since carry stops at them too, and excluded branches and the window cap on the strategy.
+- The window cap (20 commits with coverage) and the tracked-file list are fixed, and no branch is excluded: users pass `--no-selective-testing` where selection shouldn't run, such as the default branch. Project-specific settings would go in the project's configuration: tracked files with coverage, since carry stops at them too, and excluded branches and the window cap on the strategy.
 - Only Xcode selects. Another build system would send the same requests with its own block and supply the [hooks](#what-each-build-system-supplies), once the shared code stops reading Xcode's names.
 
 ## Decided against
@@ -350,14 +349,14 @@ Under `.coverage()`, Swift Testing tests keep today's target-based behaviour: th
 
 ### Applying the selection on Xcode
 
-Selection runs inside project generation. `TestsCacheGraphMapper` tags the test targets whose hash already passed as prunable, as today, and `TestImpactGraphMapper` runs right after it, before anything is pruned. It's registered in the binary cache's graph mapper factory, so it needs a CLI built with the cache. Pruning has to happen there because `xcodebuild test -skip-testing:X` still builds X. To send `excluded_branch`, the CLI reads the project's default branch from `GET /api/projects/{handle}` when the run isn't for a pull request.
+Selection runs inside project generation. `TestsCacheGraphMapper` tags the test targets whose hash already passed as prunable, as today, and `TestImpactGraphMapper` runs right after it, before anything is pruned. It's registered in the binary cache's graph mapper factory, so it needs a CLI built with the cache. Pruning has to happen there because `xcodebuild test -skip-testing:X` still builds X.
 
 What each outcome does to the generated graph (`TestImpactGraphDecision`):
 
 | Outcome | Graph |
 | --- | --- |
 | `selected` | Modules with no selected test are pruned (`prune`), so they aren't built at all |
-| `excluded_branch`, `no_baseline`, `baseline_too_old`, `diff_too_large` | Every test target in scope runs, hash hits included (`runAll`) |
+| `no_baseline`, `baseline_too_old`, `diff_too_large` | Every test target in scope runs, hash hits included (`runAll`) |
 | Any other fallback, `not_enabled`, a failed or timed-out request | As hashing left it (`unchanged`) |
 
 `TestImpactSelector.runAllReasons` holds the reasons in the second row. A target `--skip-ui-tests` or something else made prunable before hashing stays pruned under `runAll`. The impact run's ID goes into `RunMetadataStorage.testImpactRunId`, so every `createTest` of the invocation sends `test_impact_run_id`.

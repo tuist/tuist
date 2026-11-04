@@ -100,8 +100,7 @@ public protocol GitControlling {
     /// working tree, so each id describes the contents a build would compile.
     func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String]
 
-    /// The checked-out commit with its parents, and whether it's the merge commit a CI provider made
-    /// for a pull request, which exists only in the checkout.
+    /// The checked-out commit with its parents.
     func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit
 
     /// Fetches `GitController.testImpactDeepenCommits` more commits into a shallow clone through
@@ -344,40 +343,30 @@ public struct GitController: GitControlling {
         return name
     }
 
-    /// The process environment with the build parameters of providers that pass them in files.
-    func ciEnvironment() async -> [String: String] {
-        await CIBuildParameters.read(environment: environment.variables)
+    public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
+        let environment = await CIBuildParameters.read(environment: environment.variables)
             .merging(environment.variables) { _, variable in variable }
-    }
 
-    /// The ref the CI provider checked out, a pull request's merge ref (`refs/pull/<n>/merge`) for
-    /// providers that only name the pull request.
-    static func ref(environment: [String: String]) -> String? {
+        // Ref
+        let gitRef: String?
         if let githubRef = environment["GITHUB_REF"] {
-            return githubRef
+            gitRef = githubRef
         } else if let circleCIRef = environment["CIRCLE_PULL_REQUEST"] {
-            guard let url = URL(string: circleCIRef), let pullRequestID = url.pathComponents.last else { return nil }
-            return "refs/pull/\(pullRequestID)/merge"
-        } else if let pullRequestID = pullRequestIDEnvironmentVariables
+            if let url = URL(string: circleCIRef),
+               let pullRequestID = url.pathComponents.last
+            {
+                gitRef = "refs/pull/\(pullRequestID)/merge"
+            } else {
+                gitRef = nil
+            }
+        } else if let pullRequestID = Self.pullRequestIDEnvironmentVariables
             .compactMap({ environment[$0] })
             .first(where: { !$0.isEmpty })
         {
-            return "refs/pull/\(pullRequestID)/merge"
+            gitRef = "refs/pull/\(pullRequestID)/merge"
+        } else {
+            gitRef = nil
         }
-        return nil
-    }
-
-    /// Whether HEAD is the merge commit a CI provider made for a pull request, which exists only in
-    /// the checkout. On GitHub Actions, `GITHUB_SHA` is that merge commit: a workflow that checked
-    /// out another commit, such as the pull request's head, is not on one.
-    static func isPullRequestMergeCheckout(ref: String?, head: String?, environment: [String: String]) -> Bool {
-        let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
-        return ref?.hasPrefix("refs/pull/") == true && (mergeCommit == nil || mergeCommit == head)
-    }
-
-    public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
-        let environment = await ciEnvironment()
-        let gitRef = Self.ref(environment: environment)
 
         // The base branch and pull request number, from the CI provider only: a checkout does not
         // know what its commit will merge into.
@@ -436,7 +425,10 @@ public struct GitController: GitControlling {
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
-            if Self.isPullRequestMergeCheckout(ref: gitRef, head: head, environment: environment),
+            let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
+            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
+                && (mergeCommit == nil || mergeCommit == head)
+            if isPullRequestMergeCheckout,
                let secondParent = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
                ).trimmingCharacters(in: .whitespacesAndNewlines),

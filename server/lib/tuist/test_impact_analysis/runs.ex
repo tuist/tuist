@@ -70,15 +70,10 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   defp decide(project, params, commit_sha) do
     baseline_sha = Map.get(params, :baseline_sha)
 
-    cond do
-      present?(Map.get(params, :git_branch)) and params.git_branch == project.default_branch ->
-        {:fallback, :excluded_branch, %{}}
-
-      is_nil(baseline_sha) ->
-        {:fallback, Map.get(params, :fallback_reason) || :no_baseline, %{}}
-
-      true ->
-        select(project, params, commit_sha, baseline_sha)
+    if is_nil(baseline_sha) do
+      {:fallback, Map.get(params, :fallback_reason) || :no_baseline, %{}}
+    else
+      select(project, params, commit_sha, baseline_sha)
     end
   end
 
@@ -335,6 +330,4 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     sorted = Enum.sort(values)
     Enum.at(sorted, div(length(sorted), 2))
   end
-
-  defp present?(value), do: is_binary(value) and value != ""
 end

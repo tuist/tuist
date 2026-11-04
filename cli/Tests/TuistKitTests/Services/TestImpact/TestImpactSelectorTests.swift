@@ -8,7 +8,6 @@ import TuistServer
 
 struct TestImpactSelectorTests {
     private let gitController = MockGitControlling()
-    private let getProjectService = MockGetProjectServicing()
     private let resolveBaselineService = MockResolveTestImpactBaselineServicing()
     private let createRunService = MockCreateTestImpactRunServicing()
     private let repository = try! AbsolutePath(validating: "/repo")
@@ -27,7 +26,6 @@ struct TestImpactSelectorTests {
                 platform: .iOS
             ),
             gitController: gitController,
-            getProjectService: getProjectService,
             resolveBaselineService: resolveBaselineService,
             createRunService: createRunService
         )
@@ -111,7 +109,6 @@ struct TestImpactSelectorTests {
                 destination: "platform=iOS Simulator,name=iPhone 17"
             ))
         ).called(1)
-        verify(getProjectService).getProject(fullHandle: .any, serverURL: .any).called(0)
         // The server knew the checkout's parents, so nothing deepened and no ancestors were sent.
         verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(0)
         verify(gitController).ancestorSHAs(workingDirectory: .any, limit: .any).called(0)
@@ -265,8 +262,10 @@ struct TestImpactSelectorTests {
         #expect(await subject.outcome == nil)
     }
 
-    @Test func makes_no_call_when_every_target_matched_its_hash() async throws {
-        givenPullRequestCheckout()
+    @Test(arguments: [true, false])
+    func makes_no_call_when_every_target_matched_its_hash(pullRequest: Bool) async throws {
+        if pullRequest { givenPullRequestCheckout() } else { givenBranchCheckout() }
+
         let decision = await subject.decide(modules: [], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
@@ -274,40 +273,26 @@ struct TestImpactSelectorTests {
             fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).called(0)
+        verify(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any).called(0)
     }
 
-    @Test func records_the_default_branch_and_runs_every_test() async throws {
-        givenDefaultBranchCheckout()
-        givenBaseline(.baseline(sha: "older", diffCached: false))
+    @Test func selects_on_a_branch_push_and_records_the_branch() async throws {
+        givenBranchCheckout()
+        givenBaseline(.baseline(sha: "older", diffCached: true))
         given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
-            .willReturn(.fallback(runID: "run", reason: .excludedBranch, matchedPath: nil))
-
-        let decision = await subject.decide(modules: [], platform: "ios") { _ in [] }
-
-        #expect(decision == .runAll)
-        verify(gitController).changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any).called(0)
-        verify(createRunService).createTestImpactRun(
-            fullHandle: .any,
-            serverURL: .any,
-            request: .matching {
-                $0.basis == .fallback(.excludedBranch) && $0.commitSHA == nil && $0.parentSHAs == ["main-parent"]
-            }
-        ).called(1)
-        verify(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .value("main-tip"), parentSHAs: .value(["main-parent"]),
-            ancestorSHAs: .value([]),
-            platform: .any, scheme: .any, testPlan: .any, destination: .any
-        ).called(1)
-    }
-
-    @Test func keeps_hash_pruning_on_the_default_branch_when_selection_is_not_enabled() async throws {
-        givenDefaultBranchCheckout()
-        givenBaseline(.notEnabled)
+            .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
 
         let decision = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
-        verify(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any).called(0)
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching {
+                $0.basis == .baseline(sha: "older", changedFiles: nil, dirty: false) && $0.commitSHA == nil
+                    && $0.parentSHAs == ["main-parent"] && $0.gitBranch == "main"
+            }
+        ).called(1)
     }
 
     @Test func reads_the_platform_off_an_xcodebuild_destination() {
@@ -327,16 +312,14 @@ struct TestImpactSelectorTests {
             pullRequestNumber: 7
         ))
         given(gitController).checkedOutCommit(workingDirectory: .any)
-            .willReturn(GitCheckedOutCommit(sha: "merge", parentSHAs: ["main-tip", "head"], isPullRequestMerge: true))
+            .willReturn(GitCheckedOutCommit(sha: "merge", parentSHAs: ["main-tip", "head"]))
     }
 
-    private func givenDefaultBranchCheckout() {
+    private func givenBranchCheckout() {
         given(gitController).gitInfo(workingDirectory: .any)
             .willReturn(.test(ref: "refs/heads/main", branch: "main", sha: "main-tip"))
         given(gitController).checkedOutCommit(workingDirectory: .any)
             .willReturn(GitCheckedOutCommit(sha: "main-tip", parentSHAs: ["main-parent"]))
-        given(getProjectService).getProject(fullHandle: .any, serverURL: .any)
-            .willReturn(.test(defaultBranch: "main"))
     }
 
     private func givenBaseline(_ resolution: TestImpactBaselineResolution) {

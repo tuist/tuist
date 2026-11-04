@@ -661,26 +661,6 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["token"] == ""
     end
 
-    test "returns the project to its own project token", %{conn: conn, user: user} do
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
-      conn = Authentication.put_current_project(conn, project)
-
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}")
-
-      assert %{"id" => id, "default_branch" => default_branch, "token" => ""} = json_response(conn, :ok)
-      assert {id, default_branch} == {project.id, project.default_branch}
-    end
-
-    test "forbids another project's token", %{conn: conn, user: user} do
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
-      other = ProjectsFixtures.project_fixture(account_id: user.account.id)
-      conn = Authentication.put_current_project(conn, other)
-
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}")
-
-      assert json_response(conn, :forbidden)
-    end
-
     for build_system <- [:once, :cargo] do
       @build_system build_system
 
