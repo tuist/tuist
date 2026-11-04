@@ -56,7 +56,7 @@ Open a build's **Cache** tab to see task hits, task misses, hit rate, and downlo
 If detailed records are missing or incomplete, the page shows a notice. The summary still covers the whole build. Estimated compiler work avoided is **not elapsed build time saved**.
 
 > [!WARNING] Experimental compilation cache
-> The first version caches only registry leaf libraries with verified inputs and outputs. Workspace crates, build scripts, procedural macros, dependencies on other crates, incremental compilation, native linking, and executables build normally. Cache keys retain absolute paths, so reuse across different checkout paths isn't supported yet.
+> The cache is experimental and qualified on Apple silicon Macs. Libraries are cached by the sources the compiler read; build scripts, procedural macros, executables and native code are cached only on Apple silicon Macs. Cache keys replace checkout and toolchain paths with placeholders, so a checkout at another path on the same machine reuses them. Incremental compilations build normally.
 
 ### Builds that run tests {#builds-that-run-tests}
 

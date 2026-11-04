@@ -324,10 +324,10 @@ defmodule TuistWeb.DocsLiveTest do
       markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
       assert markdown =~ "tuist cargo build --release"
       assert markdown =~ "cargo clean"
-      assert markdown =~ "registry leaf libraries"
+      assert markdown =~ "build-script runs"
       assert markdown =~ "Kura through the Remote Execution API (REAPI)"
       assert markdown =~ "server-issued cache credentials"
-      assert markdown =~ "absolute paths"
+      assert markdown =~ "a checkout at another path reuses the same entries"
       refute markdown =~ "Mr. Boxington"
       refute markdown =~ "protected GitHub"
       assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/rust-project"]))
