@@ -8,6 +8,7 @@ import TuistServer
 
 struct TestImpactSelectorTests {
     private let gitController = MockGitControlling()
+    private let gitHistoryService = MockGitHistoryServicing()
     private let getProjectService = MockGetProjectServicing()
     private let resolveBaselineService = MockResolveTestImpactBaselineServicing()
     private let createRunService = MockCreateTestImpactRunServicing()
@@ -27,6 +28,7 @@ struct TestImpactSelectorTests {
                 platform: .iOS
             ),
             gitController: gitController,
+            gitHistoryService: gitHistoryService,
             getProjectService: getProjectService,
             resolveBaselineService: resolveBaselineService,
             createRunService: createRunService
@@ -34,6 +36,10 @@ struct TestImpactSelectorTests {
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(repository)
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).willReturn(true)
+        given(gitHistoryService)
+            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .willReturn()
     }
 
     @Test func prunes_the_modules_with_no_selected_test() async throws {
@@ -109,6 +115,10 @@ struct TestImpactSelectorTests {
             ))
         ).called(1)
         verify(getProjectService).getProject(fullHandle: .any, serverURL: .any).called(0)
+        verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(0)
+        verify(gitHistoryService)
+            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .called(0)
     }
 
     @Test func reuses_the_diff_the_server_has() async throws {
@@ -122,10 +132,79 @@ struct TestImpactSelectorTests {
         #expect(decision == .unchanged)
         #expect(await subject.outcome == .fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
         verify(gitController).changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any).called(0)
+        verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(0)
         verify(createRunService).createTestImpactRun(
             fullHandle: .any,
             serverURL: .any,
             request: .matching { $0.basis == .baseline(sha: "baseline", changedFiles: nil, dirty: false) }
+        ).called(1)
+    }
+
+    @Test func deepens_uploads_and_asks_again_when_the_server_doesnt_know_the_history() async throws {
+        givenPullRequestCheckout()
+        final class Requests {
+            var count = 0
+        }
+        let requests = Requests()
+        given(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).willProduce { _, _, _, _, _, _, _, _ in
+            requests.count += 1
+            return requests.count == 1 ? .unavailable(.historyUnknown) : .baseline(sha: "baseline", diffCached: false)
+        }
+        given(gitController)
+            .changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any)
+            .willReturn(.changed(GitChangedFiles(files: [], dirty: false)))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
+
+        _ = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+
+        verify(gitController)
+            .deepenShallowClone(workingDirectory: .value(repository), refs: .value(["refs/pull/7/merge", "main"]), limits: .any)
+            .called(1)
+        verify(gitHistoryService)
+            .uploadCheckoutCommits(
+                gitInfo: .any,
+                workingDirectory: .value(repository),
+                fullHandle: .value("acme/shop"),
+                serverURL: .any
+            )
+            .called(1)
+        verify(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).called(2)
+        // The clone was already deepened once, so the diff doesn't deepen again.
+        verify(gitController)
+            .changedFiles(workingDirectory: .any, since: .value("baseline"), deepening: .value([]), limits: .any)
+            .called(1)
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching { $0.basis == .baseline(sha: "baseline", changedFiles: [], dirty: false) }
+        ).called(1)
+    }
+
+    @Test func falls_back_when_the_server_still_doesnt_know_the_history() async throws {
+        givenPullRequestCheckout()
+        givenBaseline(.unavailable(.historyUnknown))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.fallback(runID: "run", reason: .historyUnknown, matchedPath: nil))
+
+        _ = await subject.decide(modules: ["CoreTests"], platform: "ios") { _ in [] }
+
+        verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(1)
+        verify(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).called(2)
+        verify(gitController).changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any).called(0)
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching { $0.basis == .fallback(.historyUnknown) }
         ).called(1)
     }
 

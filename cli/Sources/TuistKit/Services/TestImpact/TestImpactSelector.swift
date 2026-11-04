@@ -77,6 +77,7 @@ actor TestImpactSelector {
     private(set) var outcome: TestImpactOutcome?
 
     private let gitController: GitControlling
+    private let gitHistoryService: GitHistoryServicing
     private let getProjectService: GetProjectServicing
     private let resolveBaselineService: ResolveTestImpactBaselineServicing
     private let createRunService: CreateTestImpactRunServicing
@@ -85,6 +86,7 @@ actor TestImpactSelector {
     init(
         invocation: Invocation,
         gitController: GitControlling = GitController(),
+        gitHistoryService: GitHistoryServicing = GitHistoryService(),
         getProjectService: GetProjectServicing = GetProjectService(),
         resolveBaselineService: ResolveTestImpactBaselineServicing = ResolveTestImpactBaselineService(),
         createRunService: CreateTestImpactRunServicing = CreateTestImpactRunService(),
@@ -92,6 +94,7 @@ actor TestImpactSelector {
     ) {
         self.invocation = invocation
         self.gitController = gitController
+        self.gitHistoryService = gitHistoryService
         self.getProjectService = getProjectService
         self.resolveBaselineService = resolveBaselineService
         self.createRunService = createRunService
@@ -130,16 +133,23 @@ actor TestImpactSelector {
         // Every target already passed under its hash: nothing is left to decide.
         if modules.isEmpty, !onDefaultBranch { return .unchanged }
 
-        let baseline = await resolveBaselineService.resolveTestImpactBaseline(
-            fullHandle: invocation.fullHandle,
-            serverURL: invocation.serverURL,
-            commitSHA: checkout.sha,
-            parentSHAs: checkout.parentSHAs,
-            platform: platform,
-            scheme: invocation.scheme,
-            testPlan: invocation.testPlan,
-            destination: invocation.destination
-        )
+        let refs = Self.deepeningRefs(gitInfo: gitInfo)
+        var baseline = await resolveBaseline(checkout: checkout, platform: platform)
+        // The checkout may lead to the server's history only through commits it hasn't seen, such as
+        // a push of several commits. A clone is deepened at most once per invocation, so the diff
+        // below doesn't deepen again.
+        var deepeningRefs = refs
+        if baseline == .unavailable(.historyUnknown) {
+            _ = await gitController.deepenShallowClone(workingDirectory: repository, refs: refs, limits: GitHistoryLimits())
+            deepeningRefs = []
+            await gitHistoryService.uploadCheckoutCommits(
+                gitInfo: gitInfo,
+                workingDirectory: repository,
+                fullHandle: invocation.fullHandle,
+                serverURL: invocation.serverURL
+            )
+            baseline = await resolveBaseline(checkout: checkout, platform: platform)
+        }
 
         let basis: TestImpactRunRequest.Basis
         switch baseline {
@@ -157,7 +167,7 @@ actor TestImpactSelector {
                 baselineSHA: sha,
                 diffCached: diffCached,
                 repository: repository,
-                gitInfo: gitInfo,
+                deepening: deepeningRefs,
                 affectedModules: affectedModules
             )
         }
@@ -198,11 +208,30 @@ actor TestImpactSelector {
 
     // swiftlint:enable function_body_length
 
+    private func resolveBaseline(checkout: GitCheckedOutCommit, platform: String?) async -> TestImpactBaselineResolution {
+        await resolveBaselineService.resolveTestImpactBaseline(
+            fullHandle: invocation.fullHandle,
+            serverURL: invocation.serverURL,
+            commitSHA: checkout.sha,
+            parentSHAs: checkout.parentSHAs,
+            platform: platform,
+            scheme: invocation.scheme,
+            testPlan: invocation.testPlan,
+            destination: invocation.destination
+        )
+    }
+
+    /// The remote refs whose history leads from the checkout to a baseline.
+    private static func deepeningRefs(gitInfo: GitInfo) -> [String] {
+        [gitInfo.ref?.hasPrefix("refs/pull/") == true ? gitInfo.ref : nil, gitInfo.baseBranch ?? gitInfo.branch]
+            .compactMap { $0 }
+    }
+
     private func diffBasis(
         baselineSHA: String,
         diffCached: Bool,
         repository: AbsolutePath,
-        gitInfo: GitInfo,
+        deepening refs: [String],
         affectedModules: (AbsolutePath) -> [String]?
     ) async -> TestImpactRunRequest.Basis {
         // A dirty checkout's diff is its own, so the server never has it.
@@ -210,8 +239,6 @@ actor TestImpactSelector {
         if diffCached, !dirty {
             return .baseline(sha: baselineSHA, changedFiles: nil, dirty: false)
         }
-        let refs = [gitInfo.ref?.hasPrefix("refs/pull/") == true ? gitInfo.ref : nil, gitInfo.baseBranch ?? gitInfo.branch]
-            .compactMap { $0 }
         do {
             switch try await gitController.changedFiles(
                 workingDirectory: repository,

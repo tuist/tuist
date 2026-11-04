@@ -48,6 +48,10 @@ public protocol GitHistoryServicing {
     ) async -> CollectedGitHistory?
 
     func upload(_ collected: CollectedGitHistory?, workingDirectory: AbsolutePath, fullHandle: String, serverURL: URL) async
+
+    /// Uploads the commits the checkout has and the server lacks, reading only the checkout, with no
+    /// branch heads: what the server needs to place a commit its history doesn't have yet.
+    func uploadCheckoutCommits(gitInfo: GitInfo, workingDirectory: AbsolutePath, fullHandle: String, serverURL: URL) async
 }
 
 public struct GitHistoryService: GitHistoryServicing {
@@ -98,7 +102,7 @@ public struct GitHistoryService: GitHistoryServicing {
 
     /// History is best effort, so outside coverage a failure is only logged: a server that predates
     /// it, or a checkout it cannot read, is no reason to flag every run.
-    private static func warn(_ message: String) {
+    static func warn(_ message: String) {
         if coverageEnabled {
             AlertController.current.warning(.alert("\(message)"))
         } else {
@@ -160,11 +164,12 @@ public struct GitHistoryService: GitHistoryServicing {
         return collected
     }
 
-    private func collectFromCheckout(
+    func collectFromCheckout(
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        remoteAccess: GitHistoryRemoteAccess = Self.remoteAccess
     ) async -> CollectedGitHistory {
         let observedAt = Date()
 
@@ -220,7 +225,7 @@ public struct GitHistoryService: GitHistoryServicing {
                     windowDays: settings.windowDays,
                     windowCommits: settings.windowCommits,
                     deepenBudgetSeconds: settings.deepenBudgetSeconds,
-                    remoteAccess: Self.remoteAccess
+                    remoteAccess: remoteAccess
                 )
             )
         } catch {
@@ -325,11 +330,12 @@ public struct GitHistoryService: GitHistoryServicing {
         }
     }
 
-    private func uploadCommits(
+    func uploadCommits(
         _ collected: CollectedGitHistory,
         repositoryURL: String,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        branchHeads includesBranchHeads: Bool = true
     ) async throws {
         let commits = collected.history.commits
         guard !commits.isEmpty else { return }
@@ -353,13 +359,18 @@ public struct GitHistoryService: GitHistoryServicing {
             .sorted { $0.committedAt < $1.committedAt }
             .map { GitHistoryCommitPayload(sha: $0.sha, parents: $0.parents, committedAt: $0.committedAt) }
 
-        var branchHeads = collected.branch.map {
-            [GitHistoryBranchHead(branch: $0, sha: collected.history.headSHA, observedAt: collected.observedAt)]
-        } ?? []
+        var branchHeads: [GitHistoryBranchHead] = []
+        if includesBranchHeads, let branch = collected.branch {
+            branchHeads.append(GitHistoryBranchHead(
+                branch: branch,
+                sha: collected.history.headSHA,
+                observedAt: collected.observedAt
+            ))
+        }
         // A pull request's run is how the default branch's head is seen between the default
         // branch's own runs. The checkout may not have that commit: the run that tested it, a
         // merge queue's typically, sent it already.
-        if let baseBranch = collected.history.baseBranch, baseBranch != collected.branch,
+        if includesBranchHeads, let baseBranch = collected.history.baseBranch, baseBranch != collected.branch,
            let baseHeadSHA = collected.history.baseHeadSHA
         {
             branchHeads.append(GitHistoryBranchHead(branch: baseBranch, sha: baseHeadSHA, observedAt: collected.observedAt))

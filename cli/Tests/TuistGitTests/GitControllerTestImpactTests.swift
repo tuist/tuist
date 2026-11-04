@@ -74,7 +74,7 @@ struct GitControllerTestImpactTests {
         )))
     }
 
-    @Test(.inTemporaryDirectory) func changedFiles_deepens_a_shallow_clone_until_it_has_the_baseline() async throws {
+    @Test(.inTemporaryDirectory) func changedFiles_deepens_a_shallow_clone_to_the_baseline() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let origin = try await makeRepository(at: path.appending(component: "origin"))
         try write("money v1", to: "Core/Money.swift", in: origin)
@@ -96,27 +96,50 @@ struct GitControllerTestImpactTests {
         )))
     }
 
-    @Test(.inTemporaryDirectory) func changedFiles_reports_history_unavailable_when_deepening_stops_short() async throws {
+    @Test(.inTemporaryDirectory) func changedFiles_deepens_only_once() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let origin = try await makeRepository(at: path.appending(component: "origin"))
         try write("money v1", to: "Core/Money.swift", in: origin)
         let baseline = try commit("baseline", in: origin)
-        for index in 1 ... 60 {
+        for index in 1 ... 120 {
             try write("money v\(index + 1)", to: "Core/Money.swift", in: origin)
             _ = try commit("change \(index)", in: origin)
         }
         let clone = path.appending(component: "clone")
         try git(["clone", "-q", "--depth=1", "--branch=main", "file://\(origin.pathString)", clone.pathString], in: path)
 
-        // The history window ends 50 commits back, before the baseline.
         let result = try await GitController().changedFiles(
-            workingDirectory: clone,
-            since: baseline,
-            deepening: ["main"],
-            limits: GitHistoryLimits(windowCommits: 10, deepenBudgetSeconds: 30)
+            workingDirectory: clone, since: baseline, deepening: ["main"], limits: GitHistoryLimits(deepenBudgetSeconds: 30)
         )
 
-        #expect(result == .historyUnavailable("shallow clone: the baseline \(baseline.prefix(12)) was not reached within 30s"))
+        #expect(result == .historyUnavailable(
+            "shallow clone: the baseline \(baseline.prefix(12)) is more than 100 commits beyond the checkout"
+        ))
+        #expect(try git(["rev-list", "--count", "HEAD"], in: clone) == "101")
+    }
+
+    @Test(.inTemporaryDirectory) func deepenShallowClone_fetches_100_more_commits() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let origin = try await makeRepository(at: path.appending(component: "origin"))
+        for index in 0 ... 120 {
+            try write("money v\(index)", to: "Core/Money.swift", in: origin)
+            _ = try commit("change \(index)", in: origin)
+        }
+        let clone = path.appending(component: "clone")
+        try git(["clone", "-q", "--depth=1", "--branch=main", "file://\(origin.pathString)", clone.pathString], in: path)
+
+        let deepened = await GitController().deepenShallowClone(
+            workingDirectory: clone,
+            refs: ["main"],
+            limits: GitHistoryLimits()
+        )
+        let deepenedFullClone = await GitController().deepenShallowClone(
+            workingDirectory: origin, refs: ["main"], limits: GitHistoryLimits()
+        )
+
+        #expect(deepened)
+        #expect(try git(["rev-list", "--count", "HEAD"], in: clone) == "101")
+        #expect(!deepenedFullClone)
     }
 
     @Test(.inTemporaryDirectory) func changedFiles_never_reaches_the_remote_without_a_ref_to_deepen() async throws {
