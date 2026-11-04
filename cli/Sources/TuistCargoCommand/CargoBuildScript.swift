@@ -9,7 +9,7 @@ import TuistREAPI
 /// recorded; its outputs (`OUT_DIR`, the directives it printed) are
 /// stored under a declared key (what the script was built from, its arguments and Cargo's variables, relocated) and the
 /// current contents of what it read.
-enum CargoBuildScript {
+enum CargoBuildScript { // swiftlint:disable:this type_body_length
     static let version = "tuist-swift-cargo-script-v1"
     static let realSuffix = ".tuist-real"
     static let madeOfSuffix = ".tuist-made-of"
@@ -376,7 +376,7 @@ enum CargoBuildScript {
                 try? FileManager.default.removeItem(at: outDirectory)
                 try FileManager.default.moveItem(at: next, to: outDirectory)
             } catch { return nil }
-            try? write(result.serializedData(), to: local)
+            try? CargoBlobStore.write(result.serializedData(), to: local)
             CargoCacheJournal.use("script-actions/" + action.hash, environment: environment)
             return (stdout, stderr)
         }
@@ -481,7 +481,10 @@ enum CargoBuildScript {
                 blobs[manifestDigest] = blobStore.path(try blobStore.publish(manifestFile, expecting: manifestDigest))
                 var result = REAPI.ActionResult()
                 result.outputFiles = [.with { $0.path = "outputs.json"; $0.digest = manifestDigest }]
-                try write(result.serializedData(), to: root.appendingPathComponent("script-actions/" + actionDigest.hash))
+                try CargoBlobStore.write(
+                    result.serializedData(),
+                    to: root.appendingPathComponent("script-actions/" + actionDigest.hash)
+                )
                 CargoCacheJournal.use("script-actions/" + actionDigest.hash, environment: environment)
                 await index.put(reads, remote: remote, environment: environment)
                 guard let remote else { return }
@@ -490,7 +493,7 @@ enum CargoBuildScript {
                 for data in [command, Data(), action] {
                     // In the store rather than staging: a deferred publication reads them after this hook exits.
                     let file = blobStore.path(REAPI.digest(data))
-                    try write(data, to: file)
+                    try CargoBlobStore.write(data, to: file)
                     blobs[REAPI.digest(data)] = file
                 }
                 if CargoCacheJournal.defersPublication(environment),
@@ -500,11 +503,6 @@ enum CargoBuildScript {
                 guard upload.available.isSuperset(of: Set(blobs.keys)) else { return }
                 try await remote.storeActionResult(result, for: actionDigest)
             } catch { debug("build-script run was not stored: \(error)") }
-        }
-
-        private func write(_ data: Data, to file: URL) throws {
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: file, options: .atomic)
         }
 
         func debug(_ message: String) {

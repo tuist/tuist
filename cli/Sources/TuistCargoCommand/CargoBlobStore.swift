@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import TuistREAPI
 #if canImport(Darwin)
     import Darwin
@@ -18,6 +19,12 @@ struct CargoBlobStore {
     /// served in the process that collects dependency units after the build, so a unit's rlib that per-crate
     /// publication stored is not copied and hashed a second time.
     private static let published = Published()
+
+    /// Writes an index or record file atomically, creating its directory.
+    static func write(_ data: Data, to file: URL) throws {
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: file, options: .atomic)
+    }
 
     func path(_ digest: REAPI.Digest) -> URL {
         root.appendingPathComponent("blobs/" + digest.hash, isDirectory: false)
@@ -89,20 +96,15 @@ struct CargoBlobStore {
         return utimes(path, nil) == 0
     }
 
-    private final class Published: @unchecked Sendable {
-        private let lock = NSLock()
-        private var digests: [String: (CargoInputHasher.Identity, REAPI.Digest)] = [:]
+    private final class Published: Sendable {
+        private let digests = Mutex<[String: (CargoInputHasher.Identity, REAPI.Digest)]>([:])
 
         func digest(_ path: String, _ identity: CargoInputHasher.Identity) -> REAPI.Digest? {
-            lock.lock()
-            defer { lock.unlock() }
-            return digests[path].flatMap { $0.0 == identity ? $0.1 : nil }
+            digests.withLock { $0[path].flatMap { $0.0 == identity ? $0.1 : nil } }
         }
 
         func set(_ path: String, _ identity: CargoInputHasher.Identity, _ digest: REAPI.Digest) {
-            lock.lock()
-            digests[path] = (identity, digest)
-            lock.unlock()
+            digests.withLock { $0[path] = (identity, digest) }
         }
     }
 }

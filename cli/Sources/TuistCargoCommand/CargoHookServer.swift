@@ -1,6 +1,7 @@
 import Crypto
 import Foundation
 import Path
+import Synchronization
 import TuistProcess
 import TuistREAPI
 #if canImport(Darwin)
@@ -30,7 +31,7 @@ import TuistREAPI
 /// native compiler request (working directory, then counted NUL-terminated arguments and environment), `o`/`e`
 /// compiler output, `x` exit status. Server to client: `O`/`E` output to write, `R` command to run (counted arguments
 /// and environment), `X` exit status to exit with, `F` fall back.
-final class CargoHookServer: @unchecked Sendable {
+final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_length
     static let version = "tuist-cargo-hook-v3"
     static let socketVariable = "TUIST_CARGO_HOOK_SOCKET"
     static let fallbackVariable = "TUIST_CARGO_HOOK_FALLBACK"
@@ -41,9 +42,7 @@ final class CargoHookServer: @unchecked Sendable {
     private let directory: String
     private let listener: Int32
     private let runner: CommandRunning
-    private let stopped = NSLock()
-    private var isStopped = false
-    private var acceptor: Thread?
+    private let isStopped = Mutex(false)
     private let served = DispatchGroup()
     /// The session's REAPI connection, shared by every hook served.
     private let remote: Task<(any REAPICacheStoring)?, Never>?
@@ -115,7 +114,6 @@ final class CargoHookServer: @unchecked Sendable {
     func start() {
         let thread = Thread { [self] in acceptLoop() }
         thread.name = "tuist-cargo-hook"
-        acceptor = thread
         thread.start()
     }
 
@@ -128,17 +126,13 @@ final class CargoHookServer: @unchecked Sendable {
 
     /// Stops accepting. Cargo has exited by then, so no client is still waiting.
     func stop() {
-        stopped.lock()
-        isStopped = true
-        stopped.unlock()
+        isStopped.withLock { $0 = true }
         unlink(socketPath)
         rmdir(directory)
     }
 
     private var shouldStop: Bool {
-        stopped.lock()
-        defer { stopped.unlock() }
-        return isStopped
+        isStopped.withLock { $0 }
     }
 
     private func acceptLoop() {
@@ -235,14 +229,15 @@ final class CargoHookServer: @unchecked Sendable {
         let semaphore = DispatchSemaphore(value: 0)
         let box = Box<T>()
         Task {
-            box.value = await body()
+            let value = await body()
+            box.value.withLock { $0 = value }
             semaphore.signal()
         }
         semaphore.wait()
-        return box.value!
+        return box.value.withLock { $0.take()! }
     }
 
-    private final class Box<T>: @unchecked Sendable { var value: T? }
+    private final class Box<T>: Sendable { let value = Mutex<T?>(nil) }
 
     private struct Request {
         let directory: AbsolutePath

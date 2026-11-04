@@ -300,14 +300,14 @@ struct CargoReadIndex {
               let data = try? Data(contentsOf: staging), REAPI.digest(data) == file.digest,
               let set = try? JSONDecoder().decode(CargoReadSet.self, from: data)
         else { return nil }
-        try? write(data, to: local)
+        try? CargoBlobStore.write(data, to: local)
         CargoCacheJournal.use(relativePath, environment: environment)
         return set
     }
 
     func put(_ set: CargoReadSet, remote: (any REAPICacheStoring)?, environment: [String: String]) async {
         guard let data = try? JSONEncoder().encode(set) else { return }
-        try? write(data, to: local)
+        try? CargoBlobStore.write(data, to: local)
         CargoCacheJournal.use(relativePath, environment: environment)
         guard let remote else { return }
         if let marker = CargoCacheSetup.readOnlyMarker(environment: environment),
@@ -317,8 +317,8 @@ struct CargoReadIndex {
         if CargoCacheJournal.defersPublication(environment) {
             var blobs = [REAPI.digest(data): local]
             for blob in [command, action, Data()] {
-                let file = root.appendingPathComponent("blobs/" + REAPI.digest(blob).hash)
-                if (try? write(blob, to: file)) != nil { blobs[REAPI.digest(blob)] = file }
+                let file = CargoBlobStore(root: root).path(REAPI.digest(blob))
+                if (try? CargoBlobStore.write(blob, to: file)) != nil { blobs[REAPI.digest(blob)] = file }
             }
             if blobs.count == 4,
                CargoCacheJournal.deferPublication(result, for: REAPI.digest(action), blobs: blobs, environment: environment)
@@ -338,10 +338,5 @@ struct CargoReadIndex {
             guard upload.available.isSuperset(of: Set(blobs.keys)) else { return }
             try await remote.storeActionResult(result, for: REAPI.digest(action))
         } catch {}
-    }
-
-    private func write(_ data: Data, to file: URL) throws {
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: file, options: .atomic)
     }
 }

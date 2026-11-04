@@ -2,7 +2,7 @@ import Foundation
 import Path
 import TuistREAPI
 
-struct CargoCacheInvocation: CargoCacheAction {
+struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_body_length
     let arguments: [String]
     let environment: [String: String]
     let directory: AbsolutePath
@@ -526,10 +526,10 @@ extension CargoCacheInvocation {
     }
 
     /// Compiled once: `String.range(of:options: .regularExpression)` compiles the same ICU expression on every call.
-    private static let sourceTokens = try! NSRegularExpression(
+    private static let sourceTokens = try! NSRegularExpression( // swiftlint:disable:this force_try
         pattern: "\\b(asm|global_asm|naked_asm|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\blink\\s*\\(|\\$\\s*\\{\\s*concat\\b"
     )
-    private static let registryWords = try! NSRegularExpression(
+    private static let registryWords = try! NSRegularExpression( // swiftlint:disable:this force_try
         pattern: "\\b(asm|global_asm|naked_asm|link|link_args|extern|include|concat|concat_idents)\\b"
     )
 

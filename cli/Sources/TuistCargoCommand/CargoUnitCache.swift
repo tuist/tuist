@@ -379,7 +379,10 @@ extension CargoUnitCache {
         var placed = 0
         for entry in ready where entry.outputs.allSatisfy(blobStore.contains) {
             let destination = root.appendingPathComponent(entry.file.path)
-            if !FileManager.default.fileExists(atPath: destination.path), (try? write(entry.data, to: destination)) != nil {
+            if !FileManager.default.fileExists(atPath: destination.path), (try? CargoBlobStore.write(
+                entry.data,
+                to: destination
+            )) != nil {
                 placed += 1
             }
         }
@@ -430,7 +433,11 @@ extension CargoUnitCache {
         else { return nil }
         // Pruning goes by modification time: a local entry renews its use like a blob, instead of being rewritten on
         // every build, and publication skips a manifest that did not change.
-        if local == nil { try? write(result.serializedData(), to: index) } else { CargoBlobStore.markUsed(index.path) }
+        if local == nil {
+            try? CargoBlobStore.write(result.serializedData(), to: index)
+        } else {
+            CargoBlobStore.markUsed(index.path)
+        }
         blobStore.markUsed(output.digest)
         return manifest
     }
@@ -692,7 +699,7 @@ extension CargoUnitCache {
     // MARK: - Publication
 
     /// Records the registry and git dependency units in the target directory and publishes their manifest.
-    func store(reusing restored: Restored = Restored(), used: [String] = []) async {
+    func store(reusing restored: Restored, used: [String]) async {
         let current = withBuildLock { collectUnits(reusing: restored) } ?? []
         let names = Set(current.map(\.name))
         // Newest first: when the list is full, units no build has produced for longest fall off.
@@ -735,7 +742,7 @@ extension CargoUnitCache {
             let file = staging.appendingPathComponent("units.json")
             try data.write(to: file)
             _ = try blobStore.publish(file, expecting: digest)
-            try write(result.serializedData(), to: index)
+            try CargoBlobStore.write(result.serializedData(), to: index)
         } catch { return }
         guard previous?.outputFiles.first?.digest != digest, let remote else { return }
         if let marker = CargoCacheSetup.readOnlyMarker(environment: environment),
@@ -1013,11 +1020,6 @@ extension CargoUnitCache {
     // MARK: - Storage
 
     private var blobStore: CargoBlobStore { CargoBlobStore(root: root) }
-
-    private func write(_ data: Data, to file: URL) throws {
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: file, options: .atomic)
-    }
 
     /// Holds Cargo's own build lock for the profile directory, so no concurrent Cargo build observes partial units.
     private func withBuildLock<T>(_ body: () -> T) -> T? {

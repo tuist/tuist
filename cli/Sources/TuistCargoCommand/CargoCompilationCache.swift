@@ -180,7 +180,7 @@ struct CargoCompilationCache {
         guard try invocation.fingerprint() == invocation.key else { return refuse("an input changed while it was stored") }
         try Task.checkCancellation()
         let localStarted = Date()
-        try write(try result.serializedData(), to: index)
+        try CargoBlobStore.write(try result.serializedData(), to: index)
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
         CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
         guard let remote else { return }
@@ -191,7 +191,7 @@ struct CargoCompilationCache {
             for data in [command, action, Data()] {
                 let digest = REAPI.digest(data)
                 let file = blobStore.path(digest)
-                try write(data, to: file)
+                try CargoBlobStore.write(data, to: file)
                 blobs[digest] = file
             }
             // Inside a session the outer command uploads once Cargo exits, so no compilation waits on the network.
@@ -378,18 +378,17 @@ struct CargoCompilationCache {
         }
         try invocation.certifyOutputs(metadataOnly: false)
         // A remote entry is kept locally; a local one, read from the index just now, renews its use like a blob.
-        if downloadMissing { try write(try result.serializedData(), to: index) } else { CargoBlobStore.markUsed(index.path) }
+        if downloadMissing {
+            try CargoBlobStore.write(try result.serializedData(), to: index)
+        } else {
+            CargoBlobStore.markUsed(index.path)
+        }
         CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
         replay(result.stdoutRaw, restoredStderr)
         return true
     }
 
     private var blobStore: CargoBlobStore { CargoBlobStore(root: root) }
-
-    private func write(_ data: Data, to file: URL) throws {
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: file, options: .atomic)
-    }
 
     private func boundedData(_ file: URL, maximum: Int) throws -> Data {
         let properties = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])

@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import Synchronization
 import TuistREAPI
 
 /// Resolve Rust inputs without hashing the concurrently changing Cargo output directory.
@@ -104,20 +105,15 @@ struct CargoCacheInputs {
         environment["TUIST_CARGO_SESSION"].map { $0 + "/safe-rust-artifacts/" + digest.hash }
     }
 
-    private final class Proofs: @unchecked Sendable {
-        private let lock = NSLock()
-        private var paths: Set<String> = []
+    private final class Proofs: Sendable {
+        private let paths = Mutex<Set<String>>([])
 
         func contains(_ path: String) -> Bool {
-            lock.lock()
-            defer { lock.unlock() }
-            return paths.contains(path)
+            paths.withLock { $0.contains(path) }
         }
 
         func insert(_ path: String) {
-            lock.lock()
-            paths.insert(path)
-            lock.unlock()
+            _ = paths.withLock { $0.insert(path) }
         }
     }
 

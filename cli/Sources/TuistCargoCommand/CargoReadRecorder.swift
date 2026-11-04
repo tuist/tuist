@@ -13,7 +13,7 @@ import TuistREAPI
 /// It observes, it does not enforce: anything it cannot see makes the run uncacheable rather than unsound. A child
 /// process that does not load the recorder (macOS strips `DYLD_*` from protected programs such as `/bin/sh` or
 /// `/usr/bin/cc`), a network connection, or an unparsable log all mean the run is not published.
-enum CargoReadRecorder {
+enum CargoReadRecorder { // swiftlint:disable:this type_body_length
     static let version = "tuist-cargo-recorder-v2"
 
     /// Builds the recorder once per cache directory with the system C compiler. `nil` when unsupported or unavailable.

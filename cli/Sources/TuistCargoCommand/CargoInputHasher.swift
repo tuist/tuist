@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import TuistREAPI
 #if canImport(Darwin)
     import Darwin
@@ -24,74 +25,66 @@ final class CargoInputHasher {
     /// The session's shared records as this process last read or wrote them. Compiler hooks are served from one
     /// process, so each record file is read once rather than decoded (and large inputs locked) on every lookup; the
     /// files remain for hooks in other processes and for records kept across sessions.
-    private final class ProcessRecords: @unchecked Sendable {
-        let lock = NSLock()
-        var files: [String: Entry] = [:]
-        var trees: [String: [String: Entry]] = [:]
-        /// Record directories of sessions whose hooks this process serves: their records live here only.
-        var served: Set<String> = []
+    private final class ProcessRecords: Sendable {
+        private struct State {
+            var files: [String: Entry] = [:]
+            var trees: [String: [String: Entry]] = [:]
+            /// Record directories of sessions whose hooks this process serves: their records live here only.
+            var served: Set<String> = []
+        }
+
+        private let state = Mutex(State())
 
         func isServed(_ directory: URL) -> Bool {
-            lock.lock()
-            defer { lock.unlock() }
-            return served.contains(directory.path)
+            state.withLock { $0.served.contains(directory.path) }
         }
 
         /// Gives a served session the records kept under `source` (persistent toolchain records) as its own.
         func serve(_ directory: URL, seededFrom source: URL?) {
-            lock.lock()
-            served.insert(directory.path)
-            if let source {
+            state.withLock { state in
+                state.served.insert(directory.path)
+                guard let source else { return }
                 let prefix = source.path + "/"
-                for (path, entry) in files where path.hasPrefix(prefix) {
-                    files[directory.path + "/" + path.dropFirst(prefix.count)] = entry
+                for (path, entry) in state.files where path.hasPrefix(prefix) {
+                    state.files[directory.path + "/" + path.dropFirst(prefix.count)] = entry
                 }
-                for (path, records) in trees where path.hasPrefix(prefix) {
-                    trees[directory.path + "/" + path.dropFirst(prefix.count)] = records
+                for (path, records) in state.trees where path.hasPrefix(prefix) {
+                    state.trees[directory.path + "/" + path.dropFirst(prefix.count)] = records
                     // Hooks look toolchain files up one by one (a recorded compilation's compiler files, the sysroot
                     // files rustc read), not through the tree, so each record is a file record of the session too.
                     for (file, entry) in records {
                         let memo = directory.path + "/" + REAPI.digest(Data(file.utf8)).hash
-                        if files[memo] == nil { files[memo] = entry }
+                        if state.files[memo] == nil { state.files[memo] = entry }
                     }
                 }
             }
-            lock.unlock()
         }
 
         func stopServing(_ directory: URL) {
-            lock.lock()
-            served.remove(directory.path)
-            let prefix = directory.path + "/"
-            files = files.filter { !$0.key.hasPrefix(prefix) }
-            trees = trees.filter { !$0.key.hasPrefix(prefix) }
-            lock.unlock()
+            state.withLock { state in
+                state.served.remove(directory.path)
+                let prefix = directory.path + "/"
+                state.files = state.files.filter { !$0.key.hasPrefix(prefix) }
+                state.trees = state.trees.filter { !$0.key.hasPrefix(prefix) }
+            }
         }
 
         func file(_ memo: URL) -> Entry? {
-            lock.lock()
-            defer { lock.unlock() }
-            return files[memo.path]
+            state.withLock { $0.files[memo.path] }
         }
 
         func setFile(_ memo: URL, _ entry: Entry) { setFile(memo.path, entry) }
 
         func setFile(_ memo: String, _ entry: Entry) {
-            lock.lock()
-            files[memo] = entry
-            lock.unlock()
+            state.withLock { $0.files[memo] = entry }
         }
 
         func tree(_ memo: URL) -> [String: Entry]? {
-            lock.lock()
-            defer { lock.unlock() }
-            return trees[memo.path]
+            state.withLock { $0.trees[memo.path] }
         }
 
         func setTree(_ memo: URL, _ records: [String: Entry]) {
-            lock.lock()
-            trees[memo.path] = records
-            lock.unlock()
+            state.withLock { $0.trees[memo.path] = records }
         }
     }
 

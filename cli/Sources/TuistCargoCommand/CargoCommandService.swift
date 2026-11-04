@@ -15,7 +15,7 @@ struct CargoExecutionContext {
     var shardOptions: [String: Int] = [:]
 }
 
-public struct CargoCommandService {
+public struct CargoCommandService { // swiftlint:disable:this type_body_length
     private let runner: CommandRunning
     public init(runner: CommandRunning = CommandRunner()) { self.runner = runner }
 
@@ -318,7 +318,7 @@ public struct CargoCommandService {
         _ context: CargoExecutionContext,
         root: URL,
         started: Date,
-        drain: () async -> Void = {},
+        drain: () async -> Void,
         metadata: () async -> [String: Any]
     ) async throws {
         let invocation = CargoInvocation(context.arguments)
