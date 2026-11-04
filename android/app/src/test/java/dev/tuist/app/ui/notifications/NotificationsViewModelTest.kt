@@ -74,8 +74,9 @@ class NotificationsViewModelTest {
 
     private fun createViewModel() = NotificationsViewModel(repository, pushRegistrationManager, authRepository)
 
-    private fun NotificationsViewModel.accounts() =
-        (uiState.value as NotificationsUiState.Success).content.accounts
+    private fun NotificationsViewModel.content() = (uiState.value as NotificationsUiState.Success).content
+
+    private fun NotificationsViewModel.accounts() = content().accounts
 
     @Test
     fun `loads the accounts' new preview preferences`() = runTest(testDispatcher) {
@@ -128,51 +129,114 @@ class NotificationsViewModelTest {
     }
 
     @Test
-    fun `a failed project change is rolled back and reported`() = runTest(testDispatcher) {
+    fun `turning a project off overrides the account and uses the server's preferences`() = runTest(testDispatcher) {
+        val serverAccounts = initialAccounts.withProjectSetting("tuist", "app", ProjectNotificationSetting.Off)
+        coEvery {
+            repository.updateNewPreviewProject("tuist", "app", ProjectNotificationSetting.Off)
+        } returns serverAccounts
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setProjectEnabled("tuist", "app", false)
+        advanceUntilIdle()
+
+        assertEquals(serverAccounts, viewModel.accounts())
+    }
+
+    @Test
+    fun `a project that matches its account follows it again`() {
+        val account = initialAccounts.first { it.handle == "tuist" }
+
+        assertEquals(ProjectNotificationSetting.Default, account.projectSetting(enabled = true))
+        assertEquals(ProjectNotificationSetting.Off, account.projectSetting(enabled = false))
+        assertEquals(ProjectNotificationSetting.On, account.copy(enabled = false).projectSetting(enabled = true))
+    }
+
+    @Test
+    fun `a failed change reloads the preferences and reports the error`() = runTest(testDispatcher) {
         coEvery {
             repository.updateNewPreviewProject("tuist", "app", ProjectNotificationSetting.Off)
         } throws NotificationsError("Project not found")
         val viewModel = createViewModel()
         advanceUntilIdle()
+        val reloaded = initialAccounts.withAccountEnabled("pepicrft", false)
+        coEvery { repository.newPreviewPreferences() } returns reloaded
         val error = async { viewModel.errorEvents.first() }
 
-        viewModel.setProjectSetting("tuist", "app", ProjectNotificationSetting.Off)
+        viewModel.setProjectEnabled("tuist", "app", false)
         advanceUntilIdle()
 
-        assertEquals(initialAccounts, viewModel.accounts())
+        assertEquals(reloaded, viewModel.accounts())
         assertEquals("Project not found", error.await())
     }
 
     @Test
-    fun `rolling back one change keeps a concurrent change to another account`() = runTest(testDispatcher) {
+    fun `overlapping changes reload instead of adopting a stale response`() = runTest(testDispatcher) {
         val accountResponse = CompletableDeferred<List<AccountNotificationPreference>>()
-        coEvery { repository.updateNewPreviewAccount("pepicrft", false) } coAnswers { accountResponse.await() }
+        coEvery { repository.updateNewPreviewAccount("tuist", false) } coAnswers { accountResponse.await() }
+        // The project's response predates the account change, so adopting it would undo that change.
         coEvery {
-            repository.updateNewPreviewProject("tuist", "app", ProjectNotificationSetting.Off)
-        } throws NotificationsError("Failed")
+            repository.updateNewPreviewProject("tuist", "cli", ProjectNotificationSetting.Off)
+        } returns initialAccounts.withProjectSetting("tuist", "cli", ProjectNotificationSetting.Off)
         val viewModel = createViewModel()
         advanceUntilIdle()
+        val reloaded = initialAccounts
+            .withAccountEnabled("tuist", false)
+            .withProjectSetting("tuist", "cli", ProjectNotificationSetting.Default)
+        coEvery { repository.newPreviewPreferences() } returns reloaded
 
-        viewModel.setAccountEnabled("pepicrft", false)
-        viewModel.setProjectSetting("tuist", "app", ProjectNotificationSetting.Off)
+        viewModel.setAccountEnabled("tuist", false)
+        viewModel.setProjectEnabled("tuist", "cli", false)
         advanceUntilIdle()
 
-        assertEquals(initialAccounts.withAccountEnabled("pepicrft", false), viewModel.accounts())
+        val pending = viewModel.accounts().first { it.handle == "tuist" }
+        assertEquals(false, pending.enabled)
+        assertEquals(setOf("tuist"), viewModel.content().changesInFlight)
+
+        accountResponse.complete(initialAccounts.withAccountEnabled("tuist", false))
+        advanceUntilIdle()
+
+        assertEquals(reloaded, viewModel.accounts())
+        assertEquals(emptySet<String>(), viewModel.content().changesInFlight)
     }
 
     @Test
-    fun `resetting a project sends default and uses the server's preferences`() = runTest(testDispatcher) {
-        val serverAccounts = initialAccounts.withProjectSetting("tuist", "cli", ProjectNotificationSetting.Default)
-        coEvery {
-            repository.updateNewPreviewProject("tuist", "cli", ProjectNotificationSetting.Default)
-        } returns serverAccounts
+    fun `a switch ignores another change while its own is in flight`() = runTest(testDispatcher) {
+        val response = CompletableDeferred<List<AccountNotificationPreference>>()
+        coEvery { repository.updateNewPreviewAccount("tuist", any()) } coAnswers { response.await() }
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.setProjectSetting("tuist", "cli", ProjectNotificationSetting.Default)
+        viewModel.setAccountEnabled("tuist", false)
+        viewModel.setAccountEnabled("tuist", true)
         advanceUntilIdle()
 
-        assertEquals(serverAccounts, viewModel.accounts())
+        coVerify(exactly = 1) { repository.updateNewPreviewAccount("tuist", any()) }
+        assertEquals(false, viewModel.accounts().first { it.handle == "tuist" }.enabled)
+        response.complete(initialAccounts.withAccountEnabled("tuist", false))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `a server without notifications shows them as unsupported`() = runTest(testDispatcher) {
+        coEvery { repository.newPreviewPreferences() } throws NotificationsError("Not found", code = 404)
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(NotificationsUiState.Unsupported, viewModel.uiState.value)
+    }
+
+    @Test
+    fun `an account summary is custom only when its projects disagree`() {
+        val tuist = initialAccounts.first { it.handle == "tuist" }
+
+        assertEquals(AccountNotificationSummary.On, tuist.summary)
+        assertEquals(
+            AccountNotificationSummary.Custom,
+            listOf(tuist).withProjectSetting("tuist", "app", ProjectNotificationSetting.Off).single().summary,
+        )
+        assertEquals(AccountNotificationSummary.Off, listOf(tuist).withAccountEnabled("tuist", false)
+            .withProjectSetting("tuist", "cli", ProjectNotificationSetting.Default).single().summary)
     }
 
     @Test

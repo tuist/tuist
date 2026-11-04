@@ -28,7 +28,14 @@ data class AccountNotificationPreference(
     val projects: List<ProjectNotificationPreference>,
 )
 
-class NotificationsError(message: String) : Exception(message)
+/** [code] is the HTTP status of the failed response. */
+class NotificationsError(message: String, val code: Int? = null) : Exception(message) {
+    /**
+     * The server predates notifications (404), or only accepts these requests from its own Tuist app client (403),
+     * which self-hosted sign-ins aren't.
+     */
+    val isUnsupported: Boolean get() = code == 403 || code == 404
+}
 
 @Singleton
 class NotificationsRepository @Inject constructor(
@@ -111,6 +118,7 @@ class NotificationsRepository @Inject constructor(
         }
         return NotificationsError(
             message?.takeIf { it.isNotBlank() } ?: "$action due to an unknown Tuist response of ${code()}.",
+            code = code(),
         )
     }
 

@@ -65,7 +65,6 @@ import coil3.compose.SubcomposeAsyncImage
 import dev.tuist.app.R
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.ui.noora.NooraSpacing
-import dev.tuist.app.ui.notifications.NotificationsPrompt
 import dev.tuist.app.ui.notifications.ProjectNotificationsBell
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -195,7 +194,6 @@ private fun PreviewsContent(
         contentPadding = PaddingValues(horizontal = NooraSpacing.Spacing6),
     ) {
         item(key = "header") {
-            NotificationsPrompt(modifier = Modifier.padding(top = NooraSpacing.Spacing4))
             ProjectDropdown(
                 projects = state.projects,
                 selectedProject = state.selectedProject,

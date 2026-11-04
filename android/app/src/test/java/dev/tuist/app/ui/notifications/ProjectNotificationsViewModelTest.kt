@@ -5,8 +5,10 @@ import dev.tuist.app.data.push.NotificationsError
 import dev.tuist.app.data.push.NotificationsRepository
 import dev.tuist.app.data.push.ProjectNotificationPreference
 import dev.tuist.app.data.push.ProjectNotificationSetting
+import dev.tuist.app.data.push.PushRegistrationManager
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +51,9 @@ class ProjectNotificationsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = ProjectNotificationsViewModel(repository).also { it.load() }
+    private val pushRegistrationManager = mockk<PushRegistrationManager> { every { isDeviceEnabled } returns true }
+
+    private fun createViewModel() = ProjectNotificationsViewModel(repository, pushRegistrationManager).also { it.load() }
 
     @Test
     fun `finds a project by its full handle`() {
@@ -71,7 +75,7 @@ class ProjectNotificationsViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.setSetting("tuist/app", ProjectNotificationSetting.On)
+        viewModel.setEnabled("tuist/app", true)
         advanceUntilIdle()
 
         val optimistic = viewModel.accounts.value.findProject("tuist/app")!!.second
@@ -86,15 +90,15 @@ class ProjectNotificationsViewModelTest {
     }
 
     @Test
-    fun `a failed change is rolled back and reported`() = runTest(testDispatcher) {
+    fun `a failed change reloads the preferences and is reported`() = runTest(testDispatcher) {
         coEvery {
-            repository.updateNewPreviewProject("tuist", "app", ProjectNotificationSetting.Off)
+            repository.updateNewPreviewProject("tuist", "app", ProjectNotificationSetting.On)
         } throws NotificationsError("Project not found")
         val viewModel = createViewModel()
         advanceUntilIdle()
         val error = async { viewModel.errorEvents.first() }
 
-        viewModel.setSetting("tuist/app", ProjectNotificationSetting.Off)
+        viewModel.setEnabled("tuist/app", true)
         advanceUntilIdle()
 
         assertEquals(initialAccounts, viewModel.accounts.value)
@@ -106,7 +110,7 @@ class ProjectNotificationsViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.setSetting("tuist/unknown", ProjectNotificationSetting.On)
+        viewModel.setEnabled("tuist/unknown", true)
         advanceUntilIdle()
 
         coVerify(exactly = 0) { repository.updateNewPreviewProject(any(), any(), any()) }
@@ -123,7 +127,7 @@ class ProjectNotificationsViewModelTest {
 
         viewModel.load()
         advanceUntilIdle()
-        viewModel.setSetting("tuist/app", ProjectNotificationSetting.On)
+        viewModel.setEnabled("tuist/app", true)
         staleRefresh.complete(initialAccounts)
         advanceUntilIdle()
 
