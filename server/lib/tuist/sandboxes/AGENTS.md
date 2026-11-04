@@ -161,7 +161,7 @@ consumer is Claude Managed Agents `self_hosted` environments.
   reverts restores stuck for 15.
 - Account limits (`Tuist.Sandboxes`): at most five sandboxes creating,
   running or resuming (`:sandbox_running_limit`, checked on create,
-  restore and resume, retryable) and fifteen on nodes, paused included
+  restore and resume, retryable) and thirty on nodes, paused included
   (`:sandbox_limit`, checked on create and restore). The account CPU and
   memory quota (`Tuist.Sandboxes.Concurrency`) applies on top.
 - Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more

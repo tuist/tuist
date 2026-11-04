@@ -53,7 +53,7 @@ defmodule Tuist.Sandboxes do
   # they count toward the larger on-node cap instead, and Amp Orbs past
   # `Archives.max_paused_on_node_per_account/0` move to object storage.
   @max_running_sandboxes_per_account 5
-  @max_on_node_sandboxes_per_account 15
+  @max_on_node_sandboxes_per_account 30
   @running_states [:creating, :running, :resuming]
   @on_node_states [:creating, :running, :resuming, :paused]
   # A running Amp Orb whose guest has used under 2% of one vCPU for this
