@@ -358,7 +358,7 @@ defmodule TuistWeb.SandboxesLive do
       </:col>
       <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Status")}>
         <% status = status(sandbox) %>
-        <.status_badge_cell label={status.label} status={status.status} />
+        <.badge_cell label={status.label} color={status.color} style="light-fill" />
       </:col>
       <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Resources")}>
         <.text_cell label={resources(sandbox)} />
@@ -397,15 +397,15 @@ defmodule TuistWeb.SandboxesLive do
   def source_label(%Sandbox{}), do: dgettext("dashboard_sandboxes", "API")
 
   def status(%Sandbox{state: :running, residency_work_id: work_id}) when is_binary(work_id),
-    do: %{label: dgettext("dashboard_sandboxes", "Active"), status: "success"}
+    do: %{label: dgettext("dashboard_sandboxes", "Active"), color: "success"}
 
-  def status(%Sandbox{state: :running}), do: %{label: dgettext("dashboard_sandboxes", "Idle"), status: "attention"}
-  def status(%Sandbox{state: :creating}), do: %{label: dgettext("dashboard_sandboxes", "Starting"), status: "in_progress"}
-  def status(%Sandbox{state: :resuming}), do: %{label: dgettext("dashboard_sandboxes", "Resuming"), status: "in_progress"}
-  def status(%Sandbox{state: :paused}), do: %{label: dgettext("dashboard_sandboxes", "Paused"), status: "disabled"}
-  def status(%Sandbox{state: :archived}), do: %{label: dgettext("dashboard_sandboxes", "Archived"), status: "disabled"}
-  def status(%Sandbox{state: :error}), do: %{label: dgettext("dashboard_sandboxes", "Failed"), status: "error"}
-  def status(%Sandbox{state: :deleted}), do: %{label: dgettext("dashboard_sandboxes", "Deleting"), status: "disabled"}
+  def status(%Sandbox{state: :running}), do: %{label: dgettext("dashboard_sandboxes", "Idle"), color: "warning"}
+  def status(%Sandbox{state: :creating}), do: %{label: dgettext("dashboard_sandboxes", "Starting"), color: "information"}
+  def status(%Sandbox{state: :resuming}), do: %{label: dgettext("dashboard_sandboxes", "Resuming"), color: "information"}
+  def status(%Sandbox{state: :paused}), do: %{label: dgettext("dashboard_sandboxes", "Paused"), color: "neutral"}
+  def status(%Sandbox{state: :archived}), do: %{label: dgettext("dashboard_sandboxes", "Archived"), color: "neutral"}
+  def status(%Sandbox{state: :error}), do: %{label: dgettext("dashboard_sandboxes", "Failed"), color: "destructive"}
+  def status(%Sandbox{state: :deleted}), do: %{label: dgettext("dashboard_sandboxes", "Deleting"), color: "neutral"}
 
   def resources(%Sandbox{} = sandbox) do
     dgettext("dashboard_sandboxes", "%{vcpus} vCPU · %{memory} RAM · %{disk} disk",

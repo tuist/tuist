@@ -161,6 +161,6 @@ defmodule TuistWeb.SandboxLive do
 
   def can_delete?(%Sandbox{state: state}), do: state in [:running, :paused, :archived, :error]
 
-  def snapshot_status(%{state: :ready}), do: %{label: dgettext("dashboard_sandboxes", "Ready"), status: "success"}
-  def snapshot_status(%{state: :saving}), do: %{label: dgettext("dashboard_sandboxes", "Saving"), status: "in_progress"}
+  def snapshot_status(%{state: :ready}), do: %{label: dgettext("dashboard_sandboxes", "Ready"), color: "success"}
+  def snapshot_status(%{state: :saving}), do: %{label: dgettext("dashboard_sandboxes", "Saving"), color: "information"}
 end

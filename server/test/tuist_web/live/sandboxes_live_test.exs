@@ -218,7 +218,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       render_async(lv, 5_000)
 
       assert Repo.get!(Sandbox, sandbox.id).state == :paused
-      assert has_element?(lv, "h1 + .noora-status-badge", "Paused")
+      assert has_element?(lv, "h1 + .noora-badge", "Paused")
     end
 
     test "does not offer to pause a sandbox an agent is working in", %{conn: conn, account: account} do

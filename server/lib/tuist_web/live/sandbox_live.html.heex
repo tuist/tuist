@@ -14,7 +14,7 @@
       <div data-part="sandbox-icon"><.devices_code /></div>
       <h1>{display_name(@sandbox)}</h1>
       <% status = status(@sandbox) %>
-      <.status_badge status={status.status} label={status.label} />
+      <.badge label={status.label} color={status.color} style="light-fill" size="large" />
     </div>
     <div :if={@can_manage} data-part="actions">
       <.button
@@ -168,7 +168,7 @@
         </:col>
         <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Status")}>
           <% status = snapshot_status(snapshot) %>
-          <.status_badge_cell label={status.label} status={status.status} />
+          <.badge_cell label={status.label} color={status.color} style="light-fill" />
         </:col>
         <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Saved")}>
           <.text_cell
