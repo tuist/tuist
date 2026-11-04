@@ -22146,7 +22146,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/outcome`.
             public var outcome: Swift.String
-            /// Why the run fell back, such as `excluded_branch`, `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            /// Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/reason`.
             public var reason: Swift.String?
@@ -22161,7 +22161,7 @@ public enum Components {
             ///   - id: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
             ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
             ///   - outcome: `selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
-            ///   - reason: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            ///   - reason: Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
             ///   - skipped_tests: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
             public init(
                 counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
@@ -25637,7 +25637,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/dirty`.
             public var dirty: Swift.Bool?
-            /// The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/fallback_reason`.
             public var fallback_reason: Swift.String?
@@ -25712,7 +25712,7 @@ public enum Components {
             ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
             ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
             ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
-            ///   - fallback_reason: The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///   - git_branch: The git branch, shown on the overview.
             ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
             ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.
@@ -108811,7 +108811,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/dirty`.
                     public var dirty: Swift.Bool?
-                    /// The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/fallback_reason`.
                     public var fallback_reason: Swift.String?
@@ -108886,7 +108886,7 @@ public enum Operations {
                     ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
                     ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
                     ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
-                    ///   - fallback_reason: The baseline request's reason, `excluded_branch` on the project's default branch, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///   - git_branch: The git branch, shown on the overview.
                     ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
                     ///   - modules: The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured.

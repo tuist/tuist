@@ -74,31 +74,25 @@ actor TestImpactSelector {
 
     /// The reasons after which every test target in scope runs, so that the commit becomes a
     /// baseline for later runs.
-    static let runAllReasons: Set<TestImpactFallbackReason> = [.excludedBranch, .noBaseline, .baselineTooOld, .diffTooLarge]
+    static let runAllReasons: Set<TestImpactFallbackReason> = [.noBaseline, .baselineTooOld, .diffTooLarge]
 
     let invocation: Invocation
     private(set) var outcome: TestImpactOutcome?
 
     private let gitController: GitControlling
-    private let getProjectService: GetProjectServicing
     private let resolveBaselineService: ResolveTestImpactBaselineServicing
     private let createRunService: CreateTestImpactRunServicing
-    private let timeout: Duration
 
     init(
         invocation: Invocation,
         gitController: GitControlling = GitController(),
-        getProjectService: GetProjectServicing = GetProjectService(),
         resolveBaselineService: ResolveTestImpactBaselineServicing = ResolveTestImpactBaselineService(),
-        createRunService: CreateTestImpactRunServicing = CreateTestImpactRunService(),
-        timeout: Duration = .seconds(2)
+        createRunService: CreateTestImpactRunServicing = CreateTestImpactRunService()
     ) {
         self.invocation = invocation
         self.gitController = gitController
-        self.getProjectService = getProjectService
         self.resolveBaselineService = resolveBaselineService
         self.createRunService = createRunService
-        self.timeout = timeout
     }
 
     // swiftlint:disable function_body_length
@@ -114,7 +108,8 @@ actor TestImpactSelector {
         platform: String?,
         affectedModules: @Sendable (AbsolutePath) -> [String]?
     ) async -> TestImpactGraphDecision {
-        guard outcome == nil, await gitController.isInGitRepository(workingDirectory: invocation.path) else {
+        // Every target already passed under its hash: nothing is left to decide.
+        guard outcome == nil, !modules.isEmpty, await gitController.isInGitRepository(workingDirectory: invocation.path) else {
             return .unchanged
         }
         let repository: AbsolutePath
@@ -128,10 +123,6 @@ actor TestImpactSelector {
             warn("the checkout couldn't be read: \(error.localizedDescription)")
             return .unchanged
         }
-
-        let onDefaultBranch = await isDefaultBranch(gitInfo: gitInfo, checkout: checkout)
-        // Every target already passed under its hash: nothing is left to decide.
-        if modules.isEmpty, !onDefaultBranch { return .unchanged }
 
         let refs = Self.deepeningRefs(gitInfo: gitInfo)
         var ancestorSHAs: [String] = []
@@ -154,8 +145,6 @@ actor TestImpactSelector {
         case let .failed(message):
             warn(message)
             return .unchanged
-        case _ where onDefaultBranch:
-            basis = .fallback(.excludedBranch)
         case let .unavailable(reason):
             basis = .fallback(reason)
         case let .baseline(sha, diffCached):
@@ -181,7 +170,6 @@ actor TestImpactSelector {
             testPlan: invocation.testPlan,
             destination: invocation.destination
         )
-        let decision: TestImpactGraphDecision
         switch await createRunService.createTestImpactRun(
             fullHandle: invocation.fullHandle,
             serverURL: invocation.serverURL,
@@ -190,17 +178,14 @@ actor TestImpactSelector {
         case let .selected(selection):
             let skippedModules = Set(TestImpactSkipList(selection.skippedTests).modules).intersection(modules)
             outcome = .selected(selection, skippedModules: skippedModules.sorted())
-            decision = .prune(skippedModules)
+            return .prune(skippedModules)
         case let .fallback(runID, reason, matchedPath):
             outcome = .fallback(runID: runID, reason: reason, matchedPath: matchedPath)
-            decision = reason.map(Self.runAllReasons.contains) == true ? .runAll : .unchanged
+            return reason.map(Self.runAllReasons.contains) == true ? .runAll : .unchanged
         case let .failed(message):
             warn(message)
-            decision = .unchanged
+            return .unchanged
         }
-        // The default branch always runs everything, so its commits are baselines, even when the
-        // server couldn't record the fallback.
-        return onDefaultBranch ? .runAll : decision
     }
 
     // swiftlint:enable function_body_length
@@ -271,18 +256,6 @@ actor TestImpactSelector {
             Logger.current.debug("Coverage-based test selection couldn't diff the checkout: \(error.localizedDescription)")
             return .fallback(.historyUnavailable)
         }
-    }
-
-    /// Whether the run is on the project's default branch, which never selects. Pull requests never
-    /// are; otherwise the server's project says which branch is the default.
-    private func isDefaultBranch(gitInfo: GitInfo, checkout: GitCheckedOutCommit) async -> Bool {
-        guard let branch = gitInfo.branch, gitInfo.pullRequestNumber == nil, !checkout.isPullRequestMerge else { return false }
-        let invocation = invocation
-        let getProjectService = getProjectService
-        let project = try? await withTestImpactTimeout(timeout) {
-            try await getProjectService.getProject(fullHandle: invocation.fullHandle, serverURL: invocation.serverURL)
-        }
-        return project?.defaultBranch == branch
     }
 
     /// The platform an xcodebuild `-destination` runs tests on, a simulator's or a device's alike.

@@ -28,7 +28,6 @@ struct TestImpactGraphMapperTests {
                 platform: nil
             ),
             gitController: gitController,
-            getProjectService: MockGetProjectServicing(),
             resolveBaselineService: resolveBaselineService,
             createRunService: createRunService
         )

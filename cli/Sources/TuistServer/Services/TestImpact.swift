@@ -11,8 +11,6 @@ public struct TestImpactFallbackReason: RawRepresentable, Hashable, Sendable, Cu
 
     public var description: String { rawValue }
 
-    /// The run is on the project's default branch, which never selects.
-    public static let excludedBranch = TestImpactFallbackReason(rawValue: "excluded_branch")
     /// More changed files than the server analyzes.
     public static let diffTooLarge = TestImpactFallbackReason(rawValue: "diff_too_large")
     /// No full run in reach on the platform.
