@@ -19,6 +19,7 @@ defmodule TuistWeb.LocaleTest do
       assert Locale.normalize_locale("es-ES") == "es"
       assert Locale.normalize_locale("ka-GE") == "ka"
       assert Locale.normalize_locale("ru-RU") == "ru"
+      assert Locale.normalize_locale("tr-TR") == "tr"
     end
 
     test "normalizes chinese script variants" do
