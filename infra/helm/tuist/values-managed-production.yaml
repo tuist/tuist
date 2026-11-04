@@ -1185,9 +1185,8 @@ ovhFleets:
     # MachineDeployment before the OVHDedicatedMachineTemplate, and CAPI cloned
     # the fifth Machine 65 ms after the scale-up, still with offer advance-1. It
     # never matched the Advance-2, and the release rolled back on the
-    # MachineDeployment wait (2026-11-04). Raise this to 5 once the offer
-    # change below is deployed.
-    replicas: 4
+    # MachineDeployment wait (2026-11-04).
+    replicas: 5
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
