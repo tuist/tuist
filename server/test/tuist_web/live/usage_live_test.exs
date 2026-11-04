@@ -580,7 +580,17 @@ defmodule TuistWeb.UsageLiveTest do
       render_async(lv, @render_async_timeout)
 
       assert has_element?(lv, "#widget-sandbox-vcpu-hours", "8.0")
-      assert has_element?(lv, "#sandbox-vcpu-hours-chart")
+      # 8 vCPU-hours at $0.06, none of it billed during early access.
+      assert has_element?(lv, "#widget-sandbox-gross", "0.48")
+      assert has_element?(lv, "#widget-sandbox-billed", "0.00")
+      assert has_element?(lv, "#sandbox-spend-chart")
+      assert has_element?(lv, ~s([data-kind="sandboxes"] [data-kind="credit"]), "0.48")
+      # 16.5 of January's 31 days have passed: 8 × 31 / 16.5 rounds down to 15.
+      assert has_element?(
+               lv,
+               ~s([data-kind="sandboxes"] [data-part="footnote"]),
+               "On track for about 15 vCPU-hours this period. Last period came to 4.0."
+             )
     end
 
     test "is hidden while the account has no sandboxes", %{conn: conn, account: account} do

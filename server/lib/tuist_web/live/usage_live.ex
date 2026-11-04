@@ -13,7 +13,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Prepaid
-  alias Tuist.Sandboxes.Analytics
+  alias Tuist.Sandboxes.Pricing, as: SandboxPricing
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
   alias TuistWeb.Utilities.Query
@@ -80,13 +80,9 @@ defmodule TuistWeb.UsageLive do
 
   defp assign_sandbox_usage(%{assigns: %{sandboxes_enabled: false}} = socket, _account, _period), do: socket
 
-  defp assign_sandbox_usage(socket, account, {period_start, period_end}) do
-    # A period ends where the next starts, so its last instant is a second
-    # before; the current period is counted until now.
-    end_datetime = Enum.min([DateTime.utc_now(), DateTime.add(period_end, -1, :second)], DateTime)
-
+  defp assign_sandbox_usage(socket, account, period) do
     assign_async(socket, :sandbox_usage, fn ->
-      {:ok, %{sandbox_usage: Analytics.compute(account.id, start_datetime: period_start, end_datetime: end_datetime)}}
+      {:ok, %{sandbox_usage: SandboxPricing.period_breakdown(account.id, period)}}
     end)
   end
 
@@ -538,15 +534,36 @@ defmodule TuistWeb.UsageLive do
   def vcpu_hours(value) when value < 10, do: CldrHelpers.format_number(value, fractional_digits: 1)
   def vcpu_hours(value), do: CldrHelpers.format_number(value)
 
-  def sandbox_chart_series(%{dates: dates, values: values}) do
-    [
-      %{
-        color: "var:noora-chart-primary",
-        data: dates |> Enum.zip(values) |> Enum.map(&Tuple.to_list/1),
-        name: dgettext("dashboard_usage", "vCPU-hours"),
-        type: "bar"
-      }
-    ]
+  @doc """
+  The daily value of the period's sandbox vCPU-hours, followed by the
+  projection for the days the period has not reached yet.
+  """
+  def sandbox_chart_series(%{days: days, projected_days: projected_days} = sandboxes) do
+    dates = usage_chart_dates(sandboxes)
+
+    [bar_series(dgettext("dashboard_usage", "Sandboxes"), "primary", dates, days, :dollars)] ++
+      projected_series(projected_days, dates, :dollars)
+  end
+
+  def vcpu_hour_rate_label,
+    do:
+      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_vcpu_hour() / 100, decimals: 2)} " <>
+        dgettext("dashboard_usage", "per vCPU-hour")
+
+  def sandbox_pace_label(%{projected_vcpu_hours: nil, previous_vcpu_hours: previous}) when previous > 0,
+    do: dgettext("dashboard_usage", "Last period came to %{count} vCPU-hours.", count: vcpu_hours(previous))
+
+  def sandbox_pace_label(%{projected_vcpu_hours: nil}), do: nil
+
+  def sandbox_pace_label(%{projected_vcpu_hours: projected, previous_vcpu_hours: previous}) do
+    pace =
+      dgettext("dashboard_usage", "On track for about %{count} vCPU-hours this period.",
+        count: CldrHelpers.format_number(projected)
+      )
+
+    if previous > 0,
+      do: pace <> " " <> dgettext("dashboard_usage", "Last period came to %{count}.", count: vcpu_hours(previous)),
+      else: pace
   end
 
   def runner_usage?(%{minutes: minutes, by_repository: by_repository}), do: minutes > 0 or by_repository != []

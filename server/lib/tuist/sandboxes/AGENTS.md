@@ -325,7 +325,10 @@ socket, the poller and the caller share a replica:
   neither resumes nor counts as activity) and records a `setup` event dated
   when setup finished; a log older than the row came with a disk snapshot
   and is ignored. The Setup and Time to start widgets chart those
-  durations; vCPU-hours (`Analytics.compute/2`) are on the Usage page.
+  durations; vCPU-hours (`Analytics.compute/2`) are on the Usage page,
+  priced by `Sandboxes.Pricing` at one rate per vCPU-hour, memory and disk
+  included. There is no Stripe meter yet: early access covers the whole
+  charge and Billed stays $0 until one exists.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,
