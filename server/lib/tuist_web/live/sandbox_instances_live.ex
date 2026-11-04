@@ -1,4 +1,4 @@
-defmodule TuistWeb.SandboxListLive do
+defmodule TuistWeb.SandboxInstancesLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
@@ -19,7 +19,7 @@ defmodule TuistWeb.SandboxListLive do
 
     if connected?(socket), do: Process.send_after(self(), :refresh, @refresh_interval)
 
-    {:ok, assign(socket, head_title: "#{dgettext("dashboard_sandboxes", "All sandboxes")} · #{account.name} · Tuist")}
+    {:ok, assign(socket, head_title: "#{dgettext("dashboard_sandboxes", "Instances")} · #{account.name} · Tuist")}
   end
 
   @impl true
@@ -78,8 +78,8 @@ defmodule TuistWeb.SandboxListLive do
 
   def list_patch(account, uri, key, value), do: list_path(account, Query.put(uri.query, key, value))
 
-  defp list_path(account, ""), do: "/#{account.name}/sandboxes/all"
-  defp list_path(account, query), do: "/#{account.name}/sandboxes/all?#{query}"
+  defp list_path(account, ""), do: "/#{account.name}/sandboxes/instances"
+  defp list_path(account, query), do: "/#{account.name}/sandboxes/instances?#{query}"
 
   defp filter_states("all"), do: nil
   defp filter_states("running"), do: [:creating, :resuming, :running]

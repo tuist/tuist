@@ -477,7 +477,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
       <% sandboxes_path = ~p"/#{@selected_account.name}/sandboxes" %>
       <% sandbox_snapshots_path = ~p"/#{@selected_account.name}/sandboxes/snapshots" %>
-      <% sandbox_list_path = ~p"/#{@selected_account.name}/sandboxes/all" %>
+      <% sandbox_instances_path = ~p"/#{@selected_account.name}/sandboxes/instances" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -538,16 +538,16 @@ defmodule TuistWeb.AppLayoutComponents do
           @current_path == sandboxes_path or
             (String.starts_with?(@current_path, sandboxes_path <> "/") and
                not String.starts_with?(@current_path, sandbox_snapshots_path) and
-               not String.starts_with?(@current_path, sandbox_list_path))
+               not String.starts_with?(@current_path, sandbox_instances_path))
         }
         default_open={String.starts_with?(@current_path, sandboxes_path)}
         phx-update="ignore"
       >
         <.sidebar_item
-          label={dgettext("dashboard_sandboxes", "All sandboxes")}
+          label={dgettext("dashboard_sandboxes", "Instances")}
           icon="stack_2"
-          navigate={sandbox_list_path}
-          selected={String.starts_with?(@current_path, sandbox_list_path)}
+          navigate={sandbox_instances_path}
+          selected={String.starts_with?(@current_path, sandbox_instances_path)}
         />
         <.sidebar_item
           label={dgettext("dashboard_sandboxes", "Snapshots")}

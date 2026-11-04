@@ -338,7 +338,7 @@ defmodule TuistWeb.SandboxesLive do
     """
   end
 
-  # ----- Presentation shared with SandboxLive, SandboxListLive and SandboxSnapshotsLive -----
+  # ----- Presentation shared with SandboxLive, SandboxInstancesLive and SandboxSnapshotsLive -----
 
   attr :id, :string, required: true
   attr :sandboxes, :list, required: true

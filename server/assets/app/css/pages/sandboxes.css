@@ -1,7 +1,7 @@
 #sandboxes,
 #sandbox,
 #sandbox-snapshots,
-#sandbox-list {
+#sandbox-instances {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-7);

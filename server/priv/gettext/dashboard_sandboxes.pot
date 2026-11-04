@@ -31,7 +31,7 @@ msgstr ""
 msgid "Agents"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.ex:91
+#: lib/tuist_web/live/sandbox_instances_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr ""
@@ -161,7 +161,7 @@ msgstr ""
 msgid "Expires"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.ex:94
+#: lib/tuist_web/live/sandbox_instances_live.ex:94
 #: lib/tuist_web/live/sandboxes_live.ex:409
 #, elixir-autogen, elixir-format
 msgid "Failed"
@@ -229,7 +229,7 @@ msgstr ""
 msgid "Pause"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.ex:93
+#: lib/tuist_web/live/sandbox_instances_live.ex:93
 #: lib/tuist_web/live/sandbox_live.html.heex:144
 #: lib/tuist_web/live/sandboxes_live.ex:407
 #, elixir-autogen, elixir-format
@@ -287,7 +287,7 @@ msgstr ""
 msgid "Run agents in sandboxes"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.ex:92
+#: lib/tuist_web/live/sandbox_instances_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr ""
@@ -303,7 +303,7 @@ msgid "Sandbox deleted."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:534
-#: lib/tuist_web/live/sandbox_list_live.html.heex:10
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:10
 #: lib/tuist_web/live/sandbox_live.ex:42
 #: lib/tuist_web/live/sandbox_live.html.heex:6
 #: lib/tuist_web/live/sandboxes_live.ex:34
@@ -384,7 +384,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.html.heex:19
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Status:"
 msgstr ""
@@ -633,29 +633,22 @@ msgstr ""
 msgid "p99 Time to start"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:547
-#: lib/tuist_web/live/sandbox_list_live.ex:22
-#: lib/tuist_web/live/sandbox_list_live.html.heex:3
-#, elixir-autogen, elixir-format
-msgid "All sandboxes"
-msgstr ""
-
-#: lib/tuist_web/live/sandbox_list_live.html.heex:5
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Every sandbox in the account, newest first."
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.html.heex:50
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.html.heex:43
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Page %{page} of %{total}"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_list_live.html.heex:36
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
@@ -668,4 +661,11 @@ msgstr ""
 #: lib/tuist_web/live/sandboxes_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "View more"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:547
+#: lib/tuist_web/live/sandbox_instances_live.ex:22
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Instances"
 msgstr ""

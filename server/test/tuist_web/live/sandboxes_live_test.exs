@@ -41,7 +41,7 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       for path <- [
             "/#{account.name}/sandboxes",
-            "/#{account.name}/sandboxes/all",
+            "/#{account.name}/sandboxes/instances",
             "/#{account.name}/sandboxes/snapshots"
           ] do
         assert_raise NotFoundError, fn -> live(conn, path) end
@@ -93,7 +93,7 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
 
-      assert has_element?(lv, "#sandboxes-recent a[href='/#{account.name}/sandboxes/all']", "View more")
+      assert has_element?(lv, "#sandboxes-recent a[href='/#{account.name}/sandboxes/instances']", "View more")
       assert has_element?(lv, "#sandboxes-recent tbody tr", "orb-active")
       refute has_element?(lv, "#sandbox-#{oldest.id}")
       assert Enum.all?(recent, &has_element?(lv, "#sandbox-#{&1.id}"))
@@ -124,14 +124,14 @@ defmodule TuistWeb.SandboxesLiveTest do
     end
   end
 
-  describe "all sandboxes" do
+  describe "instances" do
     test "lists the account's sandboxes", %{conn: conn, account: account} do
       active = sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
       paused = sandbox_fixture(account: account, amp_orb_id: "orb-paused", state: :paused, vcpus: 4, memory_mb: 8192)
       archived = sandbox_fixture(account: account, amp_orb_id: "orb-archived", state: :archived, node_name: nil)
       other = sandbox_fixture(amp_orb_id: "orb-of-another-account")
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/all")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances")
 
       assert has_element?(lv, "#sandbox-#{active.id}", "orb-active")
       assert has_element?(lv, "#sandbox-#{active.id}", "Active")
@@ -147,7 +147,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       running = sandbox_fixture(account: account, amp_orb_id: "orb-running")
       failed = sandbox_fixture(account: account, amp_orb_id: "orb-failed", state: :error, error_message: "boom")
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/all?status=error")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?status=error")
 
       assert has_element?(lv, "#sandbox-#{failed.id}", "Failed")
       refute has_element?(lv, "#sandbox-#{running.id}")
@@ -167,7 +167,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       running = sandbox_fixture(account: account, amp_orb_id: "orb-running")
       [oldest, second_oldest | _] = paused
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/all?status=paused")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?status=paused")
 
       assert has_element?(lv, "[data-part='pagination']", "Page 1 of 2")
       assert has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
@@ -176,15 +176,15 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       lv |> element("[data-part='pagination'] a", "Next") |> render_click()
 
-      assert_patch(lv, ~p"/#{account.name}/sandboxes/all?page=2&status=paused")
+      assert_patch(lv, ~p"/#{account.name}/sandboxes/instances?page=2&status=paused")
       assert has_element?(lv, "#sandbox-#{oldest.id}")
       assert has_element?(lv, "#sandbox-#{second_oldest.id}")
       refute has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
 
-      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/all" data-phx-link="patch")
-      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/all?status=running")
+      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/instances" data-phx-link="patch")
+      assert render(lv) =~ ~s(href="/#{account.name}/sandboxes/instances?status=running")
 
-      render_patch(lv, ~p"/#{account.name}/sandboxes/all")
+      render_patch(lv, ~p"/#{account.name}/sandboxes/instances")
       assert has_element?(lv, "#sandbox-#{running.id}")
       assert has_element?(lv, "[data-part='pagination']", "Page 1 of 2")
     end
