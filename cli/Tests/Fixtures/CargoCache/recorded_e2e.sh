@@ -156,7 +156,8 @@ expect linked-archive "2 2" "$LINKED"
 
 # Protected programs such as `/usr/bin/git` never load the recorder, so what they read is unknown; a run that asks
 # one is keyed by what it printed instead, re-run at lookup. `stamp` is a proc macro that embeds `git describe`, as
-# bat's `git_version!` does, and `rev`'s build script records `git rev-parse HEAD`. A new commit must reach both.
+# bat's `git_version!` does, and `rev`'s build script asks `git rev-parse --git-dir`, whose answer never changes, and
+# reads the commit from `.git` itself. A new commit must reach both.
 queried() {
     local path="$ROOT/$1/ws"
     mkdir -p "$path/stamp/src" "$path/rev/src" "$path/app/src"
@@ -179,10 +180,15 @@ pub fn describe(_: proc_macro::TokenStream) -> proc_macro::TokenStream {
 RUST
     printf '[package]\nname = "rev"\nversion = "0.1.0"\nedition = "2021"\n' > "$path/rev/Cargo.toml"
     cat > "$path/rev/build.rs" << 'RUST'
+// Asks git only where the repository is, whose answer never changes, and reads the commit from its files.
 fn main() {
-    let output = std::process::Command::new("/usr/bin/git").args(["rev-parse", "HEAD"]).output().unwrap();
+    let output = std::process::Command::new("/usr/bin/git").args(["rev-parse", "--git-dir"]).output().unwrap();
+    let git = std::path::PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
+    let head = std::fs::read_to_string(git.join("HEAD")).unwrap();
+    let reference = head.trim().strip_prefix("ref: ").unwrap();
+    let commit = std::fs::read_to_string(git.join(reference)).unwrap();
     let out = std::env::var("OUT_DIR").unwrap();
-    std::fs::write(format!("{out}/rev.txt"), String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    std::fs::write(format!("{out}/rev.txt"), commit.trim()).unwrap();
 }
 RUST
     printf 'pub const REV: &str = include_str!(concat!(env!("OUT_DIR"), "/rev.txt"));\n' > "$path/rev/src/lib.rs"

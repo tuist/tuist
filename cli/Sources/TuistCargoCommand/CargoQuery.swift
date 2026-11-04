@@ -55,16 +55,40 @@ struct CargoQuery: Equatable {
         relocation.relative(([program, directory, changes.joined(separator: "\u{1e}")] + arguments).joined(separator: "\u{1f}"))
     }
 
-    /// Where a git query runs, after its `-C` options.
-    var gitDirectory: String? {
-        guard URL(fileURLWithPath: program).lastPathComponent == "git" else { return nil }
+    /// The working tree whose state a git query printed (`describe --dirty`, `status`, `diff`): the nearest directory
+    /// holding `.git` above where it ran, after its `-C` options. `nil` for other queries, and when the query names its
+    /// repository another way (`--git-dir`, `--work-tree`, `GIT_DIR`, `GIT_WORK_TREE`).
+    var gitWorkingTree: String? {
+        guard URL(fileURLWithPath: program).lastPathComponent == "git",
+              !changes.contains(where: { $0.hasPrefix("GIT_DIR=") || $0.hasPrefix("GIT_WORK_TREE=") }) else { return nil }
         var result = URL(fileURLWithPath: directory, isDirectory: true)
         var index = 1
-        while index + 1 < arguments.count, arguments[index] == "-C" {
-            result = URL(fileURLWithPath: arguments[index + 1], isDirectory: true, relativeTo: result)
-            index += 2
+        while index < arguments.count {
+            let argument = arguments[index]
+            if argument == "-C", index + 1 < arguments.count {
+                result = URL(fileURLWithPath: arguments[index + 1], isDirectory: true, relativeTo: result)
+                index += 2
+            } else if argument == "--no-pager" || argument == "--no-optional-locks" {
+                index += 1
+            } else if argument.hasPrefix("--git-dir") || argument.hasPrefix("--work-tree") {
+                return nil
+            } else {
+                break
+            }
         }
-        return result.standardizedFileURL.path
+        guard index < arguments.count else { return nil }
+        let rest = arguments[(index + 1)...]
+        switch arguments[index] {
+        case "status", "diff": break
+        case "describe": guard rest.contains(where: { $0.hasPrefix("--dirty") }) else { return nil }
+        default: return nil
+        }
+        var candidate = result.standardizedFileURL.path
+        while true {
+            if FileManager.default.fileExists(atPath: candidate + "/.git") { return candidate }
+            guard candidate != "/", !candidate.isEmpty else { return nil }
+            candidate = (candidate as NSString).deletingLastPathComponent
+        }
     }
 
     private static func isQuery(program: String, arguments: [String]) -> Bool {

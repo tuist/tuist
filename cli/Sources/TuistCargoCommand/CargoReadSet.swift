@@ -40,8 +40,8 @@ struct CargoReadSet: Codable, Equatable {
         // Processes of query programs and tools that loaded the recorder, such as a Homebrew `git` or swiftly's
         // `swiftc`, and their children: what they print or produce is keyed, so their own events are not the run's.
         var queryProcesses: Set<String> = []
-        // Directories a keyed git query ran in.
-        var queriedRepositories: [String] = []
+        // The index files of working trees a keyed git query asked about.
+        var queriedIndexes: Set<String> = []
         var counted: Set<String> = []
         var attempts: [String: String] = [:]
         func model(_ value: String) {
@@ -49,7 +49,7 @@ struct CargoReadSet: Codable, Equatable {
             guard parts.count >= 4, !allowedSpawn(parts[0]) else { return }
             if let query = CargoQuery(parts) {
                 commands.insert(Entry(kind: "command", name: query.relocated(relocation)))
-                if let directory = query.gitDirectory { queriedRepositories.append(standardized(directory)) }
+                if let tree = query.gitWorkingTree { queriedIndexes.insert(standardized(tree) + "/.git/index") }
             } else if let tool = CargoTool(
                 parts, writable: { within($0, allowedWrites) },
                 written: { path in written.contains { $0 == path || $0.hasPrefix(path + "/") } }
@@ -140,12 +140,12 @@ struct CargoReadSet: Codable, Equatable {
             // Devices are not inputs: rustc opens `/dev/null`, whose modification time changes whenever any process
             // writes to it, so keying it would refuse every run whose build output is discarded.
             if path.hasPrefix("/dev/") { continue }
-            // The internals of a repository the run asked git about: bat's `git_version!` reads `.git/index` and
-            // `.git/logs/HEAD` through `include_bytes!` only so Cargo reruns it when they change, discarding the bytes.
-            // What it embeds is the query's output, keyed above; the index holds each file's inode and times, so its
-            // bytes differ in every checkout and keying them would bind the crate to one.
-            if let range = path.range(of: "/.git/"),
-               queriedRepositories.contains(where: { within($0, [String(path[..<range.lowerBound])]) }) { continue }
+            // The index of a working tree the run asked git about: bat's `git_version!` reads `.git/index` through
+            // `include_bytes!` only so Cargo reruns it when the tree changes, discarding the bytes, and embeds what git
+            // printed, keyed above. The index holds each file's inode and times, so its bytes differ in every checkout
+            // and keying them would bind the crate to one. Every other file under `.git` (`HEAD`, refs, logs) is
+            // relocatable text a script can read instead of asking git, and stays keyed.
+            if queriedIndexes.contains(path) { continue }
             if within(path, allowedWrites), !within(path, rootPaths) { continue }
             // Looking up `/` or a directory above a root says nothing a relocated key does not already hold.
             if path == "/" || relocation.roots.contains(where: { $0.path.hasPrefix(path + "/") }) { continue }
