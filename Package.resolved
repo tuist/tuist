@@ -1,5 +1,5 @@
 {
-  "originHash" : "c9821d7bf673867e0f17100d6e192df1e52441d5be37eeba43906b3c15a5cc0b",
+  "originHash" : "82348b304c0c843768c19d49b885baf254818abff843332ba96dc4c387284faf",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -657,8 +657,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/TestCoverageAttribution",
       "state" : {
-        "revision" : "718c6adf7a795b18479b15ea46e785b87fc9ba87",
-        "version" : "0.3.0"
+        "revision" : "f94fe52332b1baf46b18ba054ac82edc2ec5a950",
+        "version" : "0.3.1"
       }
     },
     {
