@@ -168,6 +168,7 @@ func TestHetznerKataSharedMemoryMatchesProvider(t *testing.T) {
 		"/etc/systemd/system/tuist-kata-shared-memory.service": kataSharedMemoryUnit,
 		kataVirtiofsSysctlPath:                                 kataVirtiofsSysctl,
 		kataVirtiofsDropInPath:                                 kataVirtiofsDropIn,
+		kataSandboxCgroupDropInPath:                            kataSandboxCgroupDropIn,
 	}
 	for _, document := range strings.Split(string(data), "\n---") {
 		var template struct {

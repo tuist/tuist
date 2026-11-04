@@ -976,17 +976,13 @@ privileged_without_host_devices = true
 pod_annotations = ["io.katacontainers.*"]
 [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
 ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
-# SystemdCgroup MUST be set on the handler itself. The SystemdCgroup rewrite
-# above only touches what the generated default emitted, and this block is
-# appended after it, so the kata handler would otherwise keep the false default
-# while kubelet runs cgroupDriver: systemd. Under that mismatch the shim creates
-# the slice name as a LITERAL directory at the cgroup root instead of nesting it
-# under kubepods.slice, nothing ever reclaims those, and the node eventually
-# fails every cgroup mkdir with ENOSPC while still reporting Ready. See the
-# same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
+# SystemdCgroup is set on the handler itself to match kubelet's
+# cgroupDriver: systemd, since the SystemdCgroup rewrite above only touches
+# what the generated default emitted. It does not stop the shim from leaking
+# cgroups at the root; sandbox_cgroup_only does (kataSandboxCgroupSetup).
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo)+kataSandboxCgroupSetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs
