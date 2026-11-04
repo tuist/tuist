@@ -15,6 +15,7 @@ import (
 	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -350,6 +351,10 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 			if dialed.Load() != "grpcs://cache.example" {
 				t.Fatalf("endpoint: %v", dialed.Load())
 			}
+			g.Wait(ctx)
+			if stored := testutil.ToFloat64(g.metrics.publications.WithLabelValues("stored")); stored != 1 {
+				t.Fatalf("%v publications counted as stored", stored)
+			}
 		})
 	}
 }
@@ -528,7 +533,7 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 
 // prefetchLab serves a three-level input tree from one store and returns the
 // gateway's encoded seeds for successive executions of the same action.
-func prefetchLab(t *testing.T, store *blobStore) (func() *re.BatchUpdateBlobsRequest, []*re.Digest) {
+func prefetchLab(t *testing.T, store *blobStore) (func() *re.BatchUpdateBlobsRequest, []*re.Digest, *Gateway) {
 	t.Helper()
 	file := store.put([]byte("input"))
 	leaf := store.message(&re.Directory{Files: []*re.FileNode{{Name: "input", Digest: file}}})
@@ -558,7 +563,7 @@ func prefetchLab(t *testing.T, store *blobStore) (func() *re.BatchUpdateBlobsReq
 		}
 		return &seed
 	}
-	return prefetch, []*re.Digest{action, command, root, middle, leaf, file}
+	return prefetch, []*re.Digest{action, command, root, middle, leaf, file}, g
 }
 
 func seeded(seed *re.BatchUpdateBlobsRequest) map[string]bool {
@@ -571,7 +576,7 @@ func seeded(seed *re.BatchUpdateBlobsRequest) map[string]bool {
 
 func TestPrefetchReadsTheInputTreeWithGetTree(t *testing.T) {
 	store := &blobStore{blobs: map[string][]byte{}, tree: true}
-	prefetch, digests := prefetchLab(t, store)
+	prefetch, digests, _ := prefetchLab(t, store)
 	got := seeded(prefetch())
 	for _, d := range digests {
 		if !got[d.Hash] {
@@ -585,7 +590,7 @@ func TestPrefetchReadsTheInputTreeWithGetTree(t *testing.T) {
 
 func TestPrefetchWalksTheTreeWhereGetTreeIsUnsupported(t *testing.T) {
 	store := &blobStore{blobs: map[string][]byte{}}
-	prefetch, digests := prefetchLab(t, store)
+	prefetch, digests, _ := prefetchLab(t, store)
 	for range 2 {
 		got := seeded(prefetch())
 		for _, d := range digests {
@@ -601,7 +606,7 @@ func TestPrefetchWalksTheTreeWhereGetTreeIsUnsupported(t *testing.T) {
 
 func TestPrefetchReadsTheActionWithItsInputsInOneCall(t *testing.T) {
 	store := &blobStore{blobs: map[string][]byte{}, tree: true, inputs: true}
-	prefetch, digests := prefetchLab(t, store)
+	prefetch, digests, _ := prefetchLab(t, store)
 	got := seeded(prefetch())
 	for _, d := range digests {
 		if !got[d.Hash] {
@@ -615,7 +620,7 @@ func TestPrefetchReadsTheActionWithItsInputsInOneCall(t *testing.T) {
 
 func TestPrefetchSeedsOnlyInputsThatMatchTheirDigests(t *testing.T) {
 	store := &blobStore{blobs: map[string][]byte{}, inputs: true, tamper: true}
-	prefetch, digests := prefetchLab(t, store)
+	prefetch, digests, _ := prefetchLab(t, store)
 	got := seeded(prefetch())
 	file := digests[len(digests)-1]
 	for _, d := range digests[:len(digests)-1] {

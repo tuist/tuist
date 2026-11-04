@@ -4,12 +4,14 @@ import (
 	"context"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tuist/tuist/infra/sandbox-image/internal/executiongateway"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -34,6 +36,12 @@ func main() {
 	s := grpc.NewServer(grpc.MaxRecvMsgSize(64<<10), grpc.MaxSendMsgSize(256<<10), grpc.MaxConcurrentStreams(128), grpc.ConnectionTimeout(10*time.Second), grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionAge: 15 * time.Minute, MaxConnectionAgeGrace: 10 * time.Second}))
 	gateway := executiongateway.New(serverURL)
 	gateway.Register(s)
+	if metricsAddress := os.Getenv("METRICS_ADDR"); metricsAddress != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.HandlerFor(gateway.Registry, promhttp.HandlerOpts{}))
+		metrics := &http.Server{Addr: metricsAddress, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+		go func() { log.Println(metrics.ListenAndServe()) }()
+	}
 	h := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(s, h)
 	h.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)

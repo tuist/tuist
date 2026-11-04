@@ -70,11 +70,19 @@ func (g *Gateway) endpoint(account, project string) string {
 // instead of one per blob from inside a fresh VM. The VM verifies every blob
 // against its digest. It is best-effort: it stops at the byte budget, and any
 // failure leaves the VM to read from the cache itself.
-func (g *Gateway) prefetch(parent context.Context, account, project, auth string, action *re.Digest) string {
+func (g *Gateway) prefetch(parent context.Context, account, project, auth string, action *re.Digest) (encoded string) {
+	result := "skipped"
+	defer func() {
+		if encoded == "" && result != "skipped" {
+			result = "failed"
+		}
+		g.metrics.prefetches.WithLabelValues(result).Inc()
+	}()
 	url := g.endpoint(account, project)
 	if url == "" {
 		return ""
 	}
+	result = "failed"
 	conn, err := g.conn(url)
 	if err != nil {
 		return ""
@@ -143,6 +151,7 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 				seed.Requests = append(seed.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: item.Digest, Data: item.Data})
 			}
 		}
+		result = "inputs"
 		return encode()
 	}
 	if worker.ValidDigest(a.InputRootDigest) && g.treeSupported(url) {
@@ -154,9 +163,11 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 			if commandRead {
 				read(seedTree(dirs, a.InputRootDigest, seed, take))
 			}
+			result = "tree"
 			return encode()
 		}
 	}
+	result = "walk"
 	next := take(take(nil, a.CommandDigest, prefetchFile), a.InputRootDigest, prefetchFile)
 	if worker.ValidDigest(a.InputRootDigest) {
 		directories[a.InputRootDigest.Hash] = true

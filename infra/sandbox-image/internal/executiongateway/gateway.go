@@ -19,6 +19,7 @@ import (
 	lro "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
+	"github.com/prometheus/client_golang/prometheus"
 	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
@@ -52,6 +53,9 @@ type Gateway struct {
 	Direct         *http.Client
 	projects       map[string]*projectLeases
 	authorizations map[[32]byte]time.Time
+	// Registry holds the gateway's metrics for the process to serve.
+	Registry *prometheus.Registry
+	metrics  *metrics
 }
 
 const maxStreams = 128
@@ -67,7 +71,8 @@ func New(serverURL string) *Gateway {
 	// Every admitted stream may hold a server connection, including long polls.
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = maxStreams
-	return &Gateway{URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
+	registry := prometheus.NewRegistry()
+	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
@@ -172,18 +177,27 @@ func (g *Gateway) GetCapabilities(ctx context.Context, r *re.GetCapabilitiesRequ
 func (g *Gateway) admit() (func(), error) {
 	select {
 	case g.slots <- struct{}{}:
-		return func() { <-g.slots }, nil
+		g.metrics.streams.Inc()
+		return func() { g.metrics.streams.Dec(); <-g.slots }, nil
 	default:
 		return nil, status.Error(codes.ResourceExhausted, "too many execution streams")
 	}
 }
 
-func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro.Operation]) error {
+func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro.Operation]) (err error) {
 	release, err := g.admit()
 	if err != nil {
 		return err
 	}
 	defer release()
+	started, path, code := time.Now(), "server", codes.OK
+	defer func() {
+		if err != nil {
+			code = status.Code(err)
+		}
+		g.metrics.executions.WithLabelValues(path, code.String()).Inc()
+		g.metrics.duration.WithLabelValues(path).Observe(time.Since(started).Seconds())
+	}()
 	account, auth, err := scope(s.Context(), r.InstanceName)
 	if err != nil {
 		return err
@@ -196,7 +210,9 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	}
 	inputs := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
 	if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
-		return g.stream(s, account, r.InstanceName, auth, op)
+		path = "lease"
+		code, err = g.stream(s, account, r.InstanceName, auth, op)
+		return err
 	}
 	body := map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup}
 	if inputs != "" {
@@ -207,7 +223,8 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 		return err
 	}
 	g.rememberAuthorization(auth, account, r.InstanceName)
-	return g.stream(s, account, r.InstanceName, auth, op)
+	code, err = g.stream(s, account, r.InstanceName, auth, op)
+	return err
 }
 
 func (g *Gateway) WaitExecution(r *re.WaitExecutionRequest, s grpc.ServerStreamingServer[lro.Operation]) error {
@@ -231,12 +248,13 @@ func (g *Gateway) WaitExecution(r *re.WaitExecutionRequest, s grpc.ServerStreami
 	if err != nil {
 		return err
 	}
-	return g.stream(s, account, parts[3], auth, op)
+	_, err = g.stream(s, account, parts[3], auth, op)
+	return err
 }
 
-func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, project, auth string, op operation) error {
+func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, project, auth string, op operation) (codes.Code, error) {
 	if !uuid.MatchString(op.ID) {
-		return status.Error(codes.Internal, "invalid operation id")
+		return codes.Unknown, status.Error(codes.Internal, "invalid operation id")
 	}
 	ctx, cancel := context.WithTimeout(s.Context(), 15*time.Minute)
 	defer cancel()
@@ -262,10 +280,10 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 				if op.Response != "" {
 					b, err := base64.StdEncoding.DecodeString(op.Response)
 					if err != nil || len(b) > worker.MaxResponse {
-						return status.Error(codes.Internal, "invalid execution result")
+						return codes.Unknown, status.Error(codes.Internal, "invalid execution result")
 					}
 					if err = proto.Unmarshal(b, response); err != nil {
-						return status.Error(codes.Internal, "invalid execution protobuf")
+						return codes.Unknown, status.Error(codes.Internal, "invalid execution protobuf")
 					}
 				}
 				// Admission belongs to the durable operation, not this gateway's
@@ -284,12 +302,12 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 				message.Result = &lro.Operation_Response{Response: payload}
 			}
 			if err := s.Send(message); err != nil {
-				return err
+				return codes.Unknown, err
 			}
 			last = op.State
 			if done {
 				g.publish(account, project, auth, op, message)
-				return nil
+				return codes.Code(op.Code), nil
 			}
 		}
 		// The server subscribes before reading and waits for a durable state
@@ -298,14 +316,14 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 		started := time.Now()
 		next, err := g.call(ctx, http.MethodGet, account, project, "/operations/"+op.ID+"?after="+url.QueryEscape(op.State), auth, nil)
 		if err != nil {
-			return err
+			return codes.Unknown, err
 		}
 		// During a rolling upgrade an older server may ignore the cursor.
 		// Back off only for immediate unchanged responses, never completed work.
 		if next.State == op.State && time.Since(started) < 50*time.Millisecond {
 			select {
 			case <-ctx.Done():
-				return status.FromContextError(ctx.Err()).Err()
+				return codes.Unknown, status.FromContextError(ctx.Err()).Err()
 			case <-time.After(legacyDelay):
 			}
 			legacyDelay = min(2*legacyDelay, time.Second)
@@ -331,6 +349,7 @@ func (g *Gateway) publish(account, project, auth string, op operation, message *
 	select {
 	case g.publications <- struct{}{}:
 	default:
+		g.metrics.publications.WithLabelValues("dropped").Inc()
 		log.Printf("action cache publication dropped: too many pending")
 		return
 	}
@@ -339,6 +358,7 @@ func (g *Gateway) publish(account, project, auth string, op operation, message *
 		defer func() { <-g.publications; g.pending.Done() }()
 		conn, err := g.conn(op.CASEndpoint)
 		if err != nil {
+			g.metrics.publications.WithLabelValues("failed").Inc()
 			log.Printf("action cache publication failed: %v", status.Code(err))
 			return
 		}
@@ -347,8 +367,11 @@ func (g *Gateway) publish(account, project, auth string, op operation, message *
 		ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", auth, "x-tuist-account-handle", account))
 		request := &re.UpdateActionResultRequest{InstanceName: project, ActionDigest: digest, ActionResult: response.Result, DigestFunction: re.DigestFunction_SHA256}
 		if _, err = re.NewActionCacheClient(conn).UpdateActionResult(ctx, request); err != nil {
+			g.metrics.publications.WithLabelValues("failed").Inc()
 			log.Printf("action cache publication failed: %v", status.Code(err))
+			return
 		}
+		g.metrics.publications.WithLabelValues("stored").Inc()
 	}()
 }
 
