@@ -2,10 +2,9 @@
 title: "Native edges: principles for native apps with a shared core"
 category: "engineering"
 tags: ["engineering", "architecture", "rust", "swiftui", "jetpack-compose", "kotlin", "build-systems", "once"]
-excerpt: "Seven principles for native apps that share a headless core: what goes in the core, how the edges call it, how to make every screen addressable, and how to shape the build graph. Includes a sample app for iOS, Android, and the terminal."
+excerpt: "Five principles for native apps that share a headless core: what goes in the core, how the edges call it, how to make every screen addressable, and why the whole app belongs in one build graph. Includes a sample app for iOS, Android, and the terminal."
 author: pepicrft
 cta_title: "Fast native builds for every edge."
-live: true
 ---
 
 For a long time, building a client for every platform you cared about was expensive. You wrote every screen twice, fixed every bug twice, and either staffed a team per platform or decided which platforms your users would have to live without. So the industry did what it usually does and found ways to make that cost bearable.
@@ -27,8 +26,6 @@ The principles are:
 3. [Connect the edges to the core through a small, typed API](#3-connect-the-edges-to-the-core-through-a-small-typed-api).
 4. [Make every screen reachable by an address](#4-make-every-screen-reachable-by-an-address).
 5. [Model the whole app in one build graph](#5-model-the-whole-app-in-one-build-graph).
-6. [Keep the graph shallow and wide](#6-keep-the-graph-shallow-and-wide).
-7. [Compile only what each edge needs](#7-compile-only-what-each-edge-needs).
 
 You don't have to take all of them. Some projects will have good reasons to keep a piece of logic in Swift, to share less, or to use different tools than we do, and that's fine.
 
@@ -302,38 +299,7 @@ The graph generates the bindings too, so nobody has to check them into the repos
 
 This graph is also what caching relies on. Each step gets a key computed from its inputs, so a change to a SwiftUI view doesn't recompile the Rust core, and you can share the results between your machine, your teammates', CI, and agents working in other worktrees. When the work a build does grows with the size of your change and not the size of your app, native iteration starts to feel close to the hot reloading that made web runtimes so attractive. Linking, installing, and launching still take time, but you stop paying for a full rebuild on top.
 
-## 6. Keep the graph shallow and wide
-
-Teams that work on build times usually start with the build system, whether it caches and whether it supports remote execution, and overlook the shape of the graph, which matters as much and comes out of architecture decisions. A build system can only run in parallel what the graph lets it run in parallel. If your modules form a long chain where each depends on the previous one, they compile one after another, and a machine with 16 cores or a fleet of remote workers will mostly sit idle. Apple's [WWDC talk on build parallelization](https://developer.apple.com/videos/play/wwdc2022/110364/) calls the longest path through the graph, measured in time, the critical path, and no extra cores or workers will make the build shorter than that.
-
-The shape also decides how much an edit costs. Most of the builds you run in a day are incremental, and when you change a target, the targets that depend on it may have to recompile or relink, depending on what changed and how the compiler and the build system handle it. A remote cache only helps if someone already built that exact state, so the more targets sit downstream of the code you touch, the more work each edit can trigger.
-
-Aim for **a shallow, wide graph**, with many targets side by side and few dependencies nested several levels down. Clean builds then run in parallel and incremental builds stay small. A few practices that have helped us:
-
-- Only add a dependency when you need it. Each dependency makes one target wait for another and rebuild when the other changes.
-- Put interfaces in their own modules. Splitting a module into a small interface module and an implementation module lets features depend on the stable interface, so implementations compile in parallel and changing one doesn't recompile its consumers. Bruno Rocha, who now works on build tooling at Spotify, explains the technique in [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
-- Keep shared foundations small and stable. A module everything depends on is on everyone's critical path, and changing it invalidates most of the graph.
-- Check the build timeline as well as the total time. Long stretches where a single task runs point to a chain you could break up, or to one expensive step, like a link, worth looking at.
-
-Spotify's account of [moving its iOS app to Bazel](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly) is a good example of the build system and the graph's shape working together. Their CI feedback loop went from 80 minutes to 20, and they credit remote caching and remote execution along with the module isolation and architecture work they did during the migration, which let them build and test only the parts of the graph a change affected.
-
-The sample's graph is small, but it has this shape. Each edge depends only on its build of the core and its own platform libraries, no edge depends on another, and the per-platform builds of the core don't depend on each other either. In a larger app the same goes for features: give each one its own state instead of routing everything through a global model, and only add a target where there's a real boundary.
-
-## 7. Compile only what each edge needs
-
-Edges don't all need the same parts of the core. A widget that shows the latest conversation needs storage but not the agent or the networking code, and a web build pays for every kilobyte it ships. Ideally each edge builds and links only what it uses, without making the cache less effective in the process.
-
-That last part is where it gets tricky. Build systems cache each target under a hash of its inputs, and compile flags are inputs. If the iOS app builds the core with one set of [Cargo features](https://doc.rust-lang.org/cargo/reference/features.html) and the CLI with another, the cache sees two different cores that you build and keep warm separately, and one edit to the core rebuilds both. Give each edge its own flags and you end up with one graph per edge. Bazel's documentation on [configurations](https://bazel.build/extending/config#memory-performance-considerations) describes the same kind of growth.
-
-What we do instead is split the core into crates along real boundaries, such as storage, networking, and the agent, and let each edge depend on the ones it needs. A crate's hash depends on its own sources and its dependencies, and the crates that depend on it have no say, so adding or removing an edge leaves every shared hash as it was. This is an old idea: John Lakos called it levelization in [*Large-Scale C++ Software Design*](https://www.oreilly.com/library/view/large-scale-c-software/0201633620/), and Robert C. Martin's [acyclic and stable dependencies principles](https://en.wikipedia.org/wiki/Package_principles) say much the same, that a component should only depend on components below it.
-
-The split has two costs. An app should link a single Rust library, because each Rust static library brings its own copy of the standard library, so each edge gets a small umbrella crate that depends on the crates it picks and links them together. And if you want features to stay independent, say an agent that can ship without storage, the agent declares a trait for what it needs and the edge's umbrella crate passes in the implementation, the same way `SecureStorage` works with the platform. Mozilla's [application-services](https://github.com/mozilla/application-services), where UniFFI comes from, has worked like this for years: each component is its own crate, and a ["megazord"](https://mozilla.github.io/application-services/book/design/megazords.html) crate links the ones an app needs into one library.
-
-Play with both approaches below. Turn edges on and off or edit a file in storage, and watch which nodes get a new hash:
-
-<.live_component module={TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab} id="edge-graph-lab" />
-
-In the sample, the iOS app depends on the Swift bindings, the Android app on the Kotlin bindings and [JNA](https://github.com/java-native-access/jna), and the CLI on neither. We only use [conditional compilation](https://doc.rust-lang.org/reference/conditional-compilation.html), like `#[cfg(target_os = "android")]`, for platform differences, because the core is already built once per platform anyway. If all you want is to drop unused code from a binary, the linker can do it with dead-code stripping (`-dead_strip` on Apple platforms, `--gc-sections` elsewhere), after the core is compiled and cached. And per-edge flags are fine when they're the simplest option, as long as you count each combination as another copy of the core to build and cache.
+The shape of the graph matters too. Keep it shallow and wide, with each edge depending only on its build of the core and its own platform libraries, and no edge depending on another. That's the shape the sample has, and it lets the build system compile targets in parallel and rebuild only what a change touches, which keeps build and test times low as the app grows.
 
 ## Adopting native edges
 
