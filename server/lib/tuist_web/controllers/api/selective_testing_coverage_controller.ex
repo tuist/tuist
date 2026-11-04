@@ -214,7 +214,13 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              type: :array,
              items: %Schema{type: :string},
              description:
-               "The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured."
+               "The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`."
+           },
+           skipped_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run."
            },
            platform: %Schema{
              type: :string,

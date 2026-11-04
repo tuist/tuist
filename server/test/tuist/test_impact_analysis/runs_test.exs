@@ -117,6 +117,33 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{changed_files_count: 1}} = Storage.get_diff(project.id, "c2", "c1")
     end
 
+    test "counts the tests of the modules the client skipped by hash", %{project: project} do
+      assert {:ok, %{run: run}} = Runs.create(project, params(%{modules: ["AppTests"], skipped_modules: ["CoreTests"]}))
+
+      assert {run.outcome, run.requested_count, run.selected_count, run.skipped_count, run.module_skipped_count} ==
+               {"selected", 4, 2, 2, 1}
+    end
+
+    test "records a selection of nothing when hashing left no module, whatever the diff", %{project: project} do
+      changed = [%{path: "Package.resolved", status: "M", blob: "new"}]
+
+      assert {:ok, %{run: run, skipped_tests: []}} =
+               Runs.create(
+                 project,
+                 params(%{modules: [], skipped_modules: ["AppTests", "CoreTests"], changed_files: changed})
+               )
+
+      assert {run.outcome, run.reason, run.rule_trace} == {"selected", "", []}
+      assert {run.requested_count, run.selected_count, run.skipped_count, run.module_skipped_count} == {0, 0, 0, 5}
+      assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
+
+      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, module_skipped_count: 0}}} =
+               Runs.create(
+                 project,
+                 params(%{modules: [], skipped_modules: ["AppTests"], baseline_sha: nil, fallback_reason: "no_baseline"})
+               )
+    end
+
     test "reuses the stored diff when the client sends none", %{project: project} do
       {:ok, _} = Runs.create(project, params())
 
