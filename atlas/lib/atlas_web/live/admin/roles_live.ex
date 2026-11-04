@@ -15,7 +15,7 @@ defmodule AtlasWeb.Admin.RolesLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, gettext("Roles · Atlas"))
+     |> assign(:page_title, gettext("Roles"))
      |> assign(:areas, Authorization.areas())
      |> assign(:area_slugs, Authorization.area_slugs())
      |> assign_roles()}
