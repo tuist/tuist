@@ -13,7 +13,16 @@ control plane, worker-pool variables, network config,
 `KubeadmControlPlaneTemplate`, `HCloudMachineTemplate` — and per-cluster
 `Cluster` CRs reference it via `topology.classRef.name`, only specifying
 what differs (replica counts, machine types per pool, labels, taints).
-K8s minor bumps are a `topology.version:` edit on each Cluster CR.
+K8s minor bumps are a `topology.version:` edit on each Cluster CR, one
+cluster at a time. The ClusterClass pins `KUBERNETES_VERSION` for apt; a
+Cluster ahead of the pin gets its packages from the
+`*KubernetesPackages` patches. Once every Cluster has moved, move the pin
+and both patches' `enabledIf` versions together (that rolls each cluster
+once). Annotate a MachineDeployment topology with
+`topology.cluster.x-k8s.io/defer-upgrade: ""` to keep it on the older
+kubelet. The bare-metal `stateful-worker` pools need that: their templates
+install from a fixed `pkgs.k8s.io` channel, and rolling them reinstalls the
+box under ClickHouse.
 
 ## Layout
 
