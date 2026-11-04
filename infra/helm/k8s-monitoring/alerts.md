@@ -8714,6 +8714,104 @@ sum_over_time(clamp_min(
   increases clamped at zero drops those resets.
 - No Data: OK. Error: Error.
 
+### Remote execution rules
+
+Four rules in folder `Alerts`, group `Remote execution`, recorded in
+[`remote-execution-alert-rules.json`](remote-execution-alert-rules.json).
+Create them through `POST /api/v1/provisioning/alert-rules` with
+`X-Disable-Provenance: true` when remote execution is first enabled for an
+account (`infra/sandbox-image/remote-execution.md`). Merging the file does not
+provision Grafana: change the live rules and the file together.
+
+All four are severity warning, policy routing, No Data OK and Error Error.
+None sets `affected_service`: remote execution is enabled per account behind a
+feature flag, and there is no status-page component for it yet. Each groups by
+`cluster`, so the policy tree sends staging to `#notifications-non-prod`. The
+server's `tuist_remote_execution_*` series are dropped outside production
+(the `tuist_.*` non-production write rule), so the three scheduler rules only
+see production. The gateway's `reapi_gateway_*` series reach every cluster.
+None of the metrics carry an account or project label: open the Tuist
+Remote Execution dashboard to see which path or outcome moved, and the server
+logs to see the account.
+
+`test-remote-execution-alerts.sh` checks the expressions with promtool. If a
+rule reads nothing while actions run, check for an Adaptive Metrics
+aggregation on the counter before anything else.
+
+#### Remote execution gateway Execute calls failing
+
+```promql
+sum by (cluster) (increase(reapi_gateway_executions_total{code=~"Internal|Unavailable|Unknown|DataLoss|Aborted"}[15m]))
+  / sum by (cluster) (increase(reapi_gateway_executions_total[15m]))
+  and on (cluster) (sum by (cluster) (increase(reapi_gateway_executions_total[15m])) >= 20)
+# C: A > 0.05, pending 10 minutes
+```
+
+The gateway counts each Execute call once, with the RPC's error or the
+action's own status. The rule counts only server-side codes. It leaves out
+`FailedPrecondition` (missing inputs, which Bazel uploads before it retries),
+`DeadlineExceeded` (action timeouts), `Canceled`, and the credential and
+request errors. `ResourceExhausted` is the scheduler refusing work, which the
+next rule covers. A server deploy fails the actions in flight on the stopping
+replicas as `Unavailable`. The 10-minute pending period keeps that from firing
+the rule.
+
+When it fires, split by `path` and `code`. Server-path `Unavailable` follows
+scheduler restarts and VM preparation failures. Lease-path errors point at the
+worker nodes' direct exec endpoint (`DIRECT_EXEC_ADDR`).
+
+#### Remote execution scheduler refusing actions
+
+```promql
+sum by (cluster) (increase(tuist_remote_execution_submissions_total{outcome="queue_full"}[10m]))
+# C: A > 0, pending 10 minutes
+```
+
+A full account queue answers 429, which the gateway returns to Bazel as
+`RESOURCE_EXHAUSTED`. Builds that run with `--noremote_local_fallback` then
+fail. The queue fills when VMs are not ready fast enough for the account's
+fan-out. Check the preparation rule below, the queue-time panel, and the
+account's remote execution concurrency.
+
+#### Remote execution VM preparation failing
+
+```promql
+sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~"no_node|unavailable|failed"}[15m]))
+  / sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~"ok|no_node|unavailable|failed"}[15m]))
+  and on (cluster) (sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~"no_node|unavailable|failed"}[15m])) >= 5)
+# C: A > 0.5, pending 10 minutes
+```
+
+The outcomes mean the following:
+
+- `no_node`: no worker had room.
+- `unavailable`: the chosen node refused, and the scheduler backs off.
+- `failed`: reservation, creation or preparation crashed.
+
+`at_capacity` is left out. It means the account's own concurrency cap is
+still freeing VMs, which is the limit the customer chose, as with runner
+`limit_held`. For `no_node`, check worker capacity and the remote execution
+worker Pods in `tuist-sandboxes`. For the other two outcomes, check the
+`sandboxd` logs on the node and the server's `Tuist.RemoteExecution` logs.
+
+#### Remote execution leases timing out
+
+```promql
+sum by (cluster) (increase(tuist_remote_execution_leases_total{outcome="timeout"}[30m]))
+  / sum by (cluster) (increase(tuist_remote_execution_leases_total[30m]))
+  and on (cluster) (sum by (cluster) (increase(tuist_remote_execution_leases_total{outcome="timeout"}[30m])) >= 20)
+# C: A > 0.5, pending 15 minutes
+```
+
+A gateway lease request waits up to 5 s for a prepared VM. When none arrives,
+executions still run through the server path, but each one pays the
+scheduler round trip and VM preparation. Nothing fails, so the window and
+pending period are longer. Queued operations take ready VMs before leases, so
+an account that saturates its concurrency also times leases out. Compare the
+submissions and queue-time panels first. If nothing is queued, check the
+preparation rule and the `unsupported` lease outcome (nodes without a direct
+exec endpoint).
+
 ## Useful investigation queries
 
 Current Kubernetes requests in flight:

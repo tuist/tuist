@@ -290,6 +290,13 @@ reads three sources, none labelled by account or project:
   bypass the scheduler, so they appear only in the gateway metrics.
 - Worker daemons export the existing `sandboxd_*` metrics on port 9090.
 
+Four warning rules cover failing Execute calls, refused submissions, failing VM
+preparation and timed-out leases. They are recorded in
+[`remote-execution-alert-rules.json`](../helm/k8s-monitoring/remote-execution-alert-rules.json)
+and documented in [alerts.md](../helm/k8s-monitoring/alerts.md#remote-execution-rules).
+Create them in Grafana before enabling the first account. Merging the file
+does not provision them.
+
 ## Rollback
 
 Disable the account flag and set concurrency to zero. The scheduler fails queued

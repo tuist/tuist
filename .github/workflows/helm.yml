@@ -153,6 +153,8 @@ jobs:
         run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
       - name: Test runner queue time alert
         run: bash infra/helm/k8s-monitoring/test-runner-queue-time-alert.sh
+      - name: Test remote execution alerts
+        run: bash infra/helm/k8s-monitoring/test-remote-execution-alerts.sh
 
   render:
     name: Render
