@@ -41,6 +41,7 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
 
   @window_measured_commits 20
   @walk_depths [64, 256, 1_024]
+  @max_ancestor_shas 200
 
   @doc """
   The baseline for a checkout, as `{:ok, baseline}` with its `sha`, the
@@ -49,9 +50,9 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   ancestors down to the baseline's depth) and how many commits with coverage
   it sits back (`distance`). Otherwise `{:error, reason}`:
 
-  - `:history_unknown`: the history doesn't have the checked-out commit or
-    any of the parents sent, so the walk can't start. The client deepens its
-    checkout, uploads that commit graph and asks again;
+  - `:history_unknown`: the history has none of the checked-out commit, the
+    parents and the ancestors sent, so the walk can't start. The client
+    deepens its checkout and repeats the request with `ancestor_shas`;
   - `:no_baseline`: no full run on the platform is an ancestor within the
     history window, or the project has no coverage to walk from;
   - `:baseline_too_old`: the nearest full run is more than #{@window_measured_commits}
@@ -59,7 +60,11 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   - `:no_baseline_evidence`: a run within the window would be the baseline,
     but uploaded no test-scoped evidence.
 
-  `scope` has the `commit_sha`, and optionally `parent_shas`, `platform`
+  `scope` has the `commit_sha`, and optionally `parent_shas`,
+  `ancestor_shas` (the checkout's ancestors the client has, nearest first:
+  the first #{@max_ancestor_shas} count, each as far back as its position in
+  the list, which is exact for linear history and approximate across
+  merges), `platform`
   (empty when absent, matching runs that recorded none) and `scheme` (any
   scheme when absent). With `baseline_sha:` only that commit can be the
   baseline: what the runs request uses to rebuild the window for the
@@ -68,9 +73,10 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   def resolve(%Project{} = project, scope, opts \\ []) do
     commit_sha = Map.fetch!(scope, :commit_sha)
     parent_shas = Map.get(scope, :parent_shas) || []
+    ancestor_shas = scope |> Map.get(:ancestor_shas) |> List.wrap() |> Enum.take(@max_ancestor_shas)
     scope = %{platform: Map.get(scope, :platform) || "", scheme: Map.get(scope, :scheme)}
 
-    case starts(project, commit_sha, parent_shas) do
+    case starts(project, commit_sha, parent_shas, ancestor_shas) do
       {:error, reason} ->
         {:error, reason}
 
@@ -82,8 +88,10 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   end
 
   # The repository is the one of the project's coverage that has the
-  # checked-out commit, or else its parents.
-  defp starts(project, commit_sha, parent_shas) do
+  # checked-out commit, or else most of its parents and ancestors. Ancestors
+  # the history lacks carry no coverage, so only the known ones are walked
+  # from, each at its distance: 1 for a parent, its position for an ancestor.
+  defp starts(project, commit_sha, parent_shas, ancestor_shas) do
     repositories =
       Repo.all(
         from(c in CoverageCommit,
@@ -96,7 +104,7 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     known =
       Repo.all(
         from(c in Commit,
-          where: c.repository_id in ^repositories and c.sha in ^[commit_sha | parent_shas],
+          where: c.repository_id in ^repositories and c.sha in ^Enum.uniq([commit_sha | parent_shas ++ ancestor_shas]),
           select: {c.repository_id, c.sha}
         )
       )
@@ -104,11 +112,18 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     cond do
       repositories == [] -> {:error, :no_baseline}
       known == [] -> {:error, :history_unknown}
-      true -> start(known, commit_sha)
+      true -> start(known, commit_sha, distances(parent_shas, ancestor_shas))
     end
   end
 
-  defp start(known, commit_sha) do
+  defp distances(parent_shas, ancestor_shas) do
+    ancestor_shas
+    |> Enum.with_index(1)
+    |> Map.new()
+    |> Map.merge(Map.new(parent_shas, &{&1, 1}))
+  end
+
+  defp start(known, commit_sha, distances) do
     case Enum.find(known, &(elem(&1, 1) == commit_sha)) do
       {repository_id, _sha} ->
         {repository_id, [{commit_sha, 0}]}
@@ -117,7 +132,7 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
         known
         |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
         |> Enum.max_by(fn {repository_id, shas} -> {length(shas), repository_id} end)
-        |> then(fn {repository_id, shas} -> {repository_id, Enum.map(shas, &{&1, 1})} end)
+        |> then(fn {repository_id, shas} -> {repository_id, Enum.map(shas, &{&1, Map.fetch!(distances, &1)})} end)
     end
   end
 

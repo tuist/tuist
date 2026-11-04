@@ -164,6 +164,14 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
                Runs.create(project, params(%{head_sha: "unknown"}))
     end
 
+    test "resolves the baseline from the ancestors sent when the history doesn't have the checkout", %{
+      project: project
+    } do
+      params = params(%{head_sha: "x2", parent_shas: ["x1"], ancestor_shas: ["x1", "c2"]})
+
+      assert {:ok, %{run: %{outcome: "selected", baseline_sha: "c1"}}} = Runs.create(project, params)
+    end
+
     test "falls back when the baseline isn't in the checkout's window", %{project: project} do
       assert {:ok, %{run: %{outcome: "fallback", reason: "no_baseline"}}} =
                Runs.create(project, params(%{baseline_sha: "unknown"}))
