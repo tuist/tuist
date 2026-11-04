@@ -80,6 +80,25 @@ kubeImpersonator:
       cpu: 200m
       memory: 128Mi
 
+# kubectl from Amp orbs (kube-orb-<env>.tuist.dev). The orb presents
+# its own Amp workload identity token (`amp orb id-token`) and the
+# kube-impersonator's orb listener verifies it against Amp's keys,
+# requires our Amp workspace and a thread token, then asks tuist-ops
+# for the tier with the verified creator and thread. Pomerium is not
+# in this path: ingress-nginx routes the host straight to the
+# listener, because the token, not a browser session, authenticates.
+# The orb gets its creator's read tier; canary/production write needs
+# `/elevate <env> --thread <id>` run and approved by that creator.
+# See kube-impersonator/AGENTS.md.
+orbAccess:
+  enabled: false
+  hostname: kube-orb-staging.tuist.dev
+  # Tuist's Amp workspace. Not a secret, but it is the trust boundary:
+  # every Amp orb in every workspace can mint a token for our audience.
+  workspaceID: 8e5f0d8f-a1a5-429d-843d-6096a60fa0a1
+  issuer: https://ampcode.com/api/workload-identity
+  port: 8083
+
 # Single replica with memory-backed databroker. Trade-off: a pod
 # restart invalidates open sessions, users re-auth via browser on
 # next kubectl call. Acceptable cost at our scale (~5 humans, low

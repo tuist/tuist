@@ -92,6 +92,7 @@ defmodule TuistOpsWeb.SlackController do
              requester_slack_id: params["user_id"],
              target_group: parsed.target_group,
              github_login: parsed[:github_login],
+             orb_thread_id: parsed[:orb_thread_id],
              intent: parsed.intent,
              ttl_seconds: parsed.ttl,
              slack_channel_id: channel_id
@@ -474,13 +475,16 @@ defmodule TuistOpsWeb.SlackController do
         {:error, {:invalid_env, env}}
 
       [env, rest] ->
-        if Policy.always_write_env?(env) do
-          {:error, {:always_write_env, env}}
-        else
+        with false <- Policy.always_write_env?(env),
+             {:ok, thread_id, rest} <- parse_thread_flag(rest) do
           rest
           |> parse_duration_and_intent()
           |> Map.put(:target_group, Map.fetch!(@env_to_group, env))
+          |> Map.put(:orb_thread_id, thread_id)
           |> validate_intent()
+        else
+          true -> {:error, {:always_write_env, env}}
+          {:error, reason} -> {:error, reason}
         end
 
       _ ->
@@ -489,6 +493,24 @@ defmodule TuistOpsWeb.SlackController do
   end
 
   defp parse_slash(_), do: {:error, :missing_text}
+
+  # `--thread <T-…>` right after the env aims the elevation at one Amp
+  # orb thread instead of the requester's own kubectl. Agents propose
+  # this exact command; the human runs it and approves it.
+  defp parse_thread_flag(text) do
+    case String.split(text, ~r/\s+/, parts: 3) do
+      ["--thread", thread_id, rest] ->
+        if Request.orb_thread_id?(thread_id),
+          do: {:ok, thread_id, rest},
+          else: {:error, {:invalid_thread_id, thread_id}}
+
+      ["--thread" | _] ->
+        {:error, :missing_intent}
+
+      _ ->
+        {:ok, nil, text}
+    end
+  end
 
   # `/elevate-github` takes "<login> [duration] <intent...>".
   defp parse_github_slash(text) when is_binary(text) do
@@ -560,6 +582,9 @@ defmodule TuistOpsWeb.SlackController do
     do:
       "`#{env}` is writable for everyone on the tailnet — no elevation needed. Just run `kubectl --context tuist-k8s-#{env} ...`."
 
+  defp human_error({:invalid_thread_id, thread_id}),
+    do: "`#{thread_id}` isn't an Amp thread ID (expected `T-<uuid>`)."
+
   defp human_error({:invalid_github_login, login}),
     do: "`#{login}` isn't a valid GitHub login."
 
@@ -592,7 +617,7 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error(reason), do: "Internal error: #{inspect(reason)}"
 
   defp usage_message do
-    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do. For GitHub organization admin, use `/elevate-github`."
+    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do. Add `--thread <T-…>` after the env to elevate one of your own Amp orb threads instead of yourself. For GitHub organization admin, use `/elevate-github`."
   end
 
   defp github_api_error({:github_status, 403, body}),

@@ -129,6 +129,45 @@ defmodule TuistOpsWeb.SlackControllerTest do
                "fix flaky test"
     end
 
+    test "/elevate prod --thread <id> 30m <intent> → thread-scoped Request" do
+      conn =
+        TuistOpsWeb.SlackController.slash(
+          build_conn(),
+          %{
+            "user_id" => "U_MAREK",
+            "text" =>
+              "prod --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 30m restart wedged kura pod"
+          }
+        )
+
+      assert {:ok, body} = JSON.decode(conn.resp_body)
+      assert body["text"] =~ "C_APPROVALS"
+
+      request = Repo.one!(from r in Request, where: r.status == "pending")
+      assert request.orb_thread_id == "T-01a1a59e-55fb-744b-9415-b85a337f24d2"
+      assert request.target_group == "group:tuist-production-write"
+      assert request.ttl_seconds == 1800
+      assert request.intent == "restart wedged kura pod"
+    end
+
+    test "/elevate --thread with a malformed thread ID → ephemeral error, no Request" do
+      for text <- [
+            "canary --thread T-nope fix it now",
+            "canary --thread",
+            "staging --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 fix it"
+          ] do
+        conn =
+          TuistOpsWeb.SlackController.slash(build_conn(), %{
+            "user_id" => "U_MAREK",
+            "text" => text
+          })
+
+        assert {:ok, %{"response_type" => "ephemeral"}} = JSON.decode(conn.resp_body)
+      end
+
+      assert Repo.aggregate(Request, :count) == 0
+    end
+
     test "/elevate staging → rejected as already writable, no Request created" do
       conn =
         TuistOpsWeb.SlackController.slash(
