@@ -132,8 +132,8 @@ consumer is Claude Managed Agents `self_hosted` environments.
   snapshots unused for 72 hours and saves stuck for 15 minutes.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb
   paused longer than `Environment.sandbox_archive_after_hours/0` (off when
-  unset), or one of an account's paused Orbs on nodes past the newest ten
-  (`max_paused_on_node_per_account/0`), is uploaded by its node (`archive` command with presigned multipart
+  unset), or the least recently paused one of an account whose disk quota
+  refused a create or restore (`make_room/1`), is uploaded by its node (`archive` command with presigned multipart
   part URLs; the daemon holds no storage credentials) as kernel, rootfs and
   workspace without the memory image, to `sandbox-archives/<account_id>/`
   in the archive bucket of the in-rack store at the node's site (a shard
@@ -155,8 +155,8 @@ consumer is Claude Managed Agents `self_hosted` environments.
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   with the sandbox, or with the account. `archived` rows are outside every
   node reservation and both limits; accounts stop archiving at 100 GiB of
-  archives. `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly, and
-  queued by `enqueue_if_over_cap/1` after an Orb pause) runs
+  archives. There is no count of paused Orbs per account.
+  `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
   `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
   reverts restores stuck for 15.
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running

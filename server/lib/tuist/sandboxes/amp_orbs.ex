@@ -27,7 +27,6 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
-  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Sandbox
 
@@ -124,7 +123,6 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp pause_orb(sandbox, params) do
     with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: true),
          {:ok, paused} <- Sandboxes.end_residency(paused) do
-      :ok = Archives.enqueue_if_over_cap(paused.account_id)
       save_snapshot(paused, params)
     end
   end

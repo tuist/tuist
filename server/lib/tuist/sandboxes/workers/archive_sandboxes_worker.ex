@@ -1,7 +1,7 @@
 defmodule Tuist.Sandboxes.Workers.ArchiveSandboxesWorker do
   @moduledoc """
-  Moves Amp Orbs paused longer than the archive threshold, or past their
-  account's newest ten paused on nodes, off their nodes into object storage, and cleans up
+  Moves Amp Orbs paused longer than the archive threshold off their nodes
+  into object storage, and cleans up
   archives of restored Orbs and uploads or restores whose caller died
   (`Tuist.Sandboxes.Archives.run/0`). A job with an `account_id` instead
   archives that account's least recently paused idle Orb to make room under
