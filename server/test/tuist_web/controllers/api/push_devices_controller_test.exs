@@ -150,6 +150,8 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
     for bearer <- [account_token, other_client_bearer] do
       for request <- [
             &put(&1, "/api/me/push-devices/#{Ecto.UUID.generate()}", device()),
+            # Rejected before its body is validated.
+            &put(&1, "/api/me/push-devices/#{Ecto.UUID.generate()}", %{unknown: true}),
             &get(&1, "/api/me/push-devices"),
             &get(&1, "/api/me/notification-preferences/new_preview"),
             &put(&1, "/api/me/notification-preferences/new_preview/accounts/#{user.account.name}", %{enabled: false})

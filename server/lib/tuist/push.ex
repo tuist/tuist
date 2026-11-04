@@ -52,16 +52,15 @@ defmodule Tuist.Push do
   @max_device_name_length 64
 
   @doc """
-  Resolves the OAuth grant behind `bearer` for `user`. Only sign-ins through the
-  Tuist app client (`Tuist.Environment.oauth_client_id/0`) with a refresh token
-  qualify; dynamically registered OAuth clients, account tokens and other
-  credentials return `{:error, :oauth_session_required}`.
+  Resolves the OAuth grant behind `bearer` for `user`. Only unrevoked sign-ins
+  through the Tuist app client (`Tuist.Environment.oauth_client_id/0`) with a
+  refresh token qualify; dynamically registered OAuth clients, account tokens
+  and other credentials return `{:error, :oauth_session_required}`. `bearer`
+  must already be authenticated as `user` (`TuistWeb.AuthenticationPlug`
+  verifies its signature and expiry).
   """
   def oauth_session(bearer, %User{id: user_id}) when is_binary(bearer) do
-    client_id = Environment.oauth_client_id()
-
-    with {:ok, %{"client_id" => ^client_id, "user_id" => ^user_id}} when is_binary(client_id) <-
-           Tuist.Guardian.decode_and_verify(bearer),
+    with client_id when is_binary(client_id) <- Environment.oauth_client_id(),
          %Boruta.Ecto.Token{} = grant <- OAuthGrants.find_bearer(bearer, client_id, user_id),
          {:ok, grant_id} <- OAuthGrants.root_id(grant) do
       {:ok, %{oauth_grant_id: grant_id}}
@@ -89,7 +88,7 @@ defmodule Tuist.Push do
       token_hash = Installation.token_hash(attrs.platform, attrs.token)
 
       installation_id
-      |> locked(&upsert(&1, user, session, installation_id, attrs, token_hash))
+      |> locked(user, &upsert(&1, user, session, installation_id, attrs, token_hash))
       |> case do
         {:ok, result} -> result
         {:error, %Ecto.Changeset{}} -> {:error, :conflict}
@@ -215,10 +214,13 @@ defmodule Tuist.Push do
   end
 
   # A transaction-scoped advisory lock serializes concurrent requests for the
-  # same installation, including its very first insert.
-  defp locked(installation_id, fun) do
+  # same installation, including its very first insert. Registration also takes
+  # the user's lock, first, so enforcing the device cap is serialized per user
+  # and never waits on another installation while holding the user's lock.
+  defp locked(installation_id, user \\ nil, fun) do
     Repo.transaction(fn ->
-      Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["push_installation:" <> installation_id])
+      if user, do: advisory_lock!("push_user:#{user.id}")
+      advisory_lock!("push_installation:" <> installation_id)
 
       Installation
       |> where([i], i.installation_id == ^installation_id)
@@ -275,7 +277,6 @@ defmodule Tuist.Push do
       environment: attrs.environment,
       token: attrs.token,
       token_hash: hash,
-      token_updated_at: if(installation.token_hash == hash, do: installation.token_updated_at, else: now),
       last_registered_at: now
     })
     |> Ecto.Changeset.unique_constraint(:installation_id)
@@ -283,10 +284,6 @@ defmodule Tuist.Push do
     |> Repo.insert_or_update()
     |> case do
       {:ok, saved} ->
-        # The installation lock does not serialize a user's other installations,
-        # so take a per-user lock before enforcing the cap. The order is always
-        # installation, then user.
-        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["push_user:#{user.id}"])
         evict_oldest!(user.id)
         {:ok, saved}
 
@@ -294,6 +291,8 @@ defmodule Tuist.Push do
         Repo.rollback(changeset)
     end
   end
+
+  defp advisory_lock!(key), do: Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key])
 
   defp evict_oldest!(user_id) do
     keep =

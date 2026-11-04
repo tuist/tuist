@@ -3,15 +3,20 @@ defmodule TuistWeb.API.NotificationPreferencesController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Notifications
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias TuistWeb.API.Schemas.Error
+
+  # Reject other credentials before validating their requests.
+  plug TuistWeb.Plugs.AppSessionPlug
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_message: TuistWeb.RenderAPIErrorPlug
   )
-
-  plug TuistWeb.Plugs.AppSessionPlug
 
   tags ["Notification preferences"]
 
@@ -72,6 +77,12 @@ defmodule TuistWeb.API.NotificationPreferencesController do
     not_found: {"The kind, account or project was not found", "application/json", Error}
   }
 
+  @write_responses Map.put(
+                     @responses,
+                     :too_many_requests,
+                     {"Too many changes from this user. Retry in a minute.", "application/json", Error}
+                   )
+
   operation(:show,
     summary: "Gets the signed-in user's preferences for a notification kind",
     operation_id: "getNotificationPreferences",
@@ -80,10 +91,9 @@ defmodule TuistWeb.API.NotificationPreferencesController do
   )
 
   def show(%{path_params: %{"kind" => kind}} = conn, _params) do
-    case preferences(conn.assigns.app_user, kind) do
-      {:ok, preferences} -> json(conn, preferences_json(kind, preferences))
-      :error -> not_found(conn)
-    end
+    if kind in Notifications.kinds(),
+      do: json(conn, preferences_json(kind, Notifications.preferences(conn.assigns.app_user, kind))),
+      else: not_found(conn)
   end
 
   operation(:update_account,
@@ -101,18 +111,18 @@ defmodule TuistWeb.API.NotificationPreferencesController do
          properties: %{enabled: %Schema{type: :boolean}},
          required: [:enabled]
        }},
-    responses: @responses
+    responses: @write_responses
   )
 
   def update_account(%{path_params: %{"kind" => kind, "account_handle" => handle}, body_params: body} = conn, _params) do
     user = conn.assigns.app_user
 
-    with {:ok, preferences} <- preferences(user, kind),
-         %{account: account} <- Enum.find(preferences, &(&1.account.name == handle)),
-         :ok <- Notifications.update_account_preference(user, kind, account.id, body.enabled) do
+    # The context only accepts the user's own accounts, so foreign and unknown
+    # handles both answer 404.
+    with %Account{id: account_id} <- Accounts.get_account_by_handle(handle),
+         :ok <- Notifications.update_account_preference(user, kind, account_id, body.enabled) do
       json(conn, preferences_json(kind, Notifications.preferences(user, kind)))
     else
-      # Includes access removed between the lookup and the update.
       _ -> not_found(conn)
     end
   end
@@ -139,7 +149,7 @@ defmodule TuistWeb.API.NotificationPreferencesController do
          },
          required: [:setting]
        }},
-    responses: @responses
+    responses: @write_responses
   )
 
   def update_project(
@@ -151,23 +161,13 @@ defmodule TuistWeb.API.NotificationPreferencesController do
       ) do
     user = conn.assigns.app_user
 
-    with {:ok, preferences} <- preferences(user, kind),
-         %{project: project} <- find_project(preferences, account_handle, project_handle),
-         :ok <- Notifications.update_project_preference(user, kind, project.id, override(body.setting)) do
+    with %Project{id: project_id} <-
+           Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
+         :ok <- Notifications.update_project_preference(user, kind, project_id, override(body.setting)) do
       json(conn, preferences_json(kind, Notifications.preferences(user, kind)))
     else
       _ -> not_found(conn)
     end
-  end
-
-  defp preferences(user, kind) do
-    if kind in Notifications.kinds(), do: {:ok, Notifications.preferences(user, kind)}, else: :error
-  end
-
-  defp find_project(preferences, account_handle, project_handle) do
-    Enum.find_value(preferences, fn %{account: account, projects: projects} ->
-      account.name == account_handle and Enum.find(projects, &(&1.project.name == project_handle))
-    end)
   end
 
   defp not_found(conn) do

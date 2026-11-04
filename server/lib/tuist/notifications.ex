@@ -21,7 +21,6 @@ defmodule Tuist.Notifications do
   alias Tuist.Accounts.User
   alias Tuist.Notifications.AccountPreference
   alias Tuist.Notifications.ProjectPreference
-  alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -54,10 +53,17 @@ defmodule Tuist.Notifications do
       |> Repo.all()
       |> Map.new()
 
-    projects = user |> Projects.list_accessible_projects(preload: [:account]) |> Enum.group_by(& &1.account_id)
+    accounts = accessible_accounts(user)
+    account_ids = Enum.map(accounts, & &1.id)
 
-    user
-    |> accessible_accounts()
+    projects =
+      Project
+      |> where([p], p.account_id in ^account_ids)
+      |> preload(:account)
+      |> Repo.all()
+      |> Enum.group_by(& &1.account_id)
+
+    accounts
     |> Enum.map(fn account ->
       enabled = Map.get(account_choices, account.id, true)
 

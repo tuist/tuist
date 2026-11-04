@@ -13,7 +13,6 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
       add :environment, :string
       add :token, :binary
       add :token_hash, :binary
-      add :token_updated_at, :timestamptz
       add :last_registered_at, :timestamptz
       add :retired_at, :timestamptz
       add :retired_reason, :string
@@ -45,7 +44,7 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
              check: """
              (retired_at IS NULL AND user_id IS NOT NULL AND oauth_grant_id IS NOT NULL
                AND token IS NOT NULL AND token_hash IS NOT NULL AND platform IS NOT NULL AND environment IS NOT NULL
-               AND token_updated_at IS NOT NULL AND last_registered_at IS NOT NULL)
+               AND last_registered_at IS NOT NULL)
              OR (retired_at IS NOT NULL AND user_id IS NULL AND oauth_grant_id IS NULL AND token IS NULL
                AND token_hash IS NULL AND retired_reason IS NOT NULL)
              """

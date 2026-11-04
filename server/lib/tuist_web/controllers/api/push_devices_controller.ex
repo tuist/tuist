@@ -6,12 +6,13 @@ defmodule TuistWeb.API.PushDevicesController do
   alias Tuist.Push
   alias TuistWeb.API.Schemas.Error
 
+  # Reject other credentials before validating their requests.
+  plug TuistWeb.Plugs.AppSessionPlug
+
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_message: TuistWeb.RenderAPIErrorPlug
   )
-
-  plug TuistWeb.Plugs.AppSessionPlug
 
   tags ["Push devices"]
 
@@ -63,6 +64,7 @@ defmodule TuistWeb.API.PushDevicesController do
       bad_request: {"The device or installation ID is invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"Only native app OAuth sessions can register push devices", "application/json", Error},
+      too_many_requests: {"Too many changes from this user. Retry in a minute.", "application/json", Error},
       conflict: {"The installation belongs to another user or registration", "application/json", Error},
       gone:
         {"The installation ID can no longer be registered", "application/json",
@@ -148,7 +150,8 @@ defmodule TuistWeb.API.PushDevicesController do
       no_content: "The installation is unregistered",
       bad_request: {"The installation ID is invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"Only native app OAuth sessions can unregister push devices", "application/json", Error}
+      forbidden: {"Only native app OAuth sessions can unregister push devices", "application/json", Error},
+      too_many_requests: {"Too many changes from this user. Retry in a minute.", "application/json", Error}
     }
   )
 
@@ -170,7 +173,8 @@ defmodule TuistWeb.API.PushDevicesController do
     responses: %{
       no_content: "The device is removed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"Only native app OAuth sessions can remove push devices", "application/json", Error}
+      forbidden: {"Only native app OAuth sessions can remove push devices", "application/json", Error},
+      too_many_requests: {"Too many changes from this user. Retry in a minute.", "application/json", Error}
     }
   )
 

@@ -23,7 +23,6 @@ defmodule Tuist.Push.Installation do
     field :environment, :string
     field :token, Binary, redact: true
     field :token_hash, :binary, redact: true
-    field :token_updated_at, :utc_datetime
     field :last_registered_at, :utc_datetime
     field :retired_at, :utc_datetime
     field :retired_reason, :string
