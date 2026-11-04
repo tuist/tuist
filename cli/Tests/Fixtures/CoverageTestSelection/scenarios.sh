@@ -6,12 +6,13 @@
 #   scenarios.sh refs <repo>
 #   scenarios.sh check <repo>
 #   scenarios.sh project <xcodeproj|synchronized>
+#   scenarios.sh run <repo> <scenario> [--sharded]   (end to end against a server: run.py --help)
 set -euo pipefail
 
 fixture=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 usage() {
-  sed -n '4,8p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2
+  sed -n '4,9p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2
   exit 64
 }
 
@@ -394,5 +395,6 @@ case "${1:-}" in
   refs) [ $# -eq 2 ] || usage; refs "$2" ;;
   check) [ $# -eq 2 ] || usage; check "$2" ;;
   project) [ $# -eq 2 ] || usage; project "$2" ;;
+  run) shift; exec python3 -I "$fixture/run.py" "$@" ;;
   *) usage ;;
 esac

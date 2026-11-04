@@ -15,6 +15,7 @@ integration test per scenario), the CLI orchestration, and the end-to-end runs.
 | `synchronized/` | The same plain project with synchronized folders, the layout new projects get since Xcode 16. |
 | `authoring/` | The manifest both plain projects are generated from. |
 | `scenarios.sh` | Assembles a variant into a new repository and commits the scenarios. |
+| `run.py` | Runs a scenario end to end against a server, through `scenarios.sh run`. |
 | `golden.json` | The expected outcome, selected tests and reasons per scenario. |
 | `evidence.py`, `hashes.py` | Re-measure `baseline_evidence` and each scenario's `hash.skipped`. |
 
@@ -76,6 +77,7 @@ cli/Tests/Fixtures/CoverageTestSelection/scenarios.sh checkout /tmp/test-bed sou
 
 - `scenarios.sh checkout <repo> <scenario>` checks a scenario out on its branch, detached for
   `local_merge`, and leaves the uncommitted edits for `dirty_checkout`.
+- `scenarios.sh run <repo> <scenario>` runs a scenario against a server: see "End to end".
 - `scenarios.sh check <repo>` fails when `golden.json` names a ref, branch or scenario the
   history doesn't have.
 
@@ -148,10 +150,62 @@ When a later step settles one differently, update the decisions and the assumpti
   compare with `run` and `skip`.
 - **CLI (step 6).** Check the diff, `affected_modules` and hash pruning a checkout produces
   against `changed_files` and `hash.skipped`.
-- **End to end (step 7).** For each scenario, with a fresh project and cache, record its `runs`
-  with `tuist test`, then run the checkout and diff the impact run against the golden entry.
-  `Tuist.swift` gains `selectiveTesting: .selectiveTesting(strategy: .coverage())` once the
-  manifest API exists.
+- **End to end (step 7).** `scenarios.sh run` records a scenario's `runs` with `tuist test`, runs
+  the checkout with selection, and compares the result with the golden entry. See "End to end".
+
+## End to end
+
+`scenarios.sh run <repo> <scenario> [--sharded]` checks one scenario against a real server, with a
+simulator. It's a manual tool, not part of CI. `<repo>` is a `scenarios.sh build generated`
+history; build it once and reuse it across scenarios.
+
+```bash
+cli/Tests/Fixtures/CoverageTestSelection/scenarios.sh build generated /tmp/test-bed
+TUIST_TESTBED_PROJECT=my-account/cts-source-change-1 TUIST_TOKEN=<the project's token> \
+  TUIST_TESTBED_URL=http://127.0.0.1:8080 TUIST_TESTBED_CLI=<path to tuist> \
+  cli/Tests/Fixtures/CoverageTestSelection/scenarios.sh run /tmp/test-bed source_change
+```
+
+It:
+
+1. writes the project, the server and `.selectiveTesting(strategy: .coverage())` into `Tuist.swift`,
+   marked `--skip-worktree` so runs upload as clean checkouts, and points `origin` at a URL made from
+   the project's handle;
+2. records the scenario's `runs` with `tuist test`, each on its `branch` with its `env` and `scheme`;
+3. waits 45 seconds, so the last run's ingestion doesn't slow the selection requests down, then
+   checks the scenario out and runs `tuist test`: unsharded, or with `--sharded` a `--build-only`
+   plan of two suite shards and each shard with `--without-building`;
+4. compares the hash skips, the outcome and reason, the tests that ran and the tests the server
+   skipped with `golden.json`, prints `PASS` or `FAIL` with each difference, and exits 1 on a
+   mismatch.
+
+The CLI talks to the server through a proxy the script starts, which records the selection
+requests and their answers in `requests.jsonl`. Hash skips come from the CLI's output (`will be
+skipped`, or `has no tests to run` when every target matched), and the tests that ran from its `✔`
+and `✖` lines. Each selected test's `reason` and `matched_path` are stored only in ClickHouse: pass
+`--clickhouse 'http://127.0.0.1:8123/?database=<db>'` (`TUIST_TESTBED_CLICKHOUSE`) to compare them
+too. With it, the script also runs `OPTIMIZE TABLE coverage_test_sources FINAL` before the checkout,
+so evidence is read in its merged state.
+
+Logs, `requests.jsonl`, `result.json`, derived data and the CLI's cache go to
+`<repo>.runs/<project>` (`--work`). `--help` lists every option and its environment variable.
+
+Keep in mind:
+
+- **Use a new project for every scenario and mode.** Evidence, stored hashes and git history carry
+  over otherwise. The script refuses a work directory that already holds a result. On a local dev
+  server, a project and its token can be made with `Tuist.Projects.create_project!/1` and
+  `Tuist.Projects.create_project_token/1` from `mix run`.
+- **Pass the project's token** (`TUIST_TOKEN`): the CLI talks to the proxy's URL, for which it has
+  no session. Runs set `CI=1`, so the server accepts a project token.
+- **Use `http://127.0.0.1:<port>` for a local server,** not `localhost`: the CLI then processes
+  results locally, and the server doesn't need the xcresult NIF.
+- **Run one scenario at a time, with one Xcode.** Parallel runs, or two Xcode versions, restart the
+  shared simulator service and crash the simulator clones.
+- **A CLI binary built from source** needs `MISE_TUIST_VERSION` set to an installed release: the
+  scheme's `Inspect build` post-action calls `tuist` through mise.
+- `local_merge` sets `GITHUB_REF`, `GITHUB_HEAD_REF` and `GITHUB_BASE_REF`, as GitHub Actions does
+  for a pull request's merge commit.
 
 ## Changing the fixture
 
