@@ -8,7 +8,9 @@ defmodule TuistWeb.API.NotificationPreferencesController do
   alias Tuist.Notifications
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.NotificationPreferences
 
   # Reject other credentials before validating their requests.
   plug TuistWeb.Plugs.AppSessionPlug
@@ -27,61 +29,16 @@ defmodule TuistWeb.API.NotificationPreferencesController do
     description: "The notification kind. `new_preview` covers new previews of the user's projects."
   ]
 
-  @preferences %Schema{
-    title: "NotificationPreferences",
-    description:
-      "The signed-in user's own choices for one notification kind, per account (their personal account and organizations) with project overrides. The choices apply to every delivery channel.",
-    type: :object,
-    properties: %{
-      kind: %Schema{type: :string},
-      accounts: %Schema{
-        type: :array,
-        items: %Schema{
-          title: "NotificationPreferencesAccount",
-          type: :object,
-          properties: %{
-            handle: %Schema{type: :string, description: "The account handle."},
-            enabled: %Schema{
-              type: :boolean,
-              description: "The user's choice for the account's projects, including future ones."
-            },
-            projects: %Schema{
-              type: :array,
-              items: %Schema{
-                title: "NotificationPreferencesProject",
-                type: :object,
-                properties: %{
-                  handle: %Schema{type: :string, description: "The project handle, without the account."},
-                  setting: %Schema{
-                    type: :string,
-                    enum: ["default", "on", "off"],
-                    description: "`default` follows the account; `on` and `off` override it."
-                  },
-                  enabled: %Schema{type: :boolean, description: "Whether the user is notified about this project."}
-                },
-                required: [:handle, :setting, :enabled]
-              }
-            }
-          },
-          required: [:handle, :enabled, :projects]
-        }
-      }
-    },
-    required: [:kind, :accounts]
-  }
-
   @responses %{
-    ok: {"The user's preferences for the kind", "application/json", @preferences},
+    ok: {"The user's preferences for the kind", "application/json", NotificationPreferences},
     unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
     forbidden: {"Only the signed-in Tuist app can manage notification preferences", "application/json", Error},
-    not_found: {"The kind, account or project was not found", "application/json", Error}
+    not_found:
+      {"The kind, account or project was not found. Servers return 404 for kinds they don't offer.", "application/json",
+       Error}
   }
 
-  @write_responses Map.put(
-                     @responses,
-                     :too_many_requests,
-                     {"Too many changes from this user. Retry in a minute.", "application/json", Error}
-                   )
+  @write_responses Map.put(@responses, :too_many_requests, Responses.app_writes_throttled())
 
   operation(:show,
     summary: "Gets the signed-in user's preferences for a notification kind",
@@ -107,10 +64,9 @@ defmodule TuistWeb.API.NotificationPreferencesController do
       {"Account preference", "application/json",
        %Schema{
          type: :object,
-         additionalProperties: false,
          properties: %{enabled: %Schema{type: :boolean}},
          required: [:enabled]
-       }},
+       }, required: true},
     responses: @write_responses
   )
 
@@ -139,7 +95,6 @@ defmodule TuistWeb.API.NotificationPreferencesController do
       {"Project preference", "application/json",
        %Schema{
          type: :object,
-         additionalProperties: false,
          properties: %{
            setting: %Schema{
              type: :string,
@@ -148,7 +103,7 @@ defmodule TuistWeb.API.NotificationPreferencesController do
            }
          },
          required: [:setting]
-       }},
+       }, required: true},
     responses: @write_responses
   )
 
