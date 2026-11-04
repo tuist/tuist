@@ -588,11 +588,6 @@ msgstr ""
 msgid "No sandboxes found"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_instances_live.html.heex:21
-#, elixir-autogen, elixir-format
-msgid "Search by ID..."
-msgstr ""
-
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -601,4 +596,9 @@ msgstr ""
 #: lib/tuist_web/live/sandboxes_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
+msgstr ""
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:21
+#, elixir-autogen, elixir-format
+msgid "Search by name or ID..."
 msgstr ""

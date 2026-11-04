@@ -147,9 +147,10 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute has_element?(lv, "[data-part='pagination']")
     end
 
-    test "searches sandboxes by their id or Orb id", %{conn: conn, account: account} do
+    test "searches sandboxes by their name or id", %{conn: conn, account: account} do
       wanted = sandbox_fixture(account: account, amp_orb_id: "orb-wanted")
       unwanted = sandbox_fixture(account: account, amp_orb_id: "orb-unwanted")
+      session = sandbox_fixture(account: account, anthropic_session_id: "sesn_wanted")
       id_part = String.slice(wanted.id, 9, 9)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances")
@@ -162,6 +163,11 @@ defmodule TuistWeb.SandboxesLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=orb-want")
       assert has_element?(lv, "#sandbox-#{wanted.id}")
       refute has_element?(lv, "#sandbox-#{unwanted.id}")
+      refute has_element?(lv, "#sandbox-#{session.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=SESN_WANT")
+      assert has_element?(lv, "#sandbox-#{session.id}")
+      refute has_element?(lv, "#sandbox-#{wanted.id}")
 
       # LIKE wildcards are matched literally.
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=%")

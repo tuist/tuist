@@ -185,7 +185,13 @@ defmodule Tuist.Sandboxes do
 
   defp where_search(query, search) do
     pattern = "%" <> String.replace(search, ~r/[\\%_]/, "\\\\\\0") <> "%"
-    where(query, [s], ilike(type(s.id, :string), ^pattern) or ilike(s.amp_orb_id, ^pattern))
+
+    where(
+      query,
+      [s],
+      ilike(type(s.id, :string), ^pattern) or ilike(s.amp_orb_id, ^pattern) or
+        ilike(s.anthropic_session_id, ^pattern)
+    )
   end
 
   defp where_status(query, nil), do: query
