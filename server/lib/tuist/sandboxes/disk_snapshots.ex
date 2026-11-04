@@ -29,15 +29,6 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
   def unused_retention_hours, do: @unused_retention_hours
 
-  def list(account_id) do
-    Repo.all(
-      from(s in DiskSnapshot,
-        where: s.account_id == ^account_id,
-        order_by: [desc: s.last_used_at, desc: s.inserted_at]
-      )
-    )
-  end
-
   def list_for_sandbox(account_id, sandbox_id) do
     Repo.all(
       from(s in DiskSnapshot,
@@ -46,21 +37,6 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       )
     )
   end
-
-  def get(account_id, id) do
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} -> Repo.get_by(DiskSnapshot, id: uuid, account_id: account_id)
-      :error -> nil
-    end
-  end
-
-  @doc """
-  When an unused snapshot is deleted by retention.
-  """
-  def expires_at(%DiskSnapshot{state: :ready, last_used_at: %DateTime{} = last_used_at}),
-    do: DateTime.add(last_used_at, @unused_retention_hours, :hour)
-
-  def expires_at(%DiskSnapshot{}), do: nil
 
   @doc """
   The newest ready snapshot an account saved under `amp_snapshot_id` that a

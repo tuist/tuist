@@ -1688,7 +1688,6 @@ defmodule TuistWeb.Router do
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
       live "/sandboxes", SandboxesLive
-      live "/sandboxes/snapshots", SandboxSnapshotsLive
       live "/sandboxes/instances", SandboxInstancesLive
       live "/sandboxes/:sandbox_id", SandboxLive
       live "/members", MembersLive

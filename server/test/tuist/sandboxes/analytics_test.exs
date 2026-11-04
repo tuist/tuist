@@ -134,10 +134,9 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
     assert result.session_duration.avg_values == [4_200_000, 0, 0]
   end
 
-  test "reports the peak running sandboxes, vCPUs and memory per day", %{account: account} do
+  test "reports the peak vCPUs and memory per day", %{account: account} do
     result = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
 
-    assert result.concurrency.sandboxes == [2, 1, 0]
     assert result.concurrency.vcpus == [6, 2, 0]
     assert result.concurrency.memory_gb == [12.0, 4.0, 0.0]
   end
@@ -150,6 +149,6 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
       )
 
     assert length(result.dates) == 4
-    assert result.concurrency.sandboxes == [0, 2, 1, 0]
+    assert result.concurrency.vcpus == [0, 6, 4, 0]
   end
 end

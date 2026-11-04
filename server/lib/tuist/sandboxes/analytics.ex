@@ -196,32 +196,32 @@ defmodule Tuist.Sandboxes.Analytics do
     duration_summary(current, previous, buckets, & &1.at, & &1.ms, nil)
   end
 
-  # Peak running sandboxes, vCPUs and memory within each bucket, from a sweep
+  # Peak vCPUs and memory in use within each bucket, from a sweep
   # over session starts and ends.
   defp concurrency(sessions, buckets) do
     changes =
       sessions
       |> Enum.flat_map(fn session ->
         [
-          {session.started_at, 1, 1, session.vcpus, session.memory_mb},
-          {session.ended_at, 0, -1, -session.vcpus, -session.memory_mb}
+          {session.started_at, 1, session.vcpus, session.memory_mb},
+          {session.ended_at, 0, -session.vcpus, -session.memory_mb}
         ]
       end)
-      |> Enum.sort_by(fn {at, order, _count, _vcpus, _memory_mb} -> {DateTime.to_unix(at, :microsecond), order} end)
+      |> Enum.sort_by(fn {at, order, _vcpus, _memory_mb} -> {DateTime.to_unix(at, :microsecond), order} end)
 
     {peaks, _changes, _level} =
-      Enum.reduce(buckets, {[], changes, {0, 0, 0}}, fn bucket, {peaks, changes, level} ->
+      Enum.reduce(buckets, {[], changes, {0, 0}}, fn bucket, {peaks, changes, level} ->
         # A session that ends as the bucket starts never ran in it.
         {ending, changes} =
-          Enum.split_while(changes, fn {at, order, _, _, _} -> order == 0 and not DateTime.after?(at, bucket.start) end)
+          Enum.split_while(changes, fn {at, order, _, _} -> order == 0 and not DateTime.after?(at, bucket.start) end)
 
         level = Enum.reduce(ending, level, &apply_change(&2, &1))
-        {inside, rest} = Enum.split_while(changes, fn {at, _, _, _, _} -> DateTime.before?(at, bucket.end) end)
+        {inside, rest} = Enum.split_while(changes, fn {at, _, _, _} -> DateTime.before?(at, bucket.end) end)
 
         {level, peak} =
-          Enum.reduce(inside, {level, level}, fn change, {level, {pc, pv, pm}} ->
-            {c, v, m} = level = apply_change(level, change)
-            {level, {max(pc, c), max(pv, v), max(pm, m)}}
+          Enum.reduce(inside, {level, level}, fn change, {level, {pv, pm}} ->
+            {v, m} = level = apply_change(level, change)
+            {level, {max(pv, v), max(pm, m)}}
           end)
 
         {[peak | peaks], rest, level}
@@ -231,14 +231,13 @@ defmodule Tuist.Sandboxes.Analytics do
 
     %{
       dates: Enum.map(buckets, & &1.date),
-      sandboxes: Enum.map(peaks, &elem(&1, 0)),
-      vcpus: Enum.map(peaks, &elem(&1, 1)),
-      memory_gb: Enum.map(peaks, &(&1 |> elem(2) |> Kernel./(1024) |> Float.round(1)))
+      vcpus: Enum.map(peaks, &elem(&1, 0)),
+      memory_gb: Enum.map(peaks, &(&1 |> elem(1) |> Kernel./(1024) |> Float.round(1)))
     }
   end
 
-  defp apply_change({count, vcpus, memory_mb}, {_at, _order, count_delta, vcpus_delta, memory_mb_delta}),
-    do: {count + count_delta, vcpus + vcpus_delta, memory_mb + memory_mb_delta}
+  defp apply_change({vcpus, memory_mb}, {_at, _order, vcpus_delta, memory_mb_delta}),
+    do: {vcpus + vcpus_delta, memory_mb + memory_mb_delta}
 
   defp lifecycle_events(account_id, from_dt, end_dt) do
     lookback_dt = DateTime.add(from_dt, -@session_lookback_days, :day)

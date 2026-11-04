@@ -296,8 +296,8 @@ socket, the poller and the caller share a replica:
   including `PATCH agent-environments/:id` for the API key, model and
   system prompt; sandboxes, exec/pause/resume/delete).
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
-  `SandboxLive` (`/sandboxes/:sandbox_id`) and `SandboxSnapshotsLive`
-  (`/sandboxes/snapshots`) raise `NotFoundError` unless the flag is on and
+  `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
+  (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and
   `:sandboxes_read` allows the user; the sidebar entry uses the same gate.
   Pause, resume and delete require `:sandboxes_update` (admins), are
   rechecked per event and run in `start_async`, since node commands block.

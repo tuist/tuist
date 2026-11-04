@@ -11,7 +11,6 @@ defmodule TuistWeb.SandboxesLiveTest do
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Sandboxes.AmpIntegration
-  alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -41,8 +40,7 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       for path <- [
             "/#{account.name}/sandboxes",
-            "/#{account.name}/sandboxes/instances",
-            "/#{account.name}/sandboxes/snapshots"
+            "/#{account.name}/sandboxes/instances"
           ] do
         assert_raise NotFoundError, fn -> live(conn, path) end
       end
@@ -97,7 +95,8 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "#sandboxes-recent tbody tr", "orb-active")
       refute has_element?(lv, "#sandbox-#{oldest.id}")
       assert Enum.all?(recent, &has_element?(lv, "#sandbox-#{&1.id}"))
-      assert has_element?(lv, "#sandboxes-concurrency-sandboxes", "1 of 5 running now")
+      refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
+      refute has_element?(lv, "#sandboxes-providers")
       assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
     end
 
@@ -252,32 +251,6 @@ defmodule TuistWeb.SandboxesLiveTest do
       render_click(lv, "pause", %{})
       render_click(lv, "delete", %{})
       assert Repo.get!(Sandbox, sandbox.id).state == :running
-    end
-  end
-
-  describe "snapshots" do
-    test "lists the account's project snapshots", %{conn: conn, account: account} do
-      disk_snapshot_fixture(account: account, amp_snapshot_id: "project-ios")
-      disk_snapshot_fixture(amp_snapshot_id: "project-of-another-account")
-
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/sandboxes/snapshots")
-
-      assert html =~ "project-ios"
-      refute html =~ "project-of-another-account"
-    end
-
-    test "deletes a snapshot from its node", %{conn: conn, account: account} do
-      snapshot = disk_snapshot_fixture(account: account, node_name: "node-a")
-
-      expect(Nodes, :call, fn "node-a", "delete_disks", %{snapshot_id: id}, _opts when id == snapshot.id -> {:ok, %{}} end)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/snapshots")
-      lv |> element("#delete-snapshot-#{snapshot.id}") |> render_click()
-      render_click(lv, "delete", %{})
-      render_async(lv, 5_000)
-
-      refute Repo.get(DiskSnapshot, snapshot.id)
-      refute has_element?(lv, "#snapshot-#{snapshot.id}")
     end
   end
 end

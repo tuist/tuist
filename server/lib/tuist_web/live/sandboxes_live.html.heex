@@ -338,9 +338,8 @@
             concurrency_charts(
               if(ready?,
                 do: @analytics.result.concurrency,
-                else: %{sandboxes: [], vcpus: [], memory_gb: []}
+                else: %{vcpus: [], memory_gb: []}
               ),
-              @counts,
               @usage,
               @selected_account
             )
@@ -384,21 +383,6 @@
     </:actions>
     <.card_section>
       <.sandboxes_table id="sandboxes-table" sandboxes={@sandboxes} account={@selected_account} />
-    </.card_section>
-  </.card>
-
-  <.card
-    :if={@total > 0}
-    title={dgettext("dashboard_sandboxes", "Agents")}
-    icon="apps"
-    id="sandboxes-providers"
-  >
-    <.card_section>
-      <.providers
-        account={@selected_account}
-        amp_integration={@amp_integration}
-        can_manage_integrations={@can_manage_integrations}
-      />
     </.card_section>
   </.card>
 </div>

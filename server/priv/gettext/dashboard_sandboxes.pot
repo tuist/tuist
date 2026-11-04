@@ -11,24 +11,19 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:413
+#: lib/tuist_web/live/sandboxes_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} RAM · %{disk} disk"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:399
+#: lib/tuist_web/live/sandboxes_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "API"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:402
+#: lib/tuist_web/live/sandboxes_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Active"
-msgstr ""
-
-#: lib/tuist_web/live/sandboxes_live.html.heex:392
-#, elixir-autogen, elixir-format
-msgid "Agents"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:91
@@ -36,7 +31,7 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:394
+#: lib/tuist_web/live/sandboxes_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Amp Orb"
 msgstr ""
@@ -46,29 +41,23 @@ msgstr ""
 msgid "Amp manages this Orb"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:61
-#, elixir-autogen, elixir-format
-msgid "Amp saves a snapshot when an Orb finishes setting up a project."
-msgstr ""
-
 #: lib/tuist_web/live/sandbox_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Amp starts this sandbox when a thread needs it and pauses it when the thread goes idle. Deleting it discards its disk; Amp starts a fresh Orb the next time the thread runs."
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:301
+#: lib/tuist_web/live/sandboxes_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "An admin can connect it"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:200
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:89
 #: lib/tuist_web/live/sandboxes_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:381
+#: lib/tuist_web/live/sandboxes_live.ex:367
 #, elixir-autogen, elixir-format
 msgid "Choose a different status to see more."
 msgstr ""
@@ -78,19 +67,19 @@ msgstr ""
 msgid "Choose an agent to connect:"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:310
-#: lib/tuist_web/live/sandboxes_live.ex:397
+#: lib/tuist_web/live/sandboxes_live.ex:296
+#: lib/tuist_web/live/sandboxes_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "Claude Managed Agents"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:315
-#: lib/tuist_web/live/sandboxes_live.ex:331
+#: lib/tuist_web/live/sandboxes_live.ex:301
+#: lib/tuist_web/live/sandboxes_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "Coming soon"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:297
+#: lib/tuist_web/live/sandboxes_live.ex:283
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
@@ -100,18 +89,13 @@ msgstr ""
 msgid "Connect an agent and every task it starts gets its own sandbox. Sandboxes pause when the agent goes idle and resume where they left off."
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:291
+#: lib/tuist_web/live/sandboxes_live.ex:277
 #, elixir-autogen, elixir-format
 msgid "Connected"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_snapshots_live.ex:84
-#, elixir-autogen, elixir-format
-msgid "Could not delete the snapshot. Please retry."
-msgstr ""
-
 #: lib/tuist_web/live/sandbox_live.html.heex:132
-#: lib/tuist_web/live/sandboxes_live.ex:374
+#: lib/tuist_web/live/sandboxes_live.ex:360
 #: lib/tuist_web/live/sandboxes_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Created"
@@ -128,14 +112,7 @@ msgstr ""
 msgid "Delete sandbox"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:49
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:74
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:97
-#, elixir-autogen, elixir-format
-msgid "Delete snapshot"
-msgstr ""
-
-#: lib/tuist_web/live/sandboxes_live.ex:410
+#: lib/tuist_web/live/sandboxes_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Deleting"
 msgstr ""
@@ -151,18 +128,12 @@ msgid "Details"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:128
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Disk"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:39
-#, elixir-autogen, elixir-format
-msgid "Expires"
-msgstr ""
-
 #: lib/tuist_web/live/sandbox_instances_live.ex:94
-#: lib/tuist_web/live/sandboxes_live.ex:409
+#: lib/tuist_web/live/sandboxes_live.ex:395
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -172,7 +143,7 @@ msgstr ""
 msgid "Get started"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:404
+#: lib/tuist_web/live/sandboxes_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "Idle"
 msgstr ""
@@ -183,40 +154,25 @@ msgid "Isolated Linux microVMs where coding agents work on your projects, with y
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:138
-#: lib/tuist_web/live/sandboxes_live.ex:368
+#: lib/tuist_web/live/sandboxes_live.ex:354
 #, elixir-autogen, elixir-format
 msgid "Last active"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:33
-#, elixir-autogen, elixir-format
-msgid "Last used"
-msgstr ""
-
 #: lib/tuist_web/live/sandbox_live.html.heex:124
-#: lib/tuist_web/live/sandboxes_live.ex:190
+#: lib/tuist_web/live/sandboxes_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:355
+#: lib/tuist_web/live/sandboxes_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:76
-#, elixir-autogen, elixir-format
-msgid "New sandboxes of this project run the project's setup again until a new snapshot is saved."
-msgstr ""
-
-#: lib/tuist_web/live/sandboxes_live.ex:380
+#: lib/tuist_web/live/sandboxes_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "No sandboxes with this status"
-msgstr ""
-
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:59
-#, elixir-autogen, elixir-format
-msgid "No snapshots yet"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:104
@@ -231,7 +187,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:93
 #: lib/tuist_web/live/sandbox_live.html.heex:144
-#: lib/tuist_web/live/sandboxes_live.ex:407
+#: lib/tuist_web/live/sandboxes_live.ex:393
 #, elixir-autogen, elixir-format
 msgid "Paused"
 msgstr ""
@@ -242,7 +198,6 @@ msgid "Pausing…"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:161
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Project snapshots"
 msgstr ""
@@ -252,7 +207,7 @@ msgstr ""
 msgid "Ready"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:365
+#: lib/tuist_web/live/sandboxes_live.ex:351
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr ""
@@ -262,7 +217,7 @@ msgstr ""
 msgid "Resume"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:406
+#: lib/tuist_web/live/sandboxes_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Resuming"
 msgstr ""
@@ -277,7 +232,7 @@ msgstr ""
 msgid "Resuming…"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:286
+#: lib/tuist_web/live/sandboxes_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "Retrying"
 msgstr ""
@@ -302,7 +257,7 @@ msgstr ""
 msgid "Sandbox deleted."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:534
+#: lib/tuist_web/components/app_layout_components.ex:533
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:10
 #: lib/tuist_web/live/sandbox_live.ex:42
 #: lib/tuist_web/live/sandbox_live.html.heex:6
@@ -317,17 +272,12 @@ msgstr ""
 msgid "Saved"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:5
-#, elixir-autogen, elixir-format
-msgid "Saved project disks. New sandboxes of the same project start from them, so agents skip the project's setup. Snapshots unused for %{hours} hours are deleted."
-msgstr ""
-
 #: lib/tuist_web/live/sandbox_live.ex:165
 #, elixir-autogen, elixir-format
 msgid "Saving"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:279
+#: lib/tuist_web/live/sandboxes_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "Self-hosted Orbs"
 msgstr ""
@@ -338,21 +288,8 @@ msgid "Session ID"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:166
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Snapshot"
-msgstr ""
-
-#: lib/tuist_web/live/sandbox_snapshots_live.ex:76
-#, elixir-autogen, elixir-format
-msgid "Snapshot deleted."
-msgstr ""
-
-#: lib/tuist_web/components/app_layout_components.ex:553
-#: lib/tuist_web/live/sandbox_snapshots_live.ex:25
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:3
-#, elixir-autogen, elixir-format
-msgid "Snapshots"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.ex:102
@@ -362,24 +299,23 @@ msgid "Something went wrong. Please retry."
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:100
-#: lib/tuist_web/live/sandboxes_live.ex:358
+#: lib/tuist_web/live/sandboxes_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:326
+#: lib/tuist_web/live/sandboxes_live.ex:312
 #, elixir-autogen, elixir-format
 msgid "Start sandboxes from your terminal"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:405
+#: lib/tuist_web/live/sandboxes_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Starting"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:169
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:23
-#: lib/tuist_web/live/sandboxes_live.ex:361
+#: lib/tuist_web/live/sandboxes_live.ex:347
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -390,7 +326,6 @@ msgid "Status:"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:116
-#: lib/tuist_web/live/sandbox_snapshots_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Template"
 msgstr ""
@@ -430,37 +365,27 @@ msgstr ""
 msgid "This sandbox was deleted."
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:324
+#: lib/tuist_web/live/sandboxes_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:120
-#: lib/tuist_web/live/sandboxes_live.ex:178
+#: lib/tuist_web/live/sandboxes_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "vCPUs"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:150
-#: lib/tuist_web/live/sandboxes_live.ex:408
+#: lib/tuist_web/live/sandboxes_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Archived"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.ex:166
-#, elixir-autogen, elixir-format
-msgid "Running sandboxes"
-msgstr ""
-
-#: lib/tuist_web/live/sandboxes_live.ex:180
-#: lib/tuist_web/live/sandboxes_live.ex:192
+#: lib/tuist_web/live/sandboxes_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
-msgstr ""
-
-#: lib/tuist_web/live/sandboxes_live.ex:168
-#, elixir-autogen, elixir-format
-msgid "%{count} of %{limit} running now"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:100
@@ -513,22 +438,17 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:218
+#: lib/tuist_web/live/sandboxes_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Limit"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:198
+#: lib/tuist_web/live/sandboxes_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "Peak memory (GB)"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:174
-#, elixir-autogen, elixir-format
-msgid "Peak sandboxes"
-msgstr ""
-
-#: lib/tuist_web/live/sandboxes_live.ex:186
+#: lib/tuist_web/live/sandboxes_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
 msgstr ""
@@ -558,27 +478,27 @@ msgstr ""
 msgid "p99 session duration"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:136
+#: lib/tuist_web/live/sandboxes_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:135
+#: lib/tuist_web/live/sandboxes_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:133
+#: lib/tuist_web/live/sandboxes_live.ex:131
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:134
+#: lib/tuist_web/live/sandboxes_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:132
+#: lib/tuist_web/live/sandboxes_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
@@ -653,17 +573,17 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:373
+#: lib/tuist_web/live/sandboxes_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Recent sandboxes"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:381
+#: lib/tuist_web/live/sandboxes_live.html.heex:380
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:547
+#: lib/tuist_web/components/app_layout_components.ex:545
 #: lib/tuist_web/live/sandbox_instances_live.ex:22
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #, elixir-autogen, elixir-format

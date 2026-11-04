@@ -127,8 +127,6 @@ defmodule TuistWeb.SandboxesLive do
     end
   end
 
-  def running_count(counts), do: Enum.sum(for state <- [:creating, :resuming, :running], do: counts[state])
-
   defp trend_label("last-24-hours"), do: dgettext("dashboard_sandboxes", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_sandboxes", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_sandboxes", "since last year")
@@ -159,20 +157,8 @@ defmodule TuistWeb.SandboxesLive do
   The peak usage charts, each against the account's limit, with what is in
   use right now.
   """
-  def concurrency_charts(concurrency, counts, usage, account) do
+  def concurrency_charts(concurrency, usage, account) do
     [
-      %{
-        id: "sandboxes",
-        title: dgettext("dashboard_sandboxes", "Running sandboxes"),
-        subtitle:
-          dgettext("dashboard_sandboxes", "%{count} of %{limit} running now",
-            count: running_count(counts),
-            limit: Sandboxes.max_running_sandboxes_per_account()
-          ),
-        values: concurrency.sandboxes,
-        limit: Sandboxes.max_running_sandboxes_per_account(),
-        usage_label: dgettext("dashboard_sandboxes", "Peak sandboxes")
-      },
       %{
         id: "vcpus",
         title: dgettext("dashboard_sandboxes", "vCPUs"),
@@ -338,7 +324,7 @@ defmodule TuistWeb.SandboxesLive do
     """
   end
 
-  # ----- Presentation shared with SandboxLive, SandboxInstancesLive and SandboxSnapshotsLive -----
+  # ----- Presentation shared with SandboxLive and SandboxInstancesLive -----
 
   attr :id, :string, required: true
   attr :sandboxes, :list, required: true
