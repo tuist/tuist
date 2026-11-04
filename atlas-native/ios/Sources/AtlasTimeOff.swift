@@ -28,6 +28,7 @@ struct AtlasHolidayPage<Item: Decodable>: Decodable {
 struct AtlasHolidayOverview: Decodable {
     let requests: AtlasHolidayPage<AtlasHolidayRequest>
     let publicHolidays: AtlasHolidayPage<AtlasPublicHoliday>
+    var cached: Bool?
 }
 
 enum AtlasHolidayDates {
@@ -56,6 +57,7 @@ final class AtlasTimeOff: ObservableObject {
     @Published private(set) var busy = false
     @Published private(set) var mutating = false
     @Published var errorMessage: String?
+    var cachedRequest: AtlasReadCache.Request?
     private let request: ([String: Any]) async throws -> Data
 
     init(request: @escaping ([String: Any]) async throws -> Data) { self.request = request }
@@ -65,9 +67,18 @@ final class AtlasTimeOff: ObservableObject {
         busy = true
         errorMessage = nil
         defer { busy = false }
+        if overview == nil,
+           let data = await cachedRequest?(["action": "list", "requests_page": requestsPage, "holidays_page": holidaysPage]) {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            if !Task.isCancelled { overview = try? decoder.decode(AtlasHolidayOverview.self, from: data) }
+        }
         do {
             try await fetch(requestsPage: requestsPage, holidaysPage: holidaysPage)
-        } catch is CancellationError {} catch { errorMessage = error.localizedDescription }
+        } catch is CancellationError {} catch {
+            if AtlasReadCache.accessDenied(error) { overview = nil }
+            errorMessage = error.localizedDescription
+        }
     }
 
     func save(startsOn: String, endsOn: String, editing: AtlasHolidayRequest?) async -> Bool {
@@ -83,7 +94,7 @@ final class AtlasTimeOff: ObservableObject {
     }
 
     private func mutate(_ action: [String: Any]) async -> Bool {
-        guard !busy else { return false }
+        guard !busy, overview?.cached != true else { return false }
         busy = true
         mutating = true
         errorMessage = nil

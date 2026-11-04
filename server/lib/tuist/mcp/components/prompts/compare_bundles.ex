@@ -56,7 +56,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareBundles do
     ## Available MCP tools
 
     - **list_projects**: List all accessible projects.
-    - **list_bundles**: List bundles for a project (supports git_branch filter).
+    - **list_bundles**: List bundles for a project (supports git_branch and tags filters; all tags must match exactly).
     - **get_bundle**: Get bundle metadata (sizes, version, platforms).
     - **get_bundle_artifact_tree**: Get the full artifact tree for a bundle as a flat list sorted by path. Each artifact includes `artifact_type`, `path`, and `size`.
 

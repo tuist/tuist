@@ -24,7 +24,10 @@ The rootfs is Ubuntu 24.04 with the apt toolchain listed in the Dockerfile plus
 Node.js 22 (nodesource), the GitHub CLI, `mise` (activated from
 `/etc/profile.d/mise.sh`, shims in non-interactive shells) and the Anthropic
 `ant` CLI 1.30.0 as a fallback worker; its .deb installs a single `/usr/ant`
-binary, symlinked to `/usr/local/bin/ant`.
+binary, symlinked to `/usr/local/bin/ant`. `agent-browser` (pinned by
+`AGENT_BROWSER_VERSION`, matching Amp's default orb image) is installed
+globally, with its Chrome for Testing in `/home/user/.agent-browser` and the
+browser's system libraries from apt.
 
 ## Boot contract
 
@@ -71,14 +74,14 @@ tags and the `System` interface. The Dockerfile builds the binaries natively
 and cross-compiles them, assembles the Ubuntu 24.04 guest under emulation when
 the host is not amd64, and formats the rootfs natively with `mkfs.ext4 -d`.
 Build args: `KERNEL_URL` (Firecracker CI 6.1.155 by default), `KERNEL_SHA256`
-(verified when non-empty), `NODE_MAJOR`, `ANT_VERSION`, `ROOTFS_SIZE`,
+(verified when non-empty), `NODE_MAJOR`, `ANT_VERSION`, `AGENT_BROWSER_VERSION`, `ROOTFS_SIZE`,
 `VERSION` (stamped into `sbx-agent`'s `agent_version`), `AMP_VERSION` (pinned
 Linux amd64 CLI, verified against its published SHA-256).
 
 ## Template init container
 
 The final stage is Alpine with GNU coreutils and carries `/template/vmlinux`,
-`/template/vmlinux.config`, `/template/rootfs.ext4` (sparse, 8 GiB) and
+`/template/vmlinux.config`, `/template/rootfs.ext4` (sparse, 12 GiB) and
 `/template/metadata.json`. sandboxd's DaemonSet runs it as an init container
 with the node's `/data/sandboxes` mounted at `/host` and `TEMPLATE_TAG` set
 (`TEMPLATE_NAME` defaults to `default`, `TEMPLATE_DIR` to
@@ -89,7 +92,7 @@ writes `metadata.json` with `tag` added. sandboxd boots the template, snapshots
 it and writes the `ready` marker itself.
 
 The rootfs travels dense inside the image layer (the registry compresses the
-zeros away, but a pull materialises the full 8 GiB in the node's image store);
+zeros away, but a pull materialises the full 12 GiB in the node's image store);
 the sparse copy keeps the per-template footprint on `/data` at the used size.
 
 ## Deliberately not installed yet

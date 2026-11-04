@@ -8,6 +8,7 @@ struct AtlasSettingsPreview: App {
     @State private var backgrounded = false
     @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var business = AtlasBusinessPreviewData()
+    @StateObject private var profile = AtlasProfile()
     @StateObject private var threads = AtlasOrbitPreviewData()
     @StateObject private var environments = AtlasEnvironmentPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
@@ -69,7 +70,12 @@ struct AtlasSettingsPreview: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if ProcessInfo.processInfo.arguments.contains("--live-activity") {
+                if ProcessInfo.processInfo.arguments.contains("--coding") {
+                    NavigationStack { AtlasCodingSettingsView(request: environments.request) }
+                } else if ProcessInfo.processInfo.arguments.contains("--repository-picker") {
+                    AtlasThreadRepositoryPicker(threadId: "00000000-0000-4000-8000-000000000001", selected: "acme/mobile",
+                                                request: environments.request, changed: {})
+                } else if ProcessInfo.processInfo.arguments.contains("--live-activity") {
                     AtlasLiveActivityPreview()
                 } else if ProcessInfo.processInfo.arguments.contains("--voice-input") {
                     AtlasVoiceInputPreview()
@@ -85,7 +91,7 @@ struct AtlasSettingsPreview: App {
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local, presence: presence.model,
                                        navigation: navigation) {
                         AtlasSettingsView(server: previewServer, accounts: accounts,
-                                          signOut: {}, profileRequest: business.request, connections: connections)
+                                          signOut: {}, profileRequest: business.request, profileModel: profile, connections: connections)
                     }
                 } else {
                     NavigationStack {
@@ -97,7 +103,8 @@ struct AtlasSettingsPreview: App {
                                 request: holidays.request
                             )
                         } else {
-                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {}, connections: connections)
+                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {},
+                                              profileModel: profile, connections: connections)
                         }
                     }
                 }

@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Server do
   alias Tuist.Environment
   alias Tuist.MCP.Components.Prompts
   alias Tuist.MCP.Components.Tools
+  alias Tuist.MCP.Feedback
 
   # Backed by the hosted Typesense search service, so only offered on the
   # Tuist-hosted installation.
@@ -56,6 +57,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListXcodeBuildFiles,
     Tools.ListXcodeBuildSteps,
     Tools.GetXcodeBuildStep,
+    Tools.GetBuildTrace,
     Tools.ListXcodeBuildIssues,
     Tools.ListXcodeBuildCacheTasks,
     Tools.ListXcodeBuildCASOutputs,
@@ -149,7 +151,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.42.0",
+      version: "1.48.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),
@@ -161,7 +163,9 @@ defmodule Tuist.MCP.Server do
   defp tools do
     hosted_tools = if Environment.tuist_hosted?(), do: @hosted_tools, else: []
     codebase_tools = if codebase_search_enabled?(), do: @codebase_tools, else: []
-    hosted_tools ++ codebase_tools ++ @tools
+    # Reports are published to Atlas, Tuist's internal support system.
+    feedback_tools = if Environment.tuist_hosted?() and Feedback.enabled?(), do: [Tools.ReportFeedback], else: []
+    hosted_tools ++ codebase_tools ++ feedback_tools ++ @tools
   end
 
   defp prompts, do: if(codebase_search_enabled?(), do: @codebase_prompts ++ @prompts, else: @prompts)

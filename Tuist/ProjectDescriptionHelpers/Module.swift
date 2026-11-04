@@ -261,6 +261,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
+                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -344,7 +345,7 @@ public enum Module: String, CaseIterable {
                 target(
                     name: unitTestsTargetName,
                     product: .unitTests,
-                    dependencies: unitTestDependencies,
+                    dependencies: unitTestDependencies + [.external(name: "TestCoverageAttribution")],
                     isTestingTarget: false
                 )
             )
@@ -508,6 +509,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.runCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
                     .target(name: Module.alert.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
@@ -1598,6 +1600,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.nooraExtension.targetName),
@@ -1902,6 +1905,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
+                    .target(name: Module.tuistExtension.targetName),
                     .target(name: Module.jobSummary.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
@@ -2097,6 +2101,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.opener.targetName),

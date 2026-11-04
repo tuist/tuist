@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Synchronization
 import Testing
 @testable import SwifterPMCore
 
@@ -467,6 +468,104 @@ struct ResolveTests {
         }
     }
 
+    @Test(.inTemporaryDirectory)
+    func forcedValidationIsReusedAcrossCheckoutsOfTheSameInputs() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        try await initGitDependency(at: dependency, tags: ["1.0.0", "2.0.0"])
+        let cache = root.appendingPathComponent("cache")
+        let first = root.appendingPathComponent("first/App")
+        let second = root.appendingPathComponent("second/App")
+        try await writeAppPackageManifest(at: first, dependencyURL: dependency.path, exactVersion: "1.0.0")
+        _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+            packageDirectory: first, cacheDirectory: cache, disableSandbox: true, quiet: true
+        ))
+        try await writeAppPackageManifest(at: second, dependencyURL: dependency.path, exactVersion: "1.0.0")
+        let resolved = try await fileSystem.readTextFile(at: first.appendingPathComponent("Package.resolved").absolutePath)
+        try await fileSystem.atomicWrite(resolved, to: second.appendingPathComponent("Package.resolved"))
+
+        let messages = Mutex([String]())
+        func install(_ package: URL) async throws {
+            try await SwifterPM.withDebugHandler({ message in messages.withLock { $0.append(message) } }) {
+                _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+                    packageDirectory: package, cacheDirectory: cache, disableSandbox: true,
+                    forceResolvedVersions: true, quiet: true
+                ))
+            }
+        }
+        func validations() -> [String] {
+            messages.withLock { messages in
+                defer { messages.removeAll() }
+                return messages.compactMap {
+                    if $0.hasPrefix("validating Package.resolved with SwiftPM took") { return "validated" }
+                    return $0.hasSuffix("skipping it") ? "skipped" : nil
+                }
+            }
+        }
+
+        try await install(first)
+        #expect(validations() == ["validated"])
+        try await install(first)
+        #expect(validations() == ["skipped"])
+        try await install(second)
+        #expect(validations() == ["skipped"])
+
+        // A lockfile edited to a pin the manifest rejects keeps its origin hash, but it is a
+        // new input, so SwiftPM validates it again and rejects it.
+        let revision = { (tag: String) async throws -> String in
+            try await String(
+                decoding: SystemProcess.run("git", ["rev-parse", "\(tag)^{commit}"], workingDirectory: dependency).stdout,
+                as: UTF8.self
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let edited = try await resolved
+            .replacingOccurrences(of: revision("1.0.0"), with: revision("2.0.0"))
+            .replacingOccurrences(of: "\"1.0.0\"", with: "\"2.0.0\"")
+        try await fileSystem.atomicWrite(edited, to: second.appendingPathComponent("Package.resolved"))
+        await #expect(throws: ToolError.self) { try await install(second) }
+        #expect(!validations().contains("skipped"))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func forcedValidationKeyIgnoresTheCheckoutLocationButNotItsInputs() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        func key(_ worktree: String) async -> String? {
+            let package = root.appendingPathComponent("\(worktree)/App")
+            return await ResolvedFileValidation.key(
+                packageDir: package, scratchDir: package.appendingPathComponent(".build"),
+                registryConfigurationPath: nil, defaultRegistryURL: nil, disableSandbox: true,
+                scmToRegistryTransformation: .disabled
+            )
+        }
+        for worktree in ["first", "second"] {
+            let package = root.appendingPathComponent("\(worktree)/App")
+            try await writeMinimalPackageManifest(at: root.appendingPathComponent("\(worktree)/Local"), name: "Local")
+            try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [.package(path: "../Local")])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+            try await fileSystem.atomicWrite(#"{"pins":[],"version":3}"#, to: package.appendingPathComponent("Package.resolved"))
+        }
+        let first = try #require(await key("first"))
+        #expect(await key("second") == first)
+
+        try await fileSystem.atomicWrite(
+            #"{"object":{"prebuilts":[{"identity":"swift-syntax","version":"602.0.0","libraryName":"MacroSupport","path":"/prebuilts/MacroSupport"}]},"version":7}"#,
+            to: root.appendingPathComponent("second/App/.build/workspace-state.json")
+        )
+        let withPrebuilts = await key("second")
+        #expect(withPrebuilts != first)
+
+        try await writeMinimalPackageManifest(at: root.appendingPathComponent("second/Local"), name: "Renamed")
+        #expect(await key("second") != withPrebuilts)
+    }
+
     @Test
     func coldResolutionSeedsTheSwifterPMSourceCache() async throws {
         try await withTemporaryDirectory { root in
@@ -573,6 +672,97 @@ struct ResolveTests {
             #expect(entry["version"] as? String == "1.0.0")
             let packageInfoPath = try #require(entry["package_info_path"] as? String)
             #expect(try await fileSystem.exists(URL(fileURLWithPath: packageInfoPath).absolutePath))
+        }
+    }
+
+    @Test
+    func coldResolutionWritesTheOriginHashForPackagesBelowToolsVersion510() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0", "1.1.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, toolsVersion: "5.9")
+            func resolveCold(_ name: String) async throws -> ResolvedPins {
+                let cacheDirectory = root.appendingPathComponent("\(name)-cache")
+                #expect(
+                    try await PackageResolver.shouldUseNativeColdPath(
+                        packageDir: package,
+                        cacheRoot: cacheDirectory,
+                        registryConfig: RegistryConfig()
+                    )
+                )
+                _ = try await SwifterPM().resolve(
+                    .init(
+                        packageDirectory: package,
+                        cacheDirectory: cacheDirectory,
+                        scratchDirectory: root.appendingPathComponent("\(name)-scratch"),
+                        disableSandbox: true,
+                        quiet: true
+                    ))
+                return try await ResolvedFile.read(packageDir: package)
+            }
+
+            let cold = try await resolveCold("cold")
+            #expect(cold.version == 2)
+            #expect(cold.pins.map(\.state.version) == ["1.0.0"])
+            #expect(cold.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+
+            // SwiftPM leaves Package.resolved alone when its pins are unchanged.
+            var withoutOriginHash = cold
+            withoutOriginHash.originHash = nil
+            try await ResolvedFile.write(packageDir: package, resolved: withoutOriginHash, mirrors: MirrorConfig())
+            let unchanged = try await resolveCold("unchanged")
+            #expect(unchanged.pins == cold.pins)
+            #expect(unchanged.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+
+            try await writeAppPackageManifest(
+                at: package, dependencyURL: dependency.path, exactVersion: "1.1.0", toolsVersion: "5.9"
+            )
+            let bumped = try await resolveCold("bumped")
+            #expect(bumped.version == 2)
+            #expect(bumped.pins.map(\.state.version) == ["1.1.0"])
+            #expect(bumped.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: package) != nil)
+        }
+    }
+
+    @Test
+    func coldForcedResolutionLeavesTheResolvedFileWithoutAnOriginHashUntouched() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, toolsVersion: "5.9")
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: root.appendingPathComponent("cache"),
+                    scratchDirectory: root.appendingPathComponent("scratch"),
+                    disableSandbox: true,
+                    quiet: true
+                ))
+            var withoutOriginHash = try await ResolvedFile.read(packageDir: package)
+            withoutOriginHash.originHash = nil
+            try await ResolvedFile.write(packageDir: package, resolved: withoutOriginHash, mirrors: MirrorConfig())
+            let lockfile = package.appendingPathComponent("Package.resolved")
+            let original = try await fileSystem.readFile(at: lockfile.absolutePath)
+
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: root.appendingPathComponent("forced-cache"),
+                    scratchDirectory: root.appendingPathComponent("forced-scratch"),
+                    disableSandbox: true,
+                    forceResolvedVersions: true,
+                    restorePackage: false,
+                    quiet: true
+                ))
+
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == original)
         }
     }
 
@@ -1241,8 +1431,8 @@ struct ResolveTests {
         }
     }
 
-    @Test
-    func pruningDropsUnreachableRegistryPinWithoutItsManifest() async throws {
+    @Test(arguments: ["", "registry.example-12345678/"])
+    func pruningDropsUnreachableRegistryPinWithoutItsManifest(registryPrefix: String) async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
             try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
@@ -1270,12 +1460,27 @@ struct ResolveTests {
                 state: .init(branch: nil, revision: "abc", version: "1.0.0")
             )
             let scratch = root.appendingPathComponent("scratch")
-            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            let subpath = "\(registryPrefix)example/direct/1.0.0"
+            let directSource = scratch.appendingPathComponent("registry/downloads/\(subpath)")
             try await writeMinimalPackageManifest(at: directSource, name: "Direct")
             try await ResolvedFile.write(
                 packageDir: package,
                 resolved: .init(originHash: "stale", pins: [direct, orphan, sourceOrphan], version: 3),
                 mirrors: MirrorConfig()
+            )
+            try await fileSystem.atomicWrite(
+                JSONFormatter.prettyData([
+                    "version": 7,
+                    "object": [
+                        "dependencies": [[
+                            "packageRef": ["identity": "example.direct", "kind": "registry"],
+                            "state": ["name": "registryDownload", "version": "1.0.0"],
+                            "subpath": subpath,
+                        ]],
+                        "artifacts": [],
+                    ],
+                ]),
+                to: scratch.appendingPathComponent("workspace-state.json")
             )
 
             try await PackageResolver.pruneStalePinsIfNeeded(
@@ -2655,7 +2860,8 @@ struct ResolveTests {
         dependencyURL: String,
         exactVersion: String = "1.0.0",
         fromVersion: String? = nil,
-        dependencyName: String = "Dependency"
+        dependencyName: String = "Dependency",
+        toolsVersion: String = "6.0"
     ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
@@ -2669,7 +2875,7 @@ struct ResolveTests {
             }
         try await fileSystem.atomicWrite(
             """
-            // swift-tools-version: 6.0
+            // swift-tools-version: \(toolsVersion)
             import PackageDescription
 
             let package = Package(

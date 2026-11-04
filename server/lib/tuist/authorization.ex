@@ -206,6 +206,27 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :artifact do
+    action :create do
+      desc("Artifact publication uses existing preview-write permissions.")
+      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_project, :projects_match])
+      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
+    end
+
+    action :read do
+      desc("Artifact closures stay private, including in public projects.")
+      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_user, user_role: :viewer])
+      allow([:authenticated_as_user, :ops_access])
+      allow([:authenticated_as_project, :projects_match])
+      allow([:authenticated_as_account, scopes_permit: "project:previews:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:previews:write"])
+    end
+  end
+
   object :preview do
     action :create do
       desc("Allows users of a project to create a preview.")
@@ -528,6 +549,30 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to attach an interactive shell or VNC session to its runners.")
       allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :sandboxes do
+    action :read do
+      desc("Allows users of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
+      desc("Allows users with ops access to see any account's sandboxes.")
+      allow([:authenticated_as_user, :ops_access])
+    end
+
+    action :update do
+      desc("Allows the admin of an account to pause, resume and delete its sandboxes and project snapshots.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to pause, resume and delete any account's sandboxes.")
+      allow([:authenticated_as_user, :ops_write_access])
     end
   end
 

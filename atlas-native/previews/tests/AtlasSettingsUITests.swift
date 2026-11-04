@@ -2,6 +2,66 @@ import XCTest
 
 @MainActor
 final class AtlasSettingsUITests: XCTestCase {
+    func testCodingRepositoryDefaultsAndConversationOverride() {
+        for arguments in [[String](), ["--dark", "--large-text"]] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            let mode = arguments.isEmpty ? "light" : "dark-large"
+            app.launchArguments = ["--coding"] + arguments
+            app.launch()
+            XCUIDevice.shared.orientation = .portrait
+            let repository = app.buttons["coding-default-repository"]
+            XCTAssertTrue(repository.waitForExistence(timeout: 10))
+            capture("ios-coding-settings-\(mode)-preview", app: app)
+            tap(repository, in: app)
+            XCTAssertTrue(app.buttons["acme/server"].waitForExistence(timeout: 5))
+            let search = app.searchFields["Find a repository"]
+            XCTAssertTrue(search.waitForExistence(timeout: 5))
+            XCTAssertLessThan(search.frame.maxY, app.buttons["acme/mobile"].frame.minY)
+            XCTAssertGreaterThanOrEqual(app.buttons["acme/mobile"].frame.height, 44)
+            capture("ios-coding-repositories-\(mode)-preview", app: app)
+            search.tap()
+            search.typeText("no-such-repo")
+            XCTAssertTrue(app.staticTexts["No repositories found"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["acme/mobile"].exists)
+            capture("ios-coding-repositories-empty-\(mode)-preview", app: app)
+            search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "no-such-repo".count) + "server")
+            XCTAssertTrue(app.buttons["acme/server"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["acme/mobile"].exists)
+            capture("ios-coding-repositories-search-\(mode)-preview", app: app)
+            app.buttons["acme/server"].tap()
+            tap(app.buttons["coding-save"], in: app)
+            XCTAssertTrue(app.staticTexts["Repository settings saved. Existing conversations are unchanged."].waitForExistence(timeout: 5))
+            app.terminate()
+
+            app.launchArguments = ["--workspace", "--destination",
+                "https://atlas.example.org/open/orbit/01922cc0-0000-7000-8000-000000000001"] + arguments
+            app.launch()
+            let environment = app.buttons["thread-environment"]
+            XCTAssertTrue(environment.waitForExistence(timeout: 10))
+            environment.tap()
+            let picker = app.buttons["thread-repository"]
+            XCTAssertTrue(picker.waitForExistence(timeout: 5))
+            picker.tap()
+            XCTAssertTrue(app.buttons["acme/mobile"].waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(app.buttons["acme/mobile"].frame.height, 44)
+            capture("ios-thread-repositories-\(mode)-preview", app: app)
+            app.buttons["acme/mobile"].tap()
+            let project = app.buttons["Example project"]
+            tap(project, in: app)
+            expectation(for: NSPredicate(format: "value == 'Selected'"), evaluatedWith: project)
+            waitForExpectations(timeout: 5)
+            tap(picker, in: app, up: false)
+            XCTAssertTrue(app.buttons["acme/server"].waitForExistence(timeout: 5))
+            app.buttons["acme/server"].tap()
+            let noCheckout = app.descendants(matching: .any).matching(identifier: "checkout-unavailable").firstMatch
+            reveal(noCheckout, in: app)
+            XCTAssertEqual(app.buttons["Atlas server"].value as? String, "Selected")
+            XCTAssertFalse(project.exists)
+            capture("ios-coding-no-checkout-\(mode)-preview", app: app)
+            app.terminate()
+        }
+    }
+
     func testPersonalConnections() {
         for arguments in [[String](), ["--dark", "--large-text"]] {
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")

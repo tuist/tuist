@@ -1,5 +1,46 @@
 import SwiftUI
 
+struct AtlasThreadTranscript<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    private var usesList: Bool {
+        #if os(iOS)
+        if #available(iOS 26.0, *) { return true }
+        #endif
+        return false
+    }
+
+    var body: some View {
+        if usesList {
+            List {
+                content
+                    .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+            .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 0)
+            .buttonStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 14) { content }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .frame(maxWidth: 720).frame(maxWidth: .infinity)
+                    .background {
+                        if #unavailable(iOS 18.0, macOS 15.0) {
+                            GeometryReader { content in
+                                Color.clear.preference(key: AtlasThreadScrollPreference.self, value: content.frame(in: .global))
+                            }
+                        }
+                    }
+            }
+        }
+    }
+}
+
 struct AtlasThreadTimeline: View {
     let timeline: AtlasThreadTimelineData
     let selfId: String?
@@ -8,7 +49,7 @@ struct AtlasThreadTimeline: View {
 
     var body: some View {
         ForEach(timeline.groups) { group in
-            AtlasThreadRow(content: VStack(spacing: 14) {
+            VStack(spacing: 14) {
                 if let first = group.messages.first {
                     if let date = group.date {
                         Text(date, format: .dateTime.month(.abbreviated).day().year())
@@ -24,40 +65,11 @@ struct AtlasThreadTimeline: View {
                         }
                     }
                 }
-            })
+            }
             .id(group.id)
         }
     }
 }
-
-#if os(iOS)
-private struct AtlasThreadRow<Content: View>: UIViewControllerRepresentable {
-    let content: Content
-
-    func makeUIViewController(context: Context) -> UIHostingController<AnyView> {
-        let controller = UIHostingController(rootView: AnyView(content.environment(\.self, context.environment)))
-        controller.sizingOptions = .intrinsicContentSize
-        controller.safeAreaRegions = []
-        controller.view.backgroundColor = .clear
-        return controller
-    }
-
-    func updateUIViewController(_ controller: UIHostingController<AnyView>, context: Context) {
-        controller.rootView = AnyView(content.environment(\.self, context.environment))
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiViewController: UIHostingController<AnyView>, context: Context) -> CGSize? {
-        guard let width = proposal.width else { return nil }
-        // Measure natural row height independently of the lazy stack's vertical estimates.
-        return uiViewController.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-    }
-}
-#else
-private struct AtlasThreadRow<Content: View>: View {
-    let content: Content
-    var body: some View { content }
-}
-#endif
 
 struct AtlasThreadNavigation: View {
     let messages: [AtlasThreadMessage]
@@ -100,8 +112,7 @@ struct AtlasThreadNavigation: View {
                 }
             }
             .buttonStyle(.plain)
-            .background(.regularMaterial, in: Capsule())
-            .overlay { Capsule().strokeBorder(.primary.opacity(0.12)) }
+            .modifier(AtlasComposerSurface(shape: Capsule(), interactive: true))
         }
     }
 

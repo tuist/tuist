@@ -133,6 +133,15 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
+# report_boot_stage marks that boot reached stage $1. The host reads the
+# file's mtime, which it stamps on its own clock.
+report_boot_stage() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  : >"${STATUS_SHARE}/boot-${1}" 2>/dev/null || true
+}
+
+report_boot_stage poller
+
 RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
 TCC_LOG=/var/log/tuist-runner/tcc.log
 TCC_LOG_PID=""
@@ -1010,13 +1019,25 @@ if [ ! -x "${JQ}" ]; then
   exit 1
 fi
 
+# The dev.tuist.logd-watchdog LaunchDaemon restarts a wedged logd, and reports
+# one that does not come back here, where tart-kubelet stops the VM (see
+# logd-watchdog.sh). A warm VM stops polling once it is reported, so it never
+# takes a job.
+LOGD_WEDGED_MARKER=/tmp/tuist-logd-wedged
+[ -d "${STATUS_SHARE}" ] && LOGD_WEDGED_MARKER="${STATUS_SHARE}/logd-wedged"
+
 while true; do
   attempt=$((attempt + 1))
+  if [ -e "${LOGD_WEDGED_MARKER}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: logd wedged during warm standby; exiting instead of taking a job"
+    exit 1
+  fi
   # Beat before the request, not after: this says the loop is running,
   # and a curl that hangs to its --max-time is exactly the stall the
   # beat needs to expose. One iteration is bounded by that timeout, so
   # a healthy warm runner never goes more than ~12s without a beat.
   report_heartbeat "${HEARTBEAT_POLLING}"
+  [ "${attempt}" = 1 ] && report_boot_stage first-poll
   # `-f` is intentionally omitted: with it, curl exits non-zero on
   # 4xx/5xx, the `|| http="000"` clause fires, and the real status
   # never reaches the case statement. We need 401/403/5xx as
@@ -1059,7 +1080,11 @@ while true; do
       bk_token=$(sed -n 's/.*"buildkite_acquisition_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       bk_job_uuid=$(sed -n 's/.*"buildkite_job_uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       bk_report_token=$(sed -n 's/.*"buildkite_report_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-      if [ -z "${jit}" ] && [ -z "${bk_token}" ] && [ "${gitlab_job}" != "true" ]; then
+      # Bitrise's pool intro secret is not documented as opaque ASCII, so it
+      # is read with the JSON parser rather than the sed extraction above.
+      bitrise_secret=$("${JQ}" -r '.bitrise_intro_secret // empty' /tmp/dispatch.json 2>/dev/null)
+      bitrise_report_token=$("${JQ}" -r '.bitrise_report_token // empty' /tmp/dispatch.json 2>/dev/null)
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ] && [ -z "${bitrise_secret}" ] && [ "${gitlab_job}" != "true" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
@@ -1167,6 +1192,12 @@ while true; do
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+# Hand the host the job's GitHub OIDC token before the checkout, so the server
+# learns which job this runner runs without waiting for GitHub's report. The
+# runner offers a token only to jobs granted id-token: write.
+if [ -n "\${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+  /usr/local/bin/tuist-cache-volume --prove-execution || true
+fi
 if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
   /usr/local/bin/tuist-cache-volume --checkout "\${GITHUB_WORKSPACE}" || true
 fi
@@ -1265,6 +1296,72 @@ HOOK
           rc="${agent_rc}"
         fi
         echo "$(date -u +%FT%TZ) dispatch-poll: buildkite agent exited ${agent_rc}"
+      elif [ -n "${bitrise_secret}" ]; then
+        # The den agent registers with the pool's intro secret and Bitrise
+        # hands it any build of that pool, so, as on GitHub, it may wait for
+        # a build a sibling already took. `--single-task` stops the agent
+        # after its first build; the idle watchdog below stops one that never
+        # gets a build. Started without `--fetch-latest-cli`, so it runs the
+        # agent and CLI baked into the image.
+        #
+        # The CLI's agent mode reads ~/.bitrise/agent-config.yml. Its build
+        # start hook reports the build the agent took and latches the
+        # watchdog, reading what it needs from the job env file beside it.
+        mkdir -p /Users/runner/.bitrise /Users/runner/work/bitrise
+        cat >/Users/runner/.bitrise/agent-config.yml <<'AGENT_CONFIG'
+bitrise_dirs:
+  BITRISE_DATA_HOME_DIR: /Users/runner/work/bitrise
+hooks:
+  do_on_build_start: /opt/tuist/bitrise-hooks/build-start
+AGENT_CONFIG
+        if ! (
+          umask 077
+          {
+            printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bitrise_report_token}"
+            printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+            printf 'TUIST_RUNNER_JOB_STARTED_MARKER=%s\n' "${JOB_STARTED_MARKER}"
+            printf 'TUIST_RUNNER_WATCHDOG_PID_FILE=%s\n' "${WATCHDOG_PID_FILE}"
+          } >/Users/runner/.bitrise/tuist-runner-job.env
+        ); then
+          echo "$(date -u +%FT%TZ) dispatch-poll: FAILED to stage the bitrise job env; the build will run unattributed"
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: connecting bitrise agent"
+        # The intro secret goes to the agent's environment, which it reads
+        # as BITRISE_DEN_AGENT_INTRO_SECRET, rather than its command line.
+        BITRISE_DEN_AGENT_INTRO_SECRET="${bitrise_secret}" PATH="/usr/local/bin:/opt/bitrise/bin:${PATH}" \
+          /opt/tuist/bitrise-den-agent connect \
+          --server https://exec.bitrise.io \
+          --single-task \
+          --tracking-id "$(hostname)" &
+        runner_pid=$!
+        unset bitrise_secret
+        # The agent logs `Current task` the moment Bitrise assigns it a build,
+        # seconds before the build start hook runs, so that line latches the
+        # watchdog too. Its output goes to this script's log.
+        if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
+          (
+            waited=0
+            while [ "${waited}" -lt "${idle_timeout}" ]; do
+              [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+              grep -q '"msg":"Current task' "${LOG}" 2>/dev/null && exit 0
+              kill -0 "${runner_pid}" 2>/dev/null || exit 0
+              sleep 1
+              waited=$((waited + 1))
+            done
+            grep -q '"msg":"Current task' "${LOG}" 2>/dev/null && exit 0
+            echo "$(date -u +%FT%TZ) dispatch-poll: no bitrise build assigned within ${idle_timeout}s; terminating idle agent"
+            kill -TERM "${runner_pid}" 2>/dev/null || true
+          ) &
+          watchdog_pid=$!
+          printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
+        fi
+        wait "${runner_pid}"
+        rc=$?
+        [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+        # Bitrise settles the build's outcome server-side, so the VM keeps no
+        # verdict and teardown saves no cache volumes for it.
+        JOB_RESULT=$(read_job_result bitrise)
+        echo "$(date -u +%FT%TZ) dispatch-poll: bitrise agent exited ${rc}"
       else
       # The runner prints `.setup_info` as groups in the job's "Set up job"
       # step; the server's group links the job to its Tuist dashboard page.

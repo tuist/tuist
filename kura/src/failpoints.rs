@@ -5,6 +5,8 @@ pub(crate) enum FailpointName {
     BeforeSegmentFsync,
     #[cfg(test)]
     BeforeWalFsync,
+    #[cfg(test)]
+    BeforeUsageOutboxAppend,
     AfterInlineManifestReadBeforeCommit,
     AfterArtifactBytesDurableBeforeMetadata,
     AfterMetadataCommitBeforeReturn,
@@ -23,6 +25,8 @@ impl FailpointName {
             Self::BeforeSegmentFsync => "before_segment_fsync",
             #[cfg(test)]
             Self::BeforeWalFsync => "before_wal_fsync",
+            #[cfg(test)]
+            Self::BeforeUsageOutboxAppend => "before_usage_outbox_append",
             Self::AfterInlineManifestReadBeforeCommit => "after_inline_manifest_read_before_commit",
             Self::AfterArtifactBytesDurableBeforeMetadata => {
                 "after_artifact_bytes_durable_before_metadata"

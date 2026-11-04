@@ -107,6 +107,7 @@ struct AtlasBusinessPage: Decodable {
     let options: AtlasBusinessOptions
     let summary: [AtlasInvoiceMonth]
     var financeOverview: AtlasFinanceOverview?
+    var cached: Bool?
 }
 
 private struct AtlasBusinessMutation: Decodable { let item: AtlasBusinessRecord }
@@ -137,6 +138,7 @@ final class AtlasBusiness: ObservableObject {
     @Published private(set) var options = AtlasBusinessOptions()
     @Published private(set) var forbidden = false
     @Published var errorMessage: String?
+    var cachedRequest: AtlasReadCache.Request?
     private(set) var query = ""
     private var generation = 0
     private let request: ([String: Any]) async throws -> Data
@@ -163,6 +165,12 @@ final class AtlasBusiness: ObservableObject {
         nextPageFailed = false
         errorMessage = nil
         defer { if identity == generation { busy = false; loading = false } }
+        if self.page == nil,
+           let data = await cachedRequest?(["resource": resource.rawValue, "action": "list", "page": page,
+                                           "query": query, "filters": filters]),
+           let saved = try? decode(AtlasBusinessPage.self, data: data), identity == generation, !Task.isCancelled {
+            accept(saved)
+        }
         do {
             let response = try await requestPage(page)
             guard identity == generation, !Task.isCancelled else { return }
@@ -179,7 +187,7 @@ final class AtlasBusiness: ObservableObject {
     }
 
     func loadMore(retry: Bool = false) async {
-        guard !busy, let page, page.page < page.totalPages, !nextPageFailed || retry else { return }
+        guard !busy, let page, page.cached != true, page.page < page.totalPages, !nextPageFailed || retry else { return }
         let identity = generation
         busy = true
         loading = true
@@ -212,7 +220,7 @@ final class AtlasBusiness: ObservableObject {
             return response.item
         } catch {
             try Task.checkCancellation()
-            if (error as? AtlasAuthenticationError)?.kind == "forbidden" {
+            if AtlasReadCache.accessDenied(error) {
                 generation += 1
                 busy = mutating
                 loading = false
@@ -228,6 +236,9 @@ final class AtlasBusiness: ObservableObject {
         let identity = generation
         busy = true
         defer { if identity == generation { busy = false } }
+        if records[item.id]?.details == nil, let saved = await cachedRecord(id: item.id), identity == generation {
+            records[item.id] = saved
+        }
         do {
             let response: AtlasBusinessMutation = try await call(["action": "show", "id": item.id])
             guard identity == generation, !Task.isCancelled else { return }
@@ -235,6 +246,12 @@ final class AtlasBusiness: ObservableObject {
         } catch is CancellationError {} catch {
             if identity == generation, !Task.isCancelled { report(error) }
         }
+    }
+
+    func cachedRecord(id: String) async -> AtlasBusinessRecord? {
+        guard let data = await cachedRequest?(["resource": resource.rawValue, "action": "show", "id": id]),
+              let response = try? decode(AtlasBusinessMutation.self, data: data) else { return nil }
+        return response.item
     }
 
     func save(fields: [String: String], editing: AtlasBusinessRecord?) async -> Bool {
@@ -252,7 +269,7 @@ final class AtlasBusiness: ObservableObject {
     }
 
     private func mutate(_ action: [String: Any]) async -> Bool {
-        guard !busy else { return false }
+        guard !busy, page?.cached != true else { return false }
         busy = true
         mutating = true
         errorMessage = nil
@@ -296,7 +313,8 @@ final class AtlasBusiness: ObservableObject {
         page = AtlasBusinessPage(items: items ?? response.items, page: response.page, totalPages: response.totalPages,
                                  totalCount: response.totalCount, canWrite: response.canWrite,
                                  options: response.options, summary: response.summary,
-                                 financeOverview: response.page == 1 ? response.financeOverview : page?.financeOverview)
+                                 financeOverview: response.page == 1 ? response.financeOverview : page?.financeOverview,
+                                 cached: response.cached)
         options = response.options
         forbidden = false
         nextPageFailed = false
@@ -310,13 +328,20 @@ final class AtlasBusiness: ObservableObject {
         var input = action
         input["resource"] = resource.rawValue
         let data = try await request(input)
+        return try decode(Value.self, data: data)
+    }
+
+    private func decode<Value: Decodable>(_ type: Value.Type, data: Data) throws -> Value {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(Value.self, from: data)
     }
 
     private func report(_ error: Error) {
-        if (error as? AtlasAuthenticationError)?.kind == "forbidden" {
+        if AtlasReadCache.accessDenied(error) {
+            generation += 1
+            busy = mutating
+            loading = false
             forbidden = true
             page = nil
             records = [:]

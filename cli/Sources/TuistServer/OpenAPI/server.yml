@@ -1495,6 +1495,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - actor
@@ -3619,8 +3625,11 @@ components:
           x-struct:
           x-validate:
         supported_platforms:
+          description: Supported platforms. Clients must ignore unknown platforms.
           items:
-            $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: string
+            x-struct:
+            x-validate:
           type: array
           x-struct:
           x-validate:
@@ -4368,6 +4377,12 @@ components:
           enum:
             - success
             - failure
+          type: string
+          x-struct:
+          x-validate:
+        tuist_version:
+          description: The reporting tuist_ex library version.
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -5345,6 +5360,23 @@ components:
               type: array
               x-struct:
               x-validate:
+            custom_metadata:
+              properties:
+                tags:
+                  description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                  items:
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 10
+                  type: array
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
             download_size:
               description: The bundle download size in bytes
               type: integer
@@ -6270,6 +6302,148 @@ components:
           type: object
           x-struct:
           x-validate:
+        cache_inspection:
+          additionalProperties: false
+          description: Validated inspection records when requested; null when omitted, missing or invalid.
+          nullable: true
+          properties:
+            cas_outputs:
+              items:
+                additionalProperties: false
+                properties:
+                  duration_ns:
+                    maximum: 9000000000000000
+                    minimum: 0
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  key:
+                    maxLength: 100
+                    pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  operation:
+                    enum:
+                      - download
+                      - upload
+                    type: string
+                    x-struct:
+                    x-validate:
+                  size_bytes:
+                    maximum: 9000000000000000
+                    minimum: 0
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - downloaded
+                      - uploaded
+                      - present
+                      - failed
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - key
+                  - operation
+                  - status
+                  - size_bytes
+                  - duration_ns
+                type: object
+                x-struct:
+                x-validate:
+              maxItems: 5000
+              type: array
+              x-struct:
+              x-validate:
+            tasks:
+              items:
+                additionalProperties: false
+                properties:
+                  cas_keys:
+                    items:
+                      maxLength: 100
+                      pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                      type: string
+                      x-struct:
+                      x-validate:
+                    maxItems: 128
+                    type: array
+                    x-struct:
+                    x-validate:
+                  key:
+                    maxLength: 100
+                    pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  kind:
+                    enum:
+                      - rust
+                      - compiler
+                      - build_script
+                    type: string
+                    x-struct:
+                    x-validate:
+                  name:
+                    maxLength: 1024
+                    minLength: 1
+                    type: string
+                    x-struct:
+                    x-validate:
+                  read_duration_ns:
+                    maximum: 9000000000000000
+                    minimum: 0
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - hit
+                      - miss
+                      - unconsulted
+                      - verification
+                    type: string
+                    x-struct:
+                    x-validate:
+                  write_duration_ns:
+                    maximum: 9000000000000000
+                    minimum: 0
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - key
+                  - name
+                  - kind
+                  - status
+                type: object
+                x-struct:
+                x-validate:
+              maxItems: 2000
+              type: array
+              x-struct:
+              x-validate:
+            truncated:
+              type: boolean
+              x-struct:
+              x-validate:
+            version:
+              enum:
+                - 1
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - version
+            - tasks
+            - cas_outputs
+            - truncated
+          type: object
+          x-struct:
+          x-validate:
         ci_host:
           nullable: true
           type: string
@@ -6294,6 +6468,107 @@ components:
           description: The Cargo subcommand, for example build or check.
           nullable: true
           type: string
+          x-struct:
+          x-validate:
+        compilations:
+          description: First 500 recorded rustc invocations, ordered by start offset and ID, not per-file timings.
+          items:
+            additionalProperties: false
+            properties:
+              dependencies:
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              diagnostics:
+                items:
+                  properties:
+                    file:
+                      nullable: true
+                      type: string
+                      x-struct:
+                      x-validate:
+                    line:
+                      minimum: 0
+                      nullable: true
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    message:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    severity:
+                      description: Recorded warning or error.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - severity
+                    - message
+                  type: object
+                  x-struct:
+                  x-validate:
+                maxItems: 100
+                type: array
+                x-struct:
+                x-validate:
+              duration_ms:
+                description: Duration of this rustc invocation.
+                minimum: 0
+                type: integer
+                x-struct:
+                x-validate:
+              id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+              kind:
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+              source:
+                type: string
+                x-struct:
+                x-validate:
+              start_offset_ms:
+                minimum: 0
+                type: integer
+                x-struct:
+                x-validate:
+              status:
+                description: Recorded success or failure.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - name
+              - source
+              - kind
+              - dependencies
+              - start_offset_ms
+              - duration_ms
+              - status
+              - diagnostics
+            type: object
+            x-struct:
+            x-validate:
+          maxItems: 500
+          type: array
+          x-struct:
+          x-validate:
+        compilations_truncated:
+          description: More recorded invocations exist than returned. Diagnostics cover only returned invocations.
+          type: boolean
           x-struct:
           x-validate:
         custom_metadata:
@@ -6366,6 +6641,12 @@ components:
           enum:
             - success
             - failure
+          type: string
+          x-struct:
+          x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -7053,6 +7334,12 @@ components:
           minLength: 1
           type: string
           writeOnly: true
+          x-struct:
+          x-validate:
+        snapshot_id:
+          description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          type: string
           x-struct:
           x-validate:
         template:
@@ -8080,6 +8367,73 @@ components:
       title: UploadCommitsRequest
       type: object
       x-struct:
+      x-validate:
+    NotificationPreferences:
+      description: The signed-in user's own choices for one notification kind, per account (their personal account and organizations) with project overrides. The choices apply to every delivery channel.
+      properties:
+        accounts:
+          items:
+            properties:
+              enabled:
+                description: "The user's choice for the account's projects, including future ones."
+                type: boolean
+                x-struct:
+                x-validate:
+              handle:
+                description: The account handle.
+                type: string
+                x-struct:
+                x-validate:
+              projects:
+                items:
+                  properties:
+                    enabled:
+                      description: Whether the user is notified about this project.
+                      type: boolean
+                      x-struct:
+                      x-validate:
+                    handle:
+                      description: The project handle, without the account.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    setting:
+                      description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - handle
+                    - setting
+                    - enabled
+                  title: NotificationPreferencesProject
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - handle
+              - enabled
+              - projects
+            title: NotificationPreferencesAccount
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        kind:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - kind
+        - accounts
+      title: NotificationPreferences
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.NotificationPreferences
       x-validate:
     AccountToken:
       properties:
@@ -9389,6 +9743,51 @@ components:
       type: object
       x-struct:
       x-validate:
+    CargoCrate:
+      properties:
+        first_seen_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: Stable project-scoped identity, independent of a run.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        identity:
+          additionalProperties:
+            type: string
+            x-struct:
+            x-validate:
+          type: object
+          x-struct:
+          x-validate:
+        last_seen_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        observations:
+          description: Recorded observations in the list's selected cohort.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - identity
+        - first_seen_at
+        - last_seen_at
+      title: CargoCrate
+      type: object
+      x-struct:
+      x-validate:
     OnceRunList:
       properties:
         pagination_metadata:
@@ -9506,6 +9905,55 @@ components:
         - runs
         - pagination_metadata
       title: OnceRunList
+      type: object
+      x-struct:
+      x-validate:
+    NotificationPreferencesAccount:
+      properties:
+        enabled:
+          description: "The user's choice for the account's projects, including future ones."
+          type: boolean
+          x-struct:
+          x-validate:
+        handle:
+          description: The account handle.
+          type: string
+          x-struct:
+          x-validate:
+        projects:
+          items:
+            properties:
+              enabled:
+                description: Whether the user is notified about this project.
+                type: boolean
+                x-struct:
+                x-validate:
+              handle:
+                description: The project handle, without the account.
+                type: string
+                x-struct:
+                x-validate:
+              setting:
+                description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - handle
+              - setting
+              - enabled
+            title: NotificationPreferencesProject
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - handle
+        - enabled
+        - projects
+      title: NotificationPreferencesAccount
       type: object
       x-struct:
       x-validate:
@@ -9854,6 +10302,20 @@ components:
           items:
             $ref: '#/components/schemas/BundleArtifact'
           type: array
+          x-struct:
+          x-validate:
+        custom_metadata:
+          properties:
+            tags:
+              description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          type: object
           x-struct:
           x-validate:
         download_size:
@@ -10656,6 +11118,11 @@ components:
         token:
           description: The token to send to cache nodes.
           type: string
+          x-struct:
+          x-validate:
+        writable:
+          description: Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
+          type: boolean
           x-struct:
           x-validate:
       required:
@@ -11963,6 +12430,19 @@ components:
           type: string
           x-struct:
           x-validate:
+        archive_bytes:
+          description: Size of the stored archive in bytes.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        archived_at:
+          description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         error_message:
           nullable: true
           type: string
@@ -12028,6 +12508,7 @@ components:
             - running
             - resuming
             - paused
+            - archived
             - error
             - deleted
           type: string
@@ -12310,6 +12791,72 @@ components:
       title: TestCase
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.TestCase
+      x-validate:
+    CargoCrateObservation:
+      properties:
+        cache_status:
+          description: Observed cache result; none means no recorded cache lookup.
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          description: Recorded duration; cache-operation time is not compilation time.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        execution_id:
+          description: Native execution identifier for drill-down.
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          nullable: true
+          type: boolean
+          x-struct:
+          x-validate:
+        observed_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        parent_id:
+          description: Recorded build, invocation or command identifier.
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: Recorded outcome; unknown does not imply success.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - parent_id
+        - execution_id
+        - status
+        - cache_status
+        - duration_ms
+        - git_branch
+        - git_commit_sha
+        - is_ci
+        - observed_at
+      title: CargoCrateObservation
+      type: object
+      x-struct:
       x-validate:
     GradleBuildStatus:
       enum:
@@ -12781,6 +13328,12 @@ components:
           enum:
             - success
             - failure
+          type: string
+          x-struct:
+          x-validate:
+        tuist_version:
+          description: The reporting Tuist CLI version.
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -13484,6 +14037,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              tuist_version:
+                description: The reporting Tuist CLI version.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
             required:
               - id
               - actor
@@ -13748,6 +14307,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              tuist_version:
+                description: The reporting tuist_ex library version.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
             required:
               - id
               - actor
@@ -13863,9 +14428,35 @@ components:
         - visionos_simulator
         - macos
         - android
+        - linux
       title: PreviewSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
+      x-validate:
+    NotificationPreferencesProject:
+      properties:
+        enabled:
+          description: Whether the user is notified about this project.
+          type: boolean
+          x-struct:
+          x-validate:
+        handle:
+          description: The project handle, without the account.
+          type: string
+          x-struct:
+          x-validate:
+        setting:
+          description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - handle
+        - setting
+        - enabled
+      title: NotificationPreferencesProject
+      type: object
+      x-struct:
       x-validate:
     ArtifactMultipartUploadURL:
       description: The URL to upload a multipart part
@@ -14018,7 +14609,7 @@ components:
     AppBuild:
       properties:
         binary_id:
-          description: The Mach-O UUID of the build's main binary.
+          description: The Mach-O UUID or SHA-256 content hash of the build.
           type: string
           x-struct:
           x-validate:
@@ -14027,18 +14618,26 @@ components:
           type: string
           x-struct:
           x-validate:
-        supported_platforms:
+        supported_architectures:
+          description: CPU architectures in the build, currently arm64 and x86_64. Empty or absent means unknown or interpreter-based; clients must inspect the downloaded executable.
           items:
-            $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        supported_platforms:
+          description: Supported platforms. Clients must ignore unknown platforms.
+          items:
+            type: string
+            x-struct:
+            x-validate:
           type: array
           x-struct:
           x-validate:
         type:
-          description: The type of the build
-          enum:
-            - app_bundle
-            - ipa
-            - apk
+          description: The build format, currently app_bundle, ipa, apk or executable. Clients must ignore unknown formats.
           type: string
           x-struct:
           x-validate:
@@ -16277,6 +16876,19 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        archive_bytes:
+                          description: Size of the stored archive in bytes.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        archived_at:
+                          description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         error_message:
                           nullable: true
                           type: string
@@ -16342,6 +16954,7 @@ paths:
                             - running
                             - resuming
                             - paused
+                            - archived
                             - error
                             - deleted
                           type: string
@@ -16505,6 +17118,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -16570,6 +17196,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -17212,7 +17839,7 @@ paths:
   /api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}:
     post:
       callbacks: {}
-      description: Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.
+      description: "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it."
       operationId: dispatchAmpOrb
       parameters:
         - description: The account handle.
@@ -17267,6 +17894,12 @@ paths:
                   minLength: 1
                   type: string
                   writeOnly: true
+                  x-struct:
+                  x-validate:
+                snapshot_id:
+                  description: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
+                  pattern: ^[A-Za-z0-9._:-]{1,255}$
+                  type: string
                   x-struct:
                   x-validate:
                 template:
@@ -20272,6 +20905,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -20495,6 +21140,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/mix/modules:
     get:
       callbacks: {}
+      description: List Mix compiled modules across builds.
       operationId: listProjectMixCompiledModules
       parameters:
         - description: ''
@@ -21036,6 +21682,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -21101,6 +21760,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -21559,6 +22219,23 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by tags. Returns bundles containing ALL specified tags.
+          explode: false
+          in: query
+          name: tags
+          required: false
+          schema:
+            items:
+              maxLength: 50
+              pattern: ^[a-zA-Z0-9_-]+$
+              type: string
+              x-struct:
+              x-validate:
+            maxItems: 10
+            type: array
+            x-struct:
+            x-validate:
+          style: form
         - description: Page number for pagination.
           in: query
           name: page
@@ -21604,6 +22281,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of bundles
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid bundle filters
         '401':
           content:
             application/json:
@@ -21678,6 +22361,23 @@ paths:
                       items:
                         $ref: '#/components/schemas/BundleArtifact'
                       type: array
+                      x-struct:
+                      x-validate:
+                    custom_metadata:
+                      properties:
+                        tags:
+                          description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                          items:
+                            maxLength: 50
+                            pattern: ^[a-zA-Z0-9_-]+$
+                            type: string
+                            x-struct:
+                            x-validate:
+                          maxItems: 10
+                          type: array
+                          x-struct:
+                          x-validate:
+                      type: object
                       x-struct:
                       x-validate:
                     download_size:
@@ -22017,6 +22717,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The invitation email budget is exhausted; retry after the Retry-After interval
       summary: Creates an invitation
       tags:
         - Invitations
@@ -24805,6 +25511,308 @@ paths:
       summary: 'Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.'
       tags:
         - Runs
+  /api/projects/{account_handle}/{project_handle}/cargo/crates/{crate_id}/compilations:
+    get:
+      callbacks: {}
+      description: Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
+      operationId: listProjectCargoCrateHistory
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: crate_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive ISO 8601 start, within the last 90 days.
+          in: query
+          name: start_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exclusive ISO 8601 end, defaulting to now.
+          in: query
+          name: end_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: environment
+          required: false
+          schema:
+            default: any
+            enum:
+              - any
+              - ci
+              - local
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact recorded branch.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            maximum: 10000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Opaque cursor for the next history page.
+          in: query
+          name: after
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: Opaque cursor for the previous history page.
+          in: query
+          name: before
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  compilations:
+                    items:
+                      properties:
+                        cache_status:
+                          description: Observed cache result; none means no recorded cache lookup.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          description: Recorded duration; cache-operation time is not compilation time.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        execution_id:
+                          description: Native execution identifier for drill-down.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          nullable: true
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        observed_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        parent_id:
+                          description: Recorded build, invocation or command identifier.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Recorded outcome; unknown does not imply success.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - parent_id
+                        - execution_id
+                        - status
+                        - cache_status
+                        - duration_ms
+                        - git_branch
+                        - git_commit_sha
+                        - is_ci
+                        - observed_at
+                      title: CargoCrateObservation
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    description: Pagination metadata.
+                    properties:
+                      after:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      before:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      current_page:
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      end_cursor:
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        description: Whether there are more pages available.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        description: Whether there are previous pages available.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        description: Number of items per page.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      start_cursor:
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        description: Total number of items. Always `nil` when using cursor-based pagination.
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_pages:
+                        description: Total number of pages. Always `nil` when using cursor-based pagination.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - has_next_page
+                      - has_previous_page
+                      - page_size
+                    title: BuildHistoryPagination
+                    type: object
+                    x-struct: Elixir.TuistWeb.API.Schemas.PaginationMetadata
+                    x-validate:
+                required:
+                  - compilations
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List recorded history for a Cargo crate across builds.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid filters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found in this project
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Analytics query exceeded the server's resource limits
+      summary: List recorded history for a Cargo crate across builds.
+      tags:
+        - CargoCrate
   /api/accounts/{account_handle}/runners/workflows:
     get:
       callbacks: {}
@@ -25125,6 +26133,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/gradle/tasks:
     get:
       callbacks: {}
+      description: List Gradle tasks across builds.
       operationId: listProjectGradleTasks
       parameters:
         - description: ''
@@ -25500,6 +26509,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -25565,6 +26587,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -26286,6 +27309,12 @@ paths:
                           enum:
                             - success
                             - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting tuist_ex library version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -27174,6 +28203,18 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_generation_version:
+                    description: The Tuist CLI version that generated the associated project, when available.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   url:
                     description: URL to view the build in the dashboard.
                     type: string
@@ -27242,6 +28283,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/bazel/actions:
     get:
       callbacks: {}
+      description: List Bazel actions across builds.
       operationId: listProjectBazelBuildActions
       parameters:
         - description: ''
@@ -27905,6 +28947,12 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting tuist_ex library version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - cache
                   - id
@@ -28244,6 +29292,47 @@ paths:
       summary: Send a message to an agent session.
       tags:
         - Sandboxes
+  /api/me/notification-preferences/{kind}:
+    get:
+      callbacks: {}
+      operationId: getNotificationPreferences
+      parameters:
+        - description: The notification kind. `new_preview` covers new previews of the user's projects.
+          in: path
+          name: kind
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+          description: The user's preferences for the kind
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification preferences
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+      summary: Gets the signed-in user's preferences for a notification kind
+      tags:
+        - Notification preferences
   /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing:
     post:
       callbacks: {}
@@ -28346,6 +29435,81 @@ paths:
       summary: Find which commits the server has not stored yet.
       tags:
         - Tests
+  /api/me/push-devices:
+    get:
+      callbacks: {}
+      operationId: listPushDevices
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  devices:
+                    items:
+                      properties:
+                        installation_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        last_seen_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        platform:
+                          description: ios or android
+                          type: string
+                          x-struct:
+                          x-validate:
+                        registered_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        registration_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - registration_id
+                        - installation_id
+                        - platform
+                        - registered_at
+                        - last_seen_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - devices
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's devices
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can list push devices
+      summary: Lists the signed-in user's push devices
+      tags:
+        - Push devices
   /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes:
     get:
       callbacks: {}
@@ -29398,6 +30562,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/mix/files/{file_id}:
     get:
       callbacks: {}
+      description: Get a Mix compiled file and its analytics across builds.
       operationId: getProjectMixCompiledFile
       parameters:
         - description: ''
@@ -31005,6 +32170,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events:
     get:
       callbacks: {}
+      description: List recorded history for an Xcode module across builds.
       operationId: listProjectXcodeCachedModuleHistory
       parameters:
         - description: ''
@@ -31306,7 +32472,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/cargo/builds:
     get:
       callbacks: {}
-      description: Cargo test runs reported as nextest are listed with test runs, not builds.
+      description: Cargo test execution results are listed with test runs, not builds.
       operationId: listCargoBuilds
       parameters:
         - description: The handle of the account.
@@ -31493,6 +32659,12 @@ paths:
                           enum:
                             - success
                             - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -32055,6 +33227,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   id:
                     format: uuid
                     type: string
@@ -32099,6 +33273,12 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build creation in progress; retry the request
       summary: Record a Cargo invocation and its observed rustc compilations.
       tags:
         - Cargo
@@ -32412,6 +33592,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -33704,6 +34896,18 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                supported_architectures:
+                  description: CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds.
+                  items:
+                    pattern: ^(arm64|x86_64)$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 2
+                  type: array
+                  uniqueItems: true
+                  x-struct:
+                  x-validate:
                 supported_platforms:
                   description: The supported platforms of the preview.
                   items:
@@ -33723,6 +34927,7 @@ paths:
                     - app_bundle
                     - ipa
                     - apk
+                    - executable
                   type: string
                   x-struct:
                   x-validate:
@@ -33859,7 +35064,7 @@ paths:
               x-struct:
               x-validate:
         description: Authentication params.
-        required: false
+        required: true
       responses:
         '200':
           content:
@@ -35105,6 +36310,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}:
     get:
       callbacks: {}
+      description: Get a Gradle task and its analytics across builds.
       operationId: getProjectGradleTask
       parameters:
         - description: ''
@@ -35495,6 +36701,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions:
     get:
       callbacks: {}
+      description: List recorded history for a Once action across builds.
       operationId: listProjectOnceActionHistory
       parameters:
         - description: ''
@@ -37293,6 +38500,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}:
     get:
       callbacks: {}
+      description: Get an Xcode module and its analytics across builds.
       operationId: getProjectXcodeCachedModule
       parameters:
         - description: ''
@@ -37935,6 +39143,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations:
     get:
       callbacks: {}
+      description: List recorded history for a Mix compiled module across builds.
       operationId: listProjectMixCompiledModuleHistory
       parameters:
         - description: ''
@@ -38778,6 +39987,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -38843,6 +40065,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -39657,6 +40880,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Include validated task and CAS records (up to 4 MB). Defaults to false.
+          in: query
+          name: include_cache_inspection
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
@@ -39784,6 +41015,148 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  cache_inspection:
+                    additionalProperties: false
+                    description: Validated inspection records when requested; null when omitted, missing or invalid.
+                    nullable: true
+                    properties:
+                      cas_outputs:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            duration_ns:
+                              maximum: 9000000000000000
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            key:
+                              maxLength: 100
+                              pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                              type: string
+                              x-struct:
+                              x-validate:
+                            operation:
+                              enum:
+                                - download
+                                - upload
+                              type: string
+                              x-struct:
+                              x-validate:
+                            size_bytes:
+                              maximum: 9000000000000000
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            status:
+                              enum:
+                                - downloaded
+                                - uploaded
+                                - present
+                                - failed
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - key
+                            - operation
+                            - status
+                            - size_bytes
+                            - duration_ns
+                          type: object
+                          x-struct:
+                          x-validate:
+                        maxItems: 5000
+                        type: array
+                        x-struct:
+                        x-validate:
+                      tasks:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            cas_keys:
+                              items:
+                                maxLength: 100
+                                pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                                type: string
+                                x-struct:
+                                x-validate:
+                              maxItems: 128
+                              type: array
+                              x-struct:
+                              x-validate:
+                            key:
+                              maxLength: 100
+                              pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                              type: string
+                              x-struct:
+                              x-validate:
+                            kind:
+                              enum:
+                                - rust
+                                - compiler
+                                - build_script
+                              type: string
+                              x-struct:
+                              x-validate:
+                            name:
+                              maxLength: 1024
+                              minLength: 1
+                              type: string
+                              x-struct:
+                              x-validate:
+                            read_duration_ns:
+                              maximum: 9000000000000000
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            status:
+                              enum:
+                                - hit
+                                - miss
+                                - unconsulted
+                                - verification
+                              type: string
+                              x-struct:
+                              x-validate:
+                            write_duration_ns:
+                              maximum: 9000000000000000
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - key
+                            - name
+                            - kind
+                            - status
+                          type: object
+                          x-struct:
+                          x-validate:
+                        maxItems: 2000
+                        type: array
+                        x-struct:
+                        x-validate:
+                      truncated:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      version:
+                        enum:
+                          - 1
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - version
+                      - tasks
+                      - cas_outputs
+                      - truncated
+                    type: object
+                    x-struct:
+                    x-validate:
                   ci_host:
                     nullable: true
                     type: string
@@ -39808,6 +41181,107 @@ paths:
                     description: The Cargo subcommand, for example build or check.
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  compilations:
+                    description: First 500 recorded rustc invocations, ordered by start offset and ID, not per-file timings.
+                    items:
+                      additionalProperties: false
+                      properties:
+                        dependencies:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        diagnostics:
+                          items:
+                            properties:
+                              file:
+                                nullable: true
+                                type: string
+                                x-struct:
+                                x-validate:
+                              line:
+                                minimum: 0
+                                nullable: true
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              message:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              severity:
+                                description: Recorded warning or error.
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - severity
+                              - message
+                            type: object
+                            x-struct:
+                            x-validate:
+                          maxItems: 100
+                          type: array
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          description: Duration of this rustc invocation.
+                          minimum: 0
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        kind:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        source:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        start_offset_ms:
+                          minimum: 0
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Recorded success or failure.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - source
+                        - kind
+                        - dependencies
+                        - start_offset_ms
+                        - duration_ms
+                        - status
+                        - diagnostics
+                      type: object
+                      x-struct:
+                      x-validate:
+                    maxItems: 500
+                    type: array
+                    x-struct:
+                    x-validate:
+                  compilations_truncated:
+                    description: More recorded invocations exist than returned. Diagnostics cover only returned invocations.
+                    type: boolean
                     x-struct:
                     x-validate:
                   custom_metadata:
@@ -39883,6 +41357,12 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting Tuist CLI version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - cache
                   - id
@@ -39939,7 +41419,7 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-      summary: Get a Cargo build with its decoded cache counters.
+      summary: Get a Cargo build with compiler diagnostics and decoded cache measurements.
       tags:
         - Cargo
   /api/cache/multipart/start:
@@ -40481,6 +41961,598 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/cargo/crates:
+    get:
+      callbacks: {}
+      description: Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
+      operationId: listProjectCargoCrates
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Search names and identity.
+          in: query
+          name: q
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive ISO 8601 start, within the last 90 days.
+          in: query
+          name: start_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exclusive ISO 8601 end, defaulting to now.
+          in: query
+          name: end_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: environment
+          required: false
+          schema:
+            default: any
+            enum:
+              - any
+              - ci
+              - local
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact recorded branch.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            maximum: 10000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  crates:
+                    items:
+                      properties:
+                        first_seen_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: Stable project-scoped identity, independent of a run.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        identity:
+                          additionalProperties:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: object
+                          x-struct:
+                          x-validate:
+                        last_seen_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        observations:
+                          description: Recorded observations in the list's selected cohort.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - identity
+                        - first_seen_at
+                        - last_seen_at
+                      title: CargoCrate
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - crates
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List Cargo crates across builds.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid filters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found in this project
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Analytics query exceeded the server's resource limits
+      summary: List Cargo crates across builds.
+      tags:
+        - CargoCrate
+  /api/projects/{account_handle}/{project_handle}/cargo/crates/{crate_id}:
+    get:
+      callbacks: {}
+      description: Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
+      operationId: getProjectCargoCrate
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: crate_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive ISO 8601 start, within the last 90 days.
+          in: query
+          name: start_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exclusive ISO 8601 end, defaulting to now.
+          in: query
+          name: end_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: environment
+          required: false
+          schema:
+            default: any
+            enum:
+              - any
+              - ci
+              - local
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact recorded branch.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  analytics:
+                    properties:
+                      points:
+                        items:
+                          properties:
+                            avg_duration_ms:
+                              description: Average recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            date:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            duration_samples:
+                              description: Number of observations with a recorded duration, including genuine zero durations.
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            failures:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            hit_rate:
+                              description: Percentage of known cache lookups that hit; unavailable without recorded lookups.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            hits:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            misses:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            observations:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p50_duration_ms:
+                              description: Median recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            p90_duration_ms:
+                              description: 90th percentile recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            p99_duration_ms:
+                              description: 99th percentile recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                          required:
+                            - observations
+                            - hits
+                            - misses
+                            - failures
+                            - hit_rate
+                            - avg_duration_ms
+                            - p50_duration_ms
+                            - p90_duration_ms
+                            - p99_duration_ms
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      previous:
+                        properties:
+                          avg_duration_ms:
+                            description: Average recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          duration_samples:
+                            description: Number of observations with a recorded duration, including genuine zero durations.
+                            minimum: 0
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          failures:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          hit_rate:
+                            description: Percentage of known cache lookups that hit; unavailable without recorded lookups.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          hits:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          misses:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          observations:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          p50_duration_ms:
+                            description: Median recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p90_duration_ms:
+                            description: 90th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p99_duration_ms:
+                            description: 99th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                        required:
+                          - observations
+                          - hits
+                          - misses
+                          - failures
+                          - hit_rate
+                          - avg_duration_ms
+                          - p50_duration_ms
+                          - p90_duration_ms
+                          - p99_duration_ms
+                        type: object
+                        x-struct:
+                        x-validate:
+                      total:
+                        properties:
+                          avg_duration_ms:
+                            description: Average recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          duration_samples:
+                            description: Number of observations with a recorded duration, including genuine zero durations.
+                            minimum: 0
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          failures:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          hit_rate:
+                            description: Percentage of known cache lookups that hit; unavailable without recorded lookups.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          hits:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          misses:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          observations:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          p50_duration_ms:
+                            description: Median recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p90_duration_ms:
+                            description: 90th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p99_duration_ms:
+                            description: 99th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                        required:
+                          - observations
+                          - hits
+                          - misses
+                          - failures
+                          - hit_rate
+                          - avg_duration_ms
+                          - p50_duration_ms
+                          - p90_duration_ms
+                          - p99_duration_ms
+                        type: object
+                        x-struct:
+                        x-validate:
+                    required:
+                      - total
+                      - previous
+                      - points
+                    type: object
+                    x-struct:
+                    x-validate:
+                  crate:
+                    properties:
+                      first_seen_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      id:
+                        description: Stable project-scoped identity, independent of a run.
+                        format: uuid
+                        type: string
+                        x-struct:
+                        x-validate:
+                      identity:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                      last_seen_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      observations:
+                        description: Recorded observations in the list's selected cohort.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - name
+                      - identity
+                      - first_seen_at
+                      - last_seen_at
+                    title: CargoCrate
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - crate
+                  - analytics
+                type: object
+                x-struct:
+                x-validate:
+          description: Get a Cargo crate and its analytics across builds.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid filters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found in this project
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Analytics query exceeded the server's resource limits
+      summary: Get a Cargo crate and its analytics across builds.
+      tags:
+        - CargoCrate
   /api/accounts/{account_handle}/runners/profiles/{profile_name}:
     delete:
       callbacks: {}
@@ -41061,6 +43133,18 @@ paths:
                             - failure
                             - processing
                             - failed_processing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_generation_version:
+                          description: The Tuist CLI version that generated the associated project, when available.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist CLI version.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -43296,6 +45380,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions:
     get:
       callbacks: {}
+      description: List recorded history for a Gradle task across builds.
       operationId: listProjectGradleTaskHistory
       parameters:
         - description: ''
@@ -43676,6 +45761,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/bazel/actions/{action_id}:
     get:
       callbacks: {}
+      description: Get a Bazel action and its analytics across builds.
       operationId: getProjectBazelBuildAction
       parameters:
         - description: ''
@@ -44326,6 +46412,98 @@ paths:
       summary: List tasks for a Gradle build.
       tags:
         - Gradle
+  /api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}:
+    put:
+      callbacks: {}
+      operationId: updateProjectNotificationPreference
+      parameters:
+        - description: The notification kind. `new_preview` covers new previews of the user's projects.
+          in: path
+          name: kind
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                setting:
+                  description: '`default` follows the account; `on` and `off` override it.'
+                  enum:
+                    - default
+                    - 'on'
+                    - 'off'
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - setting
+              type: object
+              x-struct:
+              x-validate:
+        description: Project preference
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+          description: The user's preferences for the kind
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification preferences
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Overrides a notification kind for one project
+      tags:
+        - Notification preferences
   /api/runs/{run_id}/complete_artifacts_uploads:
     put:
       callbacks: {}
@@ -45621,6 +47799,52 @@ paths:
       summary: List the jobs that used a runner volume.
       tags:
         - Runners
+  /api/me/push-device-registrations/{registration_id}:
+    delete:
+      callbacks: {}
+      description: Stops notifications to the device. When that device next refreshes its registration it learns it was removed and keeps notifications off until its user turns them back on.
+      operationId: removePushDevice
+      parameters:
+        - description: The device's registration ID.
+          in: path
+          name: registration_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The device is removed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can remove push devices
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Removes one of the signed-in user's devices
+      tags:
+        - Push devices
   /api/projects/{account_handle}/{project_handle}/once/runs/{once_run_id}:
     get:
       callbacks: {}
@@ -45905,6 +48129,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/once/actions:
     get:
       callbacks: {}
+      description: List Once actions across builds.
       operationId: listProjectOnceActions
       parameters:
         - description: ''
@@ -46130,7 +48355,7 @@ paths:
               x-struct:
               x-validate:
         description: Apple authentication params.
-        required: false
+        required: true
       responses:
         '200':
           content:
@@ -46252,6 +48477,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}:
     get:
       callbacks: {}
+      description: Get a Mix compiled module and its analytics across builds.
       operationId: getProjectMixCompiledModule
       parameters:
         - description: ''
@@ -48344,6 +50570,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/xcode/modules:
     get:
       callbacks: {}
+      description: List Xcode modules across builds.
       operationId: listProjectXcodeCachedModules
       parameters:
         - description: ''
@@ -48865,6 +51092,12 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  tuist_version:
+                    description: The reporting Tuist Gradle plugin version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 type: object
                 x-struct:
                 x-validate:
@@ -49340,9 +51573,89 @@ paths:
       summary: Get a webhook endpoint.
       tags:
         - Webhooks
+  /api/me/notification-preferences/{kind}/accounts/{account_handle}:
+    put:
+      callbacks: {}
+      operationId: updateAccountNotificationPreference
+      parameters:
+        - description: The notification kind. `new_preview` covers new previews of the user's projects.
+          in: path
+          name: kind
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+              required:
+                - enabled
+              type: object
+              x-struct:
+              x-validate:
+        description: Account preference
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+          description: The user's preferences for the kind
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification preferences
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Turns a notification kind on or off for an account's projects
+      tags:
+        - Notification preferences
   /api/projects/{account_handle}/{project_handle}/bazel/actions/{action_id}/executions:
     get:
       callbacks: {}
+      description: List recorded history for a Bazel action across builds.
       operationId: listProjectBazelBuildActionHistory
       parameters:
         - description: ''
@@ -50155,6 +52468,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}:
     get:
       callbacks: {}
+      description: Get a Once action and its analytics across builds.
       operationId: getProjectOnceAction
       parameters:
         - description: ''
@@ -51083,6 +53397,191 @@ paths:
       summary: Get a Bazel remote-cache event by its identifier.
       tags:
         - Bazel
+  /api/me/push-devices/{installation_id}:
+    delete:
+      callbacks: {}
+      description: Retires the installation if it belongs to the signed-in user. The installation ID cannot be registered again.
+      operationId: unregisterPushDevice
+      parameters:
+        - description: The client-generated lowercase UUID that identifies this app installation.
+          in: path
+          name: installation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The installation is unregistered
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The installation ID is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can unregister push devices
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Unregisters this app installation from push notifications
+      tags:
+        - Push devices
+    put:
+      callbacks: {}
+      description: Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+      operationId: registerPushDevice
+      parameters:
+        - description: The client-generated lowercase UUID that identifies this app installation.
+          in: path
+          name: installation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                environment:
+                  description: The APNs environment. Android is always production.
+                  enum:
+                    - sandbox
+                    - production
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  description: The device model shown in the user's device list, for example iPhone 17 Pro.
+                  maxLength: 200
+                  type: string
+                  x-struct:
+                  x-validate:
+                platform:
+                  description: The device platform.
+                  enum:
+                    - ios
+                    - android
+                  type: string
+                  x-struct:
+                  x-validate:
+                token:
+                  description: The APNs device token (hex) on iOS or the FCM registration token on Android.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - platform
+                - token
+                - environment
+              type: object
+              x-struct:
+              x-validate:
+        description: Push device
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  registration_id:
+                    description: The server registration ID.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - registration_id
+                type: object
+                x-struct:
+                x-validate:
+          description: The installation is registered
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The device or installation ID is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can register push devices
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The installation belongs to another user or registration
+        '410':
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  reason:
+                    description: '`retired`: generate a new installation ID and retry. `removed`: the user removed this device from their device list; keep notifications off on this device until the user turns them back on, then use a new installation ID. Treat other values as `removed`.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - message
+                  - reason
+                type: object
+                x-struct:
+                x-validate:
+          description: The installation ID can no longer be registered
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Registers this app installation for push notifications
+      tags:
+        - Push devices
   /api/projects/{account_handle}/{project_handle}/tokens:
     get:
       callbacks: {}
@@ -51210,6 +53709,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations:
     get:
       callbacks: {}
+      description: List recorded history for a Mix compiled file across builds.
       operationId: listProjectMixCompiledFileHistory
       parameters:
         - description: ''
@@ -51530,7 +54030,7 @@ paths:
               x-struct:
               x-validate:
         description: Token params
-        required: false
+        required: true
       responses:
         '200':
           content:
@@ -51769,6 +54269,12 @@ paths:
                           x-validate:
                         tasks_up_to_date_count:
                           type: integer
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: The reporting Tuist Gradle plugin version.
+                          nullable: true
+                          type: string
                           x-struct:
                           x-validate:
                       type: object
@@ -53059,6 +55565,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/mix/files:
     get:
       callbacks: {}
+      description: List Mix compiled files across builds.
       operationId: listProjectMixCompiledFiles
       parameters:
         - description: ''
@@ -54215,6 +56722,11 @@ paths:
                   token:
                     description: The token to send to cache nodes.
                     type: string
+                    x-struct:
+                    x-validate:
+                  writable:
+                    description: Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
+                    type: boolean
                     x-struct:
                     x-validate:
                 required:

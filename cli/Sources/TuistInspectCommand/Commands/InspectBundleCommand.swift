@@ -62,6 +62,13 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Option(
+        parsing: .upToNextOption,
+        help: "Tags to attach to the bundle for filtering and grouping.",
+        envKey: .bundleTags
+    )
+    var tags: [String] = []
+
     @OptionGroup
     var loggingOptions: LoggingOptions
 
@@ -74,14 +81,16 @@ public struct InspectBundleCommand: AsyncParsableCommand {
                     configuration: configuration,
                     platforms: platforms,
                     derivedDataPath: derivedDataPath,
-                    json: json
+                    json: json,
+                    tags: tags
                 )
         #else
             try await InspectBundleCommandService()
                 .run(
                     path: path,
                     bundle: bundle,
-                    json: json
+                    json: json,
+                    tags: tags
                 )
         #endif
     }

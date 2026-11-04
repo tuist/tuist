@@ -215,6 +215,89 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
+  test "publishes the release with the fallback credential when GitHub forbids the installation token" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Registry, :swift_registry_github_fallback_token, fn "token" -> "pat" end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, 2, fn
+      "apple/swift-argument-parser", "token", "v1.0.0", _ -> {:error, {:http_error, 403}}
+      "apple/swift-argument-parser", "pat", "v1.0.0", _ -> {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "pat", "Package.swift", "v1.0.0", _ -> {:ok, @default_manifest_content}
+      "apple/swift-argument-parser", "pat", ".gitmodules", "v1.0.0", _ -> {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser", "pat", "v1.0.0", archive_path, _ ->
+      write_basic_zipball(archive_path)
+      :ok
+    end)
+
+    stub_archive_upload(3)
+
+    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
+      assert is_binary(metadata["releases"]["1.0.0"]["checksum"])
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "fails a forbidden release without a skip record when there is no fallback credential" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Registry, :swift_registry_github_fallback_token, fn "token" -> nil end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:error, {:http_error, 403}}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+    capture_log(fn ->
+      assert {:error, {:http_error, 403}} =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end)
+  end
+
   test "defers the job to the reported quota reset when GitHub rate limits a manifest request" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
@@ -1044,18 +1127,28 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
   end
 
   describe "zip_directory/2" do
-    test "preserves symlinks inside code-signed bundles while flattening other symlinks" do
+    test "preserves nested symlinks while flattening root-level symlinks" do
       tmp = Path.join(System.tmp_dir!(), "zip_directory_test_#{System.unique_integer([:positive])}")
       on_exit(fn -> File.rm_rf!(tmp) end)
 
       source = Path.join(tmp, "repo-v1.0.0")
       framework = Path.join([source, "Vendor", "Adyen3DS2.xcframework", "ios-maccatalyst", "Adyen3DS2.framework"])
       version_a = Path.join([framework, "Versions", "A"])
+      c_target = Path.join([source, "Sources", "CDemo"])
       File.mkdir_p!(Path.join(version_a, "Resources"))
+      File.mkdir_p!(Path.join(c_target, "include"))
+      File.mkdir_p!(Path.join([c_target, "src", "detail"]))
 
       File.write!(Path.join(source, "README.md"), "readme")
-      # Non-bundle symlink: should be flattened into a regular file.
+      # Root-level symlink: should be flattened into a regular file.
       File.ln_s!("README.md", Path.join(source, "CLAUDE.md"))
+
+      # A vendored C target publishing headers that live with its sources, which
+      # covers a nested file symlink and a nested directory symlink.
+      File.write!(Path.join([c_target, "src", "demo.h"]), "header")
+      File.write!(Path.join([c_target, "src", "detail", "internal.h"]), "header")
+      File.ln_s!("../src/demo.h", Path.join([c_target, "include", "demo.h"]))
+      File.ln_s!("../src/detail", Path.join([c_target, "include", "detail"]))
 
       File.write!(Path.join(version_a, "Adyen3DS2"), "binary")
       File.write!(Path.join([version_a, "Resources", "Info.plist"]), "plist")
@@ -1081,11 +1174,49 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
           "Adyen3DS2.framework"
         ])
 
+      extracted_c_target = Path.join([extract_dir, "repo-v1.0.0", "Sources", "CDemo"])
+
       assert {:ok, %File.Stat{type: :regular}} = File.lstat(Path.join([extract_dir, "repo-v1.0.0", "CLAUDE.md"]))
-      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join([extracted_framework, "Versions", "Current"]))
-      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Adyen3DS2"))
-      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Resources"))
       assert {:ok, "A"} = File.read_link(Path.join([extracted_framework, "Versions", "Current"]))
+      assert {:ok, "Versions/Current/Adyen3DS2"} = File.read_link(Path.join(extracted_framework, "Adyen3DS2"))
+      assert {:ok, "Versions/Current/Resources"} = File.read_link(Path.join(extracted_framework, "Resources"))
+      assert {:ok, "../src/demo.h"} = File.read_link(Path.join([extracted_c_target, "include", "demo.h"]))
+      assert {:ok, "../src/detail"} = File.read_link(Path.join([extracted_c_target, "include", "detail"]))
+    end
+
+    test "repoints nested symlinks copied while flattening a root-level directory symlink" do
+      tmp = Path.join(System.tmp_dir!(), "zip_directory_root_directory_link_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      source = Path.join(tmp, "repo-v1.0.0")
+      c_target = Path.join([source, "Sources", "CDemo"])
+      File.mkdir_p!(Path.join(c_target, "include"))
+      File.mkdir_p!(Path.join([c_target, "src", "detail"]))
+
+      File.write!(Path.join(source, "README.md"), "readme")
+      File.write!(Path.join([c_target, "src", "demo.h"]), "header")
+      File.write!(Path.join([c_target, "src", "detail", "internal.h"]), "internal")
+      File.ln_s!("../src/demo.h", Path.join([c_target, "include", "demo.h"]))
+      File.ln_s!("../src/detail", Path.join([c_target, "include", "detail"]))
+      File.ln_s!("../../../README.md", Path.join([c_target, "include", "README.md"]))
+      File.ln_s!("Sources/CDemo/include", Path.join(source, "Headers"))
+
+      archive_path = Path.join(tmp, "source_archive.zip")
+      assert :ok = ReleaseWorker.zip_directory(source, archive_path)
+
+      extract_dir = Path.join(tmp, "extract")
+      File.mkdir_p!(extract_dir)
+      {_, 0} = System.cmd("unzip", ["-q", archive_path, "-d", extract_dir])
+
+      headers = Path.join([extract_dir, "repo-v1.0.0", "Headers"])
+
+      assert {:ok, %File.Stat{type: :directory}} = File.lstat(headers)
+      assert {:ok, "../Sources/CDemo/src/demo.h"} = File.read_link(Path.join(headers, "demo.h"))
+      assert {:ok, "../Sources/CDemo/src/detail"} = File.read_link(Path.join(headers, "detail"))
+      assert {:ok, "../README.md"} = File.read_link(Path.join(headers, "README.md"))
+      assert {:ok, "header"} = File.read(Path.join(headers, "demo.h"))
+      assert {:ok, "internal"} = File.read(Path.join([headers, "detail", "internal.h"]))
+      assert {:ok, "readme"} = File.read(Path.join(headers, "README.md"))
     end
 
     test "flattens a root-level symlink even when it is named like a code-signed bundle" do

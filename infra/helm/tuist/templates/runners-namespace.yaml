@@ -277,6 +277,17 @@ spec:
         # Kura listener.
         - protocol: TCP
           port: 4000
+    # Presigned shard object requests; no Garage admin/RPC access.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kura
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: shard-storage
+      ports:
+        - protocol: TCP
+          port: 3900
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy

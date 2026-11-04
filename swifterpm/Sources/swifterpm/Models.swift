@@ -276,3 +276,45 @@ enum PinKind {
         ].joined(separator: "/")
     }
 }
+
+struct RegistryDownloadPaths: Sendable {
+    private var subpaths: [String: String] = [:]
+
+    init(pins: [ResolvedPin], scratchDir: URL) async throws {
+        let registryPins = Dictionary(uniqueKeysWithValues: pins.filter {
+            PinKind.isRegistry($0.kind)
+        }.map { ($0.identity.lowercased(), $0) })
+        guard !registryPins.isEmpty else { return }
+
+        let statePath = scratchDir.appendingPathComponent("workspace-state.json")
+        if try await fileSystem.exists(statePath.absolutePath) {
+            let workspace = try JSONSerialization.jsonObject(
+                with: await fileSystem.readFile(at: statePath.absolutePath)
+            ) as? [String: Any]
+            let object = workspace?["object"] as? [String: Any]
+            let dependencies = object?["dependencies"] as? [[String: Any]] ?? []
+            for dependency in dependencies {
+                let ref = dependency["packageRef"] as? [String: Any]
+                let state = dependency["state"] as? [String: Any]
+                guard ref?["kind"] as? String == "registry",
+                      let identity = ref?["identity"] as? String,
+                      let pin = registryPins[identity.lowercased()],
+                      state?["name"] as? String == "registryDownload",
+                      state?["version"] as? String == pin.state.version,
+                      let subpath = dependency["subpath"] as? String
+                else { continue }
+
+                guard !subpath.isEmpty, !subpath.hasPrefix("/"), !subpath.split(separator: "/").contains("..") else {
+                    throw ToolError.message("invalid registry download subpath for \(pin.identity): \(subpath)")
+                }
+                // SwiftPM 6.4 adds a registry-specific prefix. Preserve the recorded location
+                // rather than deriving a path from the identity or reproducing SwiftPM's hash.
+                subpaths[pin.identity.lowercased()] = subpath
+            }
+        }
+    }
+
+    func subpath(for pin: ResolvedPin) throws -> String {
+        try subpaths[pin.identity.lowercased()] ?? PinKind.registryDownloadSubpath(pin)
+    }
+}

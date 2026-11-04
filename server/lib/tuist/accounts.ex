@@ -24,6 +24,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Base64
@@ -40,10 +41,12 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
+  alias Tuist.RateLimit
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.Profiles, as: RunnerProfiles
+  alias Tuist.Sandboxes.Archives, as: SandboxArchives
 
   require Logger
 
@@ -378,12 +381,18 @@ defmodule Tuist.Accounts do
     Repo.get_by(DeviceCode, code: code)
   end
 
-  def authenticate_device_code(code, %User{} = user) do
+  def authenticate_device_code(code, %User{} = user, session \\ nil) do
     device_code = get_device_code(code)
 
     {:ok, device_code} =
       device_code
-      |> DeviceCode.authenticate_changeset(%{authenticated: true, user_id: user.id})
+      |> DeviceCode.authenticate_changeset(%{
+        authenticated: true,
+        user_id: user.id,
+        auth_provider: session && session.auth_provider,
+        auth_provider_organization_id: session && session.auth_provider_organization_id,
+        auth_organization_id: session && session.auth_organization_id
+      })
       |> Repo.update()
 
     device_code
@@ -731,6 +740,7 @@ defmodule Tuist.Accounts do
     {:ok, _} =
       result =
       Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
       |> Multi.run(:delete_command_events, fn _repo, _changes ->
         CommandEvents.delete_account_events(account.id)
         {:ok, :deleted}
@@ -746,7 +756,13 @@ defmodule Tuist.Accounts do
   def delete_organization!(%Organization{} = organization) do
     account = get_account_from_organization(organization)
     destroy_account_kura_servers(account)
-    deleted = Repo.delete!(organization)
+
+    {:ok, %{delete_organization: deleted}} =
+      Multi.new()
+      |> Oban.insert(:delete_account_artifacts, DeleteAccountArtifactsWorker.new_cleanup(account))
+      |> Multi.delete(:delete_organization, organization)
+      |> Repo.transaction()
+
     purge_account_storage(account)
     deleted
   end
@@ -1533,6 +1549,9 @@ defmodule Tuist.Accounts do
         organization_id: organization_id,
         role: role
       })
+      # A duplicate must fail before it spends email quota.
+      |> Changeset.unsafe_validate_unique([:invitee_email, :organization_id], Repo)
+      |> limit_invitation_email(email, user_id, organization_id)
       |> Repo.insert()
 
     if match?({:ok, _invitation}, invitation) and Environment.mail_configured?() do
@@ -1546,7 +1565,8 @@ defmodule Tuist.Accounts do
     invitation
   end
 
-  def resend_invitation(%Invitation{} = invitation, %{url: url_fun}, opts \\ []) when is_function(url_fun, 1) do
+  def resend_invitation(%Invitation{} = invitation, %{url: url_fun, inviter: %User{} = inviter}, opts \\ [])
+      when is_function(url_fun, 1) do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
     invitation = Repo.preload(invitation, [:inviter, :organization])
     account = get_account_from_organization(invitation.organization)
@@ -1554,6 +1574,7 @@ defmodule Tuist.Accounts do
     result =
       invitation
       |> Invitation.resend_changeset(%{token: token})
+      |> limit_invitation_email(invitation.invitee_email, inviter.id, invitation.organization_id)
       |> Repo.update()
 
     if match?({:ok, _invitation}, result) and Environment.mail_configured?() do
@@ -1590,7 +1611,12 @@ defmodule Tuist.Accounts do
             role: role
           })
 
-        Multi.insert(multi_acc, {:invitation, email}, invitation_changeset)
+        Multi.run(multi_acc, {:invitation, email}, fn repo, _changes ->
+          invitation_changeset
+          |> Changeset.unsafe_validate_unique([:invitee_email, :organization_id], repo)
+          |> limit_invitation_email(email, user_id, organization_id)
+          |> repo.insert()
+        end)
       end)
 
     case Repo.transaction(multi) do
@@ -1616,6 +1642,38 @@ defmodule Tuist.Accounts do
         url: url_fun.(token)
       })
     end)
+  end
+
+  # Quotas live outside invitation rows, so cancelling does not refund them, and
+  # create, bulk and resend share them. No-mail installations skip them.
+  defp limit_invitation_email(changeset, email, inviter_id, organization_id) do
+    if changeset.valid? and Environment.mail_configured?() do
+      recipient = :sha256 |> :crypto.hash(email |> String.trim() |> String.downcase()) |> Base.encode16()
+
+      # Every allowed hit spends a token, so the shared organization bucket comes
+      # last: an exhausted inviter must not keep draining it.
+      buckets = [
+        {"invitation:recipient:#{recipient}", 1, 300},
+        {"invitation:inviter:#{inviter_id}", 50, 3600},
+        {"invitation:organization:#{organization_id}", 50, 3600}
+      ]
+
+      Enum.find_value(buckets, changeset, fn {key, capacity, period} ->
+        case RateLimit.hit(key, algorithm: :token_bucket, capacity: capacity, refill_rate: capacity / period) do
+          {:allow, _} ->
+            nil
+
+          # Hammer's token-bucket hint is a fixed second, so advertise the time one token takes to refill.
+          {:deny, _} ->
+            Changeset.add_error(changeset, :invitee_email, "Too many invitations. Please try again later.",
+              validation: :rate_limit,
+              retry_after: div(period, capacity)
+            )
+        end
+      end)
+    else
+      changeset
+    end
   end
 
   def accept_invitation(%{
@@ -1710,6 +1768,95 @@ defmodule Tuist.Accounts do
   end
 
   def sso_enforced_for_email?(_email), do: false
+
+  @doc """
+  Returns what the browser `session` (a `UserToken`, or `nil` when there is
+  none) needs before it can issue credentials that act for `user` in every
+  organization they belong to, such as OAuth authorizations and CLI device
+  codes:
+
+    * `:ok` when the session satisfies every SSO-enforcing organization.
+    * `{:sign_in_with, organization}` when the session has to sign in through
+      that organization's provider first.
+    * `{:error, :conflicting_requirements}` when several organizations
+      enforce single sign-on, which no single session can satisfy.
+  """
+  def sso_requirement(%User{} = user, session) do
+    enforcing =
+      user
+      |> get_user_organization_accounts()
+      |> Enum.map(& &1.organization)
+      |> Enum.filter(&(&1.sso_enforced and not is_nil(&1.sso_provider)))
+
+    # A session proves a single organization's sign-in (see
+    # `UserToken.satisfies_sso?/2`; no two organizations share a provider
+    # tenant), so it can satisfy at most one enforcing organization.
+    case enforcing do
+      [] -> :ok
+      [organization] -> if UserToken.satisfies_sso?(session, organization), do: :ok, else: {:sign_in_with, organization}
+      _ -> {:error, :conflicting_requirements}
+    end
+  end
+
+  @sso_refresh_grace_seconds 4 * 7 * 24 * 60 * 60
+
+  @doc """
+  The SSO claims (see `UserToken.sso_claims/1`) of the credentials that
+  replace refreshed ones whose `claims` act for `user`, or
+  `{:error, :sso_required}` when they can't be refreshed and the user has to
+  sign in again through the browser:
+
+    * Claims that satisfy the user's SSO-enforcing organizations, or a user
+      no organization of which enforces SSO, keep their proof.
+    * Without that proof, an identity the user linked by signing in through
+      the organization's provider proves the same, so it becomes the proof.
+    * Otherwise the credentials keep refreshing for a grace period, carried
+      in an `sso_grace_until` claim (Unix seconds), that starts at the first
+      such refresh and never extends, so that enforcement reaching existing
+      credentials (this check's rollout, an organization enforcing SSO, a
+      member joining one) doesn't sign anyone out at once.
+  """
+  def refresh_sso_claims(%User{} = user, claims) do
+    case sso_requirement(user, UserToken.from_sso_claims(claims)) do
+      :ok ->
+        {:ok, Map.take(claims, ["sso"])}
+
+      {:sign_in_with, organization} ->
+        if linked_sso_identity?(user, organization) do
+          {:ok,
+           UserToken.sso_claims(%UserToken{
+             auth_provider: to_string(organization.sso_provider),
+             auth_provider_organization_id: organization.sso_organization_id,
+             auth_organization_id: organization.id
+           })}
+        else
+          sso_grace_claims(claims)
+        end
+
+      {:error, :conflicting_requirements} ->
+        {:error, :sso_required}
+    end
+  end
+
+  defp sso_grace_claims(claims) do
+    now = DateTime.to_unix(Tuist.Time.utc_now())
+
+    case claims["sso_grace_until"] do
+      grace_until when is_integer(grace_until) and grace_until > now -> {:ok, %{"sso_grace_until" => grace_until}}
+      grace_until when is_integer(grace_until) -> {:error, :sso_required}
+      _ -> {:ok, %{"sso_grace_until" => now + @sso_refresh_grace_seconds}}
+    end
+  end
+
+  defp linked_sso_identity?(%User{id: user_id}, %Organization{} = organization) do
+    Repo.exists?(
+      from(i in Oauth2Identity,
+        where:
+          i.user_id == ^user_id and i.provider == ^organization.sso_provider and
+            i.provider_organization_id == ^organization.sso_organization_id
+      )
+    )
+  end
 
   @doc """
   Returns true when at least one organization on this instance has an Okta or
@@ -2067,8 +2214,8 @@ defmodule Tuist.Accounts do
   @doc """
   Generates a session token.
   """
-  def generate_user_session_token(user) do
-    {token, user_token} = UserToken.build_session_token(user)
+  def generate_user_session_token(user, auth \\ %{}) do
+    {token, user_token} = UserToken.build_session_token(user, auth)
     Repo.insert!(user_token)
     token
   end
@@ -2103,12 +2250,62 @@ defmodule Tuist.Accounts do
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
-    {:ok, query} = UserToken.verify_session_token_query(token)
+    case get_user_session(token, opts) do
+      nil -> nil
+      session -> session.user
+    end
+  end
 
-    case query |> Repo.one() |> Repo.preload(preload) do
-      %User{active: false} -> nil
-      user -> user
+  @doc """
+  Loads authoritative browser-session state. Only user-initiated requests
+  and LiveView events touch activity; checks, heartbeats and async work do not.
+  """
+  def get_user_session(token, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    session =
+      Repo.one(
+        from session in UserToken.valid_session_query(token),
+          join: user in assoc(session, :user),
+          left_join: factor in Tuist.Accounts.UserMFA,
+          on: factor.user_id == user.id,
+          where: user.active,
+          where: is_nil(factor.confirmed_at) or session.mfa_verified_at >= factor.confirmed_at,
+          preload: [user: user]
+      )
+
+    case session do
+      nil -> nil
+      session -> session |> Repo.preload(user: preload) |> maybe_touch_user_session(opts)
+    end
+  end
+
+  defp maybe_touch_user_session(session, opts) do
+    now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+    checkpoint_before = DateTime.add(now, -60)
+
+    if Keyword.get(opts, :touch, false) and
+         (is_nil(session.last_active_at) or DateTime.compare(session.last_active_at, checkpoint_before) != :gt) do
+      # Recheck both deadlines and the checkpoint age in the write: a concurrent
+      # request must never resurrect an expired/revoked session, write twice in
+      # one minute, or move a newer checkpoint backwards.
+      query =
+        from s in UserToken.valid_session_query(session.token),
+          where: is_nil(s.last_active_at) or s.last_active_at <= ^checkpoint_before
+
+      case Repo.update_all(query, set: [last_active_at: now]) do
+        {1, _} ->
+          %{session | last_active_at: now}
+
+        {0, _} ->
+          # Another request checkpointed first, or the session ended meanwhile.
+          case Repo.one(UserToken.valid_session_query(session.token)) do
+            nil -> nil
+            current -> %{session | last_active_at: current.last_active_at}
+          end
+      end
+    else
+      session
     end
   end
 
@@ -2212,28 +2409,38 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_reset_password_instructions(%{user: %User{} = user, reset_password_url: reset_password_url})
       when is_function(reset_password_url, 1) do
-    if recently_sent_reset_password_instructions?(user) do
-      :ok
-    else
-      Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+    # Serialize issuance and consumption across replicas. Mail delivery stays
+    # outside the transaction so a slow provider does not hold a database lock.
+    {:ok, issued} =
+      Repo.transaction(fn ->
+        Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE", select: u.id))
 
-      {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-      user_token = Repo.insert!(user_token)
+        if not recently_sent_reset_password_instructions?(user) do
+          Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+          {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
+          {encoded_token, Repo.insert!(user_token)}
+        end
+      end)
 
-      case UserNotifier.deliver_reset_password_instructions(%{
-             user: user,
-             reset_password_url: reset_password_url.(encoded_token)
-           }) do
-        {:ok, email} ->
-          email
+    case issued do
+      nil ->
+        :ok
 
-        {:error, _reason} ->
-          # Do not let an undelivered token suppress retries during the cooldown.
-          Repo.delete!(user_token, allow_stale: true)
-          # Bamboo API errors may include the recipient and reset URL.
-          Logger.error("Password reset email delivery failed")
-          {:error, :delivery_failed}
-      end
+      {encoded_token, user_token} ->
+        case UserNotifier.deliver_reset_password_instructions(%{
+               user: user,
+               reset_password_url: reset_password_url.(encoded_token)
+             }) do
+          {:ok, email} ->
+            email
+
+          {:error, _reason} ->
+            # Do not let an undelivered token suppress retries during the cooldown.
+            Repo.delete!(user_token, allow_stale: true)
+            # Bamboo API errors may include the recipient and reset URL.
+            Logger.error("Password reset email delivery failed")
+            {:error, :delivery_failed}
+        end
     end
   end
 
@@ -2259,34 +2466,39 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Resets the user password.
+  Resets the user password using a currently valid reset token.
 
   ## Examples
 
-      iex> reset_user_password(user, %{password: "new long password", password_confirmation: "new long password"})
+      iex> reset_user_password(token, %{password: "new long password", password_confirmation: "new long password"})
       {:ok, %{user: %User{}, revoked_session_live_socket_ids: []}}
 
-      iex> reset_user_password(user, %{password: "valid", password_confirmation: "not the same"})
+      iex> reset_user_password(token, %{password: "valid", password_confirmation: "not the same"})
       {:error, %Ecto.Changeset{}}
 
   """
-  def reset_user_password(user, attrs) do
-    Multi.new()
-    |> Multi.all(:session_tokens, UserToken.by_user_and_contexts_query(user, ["session"]))
-    |> Multi.update(:user, User.password_changeset(user, attrs))
-    |> Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{user: user, session_tokens: session_tokens}} ->
-        {:ok,
-         %{
-           user: user,
-           revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
-         }}
+  def reset_user_password(token, attrs) when is_binary(token) do
+    Repo.transaction(fn ->
+      user = get_user_by_reset_password_token(token) || Repo.rollback(:invalid_token)
+      Repo.one(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE")) || Repo.rollback(:invalid_token)
+      # Rebuild the expiry query after waiting for the lock. A token may have
+      # expired, been replaced or consumed while this request was waiting.
+      user = get_user_by_reset_password_token(token) || Repo.rollback(:invalid_token)
 
-      {:error, :user, changeset, _} ->
-        {:error, changeset}
-    end
+      user =
+        case Repo.update(User.password_changeset(user, attrs)) do
+          {:ok, user} -> user
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+
+      session_tokens = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
+      Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+
+      %{
+        user: user,
+        revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
+      }
+    end)
   end
 
   defp recently_sent_reset_password_instructions?(%User{id: user_id}) do
@@ -2720,6 +2932,7 @@ defmodule Tuist.Accounts do
   defp purge_account_storage(account) do
     purge_account_cache_masters(account)
     purge_account_gitlab_caches(account)
+    purge_account_sandbox_archives(account)
   end
 
   # The runner cache-volume master archive is customer-derived build cache
@@ -2734,6 +2947,21 @@ defmodule Tuist.Accounts do
     e ->
       Logger.warning(
         "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
+  end
+
+  # Archived Amp Orbs keep their disks under an account_id-keyed prefix, in
+  # the account's storage or an in-rack store, and their rows cascade with
+  # the account, so nothing else would find them.
+  # Best-effort, like the cache-master purge.
+  defp purge_account_sandbox_archives(account) do
+    SandboxArchives.purge_account(account)
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge sandbox archives on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
       )
 
       :ok

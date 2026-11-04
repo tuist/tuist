@@ -19,18 +19,18 @@ msgstr "لم يتم العثور على الحساب. يرجى المحاولة 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
-msgstr "ترخيص Slack غير صالح. يرجى المحاولة مرة أخرى."
+msgstr "تفويض Slack غير صالح. يرجى المحاولة مرة أخرى."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:81
 #, elixir-autogen, elixir-format
 msgid "Invalid authorization request. Please try again."
-msgstr "طلب ترخيص غير صالح. يرجى المحاولة مرة أخرى."
+msgstr "طلب التفويض غير صالح. يرجى المحاولة مرة أخرى."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:128
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:167
 #, elixir-autogen, elixir-format
 msgid "Slack authorization failed: %{reason}"
-msgstr "فشل ترخيص Slack: %{reason}"
+msgstr "فشل تفويض Slack: %{reason}"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:132
 #, elixir-autogen, elixir-format
@@ -45,12 +45,12 @@ msgstr "لم يتم العثور على المشروع. يرجى المحاول�
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:124
 #, elixir-autogen, elixir-format
 msgid "Alert rule not found. Please try again."
-msgstr "لم يتم العثور على قاعدة التنبيهات. يرجى المحاولة مرة أخرى."
+msgstr "لم يتم العثور على قاعدة التنبيه. يرجى المحاولة مرة أخرى."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "انتهت صلاحية طلب الترخيص. يرجى بدء عملية ربط Slack مرة أخرى."
+msgstr "انتهت صلاحية طلب التفويض. يرجى بدء عملية ربط Slack مرة أخرى."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format

@@ -80,7 +80,7 @@ defmodule Atlas.Orbit.Tools do
     if is_nil(parent_message_id) and EnvironmentTools.valid_args?(name, args) do
       perform(run_id, attempt, name, args, nil, [], fn message, _user ->
         case Runs.with_attempt(run_id, attempt, &Commands.reserve!(&1, &2, message, args)) do
-          {:ok, command} when name == "environment_terminal" -> Commands.ticket(command)
+          {:ok, command} when name in ~w(environment_terminal bash) -> Commands.ticket(command)
           {:ok, command} -> Commands.await(run_id, attempt, command.id)
           {:error, :command_outcome_unknown} -> {:error, Commands.unknown()}
           {:error, _reason} -> {:error, "The personal environment is unavailable."}
@@ -195,10 +195,10 @@ defmodule Atlas.Orbit.Tools do
 
     case recorded_call(run, key) do
       %Message{tool_status: "succeeded", tool_result: result}
-      when is_binary(result) and name != "environment_terminal" ->
+      when is_binary(result) and name not in ~w(environment_terminal bash) ->
         {:replay, result}
 
-      %Message{} = recorded when name == "environment_terminal" ->
+      %Message{} = recorded when name in ~w(environment_terminal bash) ->
         {:execute, recorded, acting_user}
 
       %Message{} = recorded when name == "task" ->

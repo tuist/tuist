@@ -11,6 +11,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.ConcurrencySession
+  alias Tuist.Runners.RunnerSession
 
   test "returns the default platform limits and empty usage" do
     account = account_fixture()
@@ -453,6 +454,65 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
       assert Concurrency.headroom_jobs_by_account([], %{platform: :macos, vcpus: 6, memory_gb: 14}) == %{}
       assert Concurrency.headroom_jobs_by_account([account.id], %{}) == %{account.id => 0}
+    end
+  end
+
+  describe "limit_held?/4" do
+    defp open_session!(account, attrs) do
+      Repo.insert!(
+        struct(
+          RunnerSession,
+          Map.merge(
+            %{account_id: account.id, workflow_job_id: System.unique_integer([:positive]), fleet_name: "macos-pool"},
+            attrs
+          )
+        )
+      )
+    end
+
+    test "holds a job whose shape no longer fits next to the sessions open at an instant" do
+      account = account_fixture()
+      at = ~U[2026-10-28 12:00:00.000000Z]
+      shape = %{vcpus: 6, memory_gb: 14}
+
+      open_session!(account, %{platform: :macos, vcpus: 6, memory_gb: 14, started_at: DateTime.add(at, -60, :second)})
+
+      refute Concurrency.limit_held?(account.id, :macos, shape, [at])
+
+      open_session!(account, %{platform: :macos, vcpus: 6, memory_gb: 14, started_at: DateTime.add(at, -30, :second)})
+
+      assert Concurrency.limit_held?(account.id, :macos, shape, [at])
+    end
+
+    test "counts only sessions open at the instant, on the job's platform" do
+      account = account_fixture()
+      at = ~U[2026-10-28 12:00:00.000000Z]
+      shape = %{vcpus: 6, memory_gb: 14}
+
+      open_session!(account, %{
+        platform: :macos,
+        vcpus: 12,
+        memory_gb: 28,
+        started_at: DateTime.add(at, -600, :second),
+        ended_at: DateTime.add(at, -60, :second)
+      })
+
+      open_session!(account, %{platform: :macos, vcpus: 12, memory_gb: 28, started_at: DateTime.add(at, 60, :second)})
+      open_session!(account, %{platform: :linux, vcpus: 32, memory_gb: 64, started_at: DateTime.add(at, -60, :second)})
+
+      refute Concurrency.limit_held?(account.id, :macos, shape, [at])
+      assert Concurrency.limit_held?(account.id, :macos, shape, [at, DateTime.add(at, 120, :second)])
+    end
+
+    test "never holds a job without a shape or an account without a limit" do
+      account = account_fixture()
+
+      Repo.delete_all(
+        from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id and limit.platform == :macos)
+      )
+
+      refute Concurrency.limit_held?(account.id, :macos, %{vcpus: 6, memory_gb: 14}, [DateTime.utc_now()])
+      refute Concurrency.limit_held?(account.id, :linux, %{vcpus: 0, memory_gb: 0}, [DateTime.utc_now()])
     end
   end
 end

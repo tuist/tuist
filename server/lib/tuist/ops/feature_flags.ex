@@ -23,9 +23,13 @@ defmodule Tuist.Ops.FeatureFlags do
   @catalog [
     {:immutable_shard_reports, "account",
      "Opt-in immutable shard plans; Mix projects and coverage-enabled accounts remain excluded."},
+    {:runner_shard_storage, "account",
+     "Opt-in Linux Mix/Cargo plans to runner-local storage; existing plans keep their store."},
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},
     {:kura_placement_served_signal, "account", "Opt-in placement using served-region signals."},
+    {:kura_thin_volumes, "account",
+     "Opt-in thin encrypted Kura volumes in regions listed in TUIST_KURA_THIN_REGIONS; other regions ignore it."},
     {:kura_stable_hostname, "account", "Stable cache hostname opt-in; canary enables automatically."},
     {:runners, "account", "Managed runners opt-in on canary/production; enabled elsewhere."},
     {:runner_site_cache, "account", "Opt-in site-local runner caches."},
@@ -53,8 +57,10 @@ defmodule Tuist.Ops.FeatureFlags do
 
   @evaluators %{
     immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
+    runner_shard_storage: {FeatureFlags, :runner_shard_storage_enabled?},
     kura_positive_fence: {FeatureFlags, :kura_positive_fence_enabled?},
     kura_placement_served_signal: {FeatureFlags, :kura_placement_served_signal_enabled?},
+    kura_thin_volumes: {FeatureFlags, :kura_thin_volumes_enabled?},
     kura_stable_hostname: {FeatureFlags, :kura_stable_hostname_enabled?},
     runners: {FeatureFlags, :runners_enabled?},
     runner_site_cache: {FeatureFlags, :runner_site_cache_enabled?},

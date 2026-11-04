@@ -139,6 +139,11 @@
         <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>
       </.dropdown_item>
     </.dropdown>
+    <.build_status_dropdown
+      id="builds-analytics-status-dropdown"
+      status={@analytics_build_status}
+      uri={@uri}
+    />
     <.date_picker
       id="builds-analytics-date-range-picker"
       name="analytics-date-range"

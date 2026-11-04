@@ -1380,6 +1380,64 @@ fn mention_candidates_fence_queries_selection_access_and_local_actions_without_l
 }
 
 #[test]
+fn shared_messages_only_address_pip_when_explicitly_mentioned() {
+    let (connection, model) = attachment_model();
+    for (kind, body, requested, expected) in [
+        ("shared", "Can someone review this?", true, false),
+        ("shared", "@Pip, please review this", true, true),
+        ("shared", "Review this @Pip", true, true),
+        ("shared", "@pIP please review", true, true),
+        ("shared", "@Pip Smith please review", true, false),
+        ("shared", "@Pip Smith@Pip", true, false),
+        ("shared", "@Pip Smith ask @Pip too", true, true),
+        ("shared", "@Pippa knows", true, false),
+        ("shared", "email@Pip.example", true, false),
+        ("shared", "@Pip_name", true, false),
+        ("shared", "@Pip please wait", false, false),
+        ("private", "Can you review this?", false, true),
+    ] {
+        model.state.lock().unwrap().snapshot.selected = Some(thread(FIRST, kind));
+        draft(&model, FIRST.into(), body.into()).unwrap();
+        if body.contains("@Pip Smith") {
+            model
+                .state
+                .lock()
+                .unwrap()
+                .drafts
+                .get_mut(FIRST)
+                .unwrap()
+                .mentions = vec![Person {
+                id: SECOND.into(),
+                name: "Pip Smith".into(),
+            }];
+        }
+        let network = InspectTransport(|_: &url::Url, request: crate::transport::Body<'_>| {
+            let crate::transport::Body::Api {
+                payload: Some(payload),
+                ..
+            } = request
+            else {
+                panic!()
+            };
+            assert_eq!(payload["address_agent"], expected, "{kind}: {body}");
+            // Keep the exact draft for an uncertain retry without an unrelated history reload.
+            Err(error("network", "Try again."))
+        });
+        send_using(
+            &model,
+            FIRST.into(),
+            body.into(),
+            None,
+            None,
+            requested,
+            &network,
+        )
+        .unwrap();
+    }
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
 fn mentioned_sends_replay_captured_ids_preserve_newer_drafts_and_reconcile_server_promotion() {
     use std::cell::{Cell, RefCell};
     let (connection, model) = attachment_model();
@@ -2302,6 +2360,214 @@ fn inbox_reopens_locally_with_expired_credentials_then_refreshes_without_blankin
         connection: reopened["connection"].as_str().unwrap().into(),
     })
     .unwrap();
+}
+
+#[test]
+fn saved_history_reopens_read_only_retains_offline_and_reconciles_or_revokes() {
+    use crate::tests::{MockTransport, TestDirectory};
+    SESSION_FIXTURE.with(|_| {});
+    let directory = TestDirectory::new();
+    let session = crate::bootstrap(saved()).unwrap();
+    let open = || {
+        execute(Action::Open {
+            session: session.clone(),
+            cache_directory: Some(directory.as_str().into()),
+        })
+        .unwrap()["connection"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let connection = open();
+    let model = get(&connection).unwrap();
+    let human = json!({"id":FIRST,"seq":1,"kind":"human","body":"Keep this message","author_name":"Alex","inserted_at":"2027-06-07T10:00:00Z"});
+    select_using(
+        &model,
+        Some(FIRST.into()),
+        None,
+        &MockTransport::new(vec![
+            serde_json::to_value(history_page(
+                1,
+                vec![human.clone(), message(SECOND, 2, "private tool evidence")],
+            ))
+            .unwrap(),
+        ]),
+    )
+    .unwrap();
+    execute(Action::Close { connection }).unwrap();
+    let connection = open();
+    let model = get(&connection).unwrap();
+    let saved = execute(Action::SavedHistory {
+        connection: connection.clone(),
+        id: FIRST.into(),
+    })
+    .unwrap();
+    assert_eq!(saved["history_cached"], true);
+    assert_eq!(saved["messages"].as_array().unwrap().len(), 1);
+    assert_eq!(saved["messages"][0]["body"], "Keep this message");
+    assert!(saved["selected"]["owner_id"].is_null());
+    assert!(saved["selected"]["agent_status"].is_null());
+    assert_eq!(saved["selected"]["participants"], json!([]));
+    assert!(!saved.to_string().contains("private tool evidence"));
+    assert!(!mention_access(&model.state.lock().unwrap(), FIRST));
+    assert!(attachment_access(&model.state.lock().unwrap(), FIRST, false).is_err());
+    select_using(
+        &model,
+        Some(FIRST.into()),
+        None,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Err(error("network", "Offline."))
+        }),
+    )
+    .unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["messages"][0]["body"],
+        "Keep this message"
+    );
+    assert_eq!(snapshot(&model).unwrap()["history_cached"], true);
+    select_using(
+        &model,
+        Some(FIRST.into()),
+        None,
+        &MockTransport::new(vec![
+            serde_json::to_value(history_page(
+                1,
+                vec![human, message(SECOND, 2, "fresh evidence")],
+            ))
+            .unwrap(),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["history_cached"], false);
+    assert_eq!(
+        snapshot(&model).unwrap()["messages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    select_using(
+        &model,
+        Some(FIRST.into()),
+        None,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Err(error("unavailable", "Access removed."))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["messages"], json!([]));
+    let again = execute(Action::SavedHistory {
+        connection: connection.clone(),
+        id: FIRST.into(),
+    })
+    .unwrap();
+    assert!(again["selected"].is_null());
+    assert_eq!(again["messages"], json!([]));
+    select_using(
+        &model,
+        Some(FIRST.into()),
+        None,
+        &MockTransport::new(vec![
+            serde_json::to_value(history_page(
+                1,
+                vec![json!({"id":SECOND,"seq":2,"kind":"human","body":"protected history","author_name":"Alex","inserted_at":"2027-06-07T10:00:00Z"})],
+            ))
+            .unwrap(),
+        ]),
+    )
+    .unwrap();
+    execute(Action::SavedHistory {
+        connection: connection.clone(),
+        id: FIRST.into(),
+    })
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["history_cached"], true);
+    let mut expired = session.clone();
+    expired.expires_at = 0;
+    let failure = execute(Action::Request {
+        connection: connection.clone(),
+        session: expired,
+        command: Command::Refresh,
+    })
+    .err()
+    .unwrap();
+    assert_eq!(failure.kind, "session_expired");
+    let renewal = snapshot(&model).unwrap();
+    assert_eq!(renewal["needs_session"], true);
+    assert_eq!(renewal["session_rejected"], false);
+    assert_eq!(renewal["messages"][0]["body"], "protected history");
+    history_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Err(error("sign_in_required", "Sign in to Atlas again."))
+        }),
+    )
+    .unwrap();
+    let rejected = snapshot(&model).unwrap();
+    assert_eq!(rejected["session_rejected"], true);
+    assert_eq!(rejected["messages"], json!([]));
+    assert!(rejected["selected"].is_null());
+    assert!(
+        execute(Action::Open {
+            session: session.clone(),
+            cache_directory: Some(directory.as_str().into()),
+        })
+        .is_err()
+    );
+    assert!(
+        execute(Action::Request {
+            connection: connection.clone(),
+            session,
+            command: Command::Refresh
+        })
+        .is_err()
+    );
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn inbox_rejection_during_saved_selection_ends_the_session() {
+    use crate::tests::{MockTransport, TestDirectory};
+    let directory = TestDirectory::new();
+    let session = crate::bootstrap(saved()).unwrap();
+    let opened = execute(Action::Open {
+        session: session.clone(),
+        cache_directory: Some(directory.as_str().into()),
+    })
+    .unwrap();
+    let connection = opened["connection"].as_str().unwrap().to_owned();
+    let model = get(&connection).unwrap();
+    select_using(&model, Some(FIRST.into()), None, &MockTransport::new(vec![
+        serde_json::to_value(history_page(1, vec![json!({
+            "id":SECOND,"seq":1,"kind":"human","body":"saved content","author_name":"Alex","inserted_at":"2027-06-07T10:00:00Z"
+        })])).unwrap()
+    ])).unwrap();
+    load_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            let saved = execute(Action::SavedHistory {
+                connection: connection.clone(),
+                id: FIRST.into(),
+            })
+            .unwrap();
+            assert_eq!(saved["messages"][0]["body"], "saved content");
+            Err(error("sign_in_required", "Sign in to Atlas again."))
+        }),
+    )
+    .unwrap();
+    let rejected = snapshot(&model).unwrap();
+    assert_eq!(rejected["session_rejected"], true);
+    assert_eq!(rejected["messages"], json!([]));
+    assert!(
+        execute(Action::Open {
+            session,
+            cache_directory: Some(directory.as_str().into())
+        })
+        .is_err()
+    );
+    execute(Action::Close { connection }).unwrap();
 }
 
 #[test]

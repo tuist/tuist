@@ -56,6 +56,9 @@ type linuxCloudInitOptions struct {
 	// Taints are rendered into kubelet's --register-with-taints.
 	Taints []corev1.Taint
 
+	// KuraLVM is an explicit install-time opt-in, independent of cache taints.
+	KuraLVM bool
+
 	// KataRuntime installs kata-static, registers the kata-qemu handler with
 	// containerd, and labels the node for the kata-qemu RuntimeClass. Off for
 	// cache fleets, which run ordinary runc Pods and should not pay the
@@ -104,6 +107,7 @@ br_netfilter
 	sysctlContent = `net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
+net.mptcp.enabled                   = 0
 `
 
 	// kernelHardeningSysctlContent turns a silent kernel lockup into an
@@ -198,7 +202,21 @@ RebootWatchdogSec=5min
 // its hard watermark as normal steady state (Kura's own shedding deliberately
 // excludes them, keying off pressure_bytes instead), so early throttling would
 // stall a perfectly healthy cache node reclaiming cache it is supposed to hold.
-const kubeletMemoryGovernanceBlock = `systemReserved:
+//
+// imageMaximumGCAge removes an image no container on the node has used for a
+// day, whatever the disk level. Without it the kubelet only collects images at
+// imageGCHighThresholdPercent (85% by default), which is also where
+// imagefs.available<15% starts evicting, so every runner image release stayed
+// on every box until the disk was full: on 2026-11-04 the Gravelines runners
+// held 51 linux-runner versions each, about 300 GB unpacked, and one crossed
+// the eviction threshold. A day matches tart-kubelet's idle retention for
+// macOS goldens. The percentage thresholds stay at their defaults because the
+// Kura cache boxes share this config and run /data near 80% by design: a lower
+// threshold would empty their image store on every GC pass. The kubelet keeps
+// last-use times in memory, so a restart (including this config's re-push)
+// starts every unused image's day over.
+const kubeletMemoryGovernanceBlock = `imageMaximumGCAge: 24h
+systemReserved:
   cpu: 500m
   memory: 1Gi
 kubeReserved:
@@ -363,7 +381,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[12]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
-%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
+%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs lvm2
 %[2]smkdir -p /etc/containerd /etc/containerd/certs.d/docker.io
 %[4]s
 %[6]s
@@ -635,7 +653,7 @@ set -euxo pipefail
 # Turn project quotas on for /data before anything mounts off it: XFS only takes
 # quota accounting at mount time, and the bind below would pin the filesystem
 # busy. Aborts the join on a box whose /data cannot carry per-account quotas.
-%[11]s
+%[14]s%[11]s
 # Bring up the kubelet root's /data bind-mount BEFORE writing its config below, so
 # a box with a separate /data disk doesn't shadow config.yaml + kubeconfig once
 # the mount lands (which left the kubelet crash-looping on a missing config).
@@ -661,6 +679,7 @@ set -euxo pipefail
 		dataProjectQuotaSetup(sudo, writeFile),
 		joinedGuard(sudo, opts.NodeName),
 		joinedMarker(sudo, opts.NodeName),
+		kuraLVMSetup(sudo, opts.KuraLVM && hostsKuraLVMVolumes(opts.Taints)),
 	)
 }
 
@@ -971,17 +990,13 @@ privileged_without_host_devices = true
 pod_annotations = ["io.katacontainers.*"]
 [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
 ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
-# SystemdCgroup MUST be set on the handler itself. The SystemdCgroup rewrite
-# above only touches what the generated default emitted, and this block is
-# appended after it, so the kata handler would otherwise keep the false default
-# while kubelet runs cgroupDriver: systemd. Under that mismatch the shim creates
-# the slice name as a LITERAL directory at the cgroup root instead of nesting it
-# under kubepods.slice, nothing ever reclaims those, and the node eventually
-# fails every cgroup mkdir with ENOSPC while still reporting Ready. See the
-# same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
+# SystemdCgroup is set on the handler itself to match kubelet's
+# cgroupDriver: systemd, since the SystemdCgroup rewrite above only touches
+# what the generated default emitted. It does not stop the shim from leaking
+# cgroups at the root; sandbox_cgroup_only does (kataSandboxCgroupSetup).
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo)+kataSandboxCgroupSetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs

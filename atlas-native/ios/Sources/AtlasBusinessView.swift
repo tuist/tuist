@@ -7,6 +7,7 @@ struct AtlasBusinessView: View {
     @State private var listRevision = 0
     private let loadList: Bool
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
 
     init(resource: AtlasBusinessResource, loadList: Bool = true, request: @escaping ([String: Any]) async throws -> Data) {
         self.loadList = loadList
@@ -20,7 +21,7 @@ struct AtlasBusinessView: View {
 
     var body: some View {
         list.onChange(of: model.page?.page) { previous, page in
-            if previous != nil, page == 1 { listRevision += 1 }
+            if let previous, previous != 1, page == 1 { listRevision += 1 }
         }
     }
 
@@ -48,7 +49,10 @@ struct AtlasBusinessView: View {
             if value.isEmpty, !model.query.isEmpty { Task { await model.load(query: "") } }
         }
         .refreshable { await model.load(query: query) }
-        .task(id: loadList) { if loadList, model.page == nil { await model.load() } }
+        .task(id: loadList) {
+            model.cachedRequest = AtlasReadCache.scoped(cachedRead, operation: "business")
+            if loadList, model.page == nil { await model.load() }
+        }
         .navigationDestination(for: AtlasRecordRoute.self) { route in
             AtlasLinkedBusinessDetail(model: model, id: route.id).id(route.identity)
         }
@@ -126,7 +130,7 @@ struct AtlasBusinessView: View {
             }
             if let error = model.errorMessage {
                 Section {
-                    Text(error).foregroundStyle(.red)
+                    Text(model.page?.cached == true ? "Couldn’t refresh" : error).foregroundStyle(.secondary)
                     Button(model.nextPageFailed ? "Retry loading more" : "Retry") {
                         Task {
                             if model.nextPageFailed { await model.loadMore(retry: true) } else { await model.load(query: query) }

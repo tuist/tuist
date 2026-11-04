@@ -26,6 +26,8 @@ For clients that support plugin installation, use the <.localized_link href="/gu
 
 Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. The server's initialization instructions and public server card describe OAuth 2.0 with dynamic client registration and the standard browser authorization flow inline, without asking agents to fetch or follow external authentication documents. These server-wide instructions keep workflow guidance generic: tool authentication does not authenticate local command-line tools or build-system integrations, and agents should verify requested changes through the relevant Tuist tools. Build-system-specific setup and authentication checks are documented in the integration guides and prompts. Tuist still advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md` separately.
 
+If one of your organizations enforces single sign-on, authorizing a client in the browser requires a session signed in through that organization, and Tuist sends you to the provider first when needed. See <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">single sign-on</.localized_link>.
+
 The endpoint accepts the stateless `2026-07-28` Model Context Protocol request lifecycle, including `server/discover`, alongside the older session-based lifecycle. Existing clients can continue using their current connection method.
 
 Clients that support Model Context Protocol events can subscribe to project events. See [Events](#events) for the available event and delivery requirements.
@@ -39,6 +41,8 @@ Before an agent starts an email claim, it must ask the user to confirm the email
 The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After browser authorization or claim, the credential is user-scoped and each tool applies the same authorization checks as the dashboard. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
 Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
+
+Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Once run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
 
 Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
@@ -179,6 +183,17 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
+## WebMCP
+
+In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
+
+- **Website and documentation pages** register the documentation and source tools (`search_tuist`, `search_tuist_code`, `list_tuist_files` and `read_tuist_file`). They don't need you to sign in.
+- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. Each page registers only the tools for what it shows, for the project's build system: a Gradle project's builds page gets the Gradle build tools, its test pages the test and coverage tools, and the runners pages the runner tools. Every page also gets the documentation tools, `list_projects` and `get_project`. The tools run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another page or account, the tools are replaced with that page's.
+
+Tools that create, change, or delete data are not available through WebMCP, because a browser agent receives the tools without you adding them and reads content that builds and tests produce. Connect an MCP client to the `/mcp` endpoint to use those tools.
+
+If the organization enforces single sign-on, sign in to the dashboard with its provider to use its tools.
+
 ## Build-system integrations use two credentials
 
 The credential used for Model Context Protocol tools does not authenticate the Gradle plugin or Bazel's remote services. Before an agent edits or verifies a Gradle or Bazel integration, it should run:
@@ -213,6 +228,14 @@ This read-only tool searches Tuist's documentation, [application programming int
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `search_tuist` | Search public Tuist documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
+
+#### Feedback
+
+Agents can tell the Tuist team when a Tuist tool or prompt did not work the way they expected, such as a confusing result, an error, missing data, or a missing capability. Agents are asked to suggest a report and send it only once you agree. Each report opens a conversation with Tuist support, who may reply to you by email. A report includes what the agent expected, what happened, an optional suggestion, your Tuist user ID, handle and email, and the organizations you belong to. Agents can also name the account and project the problem happened in, so the team knows which organization to follow up with; only accounts you belong to are accepted. Only agents signed in as a Tuist user can send reports, and each user can open up to 10 reports per hour. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `report_feedback` | Report a problem with a Tuist tool or prompt. Optionally name the `tool_name`, the `account_handle` and `project_handle` it happened in, and add a `suggestion`. | `category`, `expected`, `actual` |
 
 #### Source-backed answers
 
@@ -353,8 +376,10 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Individual test runs are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
-| `get_cargo_build` | Get build metadata and aggregate cache counters, including hits, task misses, and hit rate. | `account_handle`, `project_handle`, `build_id` |
+| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Cargo test execution results are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
+| `get_cargo_build` | Get build metadata, aggregate cache counters, and up to 500 recorded compiler jobs with diagnostics. `compilations_truncated` indicates omitted jobs; diagnostics cover the returned jobs only. | `account_handle`, `project_handle`, `build_id` |
+
+Set `include_cache_inspection: true` on `get_cargo_build` to retrieve validated task decisions and CAS operations, bounded to 4 MB. By default, and when records are missing or invalid, `cache_inspection` is null. Respect its partial-capture `truncated` flag; transfers do not establish each task hit's local/remote origin. The HTTP detail endpoint accepts the same query parameter.
 
 #### Mix builds
 
@@ -362,6 +387,14 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 |------|-------------|---------------------|
 | `list_mix_builds` | List Mix (Elixir) compile builds for a project, newest first, including custom metadata. Filter by `git_branch`, `status`, `is_ci`, or `mix_env`. | `account_handle`, `project_handle` |
 | `get_mix_build` | Get build metadata, diagnostics counts, and the dependency cache summary. | `account_handle`, `project_handle`, `build_id` |
+
+#### Build traces
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_build_trace` | Get a download link for an Xcode, Gradle, Bazel, or Mix build's timeline as a trace file you can open in [Perfetto](https://ui.perfetto.dev). | `account_handle`, `project_handle`, `build_id` |
+
+`build_id` is the build run ID (the invocation ID for Bazel) or the build's dashboard URL. The returned `trace_url` serves a [Chrome Trace Event](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU) JSON file. Anyone holding the link can download that build's trace without other credentials until `expires_at`, one hour after the call. Agents can download it with `curl`, hand it to you to open in Perfetto, or query it with Perfetto's `trace_processor`. The trace contains the recorded steps packed into lanes by parallelism, a track spanning the whole build, and CPU and memory counters when the build recorded machine metrics. It holds the same data as the step tools above, without logs. The dashboard offers the same file from each build's Timeline tab.
 
 #### Once runs
 
@@ -390,6 +423,7 @@ These project-scoped tools inspect persistent build identities across runs. Star
 | `once_actions` | Once actions | Executions |
 | `mix_files` | Mix compiled files | Compilations |
 | `mix_modules` | Mix compiled modules | Compilations |
+| `cargo_crates` | Cargo crates | Recorded rustc invocations |
 
 These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
 
@@ -400,6 +434,8 @@ Xcode module durations come from measured target compilations in build logs. Mod
 Bazel actions are identified by target label, mnemonic and configured primary output, keeping separate actions and configurations distinct without relying on input-dependent cache digests. History records BEP-reported executions, not cache lookups or trace-profile phases. Complete execution coverage requires `--build_event_publish_all_actions`; artifact delivery is best effort, so missing observations are not evidence that no work ran. Older Kura payloads without stable identity or execution start remain accepted but unindexed. Absent end-time measurements stay unavailable and genuine zero durations count.
 
 Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+
+Cargo crates are grouped by exact recorded crate root, name and kind. Checkout-path changes can split histories, and build profiles, features and target triples are not distinguished. History measures rustc invocations, not per-file work or cache hits; absent jobs do not establish removals or a complete workspace inventory.
 
 Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
 
@@ -431,9 +467,11 @@ The code coverage tools are available to accounts with code coverage enabled.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_bundles` | List bundles (app binaries) for a project. | `account_handle`, `project_handle` |
-| `get_bundle` | Get detailed information about a specific bundle. | `bundle_id` |
+| `list_bundles` | List bundles (app binaries) for a project. Optionally filter by `git_branch` and `tags` (all tags must match exactly). | `account_handle`, `project_handle` |
+| `get_bundle` | Get detailed information about a specific bundle, including custom tags. | `bundle_id` |
 | `get_bundle_artifact_tree` | Get the full artifact tree for a bundle as a flat list sorted by path. | `bundle_id` |
+
+`list_bundles` accepts `tags: ["paid", "production"]` to distinguish build flavors or environments. Tags are case-sensitive labels containing letters, numbers, hyphens, or underscores, with at most 10 tags and 50 characters per tag. List and detail results include `custom_metadata.tags`. Pagination counts and branch filters apply to the tagged results; omitting `tags` preserves the unfiltered behavior. Invalid tag filters return an error rather than broadening the query.
 
 #### Generations
 
@@ -487,7 +525,7 @@ When an event occurs, Tuist sends its resource identifier and dashboard URL to t
 | Prompt | Description |
 |--------|-------------|
 | `fix_flaky_test` | Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. |
-| `compare_builds` | Guides you through comparing two build runs to identify performance regressions, cache changes, and build issues. Works with both Xcode and Gradle projects. |
+| `compare_builds` | Guides you through comparing builds to identify performance regressions, cache changes, and build issues. Uses native tools for Xcode, Gradle, Bazel and Cargo projects. Cargo comparisons preserve partial compiler coverage and distinguish estimated compiler work from elapsed savings. |
 | `compare_test_runs` | Guides you through comparing two test runs to identify regressions, new failures, and flaky tests. |
 | `compare_bundles` | Guides you through comparing two bundles to identify size changes across the artifact tree. |
 | `compare_test_case` | Guides you through comparing a test case's behavior across two branches or time periods. |

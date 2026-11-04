@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/yaml"
 )
 
@@ -168,6 +168,7 @@ func TestHetznerKataSharedMemoryMatchesProvider(t *testing.T) {
 		"/etc/systemd/system/tuist-kata-shared-memory.service": kataSharedMemoryUnit,
 		kataVirtiofsSysctlPath:                                 kataVirtiofsSysctl,
 		kataVirtiofsDropInPath:                                 kataVirtiofsDropIn,
+		kataSandboxCgroupDropInPath:                            kataSandboxCgroupDropIn,
 	}
 	for _, document := range strings.Split(string(data), "\n---") {
 		var template struct {

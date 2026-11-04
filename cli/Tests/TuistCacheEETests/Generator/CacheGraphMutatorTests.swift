@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistConfig
 import TuistCore
 import XcodeGraph
 import XCTest
@@ -1926,8 +1927,8 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
     /// Fifteenth scenario - reproduces https://github.com/tuist/tuist/issues/9594
     /// A unit test target depends on a dynamic framework that transitively depends
-    /// on static libraries. When all are cached, the static dependencies should be
-    /// pruned from the dynamic xcframework's edges to avoid duplicate symbols.
+    /// on static libraries. When all are cached, the static dependencies stay behind the
+    /// dynamic xcframework, and `GraphTraverser.linkableDependencies` doesn't link them again.
     ///
     /// ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
     /// │ SharedCounterTest├──►│ SharedCounter     ├──►│ TCALib (static)  │
@@ -2029,9 +2030,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             keepSourceTargets: false
         )
 
-        // Then: the test target should depend only on the dynamic xcframework.
-        // The static xcframeworks (TCALib, DepLib) should NOT appear as deps of
-        // SharedCounter.xcframework because they are baked into the dynamic binary.
+        // Then: the test target depends only on the dynamic xcframework. The static xcframeworks
+        // stay behind it: they are baked into its binary, so consumers get module visibility
+        // through them without linking them again.
         let testDependencies = got.dependencies[
             .target(name: tests.name, path: testsGraphTarget.path), default: Set()
         ]
@@ -2047,8 +2048,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
         XCTAssertEqual(
             sharedCounterDeps,
-            [],
-            "Dynamic xcframework should not have static deps as edges (they are baked in)"
+            [
+                .testXCFramework(path: tcaLibXCFrameworkPath, linking: .static),
+            ]
         )
 
         // TCALib is a static framework so it does NOT bake in its static deps.
@@ -2267,8 +2269,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
     }
 
-    /// Eighteenth scenario - preserve the current behaviour for cached static target deps that
-    /// are baked into the shared dynamic xcframework but re-added to non-test consumers.
+    /// Eighteenth scenario - cached static target deps baked into a cached dynamic xcframework
+    /// stay behind it when a hostless test shares it with non-test consumers. Re-adding them to
+    /// the app links them into the app a second time.
     ///
     /// ┌─────┐              ┌──────────────────┐   ┌──────────────────┐
     /// │ App ├─────────────►│ Feature          ├──►│ SupportLib       │
@@ -2338,8 +2341,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             keepSourceTargets: false
         )
 
-        // Then: cached static deps remain pruned from the shared dynamic binary
-        // and are re-added only to non-test consumers.
+        // Then
         XCTAssertEqual(
             got.dependencies[
                 .target(name: app.name, path: project.path),
@@ -2347,7 +2349,6 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             ],
             [
                 .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
-                .testXCFramework(path: supportLibXCFrameworkPath, linking: .static),
             ]
         )
         XCTAssertEqual(
@@ -2364,7 +2365,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
                 default: Set()
             ],
-            []
+            [
+                .testXCFramework(path: supportLibXCFrameworkPath, linking: .static),
+            ]
         )
     }
 
@@ -2473,6 +2476,103 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 googleMaps,
             ]
         )
+    }
+}
+
+extension CacheGraphMutatorTests {
+    ///    Framework ──► MyMacros (cached .macro) ──► SwiftCompilerPlugin ──► SwiftSyntax
+    ///    Tests ──► MyMacros_Testable ─────────────────────────────────────► SwiftSyntax
+    func test_map_replacesCachedMacro_when_itsDependenciesStayAsSources() async throws {
+        let path = try temporaryPath()
+        let syntax = Target.test(name: "SwiftSyntax", platform: .macOS, product: .staticFramework)
+        let plugin = Target.test(name: "SwiftCompilerPlugin", platform: .macOS, product: .staticFramework)
+        let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+        let testable = Target.test(name: "MyMacros_Testable", platform: .macOS, product: .staticFramework)
+        let tests = Target.test(name: "MyMacrosTests", platform: .macOS, product: .unitTests)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [syntax, plugin, macro, testable, tests, framework])
+        func dependency(_ target: Target) -> GraphDependency { .target(name: target.name, path: project.path) }
+        let graph = Graph.test(projects: [project.path: project], dependencies: [
+            dependency(framework): [dependency(macro)],
+            dependency(macro): [dependency(plugin)],
+            dependency(plugin): [dependency(syntax)],
+            dependency(tests): [dependency(testable)],
+            dependency(testable): [dependency(syntax)],
+            dependency(syntax): [],
+        ])
+        let macroPath = path.appending(components: "Binaries", "MyMacros.macro")
+        artifactLoader.loadStub = { .macro(path: $0) }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: [GraphTarget.test(path: project.path, target: macro, project: project): macroPath],
+            sources: [],
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(got.dependencies[dependency(framework)], [.macro(path: macroPath)])
+        XCTAssertEqual(got.dependencies[.macro(path: macroPath)], [])
+        let prunable = Set(got.projects[project.path]!.targets.values.filter { $0.metadata.tags.contains("tuist:prunable") }
+            .map(\.name))
+        XCTAssertEqual(prunable, ["MyMacros", "SwiftCompilerPlugin"])
+    }
+
+    func test_map_keepsMacroAsSource_when_itNeedsADynamicOrRequestedSourceDependency() async throws {
+        let path = try temporaryPath()
+        for (pluginProduct, sources) in [(Product.framework, Set<TargetQuery>()), (.staticFramework, ["SwiftCompilerPlugin"])] {
+            let plugin = Target.test(name: "SwiftCompilerPlugin", platform: .macOS, product: pluginProduct)
+            let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+            let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+            let project = Project.test(path: path, targets: [plugin, macro, framework])
+            func dependency(_ target: Target) -> GraphDependency { .target(name: target.name, path: project.path) }
+            let graph = Graph.test(projects: [project.path: project], dependencies: [
+                dependency(framework): [dependency(macro)],
+                dependency(macro): [dependency(plugin)],
+                dependency(plugin): [],
+            ])
+            artifactLoader.loadStub = { .macro(path: $0) }
+
+            let got = try await subject.map(
+                graph: graph,
+                precompiledArtifacts: [
+                    GraphTarget.test(path: project.path, target: macro, project: project): path.appending(component: "M.macro"),
+                ],
+                sources: sources,
+                keepSourceTargets: false
+            )
+
+            XCTAssertEqual(got, graph, "\(pluginProduct) with sources \(sources)")
+        }
+    }
+
+    func test_map_tagsMacroDependenciesAsBinarySources_when_keepingSourceTargets() async throws {
+        let path = try temporaryPath()
+        let plugin = Target.test(name: "SwiftCompilerPlugin", platform: .macOS, product: .staticFramework)
+        let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [plugin, macro, framework])
+        func dependency(_ target: Target) -> GraphDependency { .target(name: target.name, path: project.path) }
+        let graph = Graph.test(projects: [project.path: project], dependencies: [
+            dependency(framework): [dependency(macro)],
+            dependency(macro): [dependency(plugin)],
+            dependency(plugin): [],
+        ])
+        let macroPath = path.appending(component: "MyMacros.macro")
+        artifactLoader.loadStub = { .macro(path: $0) }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: [GraphTarget.test(path: project.path, target: macro, project: project): macroPath],
+            sources: [],
+            keepSourceTargets: true
+        )
+
+        XCTAssertEqual(got.dependencies[dependency(framework)], [.macro(path: macroPath)])
+        XCTAssertEqual(got.dependencies[dependency(macro)], [dependency(plugin)])
+        let tagged = Set(got.projects[project.path]!.targets.values.filter { $0.metadata.tags.contains("tuist:binary-sources") }
+            .map(\.name))
+        XCTAssertEqual(tagged, ["MyMacros", "SwiftCompilerPlugin"])
+        XCTAssertTrue(got.projects[project.path]!.targets.values.allSatisfy { !$0.metadata.tags.contains("tuist:prunable") })
     }
 }
 

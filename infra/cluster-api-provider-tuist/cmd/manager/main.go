@@ -33,7 +33,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -65,6 +66,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
+	utilruntime.Must(clusterv2.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 }
 
@@ -658,6 +660,12 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		// The cache holds cluster-wide Pods, Secrets, Nodes and PVCs,
+		// and managedFields are a third to a half of each object. No
+		// controller reads them.
+		Cache: cache.Options{
+			DefaultTransform: cache.TransformStripManagedFields(),
+		},
 	}
 	// When the egress reconciler is wired, scope the Services
 	// informer to the egress namespace. The cache's default is a
@@ -668,12 +676,10 @@ func main() {
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
 	if egressProxyGroup != "" && egressNamespace != "" {
-		mgrOptions.Cache = cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Service{}: {
-					Namespaces: map[string]cache.Config{
-						egressNamespace: {},
-					},
+		mgrOptions.Cache.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Service{}: {
+				Namespaces: map[string]cache.Config{
+					egressNamespace: {},
 				},
 			},
 		}

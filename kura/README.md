@@ -246,6 +246,44 @@ When peer mTLS is enabled:
 - 🪪 the certificate configured through `KURA_INTERNAL_TLS_CERT_PATH` should be valid for both server and client auth
 - 🏷️ the certificate SANs must cover the hostname used in `KURA_NODE_URL`
 
+### Outbound certificate distrust
+
+Kura embeds the twelve-key eMudhra incident policy independently of the OS PEM
+bundle. Ordinary clients retain native/enterprise trust, including configured
+extra CAs; peer mTLS retains explicit anchors and hot identity reload. Normal
+hostname, certificate, signature and native context checks remain authoritative,
+with an additional key deny over the constructed path and supplied peers.
+Inbound peer client authentication is restrictive too. Sentry's invalid-certificate
+override is not honored. An otherwise valid redundant blocked cross-sign can be
+rejected: repair the served chain rather than disable TLS or fall back insecurely.
+
+Run `bazel test //:certificate_trust_test --define=kura_deny_warnings=true`
+for independent native/explicit-anchor and real TLS controls without RocksDB.
+`node --test test/certificate-trust/wiring.test.mjs` checks policy/fixture
+synchronization and a bounded production-factory inventory, not arbitrary Rust
+data flow. The full Kura suite additionally covers auth, Sentry and peer rotation.
+Public endpoint and OpenSSL-3 identity-format tests are opt-in:
+
+```sh
+bazel test //:certificate_trust_test --define=kura_deny_warnings=true \
+  --nocache_test_results --test_output=all --test_arg=--ignored \
+  --test_arg=public_controls_fail_for_certificates \
+  --test_arg=valid_pkcs1_and_sec1_identities \
+  --test_env=TUIST_TRUST_LIVE=1 --test_env=KURA_TRUST_OPENSSL=/usr/bin/openssl
+```
+
+Linux success does not qualify Apple's complete evaluated SecTrust paths or
+minimum macOS runtime. Before merging behavior changes, compare current main
+on memory/headroom, disk/retention, CPU/work and egress/work, including recovery
+and native-client construction. Historical #14511 resource flags remain open:
+cooldown anonymous/allocator memory, transient headroom, logical disk and RX,
+plus an earlier unexplained peak-anonymous increase. Green tests or a completed
+ABBA run do not clear these budgets. Exact release images/macOS binaries and
+deployed Sentry/OTLP/enrollment/Kubernetes integrations require separate evidence.
+OTLP gRPC TLS is currently unavailable, not protected by the HTTP client and
+never downgraded to plaintext. Source changes do not patch existing processes
+or authorize publication or rollout.
+
 ## ⚙️ Runtime Model And Limits
 
 Kura is designed around explicit resource budgets instead of relying on ambient process limits.
@@ -274,6 +312,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | App-managed file-descriptor budget for request and background I/O. | Yes | auto |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | Yes | `5000` |
 | `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | Maximum grace window Kura gives in-flight HTTP and gRPC work to finish during shutdown before forcing exit progression. | Yes | `240000` |
+| `KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS` | Opt-in relaxed durability for client uploads. Unset or `0` fsyncs every write before acknowledging it. A positive value (at most `60000`) acknowledges client uploads once they reach the page cache and fsyncs the active segment, then the metadata WAL, on this interval and at shutdown; replicated applies, deletes and handover records stay fully synced. A process crash or OOM kill loses nothing. A kernel crash or power loss can lose up to one interval of acknowledged uploads, and can leave a manifest whose bytes never reached disk: the blob then reads as present but fails (or returns zeros) when fetched. Dirty segment bytes stay capped at 64 MiB. Failed periodic syncs count on `kura_relaxed_durability_sync_failures_total`. | Yes | unset |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles; must stay below the FD pool size. | Yes | auto |
 | `KURA_ACCELERATED_FILE_SERVING_ENABLED` | Enables the same-port Linux file serving accelerator for eligible plaintext HTTP/1 public artifact downloads. Non-Linux builds, HTTPS, HTTP/2, non-GET requests, inline artifacts, unsupported routes, and denied requests use the normal Axum/Hyper path. | Yes | `true` |
 | `KURA_ACCELERATED_FILE_SERVING_MODE` | Linux kernel transfer primitive used by the accelerator: `splice` or `sendfile`. | Yes | `splice` |
@@ -302,10 +341,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_REGISTRATION_INTERVAL_MS` | How often the node sends a registration heartbeat. | Yes | `60000` |
 | `KURA_USAGE_WINDOW_SECS` | Usage rollup window size. Kura aggregates request traffic in memory by bounded dimensions before writing closed windows to the durable usage outbox. | Yes | `60` |
 | `KURA_USAGE_FLUSH_INTERVAL_MS` | How often closed usage windows are flushed from memory to RocksDB. | Yes | `60000` |
-| `KURA_USAGE_DELIVERY_INTERVAL_MS` | How often the usage outbox attempts delivery to the control plane. Delivery pauses under critical memory pressure. | Yes | `5000` |
+| `KURA_USAGE_DELIVERY_INTERVAL_MS` | Normal usage delivery interval and base for exponential retry backoff with jitter (normally capped at 60 seconds). Numeric Retry-After responses set a minimum delay. Delivery pauses under critical memory pressure. | Yes | `5000` |
 | `KURA_USAGE_BATCH_SIZE` | Maximum number of usage rollups sent in one control-plane request. | Yes | `1000` |
 | `KURA_USAGE_MAX_BUCKETS` | Maximum number of in-memory usage aggregation buckets. New buckets are rejected when this cap is reached. | Yes | `10000` |
-| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
+| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Soft depth threshold at which closed windows stop flushing to RocksDB. A graceful shutdown can append one final batch, bounded by `KURA_USAGE_MAX_BUCKETS`, beyond this threshold. | Yes | `100000` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
 | `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` | Optional fixed cap on active multipart sessions, overriding memory-based sizing. Durable sessions survive restarts and reductions in the automatic limit. | Yes | auto |
@@ -436,9 +475,14 @@ staged separately; see the [monitoring rollout guide](../infra/helm/k8s-monitori
 and [bounded resource qualification](docs/metrics-cost-controls.md).
 
 Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
-observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
-`production`, `staging`, or `canary` and is disabled when unset or invalid. The
-controller sets it only for deployment-selected instances. A dedicated thread
+observations to ordinary Kura JSON logs. Equipped pods read only the fixed
+`KURA_CONNECTIVITY_CONFIG_FILE=/etc/kura/connectivity/selection.json` projection.
+The controller selects exact instances through live-Pod annotations with a fixed
+profile and absolute expiry within 24 hours. Sampling expires locally without
+controller/API availability; activation and removal do not roll equipped pods.
+Preparation defaults off and waits for normal image upgrades or creation, after
+establishing the compatible controller rollback floor. Legacy profile env is no
+longer honored by this runtime. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
 Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP
@@ -601,7 +645,32 @@ Both surfaces are metered: the HTTP cache path records rollups with `protocol = 
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
 
-The usage pipeline follows Kura's resource discipline: bucket count, durable outbox depth, and delivery batch size are capped; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
+The usage pipeline caps bucket count and delivery batch size, and applies a soft durable outbox depth threshold; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
+
+The server writes one complete batch at a time per replica, with a three-second
+budget shared by attribution and all usage/storage inserts. Up to two
+overlapping batches wait at most one second for that slot, inside the same
+budget; any further batch is rejected immediately. It returns 202 only after
+the required ClickHouse inserts complete; overload, timeout, and write failure
+return 503 with Retry-After. Kura retains the durable rows until a 2xx response
+and owns retries, including partial or ambiguous commits. Server ingestion has
+no second durable queue and disables both application and driver insert retries.
+The concurrency cap is replica-local, not a fleet-wide ClickHouse quota, and
+HTTP timeout does not prove that remote ClickHouse work has stopped.
+
+During graceful shutdown, Kura stops and joins periodic checkpoint and delivery
+tasks, drains traffic producers, then synchronously checkpoints remaining usage
+to RocksDB. It does not wait for remote delivery. Current-window partial rollups
+carry an incarnation suffix so successive deploys in the same window cannot
+overwrite each other's counters; those IDs remain stable across local retries.
+One final batch of at most KURA_USAGE_MAX_BUCKETS is allowed beyond the normal
+soft outbox depth. Repeated restarts during a prolonged outage can therefore
+grow the durable backlog beyond that soft threshold. A failed local fsync, an
+incomplete producer drain, SIGKILL before checkpoint, or loss of the local volume
+can still lose unpersisted usage. Storage evictions and snapshots remain
+best-effort in-memory telemetry. Shutdown reserves five seconds of scheduling
+headroom for the local checkpoint, not a hard fsync deadline: a stalled disk can
+still exhaust the orchestrator's termination grace.
 
 ## ☸️ Deployment Options
 
@@ -937,3 +1006,9 @@ With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON t
 REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain module usage attribution. Other clients remain attributed to `reapi`; the hint does not change authentication or CAS storage. CAS batch requests count once per batch, and already-present blob uploads do not add usage.
 
 A `GetActionResult` carrying `x-tuist-lookup: presence` only reports whether the entry is still served. It does not extend the lifetime of the entry or of the blobs it references, so a client can check for evicted entries without keeping them alive. Other lookups extend lifetimes as before.
+
+Planned legacy thin-storage moves use a destination-bound write bridge before
+changing endpoints. It verifies retained content and live mutation completion;
+closing old connections alone does not synchronize asynchronous replicas. See
+[thin storage handoff](../infra/kura-controller/thin-migration.md) for protocol
+bounds, pause behavior, safe preparation retry and qualification limits.

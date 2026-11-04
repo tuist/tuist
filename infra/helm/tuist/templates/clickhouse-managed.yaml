@@ -314,6 +314,8 @@ spec:
   # See `tailnetIngress` in infra/helm/tailscale-operator.
   type: LoadBalancer
   loadBalancerClass: tailscale
+  # The ProxyGroup routes to the ClusterIP, not to public node addresses.
+  allocateLoadBalancerNodePorts: false
 {{- end }}
   selector:
     {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
@@ -321,6 +323,10 @@ spec:
     - name: http
       port: 8123
       targetPort: 8123
+{{- if $m.tailscale.proxyGroup }}
+      # Explicitly delete an existing allocation during Helm upgrades too.
+      nodePort: null
+{{- end }}
 {{- end }}
 ---
 apiVersion: v1

@@ -7,6 +7,12 @@ import TuistProcess
 @testable import TuistCargoCommand
 
 struct CargoTests {
+    @Test func helpRecommendsNativeCargoTests() {
+        let help = CargoCommand.helpMessage().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        #expect(help.contains("test --no-run --shard-max N"))
+        #expect(!help.lowercased().contains("nextest"))
+    }
+
     @Test func preservesCargoArguments() throws {
         let args = ["+nightly", "--config", "build.jobs=2", "test", "--workspace", "--", "--exact", "tests::case"]
         let command = try CargoCommand.parse(args)

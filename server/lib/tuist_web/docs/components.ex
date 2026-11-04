@@ -51,7 +51,7 @@ defmodule TuistWeb.Docs.Components do
   defp slugify(label) do
     label
     |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/, "-")
+    |> String.replace(~r/[^\p{L}\p{N}]+/u, "-")
     |> String.trim("-")
   end
 end

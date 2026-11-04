@@ -1,4 +1,24 @@
+load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
+load("//bazel:rust_junit_test.bzl", "rust_junit_test")
+
 exports_files(
     ["rust_libtest_junit.sh"],
     visibility = ["//visibility:public"],
+)
+
+rust_binary(
+    name = "rust_libtest_junit",
+    srcs = ["rust_libtest_junit.rs"],
+    edition = "2024",
+    rustc_flags = ["-Dwarnings"],
+    visibility = ["//visibility:public"],
+    deps = ["@crates//:serde_json"],
+)
+
+rust_junit_test(
+    name = "rust_libtest_junit_test",
+    srcs = ["rust_libtest_junit.rs"],
+    edition = "2024",
+    rustc_flags = ["-Dwarnings"],
+    deps = ["@crates//:serde_json"],
 )

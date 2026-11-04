@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Vault credentials must never enter inherited shell tracing or verbose output.
+set +x +v
 set -euo pipefail
 umask 077
 
@@ -40,9 +42,14 @@ feed="$tmp/updates/atlas-appcast.xml"
 if [[ -n "$previous" ]]; then cp "$previous" "$feed"; fi
 prefix="https://github.com/tuist/tuist/releases/download/atlas-macos@$build/"
 # Sparkle can move old archives; it must never operate on publication artifacts.
-op read 'op://tuist/Tuist App Private Sparkle Key/credential' | "$sdk/bin/generate_appcast" \
-    --ed-key-file - --link https://github.com/tuist/tuist/releases \
-    --download-url-prefix "$prefix" -o "$feed" "$tmp/updates"
+# Both providers can echo private key material in diagnostics, including failures.
+if ! {
+    op read 'op://tuist/Tuist App Private Sparkle Key/credential' | "$sdk/bin/generate_appcast" \
+        --ed-key-file - --link https://github.com/tuist/tuist/releases \
+        --download-url-prefix "$prefix" -o "$feed" "$tmp/updates"
+} > "$tmp/appcast.log" 2>&1; then
+    fail 'Could not sign the Atlas appcast (private diagnostics withheld)'
+fi
 
 /usr/bin/xmllint --nonet --noout "$feed"
 item="/rss/channel/item[$version='$build']"

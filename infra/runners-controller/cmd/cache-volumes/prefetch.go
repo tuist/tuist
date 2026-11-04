@@ -20,6 +20,8 @@ type prefetcher struct {
 	restore func(context.Context, cachevolumes.Slot) error
 	local   func(cachevolumes.Identity) bool
 	observe cachevolumes.Observer
+	// installed counts each master it installs.
+	installed func(reason string, bytes int64)
 }
 
 const prefetchQueueLimit = 64
@@ -60,7 +62,11 @@ func (p *prefetcher) work(identity cachevolumes.Identity) {
 	for {
 		if p.local == nil || !p.local(identity) {
 			done := p.observe.For(cachevolumes.Slot{Identity: identity}).Start("prefetch", "remote")
-			done(p.restore(context.Background(), cachevolumes.Slot{Identity: identity}))
+			err := p.restore(context.Background(), cachevolumes.Slot{Identity: identity})
+			done(err)
+			if err == nil && p.installed != nil {
+				p.installed("job", identity.HeadSizeBytes)
+			}
 		}
 		p.mu.Lock()
 		if len(p.pending) == 0 {

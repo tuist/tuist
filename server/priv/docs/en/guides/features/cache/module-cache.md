@@ -38,21 +38,25 @@ If a binary fails to upload, the command still uploads the rest, then exits with
 
 ### Destination selection {#destination-selection}
 
-Use `--destination simulator` or `--destination device` to cache and generate for one destination:
+Use `--destination simulator` or `--destination device` to cache, generate, and test for one destination:
 
 ```bash
 tuist cache --destination simulator
 tuist generate --destination simulator
+tuist test --destination simulator
 
 tuist cache --destination device
 tuist generate --destination device
+tuist test --destination device -- -destination 'platform=iOS,id=DEVICE_IDENTIFIER'
 ```
 
 The default is `all`, which preserves every destination supported by your targets, including Mac Catalyst. A later `tuist cache` reuses cached slices and builds only the missing SDKs. Normal generation keeps a module's sources if any required slices are missing.
 
 Restricted generation limits source targets to the selected destination and preserves native macOS targets, including macros. Neither restricted mode includes Mac Catalyst. Regenerate with `--destination all` to restore all destinations.
 
-Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching requires `--destination all`.
+`tuist test --destination` uses and downloads only the selected destination's slices, so a simulator test run can use binaries from a simulator-only or a full warm. It fails when the destination passed to `xcodebuild` after `--` doesn't match, and `--destination device` requires a device `-destination`. Selective-testing hashes don't depend on the destination, so runs with different `--destination` values share test results.
+
+Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching always downloads full artifacts and requires `--destination all` when warming.
 
 ### Remote upload admission {#remote-upload-admission}
 
@@ -262,10 +266,7 @@ Tuist rejects a caller-owned scratch directory when a foreign build target needs
 
 ### Code coverage {#code-coverage}
 
-> [!NOTE] EARLY ACCESS
-> Code coverage with the module cache is in early access. Commands only read and warm the instrumented binaries described below when `TUIST_FEATURE_FLAG_COVERAGE=1` is set.
-
-A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. Turn coverage on for your project in `Tuist.swift`:
+A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. This section describes how the cache handles coverage; to set up coverage end to end, see <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">Code Coverage</.localized_link>. Turn coverage on for your project in `Tuist.swift`:
 
 ```swift
 import ProjectDescription

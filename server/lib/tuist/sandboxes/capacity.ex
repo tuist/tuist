@@ -58,6 +58,7 @@ defmodule Tuist.Sandboxes.Capacity do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -417,6 +418,25 @@ defmodule Tuist.Sandboxes.Capacity do
     |> Repo.all()
     |> Enum.map(&disk_ceiling_bytes(&1, node))
     |> Enum.sum()
+    |> Kernel.+(reserved_disk_snapshot_bytes(node))
+  end
+
+  @doc """
+  The most disk a disk snapshot can take: full copies of its rootfs and
+  workspace once the sandboxes they were cloned from or into diverge.
+  """
+  def disk_snapshot_ceiling_bytes(%{workspace_gb: workspace_gb, template: template}, node) do
+    (workspace_gb || 0) * @gib + rootfs_bytes(node, template) + @sandbox_disk_overhead_bytes
+  end
+
+  defp reserved_disk_snapshot_bytes(%{name: node_name} = node) do
+    from(s in DiskSnapshot,
+      where: s.node_name == ^node_name,
+      select: %{workspace_gb: s.workspace_gb, template: s.template}
+    )
+    |> Repo.all()
+    |> Enum.map(&disk_snapshot_ceiling_bytes(&1, node))
+    |> Enum.sum()
   end
 
   @doc """
@@ -427,6 +447,40 @@ defmodule Tuist.Sandboxes.Capacity do
       :unbounded -> true
       budget -> reserved_disk_bytes(node) + disk_ceiling_bytes(sandbox, node) <= budget
     end
+  end
+
+  @doc """
+  Runs `apply` under the node's lock when its disk budget and free space
+  can take a new disk snapshot's ceiling, so a concurrent placement never
+  counts on the same bytes. Answers `{:error, :no_capacity}` otherwise.
+  """
+  def reserve_disk_snapshot(%{name: node_name} = node, snapshot, apply) when is_function(apply, 0) do
+    ceiling = disk_snapshot_ceiling_bytes(snapshot, node)
+
+    Repo.transaction(fn ->
+      lock(node_name)
+
+      fits_budget =
+        case disk_budget_bytes(node) do
+          :unbounded -> true
+          budget -> reserved_disk_bytes(node) + ceiling <= budget
+        end
+
+      fits_filesystem =
+        case node do
+          %{disk: %{available_bytes: available}} when is_integer(available) -> available >= ceiling + @disk_headroom_bytes
+          _node -> true
+        end
+
+      if fits_budget and fits_filesystem do
+        case apply.() do
+          {:ok, result} -> result
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      else
+        Repo.rollback(:no_capacity)
+      end
+    end)
   end
 
   @doc """
@@ -457,18 +511,22 @@ defmodule Tuist.Sandboxes.Capacity do
   the template and `{:error, :no_capacity}` when none has room.
   """
   def place(%Sandbox{platform: :darwin} = sandbox), do: MacosCapacity.place(sandbox)
+  def place(%Sandbox{} = sandbox), do: place(sandbox, fn _node -> true end)
 
-  def place(%Sandbox{node_name: nil, template: template} = sandbox) do
+  @doc """
+  `place/1` among the nodes `node_filter` accepts, such as the nodes that
+  can reach the store holding the archive a sandbox is restored from.
+  """
+  def place(%Sandbox{node_name: nil, template: template} = sandbox, node_filter) do
     ready =
-      Nodes.await(
-        fn ->
-          case ready_nodes(template) do
-            [] -> {:retry, []}
-            nodes -> nodes
-          end
-        end,
-        Nodes.presence_wait_ms()
-      )
+      fn ->
+        case ready_nodes(template) do
+          [] -> {:retry, []}
+          nodes -> nodes
+        end
+      end
+      |> Nodes.await(Nodes.presence_wait_ms())
+      |> Enum.filter(node_filter)
 
     candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox)))
 
@@ -476,6 +534,24 @@ defmodule Tuist.Sandboxes.Capacity do
       ready == [] -> {:error, :no_node}
       candidates == [] -> {:error, :no_capacity}
       true -> place_on(candidates, sandbox)
+    end
+  end
+
+  @doc """
+  `place/1` restricted to one node: the node that holds the disk snapshot a
+  sandbox is cloned from. Answers `{:error, :no_node}` when that node is not
+  connected with the template ready, so the caller can fall back to
+  `place/1`.
+  """
+  def place_on_node(%Sandbox{node_name: nil, template: template} = sandbox, node_name) when is_binary(node_name) do
+    case Enum.filter(ready_nodes(template), &(&1.name == node_name)) do
+      [] ->
+        {:error, :no_node}
+
+      [node] ->
+        if disk_space?(node, sandbox) and disk_room?(node, sandbox),
+          do: place_on([node], sandbox),
+          else: {:error, :no_capacity}
     end
   end
 

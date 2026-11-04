@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Test Insights",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Identify flaky and slow tests in Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Test Insights."
+  "title": "테스트 인사이트",
+  "titleTemplate": ":title · 기능 · 가이드 · Tuist",
+  "description": "Tuist 테스트 인사이트를 사용하여 Xcode, Gradle, Bazel, Elixir 및 Rust 프로젝트에서 불안정하고 느린 테스트를 식별하세요."
 }
 ---
 # 테스트 인사이트 {#test-insights}
 
-느린 테스트 식별, 불안정한 테스트 추적, 실패한 CI 실행의 빠른 이해를 통해 테스트 스위트의 상태를 모니터링하려면 테스트 인사이트를 사용하세요. 현재 Xcode, Gradle, Bazel, Elixir 및 Rust를 지원합니다.
+느린 테스트 식별, 불안정한 테스트 추적, 실패한 CI 실행의 빠른 이해를 통해 테스트 인사이트로 테스트 스위트의 상태를 모니터링하세요. 현재 Xcode, Gradle, Bazel, Elixir 및 Rust를 지원합니다. 테스트가 실행하는 코드를 확인하려면 <.localized_link href="/guides/features/test-code-coverage">코드 커버리지</.localized_link>를 참조하세요.
 
 <.home_cards>
   <.home_card

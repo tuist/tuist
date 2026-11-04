@@ -25,6 +25,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         project_id: project.id,
         user_id: account.id,
         status: "processing",
+        tuist_version: "4.200.0-canary.2",
         duration: 0
       )
 
@@ -388,6 +389,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build_metadata = %{
         "xcode_version" => "16.0",
         "macos_version" => "15.0",
+        "tuist_version" => "4.200.0-canary.2",
         "is_ci" => true,
         "scheme" => "App",
         "git_branch" => "main",
@@ -405,6 +407,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.id == non_existent_build_id
         assert attrs.xcode_version == "16.0"
         assert attrs.macos_version == "15.0"
+        assert attrs.tuist_version == "4.200.0-canary.2"
         assert attrs.is_ci == true
         assert attrs.scheme == "App"
         assert attrs.git_branch == "main"
@@ -594,6 +597,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert {:ok, merged} = Builds.get_build(build.id, project_id: project.id)
       assert merged.status == "success"
       assert merged.duration == 1200
+      assert merged.tuist_version == "4.200.0-canary.2"
     end
 
     test "supersedes the placeholder even when the processing pod's clock is behind", %{

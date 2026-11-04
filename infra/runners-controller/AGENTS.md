@@ -99,6 +99,12 @@ cancellable and leaves the reserve intact. See
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
+  The floor tier funds pools in use (load now, or a runner session in the
+  last hour: `Signals.InUse`) before pools that only hold a learned floor,
+  in `capByShape` too. Learned floors on a busy rack sum past its seats, and
+  an even split left the pools whose jobs were arriving short of warm
+  runners while pools with no job in an hour stayed warm.
+
   A tier that cannot be funded in full is split proportionally to cost,
   and the whole Pods the rounding leaves go one per pool per round to the
   pools with the largest target (which includes the hourly peak), then by
@@ -351,7 +357,12 @@ cancellable and leaves the reserve intact. See
     `macOSClaimGrace` (3m) after its VM starts, so the guest's first
     dispatch poll can claim the job it was created for. Candidate
     ranking counts those seats as occupants to wait out. The
-    taint is removed when the Pod lands or after
+    taint is removed when the pool has placed all its Pods, when the
+    host has no room for another of the pool's Pods even once every
+    other pool's Pod is gone (`reservedHostSeated`; the same reconcile
+    then reserves the next host, so a pool short several Pods of a
+    one-per-host shape gets them one host at a time instead of one per
+    timeout), or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
     fleet nodes, so darwin and linux hold separate budgets), since a
@@ -975,26 +986,28 @@ A Node is ready for runner Pods once it carries
 
 ### cgroup leak on kata nodes
 
-kubelet runs `cgroupDriver: systemd`, so the kata-qemu handler must set
-`SystemdCgroup = true` in its own options block. Without it the kata shim
-writes the systemd slice name kubelet hands it as a literal directory at
-the cgroup root
+Kata 3.30 only resolves the systemd cgroup path kubelet hands it when
+`sandbox_cgroup_only = true`. With the default (`false`) the shim writes
+the slice name as a literal directory at the cgroup root
 (`/sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>`)
-instead of nesting it under `kubepods.slice`. Nothing owns those: systemd
-never knew about them and the shim does not remove them, so they
-accumulate one per container start. At exhaustion every cgroup `mkdir`
-returns ENOSPC, and the node keeps reporting `Ready` while failing every
-new Pod sandbox. A busy node reached ~65k of them, against ~70 on a
-freshly booted one. The self-join (`kataSetup`) sets it on the handler
-block it appends.
+holding QEMU, and puts virtiofsd and itself in
+`/sys/fs/cgroup/kata_overhead/<id>`. Both sit outside `kubepods.slice`, so
+the kubelet's Pod limits and cpusets never apply to the VM, and nothing
+removes either directory when the sandbox exits. They accumulate one each
+per sandbox. At exhaustion every cgroup `mkdir` returns ENOSPC, and the
+node keeps reporting `Ready` while failing every new Pod sandbox. A busy
+node reached ~65k of each, against ~70 on a freshly booted one.
+`SystemdCgroup = true` on the handler does not prevent this (a staging
+host with it had 3,351 of each after 8 days).
 
-**There is a second population of the same size:**
-`/sys/fs/cgroup/kata_overhead/*`, one per sandbox, named by container ID.
-Same shape (flat empty leaves), same one-per-container-start growth,
-never reclaimed. Whether `SystemdCgroup = true` also stops it is **not
-established**: the overhead cgroups are created by the shim either way.
-Sweeping only the root population leaves the node at half its leak and
-reads as a stuck reclaim.
+The `50-tuist-sandbox-cgroup.toml` drop-in (`kataSandboxCgroupSetup`)
+turns `sandbox_cgroup_only` on, which puts the shim, virtiofsd and QEMU
+in a systemd scope under the Pod's slice that systemd removes with the
+sandbox. When it lands on an existing host through the Kata host config
+repair, it also sweeps both leaked populations. Sandboxes started before
+it keep their old cgroups, so a host can leak a handful more until they
+exit; sweep those as below. Sweeping only the root population leaves the
+node at half its leak and reads as a stuck reclaim.
 
 Check a host without SSH. The count should be in the hundreds, not
 thousands:
@@ -1224,10 +1237,11 @@ Shape:
   config, **not** the runner's `<runner root>/_work` default —
   see "Why the work directory is /home/runner/work" below.
 - `dind-externals` emptyDir at `/home/runner/actions-runner/externals`
-  (sidecar only), filled by the `dind-externals` init container —
+  (sidecar only), filled by the `dind-externals` native sidecar —
   the runner image running `cp -a` out of its own image layer into
   the volume, staged at `/mnt/dind-externals` there so the mount
-  doesn't shadow the source. See "Why stage externals" below.
+  doesn't shadow the source. The poller mounts it read-only for the
+  copy's marker. See "Why stage externals" below.
 - `dind-storage` emptyDir at `/mnt/dind-disk` (sidecar only).
   Plain node-disk emptyDir — holds a sparse `disk.img` the
   sidecar entrypoint loop-mounts as ext4 onto `/var/lib/docker`
@@ -1287,11 +1301,22 @@ runtimes every JS action executes under — ships in the runner
 image alone. Without the staged copy every step in the job
 container dies on a missing `/__e/node2x/bin/node`.
 
-Same fix ARC ships as `init-dind-externals`. The copy runs before
-the sidecar, so it is in place by the time dockerd can serve a
-container and a runner image that stops shipping externals fails
-the Pod early rather than at job time. Cost is a per-Pod copy of
-the node runtimes at warm-up, off the job's critical path.
+Same fix ARC ships as `init-dind-externals`, but as a native sidecar
+with no startupProbe, so the containers after it start while it
+copies. The copy takes 3-6 s on a host booting several sandboxes, and
+as a blocking init container it sat in front of every cold boot: a
+job that arrives faster than the warm floor waits for the whole boot.
+`tuist-cache-volume` is copied first and renamed into place, because
+the `dind` sidecar executes it (it waits for that file alone); the
+rest follows, then `.tuist-externals-staged`. The poller waits for
+that marker before its first claim, so no job starts against a partial
+copy, and exits non-zero after 120 s without it, which fails the Pod
+early as before when an image stops shipping externals. A restarted
+sidecar leaves a finished copy alone, since a job may be running it.
+
+The `dind` startupProbe runs every second (120 s ceiling). dockerd is
+up about a second after its container starts, and every container
+after it waits for the probe to see that.
 
 ### Why the work directory is /home/runner/work
 

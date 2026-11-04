@@ -3,6 +3,7 @@ package podagent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -279,5 +280,55 @@ func TestCheckoutGitLFSIsVerifiedBeforeUse(t *testing.T) {
 	download := func(context.Context) ([]byte, error) { t.Fatal("downloaded an installed git-lfs"); return nil, nil }
 	if err := GitLFS(root, download)(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCheckoutPrefetchQueuesASpareRestoreOnAHostWithoutTheMaster(t *testing.T) {
+	root := t.TempDir()
+	checkouts := preparedCheckouts(t, filepath.Join(root, "checkouts"))
+	c := &CustomVolumes{Root: root, Checkouts: checkouts}
+	task := cachevolumes.CheckoutTask{
+		Scope: checkoutTestScope, Generation: 1, CloneURL: "https://github.com/org/repo", DefaultBranch: "main", Use: checkoutTestUse,
+		BaseGeneration: 2, ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), UID: 502,
+		VolumeKey: strings.Repeat("d", 64), Spare: true,
+	}
+
+	if !c.PrefetchCheckout(task) {
+		t.Fatal("a host without the master did not queue its restore")
+	}
+	if queued, _ := checkouts.Pending(checkoutTestScope); checkouts.Queued() != 1 || !queued.Spare || queued.Export != "" {
+		t.Fatalf("queued %+v", queued)
+	}
+	if scope, _ := os.ReadFile(filepath.Join(root, "checkouts", ".volumes", task.VolumeKey)); string(scope) != checkoutTestScope {
+		t.Fatalf("the prefetched scope is not tracked for clears: %q", scope)
+	}
+
+	master := filepath.Join(root, "checkouts", checkoutTestScope, "1", (&cachevolumes.APFSCheckoutImages{}).MasterName())
+	mkdirFile(t, master)
+	if c.PrefetchCheckout(task) {
+		t.Fatal("a host holding the master queued a restore")
+	}
+}
+
+func TestCheckoutSpareRoomNeverEvictsAMaster(t *testing.T) {
+	m, be := newTestSpace(t, 100)
+	be.perMaster = 30 * gib
+	be.inUse = 100*gib - 10_000_000_000
+	checkouts := preparedCheckouts(t, filepath.Join(m.Root, "custom", "checkouts"))
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m, Checkouts: checkouts}
+	master := filepath.Join(checkouts.Root, checkoutTestScope, "1", (&cachevolumes.APFSCheckoutImages{}).MasterName())
+	mkdirFile(t, master)
+
+	if _, err := c.spareCheckout(context.Background(), 20_000_000_000); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("spare room = %v, want capacity", err)
+	}
+	if !exists(master) {
+		t.Fatal("a spare restore evicted a master")
+	}
+	if _, err := c.reserveCheckout(context.Background(), 20_000_000_000); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("room = %v", err)
+	}
+	if exists(master) {
+		t.Fatal("a restore a job asked for no longer evicts an idle master")
 	}
 }

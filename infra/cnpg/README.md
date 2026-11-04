@@ -156,15 +156,15 @@ and web replacements can start before CNPG finishes applying the new limit.
 
 1. Obtain human approval/elevation for the database-only canary change and
    schedule a write interruption. Increasing `max_connections` requires a
-   PostgreSQL restart. With two instances and required `ANY 1` replication,
-   commits wait while the only standby restarts, in addition to the primary
-   switchover interruption. Do not weaken synchronous durability to avoid it.
+   PostgreSQL restart. With required `ANY 1` replication, commits wait while
+   a cluster's only standby restarts, in addition to the primary switchover
+   interruption. Do not weaken synchronous durability to avoid it.
 2. Apply only the CNPG `max_connections: "300"` parameter change, leaving
    application workloads unchanged. Let CNPG complete its standby restart and
    primary switchover.
-3. Wait for both instances to be healthy, with replication restored and no
-   restart pending. Verify the effective `max_connections` is 300 on **both**
-   instances before starting the normal application deployment.
+3. Wait for every instance to be healthy, with replication restored and no
+   restart pending. Verify the effective `max_connections` is 300 on **every**
+   instance before starting the normal application deployment.
 4. During that rollout, check for `53300` and pooler authentication rejections,
    confirm old web connections drain, and check backend memory, active sessions
    and checkout queues remain healthy.

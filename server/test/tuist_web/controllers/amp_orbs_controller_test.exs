@@ -67,6 +67,22 @@ defmodule TuistWeb.AmpOrbsControllerTest do
              "Account sandbox CPU or memory limit reached"
   end
 
+  test "marks the account's disk limit, which paused Orbs count toward, as final when nothing can be archived", %{
+    conn: conn,
+    integration: integration,
+    user: user
+  } do
+    identity(integration)
+    {:ok, _} = Concurrency.update_limits(user.account, %{sandbox_disk_gb_limit: 14})
+    SandboxesFixtures.sandbox_fixture(account: user.account, state: :paused)
+
+    result = request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture"})
+
+    assert response(result, 429) == "Account sandbox disk limit reached"
+    assert get_resp_header(result, "x-tuist-orb-refusal") == ["sandbox-limit"]
+    assert get_resp_header(result, "x-tuist-orb-retry") == []
+  end
+
   test "requires workload authentication", %{conn: conn} do
     stub(Client, :create_amp_provider_token_review, fn _ -> {:error, :unauthenticated} end)
     assert response(request(conn), 401)
@@ -78,6 +94,8 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     for {reason, status, hint} <- [
           {:no_capacity, 503, ["admission"]},
           {:sandbox_concurrency_limit, 429, ["admission"]},
+          {:sandbox_disk_limit, 429, ["admission"]},
+          {:sandbox_limit, 429, []},
           {:sandbox_account_busy, 409, ["admission"]},
           {:locked, 409, ["admission"]},
           {:orb_bootstrap_failed, 503, []},

@@ -15,6 +15,8 @@ To run tests selectively with your <.localized_link href="/guides/features/proje
 
 `tuist test` integrates directly with the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with module caching can dramatically reduce the time it takes to run tests on your CI.
 
+If your test runs only target simulators, pass `--destination simulator` so `tuist test` uses and downloads only the simulator slices of cached binaries. See <.localized_link href="/guides/features/cache/module-cache#destination-selection">destination selection</.localized_link>. Selective-testing hashes are the same for every `--destination` value.
+
 ## Separate build and test jobs {#separate-build-and-test-jobs}
 
 Selective testing supports separate build and test jobs. Run `tuist test --build-only` in the build job so Tuist can persist a `selective-testing-graph.json` file alongside the products the build emits. That graph carries the hashes selective testing needs, so the test job doesn't have to regenerate the project or resolve Swift Package dependencies to figure out which targets to run.
@@ -78,10 +80,10 @@ Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, 
 > Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
 
 
-> [!WARNING]
+> [!NOTE]
 > **Test Coverage**
 >
-> Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+> Coverage tools that read a single run's report, Xcode's included, assume the whole test suite ran, so a selective run's report leaves out the tests it skipped. Tuist's <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">code coverage</.localized_link> carries the coverage of skipped test targets forward from an earlier run instead, using the <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#target-level-coverage">target-level coverage</.localized_link> it records on every run.
 
 
 ## Pull/merge request comments {#pullmerge-request-comments}

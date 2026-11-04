@@ -26,6 +26,7 @@ type Exclusive func(path string, info os.FileInfo) (uint64, error)
 type Accounter struct {
 	DataDir      string
 	TemplatesDir string
+	SnapshotsDir string
 	JailDir      string
 	BudgetBytes  uint64
 	Exclusive    Exclusive
@@ -37,7 +38,7 @@ type inode struct {
 }
 
 // Report measures the filesystem behind DataDir and the exclusive bytes
-// under the templates and jail directories.
+// under the templates, disk snapshot and jail directories.
 func (a Accounter) Report() (protocol.DiskReport, error) {
 	report := protocol.DiskReport{BudgetBytes: a.BudgetBytes}
 	total, available, err := Filesystem(a.DataDir)
@@ -56,11 +57,16 @@ func (a Accounter) Report() (protocol.DiskReport, error) {
 	if err != nil {
 		return report, err
 	}
+	snapshots, err := sum(a.SnapshotsDir, seen, exclusive)
+	if err != nil {
+		return report, err
+	}
 	sandboxes, err := sum(a.JailDir, seen, exclusive)
 	if err != nil {
 		return report, err
 	}
 	report.TemplatesBytes = templates
+	report.SnapshotsBytes = snapshots
 	report.SandboxesBytes = sandboxes
 	return report, nil
 }

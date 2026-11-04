@@ -100,13 +100,17 @@
           </div>
         </div>
       </div>
+      <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
       <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
     </.card_section>
   </.card>
   <TuistWeb.Components.BuildMetadata.environment_metadata
     :if={@selected_tab == "overview"}
     values={@build.custom_values || %{}}
-    fields={[{dgettext("dashboard_builds", "Rust version"), @build.rust_version}]}
+    fields={[
+      {dgettext("dashboard_builds", "Tuist CLI version"), @build.tuist_version},
+      {dgettext("dashboard_builds", "Rust version"), @build.rust_version}
+    ]}
   />
   <div :if={@selected_tab == "cache" && @cache_metrics} data-part="cache">
     <.card

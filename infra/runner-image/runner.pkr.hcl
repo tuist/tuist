@@ -58,6 +58,7 @@ packer {
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
 #   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
+#   /opt/tuist/logd-watchdog.sh                 <- restarts a wedged logd (root LaunchDaemon)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
 #   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
@@ -148,6 +149,34 @@ variable "buildkite_agent_version" {
   default = "3.138.0"
 }
 
+variable "bitrise_den_agent_version" {
+  type        = string
+  description = "Bitrise den agent version. https://github.com/bitrise-io/bitrise-den-agent/releases."
+  # Pinned and started without `--fetch-latest-cli`, so the agent never
+  # updates itself or the CLI mid-VM.
+  # renovate: datasource=github-releases depName=bitrise-io/bitrise-den-agent
+  default = "2.69.0"
+}
+
+variable "bitrise_den_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 den agent zip, as pinned by bitrise-io/homebrew-den-agent."
+  default     = "b67c38531a3c6fed6571029fbe0958e828156979e8507ccec6c2404e03894186"
+}
+
+variable "bitrise_cli_version" {
+  type        = string
+  description = "Bitrise CLI version the den agent runs builds with. https://github.com/bitrise-io/bitrise/releases."
+  # renovate: datasource=github-releases depName=bitrise-io/bitrise
+  default = "3.2.1"
+}
+
+variable "bitrise_cli_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the bitrise-Darwin-arm64 binary, from the release's checksums.txt."
+  default     = "33bf12c80ece4bda6168b90481eb3cd021e385851013ef7d922c00d638a44ed5"
+}
+
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
 # shape as the xcresult-processor image) so the build runs on
 # the existing M1-M `vm-image-builder` Mac mini — the host has
@@ -213,13 +242,15 @@ build {
 
   # Claim the space `disk_size_gb` added for the APFS container. The
   # plugin only does this after deleting a recovery partition, and the
-  # base has none left to delete, so it never does here.
+  # base has none left to delete, so it never does here. The live resize
+  # intermittently fails with -69606 while growing the APFS structures and
+  # undoes its changes, so it is retried.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
       "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
-      "sudo diskutil apfs resizeContainer \"$store\" 0"
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 && break; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
     ]
   }
 
@@ -254,12 +285,10 @@ build {
       "openssl verify -CAfile /tmp/tuist-issuer-roots.pem /tmp/tuist-negative-intermediate.pem",
       "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native negative-chain baseline: trusted before containment'; else echo 'Native negative-chain baseline: already rejected; no differential containment claim'; fi",
       "echo 'admin' | sudo -S true",
-      "right=$(mktemp)",
-      "sudo security authorizationdb read com.apple.trust-settings.admin > \"$right\"",
-      "trap 'sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\" || exit 1; rm -f \"$right\"' EXIT",
-      "sudo security authorizationdb write com.apple.trust-settings.admin allow",
+      # SIP protects this authorization rule on current macOS. Authenticate
+      # the disposable guest's admin instead of rewriting the rule to allow.
+      "echo 'admin' | security authorize -C admin com.apple.trust-settings.admin",
       "for cert in /tmp/tuist-blocked-cas/*.pem; do [ -e \"$cert\" ] || continue; sudo security add-trusted-cert -d -r deny -k /Library/Keychains/System.keychain \"$cert\"; if security verify-cert -c \"$cert\" -p basic >/dev/null 2>&1; then echo 'Native verifier accepted a denied root' >&2; exit 1; fi; done",
-      "sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\"; rm -f \"$right\"; trap - EXIT",
       "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native verifier accepted a compromised intermediate chain' >&2; exit 1; fi",
       "security verify-cert -c /tmp/tuist-positive-root.pem -p basic -R offline",
       "bash /tmp/tuist-pem-store.sh filter /etc/ssl/cert.pem /tmp/tuist-cacerts.pem",
@@ -481,6 +510,31 @@ build {
     ]
   }
 
+  # The Bitrise den agent and CLI, for the same reason the Buildkite agent
+  # is here. `/opt/bitrise` is the layout the agent's own daemon installer
+  # creates, owned by the user the agent runs as.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o bitrise-den-agent.zip https://github.com/bitrise-io/bitrise-den-agent/releases/download/v${var.bitrise_den_agent_version}/bitrise-den-agent-darwin-arm64.zip",
+      "echo '${var.bitrise_den_agent_sha256_darwin_arm64}  bitrise-den-agent.zip' | shasum -a 256 -c -",
+      "mkdir -p /tmp/bitrise-den-agent-dist",
+      "unzip -q bitrise-den-agent.zip -d /tmp/bitrise-den-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/bitrise-den-agent-dist/bitrise-den-agent /opt/tuist/bitrise-den-agent",
+      "curl -sSL -o bitrise https://github.com/bitrise-io/bitrise/releases/download/v${var.bitrise_cli_version}/bitrise-Darwin-arm64",
+      "echo '${var.bitrise_cli_sha256_darwin_arm64}  bitrise' | shasum -a 256 -c -",
+      "echo 'admin' | sudo -S mkdir -p /usr/local/bin",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel bitrise /usr/local/bin/bitrise",
+      "echo 'admin' | sudo -S mkdir -p /opt/bitrise/var/log /opt/bitrise/releases /opt/bitrise/bin",
+      "echo 'admin' | sudo -S touch /opt/bitrise/.env_all.yaml",
+      "echo 'admin' | sudo -S chown -R runner:staff /opt/bitrise",
+      "rm -rf bitrise-den-agent.zip /tmp/bitrise-den-agent-dist bitrise",
+      "/opt/tuist/bitrise-den-agent --version",
+      "/usr/local/bin/bitrise --version"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
@@ -502,6 +556,16 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/logd-watchdog.sh"
+    destination = "/tmp/logd-watchdog.sh"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/logd-watchdog.plist"
+    destination = "/tmp/dev.tuist.logd-watchdog.plist"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/tuist-runner-cache"
     destination = "/tmp/tuist-runner-cache"
   }
@@ -509,6 +573,11 @@ build {
   provisioner "file" {
     source      = "${path.root}/buildkite-hooks"
     destination = "/tmp/buildkite-hooks"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/bitrise-hooks"
+    destination = "/tmp/bitrise-hooks"
   }
 
   provisioner "file" {
@@ -544,6 +613,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/logd-watchdog.sh /opt/tuist/logd-watchdog.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
@@ -551,6 +621,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.logd-watchdog.plist /Library/LaunchDaemons/dev.tuist.logd-watchdog.plist",
       # Global agent hooks: `buildkite-agent --hooks-path` points here, so
       # these run for every job the agent takes regardless of what the
       # customer's own repository defines.
@@ -558,7 +629,11 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
-      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
+      # The Bitrise CLI's agent-mode build start hook, named in the
+      # agent-config.yml dispatch-poll writes.
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/bitrise-hooks",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/bitrise-hooks/build-start /opt/tuist/bitrise-hooks/build-start",
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/logd-watchdog.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/dev.tuist.logd-watchdog.plist /tmp/buildkite-hooks /tmp/bitrise-hooks"
     ]
   }
 

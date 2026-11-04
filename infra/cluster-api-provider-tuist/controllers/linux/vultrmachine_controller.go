@@ -20,11 +20,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -44,10 +43,20 @@ import (
 //go:embed vultr_convert.sh
 var vultrConvertScript string
 
+//go:embed vultr_convert_lvm.sh
+var vultrConvertLVMScript string
+
+func renderVultrConversionScript(lvm bool) string {
+	if lvm {
+		return kuraLVMSetupScript + "\n" + vultrConvertLVMScript
+	}
+	return vultrConvertScript
+}
+
 // vultrConvertResult parses the machine-readable tail the conversion prints, so
 // status records what the box actually ended up with rather than what was asked
 // for.
-var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+)`)
+var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+)(?: vg=(\S+))?`)
 
 const (
 	// VultrMachineFinalizer guards the CR until the node identity is cleaned up
@@ -158,7 +167,7 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	owner, err := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -176,7 +185,7 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
@@ -235,7 +244,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 			machine.Status.Phase = "Adopting"
 			r.event(machine, "Adopted", "Adopted Vultr box %s (%s) in %s", server.Label, server.ID, region)
 			// Persist inside the lock; the deferred patch would flush after release.
-			if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil {
+			if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil {
 				return ctrl.Result{}, fmt.Errorf("persist adoption claim for %s: %w", server.ID, patchErr)
 			}
 			return ctrl.Result{RequeueAfter: time.Second}, nil
@@ -431,7 +440,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 		known = creds.HostFingerprint
 	}
 	hk := bootstrap.NewHostKeyState(known)
-	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, vultrConvertScript, hk)
+	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, renderVultrConversionScript(kuraLVMRequested(machine.Annotations)), hk)
 	if observed := hk.Observed(); observed != "" && observed != known {
 		if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, observed); perr != nil {
 			logger.Error(perr, "persist host fingerprint; will retry")
@@ -446,7 +455,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 	}
 
 	m := vultrConvertResult.FindStringSubmatch(out)
-	if m == nil {
+	if m == nil || m[2] != "xfs" || m[3] != "true" || (kuraLVMRequested(machine.Annotations) && m[4] != "kura-volumes") {
 		// The script exits non-zero when the gates fail, so a zero exit without a
 		// result line means it is not the script we think it is.
 		status.Attempts++
@@ -465,6 +474,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 func (r *VultrMachineReconciler) hostOptions(machine *infrav1.VultrMachine) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
 		NodeName:      machine.Name,
+		KuraLVM:       kuraLVMRequested(machine.Annotations),
 		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
 		Taints:        machine.Spec.NodeTaints,
 		BootstrapUser: vultrBootstrapUser,

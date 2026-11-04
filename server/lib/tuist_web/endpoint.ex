@@ -74,7 +74,11 @@ defmodule TuistWeb.Endpoint do
   plug TuistCommon.RequestLoggerPlug
   plug TuistWeb.Plugs.RequestKindPlug
   plug TuistWeb.Plugs.SCIMErrorFormatPlug
-  plug Sentry.PlugContext, header_scrubber: {__MODULE__, :scrub_sentry_headers}
+
+  plug Sentry.PlugContext,
+    header_scrubber: {__MODULE__, :scrub_sentry_headers},
+    body_scrubber: {__MODULE__, :scrub_sentry_body}
+
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
   plug Stripe.WebhookPlug,
@@ -165,10 +169,22 @@ defmodule TuistWeb.Endpoint do
   plug Plug.Session, @session_options
   plug TuistWeb.Router
 
+  # Sentry only scrubs password, passwd and secret parameters by default.
+  # Authenticator and single-use recovery codes are second-factor credentials.
+  def scrub_sentry_body(conn) do
+    conn
+    |> Sentry.PlugContext.default_body_scrubber()
+    |> Map.delete("mfa_code")
+  end
+
   # Sentry only scrubs authorization, authentication and cookie by default.
   def scrub_sentry_headers(conn) do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
-    |> Map.drop(["x-tuist-actor-id" | TuistWeb.OperatorGrant.credential_headers()])
+    |> Map.drop([
+      "x-csrf-token",
+      "x-tuist-actor-id",
+      "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()
+    ])
   end
 end

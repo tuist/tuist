@@ -29,7 +29,7 @@ defmodule Atlas.Orbit.ProgressTest do
     Progress.handle_event([:condukt, :compact, :start], %{}, meta, nil)
     Progress.handle_event([:condukt, :compact, :stop], %{}, Map.put(meta, :changed, true), nil)
     notice = Repo.get_by!(Message, run_id: run.id)
-    assert notice.kind == "system" and notice.body =~ "Context compacted"
+    assert notice.kind == "system" and notice.body =~ "older context is ready"
     assert Viewers.snapshot(thread).agent_status == "running"
   end
 

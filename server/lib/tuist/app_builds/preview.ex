@@ -46,7 +46,8 @@ defmodule Tuist.AppBuilds.Preview do
         visionos: 6,
         visionos_simulator: 7,
         macos: 8,
-        android: 9
+        android: 9,
+        linux: 10
       ]
 
     field :visibility, Ecto.Enum,

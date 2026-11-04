@@ -156,12 +156,29 @@ func (b *LocalImages) expectedBytes(slot Slot) int64 {
 	return slot.ExpectedBytes(int64(b.SizeGB) * 1_000_000_000)
 }
 
+// newBytes is what a job's copy is expected to allocate: its expected size,
+// less the blocks it shares with the local master it clones (its base, else the
+// newest older generation). A branch that starts empty shares nothing.
+func (b *LocalImages) newBytes(slot Slot) int64 {
+	expected := b.expectedBytes(slot)
+	if slot.BaseGeneration <= 0 {
+		return expected
+	}
+	master := b.master(slot)
+	if _, err := os.Stat(master); err != nil {
+		if master, _ = b.olderMaster(slot); master == "" {
+			return expected
+		}
+	}
+	return max(0, expected-allocatedBytes(master))
+}
+
 // attachBytes is the free space an attach needs: the host floor, raised by as
-// much as the job is expected to write beyond the default size. With a 40 GB
-// floor and 20 GB default that is the larger of 40 GB and the expected size
-// plus 20 GB.
+// much as the job is expected to allocate beyond the default size. With a 40 GB
+// floor and 20 GB default that is the larger of 40 GB and the new bytes plus
+// 20 GB.
 func (b *LocalImages) attachBytes(slot Slot) uint64 {
-	return b.MinFreeBytes + uint64(max(0, b.expectedBytes(slot)-int64(b.SizeGB)*1_000_000_000))
+	return b.MinFreeBytes + uint64(max(0, b.newBytes(slot)-int64(b.SizeGB)*1_000_000_000))
 }
 
 // growClone extends a private copy smaller than the slot's capacity before it
@@ -1208,6 +1225,21 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 		return err
 	}
 	return b.prefetch(ctx, slot, false)
+}
+
+// PrefetchSpare restores a master like Prefetch, but only into free space above
+// the reserve: it never evicts a master or reclaims checkouts, so a speculative
+// download cannot push out masters jobs on this host still read. Its master of a
+// lineage no job used here is speculative until a job clones it.
+func (b *LocalImages) PrefetchSpare(ctx context.Context, slot Slot) error {
+	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
+		return errors.New("invalid prefetch identity")
+	}
+	ctx = WithSubject(ctx, SubjectOf(slot))
+	if err := b.reserveSpare(ctx, b.MinFreeBytes+uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
+		return err
+	}
+	return b.prefetch(ctx, slot, true)
 }
 
 // prefetch restores the slot's master in the background. A spare prefetch of a

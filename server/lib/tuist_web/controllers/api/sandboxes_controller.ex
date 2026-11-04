@@ -26,6 +26,13 @@ defmodule TuistWeb.API.SandboxesController do
   tags ["Sandboxes"]
 
   @template_pattern "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  @orb_admission_refusals [
+    :no_capacity,
+    :sandbox_concurrency_limit,
+    :sandbox_disk_limit,
+    :sandbox_account_busy,
+    :locked
+  ]
 
   @agent_environment_schema %Schema{
     title: "SandboxAgentEnvironment",
@@ -113,6 +120,13 @@ defmodule TuistWeb.API.SandboxesController do
       residency_work_id: %Schema{type: :string, nullable: true},
       last_active_at: %Schema{type: :string, format: "date-time", nullable: true},
       paused_at: %Schema{type: :string, format: "date-time", nullable: true},
+      archived_at: %Schema{
+        type: :string,
+        format: "date-time",
+        nullable: true,
+        description: "When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`."
+      },
+      archive_bytes: %Schema{type: :integer, nullable: true, description: "Size of the stored archive in bytes."},
       error_message: %Schema{type: :string, nullable: true},
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
@@ -165,7 +179,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:dispatch_amp_orb,
     summary: "Dispatch a self-hosted Amp Orb lifecycle job.",
     description:
-      "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.",
+      "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it.",
     operation_id: "dispatchAmpOrb",
     parameters:
       @account_parameters ++
@@ -185,7 +199,12 @@ defmodule TuistWeb.API.SandboxesController do
            Map.merge(@shape_properties, %{
              operation: %Schema{type: :string, enum: ["spawn", "pause", "delete"]},
              orb_token: %Schema{type: :string, minLength: 1, maxLength: 16_384, writeOnly: true},
-             amp_url: %Schema{type: :string, format: :uri, pattern: "^https://", maxLength: 2048}
+             amp_url: %Schema{type: :string, format: :uri, pattern: "^https://", maxLength: 2048},
+             snapshot_id: %Schema{
+               type: :string,
+               pattern: "^[A-Za-z0-9._:-]{1,255}$",
+               description: "Amp's project snapshot identifier (ORB_SNAPSHOT_ID)."
+             }
            }),
          required: [:operation]
        }},
@@ -212,7 +231,7 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, :orb_bootstrap_failed} ->
           conn |> put_status(:bad_gateway) |> json(%{message: "Orb bootstrap failed. Check the sandbox image."})
 
-        {:error, reason} when reason in [:no_capacity, :sandbox_concurrency_limit, :sandbox_account_busy, :locked] ->
+        {:error, reason} when reason in @orb_admission_refusals ->
           conn |> put_resp_header("x-tuist-orb-retry", "admission") |> sandbox_error(reason)
 
         {:error, reason} ->
@@ -570,8 +589,16 @@ defmodule TuistWeb.API.SandboxesController do
     conn
     |> put_status(:forbidden)
     |> json(%{
+      message: "The account has reached its sandbox disk limit, which paused sandboxes count toward. Delete some first."
+    })
+  end
+
+  defp sandbox_error(conn, :sandbox_disk_limit) do
+    conn
+    |> put_status(:too_many_requests)
+    |> json(%{
       message:
-        "The account has reached its limit of #{Sandboxes.max_live_sandboxes_per_account()} sandboxes. Delete some first."
+        "The account has reached its sandbox disk limit. Its oldest paused Orb is being archived to make room; retry shortly."
     })
   end
 
@@ -675,6 +702,8 @@ defmodule TuistWeb.API.SandboxesController do
       :residency_work_id,
       :last_active_at,
       :paused_at,
+      :archived_at,
+      :archive_bytes,
       :error_message,
       :inserted_at,
       :updated_at

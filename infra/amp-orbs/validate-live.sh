@@ -62,7 +62,7 @@ api_server=$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')
 export KUBERNETES_SERVICE_HOST=127.0.0.1
 export KUBERNETES_SERVICE_PORT="${api_server##*:}"
 
-# Budget the default 10 GiB workspace, 8 GiB rootfs, memory snapshots and
+# Budget the default 10 GiB workspace, 12 GiB rootfs, memory snapshots and
 # shared template. A real repository clone cannot fit the 1 GiB smoke fixture.
 truncate -s 40G "$work/data.xfs"
 loop=$(sudo losetup --find --show "$work/data.xfs")

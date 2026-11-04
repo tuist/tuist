@@ -33,9 +33,9 @@ enum AppPreviewsModelError: FatalError, Equatable {
         switch self {
         case let .previewNotFound(displayName):
             return
-                "The latest preview for \(displayName) was not found. Has any preview been published?"
+                String(localized: "The latest preview for \(displayName) was not found. Has any preview been published?")
         case .paginationDidNotAdvance:
-            return "The server returned a preview page that did not advance. Update your server or try again."
+            return String(localized: "The server returned a preview page that did not advance. Update your server or try again.")
         }
     }
 }

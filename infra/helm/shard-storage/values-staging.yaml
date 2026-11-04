@@ -1,0 +1,4 @@
+# NEW short-lived store only; retain the old store/policy until its plans drain.
+replicas: 1
+lifecycle:
+  expirationDays: 3

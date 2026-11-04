@@ -10,6 +10,8 @@ struct AtlasMacOSPreview: App {
     @StateObject private var navigation = AtlasNavigation()
     @StateObject private var updater = AtlasUpdater(startingUpdater: false)
     @StateObject private var authentication = AtlasAuthentication()
+    @StateObject private var profile = AtlasProfile()
+    @State private var showingRepository = true
     @StateObject private var appearance = AtlasAppearance(request: { action in
         if action["operation"] as? String == "themes" { throw CancellationError() }
         return try await AtlasAppearance.bridge(action)
@@ -28,8 +30,18 @@ struct AtlasMacOSPreview: App {
     var body: some Scene {
         Window("Atlas · Demo workspace", id: "workspace") {
             Group {
-                if settings {
-                    AtlasDesktopSettings(server: server, accounts: accounts, profileRequest: business.request, notifications: nil,
+                if ProcessInfo.processInfo.arguments.contains("--coding") {
+                    NavigationStack { AtlasCodingSettingsView(request: environments.request) }.frame(width: 660, height: 560)
+                } else if ProcessInfo.processInfo.arguments.contains("--repository-picker") {
+                    NavigationStack { AtlasCodingSettingsView(request: environments.request) }
+                        .frame(width: 660, height: 560)
+                        .sheet(isPresented: $showingRepository) {
+                            AtlasThreadRepositoryPicker(threadId: "00000000-0000-4000-8000-000000000001", selected: "acme/mobile",
+                                                        request: environments.request, changed: {})
+                        }
+                } else if settings {
+                    AtlasDesktopSettings(server: server, accounts: accounts, profileRequest: business.request,
+                                         profileModel: profile, notifications: nil,
                                          signOut: {}, workstation: environments.workstation, updater: updater)
                 } else if updates {
                     AtlasUpdateSettingsView(updater: updater)
@@ -39,7 +51,8 @@ struct AtlasMacOSPreview: App {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request,
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local,
                                        presence: presence.model, navigation: navigation) {
-                        AtlasSettingsView(server: server, accounts: accounts, signOut: {}, profileRequest: business.request)
+                        AtlasSettingsView(server: server, accounts: accounts, signOut: {}, profileRequest: business.request,
+                                          profileModel: profile)
                     }
                     .frame(minWidth: 820, minHeight: 580)
                 }

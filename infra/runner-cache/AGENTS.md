@@ -63,6 +63,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
   GitHub to report its job, shared by its checkout and every volume; both the
   Linux and macOS agents use it.
+- A job's GitHub OIDC token reaches the server through the Linux agent's
+  `/execution` endpoint or a macOS `execution_token` mailbox request, with the
+  pod and node the agent itself trusts. Agents forward it unread and never log it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
   goes through `DoServer`: up to four attempts on a connection failure or a
   502/503/504, jittered backoff from 250 ms to 2 s, never past the request
@@ -110,7 +113,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   with `HasMaster`), one at a time with a bounded 64-lineage FIFO and the same
   disk reserve. Coalesce queued generations to the newest one per scope. Like
   refreshes, a prefetch has no deadline: its download ends on a stall or after
-  its attempts. macOS queues
+  its attempts. It also restores, one at a time, the HEADs the server lists
+  for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/4`)
+  through `PrefetchSpare`: free space above `MinFreeBytes` plus
+  `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
 - `Attach` never downloads, on either host (`LocalImages.cloneLocal`). It clones
@@ -279,7 +285,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   nobody wrote for an hour.
 - `Checkouts` (`checkout.go`) is the one populator for both hosts: it builds,
   ingests, publishes, restores and evicts checkout masters, and the host only
-  wires it to its admission (`Room`), transfer and tools. `CheckoutImages` is the
+  wires it to its admission (`Room`, and `Spare` for a restore the server listed
+  before any job asked: free space only, never evicting, never replacing a job's
+  request or waiting for room), transfer and tools. `CheckoutImages` is the
   only platform part. `APFSCheckoutImages` (macOS) keeps the tree at the image
   root and leaves ownership to the guest's `-owners off` attach.
   `Ext4CheckoutImages` (Linux) formats sparse ext4 with inode tables and journal

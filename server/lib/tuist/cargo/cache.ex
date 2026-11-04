@@ -6,7 +6,7 @@ defmodule Tuist.Cargo.Cache do
   alias Tuist.Cargo.Build
   alias Tuist.Cargo.CacheMetrics
   alias Tuist.ClickHouseRepo
-  alias Tuist.Repo
+  alias Tuist.ReportActor
 
   @scatter_limit 10_000
   @retry_grace_seconds 86_400
@@ -162,7 +162,7 @@ defmodule Tuist.Cargo.Cache do
         select: struct(b, ^@recent_fields)
       )
       |> ClickHouseRepo.all()
-      |> Repo.preload(:ran_by_account)
+      |> ReportActor.preload()
 
     metrics = recent_metrics(builds, project_id, opts)
 

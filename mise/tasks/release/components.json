@@ -110,6 +110,8 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "kura/**/*",
+        "infra/certificate-trust/policy.json",
+        "infra/certificate-trust/pem-store.sh",
         "mise/tasks/kura/**/*",
         ".github/workflows/kura-release.yml",
         ".github/workflows/kura-rc.yml",

@@ -2,9 +2,10 @@
   <.button
     :if={@test_run}
     label={
-      if @test_run.scheme in [nil, ""] and @selected_project.build_system not in [:mix, :bazel],
-        do: dgettext("dashboard_tests", "Test Run"),
-        else: test_run_label(@selected_project, @test_run.scheme)
+      if @test_run.scheme in [nil, ""] and
+           @selected_project.build_system not in [:mix, :bazel, :cargo],
+         do: dgettext("dashboard_tests", "Test Run"),
+         else: test_run_label(@selected_project, @test_run.scheme)
     }
     data-part="back-button"
     variant="secondary"
@@ -845,7 +846,7 @@
                         }
                         data-part="test-run-link"
                       >
-                        {run.scheme}
+                        {test_run_label(@selected_project, run.scheme)}
                         <.link_icon />
                       </.link>
                     </div>

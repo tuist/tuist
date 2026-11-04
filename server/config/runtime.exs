@@ -18,6 +18,34 @@ import Config
 #
 # See `Tuist.Environment.mode/0` for the full list.
 alias Tuist.Oban.RuntimeConfig
+alias Tuist.Runners.Catalog
+
+# Explicit account-to-issuer trust, separate from account CI workload identities.
+if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
+  trusts = JSON.decode!(raw)
+
+  valid =
+    is_map(trusts) and map_size(trusts) <= 20 and
+      Enum.all?(trusts, fn
+        {account, %{"issuer" => issuer} = trust} when is_binary(account) and is_binary(issuer) ->
+          uri = URI.parse(issuer)
+
+          uri.scheme == "https" and is_binary(uri.host) and uri.userinfo == nil and uri.query == nil and
+            uri.fragment == nil and uri.path in [nil, ""] and
+            Enum.all?(Map.keys(trust), &(&1 in ["issuer", "subjects"])) and
+            (not Map.has_key?(trust, "subjects") or
+               (is_list(trust["subjects"]) and length(trust["subjects"]) in 1..1000 and
+                  Enum.all?(trust["subjects"], &is_binary/1)))
+
+        _ ->
+          false
+      end)
+
+  if !valid,
+    do: raise("TUIST_ATLAS_ENVIRONMENT_TRUST must map account handles to HTTPS issuer origins and optional subjects")
+
+  config :tuist, :atlas_environment_trust, trusts
+end
 
 # Runner Profiles shape catalog. Helm injects the same
 # `runnersFleetLinux.shapes` list it renders the shape-keyed RunnerPool
@@ -30,13 +58,11 @@ alias Tuist.Oban.RuntimeConfig
 # back to the default would run a catalog that doesn't match the pools
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
-alias Tuist.Runners.Catalog
-
 # Configure OTP before dependencies can create clients. Its macOS keychain
-# exporter ignores Apple trust-settings deny records; use the image's filtered
-# PEM, which must also retain the operator's enterprise/private trust anchors.
+# exporter ignores Apple trust-settings deny records. Filter the PEM at runtime
+# so the release also boots on older images, retaining every unrelated anchor.
 if System.get_env("TUIST_MODE") == "xcresult_processor" and :os.type() == {:unix, :darwin} do
-  config :public_key, cacerts_path: "/etc/ssl/cert.pem"
+  config :public_key, cacerts_path: Tuist.Application.CertificateTrust.filtered_bundle!("/etc/ssl/cert.pem")
 end
 
 if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
@@ -89,21 +115,26 @@ case System.get_env("TUIST_RUNNER_LINUX_POOLS") do
     end
 end
 
-case System.get_env("TUIST_RUNNER_FREE_MONTHLY_MINUTES") do
-  nil ->
-    :ok
+for {env_var, key} <- [
+      {"TUIST_RUNNER_FREE_MONTHLY_MINUTES", :runner_free_monthly_minutes},
+      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes}
+    ] do
+  case System.get_env(env_var) do
+    nil ->
+      :ok
 
-  "" ->
-    :ok
+    "" ->
+      :ok
 
-  raw ->
-    case Integer.parse(raw) do
-      {minutes, ""} when minutes >= 0 ->
-        config :tuist, :runner_free_monthly_minutes, minutes
+    raw ->
+      case Integer.parse(raw) do
+        {minutes, ""} when minutes >= 0 ->
+          config :tuist, key, minutes
 
-      _ ->
-        raise "TUIST_RUNNER_FREE_MONTHLY_MINUTES must be a non-negative integer. Got: #{inspect(raw)}"
-    end
+        _ ->
+          raise "#{env_var} must be a non-negative integer. Got: #{inspect(raw)}"
+      end
+  end
 end
 
 case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
@@ -142,7 +173,8 @@ case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
     end
 end
 
-if Tuist.Environment.web?() do
+# Outside releases the endpoint binds only under `mix phx.server`.
+if config_env() == :prod and Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
 

@@ -100,6 +100,8 @@ actionlint on the three workflows. PR image validation has read-only permissions
 release checks. Documentation captures use `atlas/deploy/capture-docs.mjs` with
 bounded Chrome page and process waits, rather than waiting indefinitely for
 external resources. Its regression suite includes a local never-finishing image.
+Run Chrome-bearing steps under `dbus-run-session` so Linux startup has an isolated
+session bus instead of spending the capture budget on desktop-service discovery.
 Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser
 profiles in the disposable validation directory, outside uploaded artifacts.
 
@@ -203,7 +205,12 @@ ordinary full-suite job exercises current OTP. Keep native alternate-path
 validation and real-key fixtures covered without a separate shared harness.
 The workflow is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
-`release:check` registry with the `tuist-ex@` tag prefix. The existing
+`release:check` registry with the `tuist-ex@` tag prefix by default. The opt-in
+stable dispatch validates an immutable release-branch tip and exact next patch,
+then reuses validation and publishing with that source. Keep control code on
+main and recheck source/tag boundaries before publication. See the stable hotfix
+procedure in `tuist_ex/README.md`; validate the guard with
+`bash .github/scripts/tuist-ex-stable-release.test.sh`. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
 
 The optional `custom_cache_apfs` staging smoke input runs the candidate shared
@@ -406,21 +413,25 @@ off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
 from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
 CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
-a pull request the unit and app tests run selectively, acceptance as before, and
-`coverage-complete` runs `tuist coverage complete` once the unit and app tests
-finished, whatever their result (not on drafts or forks). On a push to main the
+a pull request the unit, app and acceptance tests run selectively, and
+`coverage-complete` runs `tuist coverage complete` once all three finished,
+whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
 and the CLI session logs when it fails, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
-follows when both passed. The unit and app tests record per-target evidence on both,
-which the CLI reads from Xcode's raw profiles (the targets don't link
-TestCoverageAttribution, so there is no per-test evidence): the server carries
-targets selective testing skipped only from runs that recorded evidence, main's
-full runs for every selective run and a pull request's own runs for its later
-pushes. Targets are carried only whole: a skipped target no run recorded
-under the same hash (or whose source run fails the server's checks) has no
-per-test fallback, and neither do tests skipped by identifier
-(`--skip-test-targets`, `-skip-testing`), so both stay gaps (`not_linked`).
+follows when both passed and the selective acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
+which the CLI reads from Xcode's raw profiles: the server carries
+targets selective testing skipped only from runs that recorded evidence under
+the same hash: main's runs (full for unit and app, selective for acceptance)
+for every selective run and a pull request's own runs for its later pushes.
+The CLI's unit test targets and the app's `TuistMenuBarTests` also
+link TestCoverageAttribution (as a dynamic framework), so their XCTest tests
+record per-test evidence: when a
+skipped target has no such same-hash run (or it fails the server's checks),
+those tests still carry one by one from the latest run whose executed files
+match, and so do tests skipped by identifier (`--skip-test-targets`,
+`-skip-testing`). Acceptance and Swift Testing tests have no per-test evidence,
+so in those cases they stay gaps (`not_linked`).
 Quarantined tests are outside the figure either way. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
@@ -430,19 +441,15 @@ checkout hides its parents, so the CLI can't resolve the head through `HEAD^2`).
 full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a
 full run of the scheme at the commit executed. The coverage settings are set once, in the
-root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
-`TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
+root `Tuist.swift`'s `coverage: .coverage(enabled: true, prefixMapping: true)`
+and `testInsights: .testInsights(coverage: .coverage(upload: true))`, so every job and
 every developer resolve the same variant and the same prefix mapping; both are
-hashed into binary-cache and selective-testing keys, so never set them per step.
-They stand in for `Tuist.swift`'s `coverage` option until the
-backward-compatibility gate's CLI knows it. The test runs pass no
+hashed into binary-cache and selective-testing keys, so never override them per
+step with `TUIST_COVERAGE_ENABLED` or `TUIST_COVERAGE_PREFIX_MAPPING`. The test runs pass no
 `-enableCodeCoverage`: schemes that leave their test action's coverage unset
 follow the resolved option, and the acceptance-test schemes set `coverage: false`
-to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until
-`mise.toml` pins one with it the runs collect no coverage and stay green
-(`tuist coverage complete` leaves the commit pending). `tuist-project-tests.yml`'s single
-`tuist cache` on main warms the variant those settings select: plain binaries
-before that pin, the coverage variant after it. Plain environment variables
+to stay out. `tuist-project-tests.yml`'s single
+`tuist cache` on main warms the variant those settings select. Plain environment variables
 never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so
 they cannot flip the CLI's own unit tests. The coverage runs pass no
 `--derived-data-path`: the CLI locates Xcode's derived data itself
@@ -674,6 +681,16 @@ pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
 
+Kura CSI's rack plugin is deployed by the independent, unwaited rack-nodes
+release with the same pinned CSI image as the main release. Its offline chart
+regression needs Helm; the CSI workflow installs it before running Go tests.
+CSI builds publish only in the manually dispatched image workflow. Ordinary
+server deploys preserve both CSI releases' image; explicit upgrades require a
+verified digest. API-read failures must fail resolution rather than remove the
+driver. Validate selection with `bash .github/scripts/kura-csi-image.test.sh`
+from the repository root. `qualification_only` runs the disposable stack without
+publishing images.
+
 ## Nested KVM runner acceptance
 
 `linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from
@@ -691,3 +708,16 @@ Managed server deployment prepares KVM before upgrading runner pools, using the 
 `macos-maintenance.test.sh` exercises the explicit host-maintenance request task
 with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
 keep planning read-only and refuse a new request over active or failed status.
+
+Manual Kura controller image builds from branches publish only immutable SHA
+candidates; only main updates `latest`. This keeps staging storage rehearsals
+from changing the default controller image.
+
+The manually dispatched Kura runtime-image workflow validates formatting, Clippy
+and unit tests before publishing a staging SHA candidate. It keeps the PR draft
+while allowing Linux validation when the local platform toolchain is unavailable.
+
+The CSI image dispatch requires real thin-stack qualification in disposable
+GitHub-hosted Ubuntu VMs (64 and 512 KiB chunks) before publishing. These tests
+create only private loop-backed VGs; never move them onto shared staging hosts.
+PR builds retain the ordinary unit-test/image path.

@@ -2375,10 +2375,10 @@ defmodule Tuist.ShardsTest do
       assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan(project, account, plan)
     end
 
-    test "starts a multipart upload for a shard plan id without reading the plan" do
+    test "starts a multipart upload after resolving the project-scoped shard plan id" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
-      plan_id = Ecto.UUID.generate()
+      plan_id = ShardsFixtures.shard_plan_fixture(project_id: project.id).id
 
       stub(Tuist.Storage, :multipart_start, fn key, _account ->
         assert key == Shards.bundle_object_key(account, project, plan_id)
@@ -2395,15 +2395,19 @@ defmodule Tuist.ShardsTest do
       assert {:error, :not_found} = Shards.start_upload(project, account, "nonexistent-ref")
     end
 
-    test "finds a just-created plan when the routed read replica has not received it yet" do
+    test "reads a new legacy module plan when separate assignment rows are not visible" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
+      stub(Tuist.FeatureFlags, :immutable_shard_reports_enabled?, fn _account -> false end)
 
       %{plan: plan} =
-        Shards.create_shard_plan(project, %{reference: "fresh-plan", modules: ["AppTests", "CoreTests"], shard_total: 2})
+        Shards.create_shard_plan(project, %{reference: "fresh-plan", modules: ["AppTests", "CoreTests"], shard_total: 1})
+
+      assert plan.reporting_version == 0
 
       stub(ClickHouseRepo, :one, fn _queryable -> nil end)
       stub(ClickHouseRepo, :preload, fn struct, _preloads -> struct end)
+      stub(IngestRepo, :preload, fn plan, _preloads -> %{plan | modules: [], test_suites: []} end)
       stub(Tuist.Storage, :multipart_start, fn _key, _account -> {:ok, "test-upload-id"} end)
       stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
       stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
@@ -2411,30 +2415,71 @@ defmodule Tuist.ShardsTest do
       assert {:ok, "test-upload-id"} = Shards.start_upload(project, account, "fresh-plan")
       assert {:ok, %{id: plan_id}} = Shards.get_shard_plan(plan.id)
       assert plan_id == plan.id
-      assert {:ok, shard} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
-      assert shard.modules != []
+      assert {:ok, %{modules: ["AppTests", "CoreTests"]}} = Shards.get_shard(project, account, plan.reference, 0)
+      assert {:ok, %{modules: ["AppTests", "CoreTests"]}} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
+
+      for index <- [-1, 1] do
+        assert {:error, :invalid_shard_index} = Shards.get_shard_for_plan_id(project, account, plan.id, index)
+      end
     end
 
-    test "fetches a just-created suite shard when the routed read replica has not received it yet" do
+    test "uploads a just-created plan by id when no ClickHouse replica returns it yet" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
       %{plan: plan} =
+        Shards.create_shard_plan(project, %{reference: "unreplicated-plan", modules: ["AppTests"], shard_total: 1})
+
+      key = Shards.artifact_object_key(account, project, plan.id, "shared")
+      stub(IngestRepo, :one, fn _queryable -> nil end)
+      stub(ClickHouseRepo, :one, fn _queryable -> nil end)
+      expect(Tuist.Storage, :multipart_start, fn ^key, ^account -> {:ok, "upload"} end)
+      expect(Tuist.Storage, :multipart_generate_url, fn ^key, "upload", 1, ^account -> "put-url" end)
+      expect(Tuist.Storage, :multipart_complete_upload, fn ^key, "upload", [{1, "etag"}], ^account -> :ok end)
+
+      assert {:ok, "upload"} = Shards.start_upload_for_plan_id(project, account, plan.id, "shared")
+      assert {:ok, "put-url"} = Shards.generate_upload_url_for_plan(project, account, plan.id, "upload", 1, "shared")
+      assert :ok = Shards.complete_upload_for_plan(project, account, plan.id, "upload", [{1, "etag"}], "shared")
+    end
+
+    test "reads a new legacy suite plan when separate assignment rows are only partially visible" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      stub(Tuist.FeatureFlags, :immutable_shard_reports_enabled?, fn _account -> false end)
+
+      %{plan: plan} =
         Shards.create_shard_plan(project, %{
           reference: "fresh-suite-plan",
-          modules: ["AppTests"],
+          modules: ["AppTests", "NewTests"],
           test_suites: ["AppTests/LoginTests", "AppTests/SignupTests"],
           granularity: "suite",
           shard_total: 2
         })
 
+      assert plan.reporting_version == 0
+      visible_modules = IngestRepo.preload(plan, :modules).modules
+      assert visible_modules != []
+
       stub(ClickHouseRepo, :one, fn _queryable -> nil end)
       stub(ClickHouseRepo, :preload, fn struct, _preloads -> struct end)
-      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
-      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+      stub(IngestRepo, :preload, fn plan, _preloads -> %{plan | modules: visible_modules, test_suites: []} end)
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
 
-      assert {:ok, shard} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
-      assert shard.modules == ["AppTests"]
+      assert {:ok, %{modules: ["AppTests"], suites: %{"AppTests" => ["LoginTests"]}}} =
+               Shards.get_shard(project, account, plan.reference, 0, suite_catch_all?: true)
+
+      assert {:ok, catch_all} = Shards.get_shard_for_plan_id(project, account, plan.id, 1, suite_catch_all?: true)
+      assert catch_all.modules == []
+      assert catch_all.skip == ["AppTests/LoginTests"]
+
+      prefix = "#{account.id}/#{project.id}/shards/#{plan.id}/"
+
+      assert Enum.sort(catch_all.download_urls) == [
+               prefix <> "modules/AppTests.aar",
+               prefix <> "modules/NewTests.aar",
+               prefix <> "shared.aar"
+             ]
     end
   end
 

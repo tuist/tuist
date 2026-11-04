@@ -3,7 +3,7 @@
 // TuistCluster stub every kind's MachineDeployment attaches to.
 package shared
 
-import clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+import clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 // ProvisionedCondition is set by every machine kind's reconciler (macOS and
 // Linux) once the underlying host is provisioned. It lives here because both

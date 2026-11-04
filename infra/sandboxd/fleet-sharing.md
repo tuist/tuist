@@ -73,7 +73,8 @@ changing CI limits. Creating, resuming and running rows count, including detache
 Amp processes; paused rows retain disk but release compute quota. The account
 row serializes admission and reservation across replicas before node commands
 are sent. Lowering a limit blocks new starts/resumes without stopping running
-work. The existing five-live-sandbox count (including paused disks) also applies.
+work. There is no sandbox count: the account's disk limit charges every sandbox
+on a node, paused ones included, with its workspace and memory image.
 
 A host reservation or unhealthy node revokes admission and reclaims eligible idle
 sandboxes. Reclaim page cache and request a shrink, but do not spend the released
@@ -153,8 +154,9 @@ sandbox growth, stale coordination generations, a controller/server restart,
 active-turn protection, failed pause/shrink, and repeated demand/shrink cycles.
 Measure CI queue and job latency as well as sandbox startup latency.
 
-Coordinate a staging deployment before replacing its current experiment. Build
-matching daemon, guest and controller images and pin their immutable tags. The
+Coordinate a staging deployment before replacing its current experiment. A
+staging deployment from the branch builds the matching daemon and guest images;
+build the controller image and pin its immutable tag. The
 controller reaches canary/production through a `runners-controller@` release,
 separately from the server/chart. Keep account flags off until both sides and the
 metrics are present, then enable the Tuist account first.
@@ -163,7 +165,7 @@ Rollback first stops accepting new sandbox work through the account flag. Let
 active turns finish and shrink allocations before removing daemons; deleting a
 daemon is not a substitute for reclaim. Preserve node-local files needed for
 paused sessions. Canary and production chart values enable the daemons with
-their pinned images and 1 GiB floor per node. The account flag controls API and
+a 1 GiB floor per node. The account flag controls API and
 poller access, not the daemon's baseline resources or template prebuilds. Keep
 the global flag off and enable only the Tuist account initially, after matching
 releases are deployed and grants are confirmed. The generic chart default stays

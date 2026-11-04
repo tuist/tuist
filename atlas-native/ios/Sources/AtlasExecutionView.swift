@@ -39,7 +39,9 @@ struct AtlasExecutionView: View {
                 if let server = authentication.server, !record.text("web_path").isEmpty {
                     Link("Open execution on web", destination: server.appending(path: record.text("web_path")))
                 }
-                if terminal.contains(record.text("status")) {
+                if record.value["cached"] as? Bool == true {
+                    Text("Saved activity. Connect to refresh progress and load protected results.").foregroundStyle(.secondary)
+                } else if terminal.contains(record.text("status")) {
                     Section("Results") {
                         if let result { Text(result).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
                         Button("Load protected results") { Task { await loadResult() } }
@@ -68,20 +70,25 @@ struct AtlasExecutionView: View {
     }
 
     private func follow() async {
+        if record == nil, let data = await authentication.cachedRead(["operation": "native", "action": "execution", "id": id]),
+           let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any], !Task.isCancelled {
+            record = AtlasNativeItem(value: saved)
+        }
         var reconcile = true
         while !Task.isCancelled {
             do {
                 let request: [String: Any] = reconcile || record == nil ? ["action": "execution", "id": id] :
                     ["action": "watch", "id": id, "after_sequence": record?.sequence ?? 0]
                 let next = AtlasNativeItem(value: try await authentication.native(request))
-                if next.sequence >= (record?.sequence ?? 0) { record = next }
+                try Task.checkCancellation()
+                if record?.value["cached"] as? Bool == true || next.sequence >= (record?.sequence ?? 0) { record = next }
                 reconcile = false
                 error = nil
                 if terminal.contains(next.text("status")) { return }
             } catch is CancellationError { return } catch {
                 self.error = error.localizedDescription
                 reconcile = true
-                if let failure = error as? AtlasAuthenticationError, ["forbidden", "unauthorized", "not_found"].contains(failure.kind) {
+                if AtlasReadCache.accessDenied(error) {
                     record = nil
                     result = nil
                     return

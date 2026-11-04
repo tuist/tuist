@@ -110,12 +110,10 @@ build {
       "openssl verify -CAfile /tmp/tuist-issuer-roots.pem /tmp/tuist-negative-intermediate.pem",
       "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native negative-chain baseline: trusted before containment'; else echo 'Native negative-chain baseline: already rejected; no differential containment claim'; fi",
       "echo 'admin' | sudo -S true",
-      "right=$(mktemp)",
-      "sudo security authorizationdb read com.apple.trust-settings.admin > \"$right\"",
-      "trap 'sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\" || exit 1; rm -f \"$right\"' EXIT",
-      "sudo security authorizationdb write com.apple.trust-settings.admin allow",
+      # SIP protects this authorization rule on current macOS. Authenticate
+      # the disposable guest's admin instead of rewriting the rule to allow.
+      "echo 'admin' | security authorize -C admin com.apple.trust-settings.admin",
       "for cert in /tmp/tuist-blocked-cas/*.pem; do [ -e \"$cert\" ] || continue; sudo security add-trusted-cert -d -r deny -k /Library/Keychains/System.keychain \"$cert\"; if security verify-cert -c \"$cert\" -p basic >/dev/null 2>&1; then echo 'Native verifier accepted a denied root' >&2; exit 1; fi; done",
-      "sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\"; rm -f \"$right\"; trap - EXIT",
       "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native verifier accepted a compromised intermediate chain' >&2; exit 1; fi",
       "security verify-cert -c /tmp/tuist-positive-root.pem -p basic -R offline",
       "bash /tmp/tuist-pem-store.sh filter /etc/ssl/cert.pem /tmp/tuist-cacerts.pem",

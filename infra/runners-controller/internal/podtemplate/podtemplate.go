@@ -131,6 +131,14 @@ const (
 	// shared externals volume. Deliberately not externalsPath, which
 	// would shadow the source being copied.
 	externalsStagePath = "/mnt/dind-externals"
+	// externalsStagedMarker is written into the shared externals volume
+	// once the whole copy is in place. The poller waits for it before its
+	// first claim, so a job never starts against a partial copy.
+	externalsStagedMarker = ".tuist-externals-staged"
+	// externalsStageTimeoutTicks bounds that wait in 0.1 s ticks (120 s).
+	// Past it the poller exits non-zero and the Pod fails, as it did
+	// when the copy was a blocking init container.
+	externalsStageTimeoutTicks = 1200
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -369,6 +377,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 					// downloads shorten the pulls of jobs that start without one.
 					start = "exec " + externalsPath + "/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- " + dockerd + " --max-concurrent-downloads=8"
 				}
+				// The externals sidecar stages this binary ahead of the rest of
+				// the copy, which still runs while dockerd starts.
+				start = "until [ -x " + externalsPath + "/tuist-cache-volume ]; do sleep 0.1; done && " + start
 			}
 			if pool.Spec.NestedVirtualization {
 				// CDI supplies /dev/kvm to the runner, not this sidecar's /dev.
@@ -426,18 +437,32 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// which the `work` volume shares with the sidecar at
 			// workPath. externals ships in the runner image alone, so
 			// stage it into a volume both sides mount, the way ARC's
-			// dind mode does (init-dind-externals). Runs before the
-			// sidecar so the copy is in place by the time dockerd can
-			// serve a container, and fails the Pod early if the image
-			// ever stops shipping externals.
+			// dind mode does (init-dind-externals).
+			//
+			// A native sidecar rather than a blocking init container:
+			// the copy takes 3-6 s on a booting host, and the containers
+			// after it start while it runs. tuist-cache-volume goes
+			// first, renamed into place, because the dind sidecar
+			// executes it; the rest follows, then the marker the
+			// poller waits for. A restart keeps a finished copy.
+			stage := "if [ ! -e " + externalsStagePath + "/" + externalsStagedMarker + " ]; then " +
+				"test -d " + externalsPath + "; " +
+				"if [ -e " + externalsPath + "/tuist-cache-volume ]; then " +
+				"cp -a " + externalsPath + "/tuist-cache-volume " + externalsStagePath + "/.tuist-cache-volume.partial; " +
+				"mv " + externalsStagePath + "/.tuist-cache-volume.partial " + externalsStagePath + "/tuist-cache-volume; fi; " +
+				"for f in " + externalsPath + "/* " + externalsPath + "/.[!.]*; do " +
+				"[ -e \"$f\" ] || continue; [ \"${f##*/}\" != tuist-cache-volume ] || continue; " +
+				"cp -a \"$f\" " + externalsStagePath + "/; done; " +
+				"touch " + externalsStagePath + "/" + externalsStagedMarker + "; fi"
 			initContainers = append(initContainers, corev1.Container{
 				Name:    "dind-externals",
 				Image:   pool.Spec.Image,
 				Command: []string{"sh", "-c"},
-				Args:    []string{"set -e && cp -a " + externalsPath + "/. " + externalsStagePath + "/"},
+				Args:    []string{"set -e; " + stage + "; trap 'exit 0' TERM; sleep infinity & wait"},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-externals", MountPath: externalsStagePath},
 				},
+				RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
 				// Root only to write the root-owned emptyDir; it runs
 				// our copy, never customer code.
 				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
@@ -492,13 +517,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 				RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
 				StartupProbe: &corev1.Probe{
-					ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: probeCommand}},
-					PeriodSeconds: 2,
-					// Was 30. apk add + truncate + mkfs.ext4 +
-					// loop mount add ~8 s of pre-dockerd setup;
-					// bump the probe ceiling so a slow apt mirror
-					// doesn't trip the restart.
-					FailureThreshold: 60,
+					ProbeHandler: corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: probeCommand}},
+					// dockerd is up about a second after the container
+					// starts, and every container after this one waits
+					// for the probe to see it, so probe every second.
+					PeriodSeconds: 1,
+					// A 120 s ceiling, so a slow package mirror during
+					// apk add doesn't trip the restart.
+					FailureThreshold: 120,
 				},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-sock", MountPath: "/var/run"},
@@ -573,16 +599,27 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 
 		// poller runs after the dind sidecar (when present) so it
 		// waits on the dind startupProbe exactly as the single runner
-		// container did before the split.
+		// container did before the split. With dind it also waits for
+		// the externals copy before its first claim.
+		pollerCommand := []string{"/usr/local/bin/dispatch-poll.sh"}
+		pollerMounts := []corev1.VolumeMount{
+			{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+			{Name: "tuist-runner-jit", MountPath: jitMountPath},
+		}
+		if dindImage != "" {
+			pollerCommand = []string{"sh", "-c",
+				"i=0; until [ -e " + externalsStagePath + "/" + externalsStagedMarker + " ]; do " +
+					"i=$((i + 1)); if [ \"$i\" -ge " + strconv.Itoa(externalsStageTimeoutTicks) + " ]; then " +
+					"echo \"$(date -u +%FT%TZ) poller: runner externals were not staged; exiting\"; exit 1; fi; " +
+					"sleep 0.1; done; exec /usr/local/bin/dispatch-poll.sh"}
+			pollerMounts = append(pollerMounts, corev1.VolumeMount{Name: "dind-externals", MountPath: externalsStagePath, ReadOnly: true})
+		}
 		initContainers = append(initContainers, corev1.Container{
-			Name:    "poller",
-			Image:   pool.Spec.Image,
-			Command: []string{"/usr/local/bin/dispatch-poll.sh"},
-			Env:     pollerEnv,
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
-				{Name: "tuist-runner-jit", MountPath: jitMountPath},
-			},
+			Name:         "poller",
+			Image:        pool.Spec.Image,
+			Command:      pollerCommand,
+			Env:          pollerEnv,
+			VolumeMounts: pollerMounts,
 			// Runs as root only so it can write the JIT into the
 			// root-owned emptyDir; it executes our trusted poll
 			// script, never customer code. The runner container that

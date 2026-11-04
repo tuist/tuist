@@ -25,6 +25,16 @@ enum Command {
         session: Session,
         directory: String,
     },
+    ReadCache {
+        session: Session,
+        directory: String,
+        request: crate::cache::Read,
+        local: bool,
+    },
+    InvalidateCache {
+        session: Session,
+        directory: String,
+    },
     Native {
         session: Session,
         request: crate::api::Request,
@@ -110,6 +120,13 @@ pub fn execute(input: &str) -> String {
             Command::Bootstrap { session } => serde_json::to_value(crate::bootstrap(session)?),
             Command::ForgetCache { session, directory } => {
                 return crate::orbit_session::forget_cache(&session, &directory);
+            }
+            Command::ReadCache { session, directory, request, local } => {
+                return crate::cache::read(session, &directory, request, local);
+            }
+            Command::InvalidateCache { session, directory } => {
+                if let Some(cache) = crate::cache::Cache::open(&directory, &session) { cache.invalidate(false); }
+                return Ok(json!({}));
             }
             Command::Native { session, request } => return crate::api::execute(session, request),
             Command::Themes { server } => return crate::themes::fetch(&server),

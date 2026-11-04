@@ -154,6 +154,17 @@ public enum ServerCredentialsStoreBackend: Sendable {
             self.fileSystem = fileSystem
         }
 
+        func storageKey(serverURL: URL) throws -> String {
+            switch backend {
+            case .keychain:
+                return try CredentialFileLocator.canonicalURL(serverURL).absoluteString
+            #if os(macOS)
+                case .fileSystem:
+                    return try credentialsFilePath(serverURL: serverURL).pathString
+            #endif
+            }
+        }
+
         // MARK: - CredentialsStoring
 
         public func store(credentials: ServerCredentials, serverURL: URL) async throws {
@@ -309,6 +320,10 @@ public enum ServerCredentialsStoreBackend: Sendable {
             self.backend = backend
             self.configDirectory = configDirectory
             self.fileSystem = fileSystem
+        }
+
+        func storageKey(serverURL: URL) throws -> String {
+            try credentialsFilePath(serverURL: serverURL).pathString
         }
 
         private static func defaultConfigDirectory() -> AbsolutePath {

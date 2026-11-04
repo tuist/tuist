@@ -13,7 +13,16 @@ control plane, worker-pool variables, network config,
 `KubeadmControlPlaneTemplate`, `HCloudMachineTemplate` — and per-cluster
 `Cluster` CRs reference it via `topology.classRef.name`, only specifying
 what differs (replica counts, machine types per pool, labels, taints).
-K8s minor bumps are a `topology.version:` edit on each Cluster CR.
+K8s minor bumps are a `topology.version:` edit on each Cluster CR, one
+cluster at a time. The ClusterClass pins `KUBERNETES_VERSION` for apt; a
+Cluster ahead of the pin gets its packages from the
+`*KubernetesPackages` patches. Once every Cluster has moved, move the pin
+and both patches' `enabledIf` versions together (that rolls each cluster
+once). Annotate a MachineDeployment topology with
+`topology.cluster.x-k8s.io/defer-upgrade: ""` to keep it on the older
+kubelet. The bare-metal `stateful-worker` pools need that: their templates
+install from a fixed `pkgs.k8s.io` channel, and rolling them reinstalls the
+box under ClickHouse.
 
 ## Layout
 
@@ -65,14 +74,14 @@ the tenant-repo copies are then retired to a pointer.
 | Cluster | CP | Workers |
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 3× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 
-Canary's third general-purpose worker reserves capacity for deployment hooks
-and rolling-update surge pods alongside its two CNPG instances. Two workers
-could run the steady-state workloads, but the 512Mi ClickHouse schema-clone
-hook remained unschedulable until Helm timed out and rolled back. After
+Canary's general-purpose pool runs its three CNPG instances and reserves
+capacity for deployment hooks and rolling-update surge pods. Without that
+headroom the 512Mi ClickHouse schema-clone hook stays unschedulable until Helm
+times out and rolls back. After
 changing this pool, wait for Flux to reconcile and the new worker to become
 Ready before retrying the deployment.
 
@@ -108,6 +117,12 @@ Cloud workers remediate one unhealthy node at a time (`unhealthyInRange:
 lockup panics and systemd watchdog from `cluster-api-provider-tuist` to cloud
 workers. Changing it rolls the pool, so set it as a MachineDeployment override
 one pool at a time.
+
+These nodes get `net.mptcp.enabled = 0` (Multipath TCP off) from the platform
+chart's `disableMultipathTCP` DaemonSet, not from the templates here: changing a
+ClusterClass template rolls every pool that uses it. A node that joins later gets
+the value when that pod starts, so the listeners its kubelet and Cilium opened
+before then stay MPTCP until they restart.
 
 Variables exposed by the ClusterClass: control plane replicas + machine
 type, per-pool machine type, region (default `fsn1`), SSH key name,

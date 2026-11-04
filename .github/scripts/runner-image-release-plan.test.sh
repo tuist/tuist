@@ -12,6 +12,7 @@ new="sha256:$(printf 'b%.0s' {1..64})"
 
 mkdir -p "$scratch/bin" "$scratch/repo/infra/runner-image"
 echo '["26.6", "27.1"]' > "$scratch/repo/infra/runner-image/profiles.json"
+echo '{}' > "$scratch/repo/infra/runner-image/base-xcode-versions.json"
 
 # `git tag -l` lists $scratch/tags, `git diff` prints $scratch/changed.
 cat > "$scratch/bin/git" <<BASH
@@ -114,5 +115,28 @@ expect release true "a profile without a standalone image to carry"
 expect stacked-build-count 0 "a profile without a standalone image to carry"
 expect matrix "{\"include\":[{\"xcode\":\"27.1\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\"}]}" "a profile without a standalone image to carry"
 expect carry '["26.6"]' "a profile without a standalone image to carry"
+
+# A customer-facing version can build on an explicitly named prerelease
+# without renaming that base or rebuilding the other profiles.
+echo '["26.6", "27.1", "27.2"]' > "$scratch/repo/infra/runner-image/profiles.json"
+echo '{"27.2":"27.2-rc"}' > "$scratch/repo/infra/runner-image/base-xcode-versions.json"
+echo "$new" > "$scratch/base-27-2-rc"
+previous_release "$new" "$old" "${both_published[@]}"
+plan true false
+expect build-count 1 "a new profile backed by an RC"
+expect stacked-build-count 1 "a new profile backed by an RC"
+expect matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\"}]}" "a new profile backed by an RC"
+expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\"}]}" "the same RC base in both image variants"
+expect carry '["26.6","27.1"]' "a new profile backed by an RC"
+expect stacked-carry '["26.6","27.1"]' "a new profile backed by an RC"
+
+# Removing the mapping moves the same customer profile onto the final base.
+output manifest > "$scratch/previous-manifest.json"
+echo macos-27-2-0.50.0 >> "$scratch/published"
+echo '{}' > "$scratch/repo/infra/runner-image/base-xcode-versions.json"
+echo "$old" > "$scratch/base-27-2"
+plan false false
+expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\"}]}" "the final base without changing the profile"
+expect stacked-carry '["26.6","27.1"]' "the final base without changing the profile"
 
 echo "The runner image release plan rebuilds what it should."

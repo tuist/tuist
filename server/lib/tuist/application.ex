@@ -26,7 +26,9 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Telemetry.QueryErrorContext
+  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -363,8 +365,10 @@ defmodule Tuist.Application do
           Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
           Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
           Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
+          Supervisor.child_spec(CrashReport.Buffer, id: CrashReport.Buffer),
           Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
           Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
+          Supervisor.child_spec(SandboxEvent.Buffer, id: SandboxEvent.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
           Tuist.Vault,
           {Task.Supervisor, name: Tuist.MCP.Events.VerificationSupervisor, max_children: 100},
@@ -382,10 +386,11 @@ defmodule Tuist.Application do
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.Sandboxes.NodePresence,
           Tuist.KeyValueStore.Invalidator,
-          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+          {Tuist.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
           Tuist.Kura.Origins,
+          {Tuist.Kura.Usage, []},
           TuistCommon.GitHub.RateLimit,
           TuistWeb.Telemetry
         ] ++
@@ -441,8 +446,8 @@ defmodule Tuist.Application do
     if Environment.redis_url() do
       [
         {Redix, redis_opts()},
-        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+        {Tuist.RateLimit.PersistentFixedWindow, redis_opts()},
+        {Tuist.RateLimit.PersistentTokenBucket, redis_opts()}
       ]
     else
       []

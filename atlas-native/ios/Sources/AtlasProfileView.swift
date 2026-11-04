@@ -5,16 +5,18 @@ struct AtlasSettingsView: View {
     @ObservedObject var accounts: AtlasAIAccounts
     var signOut: () -> Void
     var profileRequest: (([String: Any]) async throws -> Data)?
+    @ObservedObject var profileModel: AtlasProfile
     var notifications: AtlasPushNotifications?
     #if os(iOS)
     var sharedItems: AtlasSharedItems?
     #endif
     var connections: AtlasConnections?
-    @State private var profile: AtlasNativeProfile?
-    @State private var profileError: String?
     @State private var editor: AtlasProfileEditorModel?
-    @State private var profileGeneration = 0
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
+    @Environment(\.atlasEnvironmentRequest) private var environmentRequest
+
+    private var profile: AtlasNativeProfile? { profileModel.profile }
 
     var body: some View {
         Form {
@@ -26,24 +28,26 @@ struct AtlasSettingsView: View {
                         Text(profile?.user.name ?? "Your profile").font(.headline)
                     }.frame(maxWidth: .infinity).padding(.vertical, 12)
                 }.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                if let profile {
-                    Section { LabeledContent("Email", value: profile.user.email).textSelection(.enabled) }
-                    Section {
-                        if !profile.user.description.isEmpty {
-                            Text(profile.user.description).textSelection(.enabled)
-                        }
-                        Button(profile.user.description.isEmpty ? "Tell Pip about yourself" : "Edit description") {
-                            if let profileRequest {
-                                profileGeneration += 1
-                                editor = AtlasProfileEditorModel(description: profile.user.description, request: profileRequest)
-                            }
-                        }
-                        .accessibilityIdentifier("profile-edit-description")
-                    } header: { Text("About you") } footer: {
-                        Text("Share your company role, personality and communication preferences. " +
-                             "Pip uses this only in your private conversations, not shared threads. " +
-                             "It is sent to the configured AI provider with those conversations.")
+                Section {
+                    LabeledContent("Email", value: profile?.user.email ?? (profileModel.errorMessage == nil ? "Loading…" : "Unavailable"))
+                        .textSelection(.enabled)
+                }
+                Section {
+                    if let description = profile?.user.description, !description.isEmpty {
+                        Text(description).textSelection(.enabled)
                     }
+                    Button((profile?.user.description ?? "").isEmpty ? "Tell Pip about yourself" : "Edit description") {
+                        if let profile, let profileRequest {
+                            profileModel.beginEditing()
+                            editor = AtlasProfileEditorModel(description: profile.user.description, request: profileRequest)
+                        }
+                    }
+                    .disabled(profile == nil || profile?.cached == true)
+                    .accessibilityIdentifier("profile-edit-description")
+                } header: { Text("About you") } footer: {
+                    Text("Share your company role, personality and communication preferences. " +
+                         "Pip uses this only in your private conversations, not shared threads. " +
+                         "It is sent to the configured AI provider with those conversations.")
                 }
             }
             Section("Account") {
@@ -66,7 +70,7 @@ struct AtlasSettingsView: View {
                     LabeledContent("Server version", value: profile?.serverVersion ?? "Unavailable")
                     LabeledContent("App version", value: appVersion)
                 }
-                if let profileError {
+                if let profileError = profileModel.errorMessage {
                     Text(profileError).font(.footnote).foregroundStyle(.red)
                     Button("Retry profile") { Task { await loadProfile() } }
                 }
@@ -99,6 +103,15 @@ struct AtlasSettingsView: View {
                         Label("Connections", systemImage: "link")
                     }
                     .accessibilityIdentifier("profile-connections")
+                }
+            }
+            if let environmentRequest {
+                Section {
+                    NavigationLink {
+                        AtlasCodingSettingsView(request: environmentRequest)
+                    } label: {
+                        Label("Coding", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }.accessibilityIdentifier("profile-coding")
                 }
             }
             Section {
@@ -135,10 +148,10 @@ struct AtlasSettingsView: View {
         }
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show(resource: "profile") }
-        .task { await accounts.load(); await loadProfile() }
-        .refreshable { await accounts.load(); await loadProfile() }
+        .task { await load() }
+        .refreshable { await load() }
         .sheet(item: $editor) { editor in
-            AtlasProfileEditor(model: editor) { profile = $0 }
+            AtlasProfileEditor(model: editor) { profileModel.accept($0) }
         }
         .protectsAtlasNavigation(editor != nil)
     }
@@ -147,21 +160,15 @@ struct AtlasSettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
+    private func load() async {
+        async let metadata: Void = accounts.load()
+        await loadProfile()
+        await metadata
+    }
+
     private func loadProfile() async {
         guard let profileRequest, editor == nil else { return }
-        profileGeneration += 1
-        let generation = profileGeneration
-        do {
-            let data = try await profileRequest(["resource": "profile", "action": "list"])
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let loaded = try decoder.decode(AtlasNativeProfile.self, from: data)
-            guard generation == profileGeneration, editor == nil else { return }
-            profile = loaded
-            profileError = nil
-        } catch is CancellationError {} catch {
-            if generation == profileGeneration, editor == nil { profileError = error.localizedDescription }
-        }
+        await profileModel.load(request: profileRequest, cachedRead: cachedRead)
     }
 
     private func accountLink<Destination: View>(

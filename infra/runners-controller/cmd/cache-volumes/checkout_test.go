@@ -403,3 +403,58 @@ func TestCheckoutExportsDisplaceBuildsWaitingForRoom(t *testing.T) {
 		t.Fatal("the displaced export was kept")
 	}
 }
+
+func TestCheckoutPrefetchQueuesASpareRestoreOnANodeWithoutTheMaster(t *testing.T) {
+	a, _ := checkoutAgent(t, checkoutGrantJSON(1), true)
+	task := cachevolumes.CheckoutTask{
+		Scope: checkoutScope, Generation: 1, CloneURL: "https://github.com/org/repo", DefaultBranch: "main", Use: checkoutUse,
+		BaseGeneration: 2, ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), UID: 1000,
+		VolumeKey: strings.Repeat("d", 64), Spare: true,
+	}
+	prefetch := prefetchCheckout(a.checkouts)
+
+	if !prefetch(task) {
+		t.Fatal("a node without the master did not queue its restore")
+	}
+	if queued, _ := a.checkouts.Pending(checkoutScope); a.checkouts.Queued() != 1 || !queued.Spare || queued.Export != "" {
+		t.Fatalf("queued %+v", queued)
+	}
+	if scope, _ := os.ReadFile(filepath.Join(a.checkouts.Root, ".volumes", task.VolumeKey)); string(scope) != checkoutScope {
+		t.Fatalf("the prefetched scope is not tracked for clears: %q", scope)
+	}
+	installMaster(t, a)
+	if prefetch(task) {
+		t.Fatal("a node holding the master queued a restore")
+	}
+}
+
+func TestCheckoutSpareRoomNeverEvictsAMaster(t *testing.T) {
+	root := t.TempDir()
+	checkouts := &cachevolumes.Checkouts{Root: filepath.Join(root, "checkouts"), Images: &cachevolumes.Ext4CheckoutImages{}}
+	master := filepath.Join(checkouts.Root, checkoutScope, "1", "master.img")
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, []byte("master"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	space := &checkoutSpace{root: root, reserve: 40, checkouts: checkouts, freeBytes: func(string) (uint64, error) {
+		if _, err := os.Stat(master); os.IsNotExist(err) {
+			return 1 << 40, nil
+		}
+		return 50, nil
+	}}
+
+	if _, err := space.spare(context.Background(), 20); err != cachevolumes.ErrCapacity {
+		t.Fatalf("spare room = %v, want capacity", err)
+	}
+	if _, err := os.Stat(master); err != nil {
+		t.Fatal("a spare restore evicted a master")
+	}
+	if _, err := space.room(context.Background(), 20); err != nil {
+		t.Fatalf("room = %v", err)
+	}
+	if _, err := os.Stat(master); !os.IsNotExist(err) {
+		t.Fatal("a restore a job asked for no longer evicts an idle master")
+	}
+}

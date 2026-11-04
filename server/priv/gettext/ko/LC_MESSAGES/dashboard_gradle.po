@@ -23,7 +23,7 @@ msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "%{duration}s"
 msgstr "%{duration}초"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:875
+#: lib/tuist_web/live/gradle_build_live.html.heex:876
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:161
 #: lib/tuist_web/live/gradle_cache_live.html.heex:164
 #: lib/tuist_web/live/gradle_cache_live.html.heex:181
@@ -83,18 +83,18 @@ msgstr "적용"
 
 #: lib/tuist_web/live/gradle_build_live.ex:615
 #: lib/tuist_web/live/gradle_build_live.ex:690
-#: lib/tuist_web/live/gradle_build_live.html.heex:715
-#: lib/tuist_web/live/gradle_build_live.html.heex:769
+#: lib/tuist_web/live/gradle_build_live.html.heex:716
+#: lib/tuist_web/live/gradle_build_live.html.heex:770
 #, elixir-autogen, elixir-format
 msgid "Artifact"
 msgstr "아티팩트"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:660
+#: lib/tuist_web/live/gradle_build_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Artifact Transforms"
 msgstr "아티팩트 변환"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:668
+#: lib/tuist_web/live/gradle_build_live.html.heex:669
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms recorded for this build."
 msgstr "이 빌드에 대해 기록된 아티팩트 변환입니다."
@@ -115,7 +115,7 @@ msgstr "평균"
 msgid "Average build time"
 msgstr "평균 빌드 시간"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1042
+#: lib/tuist_web/live/gradle_build_live.html.heex:1043
 #, elixir-autogen, elixir-format
 msgid "Average download throughput in megabits per second."
 msgstr "초당 메가비트 단위의 평균 다운로드 처리량입니다."
@@ -135,7 +135,7 @@ msgstr "선택한 기간 동안 Gradle 빌드를 완료하는 데 걸리는 평�
 msgid "Average time it takes to run tests during the selected period."
 msgstr "선택한 기간 동안 테스트를 실행하는 데 걸리는 평균 시간입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1060
+#: lib/tuist_web/live/gradle_build_live.html.heex:1061
 #, elixir-autogen, elixir-format
 msgid "Average upload throughput in megabits per second."
 msgstr "초당 메가비트 단위의 평균 업로드 처리량입니다."
@@ -144,7 +144,7 @@ msgstr "초당 메가비트 단위의 평균 업로드 처리량입니다."
 #: lib/tuist_web/live/mix_builds_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "평균 빌드 소요 시간"
+msgstr "평균 빌드 시간"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:141
 #, elixir-autogen, elixir-format
@@ -192,7 +192,7 @@ msgstr "빌드 설정"
 #: lib/tuist_web/live/mix_builds_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "빌드 소요 시간"
+msgstr "빌드 시간"
 
 #: lib/tuist_web/live/gradle_build_live.ex:33
 #: lib/tuist_web/live/gradle_build_live.ex:37
@@ -257,12 +257,12 @@ msgstr "CI"
 msgid "Cache Hit Rate"
 msgstr "캐시 히트율"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:843
+#: lib/tuist_web/live/gradle_build_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
 msgstr "캐시 요약"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:880
+#: lib/tuist_web/live/gradle_build_live.html.heex:881
 #: lib/tuist_web/live/gradle_cache_live.ex:201
 #: lib/tuist_web/live/gradle_cache_live.html.heex:231
 #, elixir-autogen, elixir-format
@@ -291,13 +291,13 @@ msgstr "캐시 히트율"
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
 msgstr "캐시 히트율은 실행되지 않고 캐시에서 해결된 캐시 가능 작업의 비율을 나타냅니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1208
+#: lib/tuist_web/live/gradle_build_live.html.heex:1209
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Cache key"
 msgstr "캐시 키"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:891
+#: lib/tuist_web/live/gradle_build_live.html.heex:892
 #: lib/tuist_web/live/gradle_cache_live.ex:192
 #: lib/tuist_web/live/gradle_cache_live.html.heex:254
 #, elixir-autogen, elixir-format
@@ -309,27 +309,27 @@ msgstr "캐시 업로드"
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
 msgstr "캐시 업로드는 지정된 기간 동안 원격 스토리지에 업로드한 캐시 아티팩트의 총 크기를 나타냅니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:904
+#: lib/tuist_web/live/gradle_build_live.html.heex:905
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
 msgstr "캐시 가능 작업"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:963
+#: lib/tuist_web/live/gradle_build_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks"
 msgstr "캐시 가능 작업"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:862
+#: lib/tuist_web/live/gradle_build_live.html.heex:863
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
 msgstr "캐시에 없었던 캐시 가능 작업입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:851
+#: lib/tuist_web/live/gradle_build_live.html.heex:852
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "캐시(로컬 + 원격)에서 검색된 캐시 가능 작업입니다."
+msgstr "캐시(로컬 + 원격)에서 가져온 캐시 가능 작업입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:915
+#: lib/tuist_web/live/gradle_build_live.html.heex:916
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks:"
 msgstr "캐시 가능 작업:"
@@ -366,7 +366,7 @@ msgstr "커밋"
 msgid "Commit SHA"
 msgstr "커밋 SHA"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:374
+#: lib/tuist_web/live/gradle_build_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Configuration"
 msgstr "구성"
@@ -377,25 +377,25 @@ msgstr "구성"
 msgid "Configuration Insights"
 msgstr "구성 인사이트"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:390
+#: lib/tuist_web/live/gradle_build_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Configuration cache"
 msgstr "구성 캐시"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:403
+#: lib/tuist_web/live/gradle_build_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Configuration cache load"
 msgstr "구성 캐시 로드"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:380
+#: lib/tuist_web/live/gradle_build_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Configuration time"
 msgstr "구성 시간"
 
 #: lib/tuist_web/live/gradle_build_live.ex:579
 #: lib/tuist_web/live/gradle_build_live.ex:661
-#: lib/tuist_web/live/gradle_build_live.html.heex:531
-#: lib/tuist_web/live/gradle_build_live.html.heex:578
+#: lib/tuist_web/live/gradle_build_live.html.heex:532
+#: lib/tuist_web/live/gradle_build_live.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Configured unit"
 msgstr "설정된 단위"
@@ -410,9 +410,9 @@ msgstr "설정된 단위"
 #: lib/tuist_web/live/mix_overview_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "사용자 정의"
+msgstr "사용자 지정"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1040
+#: lib/tuist_web/live/gradle_build_live.html.heex:1041
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
 msgstr "다운로드 처리량"
@@ -421,16 +421,16 @@ msgstr "다운로드 처리량"
 #: lib/tuist_web/live/gradle_build_live.ex:617
 #: lib/tuist_web/live/gradle_build_live.ex:669
 #: lib/tuist_web/live/gradle_build_live.ex:706
-#: lib/tuist_web/live/gradle_build_live.html.heex:242
-#: lib/tuist_web/live/gradle_build_live.html.heex:276
-#: lib/tuist_web/live/gradle_build_live.html.heex:341
-#: lib/tuist_web/live/gradle_build_live.html.heex:515
-#: lib/tuist_web/live/gradle_build_live.html.heex:622
-#: lib/tuist_web/live/gradle_build_live.html.heex:731
-#: lib/tuist_web/live/gradle_build_live.html.heex:803
-#: lib/tuist_web/live/gradle_build_live.html.heex:1098
-#: lib/tuist_web/live/gradle_build_live.html.heex:1105
-#: lib/tuist_web/live/gradle_build_live.html.heex:1194
+#: lib/tuist_web/live/gradle_build_live.html.heex:243
+#: lib/tuist_web/live/gradle_build_live.html.heex:277
+#: lib/tuist_web/live/gradle_build_live.html.heex:342
+#: lib/tuist_web/live/gradle_build_live.html.heex:516
+#: lib/tuist_web/live/gradle_build_live.html.heex:623
+#: lib/tuist_web/live/gradle_build_live.html.heex:732
+#: lib/tuist_web/live/gradle_build_live.html.heex:804
+#: lib/tuist_web/live/gradle_build_live.html.heex:1099
+#: lib/tuist_web/live/gradle_build_live.html.heex:1106
+#: lib/tuist_web/live/gradle_build_live.html.heex:1195
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:30
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:46
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:135
@@ -498,10 +498,10 @@ msgstr "빌드 실패"
 msgid "Failed runs"
 msgstr "실행 실패"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:290
-#: lib/tuist_web/live/gradle_build_live.html.heex:540
-#: lib/tuist_web/live/gradle_build_live.html.heex:740
-#: lib/tuist_web/live/gradle_build_live.html.heex:1132
+#: lib/tuist_web/live/gradle_build_live.html.heex:291
+#: lib/tuist_web/live/gradle_build_live.html.heex:541
+#: lib/tuist_web/live/gradle_build_live.html.heex:741
+#: lib/tuist_web/live/gradle_build_live.html.heex:1133
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:63
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:254
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:418
@@ -521,7 +521,7 @@ msgstr "Gradle 빌드"
 msgid "Gradle Cache"
 msgstr "Gradle 캐시"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:210
+#: lib/tuist_web/live/gradle_build_live.html.heex:211
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Gradle Version"
@@ -539,7 +539,7 @@ msgstr "Gradle 버전"
 msgid "Hit Rate"
 msgstr "히트율"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:868
+#: lib/tuist_web/live/gradle_build_live.html.heex:869
 #: lib/tuist_web/live/gradle_tasks_live.ex:516
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:316
 #, elixir-autogen, elixir-format
@@ -551,12 +551,12 @@ msgstr "히트율"
 msgid "Invalid"
 msgstr "유효하지 않음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:425
+#: lib/tuist_web/live/gradle_build_live.html.heex:426
 #, elixir-autogen, elixir-format
 msgid "Invalidation reasons"
 msgstr "무효화 이유"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:211
+#: lib/tuist_web/live/gradle_build_live.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "Java Version"
 msgstr "자바 버전"
@@ -629,8 +629,8 @@ msgstr "지난 7일"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:30
 #: lib/tuist_web/live/gradle_build_live.ex:768
-#: lib/tuist_web/live/gradle_build_live.html.heex:978
-#: lib/tuist_web/live/gradle_build_live.html.heex:1158
+#: lib/tuist_web/live/gradle_build_live.html.heex:979
+#: lib/tuist_web/live/gradle_build_live.html.heex:1159
 #: lib/tuist_web/live/gradle_build_runs_live.ex:270
 #: lib/tuist_web/live/gradle_builds_live.ex:176
 #: lib/tuist_web/live/gradle_builds_live.html.heex:18
@@ -657,18 +657,18 @@ msgid "Local hit"
 msgstr "로컬 히트"
 
 #: lib/tuist_web/live/gradle_build_live.ex:771
-#: lib/tuist_web/live/gradle_build_live.html.heex:1016
-#: lib/tuist_web/live/gradle_build_live.html.heex:1170
+#: lib/tuist_web/live/gradle_build_live.html.heex:1017
+#: lib/tuist_web/live/gradle_build_live.html.heex:1171
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "누락됨"
+msgstr "미스"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr "해당 없음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:821
+#: lib/tuist_web/live/gradle_build_live.html.heex:822
 #, elixir-autogen, elixir-format
 msgid "No artifact transforms"
 msgstr "아티팩트 변환 없음"
@@ -677,22 +677,22 @@ msgstr "아티팩트 변환 없음"
 #: lib/tuist_web/live/mix_overview_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
-msgstr "빌드 내역 없음"
+msgstr "빌드 기록 없음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1214
+#: lib/tuist_web/live/gradle_build_live.html.heex:1215
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks"
-msgstr "캐시 가능 작업 없음"
+msgstr "캐시 가능한 작업 없음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:641
+#: lib/tuist_web/live/gradle_build_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "No configuration operations"
 msgstr "구성 작업 없음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:387
-#: lib/tuist_web/live/gradle_build_live.html.heex:417
-#: lib/tuist_web/live/gradle_build_live.html.heex:1055
-#: lib/tuist_web/live/gradle_build_live.html.heex:1073
+#: lib/tuist_web/live/gradle_build_live.html.heex:388
+#: lib/tuist_web/live/gradle_build_live.html.heex:418
+#: lib/tuist_web/live/gradle_build_live.html.heex:1056
+#: lib/tuist_web/live/gradle_build_live.html.heex:1074
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "데이터 없음"
@@ -730,7 +730,7 @@ msgstr "원격 항목 없음"
 #: lib/tuist_web/live/gradle_build_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "No remote entry, then stored"
-msgstr "저장된 원격 항목 없음"
+msgstr "원격 항목 없음, 이후 저장됨"
 
 #: lib/tuist_web/helpers/gradle_task.ex:20
 #: lib/tuist_web/live/gradle_build_live.ex:730
@@ -738,23 +738,23 @@ msgstr "저장된 원격 항목 없음"
 msgid "No source"
 msgstr "소스 없음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:353
+#: lib/tuist_web/live/gradle_build_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "No tasks"
 msgstr "작업 없음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:400
+#: lib/tuist_web/live/gradle_build_live.html.heex:401
 #, elixir-autogen, elixir-format
 msgid "Not requested"
 msgstr "요청되지 않음"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:473
+#: lib/tuist_web/live/gradle_build_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Operations can overlap. Build timing includes its settings and project configuration."
-msgstr "작업은 겹칠 수 있습니다. 빌드 시간에는 설정 및 프로젝트 구성이 포함됩니다."
+msgstr "작업은 겹칠 수 있습니다. 빌드 시간에는 설정과 프로젝트 구성이 포함됩니다."
 
 #: lib/tuist_web/live/gradle_build_live.ex:719
-#: lib/tuist_web/live/gradle_build_live.html.heex:321
+#: lib/tuist_web/live/gradle_build_live.html.heex:322
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:437
 #, elixir-autogen, elixir-format
 msgid "Outcome"
@@ -793,8 +793,8 @@ msgstr "통과한 실행"
 
 #: lib/tuist_web/live/gradle_build_live.ex:578
 #: lib/tuist_web/live/gradle_build_live.ex:647
-#: lib/tuist_web/live/gradle_build_live.html.heex:523
-#: lib/tuist_web/live/gradle_build_live.html.heex:560
+#: lib/tuist_web/live/gradle_build_live.html.heex:524
+#: lib/tuist_web/live/gradle_build_live.html.heex:561
 #, elixir-autogen, elixir-format
 msgid "Phase"
 msgstr "단계"
@@ -840,8 +840,8 @@ msgid "Recent Builds"
 msgstr "최근 빌드"
 
 #: lib/tuist_web/live/gradle_build_live.ex:770
-#: lib/tuist_web/live/gradle_build_live.html.heex:995
-#: lib/tuist_web/live/gradle_build_live.html.heex:1164
+#: lib/tuist_web/live/gradle_build_live.html.heex:996
+#: lib/tuist_web/live/gradle_build_live.html.heex:1165
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "원격"
@@ -865,7 +865,7 @@ msgid "Reused"
 msgstr "재사용됨"
 
 #: lib/tuist_web/live/gradle_build_live.ex:563
-#: lib/tuist_web/live/gradle_build_live.html.heex:595
+#: lib/tuist_web/live/gradle_build_live.html.heex:596
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Root build"
@@ -882,10 +882,10 @@ msgstr "실행: 데이터 없음"
 msgid "Search project..."
 msgstr "프로젝트 검색..."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:231
-#: lib/tuist_web/live/gradle_build_live.html.heex:494
-#: lib/tuist_web/live/gradle_build_live.html.heex:694
-#: lib/tuist_web/live/gradle_build_live.html.heex:1087
+#: lib/tuist_web/live/gradle_build_live.html.heex:232
+#: lib/tuist_web/live/gradle_build_live.html.heex:495
+#: lib/tuist_web/live/gradle_build_live.html.heex:695
+#: lib/tuist_web/live/gradle_build_live.html.heex:1088
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -902,9 +902,9 @@ msgstr "프로젝트에 Gradle 캐시 설정"
 msgid "Settings"
 msgstr "설정"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1097
-#: lib/tuist_web/live/gradle_build_live.html.heex:1118
-#: lib/tuist_web/live/gradle_build_live.html.heex:1177
+#: lib/tuist_web/live/gradle_build_live.html.heex:1098
+#: lib/tuist_web/live/gradle_build_live.html.heex:1119
+#: lib/tuist_web/live/gradle_build_live.html.heex:1178
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr "크기"
@@ -915,10 +915,10 @@ msgstr "크기"
 msgid "Skipped"
 msgstr "건너뜀"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:246
-#: lib/tuist_web/live/gradle_build_live.html.heex:503
-#: lib/tuist_web/live/gradle_build_live.html.heex:703
-#: lib/tuist_web/live/gradle_build_live.html.heex:1101
+#: lib/tuist_web/live/gradle_build_live.html.heex:247
+#: lib/tuist_web/live/gradle_build_live.html.heex:504
+#: lib/tuist_web/live/gradle_build_live.html.heex:704
+#: lib/tuist_web/live/gradle_build_live.html.heex:1102
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:34
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:240
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:399
@@ -927,33 +927,33 @@ msgid "Sort by:"
 msgstr "정렬 기준:"
 
 #: lib/tuist_web/live/gradle_build_live.ex:580
-#: lib/tuist_web/live/gradle_build_live.html.heex:243
-#: lib/tuist_web/live/gradle_build_live.html.heex:250
-#: lib/tuist_web/live/gradle_build_live.html.heex:330
-#: lib/tuist_web/live/gradle_build_live.html.heex:507
-#: lib/tuist_web/live/gradle_build_live.html.heex:604
+#: lib/tuist_web/live/gradle_build_live.html.heex:244
+#: lib/tuist_web/live/gradle_build_live.html.heex:251
+#: lib/tuist_web/live/gradle_build_live.html.heex:331
+#: lib/tuist_web/live/gradle_build_live.html.heex:508
+#: lib/tuist_web/live/gradle_build_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Started after"
 msgstr "시작 시간 이후"
 
 #: lib/tuist_web/live/gradle_build_live.ex:764
 #: lib/tuist_web/live/gradle_build_live.html.heex:114
-#: lib/tuist_web/live/gradle_build_live.html.heex:1155
+#: lib/tuist_web/live/gradle_build_live.html.heex:1156
 #: lib/tuist_web/live/gradle_build_runs_live.ex:227
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "상태"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:392
+#: lib/tuist_web/live/gradle_build_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Status of Gradle's configuration cache for this build."
 msgstr "이 빌드의 Gradle 구성 캐시 상태입니다."
 
 #: lib/tuist_web/live/gradle_build_live.ex:616
 #: lib/tuist_web/live/gradle_build_live.ex:698
-#: lib/tuist_web/live/gradle_build_live.html.heex:723
-#: lib/tuist_web/live/gradle_build_live.html.heex:786
+#: lib/tuist_web/live/gradle_build_live.html.heex:724
+#: lib/tuist_web/live/gradle_build_live.html.heex:787
 #, elixir-autogen, elixir-format
 msgid "Subject"
 msgstr "제목"
@@ -969,26 +969,26 @@ msgstr "성공한 빌드"
 msgid "Tags"
 msgstr "태그"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:241
-#: lib/tuist_web/live/gradle_build_live.html.heex:263
-#: lib/tuist_web/live/gradle_build_live.html.heex:312
-#: lib/tuist_web/live/gradle_build_live.html.heex:1152
+#: lib/tuist_web/live/gradle_build_live.html.heex:242
+#: lib/tuist_web/live/gradle_build_live.html.heex:264
+#: lib/tuist_web/live/gradle_build_live.html.heex:313
+#: lib/tuist_web/live/gradle_build_live.html.heex:1153
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "작업"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:849
+#: lib/tuist_web/live/gradle_build_live.html.heex:850
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "작업 히트"
+msgstr "작업 캐시 히트"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:860
+#: lib/tuist_web/live/gradle_build_live.html.heex:861
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "작업 미스"
+msgstr "작업 캐시 미스"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:215
+#: lib/tuist_web/live/gradle_build_live.html.heex:216
 #: lib/tuist_web/live/gradle_tasks_live.ex:45
 #: lib/tuist_web/live/gradle_tasks_live.ex:344
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:8
@@ -1011,13 +1011,13 @@ msgstr "테스트"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지 포함됩니다. 데이터 세트를 좁히려면 필터링을 시도하세요."
+msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지 포함됩니다. 필터를 적용해 데이터 세트를 좁혀보세요."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:172
 #: lib/tuist_web/live/mix_builds_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "개별 백분위수 구간이 포함된 평균 빌드 기간입니다."
+msgstr "개별 백분위수 구간이 포함된 평균 빌드 시간입니다."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:141
 #: lib/tuist_web/live/mix_builds_live.html.heex:132
@@ -1031,32 +1031,32 @@ msgstr "빌드 실패 횟수입니다."
 msgid "The percentage of builds that succeeded."
 msgstr "빌드 성공 비율입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:870
+#: lib/tuist_web/live/gradle_build_live.html.heex:871
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "캐싱 가능 태스크 중 캐시 히트(로컬 + 원격) 비율입니다."
+msgstr "캐시 가능 작업 중 캐시 히트(로컬 + 원격)의 비율입니다."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "The total number of Gradle builds."
-msgstr "Gradle 빌드 총 횟수입니다."
+msgstr "Gradle 빌드 총횟수입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1215
+#: lib/tuist_web/live/gradle_build_live.html.heex:1216
 #, elixir-autogen, elixir-format
 msgid "This build has no cacheable task data."
-msgstr "이 빌드에는 캐싱 가능 태스크 데이터가 없습니다."
+msgstr "이 빌드에는 캐시 가능 작업 데이터가 없습니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:354
+#: lib/tuist_web/live/gradle_build_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "This build has no task data."
-msgstr "이 빌드에는 태스크 데이터가 없습니다."
+msgstr "이 빌드에는 작업 데이터가 없습니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:382
+#: lib/tuist_web/live/gradle_build_live.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Time Gradle spent configuring this build."
 msgstr "Gradle이 이 빌드를 구성하는 데 소요된 시간입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:405
+#: lib/tuist_web/live/gradle_build_live.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Time spent loading a reused configuration cache entry."
 msgstr "재사용된 구성 캐시 항목을 로드하는 데 소요된 시간입니다."
@@ -1067,41 +1067,41 @@ msgstr "재사용된 구성 캐시 항목을 로드하는 데 소요된 시간�
 msgid "Total builds"
 msgstr "총 빌드 수"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:882
+#: lib/tuist_web/live/gradle_build_live.html.heex:883
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded from remote cache."
 msgstr "원격 캐시에서 다운로드한 캐시 아티팩트의 총 크기입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:893
+#: lib/tuist_web/live/gradle_build_live.html.heex:894
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded to remote cache."
 msgstr "원격 캐시에 업로드한 캐시 아티팩트의 총 크기입니다."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:676
+#: lib/tuist_web/live/gradle_build_live.html.heex:677
 #, elixir-autogen, elixir-format
 msgid "Total time spent in recorded artifact transforms."
 msgstr "기록된 아티팩트 변환에 소요된 총 시간입니다."
 
 #: lib/tuist_web/live/gradle_build_live.ex:614
 #: lib/tuist_web/live/gradle_build_live.ex:682
-#: lib/tuist_web/live/gradle_build_live.html.heex:707
-#: lib/tuist_web/live/gradle_build_live.html.heex:751
+#: lib/tuist_web/live/gradle_build_live.html.heex:708
+#: lib/tuist_web/live/gradle_build_live.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Transform"
 msgstr "변환"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:674
+#: lib/tuist_web/live/gradle_build_live.html.heex:675
 #, elixir-autogen, elixir-format
 msgid "Transform time"
 msgstr "변환 시간"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:666
+#: lib/tuist_web/live/gradle_build_live.html.heex:667
 #, elixir-autogen, elixir-format
 msgid "Transforms"
 msgstr "변환 횟수"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:642
-#: lib/tuist_web/live/gradle_build_live.html.heex:822
+#: lib/tuist_web/live/gradle_build_live.html.heex:643
+#: lib/tuist_web/live/gradle_build_live.html.heex:823
 #, elixir-autogen, elixir-format
 msgid "Try adjusting your search or filters."
 msgstr "검색어나 필터를 조정해 보세요."
@@ -1132,7 +1132,7 @@ msgstr "알 수 없음"
 msgid "Up-to-date"
 msgstr "최신 상태"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1058
+#: lib/tuist_web/live/gradle_build_live.html.heex:1059
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
 msgstr "업로드 처리량"
@@ -1153,15 +1153,15 @@ msgstr "유효함"
 msgid "View more"
 msgstr "자세히 보기"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1205
+#: lib/tuist_web/live/gradle_build_live.html.heex:1206
 #, elixir-autogen, elixir-format
 msgid "Why it missed"
-msgstr "누락된 이유"
+msgstr "캐시 미스 이유"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Gradle cache for your project by running:"
-msgstr "다음 명령어를 실행하여 프로젝트의 Gradle 캐시를 설정할 수 있습니다:"
+msgstr "다음 명령어를 실행하여 프로젝트의 Gradle 캐시를 설정하세요:"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:366
 #: lib/tuist_web/live/gradle_cache_live.html.heex:438
@@ -1236,7 +1236,7 @@ msgstr "지난달 이후"
 #: lib/tuist_web/live/gradle_tasks_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "이전 기간 이후"
+msgstr "지난 기간 이후"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:35
 #: lib/tuist_web/live/gradle_builds_live.ex:180
@@ -1267,17 +1267,17 @@ msgstr "어제 이후"
 
 #: lib/tuist_web/live/gradle_build_live.ex:809
 #: lib/tuist_web/live/gradle_build_live.ex:832
-#: lib/tuist_web/live/gradle_build_live.html.heex:413
-#: lib/tuist_web/live/gradle_build_live.html.heex:1189
-#: lib/tuist_web/live/gradle_build_live.html.heex:1209
+#: lib/tuist_web/live/gradle_build_live.html.heex:414
+#: lib/tuist_web/live/gradle_build_live.html.heex:1190
+#: lib/tuist_web/live/gradle_build_live.html.heex:1210
 #, elixir-autogen, elixir-format
 msgid "—"
-msgstr "-"
+msgstr "—"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Analytics could not be loaded"
-msgstr "분석 데이터를 불러올 수 없습니다"
+msgstr "분석을 로드할 수 없습니다"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:513
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:345
@@ -1295,12 +1295,12 @@ msgstr "실행 횟수"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "증분 빌드"
+msgstr "증분"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "No builds in this period"
-msgstr "해당 기간에 빌드가 없습니다"
+msgstr "이 기간에는 빌드가 없습니다"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:275
 #, elixir-autogen, elixir-format
@@ -1310,7 +1310,7 @@ msgstr "일치하는 경로가 없습니다"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Refresh the page to try again."
-msgstr "페이지를 새로고침하여 다시 시도하세요."
+msgstr "페이지를 새로 고쳐 다시 시도하세요."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:232
 #, elixir-autogen, elixir-format
@@ -1320,7 +1320,7 @@ msgstr "경로로 검색"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Showing the 10,000 entities with the most execution time. Narrow the filters to see more."
-msgstr "가장 많은 실행 시간을 차지한 상위 10,000개 엔티티를 표시합니다. 더 많은 결과를 확인하려면 필터를 좁혀보세요."
+msgstr "가장 실행 시간이 긴 10,000개 엔티티를 표시합니다. 더 많은 항목을 보려면 필터를 좁혀보세요."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:356
 #, elixir-autogen, elixir-format
@@ -1330,7 +1330,7 @@ msgstr "출력을 재사용하지 않고 실행된 작업입니다."
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Try a different date range or adjust the filters."
-msgstr "다른 날짜 범위를 선택하거나 필터를 조정해 보세요."
+msgstr "다른 날짜 범위를 선택하거나 필터를 조정해보세요."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:346
 #, elixir-autogen, elixir-format
@@ -1346,13 +1346,13 @@ msgstr "이 기간에는 데이터가 없습니다"
 #: lib/tuist_web/live/gradle_tasks_live.ex:523
 #, elixir-autogen, elixir-format
 msgid "Not cacheable"
-msgstr "캐시 불가"
+msgstr "캐시 불가능"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:57
 #: lib/tuist_web/live/gradle_tasks_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Unknown cacheability"
-msgstr "캐시 가능성 알 수 없음"
+msgstr "알 수 없는 캐시 가능성"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:517
 #, elixir-autogen, elixir-format
@@ -1378,7 +1378,7 @@ msgstr "미스"
 #: lib/tuist_web/live/gradle_tasks_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Task duration percentile across executions in the selected period."
-msgstr "선택한 기간 동안 실행된 작업의 지속 시간 백분위수입니다."
+msgstr "선택한 기간 동안 실행별 작업 지속 시간 백분위수입니다."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:379
 #, elixir-autogen, elixir-format
@@ -1398,12 +1398,12 @@ msgstr "p99 작업 지속 시간"
 #: lib/tuist_web/live/gradle_tasks_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Average task duration across executions in the selected period."
-msgstr "선택한 기간 동안 실행된 작업의 평균 지속 시간입니다."
+msgstr "선택한 기간 동안 실행별 평균 작업 지속 시간입니다."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Avg. task duration"
-msgstr "평균 작업 시간"
+msgstr "평균 작업 지속 시간"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:477
 #, elixir-autogen, elixir-format
@@ -1443,7 +1443,7 @@ msgstr "원격 캐시 히트는 히트와 확인된 미스로 나뉩니다. 로�
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "These builds did not report enough cache information to calculate a hit rate."
-msgstr "이 빌드는 히트율을 계산하기에 충분한 캐시 정보를 보고하지 않았습니다."
+msgstr "이 빌드들은 히트율을 계산하기에 충분한 캐시 정보를 보고하지 않았습니다."
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -1489,12 +1489,12 @@ msgstr "아니요"
 #: lib/tuist_web/live/gradle_task_execution_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Task execution not found."
-msgstr "태스크 실행을 찾을 수 없습니다."
+msgstr "작업 실행을 찾을 수 없습니다."
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Task type"
-msgstr "태스크 유형"
+msgstr "작업 유형"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:92
 #, elixir-autogen, elixir-format
@@ -1509,7 +1509,7 @@ msgstr "오류"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Task: %{name}"
-msgstr "태스크: %{name}"
+msgstr "작업: %{name}"
 
 #: lib/tuist_web/helpers/gradle_task.ex:14
 #: lib/tuist_web/live/gradle_build_live.ex:724
@@ -1521,7 +1521,7 @@ msgstr "캐시 히트"
 #: lib/tuist_web/live/mix_builds_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "The total number of mix compile runs."
-msgstr "mix 컴파일 실행 총 횟수입니다."
+msgstr "Mix 컴파일 실행의 총 횟수입니다."
 
 #: lib/tuist_web/components/build_health.ex:49
 #: lib/tuist_web/live/gradle_build_live.html.heex:197
@@ -1532,7 +1532,7 @@ msgstr "보고되지 않음"
 #: lib/tuist_web/components/build_health.ex:34
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
-msgstr "캐시 히트로 절약된 예상 작업 실행 시간입니다. 병렬 작업은 겹칠 수 있으므로 실제 빌드 시간 절감과는 다릅니다. 추정치가 보고된 빌드만 포함됩니다."
+msgstr "캐시 히트로 절약된 예상 작업 실행 시간입니다. 병렬 작업이 겹칠 수 있으므로 빌드 경과 시간 절감과는 다릅니다. 추정치가 보고된 빌드만 포함됩니다."
 
 #: lib/tuist_web/components/build_health.ex:133
 #, elixir-autogen, elixir-format
@@ -1549,14 +1549,19 @@ msgstr "누적 작업 시간 절감"
 #: lib/tuist_web/live/gradle_build_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved."
-msgstr "캐시 히트로 절약된 예상 작업 실행 시간입니다. 병렬 작업은 겹칠 수 있으므로 실제 빌드 시간 절감과는 다릅니다."
+msgstr "캐시 히트로 절약된 예상 작업 실행 시간입니다. 병렬 작업이 겹칠 수 있으므로 빌드 경과 시간 절감과는 다릅니다."
 
 #: lib/tuist_web/components/build_health.ex:66
 #, elixir-autogen, elixir-format
 msgid "No comparison available"
-msgstr "비교할 데이터가 없습니다"
+msgstr "비교 불가"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Reported name"
 msgstr "보고된 이름"
+
+#: lib/tuist_web/live/gradle_build_live.html.heex:210
+#, elixir-autogen, elixir-format
+msgid "Tuist Gradle plugin version"
+msgstr "Tuist Gradle 플러그인 버전"

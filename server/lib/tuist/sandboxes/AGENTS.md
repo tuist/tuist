@@ -115,6 +115,68 @@ consumer is Claude Managed Agents `self_hosted` environments.
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
   enqueued with is still current, checked under the sandbox's lock.
+- `Tuist.Sandboxes.DiskSnapshots`: disk snapshots (`sandbox_disk_snapshots`)
+  of paused Amp Orbs, saved on the Orb's node by `save_disks` after a pause
+  with `sync_disks` and keyed by account and Amp's `snapshot_id`. A new Orb
+  spawned with that id goes to the snapshot's node (`Capacity.place_on_node/2`)
+  and is created with `from_disk_snapshot`; when that node cannot take it or
+  the clone fails, it boots the template instead. Each snapshot reserves its
+  rootfs and workspace ceiling in `Capacity.reserved_disk_bytes/1`, and the
+  save itself is admitted under the node's lock
+  (`Capacity.reserve_disk_snapshot/3`). A newer save replaces older copies
+  of the same id. Node reports reconcile them like sandboxes: copies no row
+  knows are deleted from the node, rows whose copy the node no longer lists
+  are dropped after a two-minute grace. A daemon that reports no
+  `disk_snapshots` key is left alone.
+  `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
+  snapshots unused for 72 hours and saves stuck for 15 minutes.
+- `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb
+  paused longer than `Environment.sandbox_archive_after_hours/0` (off when
+  unset), or the least recently paused one of an account whose disk quota
+  refused a create or restore (`make_room/1`), is uploaded by its node (`archive` command with presigned multipart
+  part URLs; the daemon holds no storage credentials) as kernel, rootfs and
+  workspace without the memory image, to `sandbox-archives/<account_id>/`
+  in the archive bucket of the in-rack store at the node's site (a shard
+  storage target with an `archive_bucket`, recorded in `archive_store`), or
+  in the account's storage when there is none or the account has its own
+  S3 storage. The sandboxd NetworkPolicy lets the daemon reach the store
+  and the daemon drops guest traffic to its port. The row
+  becomes `archived` with `node_name` nil only after the upload is
+  completed and readable, then the jail is deleted; an `archived` row a node
+  still reports is deleted from it. The upload runs without the sandbox
+  lock (taken only to start and to finish), so a resume wins: the node
+  cancels the upload and `finish` discards one whose row changed. A spawn
+  of an archived Orb (`running_or_resume/1`) is admitted like a create
+  (the CPU, memory and disk quota), placed by
+  `Capacity.place/1`, or by `place/2` among the nodes at its store's site,
+  created
+  with `from_archive` and cold boots; a failed restore reverts the row to
+  `archived`, never to `error`, because the object is the only copy. The
+  object is deleted once the restored sandbox runs (`delete_restored/1`),
+  with the sandbox, or with the account. `archived` rows are outside every
+  node reservation and both limits; accounts stop archiving at 100 GiB of
+  archives. There is no count of paused Orbs per account.
+  `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
+  `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
+  reverts restores stuck for 15.
+- Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
+  sandboxes (creating, running or resuming) charge the CPU and memory quota
+  (`:sandbox_concurrency_limit`, checked on create, restore and resume,
+  retryable), and every sandbox on a node, paused included, charges the disk
+  quota (`sandbox_disk_gb_limit`) with its workspace and memory image,
+  checked on create and restore only, so lowering it never strands a paused
+  sandbox. Past the disk quota, `Archives.make_room/1` queues the archive of
+  the account's least recently paused idle Orb and the refusal is retryable
+  (`:sandbox_disk_limit`); when nothing can be archived it is final
+  (`:sandbox_limit`).
+- Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
+  than 20 ms per second above `guest_cpu_ms` since `last_active_at`, or
+  below it (a new VM process), records activity. A running Orb quiet for
+  ten minutes enqueues `Tuist.Sandboxes.Workers.PauseIdleOrbWorker`, which
+  calls `AmpOrbs.pause_idle/2`: under the Orb's dispatch lock, it pauses
+  only if `last_active_at` is unchanged, the same way Amp's pause does.
+  Without `cpu_ms` (an older daemon), `guest_cpu_ms` stays nil and nothing
+  is paused.
 - `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
   `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused, or errored,
   for longer than 14 days (both still hold their disk), falling back to
@@ -231,12 +293,42 @@ socket, the poller and the caller share a replica:
 - `TuistWeb.Plugs.RequireSandboxesPlug` gates both account APIs on
   `FeatureFlags.sandboxes_enabled?/1` (an explicit `:sandboxes` flag on
   canary and production), and the poller manager only runs pollers for
-  flagged accounts. Accounts get at most 5 live sandboxes, the shapes
-  in `Sandbox.shapes/0` and workspaces up to 100 GB.
+  flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
+  workspaces up to 100 GB.
 - `TuistWeb.API.SandboxesController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and
   system prompt; sandboxes, exec/pause/resume/delete).
+- Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
+  `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
+  (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and
+  `:sandboxes_read` allows the user; the sidebar entry uses the same gate.
+  Pause, resume, archive and delete require `:sandboxes_update` (admins), are
+  rechecked per event and run in `start_async`, since node commands block.
+  Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
+  and Amp Orbs are not resumed or restored from the dashboard (Amp does it).
+  Archive (`Sandboxes.archive/1`) only queues `ArchiveSandboxesWorker` for
+  one paused sandbox of any source, under the account's archive storage cap,
+  because the upload outlives a page. The app layout renders no flashes, so
+  these pages render theirs with `SandboxesLive.flash_alerts/1`.
+  The overview charts come from `Analytics` over ClickHouse
+  `sandbox_events`, which `Events` writes on every state change: through
+  `update_sandbox/3`, and explicitly where a state is written another way
+  (create, delete, `mark_error`, `Archives`). A new state write must record
+  its event too, or sessions and concurrency drift. Peak disk follows
+  `Concurrency`'s disk charge: a sandbox holds its workspace and memory image
+  from `created` (or a restore's `started`) until `archived`, `failed` or
+  `deleted`, paused or not. `boot/2` times each
+  boot (create or restore) and tags its `started` event with what it booted
+  from. Before every Amp pause, `AmpOrbs` reads the birth and modification
+  times of Amp's `setup.log` in the guest (`Sandboxes.exec_running/3`, which
+  neither resumes nor counts as activity) and records a `setup` event dated
+  when setup finished; a log older than the row came with a disk snapshot
+  and is ignored. The Setup and Time to start widgets chart those
+  durations; vCPU-hours (`Analytics.compute/2`) are on the Usage page,
+  priced by `Sandboxes.Pricing` at one rate per vCPU-hour, memory and disk
+  included. There is no Stripe meter yet: early access covers the whole
+  charge and Billed stays $0 until one exists.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,

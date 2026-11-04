@@ -20,6 +20,7 @@
 set -euo pipefail
 
 profiles_file="infra/runner-image/profiles.json"
+base_versions_file="infra/runner-image/base-xcode-versions.json"
 base_repository="ghcr.io/tuist/macos-tahoe-xcode"
 runner_repository="ghcr.io/tuist/tuist-runner"
 
@@ -33,6 +34,7 @@ if [ -n "$latest_tag" ]; then
   changed_sources="$(git diff --name-only "$latest_tag" HEAD -- infra/runner-image infra/linux-runner-image/cmd/tuist-cache-volume .github/actions/build-runner-image-binaries \
     infra/certificate-trust/policy.json infra/certificate-trust/pem-store.sh infra/certificate-trust/controls/ \
     ':(exclude)infra/runner-image/profiles.json' \
+    ':(exclude)infra/runner-image/base-xcode-versions.json' \
     ':(exclude)infra/runner-image/cliff.toml' \
     ':(glob,exclude)infra/runner-image/**/*.md')"
   if [ "$SHOULD_RELEASE" != "true" ] || [ -z "$changed_sources" ]; then
@@ -43,7 +45,8 @@ fi
 manifest='[]'
 while IFS= read -r xcode; do
   profile="macos-${xcode//./-}"
-  digest="$(oras resolve "${base_repository}:${xcode//./-}")"
+  base_xcode="$(jq -r --arg xcode "$xcode" '.[$xcode] // $xcode' "$base_versions_file")"
+  digest="$(oras resolve "${base_repository}:${base_xcode//./-}")"
   previous_entry="$(jq -c --arg xcode "$xcode" 'map(select(.xcode == $xcode))[0] // {}' <<< "$previous_manifest")"
   previous_digest="$(jq -r '.base_digest // ""' <<< "$previous_entry")"
   previous_stacked="$(jq -r '.stacked // false' <<< "$previous_entry")"

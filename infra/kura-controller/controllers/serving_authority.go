@@ -66,16 +66,23 @@ type exitResume struct {
 const exitPromotionDelay = 60 * time.Second
 
 type handoverPreparation struct {
-	Intent   handoverIntent `json:"intent"`
-	Source   servingHolder  `json:"source"`
-	Epoch    uint64         `json:"epoch"`
-	Complete bool           `json:"complete"`
-	Error    string         `json:"error"`
+	Intent          handoverIntent `json:"intent"`
+	Source          servingHolder  `json:"source"`
+	Epoch           uint64         `json:"epoch"`
+	Complete        bool           `json:"complete"`
+	ContentVerified bool           `json:"content_verified"`
+	Error           string         `json:"error"`
+}
+
+type handoverFailure struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
 }
 
 type servingReport struct {
 	PreparationSupported bool                 `json:"preparation_supported"`
 	Preparation          *handoverPreparation `json:"preparation"`
+	BarrierFailure       *handoverFailure     `json:"barrier_failure"`
 	FencedEpoch          uint64               `json:"fenced_epoch"`
 	RevokedEpoch         uint64               `json:"revoked_epoch"`
 	Observed             *servingGrant        `json:"observed"`
@@ -330,7 +337,14 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 						grant.Reason = "Standby preparation failed; primary remains serving"
 						break
 					}
-					prepared = matches && preparation.Complete && !targetReport.Valid
+					// Content left unverified would be hashed under the frozen source,
+					// which cannot finish within the barrier deadline on a large corpus.
+					if matches && preparation.Complete && !preparation.ContentVerified {
+						abandonHandoverPreparation(&grant)
+						grant.Reason = "Standby preparation did not verify retained content; primary remains serving"
+						break
+					}
+					prepared = matches && preparation.Complete && preparation.ContentVerified && !targetReport.Valid
 				} else if grant.Handover != nil {
 					abandonHandoverPreparation(&grant)
 					grant.Reason = "Standby preparation capability disappeared; primary remains serving"
@@ -370,6 +384,14 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 		if holder, ready := holders[grant.PodName]; !fresh || !ready || holder != grant.Holder {
 			return result, nil
+		}
+		// The frozen source reports a rejection retrying cannot change, such as a
+		// destination that dropped retained data while repairing. It never revoked,
+		// so it resumes now rather than refusing writes until the deadline.
+		if failure := report.BarrierFailure; failure != nil && report.Identity == grant.Holder && failure.ID == grant.Handover.ID {
+			grant.LastHandover, grant.Handover, grant.Phase, grant.Reason = grant.Handover.ID, nil, "Serving", "Named standby cannot complete the retained barrier; retained old primary"
+			grant.ExpiresMS = now + 15000
+			break
 		}
 		if now >= grant.Handover.DeadlineMS {
 			grant.LastHandover, grant.Handover, grant.Phase, grant.Reason = grant.Handover.ID, nil, "Serving", "Handover preparation timed out; retained old primary"

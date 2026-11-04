@@ -1,18 +1,18 @@
 ---
 {
-  "title": "Test Insights",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Identify flaky and slow tests in Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Test Insights."
+  "title": "測試洞察",
+  "titleTemplate": ":title · 功能 · 指南 · Tuist",
+  "description": "使用 Tuist 測試洞察，找出 Xcode、Gradle、Bazel、Elixir 和 Rust 專案中不穩定與緩慢的測試。"
 }
 ---
 # 測試洞察 {#test-insights}
 
-使用測試洞察來監控您的測試套件健康狀況，包括識別緩慢的測試、追蹤不穩定的測試，以及快速了解失敗的 CI 執行。目前支援 Xcode、Gradle、Bazel、Elixir 和 Rust。
+使用「測試洞察」監控測試套件的健全狀況，包括識別緩慢測試、追蹤不穩定測試，以及快速了解失敗的 CI 執行。目前支援 Xcode、Gradle、Bazel、Elixir 與 Rust。若要追蹤測試執行的程式碼，請參閱 <.localized_link href="/guides/features/test-code-coverage">程式碼涵蓋率</.localized_link>。
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="透過 scheme post-actions 和 Tuist CLI 追蹤 Xcode 測試分析數據。"
+    details="透過 scheme post-actions 與 Tuist CLI 追蹤 Xcode 測試分析數據。"
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
@@ -27,12 +27,12 @@
 />
   <.home_card
     title="Elixir"
-    details="透過 Tuist Hex 套件追蹤您的 Elixir 專案測試。"
+    details="透過 Tuist Hex 套件追蹤你的 Elixir 專案測試。"
     link="/guides/features/test-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="使用您慣用的測試命令追蹤 Cargo 測試結果、套件持續時間和文件測試。"
+    details="使用你慣用的測試指令追蹤 Cargo 測試結果、套件執行時間與 doctests。"
     link="/guides/features/test-insights/rust"
 />
 </.home_cards>
