@@ -21,7 +21,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Baseline do
       reason: %Schema{
         type: :string,
         description:
-          "Why there's no baseline: `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
+          "Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has neither the checked-out commit nor any parent sent: the client deepens its checkout once by 100 commits, uploads that commit graph (`POST …/git-history/commits`) and asks again. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
       },
       diff_cached: %Schema{
         type: :boolean,
