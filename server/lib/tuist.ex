@@ -323,8 +323,10 @@ defmodule Tuist do
       Sandboxes.AgentEnvironment,
       Sandboxes.AgentSession,
       Sandboxes.Anthropic.Client,
+      Sandboxes.Analytics,
       Sandboxes.Concurrency,
       Sandboxes.Nodes,
+      Sandboxes.Pricing,
       Sandboxes.Router,
       Sandboxes.Sandbox,
       # Customer-runner pool. The Tuist GitHub App fires
