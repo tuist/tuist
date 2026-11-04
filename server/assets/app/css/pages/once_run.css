@@ -210,7 +210,7 @@
       }
 
       & > [data-part="range"] {
-        margin-left: auto;
+        margin-inline-start: auto;
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
