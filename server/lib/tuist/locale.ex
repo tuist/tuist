@@ -9,6 +9,7 @@ defmodule Tuist.Locale do
     %{code: "ka", label: "Georgian", native: "ქართული"},
     %{code: "ko", label: "Korean", native: "한국어"},
     %{code: "ru", label: "Russian", native: "Русский"},
+    %{code: "tr", label: "Turkish", native: "Türkçe"},
     %{code: "yue_Hant", label: "Cantonese", native: "廣東話"},
     %{code: "zh_Hans", label: "Chinese (Simplified)", native: "简体中文"},
     %{code: "zh_Hant", label: "Chinese (Traditional)", native: "繁體中文"}

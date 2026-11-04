@@ -273,6 +273,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
         {"ka", "/ka"},
         {"ko", "/ko"},
         {"ru", "/ru"},
+        {"tr", "/tr"},
         {"yue-Hant", "/yue_Hant"},
         {"zh-Hans", "/zh_Hans"},
         {"zh-Hant", "/zh_Hant"}
