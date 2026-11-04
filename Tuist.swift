@@ -2,6 +2,7 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "tuist/tuist",
+    testInsights: .testInsights(coverage: .coverage(upload: true)),
     project: .tuist(
         generationOptions: .options(
             optionalAuthentication: true,

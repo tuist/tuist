@@ -237,12 +237,7 @@ struct TestCoverageEvidenceServiceTests {
     }
 
     @Test(.withMockedEnvironment()) func collectsOnlyWhenTheRunUploadsCoverage() async {
-        // Without the `COVERAGE` client flag.
         #expect(await TestCoverageEvidenceService().prepare(platform: .macOS, config: .test()) == nil)
-
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
-        let noUpload = TuistConfig.Tuist.test(testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false)))
-        #expect(await TestCoverageEvidenceService().prepare(platform: .macOS, config: noUpload) == nil)
     }
 
     @Test(.inTemporaryDirectory) func saysWhenNoTestProcessRecordedEvidence() async throws {
@@ -284,7 +279,7 @@ struct TestCoverageEvidenceServiceTests {
     }
 
     @Test(.withMockedEnvironment()) func tellsTheTestProcessesWhereToRecord() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
 
         let session = try #require(await TestCoverageEvidenceService().prepare(platform: .iOSSimulator, config: .test()))
         defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }
