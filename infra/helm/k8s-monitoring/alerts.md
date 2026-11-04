@@ -2761,10 +2761,14 @@ The server observes each job once, when GitHub first names the runner it ran
 on (`Tuist.Runners.WorkflowJobs.record_execution/3`). The value is the job's
 queue time as the runners dashboard measures it, enqueue to that runner's
 claim (`executor_claimed_at`). `limit_held="true"` marks a job whose
-account's open runner sessions, plus the job, exceeded its limit at enqueue
-or 15 s before that claim (`Tuist.Runners.Concurrency.limit_held?/4`).
-Those jobs waited on the limit the customer bought, so the rule leaves them
-out.
+account's open runner sessions, plus the job, exceeded its limit at any
+point from enqueue to 15 s before that claim
+(`Tuist.Runners.Concurrency.limit_held?/5`). Those jobs waited on the limit
+the customer bought, so the rule leaves them out. Checking only the two ends
+missed jobs enqueued while a slot was free and claimed just after one freed:
+on 2026-11-04 every slow Linux job counted as not held had spent part of its
+wait over the `tuist` account's limit while GitHub handed each freed slot to
+another of that account's queued jobs.
 
 The existing `tuist_runners_job_queue_time_milliseconds` histogram cannot
 serve: it is observed at every claim, so a job the runner shuffle moves
