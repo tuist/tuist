@@ -47,6 +47,21 @@
         <:icon_left><.player_play /></:icon_left>
       </.button>
       <.button
+        :if={Sandboxes.archivable?(@sandbox) or archiving?(@sandbox)}
+        id="sandbox-archive"
+        variant="secondary"
+        size="medium"
+        label={
+          if @pending == :archive or archiving?(@sandbox),
+            do: dgettext("dashboard_sandboxes", "Archiving…"),
+            else: dgettext("dashboard_sandboxes", "Archive")
+        }
+        disabled={not is_nil(@pending) or archiving?(@sandbox)}
+        phx-click="archive"
+      >
+        <:icon_left><.file_zip /></:icon_left>
+      </.button>
+      <.button
         :if={can_delete?(@sandbox)}
         id="sandbox-delete"
         variant="secondary"
@@ -63,6 +78,8 @@
       </.button>
     </div>
   </div>
+
+  <.flash_alerts flash={@flash} />
 
   <.alert
     :if={@sandbox.state == :error}

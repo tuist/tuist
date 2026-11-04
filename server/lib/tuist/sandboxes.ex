@@ -62,6 +62,13 @@ defmodule Tuist.Sandboxes do
 
   defdelegate dispatch_amp_orb(account, orb_id, params), to: Tuist.Sandboxes.AmpOrbs, as: :dispatch
 
+  @doc """
+  Queues the archive of a paused sandbox (`Tuist.Sandboxes.Archives.request/1`);
+  `resume/1` restores it.
+  """
+  defdelegate archive(sandbox), to: Archives, as: :request
+  defdelegate archivable?(sandbox), to: Archives
+
   # ----- Agent environments -----
 
   def create_agent_environment(%Account{id: account_id}, attrs) when is_map(attrs) do

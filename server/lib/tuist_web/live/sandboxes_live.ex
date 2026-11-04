@@ -338,6 +338,29 @@ defmodule TuistWeb.SandboxesLive do
 
   # ----- Presentation shared with SandboxLive and SandboxInstancesLive -----
 
+  attr :flash, :map, required: true
+
+  @doc "The page's info and error flashes, which the app layout does not render."
+  def flash_alerts(assigns) do
+    ~H"""
+    <.alert
+      :for={{kind, status, message} <- flash_entries(@flash)}
+      id={"sandbox-flash-#{kind}"}
+      status={status}
+      type="secondary"
+      size="small"
+      title={message}
+    />
+    """
+  end
+
+  defp flash_entries(flash) do
+    for {kind, status} <- [info: "information", error: "error"],
+        message <- [Phoenix.Flash.get(flash, kind)],
+        message,
+        do: {kind, status, message}
+  end
+
   attr :id, :string, required: true
   attr :sandboxes, :list, required: true
   attr :account, :map, required: true

@@ -146,6 +146,45 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     end
   end
 
+  describe "request/1" do
+    test "queues the archive of a sandbox the hourly run would leave alone", %{account: account} do
+      # Not an Amp Orb and paused for minutes, far below the threshold.
+      sandbox = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: hours_ago(0))
+
+      assert :ok = Archives.request(sandbox)
+      assert [job] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert job.args == %{"sandbox_id" => sandbox.id}
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts when id == sandbox.id -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: id}, _opts when id == sandbox.id -> {:ok, %{}} end)
+
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(sandbox)
+    end
+
+    test "refuses sandboxes that are not paused on a node, or already uploading", %{account: account} do
+      running = sandbox_fixture(account: account, node_name: "node-a")
+      uploading = paused_orb(account, archive_upload_id: "upload-in-flight")
+      archived = archived_orb(account)
+
+      assert {:error, {:invalid_state, :running}} = Archives.request(running)
+      assert {:error, {:invalid_state, :paused}} = Archives.request(uploading)
+      assert {:error, {:invalid_state, :archived}} = Archives.request(archived)
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+
+    test "refuses accounts at their archive storage cap", %{account: account} do
+      sandbox = paused_orb(account)
+      archived_orb(account, archive_bytes: Archives.max_archived_bytes_per_account())
+
+      assert {:error, :archive_storage_full} = Archives.request(sandbox)
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+  end
+
   describe "run/0" do
     test "archives Orbs paused past the threshold and removes them from their node", %{account: account} do
       sandbox = paused_orb(account)

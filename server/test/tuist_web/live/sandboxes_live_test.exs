@@ -108,7 +108,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       Events.record(sandbox_fixture(amp_orb_id: "orb-of-another-account"), "created")
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
-      render_async(lv)
+      render_async(lv, 5_000)
 
       assert has_element?(lv, "#widget-sandboxes-created", "1")
       assert has_element?(lv, "#widget-sandboxes-time-to-start", "p50 Time to start")
@@ -117,7 +117,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "#sandboxes-created-chart")
 
       render_click(lv, "select_widget", %{"widget" => "time_to_start"})
-      render_async(lv)
+      render_async(lv, 5_000)
 
       assert_patch(lv, ~p"/#{account.name}/sandboxes?widget=time_to_start")
       assert has_element?(lv, "#sandboxes-time-to-start-chart")
@@ -313,6 +313,48 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute Repo.get(Sandbox, sandbox.id)
     end
 
+    test "archives a paused sandbox and resumes it from the archive", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: DateTime.utc_now())
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+      lv |> element("#sandbox-archive", "Archive") |> render_click()
+      render_async(lv, 5_000)
+
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: Tuist.Sandboxes.Workers.ArchiveSandboxesWorker)
+      assert id == sandbox.id
+      assert has_element?(lv, "#sandbox-flash-info", "Archiving started")
+
+      # While the node uploads, the button says so and cannot be pressed again.
+      sandbox |> Ecto.Changeset.change(archive_upload_id: "upload-1") |> Repo.update!()
+      send(lv.pid, :refresh)
+      assert has_element?(lv, "#sandbox-archive[disabled]", "Archiving…")
+
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: :archived, node_name: nil, archive_upload_id: nil))
+      send(lv.pid, :refresh)
+      refute has_element?(lv, "#sandbox-archive")
+      assert has_element?(lv, "#sandbox-resume")
+    end
+
+    test "Amp Orbs are archived from the dashboard but restored by Amp", %{conn: conn, account: account} do
+      paused =
+        sandbox_fixture(
+          account: account,
+          amp_orb_id: "orb-paused",
+          state: :paused,
+          node_name: "node-a",
+          paused_at: DateTime.utc_now()
+        )
+
+      archived = sandbox_fixture(account: account, amp_orb_id: "orb-archived", state: :archived, node_name: nil)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{paused.id}")
+      assert has_element?(lv, "#sandbox-archive")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{archived.id}")
+      refute has_element?(lv, "#sandbox-resume")
+      refute has_element?(lv, "#sandbox-archive")
+    end
+
     test "read-only members cannot manage sandboxes", %{conn: conn, account: account} do
       sandbox = sandbox_fixture(account: account)
       reject(&Nodes.call/4)
@@ -323,6 +365,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute has_element?(lv, "#sandbox-pause")
       refute has_element?(lv, "#sandbox-delete")
       render_click(lv, "pause", %{})
+      render_click(lv, "archive", %{})
       render_click(lv, "delete", %{})
       assert Repo.get!(Sandbox, sandbox.id).state == :running
     end

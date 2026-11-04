@@ -192,6 +192,42 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
+  Whether `request/1` can archive the sandbox now: it is paused on a node
+  and neither archived nor uploading. The same conditions `archive/1`
+  starts an upload under.
+  """
+  def archivable?(%Sandbox{
+        state: :paused,
+        node_name: node_name,
+        paused_at: %DateTime{},
+        archived_at: nil,
+        archive_upload_id: nil
+      })
+      when is_binary(node_name), do: true
+
+  def archivable?(%Sandbox{}), do: false
+
+  @doc """
+  Queues the archive of one paused sandbox someone asked for, whatever its
+  source and however long it has been paused. The upload can take minutes,
+  so it runs in `ArchiveSandboxesWorker`; the sandbox stays paused until
+  it completes.
+  """
+  def request(%Sandbox{} = sandbox) do
+    cond do
+      not archivable?(sandbox) ->
+        {:error, {:invalid_state, sandbox.state}}
+
+      archived_bytes(sandbox.account_id) >= @max_archived_bytes_per_account ->
+        {:error, :archive_storage_full}
+
+      true ->
+        {:ok, _job} = %{sandbox_id: sandbox.id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+        :ok
+    end
+  end
+
+  @doc """
   Archives a paused Orb and removes it from its node. Answers
   `{:ok, %Sandbox{state: :archived}}`, `{:ok, :skipped}` when the sandbox
   is not archivable right now (busy, resumed, not idle, storage or node

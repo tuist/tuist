@@ -6,6 +6,7 @@ defmodule TuistWeb.SandboxLive do
   import TuistWeb.SandboxesLive,
     only: [
       display_name: 1,
+      flash_alerts: 1,
       gigabytes: 1,
       last_active_at: 1,
       relative_time: 1,
@@ -51,7 +52,7 @@ defmodule TuistWeb.SandboxLive do
   end
 
   @impl true
-  def handle_event(action, _params, %{assigns: %{pending: nil}} = socket) when action in ["pause", "resume"] do
+  def handle_event(action, _params, %{assigns: %{pending: nil}} = socket) when action in ["pause", "resume", "archive"] do
     run(socket, String.to_existing_atom(action))
   end
 
@@ -82,6 +83,17 @@ defmodule TuistWeb.SandboxLive do
      socket
      |> assign(:pending, nil)
      |> put_flash(:error, dgettext("dashboard_sandboxes", "The sandbox is busy with an agent task and was not paused."))
+     |> refresh_sandbox()}
+  end
+
+  def handle_async(:action, {:ok, {:archive, :ok}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:pending, nil)
+     |> put_flash(
+       :info,
+       dgettext("dashboard_sandboxes", "Archiving started. The sandbox shows as archived once its disks are uploaded.")
+     )
      |> refresh_sandbox()}
   end
 
@@ -119,12 +131,16 @@ defmodule TuistWeb.SandboxLive do
   defp perform(:pause, sandbox), do: Sandboxes.pause_idle(sandbox.id)
   defp perform(:resume, sandbox), do: Sandboxes.resume(sandbox)
   defp perform(:delete, sandbox), do: Sandboxes.delete(sandbox)
+  defp perform(:archive, sandbox), do: Sandboxes.archive(sandbox)
 
   defp error_message({:invalid_state, _state}),
     do: dgettext("dashboard_sandboxes", "The sandbox changed state in the meantime. Please retry.")
 
   defp error_message(:sandbox_concurrency_limit),
     do: dgettext("dashboard_sandboxes", "Resuming would exceed this account's vCPU or memory limit.")
+
+  defp error_message(:archive_storage_full),
+    do: dgettext("dashboard_sandboxes", "This account's archive storage is full. Delete archived sandboxes to make room.")
 
   defp error_message(reason) when reason in [:not_connected, :node_disconnected, :no_node, :timeout],
     do: dgettext("dashboard_sandboxes", "The machine running this sandbox is unreachable. Please retry.")
@@ -150,9 +166,11 @@ defmodule TuistWeb.SandboxLive do
   def can_pause?(%Sandbox{state: :running, residency_work_id: nil}), do: true
   def can_pause?(%Sandbox{}), do: false
 
-  # Amp resumes its Orbs itself when the next turn starts.
-  def can_resume?(%Sandbox{state: :paused, amp_orb_id: nil}), do: true
+  # Amp resumes and restores its Orbs itself when the next turn starts.
+  def can_resume?(%Sandbox{state: state, amp_orb_id: nil}) when state in [:paused, :archived], do: true
   def can_resume?(%Sandbox{}), do: false
+
+  def archiving?(%Sandbox{archive_upload_id: upload_id}), do: not is_nil(upload_id)
 
   def can_delete?(%Sandbox{state: state}), do: state in [:running, :paused, :archived, :error]
 end

@@ -4,7 +4,7 @@ defmodule TuistWeb.SandboxInstancesLive do
   use Noora
 
   import Noora.Filter
-  import TuistWeb.SandboxesLive, only: [sandboxes_table: 1]
+  import TuistWeb.SandboxesLive, only: [flash_alerts: 1, sandboxes_table: 1]
 
   alias Noora.Filter
   alias Tuist.Sandboxes
