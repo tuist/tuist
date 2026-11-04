@@ -118,7 +118,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       ],
       changed_files_count: 3,
       dirty: false,
-      modules: ["AppTests"],
+      modules: [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: true}],
       platform: "ios",
       git_branch: "feature",
       xcode: %{scheme: "App"}
@@ -149,6 +149,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
         |> post(~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs", %{
           build_system: "xcode",
           head_sha: "head",
+          modules: [%{name: "AppTests"}],
           fallback_reason: "history_unavailable"
         })
         |> json_response(:ok)
@@ -211,13 +212,15 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       assert json_response(conn, :bad_request)
     end
 
-    test "requires the build system and the head commit", %{conn: conn, user: user, project: project} do
-      conn =
-        post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs", %{
-          build_system: "xcode"
-        })
+    test "requires the build system, the head commit and the modules", %{conn: conn, user: user, project: project} do
+      path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs"
 
-      assert json_response(conn, :bad_request)
+      assert conn |> post(path, %{build_system: "xcode"}) |> json_response(:bad_request)
+      assert conn |> post(path, %{build_system: "xcode", head_sha: "head"}) |> json_response(:bad_request)
+
+      assert conn
+             |> post(path, %{build_system: "xcode", head_sha: "head", modules: [%{skipped: true}]})
+             |> json_response(:bad_request)
     end
   end
 
