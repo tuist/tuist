@@ -5,18 +5,21 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
   flags, and shows which hashes are new (and so must be built) after each change.
   """
   use TuistWeb, :live_component
+  use Noora
+
+  import Noora.CheckboxControl
 
   @edges [
-    %{id: "ios", label: "iOS app", x: 30, deps: ~w(agent), features: "ios"},
-    %{id: "android", label: "Android app", x: 200, deps: ~w(agent), features: "android"},
-    %{id: "cli", label: "CLI", x: 370, deps: ~w(agent), features: "cli"},
-    %{id: "widget", label: "Widget", x: 540, deps: ~w(storage), features: "widget"}
+    %{id: "ios", label: "iOS app", short: "iOS", x: 30, deps: ~w(agent), features: "ios"},
+    %{id: "android", label: "Android app", short: "Android", x: 200, deps: ~w(agent), features: "android"},
+    %{id: "cli", label: "CLI", short: "CLI", x: 370, deps: ~w(agent), features: "cli"},
+    %{id: "widget", label: "Widget", short: "Widget", x: 540, deps: ~w(storage), features: "widget"}
   ]
 
   @core_targets [
-    %{id: "agent", label: "agent", x: 200, y: 140, deps: ~w(network storage)},
-    %{id: "network", label: "network", x: 30, y: 250, deps: []},
-    %{id: "storage", label: "storage", x: 455, y: 250, deps: []}
+    %{id: "agent", label: "agent", x: 200, y: 230, deps: ~w(network storage)},
+    %{id: "network", label: "network", x: 30, y: 330, deps: []},
+    %{id: "storage", label: "storage", x: 455, y: 330, deps: []}
   ]
 
   @node_width 150
@@ -78,8 +81,8 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
     |> assign(:nodes, nodes)
     |> assign(:cache, Enum.reduce(nodes, socket.assigns.cache, &MapSet.put(&2, &1.hash)))
     |> assign(:last_change, %{
-      core: Enum.count(built, &(&1.kind == :core)),
-      edges: Enum.count(built, &(&1.kind == :edge))
+      shared: Enum.count(built, &(&1.kind == :core)),
+      per_edge: Enum.count(built, &(&1.kind != :core))
     })
   end
 
@@ -97,30 +100,27 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
       @core_targets
       |> Enum.filter(fn target -> Enum.any?(enabled_edges(enabled), &(target.id in reachable(&1.deps))) end)
       |> Enum.map(fn target ->
-        %{
-          id: target.id,
-          kind: :core,
-          label: target.label,
-          detail: nil,
-          x: target.x,
-          y: target.y,
-          hash: core[target.id],
-          deps: Enum.map(target.deps, &center(&1))
-        }
+        node(target.id, :core, target.label, target.x, target.y, core[target.id], Enum.map(target.deps, &top(&1)))
       end)
 
+    # Rust wants one library per app binary, so each edge links the crates it
+    # picks through a thin umbrella crate of its own.
     edge_nodes =
-      Enum.map(enabled_edges(enabled), fn edge ->
-        %{
-          id: edge.id,
-          kind: :edge,
-          label: edge.label,
-          detail: nil,
-          x: edge.x,
-          y: 30,
-          hash: hash([edge.id | Enum.map(edge.deps, &core[&1])]),
-          deps: Enum.map(edge.deps, &center(&1))
-        }
+      Enum.flat_map(enabled_edges(enabled), fn edge ->
+        umbrella_hash = hash([edge.id <> "-umbrella" | Enum.map(edge.deps, &core[&1])])
+
+        [
+          node(edge.id, :edge, edge.label, edge.x, 30, hash([edge.id, umbrella_hash]), [{edge.x + @node_width / 2, 130}]),
+          node(
+            edge.id <> "-umbrella",
+            :umbrella,
+            edge.short <> " umbrella",
+            edge.x,
+            130,
+            umbrella_hash,
+            Enum.map(edge.deps, &top(&1))
+          )
+        ]
       end)
 
     edge_nodes ++ core_nodes
@@ -133,28 +133,16 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
       core_hash = hash(["core", revision, edge.features])
 
       [
-        %{
-          id: edge.id,
-          kind: :edge,
-          label: edge.label,
-          detail: nil,
-          x: edge.x,
-          y: 30,
-          hash: hash([edge.id, core_hash]),
-          deps: [{edge.x + @node_width / 2, 150}]
-        },
-        %{
-          id: "core-" <> edge.id,
-          kind: :core,
-          label: "core",
-          detail: "--features " <> edge.features,
-          x: edge.x,
-          y: 150,
-          hash: core_hash,
-          deps: []
-        }
+        node(edge.id, :edge, edge.label, edge.x, 30, hash([edge.id, core_hash]), [{edge.x + @node_width / 2, 150}]),
+        "core-#{edge.id}"
+        |> node(:core, "core", edge.x, 150, core_hash, [])
+        |> Map.put(:detail, "--features " <> edge.features)
       ]
     end)
+  end
+
+  defp node(id, kind, label, x, y, hash, deps) do
+    %{id: id, kind: kind, label: label, detail: nil, x: x, y: y, hash: hash, deps: deps}
   end
 
   defp enabled_edges(enabled), do: Enum.filter(@edges, &MapSet.member?(enabled, &1.id))
@@ -166,7 +154,7 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
     end)
   end
 
-  defp center(id) do
+  defp top(id) do
     target = Enum.find(@core_targets, &(&1.id == id))
     {target.x + @node_width / 2, target.y}
   end
@@ -178,20 +166,23 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
     |> binary_part(0, 6)
   end
 
+  defp plural(1, {singular, _plural}), do: "1 #{singular}"
+  defp plural(count, {_singular, plural}), do: "#{count} #{plural}"
+
+  defp shared_noun("graph"), do: {"shared crate", "shared crates"}
+  defp shared_noun("flags"), do: {"core copy", "core copies"}
+
   def render(assigns) do
     assigns =
       assigns
       |> assign(:edges, @edges)
       |> assign(:node_width, @node_width)
       |> assign(:node_height, @node_height)
-      |> assign(:core_count, Enum.count(assigns.nodes, &(&1.kind == :core)))
+      |> assign(:shared_count, Enum.count(assigns.nodes, &(&1.kind == :core)))
 
     ~H"""
     <style :type={TuistWeb.ColocatedCSS}>
       .edge-graph-lab {
-        display: flex;
-        flex-direction: column;
-        gap: var(--noora-spacing-5);
         margin: var(--noora-spacing-9) 0;
         width: min(780px, calc(100vw - var(--noora-spacing-12)));
 
@@ -204,52 +195,33 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
         display: flex;
         flex-wrap: wrap;
         align-items: center;
+        justify-content: space-between;
         gap: var(--noora-spacing-4);
       }
 
-      .edge-graph-lab__segmented {
-        display: inline-flex;
-        padding: 2px;
-        border: 1px solid var(--noora-surface-border-primary);
-        border-radius: 8px;
+      .edge-graph-lab__edges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--noora-spacing-5);
       }
 
-      .edge-graph-lab button {
-        cursor: pointer;
-        padding: var(--noora-spacing-2) var(--noora-spacing-4);
-        border: 1px solid transparent;
-        border-radius: 6px;
+      .edge-graph-lab__edge-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+        padding: 0;
+        border: 0;
         background: none;
-        color: var(--noora-surface-label-secondary);
+        cursor: pointer;
+        color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
       }
 
-      .edge-graph-lab button[aria-pressed="true"] {
-        background: var(--noora-purple-500);
-        color: var(--noora-button-primary-label);
-      }
-
-      .edge-graph-lab__edges button,
-      .edge-graph-lab .edge-graph-lab__edit {
-        border-color: var(--noora-surface-border-primary);
-      }
-
-      .edge-graph-lab__edges {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: var(--noora-spacing-2);
-      }
-
-      .edge-graph-lab__edges button[aria-pressed="true"] {
-        border-color: var(--noora-purple-500);
-        background: none;
-        color: var(--noora-surface-label-primary);
-      }
-
-      .edge-graph-lab svg {
+      .edge-graph-lab__graph {
         display: block;
         width: 100%;
         height: auto;
+        margin-top: var(--noora-spacing-5);
       }
 
       .edge-graph-lab__line {
@@ -262,6 +234,10 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
         stroke: var(--marketing-illustration-neutral-7);
         stroke-width: 1.5;
         transition: fill 200ms, stroke 200ms;
+      }
+
+      .edge-graph-lab__node[data-kind="umbrella"] {
+        stroke-dasharray: 4 3;
       }
 
       .edge-graph-lab__node[data-built] {
@@ -287,7 +263,7 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
       }
 
       .edge-graph-lab__result {
-        margin: 0;
+        margin: var(--noora-spacing-5) 0 0;
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }
@@ -298,97 +274,106 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
       }
     </style>
 
-    <section id={@id} class="edge-graph-lab" aria-label="Per-edge build graph">
-      <div class="edge-graph-lab__controls">
-        <div class="edge-graph-lab__segmented" role="group" aria-label="How edges choose the core">
-          <button
-            type="button"
-            phx-click="set_mode"
-            phx-value-mode="graph"
-            phx-target={@myself}
-            aria-pressed={to_string(@mode == "graph")}
-          >
-            Choose in the graph
-          </button>
-          <button
-            type="button"
-            phx-click="set_mode"
-            phx-value-mode="flags"
-            phx-target={@myself}
-            aria-pressed={to_string(@mode == "flags")}
-          >
-            Flags per edge
-          </button>
-        </div>
-        <div class="edge-graph-lab__edges" role="group" aria-label="Edges">
-          <button
-            :for={edge <- @edges}
-            type="button"
-            phx-click="toggle_edge"
-            phx-value-edge={edge.id}
-            phx-target={@myself}
-            aria-pressed={to_string(MapSet.member?(@enabled, edge.id))}
-          >
-            {edge.label}
-          </button>
-        </div>
-        <button
-          type="button"
-          class="edge-graph-lab__edit"
-          phx-click="edit_storage"
-          phx-target={@myself}
-        >
-          Edit storage.rs
-        </button>
-      </div>
+    <section id={@id} class="edge-graph-lab">
+      <.card icon="git_branch" title="What each edge builds">
+        <:actions>
+          <.button_group size="small">
+            <.button_group_item
+              label="Choose in the graph"
+              data-selected={@mode == "graph"}
+              phx-click="set_mode"
+              phx-value-mode="graph"
+              phx-target={@myself}
+            />
+            <.button_group_item
+              label="Flags per edge"
+              data-selected={@mode == "flags"}
+              phx-click="set_mode"
+              phx-value-mode="flags"
+              phx-target={@myself}
+            />
+          </.button_group>
+        </:actions>
+        <.card_section>
+          <div class="edge-graph-lab__controls">
+            <div class="edge-graph-lab__edges" role="group" aria-label="Edges">
+              <button
+                :for={edge <- @edges}
+                type="button"
+                role="checkbox"
+                aria-checked={to_string(MapSet.member?(@enabled, edge.id))}
+                class="edge-graph-lab__edge-toggle"
+                phx-click="toggle_edge"
+                phx-value-edge={edge.id}
+                phx-target={@myself}
+              >
+                <.checkbox_control checked={MapSet.member?(@enabled, edge.id)} />
+                {edge.label}
+              </button>
+            </div>
+            <.button
+              type="button"
+              variant="secondary"
+              size="small"
+              label="Edit storage.rs"
+              phx-click="edit_storage"
+              phx-target={@myself}
+            />
+          </div>
 
-      <svg
-        viewBox={"0 0 720 #{if @mode == "graph", do: 310, else: 230}"}
-        role="img"
-        aria-label="Build graph with a hash per node"
-      >
-        <text x="0" y="22" class="edge-graph-lab__row-label">Edges</text>
-        <text x="0" y={if @mode == "graph", do: 132, else: 142} class="edge-graph-lab__row-label">
-          Core
-        </text>
-        <g :for={node <- @nodes}>
-          <line
-            :for={{x, y} <- node.deps}
-            x1={node.x + @node_width / 2}
-            y1={node.y + @node_height}
-            x2={x}
-            y2={y}
-            class="edge-graph-lab__line"
-          />
-        </g>
-        <g :for={node <- @nodes} transform={"translate(#{node.x}, #{node.y})"}>
-          <rect
-            width={@node_width}
-            height={if node.detail, do: @node_height + 16, else: @node_height}
-            rx="8"
-            class="edge-graph-lab__node"
-            data-built={node.built?}
-          />
-          <text x="12" y="22" class="edge-graph-lab__label">{node.label}</text>
-          <text :if={node.detail} x="12" y="41" class="edge-graph-lab__hash">{node.detail}</text>
-          <text x="12" y={if node.detail, do: 57, else: 41} class="edge-graph-lab__hash">
-            #{node.hash}
-          </text>
-        </g>
-      </svg>
+          <svg
+            class="edge-graph-lab__graph"
+            viewBox={"0 0 720 #{if @mode == "graph", do: 390, else: 230}"}
+            role="img"
+            aria-label="Build graph with a hash per node"
+          >
+            <text x="0" y="22" class="edge-graph-lab__row-label">Edges</text>
+            <%= if @mode == "graph" do %>
+              <text x="0" y="122" class="edge-graph-lab__row-label">Umbrellas</text>
+              <text x="0" y="222" class="edge-graph-lab__row-label">Shared crates</text>
+            <% else %>
+              <text x="0" y="142" class="edge-graph-lab__row-label">Cores</text>
+            <% end %>
+            <g :for={node <- @nodes}>
+              <line
+                :for={{x, y} <- node.deps}
+                x1={node.x + @node_width / 2}
+                y1={node.y + if(node.detail, do: @node_height + 16, else: @node_height)}
+                x2={x}
+                y2={y}
+                class="edge-graph-lab__line"
+              />
+            </g>
+            <g :for={node <- @nodes} transform={"translate(#{node.x}, #{node.y})"}>
+              <rect
+                width={@node_width}
+                height={if node.detail, do: @node_height + 16, else: @node_height}
+                rx="8"
+                class="edge-graph-lab__node"
+                data-kind={node.kind}
+                data-built={node.built?}
+              />
+              <text x="12" y="22" class="edge-graph-lab__label">{node.label}</text>
+              <text :if={node.detail} x="12" y="41" class="edge-graph-lab__hash">{node.detail}</text>
+              <text x="12" y={if node.detail, do: 57, else: 41} class="edge-graph-lab__hash">
+                #{node.hash}
+              </text>
+            </g>
+          </svg>
 
-      <p class="edge-graph-lab__result">
-        <strong>{@core_count} core {if @core_count == 1, do: "build", else: "builds"}</strong>
-        to keep warm in the cache.
-        <%= if @last_change do %>
-          Your last change built
-          <strong>{@last_change.core} core {if @last_change.core == 1, do: "target", else: "targets"}</strong>
-          and <strong>{@last_change.edges} {if @last_change.edges == 1, do: "edge", else: "edges"}</strong>;
-          everything else was already in the cache.
-        <% else %>
-          Add or remove an edge, or edit a core file, to see what has to be built.
-        <% end %>
-      </p>
+          <p class="edge-graph-lab__result">
+            <strong>{plural(@shared_count, shared_noun(@mode))}</strong>
+            to keep warm in the cache.
+            <%= if @last_change do %>
+              Your last change built
+              <strong>{plural(@last_change.shared, shared_noun(@mode))}</strong>
+              and <strong>{plural(@last_change.per_edge, {"per-edge node", "per-edge nodes"})}</strong>; everything else came from the cache.
+            <% else %>
+              Turn an edge on or off, or edit storage, to see what has to be built.
+            <% end %>
+          </p>
+        </.card_section>
+      </.card>
     </section>
     """
   end
