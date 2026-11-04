@@ -33,7 +33,7 @@ defmodule Tuist.Tests.Selections do
 
   @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
   @skipped_reasons ~w(unaffected)
-  @fallback_reasons ~w(excluded_branch no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable)
+  @fallback_reasons ~w(excluded_branch no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
 
   @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
   def selected_reasons, do: @selected_reasons
