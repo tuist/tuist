@@ -444,6 +444,17 @@ seeded =
             0
           end
 
+        # A fallback after the baseline still counts the modules left as
+        # selected, as nothing was skipped in them.
+        left_count =
+          if reason == "tracked_file_changed" do
+            baseline.sha
+            |> baseline_tests.(test_run.scheme)
+            |> Enum.count(&MapSet.member?(target_set, &1.module))
+          else
+            length(selected)
+          end
+
         rule_trace =
           cond do
             reason == "tracked_file_changed" -> [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
@@ -475,10 +486,9 @@ seeded =
           matched_path: matched_path,
           rules_version: "1",
           rule_trace: rule_trace,
-          requested_count: if(reason == "", do: length(selected) + skipped_count, else: 0),
-          selected_count: length(selected),
-          skipped_count: skipped_count,
-          module_skipped_count: module_skipped_count,
+          requested_count: left_count + skipped_count + module_skipped_count,
+          selected_count: left_count,
+          skipped_count: skipped_count + module_skipped_count,
           inserted_at: selected_at
         }
 

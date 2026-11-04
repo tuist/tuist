@@ -45,8 +45,9 @@ defmodule Tuist.Tests.SelectionsTest do
         Keyword.merge(
           [
             project_id: project.id,
-            skipped_count: 2,
-            module_skipped_count: 4,
+            skipped_count: 6,
+            requested_modules: ["SearchTests", "AuthTests"],
+            rule_trace: [%{rule: "unaffected", selected: 0, skipped: 2, verdict: "done"}],
             selected: [
               %{
                 test_case_id: load,
@@ -151,10 +152,10 @@ defmodule Tuist.Tests.SelectionsTest do
       %{run: run, test_run: test_run} = run(project)
       summary = Selections.run_summary(run, test_run.id)
 
-      assert summary.requested == 4
-      assert summary.total == 8
+      assert summary.requested == 8
       assert summary.selected == 2
-      assert summary.skipped == 2
+      assert summary.skipped == 6
+      assert summary.unaffected == 2
       assert summary.module_skipped == 4
       assert summary.skip_rate == 75.0
       assert summary.skipped_duration == 700
@@ -208,6 +209,16 @@ defmodule Tuist.Tests.SelectionsTest do
         )
 
       assert {[%{name: "test_a()", decision: "selected"}], _meta} = Selections.run_tests(run, UUIDv7.generate())
+    end
+
+    test "lists no test when hashing left no module to decide", %{project: project} do
+      %{run: run, test_run: test_run} =
+        run(project, requested_modules: [], selected: [], skipped_count: 4, rule_trace: [])
+
+      assert {[], _meta} = Selections.run_tests(run, test_run.id)
+
+      assert %{requested: 4, module_skipped: 4, unaffected: 0, skip_rate: 100.0} =
+               Selections.run_summary(run, test_run.id)
     end
   end
 

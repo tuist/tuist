@@ -70,7 +70,7 @@ defmodule Tuist.Tests.Selections do
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
           runs: count(),
           selected: sum(r.selected_count),
-          skipped: sum(r.skipped_count + r.module_skipped_count)
+          skipped: sum(r.skipped_count)
         }
       )
       |> ClickHouseRepo.all()
@@ -117,7 +117,7 @@ defmodule Tuist.Tests.Selections do
             runs: count(),
             fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
             selected: sum(r.selected_count),
-            skipped: sum(r.skipped_count + r.module_skipped_count)
+            skipped: sum(r.skipped_count)
           }
         )
       ) || %{}
@@ -143,13 +143,18 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc """
-  An impact run's skip rate, counting the tests in the modules hashing
-  skipped as skipped.
+  An impact run's skip rate: its skipped tests, those in the modules hashing
+  skipped included, out of its requested ones.
   """
-  def skip_rate(%Run{} = run), do: skip_rate(run.selected_count, run.skipped_count + run.module_skipped_count)
+  def skip_rate(%Run{} = run), do: skip_rate(run.selected_count, run.skipped_count)
 
-  @doc "The tests in an impact run's scope: those hashing skipped and those it left to decide."
-  def total_count(%Run{} = run), do: run.requested_count + run.module_skipped_count
+  @doc "The tests coverage skipped in the modules hashing left: the `unaffected` rule's skips."
+  def unaffected_count(%Run{rule_trace: trace}) do
+    Enum.find_value(trace, 0, fn entry -> if entry.rule == "unaffected", do: entry.skipped end)
+  end
+
+  @doc "The tests skipped because hashing found their module unchanged."
+  def module_skipped_count(%Run{} = run), do: max(run.skipped_count - unaffected_count(run), 0)
 
   defp trend(previous, current) when previous in [0, +0.0] or current in [0, +0.0], do: 0.0
   defp trend(previous, current), do: Float.round((current - previous) / previous * 100, 1)
@@ -350,8 +355,10 @@ defmodule Tuist.Tests.Selections do
       |> ClickHouseRepo.all()
       |> Enum.map(&%{decision: "selected", reason: &1.reason, count: to_integer(&1.count)})
 
+    unaffected = unaffected_count(run)
+
     skipped_reasons =
-      if run.skipped_count > 0, do: [%{decision: "skipped", reason: "unaffected", count: run.skipped_count}], else: []
+      if unaffected > 0, do: [%{decision: "skipped", reason: "unaffected", count: unaffected}], else: []
 
     outcomes =
       if is_nil(test_run_id) do
@@ -383,10 +390,10 @@ defmodule Tuist.Tests.Selections do
 
     Map.merge(outcomes, %{
       requested: run.requested_count,
-      total: total_count(run),
       selected: run.selected_count,
       skipped: run.skipped_count,
-      module_skipped: run.module_skipped_count,
+      unaffected: unaffected,
+      module_skipped: module_skipped_count(run),
       skip_rate: skip_rate(run),
       skipped_duration: skipped_duration,
       reasons: Enum.sort_by(selected_reasons ++ skipped_reasons, &{&1.decision != "selected", -&1.count, &1.reason})
@@ -453,10 +460,7 @@ defmodule Tuist.Tests.Selections do
         }
       )
 
-    case run.requested_modules do
-      [] -> query
-      modules -> where(query, [c], c.module_name in ^modules)
-    end
+    where(query, [c], c.module_name in ^run.requested_modules)
   end
 
   defp baseline_test_runs(%Run{project_id: project_id, baseline_sha: baseline_sha, build_context: context}) do

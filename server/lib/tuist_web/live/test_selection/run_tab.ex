@@ -234,10 +234,10 @@ defmodule TuistWeb.TestSelection.RunTab do
               description={
                 dgettext(
                   "dashboard_tests",
-                  "Tests the selection kept, out of all the tests in scope, including those in unchanged modules."
+                  "Tests the selection kept, out of all requested, including those in unchanged modules."
                 )
               }
-              value={"#{format_number(@summary.selected)} / #{format_number(@summary.total)}"}
+              value={"#{format_number(@summary.selected)} / #{format_number(@summary.requested)}"}
               legend_color="primary"
             />
             <.widget
@@ -261,7 +261,7 @@ defmodule TuistWeb.TestSelection.RunTab do
                   "Tests in the remaining modules skipped because the changes since the baseline don't reach them."
                 )
               }
-              value={format_number(@summary.skipped)}
+              value={format_number(@summary.unaffected)}
               legend_color="secondary"
             />
             <.widget
@@ -270,7 +270,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               description={
                 dgettext(
                   "dashboard_tests",
-                  "The share of the tests in scope that were skipped, in unchanged modules or not affected."
+                  "The share of requested tests that were skipped, in unchanged modules or not affected."
                 )
               }
               value={"#{@summary.skip_rate}%"}
@@ -824,7 +824,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             <dt>{dgettext("dashboard_tests", "Requested modules")}</dt>
             <dd>
               {if @selection_run.requested_modules == [],
-                do: dgettext("dashboard_tests", "Every module the baseline measured"),
+                do: dgettext("dashboard_tests", "None: every module was unchanged"),
                 else: Enum.join(@selection_run.requested_modules, ", ")}
             </dd>
           </div>

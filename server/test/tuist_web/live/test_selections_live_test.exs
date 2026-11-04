@@ -33,8 +33,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           [
             project_id: project.id,
             commit_sha: @sha,
-            skipped_count: 1,
-            module_skipped_count: 2,
+            skipped_count: 3,
+            requested_modules: ["SearchTests", "AuthTests"],
             rules_version: "2026-11-01",
             rule_trace: [
               %{rule: "tracked_files", selected: 0, skipped: 0, verdict: "continue"},

@@ -107,7 +107,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "The share of the tests in scope that were skipped, in unchanged modules or not affected."
+                "The share of requested tests that were skipped, in unchanged modules or not affected."
               )
             }
             value={if ready?, do: "#{@analytics.result.totals.skip_rate}%"}
@@ -293,7 +293,7 @@
             } />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected")}>
-            <.text_cell label={"#{format_number(run.selected_count)} / #{format_number(Selections.total_count(run))}"} />
+            <.text_cell label={"#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Skip rate")}>
             <.text_cell

@@ -14,8 +14,9 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
   @doc """
   Inserts an impact run for `project_id` with the given `selected` tests
   (maps over a selected test's fields; `name` at least) and returns it. The
-  selected count is derived from them; `skipped_count` and
-  `module_skipped_count` default to 0.
+  selected count is derived from them. `skipped_count` (all skipped tests,
+  those in unchanged modules included) defaults to the `unaffected` rule's
+  skips in `rule_trace`, else 0.
   """
   def run_fixture(attrs \\ []) do
     project_id = Keyword.fetch!(attrs, :project_id)
@@ -43,7 +44,12 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
         )
       end)
 
-    skipped_count = Keyword.get(attrs, :skipped_count, 0)
+    rule_trace = Keyword.get(attrs, :rule_trace, [])
+
+    unaffected =
+      Enum.find_value(rule_trace, 0, fn entry -> if entry.rule == "unaffected", do: entry.skipped end)
+
+    skipped_count = Keyword.get(attrs, :skipped_count, unaffected)
 
     run =
       struct(Run, %{
@@ -65,15 +71,10 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
         reason: Keyword.get(attrs, :reason, ""),
         matched_path: Keyword.get(attrs, :matched_path, ""),
         rules_version: Keyword.get(attrs, :rules_version, "1"),
-        rule_trace:
-          Enum.map(
-            Keyword.get(attrs, :rule_trace, []),
-            &{&1.rule, &1.selected, &1.skipped, &1.verdict}
-          ),
+        rule_trace: Enum.map(rule_trace, &{&1.rule, &1.selected, &1.skipped, &1.verdict}),
         requested_count: if(outcome == "fallback", do: 0, else: length(selected) + skipped_count),
         selected_count: if(outcome == "fallback", do: 0, else: length(selected)),
-        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count),
-        module_skipped_count: Keyword.get(attrs, :module_skipped_count, 0)
+        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count)
       })
 
     {:ok, _} = IngestRepo.insert(run)
