@@ -54,8 +54,12 @@ consumer is Claude Managed Agents `self_hosted` environments.
 - Elastic carve-outs (`Capacity.grow/3`, `Capacity.shrink/1`): a node whose
   daemon reports `elastic` with a ceiling above its floor is grown in place
   when nothing fits after pausing idle sandboxes, in whole GiB up to the
-  ceiling, through `Tuist.Kubernetes.Client.resize_sandbox_daemon_memory/3`
-  (the server SA holds `pods/resize` in the sandboxes namespace). The size
+  ceiling, through `Tuist.Kubernetes.Client.resize_sandbox_daemon/5`
+  (the server SA holds `pods/resize` in the sandboxes namespace). Every
+  resize also sets the Pod's CPU request to one core per 8 GiB of carve-out
+  (at least 250m) and no CPU limit: that request is the guests' guaranteed
+  floor, their vCPU count is the ceiling, and a resize the kubelet cannot
+  fit for CPU is deferred like one it cannot fit for memory. The size
   asked for is a `Tuist.Sandboxes.SandboxNode` row (`sandbox_nodes`) keyed by
   node and pod name; placements budget against the smaller of it and the
   reported limit, so a growth is only used once the daemon reports it and a

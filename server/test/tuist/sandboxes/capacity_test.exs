@@ -438,7 +438,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
 
     # The kubelet applying the resize: the daemon reports the new limit.
     defp apply_resizes(node) do
-      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", "sandboxd-" <> ^node, bytes ->
+      stub(KubernetesClient, :resize_sandbox_daemon, fn "tuist-sandboxes", "sandboxd-" <> ^node, bytes, _cpu_milli ->
         :ok = Nodes.update(node, %{capacity: %{memory_bytes: bytes, cpus: 16}})
         {:ok, %{}}
       end)
@@ -468,7 +468,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
       idle = sandbox_fixture(template: template, state: :running, node_name: node, memory_mb: 4096)
       idle_id = idle.id
       expect(Nodes, :call, fn ^node, "pause", %{sandbox_id: ^idle_id}, _opts -> {:ok, %{}} end)
-      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      reject(&KubernetesClient.resize_sandbox_daemon/4)
 
       assert {:ok, ^node} = Capacity.place(new_sandbox(template))
       assert %Sandbox{state: :paused} = Repo.reload!(idle)
@@ -477,7 +477,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
     test "refuses without resizing when the ceiling cannot hold the newcomer", %{template: template} do
       node = connect_elastic(template)
       for _ <- 1..3, do: resident(template, node)
-      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      reject(&KubernetesClient.resize_sandbox_daemon/4)
 
       # 4 x 4160 MiB + 512 MiB is past the 16 GiB ceiling.
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
@@ -487,7 +487,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
     test "leaves a growth the kubelet defers asked for and refuses the placement meanwhile", %{template: template} do
       node = connect_elastic(template)
       resident(template, node)
-      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      expect(KubernetesClient, :resize_sandbox_daemon, fn _namespace, _pod, _bytes, _cpu_milli -> {:ok, %{}} end)
       stub(KubernetesClient, :get_pod, fn _namespace, _pod -> {:ok, %{"status" => deferred_status()}} end)
       sandbox = new_sandbox(template)
 
@@ -502,7 +502,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
     test "does not grow a node whose daemon reports no ceiling above its floor", %{template: template} do
       node = connect(node_name(), template, %{capacity: %{memory_bytes: 8 * @gib, cpus: 16}})
       resident(template, node)
-      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      reject(&KubernetesClient.resize_sandbox_daemon/4)
 
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
     end
@@ -521,7 +521,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
       node = connect_elastic(template)
       resident(template, node)
       agent_environment = agent_environment_fixture(template: template)
-      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      expect(KubernetesClient, :resize_sandbox_daemon, fn _namespace, _pod, _bytes, _cpu_milli -> {:ok, %{}} end)
 
       refute Capacity.admissible?(agent_environment, "sesn_new")
 
@@ -547,8 +547,10 @@ defmodule Tuist.Sandboxes.CapacityTest do
 
       expect(Nodes, :call, fn ^node, "reclaim", %{target_bytes: ^target}, _opts -> {:ok, %{}} end)
 
-      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", _pod, bytes ->
+      # The CPU request follows the carve-out down: one core per 8 GiB.
+      expect(KubernetesClient, :resize_sandbox_daemon, fn "tuist-sandboxes", _pod, bytes, cpu_milli ->
         assert bytes == 8 * @gib
+        assert cpu_milli == 1000
         {:ok, %{}}
       end)
 
@@ -562,7 +564,11 @@ defmodule Tuist.Sandboxes.CapacityTest do
       insert_row(node, "sandboxd-" <> node, 16 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
       for _ <- 1..2, do: resident(template, node)
       stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
-      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      expect(KubernetesClient, :resize_sandbox_daemon, fn _namespace, _pod, _bytes, cpu_milli ->
+        assert cpu_milli == 1125
+        {:ok, %{}}
+      end)
 
       # Two 4160 MiB guests plus the reserve round up to 9 GiB.
       assert {:ok, limit} = Capacity.shrink(node_info(node))
@@ -572,7 +578,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
     test "holds a carve-out grown a moment ago", %{template: template} do
       node = connect_elastic(template, %{capacity: %{memory_bytes: 12 * @gib, cpus: 16}})
       insert_row(node, "sandboxd-" <> node, 12 * @gib, DateTime.utc_now(:second))
-      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      reject(&KubernetesClient.resize_sandbox_daemon/4)
 
       assert :unchanged = Capacity.shrink(node_info(node))
     end
@@ -582,7 +588,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
       insert_row(node, "sandboxd-" <> node, 8 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
       stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
 
-      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, bytes ->
+      expect(KubernetesClient, :resize_sandbox_daemon, fn _namespace, _pod, bytes, _cpu_milli ->
         assert bytes == 8 * @gib
         {:ok, %{}}
       end)
@@ -594,7 +600,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
     test "leaves a carve-out at its floor alone", %{template: template} do
       node = connect_elastic(template)
       insert_row(node, "sandboxd-" <> node, 8 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
-      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      reject(&KubernetesClient.resize_sandbox_daemon/4)
 
       assert :unchanged = Capacity.shrink(node_info(node))
     end
@@ -621,7 +627,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
         if pod == "sandboxd-" <> full, do: {:ok, %{"status" => deferred_status()}}, else: {:ok, %{"status" => %{}}}
       end)
 
-      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", pod, bytes ->
+      stub(KubernetesClient, :resize_sandbox_daemon, fn "tuist-sandboxes", pod, bytes, _cpu_milli ->
         send(test_pid, {:resized, pod, bytes})
         if pod == "sandboxd-" <> free, do: :ok = Nodes.update(free, %{capacity: %{memory_bytes: bytes, cpus: 16}})
         {:ok, %{}}
@@ -641,7 +647,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
       node = connect_elastic(template)
       resident(template, node)
       agent_environment = agent_environment_fixture(template: template)
-      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      stub(KubernetesClient, :resize_sandbox_daemon, fn _namespace, _pod, _bytes, _cpu_milli -> {:ok, %{}} end)
       stub(KubernetesClient, :get_pod, fn _namespace, _pod -> {:ok, %{"status" => applied_status("9Gi")}} end)
 
       assert Capacity.admissible?(agent_environment, "sesn_new")

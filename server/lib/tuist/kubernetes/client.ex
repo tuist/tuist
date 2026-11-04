@@ -446,18 +446,20 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  Resizes a sandboxd Pod's memory in place through the Pod's `resize`
-  subresource, request and limit together so the Pod keeps its QoS class.
-  The kubelet applies a resize that fits the node at once and defers one
-  that does not until room frees; the scheduler counts the requested size
-  either way, so no runner Pod is placed into memory a pending growth
+  Resizes a sandboxd Pod in place through the Pod's `resize` subresource:
+  memory request and limit together, and the CPU request. CPU gets no
+  limit, so guests keep running on idle cores above the request. The
+  kubelet applies a resize that fits the node at once and defers one that
+  does not until room frees; the scheduler counts the requested size either
+  way, so no runner Pod is placed into memory or CPU a pending growth
   claims. The server SA is granted `pods/resize: [get, patch]` in the
   sandboxes namespace.
   """
-  def resize_sandbox_daemon_memory(namespace, name, bytes, opts \\ [])
-      when is_binary(namespace) and is_binary(name) and is_integer(bytes) and bytes > 0 do
-    quantity = Integer.to_string(bytes)
-    resources = %{requests: %{memory: quantity}, limits: %{memory: quantity}}
+  def resize_sandbox_daemon(namespace, name, memory_bytes, cpu_milli, opts \\ [])
+      when is_binary(namespace) and is_binary(name) and is_integer(memory_bytes) and memory_bytes > 0 and
+             is_integer(cpu_milli) do
+    memory = Integer.to_string(memory_bytes)
+    resources = %{requests: %{memory: memory, cpu: "#{cpu_milli}m"}, limits: %{memory: memory}}
     path = "/api/v1/namespaces/#{namespace}/pods/#{name}"
 
     # Fence delayed requests at the API server too. A timeout can leave a

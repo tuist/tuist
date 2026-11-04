@@ -51,7 +51,7 @@ defmodule Tuist.Sandboxes.AllocationTest do
 
   test "missing, expired, revoked and wrong-Pod grants refuse new turns", %{node: node, row: row} do
     sandbox = sandbox_fixture(node_name: node.name, state: :running)
-    reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+    reject(&KubernetesClient.resize_sandbox_daemon/4)
     assert {:error, :no_capacity} = Sandboxes.begin_residency(sandbox, "missing")
     assert {:error, :no_capacity} = Capacity.grow(node, @gib, 0)
 
@@ -103,7 +103,7 @@ defmodule Tuist.Sandboxes.AllocationTest do
       {:ok, %{}}
     end)
 
-    expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _, pod, limit ->
+    expect(KubernetesClient, :resize_sandbox_daemon, fn _, pod, limit, _cpu_milli ->
       assert pod == node.elastic.pod_name and limit == 5 * @gib
       {:ok, %{}}
     end)
@@ -122,7 +122,7 @@ defmodule Tuist.Sandboxes.AllocationTest do
       if op == "pause", do: {:error, :busy}, else: {:ok, %{}}
     end)
 
-    expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _, _, limit ->
+    expect(KubernetesClient, :resize_sandbox_daemon, fn _, _, limit, _cpu_milli ->
       assert limit == 5 * @gib
       {:error, :unavailable}
     end)
@@ -130,7 +130,7 @@ defmodule Tuist.Sandboxes.AllocationTest do
     assert {:error, :resize_failed} = Capacity.reconcile_allocation(node.name)
     assert Repo.reload!(idle).state == :running
 
-    expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _, _, limit ->
+    expect(KubernetesClient, :resize_sandbox_daemon, fn _, _, limit, _cpu_milli ->
       assert limit == 5 * @gib
       {:ok, %{}}
     end)
@@ -147,7 +147,7 @@ defmodule Tuist.Sandboxes.AllocationTest do
       {:ok, %{}}
     end)
 
-    reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+    reject(&KubernetesClient.resize_sandbox_daemon/4)
     assert {:error, :superseded} = Capacity.shrink(node, true)
     assert Repo.get!(SandboxNode, node.name).memory_limit_bytes == 8 * @gib
   end

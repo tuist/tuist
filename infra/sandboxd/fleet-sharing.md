@@ -131,10 +131,21 @@ in two services. Refuse new sandbox placement before exhausting the host reserve
 paused sessions remain charged until their files are deleted. A joint dynamic
 disk allocator can follow after measured occupancy justifies it.
 
-Keep the existing CPU request initially. Increasing it reserves scheduler capacity
-but does not create idle CPU and can remove runner seats. Measure CI CPU contention
-before selecting CPU weights, caps or elastic requests. Memory accounting alone
-is not proof that sandboxes have no effect on running CI latency.
+CPU has a floor and a ceiling, like Kura's. The floor is the daemon Pod's CPU
+request, which the server sets with every memory resize to one core per 8 GiB of
+carve-out (never below the chart's `sandboxes.cpu`), so each running 4x8192 Amp
+Orb reserves about one core of scheduler capacity. The ceiling is each guest's
+vCPU count; the Pod has no CPU limit, because a CFS quota stalls bursts even on
+an idle host. Runner Pods request exactly their limits, and the kernel shares
+contended CPU in proportion to requests, so a runner always gets its full CPU and
+guests only burst into cores no request claims. A growth the node cannot fit for
+CPU is deferred by the kubelet like a memory one, and the server tries the next
+node. Guests share the Pod's floor per vCPU thread, not per guest; that is equal
+while every Orb has the same shape. This is CPU-time isolation, not core
+isolation: a busy guest can still share a physical core's siblings and caches
+with a runner. Exclusive runner cores would need the kubelet's static CPU manager
+on the Linux runner pools. Measure CI job latency and the daemon's throttling and
+pressure before changing the ratio.
 
 ## Validation and rollout
 

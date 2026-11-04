@@ -110,8 +110,12 @@ defmodule TuistWeb.AmpOrbsController do
          orb_token: token,
          snapshot_id: snapshot_id,
          template: "default",
-         vcpus: 2,
-         memory_mb: 4096,
+         # The dev stack (ClickHouse, four esbuild watchers, BEAM) plus a
+         # browser for UI checks does not fit in 4 GB. The four vCPUs are a
+         # ceiling: the node guarantees each Orb only the CPU floor its memory
+         # earns (`Tuist.Sandboxes.Capacity`) and lends it idle cores above that.
+         vcpus: 4,
+         memory_mb: 8192,
          workspace_gb: 10
        }}
     else

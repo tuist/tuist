@@ -8,6 +8,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
   alias Tuist.Sandboxes.AmpIntegrations
   alias Tuist.Sandboxes.AmpRuntime
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -145,6 +146,23 @@ defmodule TuistWeb.AmpOrbsControllerTest do
   test "rejects missing guest credentials before dispatch", %{conn: conn, integration: integration} do
     identity(integration)
     assert response(request(conn, %{"operation" => "spawn"}), 400)
+  end
+
+  test "spawns managed Orbs with 4 vCPUs and 8 GB of memory", %{conn: conn, integration: integration, user: user} do
+    identity(integration)
+    expect(Tuist.Sandboxes.Capacity, :place, fn _ -> {:ok, "node-a"} end)
+
+    expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+      assert %{vcpus: 4, memory_mb: 8192} = args
+      {:ok, %{}}
+    end)
+
+    expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+    assert response(request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture"}), 204)
+
+    assert %{vcpus: 4, memory_mb: 8192, state: :running} =
+             Tuist.Repo.get_by!(Sandbox, account_id: user.account.id, amp_orb_id: "amp-thread")
   end
 
   test "failed dispatch retains the sandbox identity and recovery state", %{
