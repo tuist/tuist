@@ -1180,7 +1180,14 @@ ovhFleets:
     # accounts run in that did have room. The fifth (2026-11) is an Advance-2
     # (EPYC 4344P, 4x960 GB): Advance-1 2024 was out of stock in Vint Hill, and
     # admission was refusing new instances with 56 GiB of headroom left.
-    replicas: 5
+    #
+    # Change offer and replicas in separate deploys. Helm patches the
+    # MachineDeployment before the OVHDedicatedMachineTemplate, and CAPI cloned
+    # the fifth Machine 65 ms after the scale-up, still with offer advance-1. It
+    # never matched the Advance-2, and the release rolled back on the
+    # MachineDeployment wait (2026-11-04). Raise this to 5 once the offer
+    # change below is deployed.
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
