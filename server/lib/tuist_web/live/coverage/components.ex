@@ -834,7 +834,7 @@ defmodule TuistWeb.Coverage.Components do
               branch: @branch
             )
           }
-          get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+          get_started_href="https://tuist.dev/en/docs/guides/features/test-code-coverage"
           data-part="empty-analytics"
         />
       </div>

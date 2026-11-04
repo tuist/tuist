@@ -1516,7 +1516,18 @@ defmodule Tuist.Accounts.AgentAuth do
     end
   end
 
+  # The claimed credential acts in every account of the user, so beyond the
+  # email domain's organization, the session must also satisfy every
+  # organization the user belongs to, as OAuth authorizations and device
+  # codes do.
   defp ensure_browser_sso_policy_satisfied(%User{} = user, session) do
+    case Accounts.sso_requirement(user, session) do
+      :ok -> ensure_email_domain_sso_policy_satisfied(user, session)
+      _requirement -> {:error, :sso_required}
+    end
+  end
+
+  defp ensure_email_domain_sso_policy_satisfied(user, session) do
     if Accounts.sso_enforced_for_email?(user.email) do
       with {:ok, organization} <- Accounts.sso_organization_for_user_email(user.email),
            true <- UserToken.satisfies_sso?(session, organization),

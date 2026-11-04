@@ -24,7 +24,7 @@ class BorrowedProbe
     @env_file=File.join(@root,'runtime-env')
     env={KURA_PORT:4000,KURA_INTERNAL_PORT:7443,KURA_NODE_URL:'http://127.0.0.1:7443',KURA_PEERS:'http://127.0.0.1:7443',KURA_TENANT_ID:'default',KURA_REGION:'qualification',KURA_DATA_DIR:'/fixture/base',KURA_TMP_DIR:'/fixture/base/tmp',KURA_TMP_DIR_MAX_BYTES:2*GIB,KURA_AUTH_JWT_SECRET:secret,RUST_LOG:'warn',KURA_OTEL_SERVICE_NAME:'borrowed-qualification',KURA_OTEL_DEPLOYMENT_ENVIRONMENT:'qualification'}
     File.write(@env_file,env.map{|k,v|"#{k}=#{v}"}.join("\n")+"\n",perm:0600)
-    @report[:environment]={source:ENV.fetch('KURA_BORROWED_SOURCE','unknown'),kernel:run('uname','-r').strip,image:@image,cpu_limit:1,memory_bytes:768<<20,chunk_bytes:512<<10,keys:'fixture HMAC per-volume keys; no OpenBao/Kubernetes authorization qualification'}
+    @report[:environment]={source:ENV.fetch('KURA_BORROWED_SOURCE','unknown'),kernel:run('uname','-r').strip,image:@image,cpu_limit:1,memory_bytes:768<<20,chunk_bytes:512<<10,keys:'fixture HMAC per-volume keys; no key-service/Kubernetes authorization qualification'}
   end
   def cmd(*args)
     out,err,s=Open3.capture3(*args); [out,err,s.success?]

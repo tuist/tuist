@@ -51,7 +51,7 @@ struct CoverageBuildSourcesServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func write_recordsTheBuildCheckoutForTheTestRun() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
@@ -78,7 +78,7 @@ struct CoverageBuildSourcesServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func record_keepsTheTargetsForTheRunAndWriteCarriesThemOver() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
@@ -118,7 +118,7 @@ struct CoverageBuildSourcesServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func write_carriesTheBuildsPrefixMapsForATestRunElsewhere() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)

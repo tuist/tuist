@@ -23,7 +23,7 @@ reusable local Linux qualification harness, not a deployed allocator.
 
 - `validation.md` separates local mechanism tests, actual CSI qualification and
   hosted staging evidence. Hosted direct-I/O regressions block the performance
-  gate; successful safety checks do not qualify physical overcommit or OpenBao.
+  gate; successful safety checks do not qualify physical overcommit.
 
 - New pools use 512 KiB chunks and thin mappings retain crypto workqueues while
   submitting writes from those workers. Qualify both 64 and 512 KiB layouts with
