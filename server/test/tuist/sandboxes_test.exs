@@ -110,6 +110,14 @@ defmodule Tuist.SandboxesTest do
       assert [%Sandbox{id: id}] = Sandboxes.list_sandboxes(account)
       assert id == sandbox.id
       assert events(sandbox) == ["created", "started"]
+
+      assert [%{boot_source: "template"}] =
+               ClickHouseRepo.all(
+                 from(e in SandboxEvent,
+                   where: e.sandbox_id == ^sandbox.id and e.event == "started",
+                   select: %{boot_source: e.boot_source}
+                 )
+               )
     end
 
     test "applies the requested shape" do

@@ -277,6 +277,7 @@ defmodule Tuist.Sandboxes do
 
   defp boot(%Sandbox{} = sandbox, source) do
     hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
+    started_at = System.monotonic_time(:millisecond)
 
     args = %{
       sandbox_id: sandbox.id,
@@ -298,16 +299,21 @@ defmodule Tuist.Sandboxes do
           boot_ms: data["boot_ms"]
         )
 
+        boot_event = Events.boot(boot_source(source, data), System.monotonic_time(:millisecond) - started_at)
+
         result =
           sandbox
-          |> update_sandbox(%{
-            state: :running,
-            node_name: node_name,
-            hostname: hostname,
-            template_tag: data["template_tag"],
-            last_active_at: now(),
-            error_message: nil
-          })
+          |> update_sandbox(
+            %{
+              state: :running,
+              node_name: node_name,
+              hostname: hostname,
+              template_tag: data["template_tag"],
+              last_active_at: now(),
+              error_message: nil
+            },
+            boot_event
+          )
           |> schedule_idle_pause()
 
         with {:ok, running} <- result, {:archive, _source} <- source, do: Archives.delete_restored(running)
@@ -337,6 +343,11 @@ defmodule Tuist.Sandboxes do
         {:error, reason}
     end
   end
+
+  # A disk snapshot clone that failed fell back to the template.
+  defp boot_source({:archive, _source}, _data), do: "archive"
+  defp boot_source(_source, %{"disk_snapshot_id" => id}) when is_binary(id), do: "disk_snapshot"
+  defp boot_source(_source, _data), do: "template"
 
   defp place_and_create(sandbox, args, nil) do
     with {:ok, node_name} <- Capacity.place(sandbox),
@@ -630,42 +641,58 @@ defmodule Tuist.Sandboxes do
 
     case ensure_exec_capacity(sandbox) do
       {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) ->
-        args = %{
-          sandbox_id: sandbox.id,
-          cmd: cmd,
-          env: Keyword.get(opts, :env, %{}),
-          cwd: Keyword.get(opts, :cwd, "/workspace"),
-          timeout_ms: timeout_ms
-        }
-
-        ref = make_ref()
-        caller = self()
-        on_stream = fn {stream, data} -> capture_output(caller, ref, stream, data) end
-
-        result =
-          Nodes.call(node_name, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
-
-        {stdout, stderr} = drain_output(ref)
-        Process.delete({ref, :stdout})
-        Process.delete({ref, :stderr})
+        result = run_exec(sandbox, cmd, Keyword.put(opts, :timeout_ms, timeout_ms))
         record_activity(sandbox)
-
-        case result do
-          {:ok, data} when is_map(data) ->
-            {:ok, %{exit_code: data["exit_code"], stdout: stdout, stderr: stderr}}
-
-          {:ok, _data} ->
-            {:ok, %{exit_code: nil, stdout: stdout, stderr: stderr}}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        result
 
       {:ok, %Sandbox{}} ->
         {:error, :no_node}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  @doc """
+  Runs `cmd` in a sandbox that is already running, without resuming it,
+  admitting a turn or counting as activity: for the server's own short
+  reads of the guest, such as before a pause.
+  """
+  def exec_running(sandbox, cmd, opts \\ [])
+
+  def exec_running(%Sandbox{state: :running, node_name: node_name} = sandbox, cmd, opts)
+      when is_binary(node_name) and is_list(cmd) do
+    run_exec(sandbox, cmd, Keyword.update(opts, :timeout_ms, @exec_default_timeout_ms, &min(&1, @exec_max_timeout_ms)))
+  end
+
+  def exec_running(%Sandbox{}, _cmd, _opts), do: {:error, :not_running}
+
+  defp run_exec(%Sandbox{node_name: node_name} = sandbox, cmd, opts) do
+    timeout_ms = Keyword.fetch!(opts, :timeout_ms)
+
+    args = %{
+      sandbox_id: sandbox.id,
+      cmd: cmd,
+      env: Keyword.get(opts, :env, %{}),
+      cwd: Keyword.get(opts, :cwd, "/workspace"),
+      timeout_ms: timeout_ms
+    }
+
+    ref = make_ref()
+    caller = self()
+    on_stream = fn {stream, data} -> capture_output(caller, ref, stream, data) end
+
+    result =
+      Nodes.call(node_name, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
+
+    {stdout, stderr} = drain_output(ref)
+    Process.delete({ref, :stdout})
+    Process.delete({ref, :stderr})
+
+    case result do
+      {:ok, data} when is_map(data) -> {:ok, %{exit_code: data["exit_code"], stdout: stdout, stderr: stderr}}
+      {:ok, _data} -> {:ok, %{exit_code: nil, stdout: stdout, stderr: stderr}}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1076,9 +1103,9 @@ defmodule Tuist.Sandboxes do
 
   # ----- Helpers -----
 
-  defp update_sandbox(%Sandbox{} = sandbox, attrs) do
+  defp update_sandbox(%Sandbox{} = sandbox, attrs, event_attrs \\ %{}) do
     with {:ok, updated} <- sandbox |> Sandbox.update_changeset(attrs) |> Repo.update() do
-      Events.record_transition(sandbox, updated)
+      Events.record_transition(sandbox, updated, event_attrs)
       {:ok, updated}
     end
   end

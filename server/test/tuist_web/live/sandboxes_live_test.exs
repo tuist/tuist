@@ -102,14 +102,15 @@ defmodule TuistWeb.SandboxesLiveTest do
     test "charts the account's sandbox history", %{conn: conn, account: account} do
       sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-history")
       Events.record(sandbox, "created")
-      Events.record(sandbox, "started")
+      Events.record(sandbox, "started", Events.boot("disk_snapshot", 1_500))
       Events.record(sandbox_fixture(amp_orb_id: "orb-of-another-account"), "created")
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
       render_async(lv)
 
       assert has_element?(lv, "#widget-sandboxes-created", "1")
-      assert has_element?(lv, "#widget-sandboxes-failed", "No data yet")
+      assert has_element?(lv, "#widget-sandboxes-time-to-ready", "p50 time to ready")
+      refute has_element?(lv, "#widget-sandboxes-time-to-ready", "No data yet")
       assert has_element?(lv, "#sandboxes-created-chart")
 
       render_click(lv, "select_widget", %{"widget" => "compute"})
@@ -117,6 +118,11 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       assert_patch(lv, ~p"/#{account.name}/sandboxes?widget=compute")
       assert has_element?(lv, "#sandboxes-compute-chart")
+
+      render_click(lv, "select_widget", %{"widget" => "time_to_ready"})
+      render_async(lv)
+
+      assert has_element?(lv, "#sandboxes-time-to-ready-chart")
     end
 
     test "filters sandboxes by status", %{conn: conn, account: account} do

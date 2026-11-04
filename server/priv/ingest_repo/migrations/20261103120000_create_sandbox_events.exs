@@ -1,7 +1,11 @@
 defmodule Tuist.IngestRepo.Migrations.CreateSandboxEvents do
   @moduledoc """
   One row per sandbox lifecycle change (`created`, `started`, `paused`,
-  `archived`, `failed`, `deleted`), with the sandbox's shape at the time.
+  `archived`, `failed`, `deleted`), with the sandbox's shape at the time,
+  plus a `setup` row when an Amp Orb's `.agents/setup` is seen to finish.
+  A `started` row of a boot carries what it booted from (`boot_source`) and
+  how long the boot took (`duration_ms`); a `setup` row carries how long
+  setup ran.
   The dashboard derives counts, run sessions (`started` up to the next stop)
   and concurrency from it, since sandbox rows themselves are deleted.
   """
@@ -24,6 +28,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateSandboxEvents do
       source LowCardinality(String),
       vcpus UInt16,
       memory_mb UInt32,
+      boot_source LowCardinality(String) DEFAULT '',
+      duration_ms UInt32 DEFAULT 0,
       inserted_at DateTime64(6)
     ) ENGINE = #{Migration.engine("MergeTree")}
     PARTITION BY toYYYYMM(inserted_at)

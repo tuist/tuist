@@ -190,22 +190,54 @@
         trend_label={@analytics_trend_label}
         empty={ready? && @analytics.result.session_duration.count == 0}
       />
-      <.widget
-        id="widget-sandboxes-failed"
-        title={dgettext("dashboard_sandboxes", "Failed sandboxes")}
-        legend_color="primary"
-        description={
-          dgettext("dashboard_sandboxes", "Sandboxes that failed in the selected window.")
+      <.percentile_dropdown_widget
+        id="widget-sandboxes-time-to-ready"
+        title={
+          case @time_to_ready_percentile do
+            "p99" -> dgettext("dashboard_sandboxes", "p99 time to ready")
+            "p90" -> dgettext("dashboard_sandboxes", "p90 time to ready")
+            "avg" -> dgettext("dashboard_sandboxes", "Avg. time to ready")
+            _ -> dgettext("dashboard_sandboxes", "p50 time to ready")
+          end
         }
-        value={if ready?, do: @analytics.result.failed.count}
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "How long a sandbox takes to boot and, for an Amp Orb started from the template, to finish its .agents/setup. Orbs started from a project snapshot skip setup."
+          )
+        }
+        value={
+          if ready? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              TuistWeb.RunnersLive.percentile_value(
+                @analytics.result.time_to_ready,
+                @time_to_ready_percentile
+              )
+            )
+          end
+        }
+        metrics={
+          if ready?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@analytics.result.time_to_ready)
+        }
+        selected_type={@time_to_ready_percentile}
+        event_name="select_time_to_ready_percentile"
         loading={!ready?}
-        selected={@analytics_selected_widget == "failed"}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@time_to_ready_percentile)}
+        selected={@analytics_selected_widget == "time_to_ready"}
         phx_click="select_widget"
-        phx_value_widget="failed"
-        trend_value={if ready?, do: @analytics.result.failed.trend}
+        phx_value_widget="time_to_ready"
+        trend_value={
+          if ready? do
+            TuistWeb.RunnersLive.percentile_trend(
+              @analytics.result.time_to_ready,
+              @time_to_ready_percentile
+            )
+          end
+        }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={ready? && @analytics.result.failed.count == 0}
+        empty={ready? && @analytics.result.time_to_ready.count == 0}
       />
     </div>
     <.card_section data-part="analytics-chart-section">
@@ -242,15 +274,18 @@
             }
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "failed" -> %>
+        <% @analytics_selected_widget == "time_to_ready" -> %>
           <.chart
-            id="sandboxes-failed-chart"
+            id="sandboxes-time-to-ready-chart"
             type="line"
             extra_options={
-              TuistWeb.RunnersLive.count_chart_options(@analytics.result.dates, @analytics_preset)
+              TuistWeb.RunnersLive.duration_chart_options(
+                @analytics.result.dates,
+                @analytics_preset
+              )
             }
             series={
-              count_series(@analytics.result.failed, dgettext("dashboard_sandboxes", "Failed"))
+              time_to_ready_series(@analytics.result.time_to_ready, @time_to_ready_percentile)
             }
             y_axis_min={0}
           />

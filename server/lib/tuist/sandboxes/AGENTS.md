@@ -305,9 +305,17 @@ socket, the poller and the caller share a replica:
   and Amp Orbs are not resumed from the dashboard (Amp resumes them).
   The overview charts come from `Analytics` over ClickHouse
   `sandbox_events`, which `Events` writes on every state change: through
-  `update_sandbox/2`, and explicitly where a state is written another way
+  `update_sandbox/3`, and explicitly where a state is written another way
   (create, delete, `mark_error`, `Archives`). A new state write must record
-  its event too, or sessions and concurrency drift.
+  its event too, or sessions and concurrency drift. `boot/2` times each
+  boot (create or restore) and tags its `started` event with what it booted
+  from. Before every Amp pause, `AmpOrbs` reads the birth and modification
+  times of Amp's `setup.log` in the guest (`Sandboxes.exec_running/3`, which
+  neither resumes nor counts as activity) and records a `setup` event dated
+  when setup finished; a log older than the row came with a disk snapshot
+  and is ignored. Time to ready waits for that event on a cold Orb, takes
+  its first stop without one as no setup, and leaves out an Orb that has
+  shown neither.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,

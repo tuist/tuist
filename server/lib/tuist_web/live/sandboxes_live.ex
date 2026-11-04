@@ -21,7 +21,7 @@ defmodule TuistWeb.SandboxesLive do
 
   @refresh_interval 5_000
   @filters ["all", "running", "paused", "error"]
-  @widgets ["created", "compute", "session_duration", "failed"]
+  @widgets ["created", "compute", "session_duration", "time_to_ready"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: user}} = socket) do
@@ -53,7 +53,8 @@ defmodule TuistWeb.SandboxesLive do
        analytics_period: period,
        analytics_trend_label: trend_label(preset),
        analytics_selected_widget: if(params["widget"] in @widgets, do: params["widget"], else: "created"),
-       session_duration_percentile: params["session-duration"] || "avg"
+       session_duration_percentile: params["session-duration"] || "avg",
+       time_to_ready_percentile: params["time-to-ready"] || "p50"
      )
      |> load()
      |> assign_async(:analytics, fn ->
@@ -68,6 +69,10 @@ defmodule TuistWeb.SandboxesLive do
 
   def handle_event("select_session_duration_percentile", %{"type" => type}, socket) do
     {:noreply, patch_with_param(socket, "session-duration", type)}
+  end
+
+  def handle_event("select_time_to_ready_percentile", %{"type" => type}, socket) do
+    {:noreply, patch_with_param(socket, "time-to-ready", type)}
   end
 
   def handle_event(
@@ -157,6 +162,33 @@ defmodule TuistWeb.SandboxesLive do
 
   def vcpu_hours(value) when value < 10, do: format_number(value, fractional_digits: 1)
   def vcpu_hours(value), do: format_number(value)
+
+  @doc """
+  One line per way a sandbox can start, for the selected percentile of its
+  time to ready. Buckets where no sandbox started that way are gaps.
+  """
+  def time_to_ready_series(%{dates: dates, by_source: by_source}, percentile) do
+    for {source, color} <- [{"template", "primary"}, {"disk_snapshot", "p50"}, {"archive", "p90"}],
+        stats = Map.fetch!(by_source, source),
+        stats.count > 0 do
+      %{
+        color: "var:noora-chart-#{color}",
+        data:
+          dates
+          |> Enum.zip(TuistWeb.RunnersLive.percentile_series(stats, percentile))
+          |> Enum.map(&Tuple.to_list/1),
+        name: boot_source_label(source),
+        type: "line",
+        smooth: 0.1,
+        symbol: "circle",
+        connectNulls: false
+      }
+    end
+  end
+
+  def boot_source_label("template"), do: dgettext("dashboard_sandboxes", "Cold boot and setup")
+  def boot_source_label("disk_snapshot"), do: dgettext("dashboard_sandboxes", "From a project snapshot")
+  def boot_source_label("archive"), do: dgettext("dashboard_sandboxes", "Restored from archive")
 
   def count_series(%{dates: dates, values: values}, name) do
     [

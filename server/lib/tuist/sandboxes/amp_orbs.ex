@@ -29,6 +29,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.DiskSnapshots
+  alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Sandbox
 
   require Logger
@@ -122,6 +123,8 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # disks, so they alone hold every write once a disk snapshot or the
   # archive tier drops the memory image.
   defp pause_orb(sandbox, params) do
+    record_setup(sandbox)
+
     with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: true),
          {:ok, paused} <- Sandboxes.end_residency(paused) do
       :ok = Archives.enqueue_if_over_cap(paused.account_id)
@@ -143,6 +146,29 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   end
 
   defp snapshot_id(params), do: Map.get(params, :snapshot_id)
+
+  # Amp writes `.agents/setup`'s output to this log, replacing it on every
+  # run, so its birth and modification times bound the run. A marker with
+  # the log's modification time keeps each run from being recorded at every
+  # pause; a rerun rewrites the log and is recorded again, which the
+  # analytics ignore past the first. Best effort: a slow or failed read only
+  # loses the measurement.
+  @setup_log "/home/user/.cache/amp/logs/setup.log"
+  @setup_marker "/home/user/.cache/amp/logs/.tuist-setup-recorded"
+  @setup_read ~s(f=#{@setup_log}; m=#{@setup_marker}; [ -f "$f" ] || exit 0; ) <>
+                ~s([ -f "$m" ] && [ ! "$f" -nt "$m" ] && exit 0; stat -c '%W %Y' "$f" && touch -r "$f" "$m")
+
+  defp record_setup(sandbox) do
+    with {:ok, %{exit_code: 0, stdout: stdout}} <-
+           Sandboxes.exec_running(sandbox, ["sh", "-c", @setup_read], cwd: "/", timeout_ms: 5_000),
+         [started, finished] <- String.split(stdout),
+         {started_s, ""} <- Integer.parse(started),
+         {finished_s, ""} <- Integer.parse(finished) do
+      Events.record_setup(sandbox, started_s, finished_s)
+    end
+
+    :ok
+  end
 
   defp find_or_create(account, orb_id, nil, params) do
     attrs =

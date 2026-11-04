@@ -3,10 +3,17 @@ defmodule Tuist.Sandboxes.Analytics do
   Account-scoped sandbox analytics over the `sandbox_events` ClickHouse
   table, for the dashboard's charts.
 
-  Counts come straight from `created` and `failed` events. Run sessions pair
-  each `started` event with the sandbox's next stop event; a session with no
-  stop yet runs until now. Compute, session durations and concurrency are
-  derived from those sessions.
+  Counts come straight from `created` events. Run sessions pair each
+  `started` event with the sandbox's next stop event; a session with no stop
+  yet runs until now. Compute, session durations and concurrency are derived
+  from those sessions.
+
+  Time to ready runs from the start of a boot (its `started` event less the
+  boot's `duration_ms`) until the sandbox can be used: right after the boot,
+  or, for an Amp Orb booted from the template, when `.agents/setup`
+  finished (its `setup` event). An Orb that stopped without a recorded setup
+  had none to run, so it was ready when it booted; one still running without
+  either is left out until it shows which.
   """
 
   import Ecto.Query
@@ -35,16 +42,21 @@ defmodule Tuist.Sandboxes.Analytics do
     buckets = buckets(start_dt, end_dt, bucket)
     dates = Enum.map(buckets, & &1.date)
 
-    sessions = sessions(account_id, prev_start_dt, end_dt)
+    # The date picker ends a window at the current second, truncated, so the
+    # queries include events up to the end of that second.
+    query_end_dt = DateTime.add(end_dt, 1, :second)
+
+    by_sandbox = account_id |> lifecycle_events(prev_start_dt, query_end_dt) |> Enum.chunk_by(& &1.sandbox_id)
+    sessions = sessions(by_sandbox, query_end_dt)
     current_sessions = clip(sessions, start_dt, end_dt)
     previous_sessions = clip(sessions, prev_start_dt, start_dt)
 
     %{
       dates: dates,
-      created: event_count(account_id, "created", buckets, prev_start_dt, start_dt, end_dt),
-      failed: event_count(account_id, "failed", buckets, prev_start_dt, start_dt, end_dt),
+      created: event_count(account_id, "created", buckets, prev_start_dt, start_dt, query_end_dt),
       compute: compute(current_sessions, previous_sessions, buckets),
       session_duration: session_duration(sessions, buckets, prev_start_dt, start_dt, end_dt),
+      time_to_ready: time_to_ready(by_sandbox, buckets, prev_start_dt, start_dt, query_end_dt),
       concurrency: concurrency(current_sessions, buckets)
     }
   end
@@ -110,14 +122,21 @@ defmodule Tuist.Sandboxes.Analytics do
     ended = Enum.filter(sessions, & &1.stopped?)
     current = Enum.filter(ended, &within?(&1.ended_at, start_dt, end_dt))
     previous = Enum.filter(ended, &within?(&1.ended_at, prev_start_dt, start_dt))
-    current_stats = duration_stats(current)
-    previous_stats = duration_stats(previous)
-    by_bucket = Enum.group_by(current, &bucket_index(buckets, &1.ended_at))
+    duration = &DateTime.diff(&1.ended_at, &1.started_at, :millisecond)
+    duration_summary(current, previous, buckets, & &1.ended_at, duration)
+  end
+
+  # The figures of a duration widget and its chart: the current window's
+  # avg and percentiles with their trends, and the same per bucket.
+  defp duration_summary(current, previous, buckets, at, duration) do
+    current_stats = current |> Enum.map(duration) |> duration_stats()
+    previous_stats = previous |> Enum.map(duration) |> duration_stats()
+    by_bucket = Enum.group_by(current, &bucket_index(buckets, at.(&1)))
 
     series =
       buckets
       |> Enum.with_index()
-      |> Enum.map(fn {_bucket, index} -> by_bucket |> Map.get(index, []) |> duration_stats() end)
+      |> Enum.map(fn {_bucket, index} -> by_bucket |> Map.get(index, []) |> Enum.map(duration) |> duration_stats() end)
 
     Map.merge(current_stats, %{
       count: length(current),
@@ -135,8 +154,8 @@ defmodule Tuist.Sandboxes.Analytics do
 
   defp duration_stats([]), do: %{avg: 0, p50: 0, p90: 0, p99: 0}
 
-  defp duration_stats(sessions) do
-    durations = sessions |> Enum.map(&DateTime.diff(&1.ended_at, &1.started_at, :millisecond)) |> Enum.sort()
+  defp duration_stats(durations) do
+    durations = Enum.sort(durations)
 
     %{
       avg: div(Enum.sum(durations), length(durations)),
@@ -147,6 +166,89 @@ defmodule Tuist.Sandboxes.Analytics do
   end
 
   defp percentile(sorted, quantile), do: Enum.at(sorted, max(ceil(quantile * length(sorted)) - 1, 0))
+
+  defp time_to_ready(by_sandbox, buckets, prev_start_dt, start_dt, end_dt) do
+    ready = Enum.flat_map(by_sandbox, &ready_times/1)
+    current = Enum.filter(ready, &within?(&1.started_at, start_dt, end_dt))
+    previous = Enum.filter(ready, &within?(&1.started_at, prev_start_dt, start_dt))
+    summary = duration_summary(current, previous, buckets, & &1.started_at, & &1.ms)
+    by_source = Enum.group_by(current, & &1.source)
+
+    Map.put(
+      summary,
+      :by_source,
+      Map.new(Events.boot_sources(), fn source ->
+        {source, source_series(Map.get(by_source, source, []), buckets)}
+      end)
+    )
+  end
+
+  # Per bucket, with nil where no sandbox of the source booted, so a chart
+  # line breaks there rather than dropping to zero.
+  defp source_series(ready, buckets) do
+    by_bucket = Enum.group_by(ready, &bucket_index(buckets, &1.started_at))
+
+    stats =
+      buckets
+      |> Enum.with_index()
+      |> Enum.map(fn {_bucket, index} ->
+        case Map.get(by_bucket, index, []) do
+          [] -> %{avg: nil, p50: nil, p90: nil, p99: nil}
+          entries -> entries |> Enum.map(& &1.ms) |> duration_stats()
+        end
+      end)
+
+    %{
+      count: length(ready),
+      avg_values: Enum.map(stats, & &1.avg),
+      p50_values: Enum.map(stats, & &1.p50),
+      p90_values: Enum.map(stats, & &1.p90),
+      p99_values: Enum.map(stats, & &1.p99)
+    }
+  end
+
+  # One sandbox's events, in order. A boot that waits for setup is held
+  # until its setup or its first stop.
+  defp ready_times(events) do
+    {ready, _waiting} =
+      Enum.reduce(events, {[], nil}, fn event, {ready, waiting} ->
+        at = to_utc(event.inserted_at)
+
+        case {event.event, waiting} do
+          {"started", _waiting} when event.boot_source != "" ->
+            boot = %{
+              started_at: DateTime.add(at, -event.duration_ms, :millisecond),
+              booted_at: at,
+              source: event.boot_source
+            }
+
+            if event.boot_source == "template" and event.source == "amp",
+              do: {ready, boot},
+              else: {[ready_entry(boot, at) | ready], nil}
+
+          {"setup", %{} = boot} ->
+            {[ready_entry(boot, at) | ready], nil}
+
+          {"started", _waiting} ->
+            {ready, waiting}
+
+          {_stop, %{} = boot} when event.event != "setup" ->
+            {[ready_entry(boot, boot.booted_at) | ready], nil}
+
+          _other ->
+            {ready, waiting}
+        end
+      end)
+
+    ready
+  end
+
+  defp ready_entry(boot, ready_at),
+    do: %{
+      started_at: boot.started_at,
+      source: boot.source,
+      ms: max(DateTime.diff(ready_at, boot.started_at, :millisecond), 0)
+    }
 
   # Peak running sandboxes, vCPUs and memory within each bucket, from a sweep
   # over session starts and ends.
@@ -192,27 +294,36 @@ defmodule Tuist.Sandboxes.Analytics do
   defp apply_change({count, vcpus, memory_mb}, {_at, _order, count_delta, vcpus_delta, memory_mb_delta}),
     do: {count + count_delta, vcpus + vcpus_delta, memory_mb + memory_mb_delta}
 
-  defp sessions(account_id, from_dt, end_dt) do
+  defp lifecycle_events(account_id, from_dt, end_dt) do
     lookback_dt = DateTime.add(from_dt, -@session_lookback_days, :day)
+
+    ClickHouseRepo.all(
+      from(e in SandboxEvent,
+        where:
+          e.account_id == ^account_id and e.event in ^["started", "setup" | Events.stop_events()] and
+            e.inserted_at >= ^lookback_dt and e.inserted_at < ^end_dt,
+        order_by: [e.sandbox_id, e.inserted_at],
+        select: %{
+          sandbox_id: e.sandbox_id,
+          event: e.event,
+          source: e.source,
+          boot_source: e.boot_source,
+          duration_ms: e.duration_ms,
+          vcpus: e.vcpus,
+          memory_mb: e.memory_mb,
+          inserted_at: e.inserted_at
+        }
+      )
+    )
+  end
+
+  defp sessions(by_sandbox, end_dt) do
     now = DateTime.utc_now()
     open_until = if DateTime.before?(now, end_dt), do: now, else: end_dt
 
-    from(e in SandboxEvent,
-      where:
-        e.account_id == ^account_id and e.event in ^["started" | Events.stop_events()] and
-          e.inserted_at >= ^lookback_dt and e.inserted_at < ^end_dt,
-      order_by: [e.sandbox_id, e.inserted_at],
-      select: %{
-        sandbox_id: e.sandbox_id,
-        event: e.event,
-        vcpus: e.vcpus,
-        memory_mb: e.memory_mb,
-        inserted_at: e.inserted_at
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.chunk_by(& &1.sandbox_id)
-    |> Enum.flat_map(&pair_sessions(&1, open_until))
+    Enum.flat_map(by_sandbox, fn events ->
+      events |> Enum.reject(&(&1.event == "setup")) |> pair_sessions(open_until)
+    end)
   end
 
   defp pair_sessions(events, open_until) do
@@ -292,7 +403,7 @@ defmodule Tuist.Sandboxes.Analytics do
     cond do
       previous == 0 -> 0.0
       current == 0 -> 0.0
-      true -> Float.round(current / previous * 100, 1) - 100.0
+      true -> Float.round(current / previous * 100 - 100, 1)
     end
   end
 end

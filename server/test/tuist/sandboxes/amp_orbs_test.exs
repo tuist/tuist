@@ -2,6 +2,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.ProjectsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
@@ -9,6 +10,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Authorization
   alias Tuist.Cache
+  alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.Guardian
   alias Tuist.Kura
@@ -20,6 +22,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxEvent
 
   setup do
     account = account_fixture()
@@ -30,6 +33,24 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   end
 
   defp spawn_params, do: %{operation: "spawn", orb_token: "orb-secret"}
+
+  # Every Orb pause first reads the setup log's times; `stdout` is what the
+  # guest prints, empty when there is nothing new to record.
+  defp expect_setup_read(stdout \\ "") do
+    expect(Nodes, :call, fn "node-a", "exec", %{cmd: ["sh", "-c", _read]}, opts ->
+      if stdout != "", do: opts[:on_stream].({:stdout, stdout})
+      {:ok, %{"exit_code" => 0}}
+    end)
+  end
+
+  defp sandbox_events(%Sandbox{id: id}, event) do
+    ClickHouseRepo.all(
+      from(e in SandboxEvent,
+        where: e.sandbox_id == ^id and e.event == ^event,
+        select: %{boot_source: e.boot_source, duration_ms: e.duration_ms, inserted_at: e.inserted_at}
+      )
+    )
+  end
 
   test "creates once and bootstraps repeated spawn with a protected residency", %{account: account} do
     expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
@@ -125,17 +146,46 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
         residency_work_id: "amp:amp-thread"
       )
 
+    expect_setup_read()
     expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:error, :timeout} end)
     assert {:error, :timeout} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
     assert Repo.reload!(sandbox).residency_work_id == "amp:amp-thread"
 
     # Every Orb pause syncs the disks, which archiving relies on.
+    expect_setup_read()
     expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{}} end)
 
     assert {:ok, %{state: :paused, residency_work_id: nil}} =
              AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
 
     assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+  end
+
+  test "records the setup that ran in the Orb from its log before pausing", %{account: account} do
+    sandbox =
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")
+
+    started_s = DateTime.to_unix(sandbox.inserted_at) + 30
+    expect_setup_read("#{started_s} #{started_s + 240}\n")
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+
+    assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+
+    assert [%{duration_ms: 240_000, inserted_at: finished_at}] = sandbox_events(sandbox, "setup")
+
+    assert DateTime.to_unix(DateTime.from_naive!(finished_at, "Etc/UTC")) == started_s + 240
+  end
+
+  test "ignores a setup log older than the Orb, which came with the snapshot it was cloned from", %{account: account} do
+    sandbox =
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")
+
+    started_s = DateTime.to_unix(sandbox.inserted_at) - 3600
+    expect_setup_read("#{started_s} #{started_s + 240}\n")
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+
+    assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+    assert sandbox_events(sandbox, "setup") == []
   end
 
   describe "pause_idle/2" do
@@ -159,6 +209,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       sandbox: sandbox,
       quiet_since: quiet_since
     } do
+      expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{}} end)
 
       assert {:ok, %Sandbox{state: :paused, residency_work_id: nil, guest_cpu_ms: nil}} =
@@ -277,6 +328,8 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
 
+      expect_setup_read()
+
       expect(Nodes, :call, fn "node-a", "pause", args, _opts ->
         assert args == %{sandbox_id: sandbox.id, sync_disks: true}
         {:ok, %{"disks_synced" => true}}
@@ -305,6 +358,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       old = disk_snapshot_fixture(account: account, amp_snapshot_id: "proj-1", node_name: "node-b")
       sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+      expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
       expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts -> {:ok, %{}} end)
 
@@ -320,6 +374,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     test "a failed save still pauses the Orb and keeps no snapshot", %{account: account} do
       sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+      expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{"disks_synced" => false}} end)
 
       expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts ->
@@ -341,6 +396,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
         [%{sandbox_node("node-a") | disk: %{budget_bytes: 1, available_bytes: 1}}]
       end)
 
+      expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
 
       assert {:ok, %{state: :paused}} =
@@ -371,6 +427,9 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
                AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
 
       assert DateTime.after?(Repo.reload!(snapshot).last_used_at, snapshot.last_used_at)
+
+      sandbox = Repo.get_by!(Sandbox, amp_orb_id: "amp-new")
+      assert [%{boot_source: "disk_snapshot"}] = sandbox_events(sandbox, "started")
     end
 
     test "a clone the node lost falls back to the template on the same node", %{account: account} do
