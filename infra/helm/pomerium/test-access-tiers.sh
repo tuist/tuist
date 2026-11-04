@@ -90,9 +90,20 @@ for env in staging canary production; do
     (role("tuist-write") | .rules == [] and .aggregationRule.clusterRoleSelectors == [
       {matchLabels: {"rbac.authorization.k8s.io/aggregate-to-view": "true"}},
       {matchLabels: {"rbac.authorization.k8s.io/aggregate-to-edit": "true"},
-       matchExpressions: [{key: "kubernetes.io/bootstrapping", operator: "NotIn", values: ["rbac-defaults"]}]},
+       matchExpressions: [
+         {key: "kubernetes.io/bootstrapping", operator: "NotIn", values: ["rbac-defaults"]},
+         {key: "app.kubernetes.io/name", operator: "NotIn", values: ["external-secrets"]}]},
       {matchLabels: {"tuist.dev/aggregate-to-write": "true"}}
     ]) and
+    # External Secrets writes come back as a force-sync patch only. A
+    # SecretStore, PushSecret or generator write can copy a Secret out.
+    (role("tuist-write-externalsecrets") | .rules == [
+      {apiGroups: ["external-secrets.io"], resources: ["externalsecrets"], verbs: ["patch"]}]) and
+    (all(.[] | select(.kind == "ClusterRole") | select(.metadata.labels // {} |
+        .["tuist.dev/aggregate-to-write"] == "true" or
+        .["rbac.authorization.k8s.io/aggregate-to-edit"] == "true");
+      all(.rules[]; (.apiGroups | any(.[]; . == "*" or endswith("external-secrets.io"))) and
+        (.resources | any(.[]; . != "externalsecrets")) | not))) and
     # No role the write tier aggregates may reach Secrets or take on a
     # ServiceAccount identity, including via wildcards.
     (all(.[] | select(.kind == "ClusterRole") | select(.metadata.labels // {} |

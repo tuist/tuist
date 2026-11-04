@@ -118,9 +118,14 @@ subjects:
 # Closing those would take away the incident actions the elevation exists for.
 #
 # The selectors pull in, as `edit` does, `view` (through its own sources) and
-# every chart's edit extension: ours (`tuist-edit-*`), cert-manager's and
-# External Secrets'. A future chart's edit role arrives here too; the render
-# test in `test-access-tiers.sh` covers our roles, so review a new chart's.
+# every chart's edit extension, ours (`tuist-edit-*`) and cert-manager's, with
+# one more exception: External Secrets'. It grants writes on SecretStores,
+# PushSecrets and generators, and a SecretStore pointing somewhere new plus a
+# PushSecret naming any Secret in the namespace copies that Secret out; a
+# `webhook` generator can send one in a header. `tuist-write-externalsecrets`
+# grants back the one write the runbooks use. A future chart's edit role
+# arrives here too; the render test in `test-access-tiers.sh` covers our roles,
+# so review a new chart's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -137,9 +142,29 @@ aggregationRule:
         - key: kubernetes.io/bootstrapping
           operator: NotIn
           values: ["rbac-defaults"]
+        - key: app.kubernetes.io/name
+          operator: NotIn
+          values: ["external-secrets"]
     - matchLabels:
         tuist.dev/aggregate-to-write: "true"
 rules: []
+---
+# Force-syncing an ExternalSecret (`kubectl annotate externalsecret ...
+# force-sync=...`) is a patch; reads come from External Secrets' view role.
+# A patch can change what an ExternalSecret fetches, but only into a Secret:
+# rendering into a ConfigMap (`spec.target.manifest`) needs the controller's
+# `--unsafe-allow-generic-targets`, which stays off.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-write-externalsecrets
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    tuist.dev/aggregate-to-write: "true"
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["patch"]
 ---
 # `system:aggregate-to-edit` as of Kubernetes 1.34, without Secrets or
 # ServiceAccount identity. See `tuist-write` above.
