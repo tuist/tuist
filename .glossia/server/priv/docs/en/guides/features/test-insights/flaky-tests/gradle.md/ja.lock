@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "51f73f7a9b292e70941a1a431225cf0b2b66165103bde13ed9836713b9ac9565",
+  "hash": "ecbe27bad9aff67b5f754a1d2853fab4c737b5be1e104c136c43a4b021e9a0b1",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,7 +20,7 @@
                   "content_hash": "11d25e392de7f616097c41bd981e80c7ca6dc4bea26bcb5cbc19e63323498f7b"
                 },
                 "## Quarantining flaky tests {#quarantining}": {
-                  "content_hash": "1bbe2adca7b1a13fbe36a8d98c318b5e89ae14076364859a72c65c70d8bec397"
+                  "content_hash": "df5b6d6f7c4ec2f91eff3c542dbc13391f5999b4985fe76c27fb54dbca6a90ef"
                 },
                 "## Querying flaky and quarantined state {#querying}": {
                   "content_hash": "72798b50903aa02c966d084590175f6141864a03d5083b0e1815f5e37b7e97d2"
@@ -71,11 +71,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "7e976db591228ff2e483a89cd9bd145205bbd6bd383453038f7ad5c55582241e",
+          "hash": "f0d21e8c0e93d0ad09d673d3c720b6a48a319788580c0d5a0e8e9356042ad12f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
           "metadata": {
-            "content_hash": "356fc9195ca0c5459690e9afe0f033e992ddf769b5ff0c4ae258cff8cdd13e58"
+            "content_hash": "a692196e05977c47ec6ab95b9bc61f1b609ecabea39af0597d27f5c9d68a2d4d"
           }
         },
         {
@@ -296,14 +296,14 @@
         }
       ],
       "details": {},
-      "hash": "51f73f7a9b292e70941a1a431225cf0b2b66165103bde13ed9836713b9ac9565",
+      "hash": "ecbe27bad9aff67b5f754a1d2853fab4c737b5be1e104c136c43a4b021e9a0b1",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8cfaaa2ebf6da133842fb93d6ba23283904eb83042e38bddaeee97d135b7b56e",
+  "output_hash": "38eddcd7f545b28f8cc2c91aeda36dbcc1400d435f09eb7823f4c4ba312a3806",
   "output_path": "server/priv/docs/ja/guides/features/test-insights/flaky-tests/gradle.md",
   "protection_state": "recorded",
   "provider": "",
@@ -327,8 +327,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4ab73b41c999a401d392145890b4278eb7f6550d",
+  "source_commit_sha": "21cf57c569615e9d1d76f46ceac79e7c4de9db58",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
-  "translated_at": "2026-11-02T14:50:06.537533Z",
-  "translation_session_id": "01a19cb4-523e-7840-ba53-3aeffc96e9f9"
+  "translated_at": "2026-11-04T08:26:39.711836Z",
+  "translation_session_id": "01a1a5a5-d507-78b9-9005-ef2fb7caec9e"
 }
