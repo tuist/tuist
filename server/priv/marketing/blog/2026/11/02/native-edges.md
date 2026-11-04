@@ -5,6 +5,7 @@ tags: ["engineering", "architecture", "rust", "swiftui", "jetpack-compose", "kot
 excerpt: "Five principles for native apps that share a headless core: what goes in the core, how the edges call it, how to make every screen addressable, and why the whole app belongs in one build graph. Includes a sample app for iOS, Android, and the terminal."
 author: pepicrft
 cta_title: "Fast native builds for every edge."
+live: true
 ---
 
 For a long time, building a client for every platform you cared about was expensive. You wrote every screen twice, fixed every bug twice, and either staffed a team per platform or decided which platforms your users would have to live without. So the industry did what it usually does and found ways to make that cost bearable.
@@ -304,6 +305,10 @@ This graph is also what caching relies on. Each step gets a key computed from it
 The shape of the graph matters as much as the build system. A build can only run in parallel what the graph lets it run in parallel, and Apple's [WWDC talk on build parallelization](https://developer.apple.com/videos/play/wwdc2022/110364/) calls the longest chain of dependencies the critical path: no extra cores or remote workers make the build shorter than that. So we keep the graph shallow and wide. We only add a dependency when we need it, put interfaces in their own modules so implementations compile side by side (Bruno Rocha explains the technique in [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)), and keep shared foundations small, because everything downstream rebuilds when they change. Spotify's account of [moving its iOS app to Bazel](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly) shows what that buys you: with remote caching and the module isolation they did during the migration, their CI feedback loop went from 80 minutes to 20.
 
 The same goes for deciding what each edge includes. A widget doesn't need the agent, and a web build pays for every kilobyte it ships, but if each edge builds the core with its own [Cargo features](https://doc.rust-lang.org/cargo/reference/features.html), the cache sees a different core per edge, and you end up building and keeping warm one graph per edge. Bazel's documentation on [configurations](https://bazel.build/extending/config#memory-performance-considerations) warns about the same growth. We'd rather split the core into crates, like storage, networking, and the agent, and let each edge depend on the ones it needs, the way Mozilla's [megazords](https://mozilla.github.io/application-services/book/design/megazords.html) link only the components an app uses. A crate's hash doesn't depend on who uses it, so adding or removing an edge doesn't invalidate anything shared. For dropping unused code from a binary, the linker's dead-code stripping does the job after the core is compiled and cached.
+
+Try both approaches below. Each edge links the crates it picks through a small umbrella crate, drawn dashed. Turn edges on and off or edit a file in storage, and watch which nodes get a new hash:
+
+<.live_component module={TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab} id="edge-graph-lab" />
 
 The sample's graph is small, but it has this shape: each edge depends only on its build of the core and its own platform libraries, and no edge depends on another.
 
