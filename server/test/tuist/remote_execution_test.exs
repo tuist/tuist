@@ -311,6 +311,80 @@ defmodule Tuist.RemoteExecutionTest do
     assert DateTime.after?(Repo.get!(Sandbox, row.id).execution_lease_expires_at, short)
   end
 
+  describe "telemetry" do
+    setup do
+      test = self()
+      handler = "remote-execution-#{inspect(test)}"
+
+      events = [
+        [:tuist, :remote_execution, :submission],
+        [:tuist, :remote_execution, :operation],
+        [:tuist, :remote_execution, :prepare],
+        [:tuist, :remote_execution, :lease]
+      ]
+
+      :telemetry.attach_many(
+        handler,
+        events,
+        fn event, measurements, metadata, _ -> send(test, {:telemetry, event, measurements, metadata}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+    end
+
+    test "a completed action reports its submission, preparation and outcome", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{done: true}} = submit(project)
+
+      assert_receive {:telemetry, [:tuist, :remote_execution, :submission], %{count: 1}, %{outcome: "accepted"}}
+      assert_receive {:telemetry, [:tuist, :remote_execution, :prepare], %{duration: prepare}, %{outcome: "ok"}}
+      assert prepare >= 0
+
+      assert_receive {:telemetry, [:tuist, :remote_execution, :operation], %{duration: duration, queue_time: queue},
+                      %{outcome: "ok"}}
+
+      assert duration >= queue and queue >= 0
+    end
+
+    test "joining an in-flight action and a full queue are reported", %{project: project} do
+      {:ok, _} = configure(project, max_concurrency: 1)
+      stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
+
+      assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
+      assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
+      assert_receive {:holding, _task}, 2_000
+      for size <- 11..14, do: assert({:ok, %{done: false}} = submit(project, %{"size" => size}, wait: 0))
+      assert {:error, :queue_full} = submit(project, %{"size" => 15}, wait: 0)
+
+      assert_receive {:telemetry, [:tuist, :remote_execution, :submission], _, %{outcome: "deduplicated"}}
+      assert_receive {:telemetry, [:tuist, :remote_execution, :submission], _, %{outcome: "queue_full"}}
+    end
+
+    test "failed actions report their status code", %{project: project} do
+      stub_node(%{"unexpected" => true})
+
+      assert {:ok, %{done: true}} = submit(project)
+      assert_receive {:telemetry, [:tuist, :remote_execution, :operation], _, %{outcome: "internal"}}
+    end
+
+    test "leases report whether the gateway claimed them", %{project: project} do
+      stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{direct_exec_endpoint: "http://10.0.0.1:7071"}} end)
+      stub_node()
+
+      assert {:ok, %{}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, first}
+      send(first, {:claim, {:ok, %{"exit_code" => 0, "unclaimed" => true}}})
+      assert_receive {:telemetry, [:tuist, :remote_execution, :lease], %{count: 1}, %{outcome: "unclaimed"}}
+
+      assert {:ok, %{}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, second}
+      send(second, {:claim, {:ok, %{"exit_code" => 0}}})
+      assert_receive {:telemetry, [:tuist, :remote_execution, :lease], %{count: 1}, %{outcome: "claimed"}}
+    end
+  end
+
   describe "leases" do
     setup do
       stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{direct_exec_endpoint: "http://10.0.0.1:7071"}} end)

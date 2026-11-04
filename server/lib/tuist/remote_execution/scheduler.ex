@@ -162,12 +162,15 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     case not attrs.skip_cache and Map.get(state.inflight, key) do
       id when is_binary(id) ->
+        submitted("deduplicated")
         wait_for(state, id, from, :done, wait_ms)
 
       _ ->
         if :queue.len(state.queue) >= queue_limit(state.settings) do
+          submitted("queue_full")
           {:reply, {:error, :queue_full}, state}
         else
+          submitted("accepted")
           op = new_operation(attrs, state.settings, :queue.len(state.queue))
           inflight = if attrs.skip_cache, do: state.inflight, else: Map.put(state.inflight, key, op.id)
 
@@ -240,7 +243,12 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   def handle_info({:lease_timeout, timer}, state) do
     {expired, waiting} = state.lease_waiters |> :queue.to_list() |> Enum.split_with(&(&1.timer == timer))
-    Enum.each(expired, &GenServer.reply(&1.from, {:ok, nil}))
+
+    Enum.each(expired, fn waiter ->
+      GenServer.reply(waiter.from, {:ok, nil})
+      leased("timeout")
+    end)
+
     {:noreply, %{state | lease_waiters: :queue.from_list(waiting)}}
   end
 
@@ -307,6 +315,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
       state: :queued,
       queued_at_unix_us: System.system_time(:microsecond),
       queued_mono: now_ms(),
+      dispatched_mono: nil,
       completed_mono: nil,
       cas_endpoint: settings.cas_endpoint,
       waiters: [],
@@ -394,14 +403,9 @@ defmodule Tuist.RemoteExecution.Scheduler do
     request = if op.inputs, do: Map.put(request, :inputs, op.inputs), else: request
 
     token = cached_token(state, op.project_id)
-    queue_time = now_ms() - op.queued_mono
-
-    :telemetry.execute([:tuist, :remote_execution, :dispatch], %{queue_time_ms: queue_time}, %{
-      account_id: state.account_id
-    })
 
     state
-    |> put_op(%{op | state: :executing, vm: vm.id, inputs: nil})
+    |> put_op(%{op | state: :executing, vm: vm.id, inputs: nil, dispatched_mono: now_ms()})
     |> put_vm(%{vm | state: :busy})
     |> start_task({:run, op.id, vm.id}, fn -> VMs.execute(vm.sandbox, request, op.project_id, token) end)
     |> notify(op.id)
@@ -421,6 +425,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
     case direct_endpoint(vm.sandbox.node_name) do
       nil ->
         GenServer.reply(waiter.from, {:error, :unsupported})
+        leased("unsupported")
         state
 
       endpoint ->
@@ -489,6 +494,14 @@ defmodule Tuist.RemoteExecution.Scheduler do
         :crashed -> {:crashed, state}
       end
 
+    leased(
+      case result do
+        :claimed -> "claimed"
+        :unclaimed -> "unclaimed"
+        _ -> "failed"
+      end
+    )
+
     case {result, Map.get(state.vms, vm_id)} do
       {:unclaimed, %{state: :leased} = vm} -> dispatch(put_vm(state, %{vm | state: :ready}))
       _ -> state |> retire(vm_id, nil) |> dispatch()
@@ -498,6 +511,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
   defp handle_task({:prepare, placeholder}, result, state) do
     started_at = state.vms |> Map.fetch!(placeholder) |> Map.fetch!(:renewed_at)
     state = %{state | vms: Map.delete(state.vms, placeholder)}
+    prepared(result, now_ms() - started_at)
 
     case result do
       {:ok, sandbox} ->
@@ -576,11 +590,19 @@ defmodule Tuist.RemoteExecution.Scheduler do
         {:error, code, message} -> %{op | code: code, message: message}
       end
 
+    now = now_ms()
+
+    :telemetry.execute(
+      [:tuist, :remote_execution, :operation],
+      %{duration: now - op.queued_mono, queue_time: (op.dispatched_mono || now) - op.queued_mono},
+      %{outcome: outcome(op.code)}
+    )
+
     key = {op.project_id, op.hash, op.size}
     inflight = if Map.get(state.inflight, key) == id, do: Map.delete(state.inflight, key), else: state.inflight
 
     %{state | inflight: inflight}
-    |> put_op(%{op | state: :completed, vm: nil, completed_mono: now_ms()})
+    |> put_op(%{op | state: :completed, vm: nil, completed_mono: now})
     |> notify(id)
   end
 
@@ -681,6 +703,31 @@ defmodule Tuist.RemoteExecution.Scheduler do
   defp idle?(state, now) do
     state.ops == %{} and state.vms == %{} and state.tasks == %{} and now - state.active_at > @idle_stop_ms
   end
+
+  # Telemetry carries no account or project: the outcome sets are fixed.
+  defp submitted(outcome),
+    do: :telemetry.execute([:tuist, :remote_execution, :submission], %{count: 1}, %{outcome: outcome})
+
+  defp leased(outcome), do: :telemetry.execute([:tuist, :remote_execution, :lease], %{count: 1}, %{outcome: outcome})
+
+  defp prepared(result, duration) do
+    outcome =
+      case result do
+        {:ok, _sandbox} -> "ok"
+        {:error, _sandbox, nil} -> "no_node"
+        {:error, _sandbox, _not_before} -> "unavailable"
+        :busy -> "at_capacity"
+        _ -> "failed"
+      end
+
+    :telemetry.execute([:tuist, :remote_execution, :prepare], %{duration: duration}, %{outcome: outcome})
+  end
+
+  defp outcome(0), do: "ok"
+  defp outcome(9), do: "failed_precondition"
+  defp outcome(13), do: "internal"
+  defp outcome(14), do: "unavailable"
+  defp outcome(_code), do: "other"
 
   defp queue_limit(settings), do: min(settings.max_concurrency * 4, 512)
   defp put_op(state, op), do: %{state | ops: Map.put(state.ops, op.id, op)}
