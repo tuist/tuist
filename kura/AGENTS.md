@@ -128,9 +128,16 @@ does not repair embedded/native verification or qualify running processes.
   since it began, the frozen repair fetches only those records plus the record
   rows the source's feed added after that cursor, read once without waiting.
   A different incarnation, a trimmed floor or too many rows runs the full walk.
-  The delta repair skips the revisit on uncounted evictions; the full-corpus
-  metadata verification still checks every retained record before a receipt,
-  so anything the delta missed fails the attempt rather than the transfer.
+  The delta repair skips the revisit on uncounted evictions.
+  The delta also replaces the frozen full-corpus verification when the walk
+  could hash every row it listed and the source's count of retained records
+  committed without a feed row (sibling pulls, unfed tombstones), read before
+  the walk's first page, is unchanged at begin: begin then answers
+  `barrier_delta` and the frozen source verifies in full only those records.
+  Staging and commit both move that count, so a record staged before the walk
+  and committed after it falls back. The source rejects its barrier if the
+  count moves while frozen. Any other case, or an older peer, keeps the
+  full-corpus metadata verification.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
