@@ -5,7 +5,7 @@ import TuistNoora
 struct ExternalLinkRow: View {
     @Environment(\.openURL) private var openURL
 
-    let title: String
+    let title: LocalizedStringKey
     let url: URL
 
     var body: some View {
