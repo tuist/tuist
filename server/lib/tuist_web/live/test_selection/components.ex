@@ -114,6 +114,7 @@ defmodule TuistWeb.TestSelection.Components do
   def fallback_label("tracked_file_changed"), do: dgettext("dashboard_tests", "Tracked file changed")
   def fallback_label("diff_too_large"), do: dgettext("dashboard_tests", "Diff too large")
   def fallback_label("diff_unavailable"), do: dgettext("dashboard_tests", "Diff unavailable")
+  def fallback_label("history_unknown"), do: dgettext("dashboard_tests", "Commit unknown")
   def fallback_label(reason), do: reason
 
   def fallback_description("excluded_branch"),
@@ -147,6 +148,13 @@ defmodule TuistWeb.TestSelection.Components do
 
   def fallback_description("diff_unavailable"),
     do: dgettext("dashboard_tests", "The changed files since the baseline couldn't be read.")
+
+  def fallback_description("history_unknown"),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "Tuist's commit history has neither the checked-out commit nor its parents, so it couldn't look for a baseline."
+      )
 
   def fallback_description(reason), do: reason
 
