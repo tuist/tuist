@@ -66,7 +66,6 @@ struct GitHistoryServiceTests {
     @Test(.withMockedEnvironment())
     func collectsTheHistoryWithTheRemoteAndWhetherTheCheckoutIsDirty() async throws {
         // A dirty checkout is collected in full but its listing is never uploaded.
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .value(workingDirectory)).willReturn(true)
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
@@ -87,7 +86,8 @@ struct GitHistoryServiceTests {
                 gitInfo: gitInfo,
                 workingDirectory: workingDirectory,
                 fullHandle: "tuist/tuist",
-                serverURL: serverURL
+                serverURL: serverURL,
+                coverage: true
             )
         )
 
@@ -97,7 +97,13 @@ struct GitHistoryServiceTests {
         #expect(collected.repositoryURL == "git@github.com:acme/app.git")
         #expect(collected.settings.commitFileLimit == 3)
 
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
         // The branch head goes up with when the checkout was read, so a late upload cannot move
         // the branch back on the server.
         verify(uploadCommitsService).uploadCommits(
@@ -121,7 +127,6 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func uploadsOnlyTheCheckoutsMissingCommitsWithoutReachingTheRemote() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
@@ -141,7 +146,8 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
 
         verify(gitController)
@@ -183,9 +189,16 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: false
         )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: false
+        )
 
         #expect(collected != nil)
         verify(uploadCommitsService)
@@ -210,7 +223,6 @@ struct GitHistoryServiceTests {
     func publishesOnceAndTheReportReusesTheCollection() async throws {
         // The stress gate publishes before its plan; the run's report then reads the same checkout.
         Environment.mocked?.variables["CI"] = "1"
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
@@ -233,15 +245,23 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
         let collected = await subject.collect(
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
 
         #expect(published != nil)
         #expect(collected == published)
@@ -289,9 +309,16 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: false
         )
-        await subject.upload(published, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            published,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: false
+        )
 
         verify(uploadCommitsService)
             .uploadCommits(
@@ -311,7 +338,8 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: false
         )
 
         #expect(collected == nil)
@@ -321,14 +349,14 @@ struct GitHistoryServiceTests {
     @Test(.withMockedEnvironment())
     func collectsNothingWhenTheUploadIsDisabled() async throws {
         Environment.mocked?.variables["CI"] = "1"
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         Environment.mocked?.variables["TUIST_GIT_UPLOAD_ENABLED"] = "false"
 
         let collected = await subject.collect(
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
 
         #expect(collected == nil)
@@ -345,7 +373,8 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: false
         )
 
         verify(gitController)
@@ -364,14 +393,14 @@ struct GitHistoryServiceTests {
     ])
     func fetchesHistoryOnlyForCoverage(coverage: Bool, remoteAccess: GitHistoryRemoteAccess) async throws {
         Environment.mocked?.variables["CI"] = "1"
-        if coverage { Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1" }
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
 
         _ = await subject.collect(
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: coverage
         )
 
         verify(gitController)
@@ -437,7 +466,8 @@ struct GitHistoryServiceTests {
                 gitInfo: gitInfo,
                 workingDirectory: workingDirectory,
                 fullHandle: "tuist/tuist",
-                serverURL: serverURL
+                serverURL: serverURL,
+                coverage: false
             )
         )
 
@@ -505,10 +535,17 @@ struct GitHistoryServiceTests {
                 gitInfo: gitInfo,
                 workingDirectory: workingDirectory,
                 fullHandle: "tuist/tuist",
-                serverURL: serverURL
+                serverURL: serverURL,
+                coverage: false
             )
         )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: false
+        )
 
         verify(uploadCommitsService).uploadCommits(
             fullHandle: .any,
@@ -525,7 +562,6 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func uploadsTheMissingCommitsAndTheListingOfACleanCheckoutOnce() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(missingCommitsService)
             .findMissingCommits(
@@ -577,9 +613,16 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
 
         verify(uploadCommitsService)
             .uploadCommits(
@@ -611,7 +654,6 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func neverUploadsAListingTheServerHas() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
@@ -634,9 +676,16 @@ struct GitHistoryServiceTests {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
 
         verify(gitController).commitFiles(workingDirectory: .any, sha: .any, limit: .any).called(0)
         verify(uploadListingService)
@@ -668,7 +717,6 @@ struct GitHistoryServiceTests {
     func neverMovesTheBranchToAHeadTheHistoryDoesNotList() async throws {
         // A re-run of a commit older than the window lists nothing; the server would take an
         // unknown head as the branch's new one.
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let gitController = MockGitControlling()
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
@@ -702,9 +750,16 @@ struct GitHistoryServiceTests {
             gitInfo: rerun,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
 
         verify(uploadCommitsService)
             .uploadCommits(
@@ -720,7 +775,6 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func uploadsNothingWithoutARemote() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         let local = GitInfo(ref: "refs/heads/feature", branch: "feature", sha: "head", remoteURLOrigin: nil, baseBranch: "main")
 
@@ -728,9 +782,16 @@ struct GitHistoryServiceTests {
             gitInfo: local,
             workingDirectory: workingDirectory,
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: true
         )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        await subject.upload(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
 
         #expect(collected?.repositoryURL == nil)
         verify(missingCommitsService).findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
@@ -745,7 +806,6 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func reportsARunWithoutARepositoryAsHistorylessButKeepsItsPullRequest() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let noRepository = MockGitControlling()
         given(noRepository).isInGitRepository(workingDirectory: .any).willReturn(false)
         let subject = GitHistoryService(
@@ -771,7 +831,8 @@ struct GitHistoryServiceTests {
                 gitInfo: gitInfo,
                 workingDirectory: workingDirectory,
                 fullHandle: "tuist/tuist",
-                serverURL: serverURL
+                serverURL: serverURL,
+                coverage: true
             )
         )
 

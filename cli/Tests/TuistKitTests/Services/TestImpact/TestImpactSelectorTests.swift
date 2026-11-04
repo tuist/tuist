@@ -25,7 +25,8 @@ struct TestImpactSelectorTests {
                 scheme: "Shop",
                 testPlan: nil,
                 destination: "platform=iOS Simulator,name=iPhone 17",
-                platform: .iOS
+                platform: .iOS,
+                coverage: true
             ),
             gitController: gitController,
             gitHistoryService: gitHistoryService,
@@ -38,7 +39,7 @@ struct TestImpactSelectorTests {
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).willReturn(true)
         given(gitHistoryService)
-            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
             .willReturn()
     }
 
@@ -117,7 +118,7 @@ struct TestImpactSelectorTests {
         verify(getProjectService).getProject(fullHandle: .any, serverURL: .any).called(0)
         verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(0)
         verify(gitHistoryService)
-            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
             .called(0)
     }
 
@@ -169,7 +170,8 @@ struct TestImpactSelectorTests {
                 gitInfo: .any,
                 workingDirectory: .value(repository),
                 fullHandle: .value("acme/shop"),
-                serverURL: .any
+                serverURL: .any,
+                coverage: .value(true)
             )
             .called(1)
         verify(resolveBaselineService).resolveTestImpactBaseline(

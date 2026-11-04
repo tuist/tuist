@@ -67,6 +67,8 @@ actor TestImpactSelector {
         let destination: String?
         /// The platform the run asked for, through `--platform` or `-destination`.
         let platform: XcodeGraph.Platform?
+        /// Whether the run uploads coverage.
+        let coverage: Bool
     }
 
     /// The reasons after which every test target in scope runs, so that the commit becomes a
@@ -146,7 +148,8 @@ actor TestImpactSelector {
                 gitInfo: gitInfo,
                 workingDirectory: repository,
                 fullHandle: invocation.fullHandle,
-                serverURL: invocation.serverURL
+                serverURL: invocation.serverURL,
+                coverage: invocation.coverage
             )
             baseline = await resolveBaseline(checkout: checkout, platform: platform)
         }

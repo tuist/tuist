@@ -104,7 +104,7 @@ struct XcodeBuildBuildCommandServiceTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies())
     func writesTheBuildsPrefixMapsIntoTheTestProducts() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let gitController = MockGitControlling()
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(temporaryDirectory)
@@ -164,7 +164,6 @@ struct XcodeBuildBuildCommandServiceTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies(), arguments: [true, false])
     func bumpsCoverageCountersAtomicallyWhenBuildingForTestingWithCoverageUploads(uploadsCoverage: Bool) async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))

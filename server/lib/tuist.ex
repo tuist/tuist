@@ -189,6 +189,7 @@ defmodule Tuist do
       Shards.ShardPlanTestSuite,
       Shards.ShardRun,
       MCP.Server,
+      MCP.WebMCP,
       MCP.Transport.StreamableHTTP,
       # App
       # -----

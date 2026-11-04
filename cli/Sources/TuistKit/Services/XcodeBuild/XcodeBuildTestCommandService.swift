@@ -432,6 +432,7 @@ extension XcodeBuildTestCommandService {
             firstPassFailed: firstPassFailed,
             fullHandle: fullHandle,
             serverURL: serverURL,
+            coverage: UploadResultBundleService.uploadsCoverage(config: config),
             mutedTests: mutedTests,
             resultBundleDirectory: try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests"),
             stressPass: stressPass
@@ -555,7 +556,8 @@ extension XcodeBuildTestCommandService {
             resultBundlePath: resultBundlePath,
             xcodebuildArguments: xcodebuildArguments,
             derivedDataPath: projectDerivedDataDirectory,
-            schemeTargets: schemeTargets
+            schemeTargets: schemeTargets,
+            config: config
         )
 
         do {

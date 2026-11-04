@@ -25,7 +25,8 @@ struct TestImpactGraphMapperTests {
                 scheme: nil,
                 testPlan: nil,
                 destination: nil,
-                platform: nil
+                platform: nil,
+                coverage: true
             ),
             gitController: gitController,
             getProjectService: MockGetProjectServicing(),

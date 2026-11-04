@@ -65,8 +65,8 @@ extension XcodeGraph.Platform {
 
 /// Collects which files each test executed (`TestCoverageEvidence`).
 ///
-/// Collected whenever the run uploads coverage (`UploadResultBundleService.uploadsCoverage`,
-/// behind the `COVERAGE` client flag). Each test target's own evidence, everything its processes
+/// Collected whenever the run uploads coverage (`UploadResultBundleService.uploadsCoverage`).
+/// Each test target's own evidence, everything its processes
 /// executed, comes from the raw profiles Xcode writes per test process
 /// (`TestTargetProcessCoverage`), so every target has it. Per-test and per-suite evidence needs
 /// the test targets to link the TestCoverageAttribution package

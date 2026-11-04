@@ -7,16 +7,18 @@ extension GitHistoryService {
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        coverage: Bool
     ) async {
-        guard Self.enabled else { return }
+        guard Self.enabled(coverage: coverage) else { return }
         // Not cached: the checkout may have been deepened since the run's history was collected.
         let collected = await collectFromCheckout(
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: fullHandle,
             serverURL: serverURL,
-            remoteAccess: .none
+            coverage: coverage,
+            remoteAccess: GitHistoryRemoteAccess.none
         )
         guard let repositoryURL = collected.repositoryURL, !repositoryURL.isEmpty else { return }
         do {
@@ -28,7 +30,7 @@ extension GitHistoryService {
                 branchHeads: false
             )
         } catch {
-            Self.warn("The checkout's Git history could not be uploaded: \(error.localizedDescription)")
+            Self.warn("The checkout's Git history could not be uploaded: \(error.localizedDescription)", coverage: coverage)
         }
     }
 }

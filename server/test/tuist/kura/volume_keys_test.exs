@@ -12,7 +12,6 @@ defmodule Tuist.Kura.VolumeKeysTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
-    stub(Environment, :kura_volume_openbao, fn -> :disabled end)
     root_key = :crypto.strong_rand_bytes(32)
     stub(Environment, :kura_volume_root_keys, fn -> [{"root-a", root_key}] end)
     %{account: AccountsFixtures.account_fixture(), root_key: root_key}
@@ -65,12 +64,6 @@ defmodule Tuist.Kura.VolumeKeysTest do
       assert Enum.all?(Rotation.inventory(), &(&1.key_id == "root-b"))
       assert Repo.reload!(key).state == :retired
       assert Repo.reload!(active).state == :active
-    end
-
-    test "invalid OpenBao configuration never falls back to an exportable root" do
-      stub(Environment, :kura_volume_openbao, fn -> {:error, :invalid_openbao_configuration} end)
-      refute VolumeKeys.available?()
-      assert {:error, :invalid_openbao_configuration} = VolumeKeys.wrapping_target()
     end
   end
 

@@ -32,11 +32,13 @@ public struct CollectedGitHistory: Equatable, Sendable {
 /// the VCS provider.
 @Mockable
 public protocol GitHistoryServicing {
+    /// `coverage` is whether the run uploads coverage (`UploadResultBundleService.uploadsCoverage`).
     func collect(
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        coverage: Bool
     ) async -> CollectedGitHistory?
 
     /// Collects the history and uploads its commits and branch heads, once per process.
@@ -44,14 +46,27 @@ public protocol GitHistoryServicing {
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        coverage: Bool
     ) async -> CollectedGitHistory?
 
-    func upload(_ collected: CollectedGitHistory?, workingDirectory: AbsolutePath, fullHandle: String, serverURL: URL) async
+    func upload(
+        _ collected: CollectedGitHistory?,
+        workingDirectory: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL,
+        coverage: Bool
+    ) async
 
     /// Uploads the commits the checkout has and the server lacks, reading only the checkout, with no
     /// branch heads: what the server needs to place a commit its history doesn't have yet.
-    func uploadCheckoutCommits(gitInfo: GitInfo, workingDirectory: AbsolutePath, fullHandle: String, serverURL: URL) async
+    func uploadCheckoutCommits(
+        gitInfo: GitInfo,
+        workingDirectory: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL,
+        coverage: Bool
+    ) async
 }
 
 public struct GitHistoryService: GitHistoryServicing {
@@ -82,28 +97,24 @@ public struct GitHistoryService: GitHistoryServicing {
     }
 
     /// History is collected on CI, where it places runs on the default branch's history, and locally
-    /// with coverage, which is in early access behind the `COVERAGE` client flag.
-    /// `TUIST_GIT_UPLOAD_ENABLED=false` turns it off.
-    static var enabled: Bool {
+    /// with coverage. `TUIST_GIT_UPLOAD_ENABLED=false` turns it off.
+    static func enabled(coverage: Bool) -> Bool {
         guard !Environment.current.isVariableFalsy("TUIST_GIT_UPLOAD_ENABLED") else { return false }
-        return Environment.current.isCI || coverageEnabled
+        return Environment.current.isCI || coverage
     }
-
-    /// The commit file listings are what coverage measures against, and have no other use.
-    static var coverageEnabled: Bool { ClientFeatureFlags.contains("COVERAGE") }
 
     /// Only coverage needs the merge base, so only coverage fetches history; any other run reads the
     /// checkout and asks the remote for the base branch's latest commit at most.
     /// `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps every run to what the checkout has.
-    static var remoteAccess: GitHistoryRemoteAccess {
+    static func remoteAccess(coverage: Bool) -> GitHistoryRemoteAccess {
         guard !Environment.current.isVariableFalsy("TUIST_GIT_UNSHALLOW_ENABLED") else { return .none }
-        return coverageEnabled ? .history : .baseHead
+        return coverage ? .history : .baseHead
     }
 
     /// History is best effort, so outside coverage a failure is only logged: a server that predates
     /// it, or a checkout it cannot read, is no reason to flag every run.
-    static func warn(_ message: String) {
-        if coverageEnabled {
+    static func warn(_ message: String, coverage: Bool) {
+        if coverage {
             AlertController.current.warning(.alert("\(message)"))
         } else {
             Logger.current.debug("\(message)")
@@ -128,9 +139,10 @@ public struct GitHistoryService: GitHistoryServicing {
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        coverage: Bool
     ) async -> CollectedGitHistory? {
-        guard Self.enabled else { return nil }
+        guard Self.enabled(coverage: coverage) else { return nil }
         let key = GitHistoryCache.key(
             workingDirectory: workingDirectory,
             sha: gitInfo.sha,
@@ -142,7 +154,8 @@ public struct GitHistoryService: GitHistoryServicing {
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: coverage
         )
         await cache.store(collected, key: key)
         return collected
@@ -152,15 +165,23 @@ public struct GitHistoryService: GitHistoryServicing {
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        coverage: Bool
     ) async -> CollectedGitHistory? {
         let collected = await collect(
             gitInfo: gitInfo,
             workingDirectory: workingDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: coverage
         )
-        await publishCommits(collected, workingDirectory: workingDirectory, fullHandle: fullHandle, serverURL: serverURL)
+        await publishCommits(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            coverage: coverage
+        )
         return collected
     }
 
@@ -169,7 +190,8 @@ public struct GitHistoryService: GitHistoryServicing {
         workingDirectory: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
-        remoteAccess: GitHistoryRemoteAccess = Self.remoteAccess
+        coverage: Bool,
+        remoteAccess: GitHistoryRemoteAccess? = nil
     ) async -> CollectedGitHistory {
         let observedAt = Date()
 
@@ -225,11 +247,11 @@ public struct GitHistoryService: GitHistoryServicing {
                     windowDays: settings.windowDays,
                     windowCommits: settings.windowCommits,
                     deepenBudgetSeconds: settings.deepenBudgetSeconds,
-                    remoteAccess: remoteAccess
+                    remoteAccess: remoteAccess ?? Self.remoteAccess(coverage: coverage)
                 )
             )
         } catch {
-            Self.warn("The run's Git history could not be read: \(error.localizedDescription)")
+            Self.warn("The run's Git history could not be read: \(error.localizedDescription)", coverage: coverage)
             return CollectedGitHistory(
                 payload: TestRunGitHistory(
                     baseBranch: gitInfo.baseBranch,
@@ -286,11 +308,18 @@ public struct GitHistoryService: GitHistoryServicing {
         _ collected: CollectedGitHistory?,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        coverage: Bool
     ) async {
-        await publishCommits(collected, workingDirectory: workingDirectory, fullHandle: fullHandle, serverURL: serverURL)
+        await publishCommits(
+            collected,
+            workingDirectory: workingDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            coverage: coverage
+        )
 
-        guard Self.coverageEnabled, let collected, let repositoryURL = collected.repositoryURL, !repositoryURL.isEmpty
+        guard coverage, let collected, let repositoryURL = collected.repositoryURL, !repositoryURL.isEmpty
         else { return }
         do {
             try await uploadListing(
@@ -312,7 +341,8 @@ public struct GitHistoryService: GitHistoryServicing {
         _ collected: CollectedGitHistory?,
         workingDirectory: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        coverage: Bool
     ) async {
         guard let collected, let repositoryURL = collected.repositoryURL, !repositoryURL.isEmpty else { return }
         let key = GitHistoryCache.key(
@@ -326,7 +356,7 @@ public struct GitHistoryService: GitHistoryServicing {
             try await uploadCommits(collected, repositoryURL: repositoryURL, fullHandle: fullHandle, serverURL: serverURL)
             await cache.markPublished(key)
         } catch {
-            Self.warn("The run's Git history could not be uploaded: \(error.localizedDescription)")
+            Self.warn("The run's Git history could not be uploaded: \(error.localizedDescription)", coverage: coverage)
         }
     }
 
@@ -359,14 +389,9 @@ public struct GitHistoryService: GitHistoryServicing {
             .sorted { $0.committedAt < $1.committedAt }
             .map { GitHistoryCommitPayload(sha: $0.sha, parents: $0.parents, committedAt: $0.committedAt) }
 
-        var branchHeads: [GitHistoryBranchHead] = []
-        if includesBranchHeads, let branch = collected.branch {
-            branchHeads.append(GitHistoryBranchHead(
-                branch: branch,
-                sha: collected.history.headSHA,
-                observedAt: collected.observedAt
-            ))
-        }
+        var branchHeads = (includesBranchHeads ? collected.branch : nil).map {
+            [GitHistoryBranchHead(branch: $0, sha: collected.history.headSHA, observedAt: collected.observedAt)]
+        } ?? []
         // A pull request's run is how the default branch's head is seen between the default
         // branch's own runs. The checkout may not have that commit: the run that tested it, a
         // merge queue's typically, sent it already.
