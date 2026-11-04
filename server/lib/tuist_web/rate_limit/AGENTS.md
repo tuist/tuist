@@ -6,7 +6,7 @@
 
 - Deny by default. Password login, agent authentication/registration, signup, the pre-authentication Once address guard, Atlas, SCIM, metrics, authorization-denial accounting and public-page challenge verification do not opt into fallback. SCIM and metrics deliberately remain strict even though authenticated.
 - Structured report publishing sets `fallback: false` so backend failures surface as HTTP 503 instead of quota exhaustion (HTTP 429).
-- Only dashboard checks (including anonymous per-scope aggregation) and authenticated MCP select `failure_policy: :local`. The MCP router authenticates before this limiter; its anonymous branch is a defensive direct-call guard, not pre-authentication credential protection.
+- Only dashboard checks (including anonymous per-scope aggregation) and authenticated MCP select `failure_policy: :local`. The `/mcp` router authenticates before this limiter; its anonymous branch, which denies when the backend is unavailable, rate limits the public WebMCP documentation endpoint by address and is not pre-authentication credential protection.
 - Preserve existing HTTP 429/gRPC resource-exhausted response contracts.
 
 ## Other responsibilities

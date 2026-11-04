@@ -112,10 +112,10 @@ On every other branch, `tuist test` skips the targets whose hash already passed,
 
 When coverage can't decide, the output says why. Without a recent baseline on the same platform, or when the change touches more than 5,000 files, every test runs so that the commit can become a baseline. When a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`, the run uses the default selective testing. To run every test, pass `--no-selective-testing`.
 
-> [!WARNING]
+> [!NOTE]
 > **Test Coverage**
 >
-> Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+> Coverage tools that read a single run's report, Xcode's included, assume the whole test suite ran, so a selective run's report leaves out the tests it skipped. Tuist's <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">code coverage</.localized_link> carries the coverage of skipped test targets forward from an earlier run instead, using the <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#target-level-coverage">target-level coverage</.localized_link> it records on every run.
 
 
 ## Pull/merge request comments {#pullmerge-request-comments}

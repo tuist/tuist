@@ -10,7 +10,7 @@
 //! consume.
 
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -49,7 +49,7 @@ use crate::{
     reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
-    store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath, Store},
+    store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
     utils::{BackfillRecordKind, TempFileCleanup, temp_file_path, url_encode},
 };
 
@@ -239,6 +239,7 @@ pub async fn run_backfill_pass_with_tuning(
         tuning: &tuning,
         capacity_fired: AtomicBool::new(false),
         stats: Mutex::new(BackfillPassStats::default()),
+        compaction: Mutex::new(None),
         _gauges: BackfillPassGauges::new(state, peer),
     };
 
@@ -321,6 +322,7 @@ struct PassContext<'a> {
     tuning: &'a BackfillPassTuning,
     capacity_fired: AtomicBool,
     stats: Mutex<BackfillPassStats>,
+    compaction: Mutex<Option<Compaction>>,
     _gauges: BackfillPassGauges,
 }
 
@@ -501,8 +503,12 @@ async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbo
             .map_err(PassAbort::Hard)?;
         }
         if let Some(layout) = layout {
-            compact_retained_segments(&context.state.store, context.cancel, context.peer, layout)
-                .await?;
+            let mut compaction = Compaction::from(layout);
+            compact_retained_segments(context, &mut compaction, "before_repair").await?;
+            *context
+                .compaction
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(compaction);
         }
     }
     Ok(())
@@ -512,10 +518,14 @@ async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbo
 // positive only keeps a destination-only record during compaction.
 const RETAINED_ID_FILTER_BITS: u64 = 1 << 24;
 const RETAINED_ID_FILTER_HASHES: u64 = 4;
-// Only segments at most three quarters retained are worth copying out of.
-const COMPACTION_MAX_RETAINED_BYTES: u64 = MAX_SEGMENT_BYTES / 4 * 3;
-// Room kept free while copying, for the feed writes that keep arriving.
-const COMPACTION_MARGIN_BYTES: u64 = 2 * MAX_SEGMENT_BYTES;
+// Only segments whose reclaim frees at least this much are worth copying out of.
+const COMPACTION_MIN_GAIN_BYTES: u64 = MAX_SEGMENT_BYTES / 8;
+// Room the missing bytes must leave once compaction stops, for the feed
+// writes that keep arriving until the barrier.
+const COMPACTION_TARGET_MARGIN_BYTES: u64 = 2 * MAX_SEGMENT_BYTES;
+// Room kept free while one segment is copied, for the feed writes arriving
+// meanwhile. A rotation that still happens is counted and fails preparation.
+const COMPACTION_COPY_RESERVE_BYTES: u64 = MAX_SEGMENT_BYTES / 8;
 
 struct RetainedIds {
     bits: Vec<u64>,
@@ -569,68 +579,124 @@ enum CompactionStep {
 }
 
 fn compaction_step(admissible: u64, missing_bytes: u64, retained: u64) -> CompactionStep {
-    if admissible >= missing_bytes.saturating_add(COMPACTION_MARGIN_BYTES) {
+    if admissible >= missing_bytes.saturating_add(COMPACTION_TARGET_MARGIN_BYTES) {
         CompactionStep::Enough
-    } else if admissible < retained.saturating_add(COMPACTION_MARGIN_BYTES) {
+    } else if admissible < retained.saturating_add(COMPACTION_COPY_RESERVE_BYTES) {
         CompactionStep::NoRoom
     } else {
         CompactionStep::Copy
     }
 }
 
-/// Makes room for the records the destination lacks by copying the retained
-/// records out of the sealed segments that hold the least of them and
-/// reclaiming those segments. Copies only while the store can write them
-/// without rotating out anything the source may retain, and stops once the
-/// missing bytes fit.
-async fn compact_retained_segments(
-    store: &Store,
-    cancel: &CancellationToken,
-    peer: &str,
-    layout: RetainedLayout,
-) -> Result<(), PassAbort> {
-    let RetainedLayout {
-        ids,
-        retained,
-        frontier_ms,
-        missing_bytes,
-    } = layout;
+/// The compaction a retained-index repair carries from its walk into its
+/// applies: the listed ids, the sealed segments still worth copying out of
+/// (least retained first), the oldest listed version and the bytes the walk
+/// found missing.
+struct Compaction {
+    ids: RetainedIds,
+    candidates: VecDeque<(String, u64)>,
+    frontier_ms: u64,
+    missing_bytes: u64,
+}
+
+impl From<RetainedLayout> for Compaction {
+    fn from(layout: RetainedLayout) -> Self {
+        Self {
+            ids: layout.ids,
+            candidates: compaction_candidates(layout.retained),
+            frontier_ms: layout.frontier_ms,
+            missing_bytes: layout.missing_bytes,
+        }
+    }
+}
+
+fn compaction_candidates(retained: HashMap<String, u64>) -> VecDeque<(String, u64)> {
     let mut segments: Vec<_> = retained
         .into_iter()
-        .filter(|(_, bytes)| *bytes <= COMPACTION_MAX_RETAINED_BYTES)
+        .filter(|(_, bytes)| MAX_SEGMENT_BYTES.saturating_sub(*bytes) >= COMPACTION_MIN_GAIN_BYTES)
         .collect();
     segments.sort_by_key(|(_, bytes)| *bytes);
+    segments.into()
+}
+
+/// Makes room for the records the destination still lacks by copying the
+/// retained records out of the sealed segments that hold the least of them
+/// and reclaiming those segments. Copies only while the store can write them
+/// without rotating out anything the source may retain, and stops once what
+/// is still missing fits.
+async fn compact_retained_segments(
+    context: &PassContext<'_>,
+    compaction: &mut Compaction,
+    phase: &'static str,
+) -> Result<(), PassAbort> {
+    let store = &context.state.store;
+    let missing_bytes = compaction
+        .missing_bytes
+        .saturating_sub(context.snapshot_stats().bytes_applied);
+    let (candidates, least_retained_bytes) = (
+        compaction.candidates.len(),
+        compaction.candidates.front().map(|(_, bytes)| *bytes),
+    );
     let (mut reclaimed, mut copied) = (0u64, 0u64);
-    let mut stopped = CompactionStep::Copy;
-    for (segment, bytes) in segments {
-        stopped = compaction_step(
-            store.handover_admissible_bytes(frontier_ms),
+    let mut stopped = None;
+    while let Some((_, bytes)) = compaction.candidates.front() {
+        let step = compaction_step(
+            store.handover_admissible_bytes(compaction.frontier_ms),
             missing_bytes,
-            bytes,
+            *bytes,
         );
-        if stopped != CompactionStep::Copy {
+        stopped = Some(step);
+        if step != CompactionStep::Copy {
             break;
         }
-        let (moved, left) = tokio::select! {
-            biased;
-            _ = cancel.cancelled() => return Err(PassAbort::Cancelled),
-            outcome = store.compact_handover_segment(&segment, |id| ids.contains(id)) => outcome.map_err(PassAbort::Hard)?,
+        let Some((segment, _)) = compaction.candidates.pop_front() else {
+            break;
         };
+        let ids = &compaction.ids;
+        let (moved, left) = cancellable(
+            context,
+            store.compact_handover_segment(&segment, |id| ids.contains(id)),
+        )
+        .await?
+        .map_err(PassAbort::Hard)?;
         copied = copied.saturating_add(moved);
         if left == 0 {
-            tokio::select! {
-                biased;
-                _ = cancel.cancelled() => return Err(PassAbort::Cancelled),
-                outcome = store.reclaim_handover_segment(&segment) => outcome.map_err(PassAbort::Hard)?,
-            }
+            cancellable(context, store.reclaim_handover_segment(&segment))
+                .await?
+                .map_err(PassAbort::Hard)?;
             reclaimed += 1;
         }
     }
-    tracing::info!(event.name = "kura.handover.compacted", peer, reclaimed, last_step = ?stopped,
-        copied_bytes = copied, missing_bytes,
-        admissible_bytes = store.handover_admissible_bytes(frontier_ms),
-        "Compacted segments the source mostly no longer retains");
+    if phase == "before_repair" || copied > 0 {
+        tracing::info!(event.name = "kura.handover.compacted", peer = context.peer, phase,
+            candidates, least_retained_bytes = ?least_retained_bytes, reclaimed,
+            last_step = ?stopped, copied_bytes = copied, missing_bytes,
+            admissible_bytes = store.handover_admissible_bytes(compaction.frontier_ms),
+            "Compacted segments the source mostly no longer retains");
+    }
     Ok(())
+}
+
+/// Compacts again before a repair batch applies, once the feed writes and
+/// repairs since the last compaction leave too little room for what is
+/// still missing.
+async fn compact_while_repairing(context: &PassContext<'_>) -> Result<(), PassAbort> {
+    let taken = context
+        .compaction
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take();
+    let Some(mut compaction) = taken else {
+        return Ok(());
+    };
+    let outcome = compact_retained_segments(context, &mut compaction, "during_repair").await;
+    if !compaction.candidates.is_empty() {
+        *context
+            .compaction
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(compaction);
+    }
+    outcome
 }
 
 async fn list_entries(
@@ -1073,6 +1139,7 @@ async fn apply_batches(
     bounces: mpsc::UnboundedSender<ClaimKey>,
 ) -> Result<(), PassAbort> {
     while let Some(batch) = cancellable(context, batches.recv()).await? {
+        compact_while_repairing(context).await?;
         apply_spooled_batch(context, &batch.items, &batch.spool, &bounces).await?;
     }
     Ok(())
@@ -1980,11 +2047,50 @@ mod tests {
 
     #[test]
     fn compaction_copies_only_while_what_is_missing_does_not_fit_and_the_copy_does() {
-        let margin = COMPACTION_MARGIN_BYTES;
-        assert_eq!(compaction_step(10 + margin, 10, 1), CompactionStep::Enough);
-        assert_eq!(compaction_step(9 + margin, 10, 9), CompactionStep::Copy);
-        assert_eq!(compaction_step(9 + margin, 10, 10), CompactionStep::NoRoom);
+        let (target, reserve) = (
+            COMPACTION_TARGET_MARGIN_BYTES,
+            COMPACTION_COPY_RESERVE_BYTES,
+        );
+        assert_eq!(compaction_step(10 + target, 10, 1), CompactionStep::Enough);
+        assert_eq!(compaction_step(9 + target, 10, 9), CompactionStep::Copy);
+        assert_eq!(
+            compaction_step(9 + reserve, 10 + target, 9),
+            CompactionStep::Copy
+        );
+        assert_eq!(
+            compaction_step(9 + reserve, 10 + target, 10),
+            CompactionStep::NoRoom
+        );
         assert_eq!(compaction_step(0, 10, 0), CompactionStep::NoRoom);
+    }
+
+    #[test]
+    fn compaction_candidates_are_every_segment_whose_reclaim_frees_enough_least_retained_first() {
+        let mib = 1024 * 1024;
+        let retained = HashMap::from([
+            ("mostly-retained".to_owned(), 410 * mib),
+            ("nearly-full".to_owned(), 460 * mib),
+            ("half".to_owned(), 256 * mib),
+            ("full".to_owned(), MAX_SEGMENT_BYTES),
+        ]);
+        let candidates: Vec<_> = compaction_candidates(retained)
+            .into_iter()
+            .map(|(segment, _)| segment)
+            .collect();
+        assert_eq!(candidates, ["half", "mostly-retained"]);
+    }
+
+    #[test]
+    fn compaction_starts_in_a_full_ring_with_only_the_active_segment_left() {
+        let mib = 1024 * 1024;
+        assert_eq!(
+            compaction_step(236 * mib, 1439 * mib, 128 * mib),
+            CompactionStep::Copy
+        );
+        assert_eq!(
+            compaction_step(236 * mib, 1439 * mib, 200 * mib),
+            CompactionStep::NoRoom
+        );
     }
 
     #[test]

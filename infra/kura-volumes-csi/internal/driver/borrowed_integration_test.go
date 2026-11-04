@@ -33,7 +33,7 @@ func (k borrowedKeys) Fetch(_ context.Context, id string, _ int) ([]byte, int, e
 }
 
 // Experiment-only control plane around the REAL driver. The disposable harness
-// uses fixture keys, not OpenBao or Kubernetes authorization.
+// uses fixture keys, not the key service or Kubernetes authorization.
 func TestBorrowedRealStack(t *testing.T) {
 	if os.Getenv("KURA_BORROWED_DISPOSABLE_VM") != "1" {
 		t.Skip("private disposable Linux VM only")
