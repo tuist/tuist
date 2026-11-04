@@ -112,7 +112,7 @@ msgid "Continue"
 msgstr "계속"
 
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:57
+#: lib/tuist_web/live/device_codes_success_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr "대시보드"
@@ -271,14 +271,14 @@ msgstr "Tuist 가입하기"
 msgid "This username has already been taken"
 msgstr "이미 사용 중인 사용자 이름입니다"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:37
+#: lib/tuist_web/live/device_codes_success_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr "Tuist CLI가 연결되었습니다!"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:26
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -291,7 +291,7 @@ msgstr "Tuist CLI가 연결되었습니다!"
 msgid "Tuist Logo"
 msgstr "Tuist 로고"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:35
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr "Tuist 앱이 연결되었습니다!"
@@ -308,7 +308,7 @@ msgstr "Tuist 대시보드"
 msgid "Tuist documentation"
 msgstr "Tuist 문서"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:39
+#: lib/tuist_web/live/device_codes_success_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr "Tuist가 연결되었습니다!"
@@ -350,17 +350,17 @@ msgstr "다시 만나서 반갑습니다! 계속하려면 로그인하세요"
 msgid "Welcome! Create an account to continue"
 msgstr "환영합니다! 계속하려면 계정을 생성하세요"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:49
+#: lib/tuist_web/live/device_codes_success_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr "탭을 닫고 계속 진행할 수 있습니다"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:45
+#: lib/tuist_web/live/device_codes_success_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr "탭을 닫고 앱에서 계속할 수 있습니다"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:47
+#: lib/tuist_web/live/device_codes_success_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr "탭을 닫고 터미널에서 계속할 수 있습니다"
@@ -893,3 +893,8 @@ msgstr "패스키를 확인할 수 없습니다. 다시 시도하세요."
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
 msgstr "이 패스키는 이미 등록되어 있습니다."
+
+#: lib/tuist_web/authentication.ex:698
+#, elixir-autogen, elixir-format
+msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
+msgstr "각 조직마다 자체 단일 로그인(SSO)이 필요하므로 이 세션에서는 Tuist CLI, 앱 또는 MCP 클라이언트에 로그인할 수 없습니다. 조직 관리자에게 도움을 요청하세요."

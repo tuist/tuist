@@ -15,7 +15,7 @@ defmodule AtlasWeb.PostmortemLive.Form do
     postmortem =
       if socket.assigns.live_action == :edit,
         do: Postmortems.get_postmortem_by_number!(params["number"]),
-        else: %Postmortem{}
+        else: %Postmortem{domains: []}
 
     domains = Domains.list_visible_domains(socket.assigns.current_user)
 

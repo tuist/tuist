@@ -112,7 +112,7 @@ msgid "Continue"
 msgstr "გაგრძელება"
 
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:57
+#: lib/tuist_web/live/device_codes_success_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr "დაფა"
@@ -271,14 +271,14 @@ msgstr "დარეგისტრირდით Tuist-ზე"
 msgid "This username has already been taken"
 msgstr "ეს მომხმარებლის სახელი უკვე დაკავებულია"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:37
+#: lib/tuist_web/live/device_codes_success_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr "Tuist CLI დაკავშირებულია!"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:26
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -291,7 +291,7 @@ msgstr "Tuist CLI დაკავშირებულია!"
 msgid "Tuist Logo"
 msgstr "Tuist-ის ლოგო"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:35
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr "Tuist აპლიკაცია დაკავშირებულია!"
@@ -308,7 +308,7 @@ msgstr "Tuist-ის ინტერფეისი"
 msgid "Tuist documentation"
 msgstr "Tuist-ის დოკუმენტაცია"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:39
+#: lib/tuist_web/live/device_codes_success_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr "Tuist დაკავშირებულია!"
@@ -350,17 +350,17 @@ msgstr "მოგესალმებით! შესვლა გაგრძ
 msgid "Welcome! Create an account to continue"
 msgstr "მოგესალმებით! შექმენით ანგარიში გაგრძელებისთვის"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:49
+#: lib/tuist_web/live/device_codes_success_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr "შეგიძლიათ ჩაუკეტოთ ტაბი და გააგრძელოთ"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:45
+#: lib/tuist_web/live/device_codes_success_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr "შეგიძლიათ ჩაუკეტოთ ტაბი და აპში გააგრძელოთ"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:47
+#: lib/tuist_web/live/device_codes_success_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr "შეგიძლიათ ჩაუკეტოთ ტაბი და ტერმინალში გააგრძელოთ"
@@ -893,3 +893,8 @@ msgstr "პაროლის გასაღების ვერიფიკ�
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
 msgstr "ეს პაროლის გასაღები უკვე დარეგისტრირებულია."
+
+#: lib/tuist_web/authentication.ex:698
+#, elixir-autogen, elixir-format
+msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
+msgstr "თქვენს თითოეულ ორგანიზაციას სჭირდება საკუთარი ერთიანი შესვლა (SSO), ამიტომ ამ სესიით ვერ შეხვალთ Tuist CLI-ში, აპლიკაციაში ან MCP კლიენტებში. დახმარებისთვის მიმართეთ ორგანიზაციის ადმინისტრატორს."

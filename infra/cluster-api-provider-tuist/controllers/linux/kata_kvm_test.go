@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/cluster-api/util/conditions"
 )
 
 func kvmReadyHarness(t *testing.T) *kataHarness {

@@ -4,6 +4,7 @@ defmodule TuistWeb.API.PushDevicesController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Push
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
 
   # Reject other credentials before validating their requests.
@@ -26,14 +27,13 @@ defmodule TuistWeb.API.PushDevicesController do
   operation(:update,
     summary: "Registers this app installation for push notifications",
     description:
-      "Associates the installation and its platform push token with the signed-in user. Only native app OAuth sessions can register. The registration lasts while that sign-in remains active.",
+      "Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.",
     operation_id: "registerPushDevice",
     parameters: [installation_id: @installation_id],
     request_body:
       {"Push device", "application/json",
        %Schema{
          type: :object,
-         additionalProperties: false,
          properties: %{
            platform: %Schema{type: :string, enum: ["ios", "android"], description: "The device platform."},
            token: %Schema{
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.PushDevicesController do
            }
          },
          required: [:platform, :token, :environment]
-       }},
+       }, required: true},
     responses: %{
       ok:
         {"The installation is registered", "application/json",
@@ -63,8 +63,8 @@ defmodule TuistWeb.API.PushDevicesController do
          }},
       bad_request: {"The device or installation ID is invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"Only native app OAuth sessions can register push devices", "application/json", Error},
-      too_many_requests: {"Too many changes from this user. Retry in a minute.", "application/json", Error},
+      forbidden: {"Only the signed-in Tuist app can register push devices", "application/json", Error},
+      too_many_requests: Responses.app_writes_throttled(),
       conflict: {"The installation belongs to another user or registration", "application/json", Error},
       gone:
         {"The installation ID can no longer be registered", "application/json",
@@ -75,7 +75,7 @@ defmodule TuistWeb.API.PushDevicesController do
              reason: %Schema{
                type: :string,
                description:
-                 "`retired`: generate a new installation ID and retry. `removed`: the user removed this device from their device list; keep notifications off on this device until the user turns them back on, then use a new installation ID."
+                 "`retired`: generate a new installation ID and retry. `removed`: the user removed this device from their device list; keep notifications off on this device until the user turns them back on, then use a new installation ID. Treat other values as `removed`."
              }
            },
            required: [:message, :reason]
@@ -111,7 +111,7 @@ defmodule TuistWeb.API.PushDevicesController do
            required: [:devices]
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"Only native app OAuth sessions can list push devices", "application/json", Error}
+      forbidden: {"Only the signed-in Tuist app can list push devices", "application/json", Error}
     }
   )
 
@@ -150,8 +150,8 @@ defmodule TuistWeb.API.PushDevicesController do
       no_content: "The installation is unregistered",
       bad_request: {"The installation ID is invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"Only native app OAuth sessions can unregister push devices", "application/json", Error},
-      too_many_requests: {"Too many changes from this user. Retry in a minute.", "application/json", Error}
+      forbidden: {"Only the signed-in Tuist app can unregister push devices", "application/json", Error},
+      too_many_requests: Responses.app_writes_throttled()
     }
   )
 
@@ -173,8 +173,8 @@ defmodule TuistWeb.API.PushDevicesController do
     responses: %{
       no_content: "The device is removed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"Only native app OAuth sessions can remove push devices", "application/json", Error},
-      too_many_requests: {"Too many changes from this user. Retry in a minute.", "application/json", Error}
+      forbidden: {"Only the signed-in Tuist app can remove push devices", "application/json", Error},
+      too_many_requests: Responses.app_writes_throttled()
     }
   )
 
