@@ -77,17 +77,9 @@
     }
   />
 
-  <.card title={dgettext("dashboard_sandboxes", "Properties")} icon="server">
+  <.card title={dgettext("dashboard_sandboxes", "Sandbox details")} icon="stack_2">
     <.card_section>
       <div data-part="metadata-grid">
-        <div :if={@sandbox.amp_orb_id} data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_sandboxes", "Orb ID")}</div>
-          <span data-part="label">{@sandbox.amp_orb_id}</span>
-        </div>
-        <div :if={@sandbox.anthropic_session_id} data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_sandboxes", "Session ID")}</div>
-          <span data-part="label">{@sandbox.anthropic_session_id}</span>
-        </div>
         <div data-part="metadata">
           <div data-part="title">{dgettext("dashboard_sandboxes", "Sandbox ID")}</div>
           <span data-part="label">{@sandbox.id}</span>
