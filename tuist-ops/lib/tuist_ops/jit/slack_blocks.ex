@@ -180,10 +180,18 @@ defmodule TuistOps.JIT.SlackBlocks do
   # The GitHub login comes from the slash command, so it may not be the
   # requester's own account; the card names it next to the requester.
   defp target_line(%Request{target_group: target_group} = req) do
-    if Policy.github_admin_group?(target_group) do
-      "*GitHub account:* <https://github.com/#{req.github_login}|#{req.github_login}> → organization admin"
-    else
-      "*Group:* `#{target_group}`"
+    cond do
+      Policy.github_admin_group?(target_group) ->
+        "*GitHub account:* <https://github.com/#{req.github_login}|#{req.github_login}> → organization admin"
+
+      # A thread elevation widens one Amp orb, not the requester's own
+      # kubectl. The card links the thread so the approver can see what
+      # it is doing before clicking.
+      is_binary(req.orb_thread_id) ->
+        "*Group:* `#{target_group}`\n*Amp orb thread:* <https://ampcode.com/threads/#{req.orb_thread_id}|#{req.orb_thread_id}> (only this thread; it must be the requester's own)"
+
+      true ->
+        "*Group:* `#{target_group}`"
     end
   end
 

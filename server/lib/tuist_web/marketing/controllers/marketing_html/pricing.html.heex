@@ -136,7 +136,7 @@ metered = [
           dgettext(
             "marketing",
             "+ from %{macos}/min on macOS and %{linux}/min on Linux",
-            macos: "$0.06",
+            macos: "$0.05",
             linux: "$0.001"
           )
       },
@@ -302,8 +302,8 @@ runner_platforms = [
     name: "macOS",
     description: "Apple M5 Pro",
     machines: [
-      %{vcpus: 8, memory_gb: 24, price: "$0.06"},
-      %{vcpus: 16, memory_gb: 48, price: "$0.12"}
+      %{vcpus: 8, memory_gb: 24, price: "$0.05"},
+      %{vcpus: 16, memory_gb: 48, price: "$0.10"}
     ]
   },
   %{
@@ -326,11 +326,11 @@ runner_platforms = [
 
 runner_terms = [
   %{
-    title: dgettext("marketing", "100 free macOS minutes every month"),
+    title: dgettext("marketing", "100 free macOS and 2,500 free Linux minutes every month"),
     description:
       dgettext(
         "marketing",
-        "Included on every plan, Air too."
+        "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
       )
   },
   %{

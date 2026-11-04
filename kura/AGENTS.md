@@ -67,8 +67,11 @@ does not repair embedded/native verification or qualify running processes.
   After its repair walk, a preparing destination pulls the serving source's
   content descriptors (`/_internal/handover/descriptors`, named destination of
   the current Serving intent only) and records the versions whose bytes match
-  in its bounded verified set. A same-version mismatch fails preparation; any
-  other walk failure stops it and keeps what was verified. Inside the barrier,
+  in its bounded verified set. A same-version mismatch fails preparation, and
+  so does a walk that does not reach the end of the source's index (deadline,
+  refused route or unreachable source): never freeze a source with content left
+  to hash. The preparation report's `content_verified` says the walk finished;
+  the controller freezes only for it. Inside the barrier,
   when begin advertises verified records, the source sends metadata-only
   descriptors (`/_internal/handover/verify-descriptors`) and verifies in full
   only the records the destination names. A version's bytes never change, and a
@@ -86,11 +89,13 @@ does not repair embedded/native verification or qualify running processes.
   While the source still serves, that walk also keeps a fixed 2 MiB filter of
   listed ids, retained bytes per segment sealed before it began, the oldest
   listed version and the missing bytes. When bodies are missing it then
-  compacts the least-retained of those segments (at most three quarters
-  retained): it copies the filtered artifacts into the active segment without a
-  sibling hint and reclaims the segment only when none of them is left. It
-  copies only while the store admits the copy plus 1 GiB without rotating out
-  anything at or after that version, and stops once the missing bytes fit.
+  compacts the least-retained of those segments (any whose reclaim frees at
+  least 64 MiB): it copies the filtered artifacts into the active segment
+  without a sibling hint and reclaims the segment only when none of them is
+  left. It copies a segment only while the store admits the copy plus 64 MiB
+  without rotating out anything at or after that version, and stops once the
+  bytes still missing fit with 1 GiB to spare. The applier repeats this before
+  every repair batch of that pass, against the missing bytes not yet applied.
   Never compact under the frozen source.
   Repeat the retained walk if eviction committed during it, including cascaded
   action-cache removals. Publish the eviction generation from the blocking

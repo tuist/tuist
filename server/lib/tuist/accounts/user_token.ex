@@ -26,6 +26,7 @@ defmodule Tuist.Accounts.UserToken do
     field :last_active_at, :utc_datetime
     field :auth_provider, :string
     field :auth_provider_organization_id, :string
+    field :mfa_verified_at, :utc_datetime
     belongs_to :auth_organization, Tuist.Accounts.Organization
     belongs_to :user, Tuist.Accounts.User
 
@@ -65,6 +66,7 @@ defmodule Tuist.Accounts.UserToken do
        last_active_at: now,
        auth_provider: to_string(Map.get(auth, :auth_method, :password)),
        auth_provider_organization_id: Map.get(auth, :provider_organization_id),
+       mfa_verified_at: Map.get(auth, :mfa_verified_at),
        auth_organization_id: Map.get(auth, :sso_organization_id)
      }}
   end
@@ -89,6 +91,42 @@ defmodule Tuist.Accounts.UserToken do
   end
 
   def satisfies_sso?(_, _), do: false
+
+  @doc """
+  The single sign-on `proof` (a session, or a device code its session
+  approved) as claims for the credentials it issues, so refreshing them can
+  check the organizations' SSO again. Empty when it proves no SSO sign-in.
+  """
+  def sso_claims(%{auth_provider: provider, auth_provider_organization_id: provider_organization_id} = proof)
+      when is_binary(provider) and is_binary(provider_organization_id) do
+    %{
+      "sso" => %{
+        "provider" => provider,
+        "provider_organization_id" => provider_organization_id,
+        "organization_id" => proof.auth_organization_id
+      }
+    }
+  end
+
+  def sso_claims(_proof), do: %{}
+
+  @doc """
+  The inverse of `sso_claims/1`: what a credential's claims prove, for
+  `Tuist.Accounts.sso_requirement/2`. `nil` for credentials issued without
+  that proof, including every one issued before credentials carried it.
+  """
+  def from_sso_claims(%{"sso" => %{"provider" => provider, "provider_organization_id" => provider_organization_id} = sso})
+      when is_binary(provider) and is_binary(provider_organization_id) do
+    organization_id = sso["organization_id"]
+
+    %UserToken{
+      auth_provider: provider,
+      auth_provider_organization_id: provider_organization_id,
+      auth_organization_id: if(is_integer(organization_id), do: organization_id)
+    }
+  end
+
+  def from_sso_claims(_claims), do: nil
 
   def live_socket_id(%UserToken{context: "session", token: token}) do
     live_socket_id(token)

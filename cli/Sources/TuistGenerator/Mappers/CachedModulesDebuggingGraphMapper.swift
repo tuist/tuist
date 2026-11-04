@@ -543,9 +543,12 @@ private struct CacheDebuggerSettingsRenderer {
     }
 
     /// Reads the build system's evaluated mappings without reparsing characters introduced by macro expansion.
+    ///
+    /// Multiplatform targets export `SDKROOT=auto`, which the `/usr/bin/python3` and `/usr/bin/xcrun` shims cannot
+    /// resolve: they fail and ask to install the Command Line Tools. Neither the interpreter nor the symbol tools need it.
     private func sourceMappingScript(sourceMappingsPath: AbsolutePath?) -> String {
         #"""
-        /usr/bin/python3 - "$source_map_file" \#(shellQuoted(sourceMappingsPath?
+        /usr/bin/env -u SDKROOT /usr/bin/python3 - "$source_map_file" \#(shellQuoted(sourceMappingsPath?
                 .pathString ?? "")) <<'TUIST_SOURCE_MAP' || source_map_status=$?
         import json
         import os

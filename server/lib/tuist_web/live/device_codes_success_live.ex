@@ -9,12 +9,19 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
   alias TuistWeb.Authentication
 
   def mount(%{"device_code" => device_code, "type" => type} = _conn, _session, socket) do
-    Accounts.authenticate_device_code(
-      device_code,
-      Authentication.current_user(socket)
-    )
+    user = Authentication.current_user(socket)
 
-    {:ok, assign(socket, type: type)}
+    session = socket.assigns[:current_user_session]
+
+    if Accounts.sso_requirement(user, session) == :ok do
+      Accounts.authenticate_device_code(device_code, user, session)
+      {:ok, assign(socket, type: type)}
+    else
+      # This page approves the code and its route has no SSO check of its own
+      # (it is reached directly or through live navigation), so send the
+      # session through the device-code route, which has one.
+      {:ok, redirect(socket, to: ~p"/auth/device_codes/#{device_code}?type=#{type}")}
+    end
   end
 
   def render(assigns) do

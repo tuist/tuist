@@ -347,6 +347,16 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/test-code-coverage",
             items: [
               %Item{
+                label: "Xcode",
+                slug: "/en/guides/features/test-code-coverage/xcode",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/test-code-coverage/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{
                 label: "Elixir",
                 slug: "/en/guides/features/test-code-coverage/elixir",
                 icon: "brand_elixir"

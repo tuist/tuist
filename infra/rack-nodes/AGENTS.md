@@ -473,7 +473,9 @@ address nobody answers for and whose gateway does (`busybox arping`).
 
 **A preinstalled box earns its install with its TPM.** The vendor's acceptance
 report carries the box's SMBIOS UUID and its TPM check code from the unit
-sheet. Declaring the box takes both:
+sheet, or from `sudo rack-node check-code` (the internet boot server serves
+`/tools/rack-node`) on any Linux the box boots; neither shows a code
+without a key. Declaring the box takes both:
 
 ```yaml
 - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
@@ -958,7 +960,9 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
    namespace, which step 3 created, so the production edge and one still
    running staging's pod accept each other's adverts instead of both holding
    the addresses. The Helm labels and annotations come along, so the rack-edge
-   release adopts it and keeps the password:
+   release adopts it and keeps the password. No elevation reaches Secrets, so
+   run it with each env's admin kubeconfig (`op document get "kubeconfig:
+   tuist-<env>"`) in place of `$S` and `$P`:
 
    ```
    kubectl $S -n omada get secret rack-edge-ber1-vrrp -o json |
@@ -1050,7 +1054,8 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 
 10. **Copy the hosts' AMT Secrets** (remote) from `tuist-staging` to `tuist`.
     AMT keeps the admin password staging generated, and production can drive
-    a host's AMT only with it:
+    a host's AMT only with it. Like step 5, this needs the admin kubeconfigs
+    in place of `$S` and `$P`:
 
     ```
     for uuid in $EDGE_A $EDGE_B $STORE_A; do
@@ -1302,8 +1307,9 @@ How it works is "A host lent to another env" in
 [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
 **Once per borrowing env** (remote, by a person: it writes a credential into
-1Password). The borrowing env's values set `rackFleet.borrow.enabled` (staging
-and canary do), which renders the `rack-lender` identity production's operator
+1Password and reads a Secret, so `C` is the borrowing env's admin kubeconfig
+context rather than its gateway). The borrowing env's values set
+`rackFleet.borrow.enabled` (staging and canary do), which renders the `rack-lender` identity production's operator
 writes that env's leases with. With `C` the borrowing cluster's context, `N`
 its namespace and `E` its name. Every variable is quoted, since zsh does not
 word-split an unquoted one, and each step runs only if the one before it

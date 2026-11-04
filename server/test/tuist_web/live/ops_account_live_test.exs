@@ -86,13 +86,14 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     lv
     |> form("#sandbox-concurrency-form", %{
-      "account" => %{"sandbox_vcpus_limit" => "8", "sandbox_memory_gb_limit" => "24"}
+      "account" => %{"sandbox_vcpus_limit" => "8", "sandbox_memory_gb_limit" => "24", "sandbox_disk_gb_limit" => "120"}
     })
     |> render_submit()
 
     account = Repo.reload!(user.account)
     assert account.sandbox_vcpus_limit == 8
     assert account.sandbox_memory_gb_limit == 24
+    assert account.sandbox_disk_gb_limit == 120
     assert Concurrency.limits_for(account, :linux) == ci_limits
 
     html =
@@ -898,7 +899,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
         |> render_change()
 
       assert html =~ "11,200.00"
-      assert html =~ "186.7K"
+      assert html =~ "224K"
     end
 
     test "names the first and last invoice the pool will pay for", %{conn: conn, user: user} do

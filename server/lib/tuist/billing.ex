@@ -782,11 +782,19 @@ defmodule Tuist.Billing do
   end
 
   defp apply_runner_item_changes(subscription_id, stripe_subscription, account) do
+    meters = runner_price_meters()
+
+    present = Enum.filter(stripe_subscription.items.data, &Map.has_key?(meters, subscription_item_price_id(&1)))
+
     changes =
       if Trials.on_trial?(account) do
-        Enum.map(present_runner_items(stripe_subscription), &%{id: &1.id, deleted: true})
+        Enum.map(present, &%{id: &1.id, deleted: true})
       else
-        missing_runner_items(stripe_subscription)
+        present_meters = MapSet.new(present, &Map.fetch!(meters, subscription_item_price_id(&1)))
+
+        (Tuist.Environment.stripe_prices() || %{})
+        |> configured_runner_prices()
+        |> Enum.reject(&MapSet.member?(present_meters, Map.get(meters, &1.price)))
       end
 
     case changes do
@@ -801,75 +809,6 @@ defmodule Tuist.Billing do
         # all, which is precisely the usage the trial covered.
         Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
     end
-  end
-
-  defp present_runner_items(stripe_subscription) do
-    meters = runner_price_meters()
-    Enum.filter(stripe_subscription.items.data, &Map.has_key?(meters, subscription_item_price_id(&1)))
-  end
-
-  # The configured runner Prices whose meter no item on the subscription
-  # bills yet, current or retired.
-  defp missing_runner_items(stripe_subscription) do
-    meters = runner_price_meters()
-
-    present_meters =
-      MapSet.new(present_runner_items(stripe_subscription), &Map.fetch!(meters, subscription_item_price_id(&1)))
-
-    (Tuist.Environment.stripe_prices() || %{})
-    |> configured_runner_prices()
-    |> Enum.reject(&MapSet.member?(present_meters, Map.get(meters, &1.price)))
-  end
-
-  @doc """
-  Adds every configured runner Price a live subscription is missing, for
-  accounts off a runner trial. New subscriptions and trials that end pick
-  up every runner Price on their own, so this is for a Price configured
-  after subscriptions already carry the others, such as cache volume
-  storage. Items are added with `proration_behavior: "none"`, so nothing
-  stored before the item existed is billed.
-
-  Defaults to a dry run. Pass `dry_run: false` to update the subscriptions:
-
-      Tuist.Billing.add_missing_runner_subscription_items()
-      Tuist.Billing.add_missing_runner_subscription_items(dry_run: false)
-
-  Returns one entry per subscription missing an item, with the Prices it
-  adds and its `result`.
-  """
-  def add_missing_runner_subscription_items(opts \\ []) do
-    dry_run = Keyword.get(opts, :dry_run, true)
-
-    from(s in Subscription,
-      where: s.status in ^@live_subscription_statuses,
-      order_by: [asc: s.inserted_at],
-      preload: :account
-    )
-    |> Repo.all()
-    |> Enum.reject(&Trials.on_trial?(&1.account))
-    |> Enum.flat_map(&add_missing_runner_items(&1, dry_run))
-  end
-
-  defp add_missing_runner_items(%Subscription{subscription_id: subscription_id} = subscription, dry_run) do
-    entry = %{subscription_id: subscription_id, account_id: subscription.account_id}
-
-    with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
-         [_ | _] = items <- missing_runner_items(stripe_subscription) do
-      [
-        Map.merge(entry, %{prices: Enum.map(items, & &1.price), result: add_runner_items(subscription_id, items, dry_run)})
-      ]
-    else
-      [] -> []
-      {:error, error} -> [Map.merge(entry, %{prices: [], result: {:error, error}})]
-    end
-  end
-
-  defp add_runner_items(_subscription_id, _items, true), do: :dry_run
-
-  defp add_runner_items(subscription_id, items, false) do
-    subscription_id
-    |> Stripe.Subscription.update(%{items: items, proration_behavior: "none"})
-    |> cleanup_result()
   end
 
   @doc """
@@ -1164,6 +1103,89 @@ defmodule Tuist.Billing do
   end
 
   defp swap_runner_prices(subscription_id, items) do
+    subscription_id
+    |> Stripe.Subscription.update(%{items: items, proration_behavior: "none"})
+    |> cleanup_result()
+  end
+
+  @doc """
+  Adds the runner items a live subscription is missing because their
+  platform's Price went live after the subscription last picked runner
+  items up.
+
+  A new subscription, a plan change and the end of a runner trial all
+  carry every configured runner Price, but nothing revisits a
+  subscription that already has its runner items when another
+  platform's Price is configured. Only subscriptions already billed for
+  runners are changed: those carrying a runner item, current or retired.
+  That leaves out every subscription carrying none on purpose, an
+  account on a runner trial and plans whose terms do not bill runners.
+
+  Items are added with `proration_behavior: "none"`, and a metered item
+  only bills usage reported after it exists, so nothing the platform ran
+  before is invoiced. A subscription with a subscription schedule is
+  skipped and reported, since the schedule's next phase would replace
+  its items.
+
+  Dry run by default. Run it from a remote console:
+
+      Tuist.Billing.add_missing_runner_items()
+      Tuist.Billing.add_missing_runner_items(dry_run: false)
+
+  Returns one entry per subscription missing a runner item, with its
+  `action` and its `result`.
+  """
+  def add_missing_runner_items(opts \\ []) do
+    dry_run = Keyword.get(opts, :dry_run, true)
+    meters = runner_price_meters()
+    configured = configured_runner_prices(Tuist.Environment.stripe_prices() || %{})
+
+    from(s in Subscription,
+      where: s.status in ^@live_subscription_statuses,
+      order_by: [asc: s.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.flat_map(fn %Subscription{subscription_id: subscription_id} = subscription ->
+      case missing_runner_items_action(subscription_id, meters, configured) do
+        :up_to_date ->
+          []
+
+        action ->
+          result =
+            case action do
+              {:add, _items} when dry_run -> :dry_run
+              {:add, items} -> add_runner_items(subscription_id, items)
+              _skip -> :skipped
+            end
+
+          [%{subscription_id: subscription_id, account_id: subscription.account_id, action: action, result: result}]
+      end
+    end)
+  end
+
+  defp missing_runner_items_action(subscription_id, meters, configured) do
+    case Stripe.Subscription.retrieve(subscription_id) do
+      {:ok, stripe_subscription} ->
+        present_meters =
+          stripe_subscription.items.data
+          |> Enum.map(&Map.get(meters, subscription_item_price_id(&1)))
+          |> Enum.reject(&is_nil/1)
+          |> MapSet.new()
+
+        missing = Enum.reject(configured, &MapSet.member?(present_meters, Map.get(meters, &1.price)))
+
+        cond do
+          MapSet.size(present_meters) == 0 or missing == [] -> :up_to_date
+          not is_nil(Map.get(stripe_subscription, :schedule)) -> {:skip, :scheduled}
+          true -> {:add, missing}
+        end
+
+      {:error, error} ->
+        {:skip, {:error, error}}
+    end
+  end
+
+  defp add_runner_items(subscription_id, items) do
     subscription_id
     |> Stripe.Subscription.update(%{items: items, proration_behavior: "none"})
     |> cleanup_result()

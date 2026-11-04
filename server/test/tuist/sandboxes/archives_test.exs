@@ -15,6 +15,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
@@ -82,21 +83,85 @@ defmodule Tuist.Sandboxes.ArchivesTest do
      }}
   end
 
-  describe "enqueue_if_over_cap/1" do
-    test "queues a run once an account keeps more paused Orbs on nodes than the cap", %{account: account} do
-      for _ <- 1..Archives.max_paused_on_node_per_account(), do: paused_orb(account, paused_at: hours_ago(1))
-      assert :ok = Archives.enqueue_if_over_cap(account.id)
-      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
-
+  describe "making room under the disk limit" do
+    test "a create past it queues the archive of the least recently paused idle Orb", %{account: account} do
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 28})
       paused_orb(account, paused_at: hours_ago(1))
-      assert :ok = Archives.enqueue_if_over_cap(account.id)
-      assert [_job] = all_enqueued(worker: ArchiveSandboxesWorker)
+      oldest = paused_orb(account, paused_at: hours_ago(3))
+      reject(&Capacity.place/1)
+
+      assert {:error, :sandbox_disk_limit} = Sandboxes.create_sandbox(account, %{})
+      assert [%{args: %{"account_id" => account_id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert account_id == account.id
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == oldest.id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert {:error, "upload failed"} = Archives.archive_oldest(account.id)
     end
 
-    test "queues nothing while archiving is off", %{account: account} do
+    test "a refusal stays retryable while an archive uploads, without queueing another", %{account: account} do
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
+      paused_orb(account, archive_upload_id: "upload-in-flight")
+      reject(&Capacity.place/1)
+
+      assert {:error, :sandbox_disk_limit} = Sandboxes.create_sandbox(account, %{})
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+
+    test "a refusal is final when nothing can be archived", %{account: account} do
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
+      paused_orb(account, amp_orb_id: nil)
+      reject(&Capacity.place/1)
+      assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
+
+      paused_orb(account)
       stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
-      for _ <- 0..Archives.max_paused_on_node_per_account(), do: paused_orb(account, paused_at: hours_ago(1))
-      assert :ok = Archives.enqueue_if_over_cap(account.id)
+      assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+  end
+
+  describe "request/1" do
+    test "queues the archive of a sandbox the hourly run would leave alone", %{account: account} do
+      # Not an Amp Orb and paused for minutes, far below the threshold.
+      sandbox = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: hours_ago(0))
+
+      assert :ok = Archives.request(sandbox)
+      assert [job] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert job.args == %{"sandbox_id" => sandbox.id}
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts when id == sandbox.id -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: id}, _opts when id == sandbox.id -> {:ok, %{}} end)
+
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(sandbox)
+    end
+
+    test "refuses sandboxes that are not paused on a node, or already uploading", %{account: account} do
+      running = sandbox_fixture(account: account, node_name: "node-a")
+      uploading = paused_orb(account, archive_upload_id: "upload-in-flight")
+      archived = archived_orb(account)
+
+      assert {:error, {:invalid_state, :running}} = Archives.request(running)
+      assert {:error, {:invalid_state, :paused}} = Archives.request(uploading)
+      assert {:error, {:invalid_state, :archived}} = Archives.request(archived)
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+
+    test "refuses accounts at their archive storage cap", %{account: account} do
+      sandbox = paused_orb(account)
+      archived_orb(account, archive_bytes: Archives.max_archived_bytes_per_account())
+
+      assert {:error, :archive_storage_full} = Archives.request(sandbox)
       assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
   end
@@ -164,20 +229,10 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert Repo.reload!(sandbox).state == :paused
     end
 
-    test "archives the least recently paused Orbs of an account over the on-node cap", %{account: account} do
-      oldest = paused_orb(account, paused_at: hours_ago(3))
-
-      for n <- 1..Archives.max_paused_on_node_per_account(),
-          do: paused_orb(account, paused_at: DateTime.add(hours_ago(2), n, :minute))
-
-      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
-
-      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
-        assert id == oldest.id
-        {:error, "object storage answered 503"}
-      end)
-
-      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+    test "keeps recently paused Orbs on their nodes however many an account has", %{account: account} do
+      for _ <- 1..15, do: paused_orb(account, paused_at: hours_ago(1))
+      reject(&Storage.multipart_start/2)
+      reject(&Nodes.call/4)
       Archives.run()
     end
 
@@ -336,14 +391,16 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert key == sandbox.archive_key
     end
 
-    test "archived Orbs do not count toward the on-node cap, a restore does", %{account: account} do
-      for n <- 1..Sandboxes.max_on_node_sandboxes_per_account(), do: archived_orb(account, amp_orb_id: "archived-#{n}")
+    test "archived Orbs do not charge the disk limit, a restore does", %{account: account} do
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
+      for n <- 1..3, do: archived_orb(account, amp_orb_id: "archived-#{n}")
       expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
       assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
 
       account = account_fixture()
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
       sandbox = archived_orb(account)
-      for _ <- 1..Sandboxes.max_on_node_sandboxes_per_account(), do: paused_orb(account, amp_orb_id: nil)
+      paused_orb(account, amp_orb_id: nil)
       stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
       reject(&Capacity.place/1)
 

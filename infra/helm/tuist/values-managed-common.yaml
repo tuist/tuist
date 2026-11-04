@@ -156,6 +156,12 @@ server:
     # vault before a deploy.
     grafanaClickHouse:
       enabled: true
+    # ChatGPT subscription sign-in. The CHATGPT_OAUTH item (client_id) must
+    # exist in the environment's vault before a deploy. It currently holds
+    # Pi's public Codex client ID; swap the value for Tuist's own client once
+    # OpenAI issues one, with no chart change.
+    chatgptClient:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
@@ -601,6 +607,7 @@ runnersFleet:
       # once a versioned runner-image release includes the 27.2 profile.
       imageTag: macos-27-2-069e7465
   xcodeVersions:
+    - xcodeVersion: "27.3-beta"
     # The customer selector is 27.2; its base is explicitly 27.2-rc.
     - xcodeVersion: "27.2"
     - xcodeVersion: "27.1"

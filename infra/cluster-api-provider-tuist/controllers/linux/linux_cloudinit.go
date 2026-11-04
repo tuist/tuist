@@ -202,7 +202,21 @@ RebootWatchdogSec=5min
 // its hard watermark as normal steady state (Kura's own shedding deliberately
 // excludes them, keying off pressure_bytes instead), so early throttling would
 // stall a perfectly healthy cache node reclaiming cache it is supposed to hold.
-const kubeletMemoryGovernanceBlock = `systemReserved:
+//
+// imageMaximumGCAge removes an image no container on the node has used for a
+// day, whatever the disk level. Without it the kubelet only collects images at
+// imageGCHighThresholdPercent (85% by default), which is also where
+// imagefs.available<15% starts evicting, so every runner image release stayed
+// on every box until the disk was full: on 2026-11-04 the Gravelines runners
+// held 51 linux-runner versions each, about 300 GB unpacked, and one crossed
+// the eviction threshold. A day matches tart-kubelet's idle retention for
+// macOS goldens. The percentage thresholds stay at their defaults because the
+// Kura cache boxes share this config and run /data near 80% by design: a lower
+// threshold would empty their image store on every GC pass. The kubelet keeps
+// last-use times in memory, so a restart (including this config's re-push)
+// starts every unused image's day over.
+const kubeletMemoryGovernanceBlock = `imageMaximumGCAge: 24h
+systemReserved:
   cpu: 500m
   memory: 1Gi
 kubeReserved:
@@ -976,17 +990,13 @@ privileged_without_host_devices = true
 pod_annotations = ["io.katacontainers.*"]
 [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
 ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
-# SystemdCgroup MUST be set on the handler itself. The SystemdCgroup rewrite
-# above only touches what the generated default emitted, and this block is
-# appended after it, so the kata handler would otherwise keep the false default
-# while kubelet runs cgroupDriver: systemd. Under that mismatch the shim creates
-# the slice name as a LITERAL directory at the cgroup root instead of nesting it
-# under kubepods.slice, nothing ever reclaims those, and the node eventually
-# fails every cgroup mkdir with ENOSPC while still reporting Ready. See the
-# same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
+# SystemdCgroup is set on the handler itself to match kubelet's
+# cgroupDriver: systemd, since the SystemdCgroup rewrite above only touches
+# what the generated default emitted. It does not stop the shim from leaking
+# cgroups at the root; sandbox_cgroup_only does (kataSandboxCgroupSetup).
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo)+kataSandboxCgroupSetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs

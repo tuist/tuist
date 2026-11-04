@@ -552,6 +552,30 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :sandboxes do
+    action :read do
+      desc("Allows users of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
+      desc("Allows users with ops access to see any account's sandboxes.")
+      allow([:authenticated_as_user, :ops_access])
+    end
+
+    action :update do
+      desc("Allows the admin of an account to pause, resume and delete its sandboxes and project snapshots.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to pause, resume and delete any account's sandboxes.")
+      allow([:authenticated_as_user, :ops_write_access])
+    end
+  end
+
   object :organization do
     action :read do
       desc("Allows users of an account to read organization info.")

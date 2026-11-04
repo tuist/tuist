@@ -18,6 +18,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
+  alias TuistWeb.Plugs.MCPRateLimitPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
@@ -328,7 +329,41 @@ defmodule TuistWeb.Router do
     plug :accept_atlas_identity_header
     plug SentryContextPlug
     plug ObservabilityContextPlug
-    plug TuistWeb.Plugs.MCPRateLimitPlug
+    plug MCPRateLimitPlug
+  end
+
+  # WebMCP tools the dashboard registers in the browser run as the signed-in
+  # user, scoped to the account in the path, so the session cookie authenticates
+  # them, CSRF protection applies, and that account's SSO enforcement applies
+  # as it does on its dashboard. Bearer tokens, operator grants and Atlas
+  # identities are not accepted.
+  pipeline :webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_user
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug :require_sso_authentication_for_account_api
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug MCPRateLimitPlug
+  end
+
+  # The documentation tools every website page registers with WebMCP need no
+  # identity, so no session or CSRF token is involved, and callers are rate
+  # limited by address.
+  pipeline :public_webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug MCPRateLimitPlug
+  end
+
+  # Pages that issue credentials acting for the user everywhere, which must not
+  # become a way around an organization's SSO enforcement.
+  pipeline :require_sso_for_credentials do
+    plug :require_sso_authentication_for_credentials
   end
 
   pipeline :authenticated_api do
@@ -734,6 +769,18 @@ defmodule TuistWeb.Router do
     forward "/mcp", Tuist.MCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
   end
 
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:public_webmcp]
+
+    post "/public", WebMCPController, :public
+  end
+
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:webmcp]
+
+    post "/accounts/:account_handle", WebMCPController, :account
+  end
+
   scope "/scim/v2", TuistWeb.SCIM do
     pipe_through [:scim_api]
 
@@ -1129,6 +1176,27 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
+
+    get "/me/push-devices", PushDevicesController, :index
+    put "/me/push-devices/:installation_id", PushDevicesController, :update
+    delete "/me/push-devices/:installation_id", PushDevicesController, :delete
+    delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
+    get "/me/notification-preferences/:kind", NotificationPreferencesController, :show
+
+    put "/me/notification-preferences/:kind/accounts/:account_handle",
+        NotificationPreferencesController,
+        :update_account
+
+    put "/me/notification-preferences/:kind/projects/:account_handle/:project_handle",
+        NotificationPreferencesController,
+        :update_project
+
+    get "/me/ai-subscriptions", AISubscriptionsController, :index
+    put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
+    post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
+    post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login
+    delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
+    delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
   end
 
   scope "/api" do
@@ -1170,6 +1238,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/checkout", RunnerCacheVolumesController, :checkout
     post "/runners/cache-volumes/docker", RunnerCacheVolumesController, :docker
     post "/runners/cache-volumes/docker-seen", RunnerCacheVolumesController, :docker_seen
+    post "/runners/cache-volumes/execution", RunnerCacheVolumesController, :execution
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
@@ -1232,9 +1301,14 @@ defmodule TuistWeb.Router do
   end
 
   scope "/oauth2", TuistWeb.Oauth do
-    pipe_through [:browser_app, :fetch_current_user]
+    pipe_through [:browser_app, :fetch_current_user, :require_sso_for_credentials]
 
     get "/authorize", AuthorizeController, :authorize
+  end
+
+  scope "/oauth2", TuistWeb.Oauth do
+    pipe_through [:browser_app, :fetch_current_user]
+
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
     get "/apple", AuthorizeController, :authorize_with_apple
@@ -1350,10 +1424,21 @@ defmodule TuistWeb.Router do
     end
 
     post "/users/log_in", UserSessionController, :create
+    post "/users/log_in/passkey/options", UserPasskeyController, :authentication_options
+    post "/users/log_in/passkey", UserPasskeyController, :authenticate
   end
 
   scope "/", TuistWeb do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
+
+    get "/users/settings/mfa", UserMFAController, :show
+    post "/users/settings/mfa/enroll", UserMFAController, :enroll
+    post "/users/settings/mfa/confirm", UserMFAController, :confirm
+    post "/users/settings/mfa/cancel", UserMFAController, :cancel
+    post "/users/settings/mfa/disable", UserMFAController, :disable
+    post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
+    post "/users/settings/passkeys", UserPasskeyController, :create
+    post "/users/settings/passkeys/:id/delete", UserPasskeyController, :delete
 
     live_session :require_authenticated_user,
       session: {TuistWeb.RemoteIp, :live_session, []},
@@ -1370,6 +1455,9 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:browser_app]
 
+    get "/users/mfa", UserMFAController, :challenge
+    post "/users/mfa", UserMFAController, :verify
+    post "/users/mfa/passkey/options", UserMFAController, :passkey_options
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,
@@ -1423,6 +1511,10 @@ defmodule TuistWeb.Router do
     get "/sso/link", SSOLinkController, :show
     post "/sso/link", SSOLinkController, :create
     delete "/sso/link", SSOLinkController, :delete
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app, :require_authenticated_user, :require_sso_for_credentials]
 
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
@@ -1616,6 +1708,9 @@ defmodule TuistWeb.Router do
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
+      live "/sandboxes", SandboxesLive
+      live "/sandboxes/instances", SandboxInstancesLive
+      live "/sandboxes/:sandbox_id", SandboxLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1628,6 +1723,7 @@ defmodule TuistWeb.Router do
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
+      live "/settings/ai-subscriptions", AISubscriptionsSettingsLive
     end
   end
 

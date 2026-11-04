@@ -119,6 +119,8 @@ server:
       enabled: true
     originAppKey:
       enabled: true
+    apns:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -168,10 +170,13 @@ server:
       value: https://registry-staging.tuist.dev/swift
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
-    # Must equal the first tier of the runner Price above (2 minutes).
-    # Production leaves this unset and takes the 100 minute default.
+    # Must equal the first tier of each runner Price below (2 macOS and
+    # 50 Linux minutes). Production leaves these unset and takes the 100
+    # and 2,500 minute defaults.
     - name: TUIST_RUNNER_FREE_MONTHLY_MINUTES
       value: "2"
+    - name: TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      value: "50"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
@@ -267,7 +272,8 @@ server:
       # end before production sees it. The Price is graduated: the first
       # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
       # baseline) are free, and beyond that each millisecond costs
-      # 0.0001 cents, which is $0.06 per baseline machine-minute.
+      # 0.000083333333 cents, which is $0.05 per baseline machine-minute
+      # (cut at the 12 decimals Stripe accepts, see production).
       #
       # Two minutes rather than production's hundred so the free tier and
       # the dispatch cap can both be reached in one short job instead of
@@ -281,10 +287,14 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # Linux stays reporting-only: its Meter exists and receives usage,
-      # but with no agreed rate there is no Price to point at, and an
-      # empty id means no subscription can carry a Linux runner item, so
-      # nothing can be charged for it.
+      # The Linux Price is graduated the same way: the first 3000000
+      # compute-unit milliseconds (50 minutes on the 2 vCPU / 8 GB baseline,
+      # worth the same as the two macOS minutes) are free, and beyond that
+      # each millisecond costs 0.000004 cents, which is $0.0024 per baseline
+      # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
+      # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      # below, and the rate with `@on_demand_rates` in
+      # `Tuist.Runners.Prepaid`.
       #
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
@@ -294,14 +304,17 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1UXNkKLlKoN51eczld0hbV1t"
+        runner_linux_compute_unit_milliseconds: "price_1UXkvHLlKoN51eczI4KykboL"
+        runner_macos_compute_unit_milliseconds: "price_1UY5MBLlKoN51eczRkfPBFEa"
         # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
         # then 0.01 cents each, which is $0.10 per GB-month. Measured by
         # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
         # Meter has to exist before this key does; the empty id reports without
-        # charging, like Linux above.
+        # charging.
         runner_cache_volume_megabyte_months: ""
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1UXNkKLlKoN51eczld0hbV1t"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by

@@ -16,7 +16,7 @@ defmodule AtlasWeb.SpecLive.Form do
     spec =
       if socket.assigns.live_action == :edit,
         do: Specs.get_spec_by_number!(params["number"]),
-        else: %Spec{}
+        else: %Spec{domains: []}
 
     domains = Domains.list_visible_domains(socket.assigns.current_user)
     projects = Projects.list_visible_projects(socket.assigns.current_user)

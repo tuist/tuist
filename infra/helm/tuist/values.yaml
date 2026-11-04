@@ -822,6 +822,14 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Public OAuth client ID for linking ChatGPT subscriptions
+    # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
+    # Enable only after the item exists in the environment's vault: a missing
+    # item fails the pre-upgrade ExternalSecret and blocks the deploy.
+    chatgptClient:
+      enabled: false
+      item: CHATGPT_OAUTH
+      field: client_id
     # Origin app identity. Enable only after the registered App ID and its
     # signing key exist together in the environment's vault.
     originAppKey:
@@ -829,6 +837,12 @@ server:
       item: ORIGIN_APP
       appIdField: app_id
       field: private_key
+    # Apple Push Notification service token-auth key for the Tuist iOS app
+    # (the APNS item: key_id, team_id, topic, private-key.p8). Enable only
+    # after the item exists in the environment's vault, since a missing field
+    # fails the whole sync.
+    apns:
+      enabled: false
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -857,23 +871,6 @@ server:
     # pinned one included). Off until the item exists in the environment's vault.
     kuraVolumeTransportKeys:
       enabled: false
-    # OpenBao and legacy roots coexist only during a verified rewrap migration.
-    # Disable root-key sync AFTER all live shares use OpenBao and restart every
-    # consumer of server-config. Retain old roots offline for backup recovery.
-    kuraVolumeOpenBao:
-      enabled: false
-      # Keep OpenBao decrypt access while rewrapping back to legacy roots.
-      # Disable only after all web replicas use this mode and inventory is clear.
-      wrapNewShares: true
-      # HTTPS origin only. Keep stable: stored share IDs pin origin/mount/key.
-      address: ""
-      keyName: "kura-volume-root"
-      transitMount: "transit"
-      authMount: "kubernetes"
-      role: ""
-      decryptKeyNames: []
-      # Optional ConfigMap containing ca.crt for a private OpenBao CA.
-      caConfigMap: ""
     externalSecrets:
       refreshInterval: "1h"
       storeRef:
@@ -2716,8 +2713,8 @@ sandboxes:
   # workspace_gb, memory image), so the server reserves each sandbox's
   # ceiling (template rootfs + workspace + memory) at placement, running or
   # paused, and stops placing on a node whose ceilings would exceed this.
-  # A default 2x4096 sandbox with a 10 GB workspace on an 8 GiB rootfs
-  # reserves about 22 GiB. The server also keeps one memory image plus
+  # A default 2x4096 sandbox with a 10 GB workspace on a 12 GiB rootfs
+  # reserves about 26 GiB. The server also keeps one memory image plus
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200

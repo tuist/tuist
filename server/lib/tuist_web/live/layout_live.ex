@@ -299,6 +299,7 @@ defmodule TuistWeb.LayoutLive do
       user_belongs_to_account? or project.visibility == :public
     end)
     |> Enum.map(&%{&1.project | account: &1.account})
+    |> Enum.sort_by(& &1.name)
   end
 
   defp assign_selected_run(socket, params) do
