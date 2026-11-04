@@ -19,7 +19,7 @@ use futures_util::{StreamExt, stream::FuturesOrdered};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, sync::atomic::Ordering, time::Duration};
-use tokio_util::sync::CancellationToken;
+use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 use tracing::Instrument;
 
 const MAX_BATCH_RECORDS: usize = 32;
@@ -28,6 +28,10 @@ const MAX_BATCH_METADATA_BYTES: usize = 64 * 1024;
 // Content descriptors hashed per page while the source serves.
 const DESCRIPTOR_PAGE_RECORDS: usize = 1024;
 const DESCRIPTOR_PAGE_BODY_BYTES: u64 = 128 * 1024 * 1024;
+// Records read and hashed at once by each side of the content walk. Each read
+// costs a few milliseconds of disk latency, so a sequential walk of a million
+// records outlasts the preparation deadline.
+const RECORDS_IN_FLIGHT: usize = 16;
 // Metadata-only descriptors checked per request inside the barrier.
 const DESCRIPTOR_BATCH_RECORDS: usize = 1024;
 const DESCRIPTOR_BATCH_METADATA_BYTES: usize = 256 * 1024;
@@ -239,6 +243,25 @@ pub(crate) async fn record(
         size: bytes,
         digest: format!("{:x}", digest.finalize()),
     }))
+}
+
+/// [`record`] for each row on its own task, a bounded number at once, yielded
+/// in row order. Segment reads block their thread, so only separate tasks
+/// overlap them. Dropping the stream aborts the records still in flight.
+fn records_in_order(
+    state: &SharedState,
+    rows: Vec<(BackfillRecordKind, String, u64)>,
+) -> impl futures_util::Stream<Item = Result<Option<Record>, String>> {
+    let state = state.clone();
+    futures_util::stream::iter(rows)
+        .map(move |(kind, id, version)| {
+            let state = state.clone();
+            AbortOnDropHandle::new(tokio::spawn(async move {
+                record(&state, kind, &id, version).await
+            }))
+        })
+        .buffered(RECORDS_IN_FLIGHT)
+        .map(|joined| joined.map_err(|error| error.to_string())?)
 }
 
 pub async fn verify(
@@ -826,10 +849,17 @@ async fn descriptor_page(
         .backfill_index_page(after.as_deref(), DESCRIPTOR_PAGE_RECORDS)?;
     let mut records = Vec::new();
     let mut body_bytes = 0u64;
-    for row in page.entries {
+    let mut hashed = std::pin::pin!(records_in_order(
+        state,
+        page.entries
+            .iter()
+            .map(|row| (row.kind, row.record_id.clone(), row.version_ms))
+            .collect(),
+    ));
+    for row in &page.entries {
         // Live writes and eviction can retire a row between listing and
         // hashing; the frozen barrier verifies whatever this pass missed.
-        if let Ok(Some(record)) = record(state, row.kind, &row.record_id, row.version_ms).await {
+        if let Some(Ok(Some(record))) = hashed.next().await {
             body_bytes = body_bytes.saturating_add(record.size);
             records.push(record);
         }
@@ -936,14 +966,25 @@ async fn verify_content_while_serving(
         {
             walk.frontier_ms = Some(state.store.lower_retained_watch(oldest));
         }
-        for expected in &page.records {
-            let kind = BackfillRecordKind::from_wire_name(&expected.kind)
-                .ok_or("unknown retained record kind")?;
+        let kinds = page
+            .records
+            .iter()
+            .map(|expected| {
+                BackfillRecordKind::from_wire_name(&expected.kind)
+                    .ok_or("unknown retained record kind")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut held = std::pin::pin!(records_in_order(
+            state,
+            page.records
+                .iter()
+                .zip(&kinds)
+                .map(|(expected, kind)| (*kind, expected.id.clone(), expected.version))
+                .collect(),
+        ));
+        for (expected, kind) in page.records.iter().zip(&kinds) {
             // A transient read or eviction leaves the record to the frozen barrier.
-            match record(state, kind, &expected.id, expected.version)
-                .await
-                .unwrap_or(None)
-            {
+            match held.next().await.and_then(Result::ok).flatten() {
                 Some(actual)
                     if actual.size == expected.size && actual.digest == expected.digest =>
                 {
@@ -981,7 +1022,7 @@ async fn verify_content_while_serving(
                             record_kind: expected.kind.clone(),
                             record_id: expected.id.clone(),
                             version_ms: expected.version,
-                            size: (kind != BackfillRecordKind::NamespaceTombstone)
+                            size: (*kind != BackfillRecordKind::NamespaceTombstone)
                                 .then_some(expected.size),
                         });
                     }
@@ -3886,6 +3927,59 @@ mod tests {
         assert!(
             pages <= 2,
             "{pages} descriptor pages for 1,100 small records"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn the_content_walk_reads_records_concurrently_on_both_sides() {
+        let pair = ContentPair::new().await;
+        for index in 0..48u32 {
+            pair.seed(&format!("slow-{index}"), &index.to_be_bytes())
+                .await;
+        }
+        pair.source.state.store.run_backfill_index_build().unwrap();
+        // Each authoritative read takes 20 ms, as a cold disk read would.
+        let overlap = |state: &SharedState| {
+            let in_flight = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let most = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let (counter, peak) = (in_flight.clone(), most.clone());
+            state
+                .store
+                .set_manifest_read_observer(Some(Arc::new(move || {
+                    let now = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                    peak.fetch_max(now, Ordering::SeqCst);
+                    std::thread::sleep(Duration::from_millis(20));
+                    counter.fetch_sub(1, Ordering::SeqCst);
+                })));
+            most
+        };
+        let (source_peak, destination_peak) =
+            (overlap(&pair.source.state), overlap(&pair.target.state));
+        pair.install("Serving");
+        let renew = pair.keep_granted("Serving");
+        let request = VerifyRequest {
+            begin: false,
+            intent: pair.intent.clone(),
+            source: pair.source.state.runtime.authority.identity().clone(),
+            record: None,
+            records: Vec::new(),
+            receipt: None,
+        };
+
+        let walk = verify_content_while_serving(&pair.target.state, &request, 1)
+            .await
+            .unwrap();
+        renew.abort();
+
+        assert!(walk.complete);
+        assert_eq!(walk.missing_records, 48);
+        let (source_peak, destination_peak) = (
+            source_peak.load(Ordering::SeqCst),
+            destination_peak.load(Ordering::SeqCst),
+        );
+        assert!(
+            source_peak > 1 && destination_peak > 1,
+            "at most {source_peak} source and {destination_peak} destination reads overlapped"
         );
     }
 

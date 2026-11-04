@@ -272,6 +272,11 @@ pub struct Store {
     #[cfg(test)]
     #[allow(clippy::type_complexity)]
     write_commit_observer: StdMutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    /// Runs on each authoritative manifest read, so tests can observe how many
+    /// overlap.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    manifest_read_observer: StdMutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
     /// empty index is otherwise indistinguishable from a stale one and has to be
@@ -1565,6 +1570,8 @@ impl Store {
             write_thread_observer: Arc::new(StdMutex::new(None)),
             #[cfg(test)]
             write_commit_observer: StdMutex::new(None),
+            #[cfg(test)]
+            manifest_read_observer: StdMutex::new(None),
             action_cache_generations: StdMutex::new(HashMap::new()),
             action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
                 ACTION_CACHE_REMOVAL_LOG_MAX,
@@ -11169,6 +11176,11 @@ impl Store {
     }
 
     #[cfg(test)]
+    pub(crate) fn set_manifest_read_observer(&self, observer: Option<Arc<dyn Fn() + Send + Sync>>) {
+        *self.manifest_read_observer.lock().unwrap() = observer;
+    }
+
+    #[cfg(test)]
     pub(crate) fn wal_write_counts(&self) -> (u64, u64, u64) {
         (
             self.wal_sync_write_count.load(Ordering::Relaxed),
@@ -11257,6 +11269,13 @@ impl Store {
         &self,
         artifact_id: &str,
     ) -> Result<Option<ArtifactManifest>, String> {
+        #[cfg(test)]
+        {
+            let observer = self.manifest_read_observer.lock().unwrap().clone();
+            if let Some(observer) = observer {
+                observer();
+            }
+        }
         self.db
             .get_pinned_cf_opt(
                 self.cf(ROCKSDB_CF_MANIFESTS),
