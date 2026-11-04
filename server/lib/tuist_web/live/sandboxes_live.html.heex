@@ -101,6 +101,23 @@
     icon="chart_arcs"
     id="sandboxes-analytics"
   >
+    <:actions :if={@analytics_selected_widget == "time_to_ready"}>
+      <.dropdown
+        id="sandboxes-time-to-ready-start-dropdown"
+        label={boot_source_label(@time_to_ready_start)}
+        secondary_text={dgettext("dashboard_sandboxes", "Start:")}
+      >
+        <.dropdown_item
+          :for={start <- time_to_ready_starts()}
+          value={start}
+          label={boot_source_label(start)}
+          patch={status_patch(@selected_account, @uri, "time-to-ready-start", start)}
+          data-selected={@time_to_ready_start == start}
+        >
+          <:right_icon :if={@time_to_ready_start == start}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+    </:actions>
     <div data-part="widgets">
       <.widget
         id="widget-sandboxes-created"
@@ -210,7 +227,7 @@
           if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
-                @analytics.result.time_to_ready,
+                @analytics.result.time_to_ready[@time_to_ready_start],
                 @time_to_ready_percentile
               )
             )
@@ -218,7 +235,10 @@
         }
         metrics={
           if ready?,
-            do: TuistWeb.RunnersLive.percentile_metrics_for(@analytics.result.time_to_ready)
+            do:
+              TuistWeb.RunnersLive.percentile_metrics_for(
+                @analytics.result.time_to_ready[@time_to_ready_start]
+              )
         }
         selected_type={@time_to_ready_percentile}
         event_name="select_time_to_ready_percentile"
@@ -230,14 +250,14 @@
         trend_value={
           if ready? do
             TuistWeb.RunnersLive.percentile_trend(
-              @analytics.result.time_to_ready,
+              @analytics.result.time_to_ready[@time_to_ready_start],
               @time_to_ready_percentile
             )
           end
         }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={ready? && @analytics.result.time_to_ready.count == 0}
+        empty={ready? && @analytics.result.time_to_ready[@time_to_ready_start].count == 0}
       />
     </div>
     <.card_section data-part="analytics-chart-section">
@@ -284,9 +304,7 @@
                 @analytics_preset
               )
             }
-            series={
-              time_to_ready_series(@analytics.result.time_to_ready, @time_to_ready_percentile)
-            }
+            series={time_to_ready_series(@analytics.result.time_to_ready[@time_to_ready_start])}
             y_axis_min={0}
           />
         <% true -> %>

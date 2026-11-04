@@ -112,6 +112,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "#widget-sandboxes-time-to-ready", "p50 time to ready")
       refute has_element?(lv, "#widget-sandboxes-time-to-ready", "No data yet")
       assert has_element?(lv, "#sandboxes-created-chart")
+      refute has_element?(lv, "#sandboxes-time-to-ready-start-dropdown")
 
       render_click(lv, "select_widget", %{"widget" => "compute"})
       render_async(lv)
@@ -123,6 +124,12 @@ defmodule TuistWeb.SandboxesLiveTest do
       render_async(lv)
 
       assert has_element?(lv, "#sandboxes-time-to-ready-chart")
+      assert has_element?(lv, "#sandboxes-time-to-ready-start-dropdown")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes?widget=time_to_ready&time-to-ready-start=template")
+      render_async(lv)
+
+      assert has_element?(lv, "#widget-sandboxes-time-to-ready", "No data yet")
     end
 
     test "filters sandboxes by status", %{conn: conn, account: account} do

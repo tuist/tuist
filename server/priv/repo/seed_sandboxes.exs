@@ -82,7 +82,7 @@ new_sandbox = fn lane, at ->
     memory_mb: memory_mb,
     created_at: at,
     events: [{"created", at}],
-    boot: nil,
+    boots: %{},
     setup: nil,
     last_active_at: at
   }
@@ -100,25 +100,43 @@ boot = fn sandbox, at ->
     setup_s = (240 * :math.exp(:rand.normal() * 0.45)) |> round() |> max(60) |> min(1200)
     setup_end = DateTime.add(booted_at, 20 + :rand.uniform(20) + setup_s, :second)
 
-    {%{sandbox | boot: {booted_at, %{boot_source: "template", duration_ms: boot_ms}}, setup: {setup_end, setup_s * 1000}},
-     booted_at, setup_end}
+    {%{
+       sandbox
+       | boots: %{booted_at => %{boot_source: "template", duration_ms: boot_ms}},
+         setup: {setup_end, setup_s * 1000}
+     }, booted_at, setup_end}
   else
     boot_ms = 3_000 + :rand.uniform(6_000)
     booted_at = DateTime.add(at, boot_ms, :millisecond)
-    {%{sandbox | boot: {booted_at, %{boot_source: "disk_snapshot", duration_ms: boot_ms}}}, booted_at, booted_at}
+    {%{sandbox | boots: %{booted_at => %{boot_source: "disk_snapshot", duration_ms: boot_ms}}}, booted_at, booted_at}
   end
 end
 
 # Ends a sandbox's life after its last session: archived a day after the
-# pause, deleted a few days later. Steps still in the future are left out,
+# pause, deleted a few days later. A third are restored from the archive
+# once for a short session first. Steps still in the future are left out,
 # so the sandbox is paused or archived now.
 retire = fn sandbox, paused_at ->
   archived_at = DateTime.add(paused_at, 24 * 60 + :rand.uniform(120), :minute)
-  deleted_at = DateTime.add(archived_at, 1 + :rand.uniform(5), :day)
 
-  [{"archived", archived_at}, {"deleted", deleted_at}]
+  {restore, boots, last_archived_at} =
+    if :rand.uniform() < 0.35 do
+      restore_ms = 20_000 + :rand.uniform(40_000)
+      started_at = DateTime.add(archived_at, :rand.uniform(48 * 60) * 60 + div(restore_ms, 1000), :second)
+      repaused_at = DateTime.add(started_at, 20 + :rand.uniform(70), :minute)
+      rearchived_at = DateTime.add(repaused_at, 24 * 60 + :rand.uniform(120), :minute)
+
+      {[{"started", started_at}, {"paused", repaused_at}, {"archived", rearchived_at}],
+       Map.put(sandbox.boots, started_at, %{boot_source: "archive", duration_ms: restore_ms}), rearchived_at}
+    else
+      {[], sandbox.boots, archived_at}
+    end
+
+  deleted_at = DateTime.add(last_archived_at, 1 + :rand.uniform(5), :day)
+
+  ([{"archived", archived_at} | restore] ++ [{"deleted", deleted_at}])
   |> Enum.filter(fn {_event, at} -> DateTime.before?(at, now) end)
-  |> Enum.reduce(sandbox, fn event, acc -> %{acc | events: [event | acc.events]} end)
+  |> Enum.reduce(%{sandbox | boots: boots}, fn event, acc -> %{acc | events: [event | acc.events]} end)
 end
 
 fail = fn sandbox, failed_at ->
@@ -217,10 +235,7 @@ seeded_events = fn sandbox ->
     sandbox.events
     |> Enum.reverse()
     |> Enum.map(fn {event, at} ->
-      case sandbox.boot do
-        {^at, extra} when event == "started" -> {event, at, extra}
-        _ -> {event, at, %{}}
-      end
+      if event == "started", do: {event, at, Map.get(sandbox.boots, at, %{})}, else: {event, at, %{}}
     end)
 
   boot_event ++ setup

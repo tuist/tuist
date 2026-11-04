@@ -112,11 +112,13 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
 
     %{time_to_ready: ready} = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
 
-    assert %{count: 4, avg: 97_500, p50: 20_000, p90: 300_000, p99: 300_000, trend_avg: 62.5} = ready
-    assert ready.avg_values == [160_000, 35_000, 0]
-    assert ready.by_source["template"].p50_values == [300_000, 10_000, nil]
-    assert ready.by_source["disk_snapshot"].p50_values == [20_000, nil, nil]
-    assert ready.by_source["archive"].count == 0
+    assert %{count: 4, avg: 97_500, p50: 20_000, p90: 300_000, p99: 300_000, trend_avg: 62.5} = ready["all"]
+    assert ready["all"].avg_values == [160_000, 35_000, nil]
+    assert %{count: 3, avg: 123_333, p50: 60_000} = ready["template"]
+    assert ready["template"].p50_values == [300_000, 10_000, nil]
+    assert %{count: 1, p50: 20_000} = ready["disk_snapshot"]
+    assert ready["disk_snapshot"].p50_values == [20_000, nil, nil]
+    assert ready["archive"].count == 0
   end
 
   test "counts events from the window's last second, where the date picker ends a window", %{account: account} do

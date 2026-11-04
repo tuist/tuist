@@ -123,12 +123,13 @@ defmodule Tuist.Sandboxes.Analytics do
     current = Enum.filter(ended, &within?(&1.ended_at, start_dt, end_dt))
     previous = Enum.filter(ended, &within?(&1.ended_at, prev_start_dt, start_dt))
     duration = &DateTime.diff(&1.ended_at, &1.started_at, :millisecond)
-    duration_summary(current, previous, buckets, & &1.ended_at, duration)
+    duration_summary(current, previous, buckets, & &1.ended_at, duration, 0)
   end
 
   # The figures of a duration widget and its chart: the current window's
-  # avg and percentiles with their trends, and the same per bucket.
-  defp duration_summary(current, previous, buckets, at, duration) do
+  # avg and percentiles with their trends, and the same per bucket, with
+  # `empty` for buckets without any.
+  defp duration_summary(current, previous, buckets, at, duration, empty) do
     current_stats = current |> Enum.map(duration) |> duration_stats()
     previous_stats = previous |> Enum.map(duration) |> duration_stats()
     by_bucket = Enum.group_by(current, &bucket_index(buckets, at.(&1)))
@@ -136,7 +137,12 @@ defmodule Tuist.Sandboxes.Analytics do
     series =
       buckets
       |> Enum.with_index()
-      |> Enum.map(fn {_bucket, index} -> by_bucket |> Map.get(index, []) |> Enum.map(duration) |> duration_stats() end)
+      |> Enum.map(fn {_bucket, index} ->
+        case Map.get(by_bucket, index, []) do
+          [] -> %{avg: empty, p50: empty, p90: empty, p99: empty}
+          entries -> entries |> Enum.map(duration) |> duration_stats()
+        end
+      end)
 
     Map.merge(current_stats, %{
       count: length(current),
@@ -167,44 +173,18 @@ defmodule Tuist.Sandboxes.Analytics do
 
   defp percentile(sorted, quantile), do: Enum.at(sorted, max(ceil(quantile * length(sorted)) - 1, 0))
 
+  # Keyed by "all" and by each boot source, since a cold boot with setup
+  # takes minutes and a warm start seconds: one summary of both would hide
+  # either. Buckets where no sandbox started are gaps, not zero.
   defp time_to_ready(by_sandbox, buckets, prev_start_dt, start_dt, end_dt) do
     ready = Enum.flat_map(by_sandbox, &ready_times/1)
     current = Enum.filter(ready, &within?(&1.started_at, start_dt, end_dt))
     previous = Enum.filter(ready, &within?(&1.started_at, prev_start_dt, start_dt))
-    summary = duration_summary(current, previous, buckets, & &1.started_at, & &1.ms)
-    by_source = Enum.group_by(current, & &1.source)
 
-    Map.put(
-      summary,
-      :by_source,
-      Map.new(Events.boot_sources(), fn source ->
-        {source, source_series(Map.get(by_source, source, []), buckets)}
-      end)
-    )
-  end
-
-  # Per bucket, with nil where no sandbox of the source booted, so a chart
-  # line breaks there rather than dropping to zero.
-  defp source_series(ready, buckets) do
-    by_bucket = Enum.group_by(ready, &bucket_index(buckets, &1.started_at))
-
-    stats =
-      buckets
-      |> Enum.with_index()
-      |> Enum.map(fn {_bucket, index} ->
-        case Map.get(by_bucket, index, []) do
-          [] -> %{avg: nil, p50: nil, p90: nil, p99: nil}
-          entries -> entries |> Enum.map(& &1.ms) |> duration_stats()
-        end
-      end)
-
-    %{
-      count: length(ready),
-      avg_values: Enum.map(stats, & &1.avg),
-      p50_values: Enum.map(stats, & &1.p50),
-      p90_values: Enum.map(stats, & &1.p90),
-      p99_values: Enum.map(stats, & &1.p99)
-    }
+    Map.new(["all" | Events.boot_sources()], fn source ->
+      of_source = if source == "all", do: & &1, else: &Enum.filter(&1, fn entry -> entry.source == source end)
+      {source, duration_summary(of_source.(current), of_source.(previous), buckets, & &1.started_at, & &1.ms, nil)}
+    end)
   end
 
   # One sandbox's events, in order. A boot that waits for setup is held
