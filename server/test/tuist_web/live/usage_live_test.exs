@@ -743,5 +743,19 @@ defmodule TuistWeb.UsageLiveTest do
       assert [only] = UsageLive.runner_chart_series(by_repository, [])
       assert only.data == [[~D[2026-08-21], 3.0]]
     end
+
+    test "splits the spend by platform across repositories" do
+      # Two repositories on both platforms: by platform, the bars carry one
+      # series per platform, each summing its rows from every repository.
+      by_repository = [
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/other", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :linux, total_ms: 60_000_000}
+      ]
+
+      assert [linux, macos] = UsageLive.runner_chart_series(by_repository, [], "platform")
+      assert {linux.name, linux.data} == {"Linux", [[~D[2026-08-21], 2.4]]}
+      assert {macos.name, macos.data} == {"macOS", [[~D[2026-08-21], 1.2]]}
+    end
   end
 end

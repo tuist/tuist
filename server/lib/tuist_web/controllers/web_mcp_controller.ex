@@ -11,7 +11,9 @@ defmodule TuistWeb.WebMCPController do
   alias Tuist.Accounts
   alias Tuist.MCP.WebMCP
 
-  def account(conn, %{"account_handle" => account_handle}) do
+  # The query names the dashboard page the tools are for (`page` and the
+  # project's `build_system`); see `WebMCP.dashboard_page/3`.
+  def account(conn, %{"account_handle" => account_handle} = params) do
     case Accounts.get_account_by_handle(account_handle) do
       nil ->
         conn
@@ -21,7 +23,7 @@ defmodule TuistWeb.WebMCPController do
       account ->
         conn
         |> assign(:mcp_account_scope, account)
-        |> handle(WebMCP.account_server())
+        |> handle(WebMCP.account_server(params["page"], params["build_system"]))
     end
   end
 

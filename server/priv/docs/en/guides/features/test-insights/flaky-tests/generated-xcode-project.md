@@ -56,6 +56,8 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 Quarantining isolates a flaky test so it doesn't block CI while you fix it. By default it's a **manual action** — you quarantine, un-quarantine, and switch modes from the test case detail page in the dashboard — but you can also wire it into an **automation alert** under **Settings → Automations** so a test is automatically muted (or skipped) when it crosses a flakiness threshold, and un-quarantined when it recovers. Every transition, manual or automated, is recorded on the test case's audit log.
 
+By default, recovery waits until the trigger condition no longer holds, so a test stays quarantined until its old flaky runs leave the trigger window. To recover sooner, set **Recover when** to **No new flaky runs**: the test recovers once the recovery window (days or runs) passes without a new flaky run, every new flaky run restarts that wait, and after recovering only a new flaky run quarantines it again.
+
 A quarantined test is in one of two modes:
 
 - **Muted**: the test still runs, but `tuist test` masks the failure. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.

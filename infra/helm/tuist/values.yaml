@@ -2699,8 +2699,8 @@ sandboxes:
   # workspace_gb, memory image), so the server reserves each sandbox's
   # ceiling (template rootfs + workspace + memory) at placement, running or
   # paused, and stops placing on a node whose ceilings would exceed this.
-  # A default 2x4096 sandbox with a 10 GB workspace on an 8 GiB rootfs
-  # reserves about 22 GiB. The server also keeps one memory image plus
+  # A default 2x4096 sandbox with a 10 GB workspace on a 12 GiB rootfs
+  # reserves about 26 GiB. The server also keeps one memory image plus
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200

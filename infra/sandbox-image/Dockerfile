@@ -18,7 +18,10 @@ ARG KERNEL_SHA256=
 ARG NODE_MAJOR=22
 ARG ANT_VERSION=1.30.0
 ARG AMP_VERSION=0.0.1793104576-gc52692
-ARG ROOTFS_SIZE=8G
+ARG AGENT_BROWSER_VERSION=0.38.1
+# agent-browser's Chrome and libraries take about 1 GiB, and a project's
+# .agents/setup fills home (mise, caches) on this same filesystem.
+ARG ROOTFS_SIZE=12G
 ARG VERSION=dev
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
@@ -89,6 +92,16 @@ RUN curl -fsSL --retry 3 "https://static.ampcode.com/cli/${AMP_VERSION}/amp-linu
     && visudo -cf /etc/sudoers.d/amp-user
 COPY --chmod=0755 orb-bootstrap.sh /usr/local/bin/sbx-orb-bootstrap
 
+# Amp's own orb image ships agent-browser the same way: a global npm install,
+# then Chrome for Testing and its system libraries installed as `user`, so the
+# browser lives in /home/user/.agent-browser where the CLI looks for it.
+ARG AGENT_BROWSER_VERSION
+RUN npm install -g "agent-browser@${AGENT_BROWSER_VERSION}" \
+    && test "$(agent-browser --version)" = "agent-browser ${AGENT_BROWSER_VERSION}" \
+    && runuser -u user -- env -i HOME=/home/user USER=user PATH=/usr/local/bin:/usr/bin:/bin \
+        bash -c 'cd /home/user && agent-browser install --with-deps' \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /root/.npm
+
 RUN locale-gen en_US.UTF-8 && update-locale LANG=C.UTF-8 \
     && git lfs install --system --skip-repo \
     && usermod -s /bin/bash root \
@@ -155,7 +168,7 @@ EXPOSE 50051
 ENTRYPOINT ["/usr/local/bin/reapi-gateway"]
 
 # GNU coreutils for cp --sparse=always: busybox's cp cannot keep holes, and
-# a dense copy of the rootfs would cost every node the full 8 GiB.
+# a dense copy of the rootfs would cost every node the full 12 GiB.
 FROM alpine:3.21
 RUN apk add --no-cache coreutils
 COPY --from=rootfs /out /template

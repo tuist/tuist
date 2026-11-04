@@ -11,5 +11,11 @@ spec:
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
       name: http
+    {{- if .Values.orbAccess.enabled }}
+    - port: {{ .Values.orbAccess.port }}
+      targetPort: orb
+      protocol: TCP
+      name: orb
+    {{- end }}
   selector:
     {{- include "pomerium.selectorLabels" . | nindent 4 }}
