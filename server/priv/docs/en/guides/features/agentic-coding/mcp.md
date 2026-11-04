@@ -183,6 +183,17 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
+## WebMCP
+
+In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
+
+- **Website and documentation pages** register the documentation and source tools (`search_tuist`, `search_tuist_code`, `list_tuist_files` and `read_tuist_file`). They don't need you to sign in.
+- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. Each page registers only the tools for what it shows, for the project's build system: a Gradle project's builds page gets the Gradle build tools, its test pages the test and coverage tools, and the runners pages the runner tools. Every page also gets the documentation tools, `list_projects` and `get_project`. The tools run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another page or account, the tools are replaced with that page's.
+
+Tools that create, change, or delete data are not available through WebMCP, because a browser agent receives the tools without you adding them and reads content that builds and tests produce. Connect an MCP client to the `/mcp` endpoint to use those tools.
+
+If the organization enforces single sign-on, sign in to the dashboard with its provider to use its tools.
+
 ## Build-system integrations use two credentials
 
 The credential used for Model Context Protocol tools does not authenticate the Gradle plugin or Bazel's remote services. Before an agent edits or verifies a Gradle or Bazel integration, it should run:

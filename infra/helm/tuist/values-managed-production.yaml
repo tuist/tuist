@@ -1172,16 +1172,21 @@ ovhFleets:
     # two the region reserved 1292 GiB against an admission line of 1303 (85% of
     # allocatable), so Admission refused every storage claim growth here — and a
     # claim is account-scoped, so that refusal also blocked the regions the same
-    # accounts run in that did have room.
-    replicas: 4
+    # accounts run in that did have room. The fifth (2026-11) is an Advance-2
+    # (EPYC 4344P, 4x960 GB): Advance-1 2024 was out of stock in Vint Hill, and
+    # admission was refusing new instances with 56 GiB of headroom left.
+    replicas: 5
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-us-east
-      offer: advance-1
+      # Substring of the box's commercialRange, so this adopts the Advance-1
+      # boxes and the Advance-2 one alike. The displayName prefix, set only by
+      # baremetal:prep-ovh, is what keeps other boxes out of the pool.
+      offer: advance
       datacenter: vin
       os: ubuntu_24.04
-      # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # Node egress budget (Mbps): Advance-1 and Advance-2 ~3 Gbit/s, advertised as
       # tuist.dev/egress-mbps so the scheduler bin-packs the 25-Mbps-floor pods
       # (@enterprise_egress_floor_mbps).
       egressBudgetMbps: 3000

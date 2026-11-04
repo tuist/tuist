@@ -8350,6 +8350,73 @@ components:
       type: object
       x-struct:
       x-validate:
+    NotificationPreferences:
+      description: The signed-in user's own choices for one notification kind, per account (their personal account and organizations) with project overrides. The choices apply to every delivery channel.
+      properties:
+        accounts:
+          items:
+            properties:
+              enabled:
+                description: "The user's choice for the account's projects, including future ones."
+                type: boolean
+                x-struct:
+                x-validate:
+              handle:
+                description: The account handle.
+                type: string
+                x-struct:
+                x-validate:
+              projects:
+                items:
+                  properties:
+                    enabled:
+                      description: Whether the user is notified about this project.
+                      type: boolean
+                      x-struct:
+                      x-validate:
+                    handle:
+                      description: The project handle, without the account.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    setting:
+                      description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - handle
+                    - setting
+                    - enabled
+                  title: NotificationPreferencesProject
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - handle
+              - enabled
+              - projects
+            title: NotificationPreferencesAccount
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        kind:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - kind
+        - accounts
+      title: NotificationPreferences
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.NotificationPreferences
+      x-validate:
     AccountToken:
       properties:
         all_projects:
@@ -9820,6 +9887,55 @@ components:
         - runs
         - pagination_metadata
       title: OnceRunList
+      type: object
+      x-struct:
+      x-validate:
+    NotificationPreferencesAccount:
+      properties:
+        enabled:
+          description: "The user's choice for the account's projects, including future ones."
+          type: boolean
+          x-struct:
+          x-validate:
+        handle:
+          description: The account handle.
+          type: string
+          x-struct:
+          x-validate:
+        projects:
+          items:
+            properties:
+              enabled:
+                description: Whether the user is notified about this project.
+                type: boolean
+                x-struct:
+                x-validate:
+              handle:
+                description: The project handle, without the account.
+                type: string
+                x-struct:
+                x-validate:
+              setting:
+                description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - handle
+              - setting
+              - enabled
+            title: NotificationPreferencesProject
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - handle
+        - enabled
+        - projects
+      title: NotificationPreferencesAccount
       type: object
       x-struct:
       x-validate:
@@ -14295,6 +14411,31 @@ components:
       title: PreviewSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
+      x-validate:
+    NotificationPreferencesProject:
+      properties:
+        enabled:
+          description: Whether the user is notified about this project.
+          type: boolean
+          x-struct:
+          x-validate:
+        handle:
+          description: The project handle, without the account.
+          type: string
+          x-struct:
+          x-validate:
+        setting:
+          description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - handle
+        - setting
+        - enabled
+      title: NotificationPreferencesProject
+      type: object
+      x-struct:
       x-validate:
     ArtifactMultipartUploadURL:
       description: The URL to upload a multipart part
@@ -29158,6 +29299,47 @@ paths:
       summary: Send a message to an agent session.
       tags:
         - Sandboxes
+  /api/me/notification-preferences/{kind}:
+    get:
+      callbacks: {}
+      operationId: getNotificationPreferences
+      parameters:
+        - description: The notification kind. `new_preview` covers new previews of the user's projects.
+          in: path
+          name: kind
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+          description: The user's preferences for the kind
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification preferences
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+      summary: Gets the signed-in user's preferences for a notification kind
+      tags:
+        - Notification preferences
   /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing:
     post:
       callbacks: {}
@@ -29260,6 +29442,81 @@ paths:
       summary: Find which commits the server has not stored yet.
       tags:
         - Tests
+  /api/me/push-devices:
+    get:
+      callbacks: {}
+      operationId: listPushDevices
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  devices:
+                    items:
+                      properties:
+                        installation_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        last_seen_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        platform:
+                          description: ios or android
+                          type: string
+                          x-struct:
+                          x-validate:
+                        registered_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        registration_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - registration_id
+                        - installation_id
+                        - platform
+                        - registered_at
+                        - last_seen_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - devices
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's devices
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can list push devices
+      summary: Lists the signed-in user's push devices
+      tags:
+        - Push devices
   /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes:
     get:
       callbacks: {}
@@ -46113,6 +46370,98 @@ paths:
       summary: List tasks for a Gradle build.
       tags:
         - Gradle
+  /api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}:
+    put:
+      callbacks: {}
+      operationId: updateProjectNotificationPreference
+      parameters:
+        - description: The notification kind. `new_preview` covers new previews of the user's projects.
+          in: path
+          name: kind
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                setting:
+                  description: '`default` follows the account; `on` and `off` override it.'
+                  enum:
+                    - default
+                    - 'on'
+                    - 'off'
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - setting
+              type: object
+              x-struct:
+              x-validate:
+        description: Project preference
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+          description: The user's preferences for the kind
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification preferences
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Overrides a notification kind for one project
+      tags:
+        - Notification preferences
   /api/runs/{run_id}/complete_artifacts_uploads:
     put:
       callbacks: {}
@@ -47408,6 +47757,52 @@ paths:
       summary: List the jobs that used a runner volume.
       tags:
         - Runners
+  /api/me/push-device-registrations/{registration_id}:
+    delete:
+      callbacks: {}
+      description: Stops notifications to the device. When that device next refreshes its registration it learns it was removed and keeps notifications off until its user turns them back on.
+      operationId: removePushDevice
+      parameters:
+        - description: The device's registration ID.
+          in: path
+          name: registration_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The device is removed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can remove push devices
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Removes one of the signed-in user's devices
+      tags:
+        - Push devices
   /api/projects/{account_handle}/{project_handle}/once/runs/{once_run_id}:
     get:
       callbacks: {}
@@ -51136,6 +51531,85 @@ paths:
       summary: Get a webhook endpoint.
       tags:
         - Webhooks
+  /api/me/notification-preferences/{kind}/accounts/{account_handle}:
+    put:
+      callbacks: {}
+      operationId: updateAccountNotificationPreference
+      parameters:
+        - description: The notification kind. `new_preview` covers new previews of the user's projects.
+          in: path
+          name: kind
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+              required:
+                - enabled
+              type: object
+              x-struct:
+              x-validate:
+        description: Account preference
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+          description: The user's preferences for the kind
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification preferences
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Turns a notification kind on or off for an account's projects
+      tags:
+        - Notification preferences
   /api/projects/{account_handle}/{project_handle}/bazel/actions/{action_id}/executions:
     get:
       callbacks: {}
@@ -52881,6 +53355,191 @@ paths:
       summary: Get a Bazel remote-cache event by its identifier.
       tags:
         - Bazel
+  /api/me/push-devices/{installation_id}:
+    delete:
+      callbacks: {}
+      description: Retires the installation if it belongs to the signed-in user. The installation ID cannot be registered again.
+      operationId: unregisterPushDevice
+      parameters:
+        - description: The client-generated lowercase UUID that identifies this app installation.
+          in: path
+          name: installation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The installation is unregistered
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The installation ID is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can unregister push devices
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Unregisters this app installation from push notifications
+      tags:
+        - Push devices
+    put:
+      callbacks: {}
+      description: Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+      operationId: registerPushDevice
+      parameters:
+        - description: The client-generated lowercase UUID that identifies this app installation.
+          in: path
+          name: installation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                environment:
+                  description: The APNs environment. Android is always production.
+                  enum:
+                    - sandbox
+                    - production
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  description: The device model shown in the user's device list, for example iPhone 17 Pro.
+                  maxLength: 200
+                  type: string
+                  x-struct:
+                  x-validate:
+                platform:
+                  description: The device platform.
+                  enum:
+                    - ios
+                    - android
+                  type: string
+                  x-struct:
+                  x-validate:
+                token:
+                  description: The APNs device token (hex) on iOS or the FCM registration token on Android.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - platform
+                - token
+                - environment
+              type: object
+              x-struct:
+              x-validate:
+        description: Push device
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  registration_id:
+                    description: The server registration ID.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - registration_id
+                type: object
+                x-struct:
+                x-validate:
+          description: The installation is registered
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The device or installation ID is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can register push devices
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The installation belongs to another user or registration
+        '410':
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  reason:
+                    description: '`retired`: generate a new installation ID and retry. `removed`: the user removed this device from their device list; keep notifications off on this device until the user turns them back on, then use a new installation ID. Treat other values as `removed`.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - message
+                  - reason
+                type: object
+                x-struct:
+                x-validate:
+          description: The installation ID can no longer be registered
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Registers this app installation for push notifications
+      tags:
+        - Push devices
   /api/projects/{account_handle}/{project_handle}/tokens:
     get:
       callbacks: {}

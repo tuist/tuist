@@ -15,6 +15,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
+  alias TuistWeb.Utilities.Query
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
@@ -63,6 +64,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:uri, URI.parse(uri))
      |> assign(:selected_period, period)
      |> assign(:runner_breakdown, runner_breakdown)
+     |> assign(:runner_group_by, runner_group_by_param(params["runner-group-by"]))
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
      |> assign_async(:usage_pricing, fn ->
        {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
@@ -172,7 +174,7 @@ defmodule TuistWeb.UsageLive do
   and each segment has to be comparable against the others in the same
   day.
   """
-  def runner_chart_series(by_repository, projected_days \\ []) do
+  def runner_chart_series(by_repository, projected_days \\ [], group_by \\ "repository") do
     dates =
       (by_repository ++ projected_days)
       |> Enum.map(& &1.date)
@@ -180,16 +182,16 @@ defmodule TuistWeb.UsageLive do
       |> Enum.sort(Date)
 
     by_repository
-    |> Enum.group_by(& &1.repository)
-    |> Enum.sort_by(fn {_repository, rows} -> -(rows |> Enum.map(&row_dollars/1) |> Enum.sum()) end)
+    |> Enum.group_by(&runner_group_key(&1, group_by))
+    |> Enum.sort_by(fn {_key, rows} -> -(rows |> Enum.map(&row_dollars/1) |> Enum.sum()) end)
     |> Enum.with_index()
-    |> Enum.map(fn {{repository, rows}, index} ->
+    |> Enum.map(fn {{key, rows}, index} ->
       per_day = dollars_per_day(rows)
 
       %{
         color: "var:noora-chart-#{Enum.at(@repository_colors, rem(index, length(@repository_colors)))}",
         data: Enum.map(dates, fn date -> [date, per_day |> Map.get(date, 0.0) |> Float.round(2)] end),
-        name: repository_label(repository),
+        name: runner_group_label(key, group_by),
         type: "bar",
         stack: "spend"
       }
@@ -215,6 +217,30 @@ defmodule TuistWeb.UsageLive do
       }
     ]
   end
+
+  @runner_group_by_values ["repository", "platform"]
+
+  @doc """
+  The dimensions the runner chart can split its spend by, in the order
+  the Group by dropdown lists them.
+  """
+  def runner_group_by_options do
+    [
+      %{value: "repository", label: dgettext("dashboard_usage", "Repository")},
+      %{value: "platform", label: dgettext("dashboard_usage", "Platform")}
+    ]
+  end
+
+  def runner_group_by_param(value) when value in @runner_group_by_values, do: value
+  def runner_group_by_param(_value), do: "repository"
+
+  def runner_group_by_patch(uri, value), do: "#{uri.path}?#{Query.put(uri.query, "runner-group-by", value)}"
+
+  defp runner_group_key(row, "platform"), do: row.platform
+  defp runner_group_key(row, _repository), do: row.repository
+
+  defp runner_group_label(platform, "platform"), do: platform_label(platform)
+  defp runner_group_label(repository, _repository), do: repository_label(repository)
 
   def repository_label(nil), do: dgettext("dashboard_usage", "Unknown")
   def repository_label(""), do: dgettext("dashboard_usage", "Unknown")

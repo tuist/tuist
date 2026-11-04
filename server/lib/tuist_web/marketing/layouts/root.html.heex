@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="webmcp-endpoint" content={~p"/api/webmcp/public"} />
     <%!-- Prefetch marketing pages when a link is hovered (moderate
     eagerness), so the HTML is already in the cache by click time.
     Chromium-only; other engines ignore the script. Prefetch rather than

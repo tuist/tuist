@@ -970,6 +970,31 @@ struct CachedModulesDebuggingGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func generatedScript_runsWhenXcodeExportsTheAutomaticSDKOfMultiplatformTargets() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+
+        // `/usr/bin/python3` and `/usr/bin/xcrun` resolve tools for `SDKROOT`, and `auto` is not an SDK they can locate.
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: [
+            "PATH": "/usr/bin:/bin",
+            "SDKROOT": "auto",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ])
+
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(contents.hasPrefix("settings set target.source-map \"/^root\" \"\(projectPath.pathString)\"\n"))
+    }
+
+    @Test(.inTemporaryDirectory)
     func generatedScript_pointsLLDBAtTheCompilationCache() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)

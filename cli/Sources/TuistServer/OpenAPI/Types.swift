@@ -490,6 +490,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/messages/post(sendSandboxAgentSessionMessage)`.
     func sendSandboxAgentSessionMessage(_ input: Operations.sendSandboxAgentSessionMessage.Input) async throws -> Operations.sendSandboxAgentSessionMessage.Output
+    /// Gets the signed-in user's preferences for a notification kind
+    ///
+    /// - Remark: HTTP `GET /api/me/notification-preferences/{kind}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/get(getNotificationPreferences)`.
+    func getNotificationPreferences(_ input: Operations.getNotificationPreferences.Input) async throws -> Operations.getNotificationPreferences.Output
     /// Find which commits the server has not stored yet.
     ///
     /// Given the SHAs of the commits a client can see, returns the ones the repository's commit graph lacks, so the client uploads only those.
@@ -497,6 +502,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)`.
     func findMissingCommits(_ input: Operations.findMissingCommits.Input) async throws -> Operations.findMissingCommits.Output
+    /// Lists the signed-in user's push devices
+    ///
+    /// - Remark: HTTP `GET /api/me/push-devices`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
+    func listPushDevices(_ input: Operations.listPushDevices.Input) async throws -> Operations.listPushDevices.Output
     /// List the volumes mounted by a runner job.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes`.
@@ -1058,6 +1068,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)`.
     func listGradleBuildTasks(_ input: Operations.listGradleBuildTasks.Input) async throws -> Operations.listGradleBuildTasks.Output
+    /// Overrides a notification kind for one project
+    ///
+    /// - Remark: HTTP `PUT /api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)`.
+    func updateProjectNotificationPreference(_ input: Operations.updateProjectNotificationPreference.Input) async throws -> Operations.updateProjectNotificationPreference.Output
     /// Completes artifacts uploads for a given run
     ///
     /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -1112,6 +1127,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)`.
     func listRunnerVolumeJobs(_ input: Operations.listRunnerVolumeJobs.Input) async throws -> Operations.listRunnerVolumeJobs.Output
+    /// Removes one of the signed-in user's devices
+    ///
+    /// Stops notifications to the device. When that device next refreshes its registration it learns it was removed and keeps notifications off until its user turns them back on.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/push-device-registrations/{registration_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)`.
+    func removePushDevice(_ input: Operations.removePushDevice.Input) async throws -> Operations.removePushDevice.Output
     /// Get a Once run with its action totals, cache summary and, for test runs, test totals.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/runs/{once_run_id}`.
@@ -1227,6 +1249,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}/get(getWebhookEndpoint)`.
     func getWebhookEndpoint(_ input: Operations.getWebhookEndpoint.Input) async throws -> Operations.getWebhookEndpoint.Output
+    /// Turns a notification kind on or off for an account's projects
+    ///
+    /// - Remark: HTTP `PUT /api/me/notification-preferences/{kind}/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)`.
+    func updateAccountNotificationPreference(_ input: Operations.updateAccountNotificationPreference.Input) async throws -> Operations.updateAccountNotificationPreference.Output
     /// List recorded history for a Bazel action across builds.
     ///
     /// List recorded history for a Bazel action across builds.
@@ -1287,6 +1314,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/get(getBazelCacheEvent)`.
     func getBazelCacheEvent(_ input: Operations.getBazelCacheEvent.Input) async throws -> Operations.getBazelCacheEvent.Output
+    /// Registers this app installation for push notifications
+    ///
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    ///
+    /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
+    func registerPushDevice(_ input: Operations.registerPushDevice.Input) async throws -> Operations.registerPushDevice.Output
+    /// Unregisters this app installation from push notifications
+    ///
+    /// Retires the installation if it belongs to the signed-in user. The installation ID cannot be registered again.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/push-devices/{installation_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)`.
+    func unregisterPushDevice(_ input: Operations.unregisterPushDevice.Input) async throws -> Operations.unregisterPushDevice.Output
     /// List all project tokens.
     ///
     /// This endpoint returns all tokens for a given project.
@@ -2576,6 +2617,19 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Gets the signed-in user's preferences for a notification kind
+    ///
+    /// - Remark: HTTP `GET /api/me/notification-preferences/{kind}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/get(getNotificationPreferences)`.
+    public func getNotificationPreferences(
+        path: Operations.getNotificationPreferences.Input.Path,
+        headers: Operations.getNotificationPreferences.Input.Headers = .init()
+    ) async throws -> Operations.getNotificationPreferences.Output {
+        try await getNotificationPreferences(Operations.getNotificationPreferences.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Find which commits the server has not stored yet.
     ///
     /// Given the SHAs of the commits a client can see, returns the ones the repository's commit graph lacks, so the client uploads only those.
@@ -2592,6 +2646,13 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Lists the signed-in user's push devices
+    ///
+    /// - Remark: HTTP `GET /api/me/push-devices`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
+    public func listPushDevices(headers: Operations.listPushDevices.Input.Headers = .init()) async throws -> Operations.listPushDevices.Output {
+        try await listPushDevices(Operations.listPushDevices.Input(headers: headers))
     }
     /// List the volumes mounted by a runner job.
     ///
@@ -3996,6 +4057,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Overrides a notification kind for one project
+    ///
+    /// - Remark: HTTP `PUT /api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)`.
+    public func updateProjectNotificationPreference(
+        path: Operations.updateProjectNotificationPreference.Input.Path,
+        headers: Operations.updateProjectNotificationPreference.Input.Headers = .init(),
+        body: Operations.updateProjectNotificationPreference.Input.Body
+    ) async throws -> Operations.updateProjectNotificationPreference.Output {
+        try await updateProjectNotificationPreference(Operations.updateProjectNotificationPreference.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Completes artifacts uploads for a given run
     ///
     /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -4123,6 +4199,21 @@ extension APIProtocol {
         try await listRunnerVolumeJobs(Operations.listRunnerVolumeJobs.Input(
             path: path,
             query: query,
+            headers: headers
+        ))
+    }
+    /// Removes one of the signed-in user's devices
+    ///
+    /// Stops notifications to the device. When that device next refreshes its registration it learns it was removed and keeps notifications off until its user turns them back on.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/push-device-registrations/{registration_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)`.
+    public func removePushDevice(
+        path: Operations.removePushDevice.Input.Path,
+        headers: Operations.removePushDevice.Input.Headers = .init()
+    ) async throws -> Operations.removePushDevice.Output {
+        try await removePushDevice(Operations.removePushDevice.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -4413,6 +4504,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Turns a notification kind on or off for an account's projects
+    ///
+    /// - Remark: HTTP `PUT /api/me/notification-preferences/{kind}/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)`.
+    public func updateAccountNotificationPreference(
+        path: Operations.updateAccountNotificationPreference.Input.Path,
+        headers: Operations.updateAccountNotificationPreference.Input.Headers = .init(),
+        body: Operations.updateAccountNotificationPreference.Input.Body
+    ) async throws -> Operations.updateAccountNotificationPreference.Output {
+        try await updateAccountNotificationPreference(Operations.updateAccountNotificationPreference.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// List recorded history for a Bazel action across builds.
     ///
     /// List recorded history for a Bazel action across builds.
@@ -4563,6 +4669,38 @@ extension APIProtocol {
         headers: Operations.getBazelCacheEvent.Input.Headers = .init()
     ) async throws -> Operations.getBazelCacheEvent.Output {
         try await getBazelCacheEvent(Operations.getBazelCacheEvent.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Registers this app installation for push notifications
+    ///
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    ///
+    /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
+    public func registerPushDevice(
+        path: Operations.registerPushDevice.Input.Path,
+        headers: Operations.registerPushDevice.Input.Headers = .init(),
+        body: Operations.registerPushDevice.Input.Body
+    ) async throws -> Operations.registerPushDevice.Output {
+        try await registerPushDevice(Operations.registerPushDevice.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Unregisters this app installation from push notifications
+    ///
+    /// Retires the installation if it belongs to the signed-in user. The installation ID cannot be registered again.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/push-devices/{installation_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)`.
+    public func unregisterPushDevice(
+        path: Operations.unregisterPushDevice.Input.Path,
+        headers: Operations.unregisterPushDevice.Input.Headers = .init()
+    ) async throws -> Operations.unregisterPushDevice.Output {
+        try await unregisterPushDevice(Operations.unregisterPushDevice.Input(
             path: path,
             headers: headers
         ))
@@ -16899,6 +17037,103 @@ public enum Components {
                 case repository_url
             }
         }
+        /// The signed-in user's own choices for one notification kind, per account (their personal account and organizations) with project overrides. The choices apply to every delivery channel.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NotificationPreferences`.
+        public struct NotificationPreferences: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload`.
+            public struct accountsPayloadPayload: Codable, Hashable, Sendable {
+                /// The user's choice for the account's projects, including future ones.
+                ///
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/enabled`.
+                public var enabled: Swift.Bool
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/handle`.
+                public var handle: Swift.String
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/projectsPayload`.
+                public struct projectsPayloadPayload: Codable, Hashable, Sendable {
+                    /// Whether the user is notified about this project.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/projectsPayload/enabled`.
+                    public var enabled: Swift.Bool
+                    /// The project handle, without the account.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/projectsPayload/handle`.
+                    public var handle: Swift.String
+                    /// `default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/projectsPayload/setting`.
+                    public var setting: Swift.String
+                    /// Creates a new `projectsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - enabled: Whether the user is notified about this project.
+                    ///   - handle: The project handle, without the account.
+                    ///   - setting: `default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.
+                    public init(
+                        enabled: Swift.Bool,
+                        handle: Swift.String,
+                        setting: Swift.String
+                    ) {
+                        self.enabled = enabled
+                        self.handle = handle
+                        self.setting = setting
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case enabled
+                        case handle
+                        case setting
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/projects`.
+                public typealias projectsPayload = [Components.Schemas.NotificationPreferences.accountsPayloadPayload.projectsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accountsPayload/projects`.
+                public var projects: Components.Schemas.NotificationPreferences.accountsPayloadPayload.projectsPayload
+                /// Creates a new `accountsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - enabled: The user's choice for the account's projects, including future ones.
+                ///   - handle: The account handle.
+                ///   - projects:
+                public init(
+                    enabled: Swift.Bool,
+                    handle: Swift.String,
+                    projects: Components.Schemas.NotificationPreferences.accountsPayloadPayload.projectsPayload
+                ) {
+                    self.enabled = enabled
+                    self.handle = handle
+                    self.projects = projects
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case enabled
+                    case handle
+                    case projects
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accounts`.
+            public typealias accountsPayload = [Components.Schemas.NotificationPreferences.accountsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferences/accounts`.
+            public var accounts: Components.Schemas.NotificationPreferences.accountsPayload
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferences/kind`.
+            public var kind: Swift.String
+            /// Creates a new `NotificationPreferences`.
+            ///
+            /// - Parameters:
+            ///   - accounts:
+            ///   - kind:
+            public init(
+                accounts: Components.Schemas.NotificationPreferences.accountsPayload,
+                kind: Swift.String
+            ) {
+                self.accounts = accounts
+                self.kind = kind
+            }
+            public enum CodingKeys: String, CodingKey {
+                case accounts
+                case kind
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/AccountToken`.
         public struct AccountToken: Codable, Hashable, Sendable {
             /// Whether token has access to all projects.
@@ -18982,6 +19217,76 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case pagination_metadata
                 case runs
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount`.
+        public struct NotificationPreferencesAccount: Codable, Hashable, Sendable {
+            /// The user's choice for the account's projects, including future ones.
+            ///
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/enabled`.
+            public var enabled: Swift.Bool
+            /// The account handle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/handle`.
+            public var handle: Swift.String
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/projectsPayload`.
+            public struct projectsPayloadPayload: Codable, Hashable, Sendable {
+                /// Whether the user is notified about this project.
+                ///
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/projectsPayload/enabled`.
+                public var enabled: Swift.Bool
+                /// The project handle, without the account.
+                ///
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/projectsPayload/handle`.
+                public var handle: Swift.String
+                /// `default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.
+                ///
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/projectsPayload/setting`.
+                public var setting: Swift.String
+                /// Creates a new `projectsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - enabled: Whether the user is notified about this project.
+                ///   - handle: The project handle, without the account.
+                ///   - setting: `default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.
+                public init(
+                    enabled: Swift.Bool,
+                    handle: Swift.String,
+                    setting: Swift.String
+                ) {
+                    self.enabled = enabled
+                    self.handle = handle
+                    self.setting = setting
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case enabled
+                    case handle
+                    case setting
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/projects`.
+            public typealias projectsPayload = [Components.Schemas.NotificationPreferencesAccount.projectsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesAccount/projects`.
+            public var projects: Components.Schemas.NotificationPreferencesAccount.projectsPayload
+            /// Creates a new `NotificationPreferencesAccount`.
+            ///
+            /// - Parameters:
+            ///   - enabled: The user's choice for the account's projects, including future ones.
+            ///   - handle: The account handle.
+            ///   - projects:
+            public init(
+                enabled: Swift.Bool,
+                handle: Swift.String,
+                projects: Components.Schemas.NotificationPreferencesAccount.projectsPayload
+            ) {
+                self.enabled = enabled
+                self.handle = handle
+                self.projects = projects
+            }
+            public enum CodingKeys: String, CodingKey {
+                case enabled
+                case handle
+                case projects
             }
         }
         /// - Remark: Generated from `#/components/schemas/BuildFileSortBy`.
@@ -24699,6 +25004,41 @@ public enum Components {
             case macos = "macos"
             case android = "android"
             case linux = "linux"
+        }
+        /// - Remark: Generated from `#/components/schemas/NotificationPreferencesProject`.
+        public struct NotificationPreferencesProject: Codable, Hashable, Sendable {
+            /// Whether the user is notified about this project.
+            ///
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesProject/enabled`.
+            public var enabled: Swift.Bool
+            /// The project handle, without the account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesProject/handle`.
+            public var handle: Swift.String
+            /// `default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.
+            ///
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesProject/setting`.
+            public var setting: Swift.String
+            /// Creates a new `NotificationPreferencesProject`.
+            ///
+            /// - Parameters:
+            ///   - enabled: Whether the user is notified about this project.
+            ///   - handle: The project handle, without the account.
+            ///   - setting: `default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.
+            public init(
+                enabled: Swift.Bool,
+                handle: Swift.String,
+                setting: Swift.String
+            ) {
+                self.enabled = enabled
+                self.handle = handle
+                self.setting = setting
+            }
+            public enum CodingKeys: String, CodingKey {
+                case enabled
+                case handle
+                case setting
+            }
         }
         /// The URL to upload a multipart part
         ///
@@ -66143,6 +66483,289 @@ public enum Operations {
             }
         }
     }
+    /// Gets the signed-in user's preferences for a notification kind
+    ///
+    /// - Remark: HTTP `GET /api/me/notification-preferences/{kind}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/get(getNotificationPreferences)`.
+    public enum getNotificationPreferences {
+        public static let id: Swift.String = "getNotificationPreferences"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The notification kind. `new_preview` covers new previews of the user's projects.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/path/kind`.
+                public var kind: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - kind: The notification kind. `new_preview` covers new previews of the user's projects.
+                public init(kind: Swift.String) {
+                    self.kind = kind
+                }
+            }
+            public var path: Operations.getNotificationPreferences.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getNotificationPreferences.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getNotificationPreferences.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getNotificationPreferences.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getNotificationPreferences.Input.Path,
+                headers: Operations.getNotificationPreferences.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.NotificationPreferences)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.NotificationPreferences {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getNotificationPreferences.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getNotificationPreferences.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's preferences for the kind
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/get(getNotificationPreferences)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getNotificationPreferences.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getNotificationPreferences.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getNotificationPreferences.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getNotificationPreferences.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/get(getNotificationPreferences)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getNotificationPreferences.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getNotificationPreferences.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getNotificationPreferences.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getNotificationPreferences.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only the signed-in Tuist app can manage notification preferences
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/get(getNotificationPreferences)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getNotificationPreferences.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getNotificationPreferences.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getNotificationPreferences.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getNotificationPreferences.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/get(getNotificationPreferences)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getNotificationPreferences.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getNotificationPreferences.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Find which commits the server has not stored yet.
     ///
     /// Given the SHAs of the commits a client can see, returns the ones the repository's commit graph lacks, so the client uploads only those.
@@ -66501,6 +67124,284 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Lists the signed-in user's push devices
+    ///
+    /// - Remark: HTTP `GET /api/me/push-devices`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
+    public enum listPushDevices {
+        public static let id: Swift.String = "listPushDevices"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/push-devices/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPushDevices.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPushDevices.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listPushDevices.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.listPushDevices.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload`.
+                        public struct devicesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/installation_id`.
+                            public var installation_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/last_seen_at`.
+                            public var last_seen_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/name`.
+                            public var name: Swift.String?
+                            /// ios or android
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/platform`.
+                            public var platform: Swift.String
+                            /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/registered_at`.
+                            public var registered_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/registration_id`.
+                            public var registration_id: Swift.String
+                            /// Creates a new `devicesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - installation_id:
+                            ///   - last_seen_at:
+                            ///   - name:
+                            ///   - platform: ios or android
+                            ///   - registered_at:
+                            ///   - registration_id:
+                            public init(
+                                installation_id: Swift.String,
+                                last_seen_at: Foundation.Date,
+                                name: Swift.String? = nil,
+                                platform: Swift.String,
+                                registered_at: Foundation.Date,
+                                registration_id: Swift.String
+                            ) {
+                                self.installation_id = installation_id
+                                self.last_seen_at = last_seen_at
+                                self.name = name
+                                self.platform = platform
+                                self.registered_at = registered_at
+                                self.registration_id = registration_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case installation_id
+                                case last_seen_at
+                                case name
+                                case platform
+                                case registered_at
+                                case registration_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devices`.
+                        public typealias devicesPayload = [Operations.listPushDevices.Output.Ok.Body.jsonPayload.devicesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devices`.
+                        public var devices: Operations.listPushDevices.Output.Ok.Body.jsonPayload.devicesPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - devices:
+                        public init(devices: Operations.listPushDevices.Output.Ok.Body.jsonPayload.devicesPayload) {
+                            self.devices = devices
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case devices
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/application\/json`.
+                    case json(Operations.listPushDevices.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listPushDevices.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listPushDevices.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listPushDevices.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's devices
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listPushDevices.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listPushDevices.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listPushDevices.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listPushDevices.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listPushDevices.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listPushDevices.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listPushDevices.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listPushDevices.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only the signed-in Tuist app can list push devices
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listPushDevices.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listPushDevices.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -113882,6 +114783,411 @@ public enum Operations {
             }
         }
     }
+    /// Overrides a notification kind for one project
+    ///
+    /// - Remark: HTTP `PUT /api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)`.
+    public enum updateProjectNotificationPreference {
+        public static let id: Swift.String = "updateProjectNotificationPreference"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// The notification kind. `new_preview` covers new previews of the user's projects.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/path/kind`.
+                public var kind: Swift.String
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - kind: The notification kind. `new_preview` covers new previews of the user's projects.
+                ///   - account_handle: The account handle.
+                ///   - project_handle: The project handle.
+                public init(
+                    kind: Swift.String,
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.kind = kind
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.updateProjectNotificationPreference.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateProjectNotificationPreference.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateProjectNotificationPreference.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateProjectNotificationPreference.Input.Headers
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// `default` follows the account; `on` and `off` override it.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/requestBody/json/setting`.
+                    @frozen public enum settingPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case _default = "default"
+                        case on = "on"
+                        case off = "off"
+                    }
+                    /// `default` follows the account; `on` and `off` override it.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/requestBody/json/setting`.
+                    public var setting: Operations.updateProjectNotificationPreference.Input.Body.jsonPayload.settingPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - setting: `default` follows the account; `on` and `off` override it.
+                    public init(setting: Operations.updateProjectNotificationPreference.Input.Body.jsonPayload.settingPayload) {
+                        self.setting = setting
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case setting
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/requestBody/content/application\/json`.
+                case json(Operations.updateProjectNotificationPreference.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateProjectNotificationPreference.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateProjectNotificationPreference.Input.Path,
+                headers: Operations.updateProjectNotificationPreference.Input.Headers = .init(),
+                body: Operations.updateProjectNotificationPreference.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.NotificationPreferences)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.NotificationPreferences {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProjectNotificationPreference.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateProjectNotificationPreference.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's preferences for the kind
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateProjectNotificationPreference.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateProjectNotificationPreference.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProjectNotificationPreference.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateProjectNotificationPreference.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateProjectNotificationPreference.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.updateProjectNotificationPreference.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProjectNotificationPreference.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateProjectNotificationPreference.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only the signed-in Tuist app can manage notification preferences
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateProjectNotificationPreference.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateProjectNotificationPreference.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProjectNotificationPreference.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateProjectNotificationPreference.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateProjectNotificationPreference.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateProjectNotificationPreference.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateProjectNotificationPreference.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/PUT/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProjectNotificationPreference.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateProjectNotificationPreference.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.updateProjectNotificationPreference.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Too many changes from this user. Retry after the `retry-after` interval.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}/put(updateProjectNotificationPreference)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.updateProjectNotificationPreference.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.updateProjectNotificationPreference.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Completes artifacts uploads for a given run
     ///
     /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -117641,6 +118947,296 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.listRunnerVolumeJobs.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Removes one of the signed-in user's devices
+    ///
+    /// Stops notifications to the device. When that device next refreshes its registration it learns it was removed and keeps notifications off until its user turns them back on.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/push-device-registrations/{registration_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)`.
+    public enum removePushDevice {
+        public static let id: Swift.String = "removePushDevice"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The device's registration ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/path/registration_id`.
+                public var registration_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - registration_id: The device's registration ID.
+                public init(registration_id: Swift.String) {
+                    self.registration_id = registration_id
+                }
+            }
+            public var path: Operations.removePushDevice.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.removePushDevice.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.removePushDevice.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.removePushDevice.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.removePushDevice.Input.Path,
+                headers: Operations.removePushDevice.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The device is removed
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.removePushDevice.Output.NoContent)
+            /// The device is removed
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.removePushDevice.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.removePushDevice.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.removePushDevice.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.removePushDevice.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.removePushDevice.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.removePushDevice.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.removePushDevice.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only the signed-in Tuist app can remove push devices
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.removePushDevice.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.removePushDevice.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removePushDevice.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-device-registrations/{registration_id}/DELETE/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.removePushDevice.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.removePushDevice.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.removePushDevice.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Too many changes from this user. Retry after the `retry-after` interval.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-device-registrations/{registration_id}/delete(removePushDevice)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.removePushDevice.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.removePushDevice.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -127462,6 +129058,394 @@ public enum Operations {
             }
         }
     }
+    /// Turns a notification kind on or off for an account's projects
+    ///
+    /// - Remark: HTTP `PUT /api/me/notification-preferences/{kind}/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)`.
+    public enum updateAccountNotificationPreference {
+        public static let id: Swift.String = "updateAccountNotificationPreference"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// The notification kind. `new_preview` covers new previews of the user's projects.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/path/kind`.
+                public var kind: Swift.String
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - kind: The notification kind. `new_preview` covers new previews of the user's projects.
+                ///   - account_handle: The account handle.
+                public init(
+                    kind: Swift.String,
+                    account_handle: Swift.String
+                ) {
+                    self.kind = kind
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.updateAccountNotificationPreference.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAccountNotificationPreference.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAccountNotificationPreference.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateAccountNotificationPreference.Input.Headers
+            /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/requestBody/json/enabled`.
+                    public var enabled: Swift.Bool
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - enabled:
+                    public init(enabled: Swift.Bool) {
+                        self.enabled = enabled
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case enabled
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/requestBody/content/application\/json`.
+                case json(Operations.updateAccountNotificationPreference.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateAccountNotificationPreference.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateAccountNotificationPreference.Input.Path,
+                headers: Operations.updateAccountNotificationPreference.Input.Headers = .init(),
+                body: Operations.updateAccountNotificationPreference.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.NotificationPreferences)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.NotificationPreferences {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAccountNotificationPreference.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAccountNotificationPreference.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's preferences for the kind
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateAccountNotificationPreference.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateAccountNotificationPreference.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAccountNotificationPreference.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAccountNotificationPreference.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateAccountNotificationPreference.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.updateAccountNotificationPreference.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAccountNotificationPreference.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAccountNotificationPreference.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only the signed-in Tuist app can manage notification preferences
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateAccountNotificationPreference.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateAccountNotificationPreference.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAccountNotificationPreference.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAccountNotificationPreference.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The kind, account or project was not found. Servers return 404 for kinds they don't offer.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateAccountNotificationPreference.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateAccountNotificationPreference.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateAccountNotificationPreference.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/notification-preferences/{kind}/accounts/{account_handle}/PUT/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAccountNotificationPreference.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateAccountNotificationPreference.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.updateAccountNotificationPreference.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Too many changes from this user. Retry after the `retry-after` interval.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/notification-preferences/{kind}/accounts/{account_handle}/put(updateAccountNotificationPreference)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.updateAccountNotificationPreference.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.updateAccountNotificationPreference.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List recorded history for a Bazel action across builds.
     ///
     /// List recorded history for a Bazel action across builds.
@@ -132208,6 +134192,914 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Registers this app installation for push notifications
+    ///
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    ///
+    /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
+    public enum registerPushDevice {
+        public static let id: Swift.String = "registerPushDevice"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// The client-generated lowercase UUID that identifies this app installation.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/path/installation_id`.
+                public var installation_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - installation_id: The client-generated lowercase UUID that identifies this app installation.
+                public init(installation_id: Swift.String) {
+                    self.installation_id = installation_id
+                }
+            }
+            public var path: Operations.registerPushDevice.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.registerPushDevice.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.registerPushDevice.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.registerPushDevice.Input.Headers
+            /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The APNs environment. Android is always production.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/environment`.
+                    @frozen public enum environmentPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case sandbox = "sandbox"
+                        case production = "production"
+                    }
+                    /// The APNs environment. Android is always production.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/environment`.
+                    public var environment: Operations.registerPushDevice.Input.Body.jsonPayload.environmentPayload
+                    /// The device model shown in the user's device list, for example iPhone 17 Pro.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/name`.
+                    public var name: Swift.String?
+                    /// The device platform.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/platform`.
+                    @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case ios = "ios"
+                        case android = "android"
+                    }
+                    /// The device platform.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/platform`.
+                    public var platform: Operations.registerPushDevice.Input.Body.jsonPayload.platformPayload
+                    /// The APNs device token (hex) on iOS or the FCM registration token on Android.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/token`.
+                    public var token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - environment: The APNs environment. Android is always production.
+                    ///   - name: The device model shown in the user's device list, for example iPhone 17 Pro.
+                    ///   - platform: The device platform.
+                    ///   - token: The APNs device token (hex) on iOS or the FCM registration token on Android.
+                    public init(
+                        environment: Operations.registerPushDevice.Input.Body.jsonPayload.environmentPayload,
+                        name: Swift.String? = nil,
+                        platform: Operations.registerPushDevice.Input.Body.jsonPayload.platformPayload,
+                        token: Swift.String
+                    ) {
+                        self.environment = environment
+                        self.name = name
+                        self.platform = platform
+                        self.token = token
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case environment
+                        case name
+                        case platform
+                        case token
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/content/application\/json`.
+                case json(Operations.registerPushDevice.Input.Body.jsonPayload)
+            }
+            public var body: Operations.registerPushDevice.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.registerPushDevice.Input.Path,
+                headers: Operations.registerPushDevice.Input.Headers = .init(),
+                body: Operations.registerPushDevice.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The server registration ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/200/content/json/registration_id`.
+                        public var registration_id: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - registration_id: The server registration ID.
+                        public init(registration_id: Swift.String) {
+                            self.registration_id = registration_id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case registration_id
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/200/content/application\/json`.
+                    case json(Operations.registerPushDevice.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.registerPushDevice.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.registerPushDevice.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.registerPushDevice.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The installation is registered
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.registerPushDevice.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.registerPushDevice.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.registerPushDevice.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.registerPushDevice.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The device or installation ID is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.registerPushDevice.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.registerPushDevice.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.registerPushDevice.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.registerPushDevice.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.registerPushDevice.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.registerPushDevice.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.registerPushDevice.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.registerPushDevice.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only the signed-in Tuist app can register push devices
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.registerPushDevice.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.registerPushDevice.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/409/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.registerPushDevice.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.registerPushDevice.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The installation belongs to another user or registration
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.registerPushDevice.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.registerPushDevice.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Gone: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/410/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/410/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/410/content/json/message`.
+                        public var message: Swift.String
+                        /// `retired`: generate a new installation ID and retry. `removed`: the user removed this device from their device list; keep notifications off on this device until the user turns them back on, then use a new installation ID. Treat other values as `removed`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/410/content/json/reason`.
+                        public var reason: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - message:
+                        ///   - reason: `retired`: generate a new installation ID and retry. `removed`: the user removed this device from their device list; keep notifications off on this device until the user turns them back on, then use a new installation ID. Treat other values as `removed`.
+                        public init(
+                            message: Swift.String,
+                            reason: Swift.String
+                        ) {
+                            self.message = message
+                            self.reason = reason
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case message
+                            case reason
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/410/content/application\/json`.
+                    case json(Operations.registerPushDevice.Output.Gone.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.registerPushDevice.Output.Gone.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.registerPushDevice.Output.Gone.Body
+                /// Creates a new `Gone`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.registerPushDevice.Output.Gone.Body) {
+                    self.body = body
+                }
+            }
+            /// The installation ID can no longer be registered
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)/responses/410`.
+            ///
+            /// HTTP response code: `410 gone`.
+            case gone(Operations.registerPushDevice.Output.Gone)
+            /// The associated value of the enum case if `self` is `.gone`.
+            ///
+            /// - Throws: An error if `self` is not `.gone`.
+            /// - SeeAlso: `.gone`.
+            public var gone: Operations.registerPushDevice.Output.Gone {
+                get throws {
+                    switch self {
+                    case let .gone(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gone",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.registerPushDevice.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.registerPushDevice.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.registerPushDevice.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.registerPushDevice.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Too many changes from this user. Retry after the `retry-after` interval.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.registerPushDevice.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.registerPushDevice.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Unregisters this app installation from push notifications
+    ///
+    /// Retires the installation if it belongs to the signed-in user. The installation ID cannot be registered again.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/push-devices/{installation_id}`.
+    /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)`.
+    public enum unregisterPushDevice {
+        public static let id: Swift.String = "unregisterPushDevice"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The client-generated lowercase UUID that identifies this app installation.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/path/installation_id`.
+                public var installation_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - installation_id: The client-generated lowercase UUID that identifies this app installation.
+                public init(installation_id: Swift.String) {
+                    self.installation_id = installation_id
+                }
+            }
+            public var path: Operations.unregisterPushDevice.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.unregisterPushDevice.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.unregisterPushDevice.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.unregisterPushDevice.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.unregisterPushDevice.Input.Path,
+                headers: Operations.unregisterPushDevice.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The installation is unregistered
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.unregisterPushDevice.Output.NoContent)
+            /// The installation is unregistered
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.unregisterPushDevice.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.unregisterPushDevice.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.unregisterPushDevice.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The installation ID is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.unregisterPushDevice.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.unregisterPushDevice.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.unregisterPushDevice.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.unregisterPushDevice.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.unregisterPushDevice.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.unregisterPushDevice.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.unregisterPushDevice.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.unregisterPushDevice.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only the signed-in Tuist app can unregister push devices
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.unregisterPushDevice.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.unregisterPushDevice.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.unregisterPushDevice.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/DELETE/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.unregisterPushDevice.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.unregisterPushDevice.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.unregisterPushDevice.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Too many changes from this user. Retry after the `retry-after` interval.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/delete(unregisterPushDevice)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.unregisterPushDevice.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.unregisterPushDevice.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }

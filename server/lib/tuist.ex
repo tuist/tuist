@@ -186,6 +186,7 @@ defmodule Tuist do
       Shards.ShardPlanTestSuite,
       Shards.ShardRun,
       MCP.Server,
+      MCP.WebMCP,
       MCP.Transport.StreamableHTTP,
       # App
       # -----
@@ -223,6 +224,8 @@ defmodule Tuist do
       Artifacts,
       Artifacts.Package,
       Projects,
+      Push,
+      Notifications,
       Projects.Project,
       Accounts.OIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,
