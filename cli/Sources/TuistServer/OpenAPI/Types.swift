@@ -15506,7 +15506,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/template`.
             public var template: Swift.String?
-            /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -15514,7 +15514,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
             public var vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload?
@@ -15529,7 +15529,7 @@ public enum Components {
             ///   - orb_token:
             ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
             ///   - template: Sandbox template name.
-            ///   - vcpus: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///   - workspace_gb:
             public init(
                 amp_url: Swift.String? = nil,
@@ -16464,7 +16464,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/template`.
             public var template: Swift.String?
-            /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -16472,7 +16472,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
@@ -16491,7 +16491,7 @@ public enum Components {
             ///   - name:
             ///   - pause_grace_seconds:
             ///   - template: Sandbox template name.
-            ///   - vcpus: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///   - workspace_gb:
             public init(
                 agent_model: Swift.String? = nil,
@@ -20476,7 +20476,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/template`.
             public var template: Swift.String?
-            /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -20484,7 +20484,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
@@ -20495,7 +20495,7 @@ public enum Components {
             /// - Parameters:
             ///   - memory_mb:
             ///   - template: Sandbox template name.
-            ///   - vcpus: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///   - workspace_gb:
             public init(
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
@@ -30018,7 +30018,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -30026,7 +30026,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
@@ -30037,7 +30037,7 @@ public enum Operations {
                     /// - Parameters:
                     ///   - memory_mb:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///   - workspace_gb:
                     public init(
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
@@ -32720,7 +32720,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -32728,7 +32728,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload?
@@ -32743,7 +32743,7 @@ public enum Operations {
                     ///   - orb_token:
                     ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///   - workspace_gb:
                     public init(
                         amp_url: Swift.String? = nil,
@@ -81727,7 +81727,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -81735,7 +81735,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
@@ -81754,7 +81754,7 @@ public enum Operations {
                     ///   - name:
                     ///   - pause_grace_seconds:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384.
+                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///   - workspace_gb:
                     public init(
                         agent_model: Swift.String? = nil,

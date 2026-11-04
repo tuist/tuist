@@ -150,11 +150,7 @@ defmodule TuistWeb.API.SandboxesController do
 
   @shape_properties %{
     template: %Schema{type: :string, pattern: @template_pattern, description: "Sandbox template name."},
-    vcpus: %Schema{
-      type: :integer,
-      enum: [2, 4, 8],
-      description: "With memory_mb, one of 2x4096, 2x8192, 4x8192 or 8x16384."
-    },
+    vcpus: %Schema{type: :integer, enum: [2, 4, 8], description: "With memory_mb, one of 2x4096, 4x8192 or 8x16384."},
     memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384]},
     workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
   }

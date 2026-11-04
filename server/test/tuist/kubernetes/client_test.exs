@@ -387,7 +387,7 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
-  describe "resize_sandbox_daemon_memory/4" do
+  describe "resize_sandbox_daemon/5" do
     @tag :tmp_dir
     test "patches the daemon container's memory request and limit through the resize subresource", %{
       tmp_dir: tmp_dir
@@ -420,7 +420,7 @@ defmodule Tuist.Kubernetes.ClientTest do
                      %{
                        "name" => "sandboxd",
                        "resources" => %{
-                         "requests" => %{"memory" => "12884901888"},
+                         "requests" => %{"memory" => "12884901888", "cpu" => "1500m"},
                          "limits" => %{"memory" => "12884901888"}
                        }
                      }
@@ -432,7 +432,7 @@ defmodule Tuist.Kubernetes.ClientTest do
       end)
 
       assert {:ok, %{"metadata" => %{"name" => "sandboxd-abc"}}} =
-               Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 12_884_901_888, opts)
+               Client.resize_sandbox_daemon("tuist-sandboxes", "sandboxd-abc", 12_884_901_888, 1500, opts)
     end
   end
 

@@ -73,6 +73,15 @@ defmodule Tuist.Sandboxes.Capacity do
   @daemon_reserve_bytes 512 * @mib
   # Per guest, outside its memory: the VMM process, vsock and tap buffers.
   @vm_overhead_bytes 64 * @mib
+  # Guaranteed CPU follows guaranteed memory: the carve-out's CPU request is
+  # one core per 8 GiB, which is the 1-core floor of a 4x8192 Amp Orb. Guests
+  # have no CPU limit, so they burst onto idle cores up to their vCPU count;
+  # under contention the kernel shares CPU in proportion to requests, so
+  # runners, whose requests equal their limits, always get theirs. Never below
+  # the chart's starting request (`sandboxes.cpu`), which keeps the daemon and
+  # a template build responsive.
+  @cpu_milli_per_gib 125
+  @daemon_cpu_milli 250
   # Room the filesystem must keep beyond the next memory image.
   @disk_headroom_bytes 1024 * @mib
   # Per sandbox beyond its three images: the vmstate file, the capped
@@ -940,7 +949,7 @@ defmodule Tuist.Sandboxes.Capacity do
   defp apply_resize(_node, _row, _limit), do: Repo.rollback(:superseded)
 
   defp resize_pod(node_name, pod_name, limit) do
-    case KubernetesClient.resize_sandbox_daemon_memory(Environment.sandboxes_namespace(), pod_name, limit) do
+    case KubernetesClient.resize_sandbox_daemon(Environment.sandboxes_namespace(), pod_name, limit, cpu_milli(limit)) do
       {:ok, _pod} ->
         :ok
 
@@ -955,6 +964,9 @@ defmodule Tuist.Sandboxes.Capacity do
         {:error, :resize_failed}
     end
   end
+
+  defp cpu_milli(memory_limit_bytes),
+    do: max(@daemon_cpu_milli, div(memory_limit_bytes * @cpu_milli_per_gib + @gib - 1, @gib))
 
   @doc """
   Shrinks every grown carve-out back toward what its running sandboxes

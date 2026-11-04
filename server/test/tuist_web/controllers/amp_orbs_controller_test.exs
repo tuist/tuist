@@ -148,12 +148,12 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert response(request(conn, %{"operation" => "spawn"}), 400)
   end
 
-  test "spawns managed Orbs with 2 vCPUs and 8 GB of memory", %{conn: conn, integration: integration, user: user} do
+  test "spawns managed Orbs with 4 vCPUs and 8 GB of memory", %{conn: conn, integration: integration, user: user} do
     identity(integration)
     expect(Tuist.Sandboxes.Capacity, :place, fn _ -> {:ok, "node-a"} end)
 
     expect(Nodes, :call, fn "node-a", "create", args, _opts ->
-      assert %{vcpus: 2, memory_mb: 8192} = args
+      assert %{vcpus: 4, memory_mb: 8192} = args
       {:ok, %{}}
     end)
 
@@ -161,7 +161,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
 
     assert response(request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture"}), 204)
 
-    assert %{vcpus: 2, memory_mb: 8192, state: :running} =
+    assert %{vcpus: 4, memory_mb: 8192, state: :running} =
              Tuist.Repo.get_by!(Sandbox, account_id: user.account.id, amp_orb_id: "amp-thread")
   end
 

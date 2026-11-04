@@ -2707,9 +2707,13 @@ sandboxes:
   # daemon's memory, grows again. A ceiling not above memoryGiB keeps the
   # carve-out fixed.
   maxMemoryGiB: 16
-  # CPU the daemon requests. Guests have no CPU limit and run on idle cores;
-  # the request only sets their share when the node's CPU is contended, so
-  # it stays small and leaves runner Pods' scheduling capacity alone.
+  # CPU the daemon starts at. Guests have no CPU limit: each bursts onto idle
+  # cores up to its vCPU count. The server raises this request with every
+  # carve-out growth to one core per 8 GiB of memory (an 8 GiB Amp Orb's
+  # guaranteed floor) and lowers it on shrink, never below this value. Under
+  # contention the kernel shares CPU in proportion to requests, so runner
+  # Pods, whose requests equal their limits, keep their full CPU and guests
+  # only use cores nobody requested.
   cpu: "250m"
   # Share of the node's data filesystem sandboxes may reserve. Every file a
   # sandbox writes is fixed-size (rootfs clone, sparse workspace of
@@ -2729,11 +2733,11 @@ sandboxes:
   archiveAfterHours: 0
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
-  prebuildShapes: "2x8192"
+  prebuildShapes: "2x4096,4x8192"
   # The only shapes a node accepts. Each shape costs a template build and a
   # memory image on disk, so the list is short and matches the shapes the
   # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
-  allowedShapes: "2x4096,2x8192,4x8192,8x16384"
+  allowedShapes: "2x4096,4x8192,8x16384"
   metricsPort: 9470
   # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
   # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes
