@@ -150,6 +150,16 @@ pulso:
   # reader/writer/compactor runs the same version.
   logCompaction:
     enabled: true
+  # Proposed production retention, previewed only: observe mode computes the
+  # floor but expires nothing. Switching to enforce deletes data and needs an
+  # explicit decision. 1.32.0+ keeps enforced prefixes on the paged manifest,
+  # with backups and hour finalization.
+  retention:
+    mode: observe
+    manifestFormat: paged
+    logsDays: 30
+    tracesDays: 14
+    metricsDays: 90
   # Atlas (atlas-production cluster) queries this Pulso over MCP only; see the
   # path allowlist in values.yaml. Each environment has its own token audience,
   # so a token sent to one Pulso is never accepted by another.
