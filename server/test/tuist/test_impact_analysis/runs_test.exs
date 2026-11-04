@@ -159,9 +159,14 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {run.requested_count, run.selected_count, run.skipped_count} == {0, 0, 0}
     end
 
+    test "falls back with history_unknown when the history doesn't have the checkout", %{project: project} do
+      assert {:ok, %{run: %{outcome: "fallback", reason: "history_unknown"}}} =
+               Runs.create(project, params(%{head_sha: "unknown"}))
+    end
+
     test "falls back when the baseline isn't in the checkout's window", %{project: project} do
       assert {:ok, %{run: %{outcome: "fallback", reason: "no_baseline"}}} =
-               Runs.create(project, params(%{head_sha: "unknown"}))
+               Runs.create(project, params(%{baseline_sha: "unknown"}))
     end
 
     test "walks a merge checkout's window from the parents", %{project: project} do
