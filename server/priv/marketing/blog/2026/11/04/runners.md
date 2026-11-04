@@ -88,14 +88,6 @@ And everything is agent-first. Through a [single MCP server](https://tuist.dev/e
 
 So far, our focus has been on iOS and Android with Gradle. We believe that integrating deeply with an ecosystem is what makes the experience great: understanding a build system well enough to cache the right things, to make dependency installation fast, and to show insights that actually mean something to you. That's why we're taking the same approach as we expand to Elixir, [Rust](https://tuist.dev/en/docs/guides/get-started/rust-project), and [Bazel](/blog/2026/09/09/bazel), and to [Once](/blog/2026/09/12/the-new-tuist), our own build system.
 
-## Pricing that goes down as we grow
-
-macOS runners cost **$0.05 per minute** on an 8 vCPU / 24 GB M5 Pro Mac mini, and Linux runners start at $0.001 per minute for the smallest machine. That's the whole bill: there's no platform fee on top, you pay for job time with no rounding up to whole minutes, and machine boot and cleanup are on us. Every plan, Air included, comes with 100 free macOS minutes and 2,500 free Linux minutes a month, and 100 GB of cache volumes. Cache traffic from Tuist Runners counts at half, and tests that run on them are free in Test Insights. If you run a lot of minutes, a yearly commitment brings the rate down further. You'll find every machine and rate on our [pricing page](/pricing#runners).
-
-We want to be open about how we get to that price. Owning the hardware means that most of what a runner costs us is fixed: the Mac minis, the rack, its power, and the connection to the internet. Those costs are the same whether a Mac is busy or idle, so what a minute costs us depends mostly on how much of the rack's day goes to running jobs. Every team that joins fills more of it, and every minute gets cheaper to run.
-
-Rather than keep the difference, we pass it on and push our prices down as utilization goes up. We've already done that a few times since we took over the rack: macOS minutes went from $0.075 to $0.06 and now to $0.05, Pro cache downloads went from $0.35 to $0.10 per GB, and Linux runners now include 2,500 free minutes a month. As more teams run on Tuist Runners, we'll keep going.
-
 ## How to try Tuist Runners
 
 We're still early in this journey and we're continuously adding Mac minis to ensure to meet the growing demand. This is a capital-intensive exercise and for now, we're keeping **Tuist Runners invite-only** to make sure we have enough capacity to onboard new customers.
@@ -113,3 +105,5 @@ And if you're already on GitHub Actions, adopting them is a one-line:
        - uses: actions/checkout@v4
        - run: tuist test
 ```
+
+macOS runners cost $0.05 per minute on an M5 Pro Mac mini, Linux starts at $0.001, and every plan comes with free minutes. You'll find every rate on our [pricing page](/pricing#runners). Since we own the hardware, most of what a runner costs us is fixed, so every minute gets cheaper to run as more teams join. We pass that on: macOS has already gone from $0.075 to $0.05 per minute, and we'll keep pushing prices down as utilization goes up.
