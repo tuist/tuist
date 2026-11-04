@@ -59,7 +59,7 @@ func (r *RackSiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := helper.Patch(ctx, site); patchErr != nil && err == nil {
+		if patchErr := helper.Patch(ctx, site, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
