@@ -380,6 +380,7 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
+      id-token: write
 
   docker-warm-layers:
     name: Linux Docker cache warm-layers
@@ -391,6 +392,7 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
+      id-token: write
 
   docker-changed-source:
     name: Linux Docker cache changed-source
@@ -402,6 +404,7 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
+      id-token: write
 
   docker-same-size-write:
     name: Linux Docker cache same-size-write
@@ -413,6 +416,7 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
+      id-token: write
 
   docker-verify-final:
     name: Linux Docker cache verify-final
@@ -424,3 +428,4 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
+      id-token: write

@@ -604,7 +604,10 @@ covered only by the production schedule.
   GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
   including final reuse, and pass the deploy's intended Linux image digest
   before staging holds. A mounted cache, correct compile output and actual
-  cross-job layer/mutable-cache reuse are mandatory. The 120-second pauses are
+  cross-job layer/mutable-cache reuse are mandatory. The Build jobs and their
+  callers grant `id-token: write` so the job-started hook binds the pod through
+  its OIDC token; without it binding races GitHub's webhook and API within the
+  agent's 25-second wait and the attach fails as `timeout`. The 120-second pauses are
   allowances, not publication proof; slow publication fails rather than retries.
   Keep production's scheduled probes usable while its Docker cache is disabled.
 - Health checks are not enough: a Kura that cannot reach the server's token
