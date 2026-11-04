@@ -50,7 +50,7 @@ struct SimulatorRow: View, ErrorViewHandling {
             VStack(alignment: .leading) {
                 Text(simulator.device.name)
                     .font(.title3)
-                Text("\(simulator.runtime.name)")
+                Text(simulator.runtime.name)
             }
             Spacer()
 

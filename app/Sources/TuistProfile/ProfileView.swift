@@ -25,7 +25,7 @@ public struct ProfileView: View {
                 VStack(spacing: 10) {
                     NooraAvatar(email: account.email, size: .xxlarge)
 
-                    Text("@\(account.handle)")
+                    Text(verbatim: "@\(account.handle)")
                         .font(.body.weight(.medium))
                         .fontWeight(.medium)
                         .foregroundColor(Noora.Colors.surfaceLabelSecondary)

@@ -83,25 +83,6 @@ defmodule Tuist.Sandboxes.ArchivesTest do
      }}
   end
 
-  describe "enqueue_if_over_cap/1" do
-    test "queues a run once an account keeps more paused Orbs on nodes than the cap", %{account: account} do
-      for _ <- 1..Archives.max_paused_on_node_per_account(), do: paused_orb(account, paused_at: hours_ago(1))
-      assert :ok = Archives.enqueue_if_over_cap(account.id)
-      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
-
-      paused_orb(account, paused_at: hours_ago(1))
-      assert :ok = Archives.enqueue_if_over_cap(account.id)
-      assert [_job] = all_enqueued(worker: ArchiveSandboxesWorker)
-    end
-
-    test "queues nothing while archiving is off", %{account: account} do
-      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
-      for _ <- 0..Archives.max_paused_on_node_per_account(), do: paused_orb(account, paused_at: hours_ago(1))
-      assert :ok = Archives.enqueue_if_over_cap(account.id)
-      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
-    end
-  end
-
   describe "making room under the disk limit" do
     test "a create past it queues the archive of the least recently paused idle Orb", %{account: account} do
       {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 28})
@@ -209,20 +190,10 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert Repo.reload!(sandbox).state == :paused
     end
 
-    test "archives the least recently paused Orbs of an account over the on-node cap", %{account: account} do
-      oldest = paused_orb(account, paused_at: hours_ago(3))
-
-      for n <- 1..Archives.max_paused_on_node_per_account(),
-          do: paused_orb(account, paused_at: DateTime.add(hours_ago(2), n, :minute))
-
-      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
-
-      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
-        assert id == oldest.id
-        {:error, "object storage answered 503"}
-      end)
-
-      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+    test "keeps recently paused Orbs on their nodes however many an account has", %{account: account} do
+      for _ <- 1..15, do: paused_orb(account, paused_at: hours_ago(1))
+      reject(&Storage.multipart_start/2)
+      reject(&Nodes.call/4)
       Archives.run()
     end
 

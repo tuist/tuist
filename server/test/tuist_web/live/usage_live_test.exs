@@ -592,9 +592,9 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "100 minutes included"
       assert html =~ "Billed this period"
       # The credit reads as money off the bill, not as a bare minute count.
-      assert html =~ "−6.00"
+      assert html =~ "−5.00"
       # 20 minutes past the allowance at the standard rate.
-      assert html =~ "1.20"
+      assert html =~ "1.00"
     end
 
     test "renders a pace for a projected runner receipt" do
@@ -732,8 +732,8 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "values each platform's rows at its own rate" do
-      # Ten macOS minutes are $0.60 and a thousand Linux baseline minutes
-      # $2.40, so a day running both comes to $3.00 rather than either
+      # Ten macOS minutes are $0.50 and a thousand Linux baseline minutes
+      # $2.40, so a day running both comes to $2.90 rather than either
       # rate applied to the sum.
       by_repository = [
         %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000},
@@ -741,7 +741,7 @@ defmodule TuistWeb.UsageLiveTest do
       ]
 
       assert [only] = UsageLive.runner_chart_series(by_repository, [])
-      assert only.data == [[~D[2026-08-21], 3.0]]
+      assert only.data == [[~D[2026-08-21], 2.9]]
     end
 
     test "splits the spend by platform across repositories" do
@@ -755,7 +755,7 @@ defmodule TuistWeb.UsageLiveTest do
 
       assert [linux, macos] = UsageLive.runner_chart_series(by_repository, [], "platform")
       assert {linux.name, linux.data} == {"Linux", [[~D[2026-08-21], 2.4]]}
-      assert {macos.name, macos.data} == {"macOS", [[~D[2026-08-21], 1.2]]}
+      assert {macos.name, macos.data} == {"macOS", [[~D[2026-08-21], 1.0]]}
     end
   end
 end

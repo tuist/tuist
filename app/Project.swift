@@ -346,5 +346,7 @@ let project = Project(
                 )
             )
         ),
-    ]
+    ],
+    // Strings are looked up by English key; generated accessors collide on case-only differences.
+    resourceSynthesizers: [.assets(), .plists(), .fonts()]
 )

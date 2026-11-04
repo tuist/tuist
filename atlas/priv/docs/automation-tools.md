@@ -76,10 +76,21 @@ reply. The native iOS/Android Orbit inbox groups prioritized conversations under
 Now, Today and Later. Configure sources through API/MCP; a source configuration
 UI is not included.
 
+## Search your Gmail and Slack from MCP clients
+
+After connecting in Settings → Connections, Atlas's MCP server offers three
+caller-only tools: `search_my_gmail` (Gmail search syntax, up to 25 messages),
+`get_my_gmail_message` (one message with a plain-text body bounded to 20,000
+characters) and `search_my_slack` (Slack search syntax, newest first, up to 50
+matches visible to you). They always use the calling person's own grant, are
+hidden from shared Slack identities, are never mounted in Pip threads or
+workflows, and their queries are not stored in the audit trail. Gmail tools need
+**Allow Gmail access**; Slack search uses the `search:read` user scope.
+
 ## Monitor personal Gmail and Slack
 
 Connect your personal account in Settings → Connections. For Gmail, choose
-**Allow Gmail monitoring** to grant separate read-only email access; the ordinary
+**Allow Gmail access** to grant separate read-only email access; the ordinary
 Google connection does not request it. Nothing is scanned just by connecting.
 
 Add `polling` to `create_signal_source` instead of `event_receiver`:

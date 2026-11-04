@@ -28,6 +28,8 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     end
   end
 
+  @inline_space "ONCE_INLINE_SPACE_PLACEHOLDER"
+
   def content_html(nil), do: nil
 
   def content_html(html) do
@@ -35,8 +37,11 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     # collapses the significant spacing inside highlighted <pre> code blocks
     # (indentation and the spaces the syntax highlighter puts between tokens).
     # Protect those blocks, run the image optimization on the rest, then
-    # restore them verbatim.
+    # restore them verbatim. The same happens to the space between two inline
+    # elements, like `<strong>Android:</strong> <a>`, so those spaces are
+    # protected too.
     {protected, pre_blocks} = protect_pre_blocks(html)
+    protected = Regex.replace(~r/(?<=>) +(?=<)/, protected, &String.replace(&1, " ", @inline_space))
 
     processed =
       case Floki.parse_fragment(protected) do
@@ -55,7 +60,9 @@ defmodule TuistWeb.Marketing.MarketingHTML do
           protected
       end
 
-    restore_pre_blocks(processed, pre_blocks)
+    processed
+    |> String.replace(@inline_space, " ")
+    |> restore_pre_blocks(pre_blocks)
   end
 
   defp protect_pre_blocks(html) do

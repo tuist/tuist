@@ -81,13 +81,13 @@ defmodule Tuist.Runners.Prepaid do
   @bp_basis 10_000
 
   # Hundredths of a US cent per compute-unit minute, one minute on the
-  # platform's baseline machine, on demand: $0.06 on the macOS 6 vCPU /
+  # platform's baseline machine, on demand: $0.05 on the macOS 6 vCPU /
   # 14 GB baseline and $0.0024 on the Linux 2 vCPU / 8 GB one, which puts
   # the 1 vCPU / 2 GB Linux machine at $0.001. This duplicates what each
   # platform's Stripe Price says, the same way `Tuist.Billing.UsagePricing`
   # duplicates the usage meter Prices, and has to be kept in step with it
   # by hand.
-  @on_demand_rates %{macos: 600, linux: 24}
+  @on_demand_rates %{macos: 500, linux: 24}
 
   # US cents per minute on the macOS baseline, the machine credit is
   # quoted in.

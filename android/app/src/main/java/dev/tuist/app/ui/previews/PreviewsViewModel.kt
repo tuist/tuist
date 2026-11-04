@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.tuist.app.R
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.api.model.Project
 import dev.tuist.app.data.auth.AuthRepository
@@ -36,7 +37,7 @@ sealed interface PreviewsUiState {
 class PreviewsViewModel @Inject constructor(
     private val previewsRepository: PreviewsRepository,
     private val authRepository: AuthRepository,
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("tuist_previews", Context.MODE_PRIVATE)
@@ -75,7 +76,7 @@ class PreviewsViewModel @Inject constructor(
                 val selected = projects.find { it.fullName == lastSelectedFullName } ?: projects.first()
                 loadPreviewsForProject(selected, projects)
             } catch (e: Exception) {
-                _uiState.value = PreviewsUiState.Error(e.message ?: "Failed to load projects")
+                _uiState.value = PreviewsUiState.Error(e.message ?: context.getString(R.string.load_projects_failed))
             }
         }
     }
@@ -114,7 +115,7 @@ class PreviewsViewModel @Inject constructor(
                     hasMorePreviews = page.hasNextPage,
                 )
             } catch (e: Exception) {
-                _errorEvents.emit(e.message ?: "Failed to load more previews")
+                _errorEvents.emit(e.message ?: context.getString(R.string.load_more_previews_failed))
             }
             _isLoadingMore.value = false
         }
@@ -141,7 +142,7 @@ class PreviewsViewModel @Inject constructor(
                     hasMorePreviews = page.hasNextPage,
                 )
             } catch (e: Exception) {
-                _uiState.value = PreviewsUiState.Error(e.message ?: "Failed to refresh previews")
+                _uiState.value = PreviewsUiState.Error(e.message ?: context.getString(R.string.refresh_previews_failed))
             }
             _isRefreshing.value = false
         }
@@ -168,7 +169,7 @@ class PreviewsViewModel @Inject constructor(
                 hasMorePreviews = page.hasNextPage,
             )
         } catch (e: Exception) {
-            _uiState.value = PreviewsUiState.Error(e.message ?: "Failed to load previews")
+            _uiState.value = PreviewsUiState.Error(e.message ?: context.getString(R.string.load_previews_failed))
         }
     }
 
