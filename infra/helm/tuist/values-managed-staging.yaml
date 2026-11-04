@@ -270,7 +270,8 @@ server:
       # end before production sees it. The Price is graduated: the first
       # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
       # baseline) are free, and beyond that each millisecond costs
-      # 0.0001 cents, which is $0.06 per baseline machine-minute.
+      # 0.000083333333 cents, which is $0.05 per baseline machine-minute
+      # (cut at the 12 decimals Stripe accepts, see production).
       #
       # Two minutes rather than production's hundred so the free tier and
       # the dispatch cap can both be reached in one short job instead of
@@ -302,7 +303,10 @@ server:
       # and the renewal schedules have moved every item off it.
       runners:
         runner_linux_compute_unit_milliseconds: "price_1UXkvHLlKoN51eczI4KykboL"
-        runner_macos_compute_unit_milliseconds: "price_1UXNkKLlKoN51eczld0hbV1t"
+        runner_macos_compute_unit_milliseconds: "price_1UY5MBLlKoN51eczRkfPBFEa"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1UXNkKLlKoN51eczld0hbV1t"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
