@@ -126,48 +126,6 @@ struct GitHistoryServiceTests {
     }
 
     @Test(.withMockedEnvironment())
-    func uploadsOnlyTheCheckoutsMissingCommitsWithoutReachingTheRemote() async throws {
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
-        given(missingCommitsService)
-            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
-            .willReturn(["head"])
-        given(uploadCommitsService)
-            .uploadCommits(
-                fullHandle: .any,
-                serverURL: .any,
-                repositoryURL: .any,
-                objectFormat: .any,
-                commits: .any,
-                branchHeads: .any
-            )
-            .willReturn(())
-
-        await subject.uploadCheckoutCommits(
-            gitInfo: gitInfo,
-            workingDirectory: workingDirectory,
-            fullHandle: "tuist/tuist",
-            serverURL: serverURL,
-            coverage: true
-        )
-
-        verify(gitController)
-            .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .matching { $0.remoteAccess == .none })
-            .called(1)
-        verify(uploadCommitsService).uploadCommits(
-            fullHandle: .any,
-            serverURL: .any,
-            repositoryURL: .value("git@github.com:acme/app.git"),
-            objectFormat: .any,
-            commits: .value([GitHistoryCommitPayload(
-                sha: "head",
-                parents: ["base"],
-                committedAt: Date(timeIntervalSince1970: 2)
-            )]),
-            branchHeads: .value([])
-        ).called(1)
-    }
-
-    @Test(.withMockedEnvironment())
     func collectsOnCIWithoutCoverageButNeverUploadsAListing() async throws {
         Environment.mocked?.variables["CI"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)

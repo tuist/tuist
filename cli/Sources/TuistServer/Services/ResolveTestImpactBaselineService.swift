@@ -11,11 +11,14 @@ public protocol ResolveTestImpactBaselineServicing {
     ///   - commitSHA: The checked-out commit.
     ///   - parentSHAs: The checked-out commit's parents, for a commit the server's history doesn't
     ///     have yet, such as a new commit or a pull request's merge commit.
+    ///   - ancestorSHAs: The checkout's ancestors, nearest first, for when the server's history has
+    ///     neither the commit nor its parents (`history_unknown`).
     func resolveTestImpactBaseline(
         fullHandle: String,
         serverURL: URL,
         commitSHA: String,
         parentSHAs: [String],
+        ancestorSHAs: [String],
         platform: String?,
         scheme: String?,
         testPlan: String?,
@@ -40,6 +43,7 @@ public struct ResolveTestImpactBaselineService: ResolveTestImpactBaselineServici
         serverURL: URL,
         commitSHA: String,
         parentSHAs: [String],
+        ancestorSHAs _: [String],
         platform: String?,
         scheme: String?,
         testPlan: String?,

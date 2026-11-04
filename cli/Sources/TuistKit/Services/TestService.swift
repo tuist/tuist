@@ -864,8 +864,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlan: testPlan,
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
-                    ?? destination.flatMap(TestImpactSelector.platform(xcodebuildDestination:)),
-                coverage: UploadResultBundleService.uploadsCoverage(config: config)
+                    ?? destination.flatMap(TestImpactSelector.platform(xcodebuildDestination:))
             )
         )
     }

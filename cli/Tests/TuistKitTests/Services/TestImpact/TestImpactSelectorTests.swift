@@ -8,7 +8,6 @@ import TuistServer
 
 struct TestImpactSelectorTests {
     private let gitController = MockGitControlling()
-    private let gitHistoryService = MockGitHistoryServicing()
     private let getProjectService = MockGetProjectServicing()
     private let resolveBaselineService = MockResolveTestImpactBaselineServicing()
     private let createRunService = MockCreateTestImpactRunServicing()
@@ -25,11 +24,9 @@ struct TestImpactSelectorTests {
                 scheme: "Shop",
                 testPlan: nil,
                 destination: "platform=iOS Simulator,name=iPhone 17",
-                platform: .iOS,
-                coverage: true
+                platform: .iOS
             ),
             gitController: gitController,
-            gitHistoryService: gitHistoryService,
             getProjectService: getProjectService,
             resolveBaselineService: resolveBaselineService,
             createRunService: createRunService
@@ -38,9 +35,7 @@ struct TestImpactSelectorTests {
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(repository)
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).willReturn(true)
-        given(gitHistoryService)
-            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
-            .willReturn()
+        given(gitController).ancestorSHAs(workingDirectory: .any, limit: .any).willReturn(["parent", "grandparent"])
     }
 
     @Test func prunes_the_modules_with_no_selected_test() async throws {
@@ -85,6 +80,7 @@ struct TestImpactSelectorTests {
             .called(1)
         verify(resolveBaselineService).resolveTestImpactBaseline(
             fullHandle: .any, serverURL: .any, commitSHA: .value("merge"), parentSHAs: .value(["main-tip", "head"]),
+            ancestorSHAs: .value([]),
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).called(1)
         verify(createRunService).createTestImpactRun(
@@ -116,10 +112,9 @@ struct TestImpactSelectorTests {
             ))
         ).called(1)
         verify(getProjectService).getProject(fullHandle: .any, serverURL: .any).called(0)
+        // The server knew the checkout's parents, so nothing deepened and no ancestors were sent.
         verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(0)
-        verify(gitHistoryService)
-            .uploadCheckoutCommits(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
-            .called(0)
+        verify(gitController).ancestorSHAs(workingDirectory: .any, limit: .any).called(0)
     }
 
     @Test func reuses_the_diff_the_server_has() async throws {
@@ -141,16 +136,16 @@ struct TestImpactSelectorTests {
         ).called(1)
     }
 
-    @Test func deepens_uploads_and_asks_again_when_the_server_doesnt_know_the_history() async throws {
+    @Test func deepens_once_and_asks_again_with_the_ancestors_when_the_server_doesnt_know_the_history() async throws {
         givenPullRequestCheckout()
         final class Requests {
             var count = 0
         }
         let requests = Requests()
         given(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
             platform: .any, scheme: .any, testPlan: .any, destination: .any
-        ).willProduce { _, _, _, _, _, _, _, _ in
+        ).willProduce { _, _, _, _, _, _, _, _, _ in
             requests.count += 1
             return requests.count == 1 ? .unavailable(.historyUnknown) : .baseline(sha: "baseline", diffCached: false)
         }
@@ -165,19 +160,15 @@ struct TestImpactSelectorTests {
         verify(gitController)
             .deepenShallowClone(workingDirectory: .value(repository), refs: .value(["refs/pull/7/merge", "main"]), limits: .any)
             .called(1)
-        verify(gitHistoryService)
-            .uploadCheckoutCommits(
-                gitInfo: .any,
-                workingDirectory: .value(repository),
-                fullHandle: .value("acme/shop"),
-                serverURL: .any,
-                coverage: .value(true)
-            )
-            .called(1)
+        verify(gitController).ancestorSHAs(workingDirectory: .value(repository), limit: .value(200)).called(1)
         verify(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .value([]),
             platform: .any, scheme: .any, testPlan: .any, destination: .any
-        ).called(2)
+        ).called(1)
+        verify(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .value(["parent", "grandparent"]),
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).called(1)
         // The clone was already deepened once, so the diff doesn't deepen again.
         verify(gitController)
             .changedFiles(workingDirectory: .any, since: .value("baseline"), deepening: .value([]), limits: .any)
@@ -185,7 +176,12 @@ struct TestImpactSelectorTests {
         verify(createRunService).createTestImpactRun(
             fullHandle: .any,
             serverURL: .any,
-            request: .matching { $0.basis == .baseline(sha: "baseline", changedFiles: [], dirty: false) }
+            request: .matching {
+                $0.basis == .baseline(sha: "baseline", changedFiles: [], dirty: false) && $0.ancestorSHAs == [
+                    "parent",
+                    "grandparent",
+                ]
+            }
         ).called(1)
     }
 
@@ -199,14 +195,14 @@ struct TestImpactSelectorTests {
 
         verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(1)
         verify(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).called(2)
         verify(gitController).changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any).called(0)
         verify(createRunService).createTestImpactRun(
             fullHandle: .any,
             serverURL: .any,
-            request: .matching { $0.basis == .fallback(.historyUnknown) }
+            request: .matching { $0.basis == .fallback(.historyUnknown) && $0.ancestorSHAs == ["parent", "grandparent"] }
         ).called(1)
     }
 
@@ -275,7 +271,7 @@ struct TestImpactSelectorTests {
 
         #expect(decision == .unchanged)
         verify(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).called(0)
     }
@@ -299,6 +295,7 @@ struct TestImpactSelectorTests {
         ).called(1)
         verify(resolveBaselineService).resolveTestImpactBaseline(
             fullHandle: .any, serverURL: .any, commitSHA: .value("main-tip"), parentSHAs: .value(["main-parent"]),
+            ancestorSHAs: .value([]),
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).called(1)
     }
@@ -344,7 +341,7 @@ struct TestImpactSelectorTests {
 
     private func givenBaseline(_ resolution: TestImpactBaselineResolution) {
         given(resolveBaselineService).resolveTestImpactBaseline(
-            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any,
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).willReturn(resolution)
     }

@@ -242,6 +242,20 @@ struct GitControllerTestImpactTests {
         #expect(checkedOut == GitCheckedOutCommit(sha: head, parentSHAs: [parent]))
     }
 
+    @Test(.inTemporaryDirectory) func ancestorSHAs_lists_the_ancestors_nearest_first_without_the_checkout() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let repository = try await makeRepository(at: path)
+        var commits: [String] = []
+        for index in 0 ..< 4 {
+            try write("money v\(index)", to: "Core/Money.swift", in: repository)
+            commits.append(try commit("change \(index)", in: repository))
+        }
+
+        let ancestors = await GitController().ancestorSHAs(workingDirectory: repository, limit: 2)
+
+        #expect(ancestors == [commits[2], commits[1]])
+    }
+
     @Test func parseRawDiff_reads_statuses_and_blobs() {
         let zero = String(repeating: "0", count: 40)
         let output = [

@@ -67,9 +67,10 @@ actor TestImpactSelector {
         let destination: String?
         /// The platform the run asked for, through `--platform` or `-destination`.
         let platform: XcodeGraph.Platform?
-        /// Whether the run uploads coverage.
-        let coverage: Bool
     }
+
+    /// How many of the checkout's ancestors the server accepts.
+    static let ancestorLimit = 200
 
     /// The reasons after which every test target in scope runs, so that the commit becomes a
     /// baseline for later runs.
@@ -79,7 +80,6 @@ actor TestImpactSelector {
     private(set) var outcome: TestImpactOutcome?
 
     private let gitController: GitControlling
-    private let gitHistoryService: GitHistoryServicing
     private let getProjectService: GetProjectServicing
     private let resolveBaselineService: ResolveTestImpactBaselineServicing
     private let createRunService: CreateTestImpactRunServicing
@@ -88,7 +88,6 @@ actor TestImpactSelector {
     init(
         invocation: Invocation,
         gitController: GitControlling = GitController(),
-        gitHistoryService: GitHistoryServicing = GitHistoryService(),
         getProjectService: GetProjectServicing = GetProjectService(),
         resolveBaselineService: ResolveTestImpactBaselineServicing = ResolveTestImpactBaselineService(),
         createRunService: CreateTestImpactRunServicing = CreateTestImpactRunService(),
@@ -96,7 +95,6 @@ actor TestImpactSelector {
     ) {
         self.invocation = invocation
         self.gitController = gitController
-        self.gitHistoryService = gitHistoryService
         self.getProjectService = getProjectService
         self.resolveBaselineService = resolveBaselineService
         self.createRunService = createRunService
@@ -136,22 +134,17 @@ actor TestImpactSelector {
         if modules.isEmpty, !onDefaultBranch { return .unchanged }
 
         let refs = Self.deepeningRefs(gitInfo: gitInfo)
-        var baseline = await resolveBaseline(checkout: checkout, platform: platform)
+        var ancestorSHAs: [String] = []
+        var baseline = await resolveBaseline(checkout: checkout, ancestorSHAs: ancestorSHAs, platform: platform)
         // The checkout may lead to the server's history only through commits it hasn't seen, such as
-        // a push of several commits. A clone is deepened at most once per invocation, so the diff
-        // below doesn't deepen again.
+        // a push of several commits: the server then walks from the checkout's ancestors. A clone is
+        // deepened at most once per invocation, so the diff below doesn't deepen again.
         var deepeningRefs = refs
         if baseline == .unavailable(.historyUnknown) {
             _ = await gitController.deepenShallowClone(workingDirectory: repository, refs: refs, limits: GitHistoryLimits())
             deepeningRefs = []
-            await gitHistoryService.uploadCheckoutCommits(
-                gitInfo: gitInfo,
-                workingDirectory: repository,
-                fullHandle: invocation.fullHandle,
-                serverURL: invocation.serverURL,
-                coverage: invocation.coverage
-            )
-            baseline = await resolveBaseline(checkout: checkout, platform: platform)
+            ancestorSHAs = await gitController.ancestorSHAs(workingDirectory: repository, limit: Self.ancestorLimit)
+            baseline = await resolveBaseline(checkout: checkout, ancestorSHAs: ancestorSHAs, platform: platform)
         }
 
         let basis: TestImpactRunRequest.Basis
@@ -179,6 +172,7 @@ actor TestImpactSelector {
             headSHA: gitInfo.sha ?? checkout.sha,
             commitSHA: checkout.sha == gitInfo.sha ? nil : checkout.sha,
             parentSHAs: checkout.parentSHAs,
+            ancestorSHAs: ancestorSHAs,
             basis: basis,
             modules: modules,
             platform: platform,
@@ -211,12 +205,17 @@ actor TestImpactSelector {
 
     // swiftlint:enable function_body_length
 
-    private func resolveBaseline(checkout: GitCheckedOutCommit, platform: String?) async -> TestImpactBaselineResolution {
+    private func resolveBaseline(
+        checkout: GitCheckedOutCommit,
+        ancestorSHAs: [String],
+        platform: String?
+    ) async -> TestImpactBaselineResolution {
         await resolveBaselineService.resolveTestImpactBaseline(
             fullHandle: invocation.fullHandle,
             serverURL: invocation.serverURL,
             commitSHA: checkout.sha,
             parentSHAs: checkout.parentSHAs,
+            ancestorSHAs: ancestorSHAs,
             platform: platform,
             scheme: invocation.scheme,
             testPlan: invocation.testPlan,

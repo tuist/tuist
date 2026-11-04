@@ -109,6 +109,10 @@ public protocol GitControlling {
     /// shallow clone, the limits allow no fetch, or the fetch failed.
     func deepenShallowClone(workingDirectory: AbsolutePath, refs: [String], limits: GitHistoryLimits) async -> Bool
 
+    /// Up to `limit` ancestors of the checked-out commit that the checkout has, nearest first, the
+    /// commit itself left out. Empty when they can't be read.
+    func ancestorSHAs(workingDirectory: AbsolutePath, limit: Int) async -> [String]
+
     /// The files that differ between `baselineSHA` and the working tree: what the checked-out commit
     /// changed since the baseline, plus dirty and untracked files. A shallow clone that lacks the
     /// baseline is deepened once by `GitController.testImpactDeepenCommits` through `refs` within the

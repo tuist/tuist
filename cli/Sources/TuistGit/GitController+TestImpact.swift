@@ -59,6 +59,14 @@ extension GitController {
         await deepenOnce(git: ["git", "-C", workingDirectory.pathString], refs: refs, limits: limits) == .deepened
     }
 
+    public func ancestorSHAs(workingDirectory: AbsolutePath, limit: Int) async -> [String] {
+        guard limit > 0 else { return [] }
+        let output = try? await capture(
+            arguments: ["git", "-C", workingDirectory.pathString, "rev-list", "--topo-order", "--max-count=\(limit + 1)", "HEAD"]
+        )
+        return Array((output ?? "").split(whereSeparator: \.isNewline).map(String.init).dropFirst())
+    }
+
     public func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit {
         let head = try await currentCommitSHA(workingDirectory: workingDirectory)
         let environment = await ciEnvironment()
