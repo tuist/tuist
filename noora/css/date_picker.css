@@ -87,6 +87,12 @@
     /* Adjust horizontal position to the left */
     margin-left: calc(-1 * var(--noora-spacing-2));
 
+    /* Zag positions with a physical left offset, so a logical margin would have no effect when
+     * the inline-end edge is the anchored one. Nudge outward (to the right) in RTL instead. */
+    [dir="rtl"] & {
+      margin-left: var(--noora-spacing-2);
+    }
+
     /* Prevent flashing of the component before script load */
     &:not(:has(> [data-state])) {
       display: none;
@@ -95,6 +101,10 @@
     @media (max-width: 767px) {
       /* Reset desktop offset and align to available space */
       margin-left: 0;
+
+      [dir="rtl"] & {
+        margin-left: 0;
+      }
     }
   }
 
@@ -344,14 +354,14 @@
     height: 30px;
     top: 50%;
     transform: translateY(-50%);
-    left: 0;
-    right: 0;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
     background: var(--noora-datepicker-range-background);
 
     @media (max-width: 767px) {
       /* Extend slightly to prevent subpixel gaps between cells */
-      left: -1px;
-      right: -1px;
+      inset-inline-start: -1px;
+      inset-inline-end: -1px;
     }
   }
 
@@ -360,9 +370,9 @@
     [data-part="table-cell"]:has(
       [data-range-start]:not([data-selected])
     )::before {
-    left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-3);
-    border-bottom-left-radius: var(--noora-radius-3);
+    inset-inline-start: var(--noora-spacing-2);
+    border-start-start-radius: var(--noora-radius-3);
+    border-end-start-radius: var(--noora-radius-3);
   }
 
   /* Range end (non-selected) - add rounded right corners and right padding */
@@ -370,9 +380,9 @@
     [data-part="table-cell"]:has(
       [data-range-end]:not([data-selected])
     )::before {
-    right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-3);
-    border-bottom-right-radius: var(--noora-radius-3);
+    inset-inline-end: var(--noora-spacing-2);
+    border-start-end-radius: var(--noora-radius-3);
+    border-end-end-radius: var(--noora-radius-3);
   }
 
   /* Selected cells - collapse ::before to zero width by default, no radius */
@@ -380,8 +390,8 @@
     [data-part="table-cell"]:has([data-in-range]):has([data-selected]):not(
       :has([data-outside-range])
     ):not([data-hidden])::before {
-    left: 50%;
-    right: 50%;
+    inset-inline-start: 50%;
+    inset-inline-end: 50%;
     border-radius: 0;
   }
 
@@ -390,7 +400,7 @@
     [data-part="table-cell"]:has(
       [data-selected][data-hover-range-start]:not([data-hover-range-end])
     ):not(:has([data-outside-range])):not([data-hidden])::before {
-    right: 0;
+    inset-inline-end: 0;
   }
 
   /* Selected with hover-range-end (not hover-range-start) - show left half */
@@ -398,7 +408,7 @@
     [data-part="table-cell"]:has(
       [data-selected][data-hover-range-end]:not([data-hover-range-start])
     ):not(:has([data-outside-range])):not([data-hidden])::before {
-    left: 0;
+    inset-inline-start: 0;
   }
 
   /* Selected range-start (not also range-end, no hover attrs) - show right half */
@@ -408,7 +418,7 @@
           [data-hover-range-start]
         ):not([data-hover-range-end])
     ):not(:has([data-outside-range])):not([data-hidden])::before {
-    right: 0;
+    inset-inline-end: 0;
   }
 
   /* Selected range-end (not also range-start, no hover attrs) - show left half */
@@ -418,7 +428,7 @@
           [data-hover-range-start]
         ):not([data-hover-range-end])
     ):not(:has([data-outside-range])):not([data-hidden])::before {
-    left: 0;
+    inset-inline-start: 0;
   }
 
   /* First cell in row that's in range/hover-range - add rounded left corners and left padding */
@@ -430,18 +440,18 @@
     [data-part="table-cell"]:first-child:has([data-in-hover-range]):not(
       :has([data-outside-range])
     ):not(:has([data-disabled])):not(:has([data-selected]))::before {
-    left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-3);
-    border-bottom-left-radius: var(--noora-radius-3);
+    inset-inline-start: var(--noora-spacing-2);
+    border-start-start-radius: var(--noora-radius-3);
+    border-end-start-radius: var(--noora-radius-3);
   }
 
   /* Cell preceded by hidden cell - treat as first visible, add rounded left corners and left padding */
   &
     [data-part="day-table-cell"][data-hidden]
     + [data-part="table-cell"]:has([data-in-range]):not([data-hidden])::before {
-    left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-3);
-    border-bottom-left-radius: var(--noora-radius-3);
+    inset-inline-start: var(--noora-spacing-2);
+    border-start-start-radius: var(--noora-radius-3);
+    border-end-start-radius: var(--noora-radius-3);
   }
 
   /* Last cell in row that's in range/hover-range - add rounded right corners and right padding */
@@ -453,9 +463,9 @@
     [data-part="table-cell"]:last-child:has([data-in-hover-range]):not(
       :has([data-outside-range])
     ):not(:has([data-disabled])):not(:has([data-selected]))::before {
-    right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-3);
-    border-bottom-right-radius: var(--noora-radius-3);
+    inset-inline-end: var(--noora-spacing-2);
+    border-start-end-radius: var(--noora-radius-3);
+    border-end-end-radius: var(--noora-radius-3);
   }
 
   /* Cell followed by hidden cell - treat as last visible, add rounded right corners and right padding */
@@ -463,9 +473,9 @@
     [data-part="table-cell"]:has([data-in-range]):not([data-hidden]):has(
       + [data-part="day-table-cell"][data-hidden]
     )::before {
-    right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-3);
-    border-bottom-right-radius: var(--noora-radius-3);
+    inset-inline-end: var(--noora-spacing-2);
+    border-start-end-radius: var(--noora-radius-3);
+    border-end-end-radius: var(--noora-radius-3);
   }
 
   /* First hover-range cell in row - add rounded left corners and left padding */
@@ -475,9 +485,9 @@
           [data-selected]
         )
     )::before {
-    left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-3);
-    border-bottom-left-radius: var(--noora-radius-3);
+    inset-inline-start: var(--noora-spacing-2);
+    border-start-start-radius: var(--noora-radius-3);
+    border-end-start-radius: var(--noora-radius-3);
   }
 
   /* Override: hover-range cells preceded by another hover-range - remove left padding/radius */
@@ -488,9 +498,9 @@
           [data-selected]
         )
     )::before {
-    left: 0;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+    inset-inline-start: 0;
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
   }
 
   /* Hover range end - add rounded right corners and right padding */
@@ -498,9 +508,9 @@
     [data-part="table-cell"]:has([data-hover-range-end]):not(
       :has([data-outside-range])
     )::before {
-    right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-3);
-    border-bottom-right-radius: var(--noora-radius-3);
+    inset-inline-end: var(--noora-spacing-2);
+    border-start-end-radius: var(--noora-radius-3);
+    border-end-end-radius: var(--noora-radius-3);
   }
 
   /* Day cell trigger (button) */

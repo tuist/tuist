@@ -257,7 +257,7 @@
   .noora-avatar__fallback-image {
     position: relative;
     top: 0;
-    left: 0;
+    inset-inline-start: 0;
   }
   & [data-part="image"] {
     display: none;
