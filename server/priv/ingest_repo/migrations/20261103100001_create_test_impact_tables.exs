@@ -10,9 +10,9 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactTables do
   - `test_impact_runs`: one row per `tuist test` invocation that asked for a
     selection: the diff it used, the baseline's runs it read its tests from
     (so every shard's skip list matches the decision), its scope, the outcome
-    and why, the trace of the rules that decided it, and the counts, including
-    the tests in the modules the client skipped because their hash matched
-    (`module_skipped_count`). Fallbacks are recorded too. Ordered for the overview's date-range read; the run page
+    and why, the trace of the rules that decided it, and the counts, which
+    include the tests in the modules the client skipped because their hash
+    matched. Fallbacks are recorded too. Ordered for the overview's date-range read; the run page
     finds a run by id through the bloom filter.
   - `test_impact_run_tests`: the tests a run selected, with the rule that
     selected each one, ordered so a run's tests, or a shard's suites, are one
@@ -79,7 +79,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactTables do
       `requested_count` UInt32,
       `skipped_count` UInt32,
       `selected_count` UInt32,
-      `module_skipped_count` UInt32,
       INDEX idx_id id TYPE bloom_filter GRANULARITY 4
     )
     ENGINE = #{Migration.engine("MergeTree")}

@@ -212,15 +212,19 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
            },
            modules: %Schema{
              type: :array,
-             items: %Schema{type: :string},
              description:
-               "The test modules left to decide: what the invocation asked for, minus the targets whose hash matched. Absent when neither narrowed the scope, meaning every module the baseline measured. An empty list means hashing left nothing to decide: the server records a selection of nothing, without a diff or the rules, and only counts `skipped_modules`."
-           },
-           skipped_modules: %Schema{
-             type: :array,
-             items: %Schema{type: :string},
-             description:
-               "The test modules the client skipped because their hash matched. The server records how many of the baseline's tests they hold (`module_skipped_count`), so the skip rate includes them. Not decided by the rules and never run."
+               "Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 name: %Schema{type: :string, description: "The test module."},
+                 skipped: %Schema{
+                   type: :boolean,
+                   description: "Whether the client skipped the module because its hash matched. Defaults to false."
+                 }
+               },
+               required: [:name]
+             }
            },
            platform: %Schema{
              type: :string,
@@ -229,7 +233,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
            git_branch: %Schema{type: :string, description: "The git branch, shown on the overview."},
            xcode: @xcode_schema
          },
-         required: [:build_system, :head_sha]
+         required: [:build_system, :head_sha, :modules]
        }},
     responses: %{
       ok: {"The impact run", "application/json", Run},

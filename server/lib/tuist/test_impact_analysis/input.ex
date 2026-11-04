@@ -216,6 +216,7 @@ defmodule Tuist.TestImpactAnalysis.Input do
   unless nil.
   """
   def baseline_tests(_project_id, [], _modules), do: []
+  def baseline_tests(_project_id, _run_ids, []), do: []
 
   def baseline_tests(project_id, run_ids, modules) do
     query =
