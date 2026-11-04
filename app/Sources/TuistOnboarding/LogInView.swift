@@ -25,6 +25,7 @@ public struct LogInView: View {
                 .font(.title.weight(.medium))
                 .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                 .padding(.bottom, Noora.Spacing.spacing5)
+                .accessibilityIdentifier("log-in-title")
 
             signIn
         }
@@ -50,6 +51,7 @@ public struct LogInView: View {
         VStack(spacing: Noora.Spacing.spacing5) {
             SocialButton(
                 title: "Sign in with Tuist",
+                accessibilityIdentifier: "sign-in-tuist",
                 style: .primary,
                 icon: "TuistLogo"
             ) {
@@ -58,6 +60,7 @@ public struct LogInView: View {
 
             SocialButton(
                 title: "Sign in with Apple",
+                accessibilityIdentifier: "sign-in-apple",
                 style: .secondary,
                 icon: "AppleLogo"
             ) {
@@ -78,6 +81,7 @@ public struct LogInView: View {
 
             SocialButton(
                 title: "Sign in with Google",
+                accessibilityIdentifier: "sign-in-google",
                 style: .secondary,
                 icon: "GoogleLogo"
             ) {
@@ -86,6 +90,7 @@ public struct LogInView: View {
 
             SocialButton(
                 title: "Sign in with GitHub",
+                accessibilityIdentifier: "sign-in-github",
                 style: .secondary,
                 icon: "GitHubLogo"
             ) {
@@ -96,6 +101,7 @@ public struct LogInView: View {
 
             SocialButton(
                 title: "Self-hosted server",
+                accessibilityIdentifier: "sign-in-self-hosted",
                 style: .secondary,
                 icon: "ServerIcon"
             ) {

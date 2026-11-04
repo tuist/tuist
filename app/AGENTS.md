@@ -13,6 +13,7 @@ xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp
 ```
 
 - iOS preview tests use the `TuistPreviews` scheme with an iOS Simulator destination (`Tests/TuistPreviewsTests`).
+- iOS UI tests use the `TuistAppUITests` scheme with an iOS Simulator destination (`Tests/TuistAppUITests`). They run logged out, so they cover only flows that need no account or network, and CI runs them on pushes to `main` only. Query elements by accessibility identifier.
 - Use SwiftUI for new UI components and follow CLI Swift conventions.
 - Only add one-line comments when they explain something non-obvious.
 - `TUIST_ENV` selects `development` (local server), `staging`, or `canary`;
