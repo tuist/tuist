@@ -16,6 +16,7 @@ integration test per scenario), the CLI orchestration, and the end-to-end runs.
 | `authoring/` | The manifest both plain projects are generated from. |
 | `scenarios.sh` | Assembles a variant into a new repository and commits the scenarios. |
 | `golden.json` | The expected outcome, selected tests and reasons per scenario. |
+| `evidence.py`, `hashes.py` | Re-measure `baseline_evidence` and each scenario's `hash.skipped`. |
 
 Every variant has the same repository layout, so paths in `golden.json` hold for any of them.
 
@@ -146,9 +147,31 @@ When a later step settles one differently, update the decisions and the assumpti
 
 ## Changing the fixture
 
-Edits to `common/` change evidence and hashes. Re-measure `baseline_evidence` on a full run,
-update the affected scenarios, re-measure the hash stage with `tuist hash selective-testing` at each checkout, and
-run `scenarios.sh check` on a fresh build. When targets change, update `generated/Project.swift` and
+Edits to `common/` change evidence and hashes. The decisions in `golden.json` are written by
+hand; the evidence and `hash.skipped` are measured. After an edit, re-measure both, update the
+affected scenarios, and run `scenarios.sh check` on a fresh build.
+
+To re-measure `baseline_evidence`, run the baseline with TestCoverageAttribution, then compare
+`evidence.py`'s output with `golden.json`:
+
+```bash
+cli/Tests/Fixtures/CoverageTestSelection/scenarios.sh build generated /tmp/test-bed
+cd /tmp/test-bed && tuist install && tuist generate --no-open
+TEST_RUNNER_TEST_COVERAGE_ATTRIBUTION_DIR=/tmp/tca xcodebuild test -workspace Shop.xcworkspace \
+  -scheme Shop -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath /tmp/dd \
+  -enableCodeCoverage YES -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
+cli/Tests/Fixtures/CoverageTestSelection/evidence.py /tmp/tca /tmp/dd /tmp/test-bed
+```
+
+`hashes.py` runs `tuist hash selective-testing` at every run and checkout a scenario names and
+reports the scenarios whose `hash.skipped` differs. Run it on a generated history after one
+`tuist install`:
+
+```bash
+cli/Tests/Fixtures/CoverageTestSelection/hashes.py /tmp/test-bed
+```
+
+When targets change, update `generated/Project.swift` and
 `authoring/Project.swift`, then run `scenarios.sh project xcodeproj` and `scenarios.sh project
 synchronized` with `tuist` on the `PATH`. Keep every variant's `Package.resolved` on the same
 TestCoverageAttribution version.
