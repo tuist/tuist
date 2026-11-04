@@ -12,7 +12,7 @@
 
   & [data-part="custom-metadata-link"] {
     display: block;
-    padding-left: var(--noora-spacing-7);
+    padding-inline-start: var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     text-decoration: underline;
@@ -158,6 +158,8 @@
           & > [data-part="command-label"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
           }
         }
       }
@@ -204,14 +206,14 @@
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
-            right: var(--noora-spacing-4);
             bottom: 9px;
-            left: var(--noora-spacing-4);
+            inset-inline-end: var(--noora-spacing-4);
+            inset-inline-start: var(--noora-spacing-4);
           }
           &[data-index="two"] {
-            right: var(--noora-spacing-7);
             bottom: 0;
-            left: var(--noora-spacing-7);
+            inset-inline-end: var(--noora-spacing-7);
+            inset-inline-start: var(--noora-spacing-7);
           }
         }
       }
@@ -258,10 +260,10 @@
         & > [data-part="empty-state-background"] {
           position: absolute;
           top: 0;
-          right: 0;
           bottom: 0;
-          left: 0;
           z-index: var(--noora-z-index-0);
+          inset-inline-end: 0;
+          inset-inline-start: 0;
         }
 
         & > [data-part="title"] {
@@ -484,7 +486,7 @@
                 font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 
                 & > [data-part="cas-output-label"] {
-                  padding-right: var(--noora-spacing-1);
+                  padding-inline-end: var(--noora-spacing-1);
                   color: var(--noora-surface-label-primary);
                   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
                 }
@@ -673,7 +675,7 @@
 
       & > [data-part="issue"] {
         padding-top: var(--noora-spacing-5);
-        padding-left: 44px;
+        padding-inline-start: 44px;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }

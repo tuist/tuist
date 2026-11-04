@@ -154,7 +154,7 @@
 
       @media (min-width: 1024px) {
         &:not(:first-child) {
-          border-left: 1px solid var(--marketing-stroke-default);
+          border-inline-start: 1px solid var(--marketing-stroke-default);
         }
       }
 
@@ -296,7 +296,7 @@
 
       & > [data-part="plan-picker-plan"] {
         box-sizing: border-box;
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
         padding: var(--noora-spacing-9) 0;
         min-width: 0;
         color: var(--noora-surface-label-primary);
@@ -401,7 +401,7 @@
       }
 
       & [data-part="cell-plan"] {
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
         padding: var(--noora-spacing-9) 0;
         width: 270px;
         color: var(--noora-surface-label-primary);
@@ -415,7 +415,7 @@
       & [data-part="cell-feature"] {
         vertical-align: middle;
         padding: var(--noora-spacing-8) var(--noora-spacing-4);
-        text-align: left;
+        text-align: start;
 
         & > [data-part="feature-name"] {
           color: var(--noora-surface-label-primary);
@@ -443,14 +443,14 @@
 
       /* Closing CTA row: one button per plan column, empty feature cell. */
       & [data-part="cell-cta"] {
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
         padding: var(--noora-spacing-9) 0;
         text-align: center;
       }
 
       & [data-part="cell-value"] {
         vertical-align: middle;
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         text-align: center;
@@ -634,7 +634,7 @@
         & > [data-part="answer"] {
           /* Keep clear of the chevron column: the 28px neutral button +
              16px gap. */
-          margin-right: calc(28px + var(--noora-spacing-6));
+          margin-inline-end: calc(28px + var(--noora-spacing-6));
           padding: 0 var(--noora-spacing-7) var(--noora-spacing-7);
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-large);
@@ -682,7 +682,7 @@
 
       & > [data-platform="linux"] {
         grid-area: linux;
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
       }
 
       & > [data-part="terms"] {
@@ -729,11 +729,11 @@
         & td {
           border-top: 1px solid var(--marketing-stroke-default);
           padding: var(--noora-spacing-5) 0;
-          text-align: right;
+          text-align: end;
         }
 
         & th:first-child {
-          text-align: left;
+          text-align: start;
         }
 
         & thead th {

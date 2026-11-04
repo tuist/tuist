@@ -546,7 +546,7 @@ defmodule TuistWeb.DocsLiveTest do
           conn |> get("/#{locale}/docs?utm_source=google") |> html_response(200) |> Floki.parse_document!()
 
         assert Floki.attribute(document, "html", "lang") == [language]
-        assert length(Floki.find(document, "link[hreflang]")) == 10
+        assert length(Floki.find(document, "link[hreflang]")) == 11
 
         for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"],
             {target_locale, target_language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"yue_Hant", "yue-Hant"}] do
@@ -555,7 +555,7 @@ defmodule TuistWeb.DocsLiveTest do
           assert Floki.attribute(document, selector, "href") == ["/#{target_locale}/docs"]
         end
 
-        assert length(Floki.find(document, "a[data-glossia-language]")) == 18
+        assert length(Floki.find(document, "a[data-glossia-language]")) == 20
 
         assert Floki.attribute(document, "link[hreflang='zh-Hans']", "href") ==
                  [Tuist.Environment.app_url(path: "/zh_Hans/docs")]

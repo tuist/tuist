@@ -132,6 +132,10 @@
   scrollbar-color: auto;
   scrollbar-width: auto;
   font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+  /* Code is inherently LTR, even on RTL pages. */
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
 
   /* Firefox has no `::-webkit-scrollbar`; give it the thin variant. Scoped so
      Chromium/Safari fall through to the detailed styling below. */

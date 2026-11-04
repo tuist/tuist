@@ -161,7 +161,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     @describetag :locale
 
     test "deep links select their language regardless of browser or session preferences", %{conn: conn} do
-      for {path, language} <- [{"/about", "en"}, {"/zh_Hans", "zh-Hans"}, {"/ja", "ja"}] do
+      for {path, language, direction} <- [
+            {"/about", "en", "ltr"},
+            {"/zh_Hans", "zh-Hans", "ltr"},
+            {"/ja", "ja", "ltr"},
+            {"/ar", "ar", "rtl"}
+          ] do
         document =
           conn
           |> init_test_session(%{locale: "ko"})
@@ -172,6 +177,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
           |> Floki.parse_document!()
 
         assert Floki.attribute(document, "html", "lang") == [language]
+        assert Floki.attribute(document, "html", "dir") == [direction]
 
         assert Floki.attribute(document, "link[rel='canonical']", "href") ==
                  [Tuist.Environment.app_url(path: path)]
@@ -260,6 +266,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "translated pages share query-free alternates and an English fallback", %{conn: conn} do
       languages = [
+        {"ar", "/ar"},
         {"en", ""},
         {"es", "/es"},
         {"ja", "/ja"},

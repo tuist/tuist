@@ -37,6 +37,11 @@ import {
 } from "@zag-js/utils";
 import { bindable } from "./bindable";
 
+const documentDirection = () =>
+  typeof document !== "undefined" && document.documentElement.dir === "rtl"
+    ? "rtl"
+    : "ltr";
+
 export class VanillaMachine {
   constructor(machine, userProps = {}) {
     this.machine = machine;
@@ -51,9 +56,12 @@ export class VanillaMachine {
     const { id, ids, getRootNode } = userProps;
     this.scope = createScope({ id, ids, getRootNode });
 
+    // Zag uses `dir` for keyboard navigation and placement in right-to-left
+    // documents. Inherit it from the document unless a component sets it.
+    const propsWithDir = { dir: documentDirection(), ...userProps };
     const props =
-      machine.props?.({ props: compact(userProps), scope: this.scope }) ??
-      userProps;
+      machine.props?.({ props: compact(propsWithDir), scope: this.scope }) ??
+      propsWithDir;
     this.prop = (key) => props[key];
 
     const context = machine.context?.({
