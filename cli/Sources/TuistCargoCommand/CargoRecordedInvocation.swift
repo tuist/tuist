@@ -429,9 +429,12 @@ struct CargoToolchainIdentity: Codable {
             for path in [tools + "/clang", tools + "/ld", sdk + "/SDKSettings.json"] {
                 var info = stat()
                 guard stat(path, &info) == 0 else { return nil }
-                identities.append(
-                    "\(path):\(info.st_dev):\(info.st_ino):\(info.st_size):\(info.st_mtimespec.tv_sec):\(info.st_mtimespec.tv_nsec)"
-                )
+                #if os(Linux)
+                    let modified = info.st_mtim
+                #else
+                    let modified = info.st_mtimespec
+                #endif
+                identities.append("\(path):\(info.st_dev):\(info.st_ino):\(info.st_size):\(modified.tv_sec):\(modified.tv_nsec)")
             }
             return identities
         }()

@@ -272,13 +272,20 @@ struct CargoTool: Equatable {
     static func identity(_ name: String, environment: [String: String], relocation: CargoRelocation) throws -> String {
         let parts = name.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
         guard parts.count == 4 else { throw CargoCacheInvocation.CacheError.unsupported }
-        var size = 0
-        sysctlbyname("kern.osversion", nil, &size, nil, 0)
-        var build = [CChar](repeating: 0, count: max(size, 1))
-        guard size > 0, sysctlbyname("kern.osversion", &build, &size, nil, 0) == 0 else {
+        let os: String
+        #if canImport(Darwin)
+            var size = 0
+            sysctlbyname("kern.osversion", nil, &size, nil, 0)
+            var build = [CChar](repeating: 0, count: max(size, 1))
+            guard size > 0, sysctlbyname("kern.osversion", &build, &size, nil, 0) == 0 else {
+                throw CargoCacheInvocation.CacheError.unsupported
+            }
+            os = String(cString: build)
+        #else
+            // These are Apple's tools, which only the macOS recorder models.
             throw CargoCacheInvocation.CacheError.unsupported
-        }
-        var values = [parts[0], "os=" + String(cString: build)]
+        #endif
+        var values = [parts[0], "os=" + os]
         guard parts[0] != "codesign" else { return values.joined(separator: "\n") }
         let environment = CargoQuery.environment(environment, changes: CargoQuery.changes(parts[3]))
         guard environment["SDKROOT"] == nil,
