@@ -9,7 +9,6 @@ defmodule TuistWeb.SandboxLive do
       gigabytes: 1,
       last_active_at: 1,
       relative_time: 1,
-      source_label: 1,
       status: 1,
       time: 1
     ]
@@ -17,7 +16,6 @@ defmodule TuistWeb.SandboxLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Sandboxes
-  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Sandbox
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.SandboxesLive
@@ -146,10 +144,7 @@ defmodule TuistWeb.SandboxLive do
   end
 
   defp assign_sandbox(socket, sandbox) do
-    assign(socket,
-      sandbox: sandbox,
-      snapshots: DiskSnapshots.list_for_sandbox(socket.assigns.selected_account.id, sandbox.id)
-    )
+    assign(socket, sandbox: sandbox)
   end
 
   def can_pause?(%Sandbox{state: :running, residency_work_id: nil}), do: true
@@ -160,7 +155,4 @@ defmodule TuistWeb.SandboxLive do
   def can_resume?(%Sandbox{}), do: false
 
   def can_delete?(%Sandbox{state: state}), do: state in [:running, :paused, :archived, :error]
-
-  def snapshot_status(%{state: :ready}), do: %{label: dgettext("dashboard_sandboxes", "Ready"), color: "success"}
-  def snapshot_status(%{state: :saving}), do: %{label: dgettext("dashboard_sandboxes", "Saving"), color: "information"}
 end

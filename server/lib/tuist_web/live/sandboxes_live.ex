@@ -410,13 +410,6 @@ defmodule TuistWeb.SandboxesLive do
 
   def short_id(id), do: String.slice(id, 0, 8)
 
-  def source_label(%Sandbox{amp_orb_id: orb_id}) when is_binary(orb_id), do: dgettext("dashboard_sandboxes", "Amp Orb")
-
-  def source_label(%Sandbox{agent_environment_id: id}) when not is_nil(id),
-    do: dgettext("dashboard_sandboxes", "Claude Managed Agents")
-
-  def source_label(%Sandbox{}), do: dgettext("dashboard_sandboxes", "API")
-
   def status(%Sandbox{state: :running, residency_work_id: work_id}) when is_binary(work_id),
     do: %{label: dgettext("dashboard_sandboxes", "Active"), color: "success"}
 

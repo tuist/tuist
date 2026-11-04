@@ -78,28 +78,9 @@
     }
   />
 
-  <.alert
-    :if={@sandbox.amp_orb_id}
-    id="sandbox-amp-managed"
-    status="information"
-    type="secondary"
-    size="large"
-    title={dgettext("dashboard_sandboxes", "Amp manages this Orb")}
-    description={
-      dgettext(
-        "dashboard_sandboxes",
-        "Amp starts this sandbox when a thread needs it and pauses it when the thread goes idle. Deleting it discards its disk; Amp starts a fresh Orb the next time the thread runs."
-      )
-    }
-  />
-
-  <.card title={dgettext("dashboard_sandboxes", "Details")} icon="info_circle">
+  <.card title={dgettext("dashboard_sandboxes", "Properties")} icon="server">
     <.card_section>
       <div data-part="metadata-grid">
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_sandboxes", "Source")}</div>
-          <span data-part="label">{source_label(@sandbox)}</span>
-        </div>
         <div :if={@sandbox.amp_orb_id} data-part="metadata">
           <div data-part="title">{dgettext("dashboard_sandboxes", "Orb ID")}</div>
           <span data-part="label">{@sandbox.amp_orb_id}</span>
@@ -153,30 +134,6 @@
           </span>
         </div>
       </div>
-    </.card_section>
-  </.card>
-
-  <.card
-    :if={@snapshots != []}
-    title={dgettext("dashboard_sandboxes", "Project snapshots")}
-    icon="photo"
-  >
-    <.card_section>
-      <.table id="sandbox-snapshots-table" rows={@snapshots}>
-        <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Snapshot")}>
-          <.text_cell label={snapshot.amp_snapshot_id} />
-        </:col>
-        <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Status")}>
-          <% status = snapshot_status(snapshot) %>
-          <.badge_cell label={status.label} color={status.color} style="light-fill" />
-        </:col>
-        <:col :let={snapshot} label={dgettext("dashboard_sandboxes", "Saved")}>
-          <.text_cell
-            label={relative_time(snapshot.inserted_at)}
-            title={time(snapshot.inserted_at)}
-          />
-        </:col>
-      </.table>
     </.card_section>
   </.card>
 

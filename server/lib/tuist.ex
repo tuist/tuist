@@ -325,7 +325,6 @@ defmodule Tuist do
       Sandboxes.Anthropic.Client,
       Sandboxes.Analytics,
       Sandboxes.Concurrency,
-      Sandboxes.DiskSnapshots,
       Sandboxes.Nodes,
       Sandboxes.Router,
       Sandboxes.Sandbox,

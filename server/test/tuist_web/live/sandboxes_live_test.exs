@@ -269,7 +269,7 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       assert has_element?(lv, "h1", "orb-details")
       assert has_element?(lv, "#sandbox-error", "jail died")
-      assert has_element?(lv, "#sandbox-amp-managed")
+      refute has_element?(lv, "#sandbox-amp-managed")
       assert has_element?(lv, ~s([data-part="back-button"][href="/#{account.name}/sandboxes/instances"]), "Instances")
       assert has_element?(lv, ~s(#sidebar-sandboxes a[href="/#{account.name}/sandboxes/instances"] [data-selected]))
     end
