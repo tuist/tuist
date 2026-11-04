@@ -46,10 +46,12 @@
     }
   }
 
-  & :is(#connect-claude-modal, #connect-chatgpt-modal, #disconnect-subscription-modal)
-    > [data-part="positioner"]
-    > [data-part="content"] {
-    width: min(520px, 90vw);
+  & #connect-claude-modal,
+  & #connect-chatgpt-modal,
+  & #disconnect-subscription-modal {
+    & > [data-part="positioner"] > [data-part="content"] {
+      width: min(520px, 90vw);
+    }
   }
 
   & [data-part="subscription-form"] {
