@@ -50,8 +50,8 @@ struct CreateTestImpactRunServiceTests {
         #expect(body.commit_sha == "merge")
         #expect(body.parent_shas == ["base", "head"])
         #expect(body.build_system == "xcode")
-        #expect(body.modules == ["CoreTests"])
-        #expect(body.skipped_modules == ["CachedTests"])
+        // Every module in scope, by name, with the ones hashing skipped marked.
+        #expect(body.modules == [.init(name: "CachedTests", skipped: true), .init(name: "CoreTests", skipped: false)])
         #expect(body.platform == "ios")
         #expect(body.git_branch == "feature/discount")
         #expect(body.xcode == .init(destination: nil, scheme: "Shop", test_plan: nil))
