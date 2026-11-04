@@ -676,6 +676,24 @@ defmodule TuistWeb.Authentication do
   defp sso_applies_to?(_assigns, _organization), do: true
 
   @doc """
+  The dashboard's per-account SSO check for JSON endpoints that act on the
+  account in the path, such as WebMCP: refuses the request instead of
+  redirecting to the provider.
+  """
+  def require_sso_authentication_for_account_api(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    case required_sso_organization(conn, account_handle, conn.assigns[:current_user_session]) do
+      nil ->
+        conn
+
+      _organization ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "Sign in with this organization's single sign-on provider to use its Tuist tools."})
+        |> halt()
+    end
+  end
+
+  @doc """
   Guards pages that issue credentials acting for the user in every account
   they can reach, such as OAuth authorizations and CLI device codes, so the
   credential cannot be used to sidestep an organization's SSO enforcement.

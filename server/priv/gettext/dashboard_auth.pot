@@ -894,7 +894,7 @@ msgstr ""
 msgid "This passkey is already registered."
 msgstr ""
 
-#: lib/tuist_web/authentication.ex:698
+#: lib/tuist_web/authentication.ex:716
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr ""

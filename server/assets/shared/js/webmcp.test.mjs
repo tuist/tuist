@@ -3,25 +3,30 @@ import test from "node:test";
 
 import { registerWebMCPTools } from "./webmcp.mjs";
 
-const searchTuist = {
-  name: "search_tuist",
-  description: "Searches Tuist's documentation.",
-  inputSchema: { type: "object", properties: { query: { type: "string" } } },
-  annotations: { title: "Search Tuist", readOnlyHint: true },
+const listProjects = {
+  name: "list_projects",
+  description: "Lists projects.",
+  inputSchema: { type: "object", properties: {} },
+  annotations: { title: "List Projects", readOnlyHint: true },
 };
 
-const endpoint = "/api/webmcp/public";
+const accountEndpoint = "/api/webmcp/accounts/acme";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 const rpcResult = (result) => json({ jsonrpc: "2.0", id: 1, result });
+const listing = (...names) => rpcResult({ tools: names.map((name) => ({ ...listProjects, name })) });
+const settle = () => new Promise((resolve) => setTimeout(resolve));
 
 function fakeModelContext({ reject = [] } = {}) {
   const tools = new Map();
   return {
     tools,
-    registerTool(tool) {
+    registerTool(tool, { signal } = {}) {
       // Browsers may throw synchronously as well as reject.
       if (reject.includes(tool.name)) throw new TypeError(`Invalid tool ${tool.name}`);
+      if (signal?.aborted) return Promise.reject(signal.reason);
+      if (tools.has(tool.name)) return Promise.reject(new DOMException(`Duplicate ${tool.name}`, "InvalidStateError"));
       tools.set(tool.name, tool);
+      signal?.addEventListener("abort", () => tools.delete(tool.name));
       return Promise.resolve();
     },
   };
@@ -39,41 +44,53 @@ function fakeFetch(...answers) {
   return { fetch, requests };
 }
 
+const register = (options) =>
+  registerWebMCPTools({ target: new EventTarget(), endpoint: () => accountEndpoint, ...options });
+
 async function registeredTool(callAnswer) {
   const modelContext = fakeModelContext();
-  const { fetch, requests } = fakeFetch(rpcResult({ tools: [searchTuist] }), callAnswer);
-  await registerWebMCPTools({ modelContext, endpoint, fetch });
-  return { tool: modelContext.tools.get(searchTuist.name), requests };
+  const { fetch, requests } = fakeFetch(listing("list_projects"), callAnswer);
+  await register({ modelContext, csrfToken: "csrf", fetch });
+  return { tool: modelContext.tools.get("list_projects"), requests };
 }
 
 test("does nothing without WebMCP or an endpoint", async () => {
   const { fetch, requests } = fakeFetch();
 
-  assert.deepEqual(await registerWebMCPTools({ modelContext: undefined, endpoint, fetch }), []);
-  assert.deepEqual(await registerWebMCPTools({ modelContext: fakeModelContext(), endpoint: undefined, fetch }), []);
+  assert.deepEqual(await register({ modelContext: undefined, fetch }), []);
+  assert.deepEqual(await register({ modelContext: fakeModelContext(), endpoint: () => undefined, fetch }), []);
   assert.deepEqual(await registerWebMCPTools(), []);
   assert.equal(requests.length, 0);
 });
 
 test("registers the listed tools with their schema and annotations", async () => {
   const modelContext = fakeModelContext();
-  const { fetch, requests } = fakeFetch(rpcResult({ tools: [searchTuist] }));
+  const { fetch, requests } = fakeFetch(listing("list_projects"));
 
-  assert.deepEqual(await registerWebMCPTools({ modelContext, endpoint, fetch }), ["search_tuist"]);
+  assert.deepEqual(await register({ modelContext, csrfToken: "csrf", fetch }), ["list_projects"]);
 
-  const tool = modelContext.tools.get("search_tuist");
-  assert.equal(tool.title, "Search Tuist");
-  assert.deepEqual(tool.inputSchema, searchTuist.inputSchema);
+  const tool = modelContext.tools.get("list_projects");
+  assert.equal(tool.title, "List Projects");
+  assert.deepEqual(tool.inputSchema, listProjects.inputSchema);
   assert.deepEqual(tool.annotations, { readOnlyHint: true, untrustedContentHint: true });
-  assert.equal(requests[0].url, endpoint);
+  assert.equal(requests[0].url, accountEndpoint);
   assert.equal(requests[0].body.method, "tools/list");
+  assert.equal(requests[0].init.headers["x-csrf-token"], "csrf");
+});
+
+test("sends no CSRF header when the page has no token", async () => {
+  const { fetch, requests } = fakeFetch(listing());
+
+  await register({ modelContext: fakeModelContext(), fetch });
+
+  assert.equal("x-csrf-token" in requests[0].init.headers, false);
 });
 
 test("a tool the browser rejects does not stop the others", async () => {
   const modelContext = fakeModelContext({ reject: ["bad_tool"] });
-  const { fetch } = fakeFetch(rpcResult({ tools: [{ ...searchTuist, name: "bad_tool" }, searchTuist] }));
+  const { fetch } = fakeFetch(listing("bad_tool", "list_projects"));
 
-  assert.deepEqual(await registerWebMCPTools({ modelContext, endpoint, fetch }), ["search_tuist"]);
+  assert.deepEqual(await register({ modelContext, fetch }), ["list_projects"]);
 });
 
 test("never rejects when the listing fails", async (t) => {
@@ -81,28 +98,99 @@ test("never rejects when the listing fails", async (t) => {
   const answers = [
     new TypeError("Failed to fetch"),
     new Response("<html>Forbidden</html>", { status: 403 }),
-    json({ jsonrpc: "2.0", id: null, error: { code: -32_603, message: "Rate limit exceeded." } }, 429),
+    json({ message: "Sign in with this organization's single sign-on provider." }, 403),
     rpcResult({ unexpected: true }),
   ];
 
   for (const answer of answers) {
     const modelContext = fakeModelContext();
     const { fetch } = fakeFetch(answer);
-    assert.deepEqual(await registerWebMCPTools({ modelContext, endpoint, fetch }), []);
+    assert.deepEqual(await register({ modelContext, fetch }), []);
     assert.equal(modelContext.tools.size, 0);
   }
 });
 
-test("execute calls the tool and returns its structured content", async () => {
-  const { tool, requests } = await registeredTool(rpcResult({ structuredContent: { results: [] }, content: [] }));
+test("replaces the tools when navigation changes the page's endpoint", async () => {
+  const modelContext = fakeModelContext();
+  const target = new EventTarget();
+  let endpoint = accountEndpoint;
+  const { fetch, requests } = fakeFetch(listing("acme_tool"), listing("other_tool"));
+  const navigate = async () => {
+    target.dispatchEvent(new Event("phx:page-loading-stop"));
+    await settle();
+  };
 
-  assert.deepEqual(await tool.execute({ query: "cache" }, { signal: new AbortController().signal }), { results: [] });
-  assert.deepEqual(requests[1].body.params, { name: "search_tuist", arguments: { query: "cache" } });
+  assert.deepEqual(await registerWebMCPTools({ modelContext, target, endpoint: () => endpoint, fetch }), ["acme_tool"]);
+
+  // A navigation within the account keeps the registered tools.
+  await navigate();
+  assert.equal(requests.length, 1);
+
+  // A live redirect stops loading before the next view renders its endpoint.
+  endpoint = undefined;
+  target.dispatchEvent(new CustomEvent("phx:page-loading-stop", { detail: { kind: "redirect" } }));
+  assert.equal(requests.length, 1);
+  assert.deepEqual([...modelContext.tools.keys()], ["acme_tool"]);
+
+  endpoint = "/api/webmcp/accounts/other";
+  await navigate();
+  assert.deepEqual([...modelContext.tools.keys()], ["other_tool"]);
+  assert.equal(requests[1].url, "/api/webmcp/accounts/other");
+});
+
+test("a failed listing is retried at the next navigation, an empty one is not", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const modelContext = fakeModelContext();
+  const target = new EventTarget();
+  const { fetch, requests } = fakeFetch(
+    json({ jsonrpc: "2.0", id: null, error: { code: -32_603, message: "Rate limit exceeded." } }, 429),
+    listing(),
+  );
+
+  assert.deepEqual(await register({ modelContext, target, fetch }), []);
+
+  target.dispatchEvent(new Event("phx:page-loading-stop"));
+  await settle();
+  target.dispatchEvent(new Event("phx:page-loading-stop"));
+  await settle();
+
+  assert.equal(requests.length, 2);
+});
+
+test("a navigation during the listing drops the stale endpoint's tools", async () => {
+  const modelContext = fakeModelContext();
+  const target = new EventTarget();
+  let endpoint = accountEndpoint;
+  let answerAcme;
+  const fetch = async (url, init) => {
+    if (url.endsWith("/other")) return listing("other_tool");
+    return new Promise((resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      answerAcme = () => resolve(listing("acme_tool"));
+    });
+  };
+
+  const acme = registerWebMCPTools({ modelContext, target, endpoint: () => endpoint, fetch });
+  endpoint = "/api/webmcp/accounts/other";
+  target.dispatchEvent(new Event("phx:page-loading-stop"));
+  answerAcme();
+
+  assert.deepEqual(await acme, []);
+  await settle();
+  assert.deepEqual([...modelContext.tools.keys()], ["other_tool"]);
+});
+
+test("execute calls the tool and returns its structured content", async () => {
+  const { tool, requests } = await registeredTool(rpcResult({ structuredContent: { projects: [] }, content: [] }));
+
+  assert.deepEqual(await tool.execute({ page: 2 }, { signal: new AbortController().signal }), { projects: [] });
+  assert.deepEqual(requests[1].body.params, { name: "list_projects", arguments: { page: 2 } });
+  assert.equal(requests[1].init.headers["x-csrf-token"], "csrf");
 });
 
 test("failures reach the agent as results with a message", async () => {
   const cases = [
-    [rpcResult({ isError: true, content: [{ type: "text", text: "Search is unavailable" }] }), "Search is unavailable"],
+    [rpcResult({ isError: true, content: [{ type: "text", text: "Project not found" }] }), "Project not found"],
     [
       json({ jsonrpc: "2.0", id: 1, error: { code: -32_602, message: "Tool not found: create_project" } }),
       "Tool not found: create_project",
@@ -110,6 +198,14 @@ test("failures reach the agent as results with a message", async () => {
     [
       json({ jsonrpc: "2.0", id: null, error: { code: -32_603, message: "Rate limit exceeded." } }, 429),
       "Rate limit exceeded.",
+    ],
+    [
+      json({ message: "You need to be authenticated to access this resource." }, 401),
+      "You need to be authenticated to access this resource.",
+    ],
+    [
+      new Response("<html>Forbidden</html>", { status: 403 }),
+      "Tuist answered with HTTP status 403. Reload the page to refresh your session.",
     ],
     [new Response("Bad gateway", { status: 502 }), "Tuist answered with HTTP status 502."],
     [new TypeError("Failed to fetch"), "Could not reach Tuist: Failed to fetch"],
