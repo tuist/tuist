@@ -365,8 +365,14 @@ defmodule TuistWeb.SandboxesLive do
         <% status = status(sandbox) %>
         <.badge_cell label={status.label} color={status.color} style="light-fill" />
       </:col>
-      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Resources")}>
-        <.text_cell label={resources(sandbox)} />
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "vCPUs")}>
+        <.text_cell label={to_string(sandbox.vcpus)} />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Memory")}>
+        <.text_cell label={gigabytes(sandbox.memory_mb / 1024)} />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Disk")}>
+        <.text_cell label={gigabytes(sandbox.workspace_gb)} />
       </:col>
       <:col
         :let={sandbox}
@@ -421,14 +427,6 @@ defmodule TuistWeb.SandboxesLive do
   def status(%Sandbox{state: :archived}), do: %{label: dgettext("dashboard_sandboxes", "Archived"), color: "neutral"}
   def status(%Sandbox{state: :error}), do: %{label: dgettext("dashboard_sandboxes", "Failed"), color: "destructive"}
   def status(%Sandbox{state: :deleted}), do: %{label: dgettext("dashboard_sandboxes", "Deleting"), color: "neutral"}
-
-  def resources(%Sandbox{} = sandbox) do
-    dgettext("dashboard_sandboxes", "%{vcpus} vCPU · %{memory} RAM · %{disk} disk",
-      vcpus: sandbox.vcpus,
-      memory: gigabytes(sandbox.memory_mb / 1024),
-      disk: gigabytes(sandbox.workspace_gb)
-    )
-  end
 
   def gigabytes(value) when is_float(value) do
     if value == Float.round(value), do: gigabytes(trunc(value)), else: "#{Float.round(value, 1)} GB"
