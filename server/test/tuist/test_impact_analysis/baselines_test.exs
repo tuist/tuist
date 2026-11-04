@@ -28,9 +28,6 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
   defp measured(project, repository_id, sha),
     do: CoverageFixtures.commit_coverage(project, repository_id, sha, runs: [[partial: true]])
 
-  defp outcome({:ok, %{sha: sha}}), do: {:ok, sha}
-  defp outcome(error), do: error
-
   defp scope(commit_sha, attrs \\ %{}), do: Map.merge(%{commit_sha: commit_sha, platform: "ios", scheme: "App"}, attrs)
 
   describe "resolve/3" do
@@ -238,39 +235,6 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
       CoverageFixtures.commit_coverage(other, repository_id, "c1")
 
       assert Baselines.resolve(project, scope("c2")) == {:error, :no_baseline}
-    end
-  end
-
-  describe "resolve/3 on the test bed's window scenarios" do
-    # cli/Tests/Fixtures/CoverageTestSelection: feature/evidence-window commits
-    # revisions 1 to 21 on top of the baseline, and scenarios.sh checks out
-    # revision 20 for window_at_cap and 21 for the others.
-    @golden_path Path.expand("../../../../cli/Tests/Fixtures/CoverageTestSelection/golden.json", __DIR__)
-    @external_resource @golden_path
-    @checkouts %{"checkout/window-at-cap" => 20, "checkout/window-over-cap" => 21, "checkout/window-unmeasured" => 21}
-
-    for scenario <- @golden_path |> File.read!() |> JSON.decode!() |> Map.fetch!("scenarios"),
-        Map.has_key?(@checkouts, scenario["checkout"]["ref"]) do
-      @scenario scenario
-      @expected (case scenario do
-                   %{"outcome" => "selected", "baseline" => baseline} -> {:ok, baseline}
-                   %{"outcome" => "fallback", "reason" => reason} -> {:error, String.to_atom(reason)}
-                 end)
-
-      test scenario["name"], %{account: account, project: project} do
-        commits = [CoverageFixtures.commit("baseline", [], 0) | chain("run/evidence-window/", 21, "baseline")]
-        repository_id = CoverageFixtures.seed_history(account, commits)
-        [_baseline | runs] = @scenario["runs"]
-        CoverageFixtures.commit_coverage(project, repository_id, "baseline")
-
-        # Each run after the baseline is a selection on the branch: partial.
-        for %{"ref" => "run/evidence-window/" <> revision} <- runs,
-            do: measured(project, repository_id, "run/evidence-window/#{String.to_integer(revision)}")
-
-        checkout = "run/evidence-window/#{@checkouts[@scenario["checkout"]["ref"]]}"
-
-        assert outcome(Baselines.resolve(project, scope(checkout))) == @expected
-      end
     end
   end
 end

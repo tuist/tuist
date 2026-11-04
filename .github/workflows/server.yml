@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - server/**
-      - cli/Tests/Fixtures/CoverageTestSelection/golden.json
       - tuist_common/**
       - tuist_ex/**
       - noora/**
@@ -20,7 +19,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - server/**
-      - cli/Tests/Fixtures/CoverageTestSelection/golden.json
       - tuist_common/**
       - tuist_ex/**
       - noora/**

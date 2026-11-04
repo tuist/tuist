@@ -44,6 +44,37 @@ defmodule Tuist.TestImpactAnalysis.Rules.TestFileChangedTest do
            }
   end
 
+  test "selects the suite of a deleted test file, whose tests the checkout no longer has" do
+    input =
+      input(
+        tests: [
+          "CoreTests/MoneyTests/testFormats",
+          "CoreTests/MoneyTests/testAdds",
+          "CoreTests/DiscountTests/testTenPercent"
+        ],
+        test_paths: ["CoreTests/MoneyTests.swift", "CoreTests/DiscountTests.swift"],
+        versions: %{
+          "CoreTests/MoneyTests/testFormats" => [version(%{"CoreTests/MoneyTests.swift" => "m1"})],
+          "CoreTests/MoneyTests/testAdds" => [version(%{"CoreTests/MoneyTests.swift" => "m1"})],
+          "CoreTests/DiscountTests/testTenPercent" => [version(%{"CoreTests/DiscountTests.swift" => "d1"})]
+        },
+        changed_files: [changed("CoreTests/MoneyTests.swift", status: "D", blob: nil)]
+      )
+
+    assert decide(input) == %{
+             "CoreTests/MoneyTests/testFormats" => %{
+               decision: :selected,
+               reason: :test_file_changed,
+               matched_path: "CoreTests/MoneyTests.swift"
+             },
+             "CoreTests/MoneyTests/testAdds" => %{
+               decision: :selected,
+               reason: :test_file_changed,
+               matched_path: "CoreTests/MoneyTests.swift"
+             }
+           }
+  end
+
   test "selects through the suite's setup evidence" do
     input =
       input(
