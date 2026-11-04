@@ -4,6 +4,7 @@ category: "engineering"
 tags: ["engineering", "architecture", "rust", "swiftui", "jetpack-compose", "kotlin", "build-systems", "once"]
 excerpt: "Seven principles for native apps that share a headless core: what goes in the core, how the edges call it, how to make every screen addressable, and how to shape the build graph. Includes a sample app for iOS, Android, and the terminal."
 author: pepicrft
+cta_title: "Fast native builds for every edge."
 ---
 
 For a long time, building a client for each platform meant writing every screen and fixing every bug once per platform. You either had a team for each platform or picked which ones to leave out. The industry came up with ways to live with that cost.
