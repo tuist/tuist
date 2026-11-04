@@ -35,6 +35,27 @@ defmodule TuistWeb.WebMCPControllerTest do
       assert Enum.all?(tools, &(&1["annotations"]["readOnlyHint"] == true))
     end
 
+    test "lists the page's tools for the project's build system", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = browser_session(conn, user)
+      names = fn query -> conn |> list_tools(account_path(user.account) <> query) |> Enum.map(& &1["name"]) end
+
+      gradle_builds = names.("?page=builds&build_system=gradle")
+      assert "list_gradle_builds" in gradle_builds
+      assert "list_build_entities" in gradle_builds
+      assert "list_projects" in gradle_builds
+      assert "search_tuist" in gradle_builds
+      refute "list_xcode_builds" in gradle_builds
+      refute "list_test_runs" in gradle_builds
+
+      xcode_tests = names.("?page=tests&build_system=xcode")
+      assert "list_test_runs" in xcode_tests
+      assert "list_xcode_test_targets" in xcode_tests
+      refute "list_gradle_builds" in xcode_tests
+
+      assert Enum.sort(names.("")) == Enum.sort(@docs_tools ++ ["get_project", "list_projects"])
+    end
+
     test "calls tools as the user signed in to the browser session", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -70,9 +91,15 @@ defmodule TuistWeb.WebMCPControllerTest do
       url = Environment.app_url(path: "/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
       conn = browser_session(conn, user)
 
-      refute call_tool(conn, account_path(organization), "get_preview", %{"preview_id" => preview.id})["isError"]
-      assert call_tool(conn, account_path(user.account), "get_preview", %{"preview_id" => preview.id})["isError"]
-      assert call_tool(conn, account_path(user.account), "get_preview", %{"preview_id" => url})["isError"]
+      refute call_tool(conn, account_path(organization, "previews"), "get_preview", %{"preview_id" => preview.id})[
+               "isError"
+             ]
+
+      assert call_tool(conn, account_path(user.account, "previews"), "get_preview", %{"preview_id" => preview.id})[
+               "isError"
+             ]
+
+      assert call_tool(conn, account_path(user.account, "previews"), "get_preview", %{"preview_id" => url})["isError"]
     end
 
     test "lists only the account's projects and the account itself", %{conn: conn} do
@@ -83,7 +110,7 @@ defmodule TuistWeb.WebMCPControllerTest do
       conn = browser_session(conn, user)
 
       projects = call_tool(conn, account_path(user.account), "list_projects", %{})
-      accounts = call_tool(conn, account_path(user.account), "list_accounts", %{})
+      accounts = call_tool(conn, account_path(user.account, "projects"), "list_accounts", %{})
 
       assert Enum.map(projects["structuredContent"]["projects"], & &1["name"]) == [own.name]
       assert Enum.map(accounts["structuredContent"]["accounts"], & &1["handle"]) == [user.account.name]
@@ -189,7 +216,15 @@ defmodule TuistWeb.WebMCPControllerTest do
                ~s(<meta name="webmcp-endpoint" content="/api/webmcp/public">)
 
       assert build_conn() |> log_in_user(user) |> get("/#{user.account.name}/projects") |> html_response(200) =~
-               ~s(data-webmcp-endpoint="/api/webmcp/accounts/#{user.account.name}")
+               ~s(data-webmcp-endpoint="/api/webmcp/accounts/#{user.account.name}?page=projects")
+
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :gradle)
+
+      assert build_conn()
+             |> log_in_user(user)
+             |> get("/#{user.account.name}/#{project.name}/builds/build-runs")
+             |> html_response(200) =~
+               ~s(data-webmcp-endpoint="/api/webmcp/accounts/#{user.account.name}?page=builds&amp;build_system=gradle")
 
       headerbar = fn assigns ->
         render_component(&TuistWeb.AppLayoutComponents.headerbar/1, Map.merge(headerbar_assigns(user), assigns))
@@ -198,6 +233,28 @@ defmodule TuistWeb.WebMCPControllerTest do
       refute headerbar.(%{current_user: nil}) =~ "data-webmcp-endpoint"
       refute headerbar.(%{webmcp: false}) =~ "data-webmcp-endpoint"
       assert headerbar.(%{}) =~ "data-webmcp-endpoint"
+    end
+
+    test "the advertised endpoint follows live navigation between pages", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :gradle)
+      project_path = "/#{user.account.name}/#{project.name}"
+      endpoint = &"/api/webmcp/accounts/#{user.account.name}?page=#{&1}&build_system=gradle"
+
+      advertised? = &has_element?(&1, ~s(header[data-webmcp-endpoint="#{endpoint.(&2)}"]))
+
+      {:ok, view, _html} = conn |> log_in_user(user) |> live("#{project_path}/builds/build-runs")
+      assert advertised?.(view, "builds")
+
+      {:ok, view, _html} = live_redirect(view, to: "#{project_path}/tests/test-runs")
+      assert advertised?.(view, "tests")
+
+      # A patch that only changes the query stays on the page.
+      render_patch(view, "#{project_path}/tests/test-runs?page=2")
+      assert advertised?.(view, "tests")
+
+      {:ok, view, _html} = live_redirect(view, to: "#{project_path}/settings")
+      assert advertised?.(view, "project-settings")
     end
   end
 
@@ -290,6 +347,8 @@ defmodule TuistWeb.WebMCPControllerTest do
 
   defp account_path(%{account: account}), do: account_path(account)
   defp account_path(account), do: "/api/webmcp/accounts/#{account.name}"
+  defp account_path(%{account: account}, page), do: account_path(account, page)
+  defp account_path(account, page), do: "/api/webmcp/accounts/#{account.name}?page=#{page}"
 
   defp project_arguments(project) do
     project = Tuist.Repo.preload(project, :account)

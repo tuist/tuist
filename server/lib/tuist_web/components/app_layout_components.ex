@@ -10,6 +10,7 @@ defmodule TuistWeb.AppLayoutComponents do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.MCP.WebMCP
   alias Tuist.Projects.Project
   alias TuistWeb.API.BuildEntityResources
   alias TuistWeb.Helpers.BuildEntityLabels
@@ -708,15 +709,19 @@ defmodule TuistWeb.AppLayoutComponents do
     doc: "Whether the page registers the selected account's WebMCP tools; pages that are not that account's turn it off."
   )
 
+  attr(:current_path, :string, default: nil, doc: "The page's path, which picks its WebMCP tools.")
+  attr(:selected_project, :map, default: nil, doc: "The page's project, on project pages.")
+
   def headerbar(assigns) do
     ~H"""
-    <%!-- The WebMCP tools of the account this page belongs to; see
+    <%!-- The WebMCP tools for this page of the account it belongs to; see
     assets/shared/js/webmcp.mjs. It changes with live navigation, unlike the
     root layout's endpoint for other pages. --%>
     <header
       class="headerbar"
       data-webmcp-endpoint={
-        @webmcp && @current_user && ~p"/api/webmcp/accounts/#{@selected_account.name}"
+        @webmcp && @current_user &&
+          webmcp_endpoint(@selected_account, @selected_project, @current_path)
       }
     >
       <div data-part="left-section">
@@ -780,6 +785,18 @@ defmodule TuistWeb.AppLayoutComponents do
       </div>
     </header>
     """
+  end
+
+  # Names the page rather than its full path, so the endpoint, and with it the
+  # registered tools, only changes when navigation reaches a different page.
+  defp webmcp_endpoint(account, project, path) do
+    query =
+      Enum.reject(
+        [page: WebMCP.dashboard_page(path, account, project), build_system: project && project.build_system],
+        fn {_key, value} -> is_nil(value) end
+      )
+
+    ~p"/api/webmcp/accounts/#{account.name}?#{query}"
   end
 
   attr(:id, :string, required: true)
