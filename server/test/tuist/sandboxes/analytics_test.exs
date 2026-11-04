@@ -85,40 +85,31 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
     assert %{count: 2, trend: 100.0, values: [2, 0, 0]} = result.created
   end
 
-  test "times boots until ready, waiting for an Orb's setup and leaving out one that hasn't shown it", %{
-    account: account
-  } do
+  test "summarises setup and boot durations, leaving out starts that didn't boot", %{account: account} do
     insert_events(account, [
-      # A cold Orb: a 30 s boot, then setup until 09:05, ready 5 min after
-      # the boot began. A later rerun of setup doesn't count.
       {2,
        [
          {"started", "2026-10-01T09:00:30", {"template", 30_000}},
-         {"setup", "2026-10-01T09:05:00"},
-         {"paused", "2026-10-01T10:00:00"},
-         {"setup", "2026-10-01T12:00:00"}
+         {"setup", "2026-10-01T09:05:00", {"", 240_000}},
+         {"paused", "2026-10-01T10:00:00"}
        ]},
-      # From a project snapshot, ready once booted.
       {2, [{"started", "2026-10-01T09:00:20", {"disk_snapshot", 20_000}}]},
-      # A cold Orb that paused with no setup: it had none to run.
-      {2, [{"started", "2026-10-02T08:01:00", {"template", 60_000}}, {"paused", "2026-10-02T09:00:00"}]},
-      # A cold Orb still running with no setup yet: not known, left out.
-      {2, [{"started", "2026-10-02T10:00:40", {"template", 40_000}}]},
-      # An API sandbox has no setup to wait for.
-      {2, [{"started", "2026-10-02T11:00:10", {"template", 10_000}}], "api"},
-      # A restore in the previous window.
-      {2, [{"started", "2026-09-30T10:01:00", {"archive", 60_000}}]}
+      # A restore, then a resume of the running VM, which boots nothing.
+      {2, [{"started", "2026-10-02T11:00:10", {"archive", 10_000}}, {"started", "2026-10-02T15:00:00"}]},
+      {2, [{"setup", "2026-10-02T08:00:00", {"", 60_000}}]},
+      {2,
+       [
+         {"started", "2026-09-30T10:01:00", {"template", 60_000}},
+         {"setup", "2026-09-30T10:10:00", {"", 480_000}}
+       ]}
     ])
 
-    %{time_to_ready: ready} = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
+    result = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
 
-    assert %{count: 4, avg: 97_500, p50: 20_000, p90: 300_000, p99: 300_000, trend_avg: 62.5} = ready["all"]
-    assert ready["all"].avg_values == [160_000, 35_000, nil]
-    assert %{count: 3, avg: 123_333, p50: 60_000} = ready["template"]
-    assert ready["template"].p50_values == [300_000, 10_000, nil]
-    assert %{count: 1, p50: 20_000} = ready["disk_snapshot"]
-    assert ready["disk_snapshot"].p50_values == [20_000, nil, nil]
-    assert ready["archive"].count == 0
+    assert %{count: 2, avg: 150_000, p50: 60_000, p90: 240_000, trend_avg: -68.8} = result.setup
+    assert result.setup.avg_values == [240_000, 60_000, nil]
+    assert %{count: 3, avg: 20_000, p50: 20_000, p90: 30_000, trend_avg: -66.7} = result.time_to_start
+    assert result.time_to_start.avg_values == [25_000, 10_000, nil]
   end
 
   test "counts events from the window's last second, where the date picker ends a window", %{account: account} do
@@ -130,9 +121,8 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
   end
 
   test "adds up vCPU-hours, running a sandbox that has not stopped until the window ends", %{account: account} do
-    result = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
-
-    assert %{vcpu_hours: 13.0, trend: 225.0, values: [11.0, 2.0, +0.0]} = result.compute
+    assert %{vcpu_hours: 13.0, values: [11.0, 2.0, +0.0]} =
+             Analytics.compute(account.id, start_datetime: @window_start, end_datetime: @window_end)
   end
 
   test "measures the sessions that ended in the window", %{account: account} do
@@ -161,6 +151,5 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
 
     assert length(result.dates) == 4
     assert result.concurrency.sandboxes == [0, 2, 1, 0]
-    assert result.compute.values == [0.0, 4.0, 4.0, 0.0]
   end
 end

@@ -487,4 +487,59 @@
       />
     </.async_result>
   </.card>
+  <.card
+    :if={@sandboxes_enabled}
+    title={dgettext("dashboard_usage", "Sandbox usage")}
+    icon="devices_code"
+    data-part="sandbox-usage-card"
+  >
+    <.async_result :let={usage} assign={@sandbox_usage}>
+      <:loading>
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
+          <.skeleton_chart />
+        </.card_section>
+      </:loading>
+      <.card_section data-part="usage-summary-section">
+        <span data-part="info-label">
+          {dgettext(
+            "dashboard_usage",
+            "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs; paused and archived sandboxes use none.",
+            from: Timex.format!(elem(@selected_period, 0), "{Mshort} {D}"),
+            to: Timex.format!(elem(@selected_period, 1), "{Mshort} {D}, {YYYY}")
+          )}
+        </span>
+        <div data-part="widgets">
+          <.widget
+            id="widget-sandbox-vcpu-hours"
+            title={dgettext("dashboard_usage", "vCPU-hours")}
+            description={
+              dgettext("dashboard_usage", "vCPUs times the hours sandboxes ran this period.")
+            }
+            value={TuistWeb.UsageLive.vcpu_hours(usage.vcpu_hours)}
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={usage.vcpu_hours > 0}
+        data-part="usage-detail-section"
+        data-chart-frame="standard"
+      >
+        <div data-part="chart">
+          <.chart
+            id="sandbox-vcpu-hours-chart"
+            type="bar"
+            extra_options={TuistWeb.UsageLive.usage_chart_options(usage.dates, :count)}
+            series={TuistWeb.UsageLive.sandbox_chart_series(usage)}
+            y_axis_min={0}
+          />
+        </div>
+      </.card_section>
+      <.usage_empty_state
+        :if={usage.vcpu_hours == 0}
+        data-part="sandbox-usage-empty"
+        title={dgettext("dashboard_usage", "No sandboxes ran in this period")}
+        get_started_href={~p"/#{@selected_account.name}/sandboxes"}
+      />
+    </.async_result>
+  </.card>
 </div>

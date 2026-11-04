@@ -21,8 +21,7 @@ defmodule TuistWeb.SandboxesLive do
 
   @refresh_interval 5_000
   @filters ["all", "running", "paused", "error"]
-  @widgets ["created", "compute", "session_duration", "time_to_ready"]
-  @time_to_ready_starts ["all", "template", "disk_snapshot", "archive"]
+  @widgets ["created", "session_duration", "setup", "time_to_start"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: user}} = socket) do
@@ -55,9 +54,8 @@ defmodule TuistWeb.SandboxesLive do
        analytics_trend_label: trend_label(preset),
        analytics_selected_widget: if(params["widget"] in @widgets, do: params["widget"], else: "created"),
        session_duration_percentile: params["session-duration"] || "avg",
-       time_to_ready_percentile: params["time-to-ready"] || "p50",
-       time_to_ready_start:
-         if(params["time-to-ready-start"] in @time_to_ready_starts, do: params["time-to-ready-start"], else: "all")
+       setup_percentile: params["setup"] || "p50",
+       time_to_start_percentile: params["time-to-start"] || "p50"
      )
      |> load()
      |> assign_async(:analytics, fn ->
@@ -74,8 +72,12 @@ defmodule TuistWeb.SandboxesLive do
     {:noreply, patch_with_param(socket, "session-duration", type)}
   end
 
-  def handle_event("select_time_to_ready_percentile", %{"type" => type}, socket) do
-    {:noreply, patch_with_param(socket, "time-to-ready", type)}
+  def handle_event("select_setup_percentile", %{"type" => type}, socket) do
+    {:noreply, patch_with_param(socket, "setup", type)}
+  end
+
+  def handle_event("select_time_to_start_percentile", %{"type" => type}, socket) do
+    {:noreply, patch_with_param(socket, "time-to-start", type)}
   end
 
   def handle_event(
@@ -163,22 +165,12 @@ defmodule TuistWeb.SandboxesLive do
   defp trend_label("custom"), do: dgettext("dashboard_sandboxes", "since last period")
   defp trend_label(_), do: dgettext("dashboard_sandboxes", "since last month")
 
-  def vcpu_hours(value) when value < 10, do: format_number(value, fractional_digits: 1)
-  def vcpu_hours(value), do: format_number(value)
-
   @doc """
-  The time-to-ready percentile lines for one way of starting. Lines join
-  across buckets where no sandbox started that way.
+  Percentile lines for a duration that not every bucket has, such as setup,
+  joined across the buckets without one.
   """
-  def time_to_ready_series(stats),
+  def gapped_duration_series(stats),
     do: Enum.map(TuistWeb.RunnersLive.duration_chart_series(stats), &Map.put(&1, :connectNulls, true))
-
-  def time_to_ready_starts, do: @time_to_ready_starts
-
-  def boot_source_label("all"), do: dgettext("dashboard_sandboxes", "All")
-  def boot_source_label("template"), do: dgettext("dashboard_sandboxes", "Cold boot and setup")
-  def boot_source_label("disk_snapshot"), do: dgettext("dashboard_sandboxes", "From a project snapshot")
-  def boot_source_label("archive"), do: dgettext("dashboard_sandboxes", "Restored from archive")
 
   def count_series(%{dates: dates, values: values}, name) do
     [

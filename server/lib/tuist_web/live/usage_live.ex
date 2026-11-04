@@ -13,6 +13,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Prepaid
+  alias Tuist.Sandboxes.Analytics
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
 
@@ -42,6 +43,11 @@ defmodule TuistWeb.UsageLive do
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
+     |> assign(
+       :sandboxes_enabled,
+       FeatureFlags.sandboxes_enabled?(account) and
+         Authorization.authorize(:sandboxes_read, current_user, account) == :ok
+     )
      |> assign(:cache_view, "charge")
      |> assign(:prepaid_balance, prepaid_balance)}
   end
@@ -66,7 +72,20 @@ defmodule TuistWeb.UsageLive do
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
      |> assign_async(:usage_pricing, fn ->
        {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
-     end)}
+     end)
+     |> assign_sandbox_usage(account, period)}
+  end
+
+  defp assign_sandbox_usage(%{assigns: %{sandboxes_enabled: false}} = socket, _account, _period), do: socket
+
+  defp assign_sandbox_usage(socket, account, {period_start, period_end}) do
+    # A period ends where the next starts, so its last instant is a second
+    # before; the current period is counted until now.
+    end_datetime = Enum.min([DateTime.utc_now(), DateTime.add(period_end, -1, :second)], DateTime)
+
+    assign_async(socket, :sandbox_usage, fn ->
+      {:ok, %{sandbox_usage: Analytics.compute(account.id, start_datetime: period_start, end_datetime: end_datetime)}}
+    end)
   end
 
   # A prepaid balance is what the account holds today, so it describes
@@ -489,6 +508,20 @@ defmodule TuistWeb.UsageLive do
 
   defp chart_value(value, :dollars), do: Float.round(value / 1, 2)
   defp chart_value(value, _field), do: round(value)
+
+  def vcpu_hours(value) when value < 10, do: CldrHelpers.format_number(value, fractional_digits: 1)
+  def vcpu_hours(value), do: CldrHelpers.format_number(value)
+
+  def sandbox_chart_series(%{dates: dates, values: values}) do
+    [
+      %{
+        color: "var:noora-chart-primary",
+        data: dates |> Enum.zip(values) |> Enum.map(&Tuple.to_list/1),
+        name: dgettext("dashboard_usage", "vCPU-hours"),
+        type: "bar"
+      }
+    ]
+  end
 
   def runner_usage?(%{minutes: minutes, by_repository: by_repository}), do: minutes > 0 or by_repository != []
 

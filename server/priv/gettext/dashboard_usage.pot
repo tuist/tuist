@@ -11,7 +11,7 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:424
+#: lib/tuist_web/live/usage_live.ex:443
 #: lib/tuist_web/live/usage_live.html.heex:208
 #: lib/tuist_web/live/usage_live.html.heex:262
 #: lib/tuist_web/live/usage_live.html.heex:313
@@ -19,12 +19,12 @@ msgstr ""
 msgid "Requests"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:23
+#: lib/tuist_web/live/usage_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:41
+#: lib/tuist_web/live/usage_live.ex:42
 #: lib/tuist_web/live/usage_live.html.heex:4
 #: lib/tuist_web/live/usage_live.html.heex:223
 #: lib/tuist_web/live/usage_live.html.heex:254
@@ -33,7 +33,7 @@ msgstr ""
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:417
+#: lib/tuist_web/live/usage_live.ex:436
 #: lib/tuist_web/live/usage_live.html.heex:193
 #: lib/tuist_web/live/usage_live.html.heex:258
 #: lib/tuist_web/live/usage_live.html.heex:273
@@ -41,8 +41,8 @@ msgstr ""
 msgid "Egress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:219
-#: lib/tuist_web/live/usage_live.ex:220
+#: lib/tuist_web/live/usage_live.ex:238
+#: lib/tuist_web/live/usage_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -77,12 +77,12 @@ msgstr ""
 msgid "Usage value"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:332
+#: lib/tuist_web/live/usage_live.ex:351
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:331
+#: lib/tuist_web/live/usage_live.ex:350
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr ""
@@ -97,7 +97,7 @@ msgstr ""
 msgid "%{count} minutes run"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:545
+#: lib/tuist_web/live/usage_live.ex:578
 #: lib/tuist_web/live/usage_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
@@ -133,33 +133,33 @@ msgstr ""
 msgid "Billing period:"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:307
+#: lib/tuist_web/live/usage_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:327
+#: lib/tuist_web/live/usage_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:319
+#: lib/tuist_web/live/usage_live.ex:338
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:313
+#: lib/tuist_web/live/usage_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:212
-#: lib/tuist_web/live/usage_live.ex:469
+#: lib/tuist_web/live/usage_live.ex:231
+#: lib/tuist_web/live/usage_live.ex:488
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:340
+#: lib/tuist_web/live/usage_live.ex:359
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} – %{to}"
 msgstr ""
@@ -169,7 +169,7 @@ msgstr ""
 msgid "Covered by your trial"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:542
+#: lib/tuist_web/live/usage_live.ex:575
 #: lib/tuist_web/live/usage_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
@@ -226,7 +226,7 @@ msgstr ""
 msgid "Cache usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:544
+#: lib/tuist_web/live/usage_live.ex:577
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr ""
@@ -243,17 +243,17 @@ msgstr ""
 msgid "Not billed"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:567
+#: lib/tuist_web/live/usage_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:559
+#: lib/tuist_web/live/usage_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:553
+#: lib/tuist_web/live/usage_live.ex:586
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr ""
@@ -269,22 +269,22 @@ msgstr ""
 msgid "Test insights usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:540
+#: lib/tuist_web/live/usage_live.ex:573
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:532
+#: lib/tuist_web/live/usage_live.ex:565
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:529
+#: lib/tuist_web/live/usage_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:534
+#: lib/tuist_web/live/usage_live.ex:567
 #, elixir-autogen, elixir-format
 msgid "per million"
 msgstr ""
@@ -330,7 +330,7 @@ msgstr ""
 msgid "Tuist Runners discount"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:536
+#: lib/tuist_web/live/usage_live.ex:569
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr ""
@@ -343,4 +343,30 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "%{macos} free macOS and %{linux} free Linux minutes each month"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:504
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs; paused and archived sandboxes use none."
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:540
+#, elixir-autogen, elixir-format
+msgid "No sandboxes ran in this period"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:492
+#, elixir-autogen, elixir-format
+msgid "Sandbox usage"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:520
+#: lib/tuist_web/live/usage_live.html.heex:514
+#, elixir-autogen, elixir-format
+msgid "vCPU-hours"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:516
+#, elixir-autogen, elixir-format
+msgid "vCPUs times the hours sandboxes ran this period."
 msgstr ""

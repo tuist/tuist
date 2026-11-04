@@ -101,23 +101,6 @@
     icon="chart_arcs"
     id="sandboxes-analytics"
   >
-    <:actions :if={@analytics_selected_widget == "time_to_ready"}>
-      <.dropdown
-        id="sandboxes-time-to-ready-start-dropdown"
-        label={boot_source_label(@time_to_ready_start)}
-        secondary_text={dgettext("dashboard_sandboxes", "Start:")}
-      >
-        <.dropdown_item
-          :for={start <- time_to_ready_starts()}
-          value={start}
-          label={boot_source_label(start)}
-          patch={status_patch(@selected_account, @uri, "time-to-ready-start", start)}
-          data-selected={@time_to_ready_start == start}
-        >
-          <:right_icon :if={@time_to_ready_start == start}><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-    </:actions>
     <div data-part="widgets">
       <.widget
         id="widget-sandboxes-created"
@@ -135,26 +118,6 @@
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         empty={ready? && @analytics.result.created.count == 0}
-      />
-      <.widget
-        id="widget-sandboxes-compute"
-        title={dgettext("dashboard_sandboxes", "vCPU-hours")}
-        legend_color="primary"
-        description={
-          dgettext(
-            "dashboard_sandboxes",
-            "Compute sandboxes used in the selected window: vCPUs times the hours they ran. Paused sandboxes use none."
-          )
-        }
-        value={if ready?, do: vcpu_hours(@analytics.result.compute.vcpu_hours)}
-        loading={!ready?}
-        selected={@analytics_selected_widget == "compute"}
-        phx_click="select_widget"
-        phx_value_widget="compute"
-        trend_value={if ready?, do: @analytics.result.compute.trend}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={ready? && @analytics.result.compute.vcpu_hours == 0}
       />
       <.percentile_dropdown_widget
         id="widget-sandboxes-session-duration"
@@ -208,56 +171,95 @@
         empty={ready? && @analytics.result.session_duration.count == 0}
       />
       <.percentile_dropdown_widget
-        id="widget-sandboxes-time-to-ready"
+        id="widget-sandboxes-setup"
         title={
-          case @time_to_ready_percentile do
-            "p99" -> dgettext("dashboard_sandboxes", "p99 time to ready")
-            "p90" -> dgettext("dashboard_sandboxes", "p90 time to ready")
-            "avg" -> dgettext("dashboard_sandboxes", "Avg. time to ready")
-            _ -> dgettext("dashboard_sandboxes", "p50 time to ready")
+          case @setup_percentile do
+            "p99" -> dgettext("dashboard_sandboxes", "p99 setup")
+            "p90" -> dgettext("dashboard_sandboxes", "p90 setup")
+            "avg" -> dgettext("dashboard_sandboxes", "Avg. setup")
+            _ -> dgettext("dashboard_sandboxes", "p50 setup")
           end
         }
         description={
           dgettext(
             "dashboard_sandboxes",
-            "How long a sandbox takes to boot and, for an Amp Orb started from the template, to finish its .agents/setup. Orbs started from a project snapshot skip setup."
+            "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
+          )
+        }
+        value={
+          if ready? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              TuistWeb.RunnersLive.percentile_value(@analytics.result.setup, @setup_percentile)
+            )
+          end
+        }
+        metrics={
+          if ready?, do: TuistWeb.RunnersLive.percentile_metrics_for(@analytics.result.setup)
+        }
+        selected_type={@setup_percentile}
+        event_name="select_setup_percentile"
+        loading={!ready?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@setup_percentile)}
+        selected={@analytics_selected_widget == "setup"}
+        phx_click="select_widget"
+        phx_value_widget="setup"
+        trend_value={
+          if ready? do
+            TuistWeb.RunnersLive.percentile_trend(@analytics.result.setup, @setup_percentile)
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={ready? && @analytics.result.setup.count == 0}
+      />
+      <.percentile_dropdown_widget
+        id="widget-sandboxes-time-to-start"
+        title={
+          case @time_to_start_percentile do
+            "p99" -> dgettext("dashboard_sandboxes", "p99 time to start")
+            "p90" -> dgettext("dashboard_sandboxes", "p90 time to start")
+            "avg" -> dgettext("dashboard_sandboxes", "Avg. time to start")
+            _ -> dgettext("dashboard_sandboxes", "p50 time to start")
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
           )
         }
         value={
           if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
-                @analytics.result.time_to_ready[@time_to_ready_start],
-                @time_to_ready_percentile
+                @analytics.result.time_to_start,
+                @time_to_start_percentile
               )
             )
           end
         }
         metrics={
           if ready?,
-            do:
-              TuistWeb.RunnersLive.percentile_metrics_for(
-                @analytics.result.time_to_ready[@time_to_ready_start]
-              )
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@analytics.result.time_to_start)
         }
-        selected_type={@time_to_ready_percentile}
-        event_name="select_time_to_ready_percentile"
+        selected_type={@time_to_start_percentile}
+        event_name="select_time_to_start_percentile"
         loading={!ready?}
-        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@time_to_ready_percentile)}
-        selected={@analytics_selected_widget == "time_to_ready"}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@time_to_start_percentile)}
+        selected={@analytics_selected_widget == "time_to_start"}
         phx_click="select_widget"
-        phx_value_widget="time_to_ready"
+        phx_value_widget="time_to_start"
         trend_value={
           if ready? do
             TuistWeb.RunnersLive.percentile_trend(
-              @analytics.result.time_to_ready[@time_to_ready_start],
-              @time_to_ready_percentile
+              @analytics.result.time_to_start,
+              @time_to_start_percentile
             )
           end
         }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={ready? && @analytics.result.time_to_ready[@time_to_ready_start].count == 0}
+        empty={ready? && @analytics.result.time_to_start.count == 0}
       />
     </div>
     <.card_section data-part="analytics-chart-section">
@@ -279,24 +281,9 @@
             }
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "compute" -> %>
+        <% @analytics_selected_widget == "setup" -> %>
           <.chart
-            id="sandboxes-compute-chart"
-            type="line"
-            extra_options={
-              TuistWeb.RunnersLive.count_chart_options(@analytics.result.dates, @analytics_preset)
-            }
-            series={
-              count_series(
-                @analytics.result.compute,
-                dgettext("dashboard_sandboxes", "vCPU-hours")
-              )
-            }
-            y_axis_min={0}
-          />
-        <% @analytics_selected_widget == "time_to_ready" -> %>
-          <.chart
-            id="sandboxes-time-to-ready-chart"
+            id="sandboxes-setup-chart"
             type="line"
             extra_options={
               TuistWeb.RunnersLive.duration_chart_options(
@@ -304,7 +291,20 @@
                 @analytics_preset
               )
             }
-            series={time_to_ready_series(@analytics.result.time_to_ready[@time_to_ready_start])}
+            series={gapped_duration_series(@analytics.result.setup)}
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "time_to_start" -> %>
+          <.chart
+            id="sandboxes-time-to-start-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @analytics.result.dates,
+                @analytics_preset
+              )
+            }
+            series={gapped_duration_series(@analytics.result.time_to_start)}
             y_axis_min={0}
           />
         <% true -> %>

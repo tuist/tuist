@@ -546,6 +546,51 @@ defmodule TuistWeb.UsageLiveTest do
     end
   end
 
+  describe "sandbox usage" do
+    test "adds up the vCPU-hours sandboxes ran in the period", %{conn: conn, account: account} do
+      stub(DateTime, :utc_now, fn -> ~U[2026-01-17 12:00:00.000000Z] end)
+      sandbox_id = Ecto.UUID.generate()
+
+      # Two hours on 4 vCPUs in the period, and an hour before it that
+      # counts towards the previous one.
+      Tuist.Sandboxes.SandboxEvent.Buffer.insert_all(
+        for {event, at} <- [
+              {"started", ~N[2025-12-31 23:00:00.000000]},
+              {"paused", ~N[2026-01-01 00:00:00.000000]},
+              {"started", ~N[2026-01-17 08:00:00.000000]},
+              {"paused", ~N[2026-01-17 10:00:00.000000]}
+            ] do
+          %{
+            id: UUIDv7.generate(),
+            account_id: account.id,
+            sandbox_id: sandbox_id,
+            event: event,
+            source: "amp",
+            vcpus: 4,
+            memory_mb: 8192,
+            boot_source: "",
+            duration_ms: 0,
+            inserted_at: at
+          }
+        end
+      )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-sandbox-vcpu-hours", "8.0")
+      assert has_element?(lv, "#sandbox-vcpu-hours-chart")
+    end
+
+    test "is hidden while the account has no sandboxes", %{conn: conn, account: account} do
+      stub(FeatureFlags, :sandboxes_enabled?, fn _account -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute html =~ "Sandbox usage"
+    end
+  end
+
   describe "rendering" do
     test "scopes the page to a billing period rather than a free range", %{conn: conn, account: account} do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/usage")

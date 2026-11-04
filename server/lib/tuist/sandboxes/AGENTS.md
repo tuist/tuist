@@ -313,9 +313,8 @@ socket, the poller and the caller share a replica:
   times of Amp's `setup.log` in the guest (`Sandboxes.exec_running/3`, which
   neither resumes nor counts as activity) and records a `setup` event dated
   when setup finished; a log older than the row came with a disk snapshot
-  and is ignored. Time to ready waits for that event on a cold Orb, takes
-  its first stop without one as no setup, and leaves out an Orb that has
-  shown neither.
+  and is ignored. The Setup and Time to start widgets chart those
+  durations; vCPU-hours (`Analytics.compute/2`) are on the Usage page.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,

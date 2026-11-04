@@ -13,7 +13,6 @@ defmodule Tuist.Sandboxes.Events do
   @boot_sources ~w(template disk_snapshot archive)
 
   def stop_events, do: @stop_events
-  def boot_sources, do: @boot_sources
 
   @doc """
   Records `event` for the sandbox now. `:boot_source` and `:duration_ms`

@@ -8,12 +8,10 @@ defmodule Tuist.Sandboxes.Analytics do
   yet runs until now. Compute, session durations and concurrency are derived
   from those sessions.
 
-  Time to ready runs from the start of a boot (its `started` event less the
-  boot's `duration_ms`) until the sandbox can be used: right after the boot,
-  or, for an Amp Orb booted from the template, when `.agents/setup`
-  finished (its `setup` event). An Orb that stopped without a recorded setup
-  had none to run, so it was ready when it booted; one still running without
-  either is left out until it shows which.
+  Setup and time to start come straight from the durations events carry: a
+  `setup` event's is how long an Orb's `.agents/setup` ran, and a
+  `started` event that booted the sandbox (create or restore) carries how
+  long the boot took.
   """
 
   import Ecto.Query
@@ -48,17 +46,34 @@ defmodule Tuist.Sandboxes.Analytics do
 
     by_sandbox = account_id |> lifecycle_events(prev_start_dt, query_end_dt) |> Enum.chunk_by(& &1.sandbox_id)
     sessions = sessions(by_sandbox, query_end_dt)
-    current_sessions = clip(sessions, start_dt, end_dt)
-    previous_sessions = clip(sessions, prev_start_dt, start_dt)
+    events = List.flatten(by_sandbox)
+    durations = &event_durations(events, &1, buckets, prev_start_dt, start_dt, query_end_dt)
 
     %{
       dates: dates,
       created: event_count(account_id, "created", buckets, prev_start_dt, start_dt, query_end_dt),
-      compute: compute(current_sessions, previous_sessions, buckets),
       session_duration: session_duration(sessions, buckets, prev_start_dt, start_dt, end_dt),
-      time_to_ready: time_to_ready(by_sandbox, buckets, prev_start_dt, start_dt, query_end_dt),
-      concurrency: concurrency(current_sessions, buckets)
+      setup: durations.(&(&1.event == "setup")),
+      time_to_start: durations.(&(&1.event == "started" and &1.boot_source != "")),
+      concurrency: concurrency(clip(sessions, start_dt, end_dt), buckets)
     }
+  end
+
+  @doc """
+  The vCPU-hours the account's sandboxes ran between `start_datetime` and
+  `end_datetime`, in total and per day.
+  """
+  def compute(account_id, opts) when is_integer(account_id) do
+    end_dt = Keyword.fetch!(opts, :end_datetime)
+    start_dt = Keyword.fetch!(opts, :start_datetime)
+    query_end_dt = DateTime.add(end_dt, 1, :second)
+
+    account_id
+    |> lifecycle_events(start_dt, query_end_dt)
+    |> Enum.chunk_by(& &1.sandbox_id)
+    |> sessions(query_end_dt)
+    |> clip(start_dt, end_dt)
+    |> vcpu_usage(buckets(start_dt, end_dt, :day))
   end
 
   defp event_count(account_id, event, buckets, prev_start_dt, start_dt, end_dt) do
@@ -84,11 +99,11 @@ defmodule Tuist.Sandboxes.Analytics do
     }
   end
 
-  defp compute(current_sessions, previous_sessions, buckets) do
-    vcpu_hours = vcpu_hours(current_sessions)
+  defp vcpu_usage(sessions, buckets) do
+    vcpu_hours = vcpu_hours(sessions)
 
     by_bucket =
-      Enum.reduce(current_sessions, %{}, fn session, acc ->
+      Enum.reduce(sessions, %{}, fn session, acc ->
         buckets
         |> Enum.with_index()
         |> Enum.reduce(acc, fn {bucket, index}, acc ->
@@ -101,7 +116,6 @@ defmodule Tuist.Sandboxes.Analytics do
 
     %{
       vcpu_hours: vcpu_hours,
-      trend: trend(vcpu_hours(previous_sessions), vcpu_hours),
       dates: Enum.map(buckets, & &1.date),
       values:
         buckets
@@ -173,62 +187,14 @@ defmodule Tuist.Sandboxes.Analytics do
 
   defp percentile(sorted, quantile), do: Enum.at(sorted, max(ceil(quantile * length(sorted)) - 1, 0))
 
-  # Keyed by "all" and by each boot source, since a cold boot with setup
-  # takes minutes and a warm start seconds: one summary of both would hide
-  # either. Buckets where no sandbox started are gaps, not zero.
-  defp time_to_ready(by_sandbox, buckets, prev_start_dt, start_dt, end_dt) do
-    ready = Enum.flat_map(by_sandbox, &ready_times/1)
-    current = Enum.filter(ready, &within?(&1.started_at, start_dt, end_dt))
-    previous = Enum.filter(ready, &within?(&1.started_at, prev_start_dt, start_dt))
-
-    Map.new(["all" | Events.boot_sources()], fn source ->
-      of_source = if source == "all", do: & &1, else: &Enum.filter(&1, fn entry -> entry.source == source end)
-      {source, duration_summary(of_source.(current), of_source.(previous), buckets, & &1.started_at, & &1.ms, nil)}
-    end)
+  # The durations the selected events carry, summarised like session
+  # durations, with gaps for buckets without any.
+  defp event_durations(events, selected?, buckets, prev_start_dt, start_dt, end_dt) do
+    entries = for event <- events, selected?.(event), do: %{at: to_utc(event.inserted_at), ms: event.duration_ms}
+    current = Enum.filter(entries, &within?(&1.at, start_dt, end_dt))
+    previous = Enum.filter(entries, &within?(&1.at, prev_start_dt, start_dt))
+    duration_summary(current, previous, buckets, & &1.at, & &1.ms, nil)
   end
-
-  # One sandbox's events, in order. A boot that waits for setup is held
-  # until its setup or its first stop.
-  defp ready_times(events) do
-    {ready, _waiting} =
-      Enum.reduce(events, {[], nil}, fn event, {ready, waiting} ->
-        at = to_utc(event.inserted_at)
-
-        case {event.event, waiting} do
-          {"started", _waiting} when event.boot_source != "" ->
-            boot = %{
-              started_at: DateTime.add(at, -event.duration_ms, :millisecond),
-              booted_at: at,
-              source: event.boot_source
-            }
-
-            if event.boot_source == "template" and event.source == "amp",
-              do: {ready, boot},
-              else: {[ready_entry(boot, at) | ready], nil}
-
-          {"setup", %{} = boot} ->
-            {[ready_entry(boot, at) | ready], nil}
-
-          {"started", _waiting} ->
-            {ready, waiting}
-
-          {_stop, %{} = boot} when event.event != "setup" ->
-            {[ready_entry(boot, boot.booted_at) | ready], nil}
-
-          _other ->
-            {ready, waiting}
-        end
-      end)
-
-    ready
-  end
-
-  defp ready_entry(boot, ready_at),
-    do: %{
-      started_at: boot.started_at,
-      source: boot.source,
-      ms: max(DateTime.diff(ready_at, boot.started_at, :millisecond), 0)
-    }
 
   # Peak running sandboxes, vCPUs and memory within each bucket, from a sweep
   # over session starts and ends.
